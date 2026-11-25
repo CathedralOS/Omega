@@ -380,14 +380,6 @@ fn ancestors(
     Ok(ancestors)
 }
 
-fn declared_atom(program: &TypedTrees, symbol: SymbolHandle) -> Option<(Atom, String)> {
-    let definition = program.domain_definition(symbol)?;
-    Some((
-        Atom::Declared(symbol, definition.semantic_id),
-        domain_label(program, definition),
-    ))
-}
-
 /* A domain as a cast entry spells it: its path under the carrier it is declared on. */
 fn domain_label(
     program: &TypedTrees,
@@ -725,13 +717,19 @@ fn named_domains(
                 .type_reference_handles(supplied)
                 .to_vec();
             selection = Some((domain.symbol, semantic_id, supplied));
-            if let Some(alias) = &domain.alias {
-                // Naming an alias names its expansion.
-                alias
-                    .constituents
-                    .iter()
-                    .filter_map(|constituent| declared_atom(program, constituent.domain_symbol))
-                    .map(|(atom, label)| (atom, label, None))
+            if domain.alias.is_some() {
+                crate::source_state::domain::expanded_alias_members(program, domain.symbol)
+                    .map_err(|reason| {
+                        refuse(program, *handle, format!("cannot expand cast entry `{label}` ({reason})"))
+                    })?
+                    .into_iter()
+                    .map(|member| {
+                        (
+                            Atom::Declared(member.symbol, member.semantic_id),
+                            domain_label(program, member),
+                            None,
+                        )
+                    })
                     .collect()
             } else {
                 vec![(

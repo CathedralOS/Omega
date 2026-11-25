@@ -511,27 +511,24 @@ impl Program<'_> {
                     Unserved::Contract("domain establishment in a clause term"),
                 ));
             }
-            let before = self.entry_input(id, &site, entry, after)?;
-            if let Some(domain) = self.domain_entry_change(id, before, after, &site, entry)? {
-                match entry.kind {
-                    CastEntryKind::Add => {
-                        for gained in after
-                            .qualification()
-                            .domains
-                            .members()
-                            .filter(|d| !before.qualification().domains.contains(*d))
-                        {
-                            added = added
-                                .with(gained)
-                                .ok_or_else(|| unavailable("domain cast repeats an addition"))?;
-                        }
+            let named = self.entry_domains(id, &site)?;
+            let before = self.entry_input(id, &site, entry, after, named)?;
+            self.domain_entry_change(id, before, after, &site, entry, named)?;
+            let input = before.qualification().domains;
+            let output = after.qualification().domains;
+            match entry.kind {
+                CastEntryKind::Add => {
+                    for gained in output.members().filter(|domain| !input.contains(*domain)) {
+                        added = added
+                            .with(gained)
+                            .ok_or_else(|| unavailable("domain cast repeats an addition"))?;
                     }
-                    CastEntryKind::Remove => {
-                        let at = SourceOrigin::of(self.typed.expression_table.source_span(handle));
-                        removed.push((domain, at));
-                    }
-                    CastEntryKind::Keep => {}
                 }
+                CastEntryKind::Remove => {
+                    let at = SourceOrigin::of(self.typed.expression_table.source_span(handle));
+                    removed.extend(named.members().map(|domain| (domain, at)));
+                }
+                CastEntryKind::Keep => {}
             }
             if entry.first {
                 return Ok(DomainCast {
@@ -573,6 +570,41 @@ impl Program<'_> {
         }
     }
 
+    /// The selected declaration is retained for provenance. A transparent
+    /// alias names its leaves, each with its own establishment and custody.
+    fn entry_domains(&self, id: MachineId, cast: &TableCastExpression) -> Checked<DomainSet> {
+        if Policy::of_domain(cast.domain).is_some() {
+            return Ok(DomainSet::EMPTY);
+        }
+        let selected = crate::body::DomainInstance {
+            declaration: cast.semantic_domain_symbol,
+            identity: cast.semantic_domain_id,
+        };
+        let definition = self.domain_theory(id, selected)?;
+        if definition.alias.is_none() {
+            return Ok(DomainSet::EMPTY.with(selected).expect("one domain fits"));
+        }
+        let invalid = |reason| refuse(id, Construct::Machine, Unserved::Type(reason));
+        let mut named = DomainSet::EMPTY;
+        for member in
+            crate::source_state::domain::expanded_alias_members(self.typed, selected.declaration)
+                .map_err(invalid)?
+        {
+            if !member.type_parameters.is_empty() {
+                return Err(invalid(
+                    "domain alias constituent without its prepared application",
+                ));
+            }
+            named = named
+                .with(crate::body::DomainInstance {
+                    declaration: member.symbol,
+                    identity: member.semantic_id,
+                })
+                .ok_or_else(|| invalid("more than four declared domains"))?;
+        }
+        Ok(named)
+    }
+
     /// Recover the input of this signed entry from its retained output.
     fn entry_input(
         &mut self,
@@ -580,6 +612,7 @@ impl Program<'_> {
         cast: &TableCastExpression,
         entry: language_core::cast_form::CastEntry,
         result: ValueType,
+        named: DomainSet,
     ) -> Checked<ValueType> {
         use language_core::cast_form::CastEntryKind;
         let unavailable = || {
@@ -607,22 +640,10 @@ impl Program<'_> {
                 (CastEntryKind::Keep, Some(after)) if after == policy => Some(after),
                 _ => return Err(unavailable()),
             };
-        } else {
-            if !cast.semantic_domain_symbol.is_valid()
-                || cast.semantic_domain_id == semantic_vocabulary::SemanticDomainId::NULL
-            {
-                return Err(unavailable());
+        } else if entry.kind == CastEntryKind::Remove {
+            for domain in named.members() {
+                before.domains = before.domains.with(domain).ok_or_else(unavailable)?;
             }
-            let domain = crate::body::DomainInstance {
-                declaration: cast.semantic_domain_symbol,
-                identity: cast.semantic_domain_id,
-            };
-            before.domains = match entry.kind {
-                CastEntryKind::Add => None,
-                CastEntryKind::Remove => before.domains.with(domain),
-                CastEntryKind::Keep => Some(before.domains),
-            }
-            .ok_or_else(unavailable)?;
         }
         result.qualified(before).ok_or_else(unavailable)
     }
@@ -704,7 +725,8 @@ impl Program<'_> {
         result: ValueType,
         cast: &TableCastExpression,
         entry: language_core::cast_form::CastEntry,
-    ) -> Checked<Option<crate::body::DomainInstance>> {
+        named: DomainSet,
+    ) -> Checked<()> {
         use language_core::cast_form::CastEntryKind;
         let mistyped = |what| refuse(id, Construct::Machine, Unserved::Typing(what));
         if operand.qualified(Qualification::NONE) != result.qualified(Qualification::NONE)
@@ -717,20 +739,10 @@ impl Program<'_> {
             if before != after {
                 return Err(mistyped("kept domain that changes the type"));
             }
-            if self
-                .typed
-                .domain_definition(cast.semantic_domain_symbol)
-                .is_some()
-                && !before
-                    .domains
-                    .contains(crate::body::DomainInstance {
-                        declaration: cast.semantic_domain_symbol,
-                        identity: cast.semantic_domain_id,
-                    })
-            {
+            if !named.is_subset_of(&before.domains) {
                 return Err(mistyped("kept domain that the operand does not carry"));
             }
-            return Ok(None);
+            return Ok(());
         }
         let (wider, narrower) = match entry.kind {
             CastEntryKind::Remove => (before, after),
@@ -744,27 +756,27 @@ impl Program<'_> {
                 && narrower.policy.is_none()
                 && wider.domains == narrower.domains
             {
-                Ok(None)
+                Ok(())
             } else {
                 Err(invalid())
             };
         }
-        let selected = crate::body::DomainInstance {
-            declaration: cast.semantic_domain_symbol,
-            identity: cast.semantic_domain_id,
-        };
         if !narrower.domains.is_subset_of(&wider.domains)
             || narrower.policy != wider.policy
-            || narrower.domains.contains(selected)
-            || !wider.domains.contains(selected)
+            || !named.is_subset_of(&wider.domains)
+            || named
+                .members()
+                .any(|domain| narrower.domains.contains(domain))
         {
             return Err(invalid());
         }
-        let allowed = match entry.kind {
-            CastEntryKind::Add => self.with_refinement(id, DomainSet::EMPTY, selected)?,
-            CastEntryKind::Remove => DomainSet::EMPTY.with(selected).expect("one domain fits"),
-            CastEntryKind::Keep => return Err(invalid()),
-        };
+        let mut allowed = named;
+        if entry.kind == CastEntryKind::Add {
+            allowed = DomainSet::EMPTY;
+            for domain in named.members() {
+                allowed = self.with_refinement(id, allowed, domain)?;
+            }
+        }
         if wider
             .domains
             .members()
@@ -772,7 +784,7 @@ impl Program<'_> {
         {
             return Err(invalid());
         }
-        Ok(Some(selected))
+        Ok(())
     }
 
     /// Issuance restricts adding a domain, not forgetting its displayed

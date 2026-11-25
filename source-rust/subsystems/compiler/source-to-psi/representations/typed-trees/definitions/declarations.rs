@@ -1485,6 +1485,54 @@ pub mod domain {
                 .is_some_and(|laid| matches(laid.semantic_type))
     }
 
+    /// Expand the direct declaration edges of a transparent alias. A diamond
+    /// names a leaf once. A missing edge or cycle cannot produce a partial set.
+    pub fn expanded_alias_members(
+        program: &TypedTrees,
+        symbol: SymbolHandle,
+    ) -> Result<Vec<&DomainDefinition>, &'static str> {
+        fn visit<'a>(
+            program: &'a TypedTrees,
+            symbol: SymbolHandle,
+            active: &mut Vec<SymbolHandle>,
+            done: &mut Vec<SymbolHandle>,
+            leaves: &mut Vec<&'a DomainDefinition>,
+        ) -> Result<(), &'static str> {
+            if done.contains(&symbol) {
+                return Ok(());
+            }
+            let definition = program
+                .domain_definition(symbol)
+                .ok_or("domain alias constituent without a resolved declaration")?;
+            if let Some(alias) = &definition.alias {
+                if active.contains(&symbol) {
+                    return Err("domain alias cycle");
+                }
+                if alias.constituents.is_empty() {
+                    return Err("domain alias without a constituent");
+                }
+                active.push(symbol);
+                for member in &alias.constituents {
+                    visit(program, member.domain_symbol, active, done, leaves)?;
+                }
+                active.pop();
+            } else {
+                leaves.push(definition);
+            }
+            done.push(symbol);
+            Ok(())
+        }
+        let mut leaves = Vec::new();
+        visit(
+            program,
+            symbol,
+            &mut Vec::new(),
+            &mut Vec::new(),
+            &mut leaves,
+        )?;
+        Ok(leaves)
+    }
+
     pub fn domain_by_symbol(
         program: &TypedTrees,
         symbol: SymbolHandle,
