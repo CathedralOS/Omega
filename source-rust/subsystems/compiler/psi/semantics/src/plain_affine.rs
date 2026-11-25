@@ -3091,15 +3091,6 @@ impl<'a> Analysis<'a> {
     ) -> Result<(), Error> {
         use terminal_psi::OperationKind as Op;
         let site = Site::Operation(operation.id);
-        if let Some(flow) = &mut self.claim_flow {
-            flow.operation(
-                &mut state.claims,
-                operation,
-                self.types,
-                &self.roots,
-                settled,
-            )?;
-        }
         if let Op::DecomposeStructuralValue { subject } = &operation.kind {
             if operation.result != terminal_psi::OperationResult::Unit {
                 return Err(Error::malformed(
@@ -3118,10 +3109,18 @@ impl<'a> Analysis<'a> {
             let root = self.root(subject.place)?.ok_or(Error::unsupported(
                 "decomposition requires tracked owned storage",
             ))?;
-            if !root.owned || !root.affine || !root.unqualified_owned {
+            if !root.owned || !root.affine {
                 return Err(Error::unsupported(
-                    "decomposition requires unqualified owned custody without independent content",
+                    "decomposition requires owned affine custody",
                 ));
+            }
+            if !root.unqualified_owned {
+                let machine = self.body.ok_or(Error::malformed("decomposition has no machine"))?;
+                crate::content_transformations::partition::require_decomposition_laws(module, machine, subject)
+                    .map_err(Error::unsupported)?;
+                if self.claim_flow.is_some() && !state.claims.original_content_at(machine, subject) {
+                    return Err(Error::unsupported("qualified decomposition lost its original content claim"));
+                }
             }
             let path = self.canonical(subject.place, &subject.path)?;
             // Independent claims and qualifications are not a wrapper's disposition.
@@ -3140,6 +3139,17 @@ impl<'a> Analysis<'a> {
                 ));
             }
             region.partition(&path);
+        }
+        if let Some(flow) = &mut self.claim_flow {
+            flow.operation(
+                &mut state.claims,
+                operation,
+                self.types,
+                &self.roots,
+                settled,
+            )?;
+        }
+        if matches!(operation.kind, Op::DecomposeStructuralValue { .. }) {
             return Ok(());
         }
         for argument in terminal_psi::call_structural_arguments(&operation.kind) {
@@ -3970,7 +3980,10 @@ impl<'a> Analysis<'a> {
                 || !declaration.descriptor_cleanup)
         {
             let mut actions = Vec::new();
-            if !info.unqualified_owned {
+            // Components mode can only be reached by the checked consuming
+            // operation on this exact root. Its content obligations survive
+            // retirement of the storage that held the opened wrapper.
+            if !info.unqualified_owned && region.mode != Mode::Components {
                 return Err(Error::unsupported(
                     "component cleanup cannot settle qualifications or independent content custody",
                 ));

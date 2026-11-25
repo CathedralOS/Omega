@@ -78,6 +78,28 @@ impl ClaimsState {
         }
         Ok(self.clone())
     }
+    /// The entry claim must still occupy the subject when its wrapper opens.
+    pub(super) fn original_content_at(
+        &self,
+        machine: &TerminalMachine,
+        subject: &StructuralArgument,
+    ) -> bool {
+        let Some(entry) = crate::exactly_one::exactly_one(
+            machine.content_entry_claims.iter(),
+            |entry| entry.input.root == subject.place,
+        ) else {
+            return false;
+        };
+        entry.input.segments.is_empty()
+            && crate::exactly_one::exactly_one(self.at(subject.place), |claim| {
+                claim.path == subject.path
+            })
+            .is_some_and(|claim| claim.identity == entry.claim)
+            && machine.entry_claims.iter().any(|binding| {
+                binding.claim == entry.claim && binding.input == subject.place && binding.path == subject.path
+            })
+    }
+
     fn take_at(
         &mut self,
         place: PlaceId,
