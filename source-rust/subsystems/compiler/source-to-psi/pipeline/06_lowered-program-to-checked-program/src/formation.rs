@@ -3,7 +3,7 @@
 //! logical observations have no runtime representation or transferable receipt;
 //! every partial computation uses the ordinary scalar goal and proof kernel.
 
-mod content_guarantees;
+use terminal_semantics::content_transformations::declarations as content_guarantees;
 mod content_projections;
 
 use std::borrow::Cow;

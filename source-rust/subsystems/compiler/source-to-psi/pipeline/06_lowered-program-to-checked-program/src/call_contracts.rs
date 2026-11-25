@@ -553,13 +553,29 @@ pub(crate) fn invocation<'a>(
                     "boundary call needs its structural qualification proof",
                 ));
             }
+            if !boundary.content_guarantees.is_empty() {
+                let InvocationSite::Operation(producer) = row.site else {
+                    return Err(refuse("content call needs an exact normal producer operation"));
+                };
+                let operation = caller.operation(producer)
+                    .ok_or_else(|| refuse("content call producer is absent"))?;
+                let requested = terminal_semantics::content_transformations::boundary_calls::compositions(module, caller, operation).map_err(refuse)?;
+                let published = &caller.content_partition_compositions;
+                let first = published.partition_point(|row| row.producer_operation < producer);
+                let rows = published[first..].iter().take_while(|row| row.producer_operation == producer);
+                if rows.ne(&requested) {
+                    return Err(refuse("content call has no exact normal completion composition"));
+                }
+            }
             // The descriptor checker verifies writable reference fields and
             // applies their published lifetime anchors at each call.
             if !terminal_semantics::structural_qualifications::formal_domains_cover_requirements(
                 &boundary.structural_parameters,
                 &boundary.requires,
             ) || !boundary.normal_qualifications.is_empty()
-                || !boundary.content_guarantees.is_empty()
+                || boundary.content_guarantees.iter().any(|guarantee| {
+                    !matches!(guarantee, terminal_psi::BoundaryContentGuarantee::Conservation(_))
+                })
                 || !boundary.result_reference_regions.is_empty()
                 || !boundary.program_local_root_introductions.is_empty()
             {

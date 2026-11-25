@@ -12163,6 +12163,8 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
     declaration_foundations::validate_calling_signatures(module)?;
     for boundary in &module.interfaces.boundary_machines {
         declaration_foundations::validate_boundary_machine(module, boundary)?;
+        terminal_semantics::content_transformations::declarations::boundary(module, boundary)
+            .map_err(CodecError::MalformedStructuralFoundation)?;
     }
     for candidate in &module.interfaces.provider_candidates {
         declaration_foundations::validate_provider_candidate(module, candidate)?;
@@ -12249,8 +12251,13 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
                 "no-normal validation has incomplete declared type contracts",
             )
         })?;
+    let has_boundary_content = terminal_semantics::content_transformations::boundary_calls::has_declared_conservation(module);
     for machine in &module.machines {
         machine_foundations::validate_machine(module, machine, &mut transfers, &inhabitation)?;
+        if has_boundary_content || !machine.content_partition_compositions.is_empty() {
+            terminal_semantics::content_transformations::boundary_calls::verify_machine(module, machine)
+                .map_err(CodecError::MalformedStructuralFoundation)?;
+        }
     }
     empty_elimination_foundations::validate(module, &contracts, &inhabitation)?;
     terminal_semantics::activation_storage::validate_module(module)
