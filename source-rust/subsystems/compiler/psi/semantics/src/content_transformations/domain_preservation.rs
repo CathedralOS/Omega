@@ -308,32 +308,38 @@ fn content_paths<'a>(
         }
         ContentProjectionScalar::SubjectField(path)
         | ContentProjectionScalar::RuntimeScalarEmbedding(path) => {
-            let mut current = carrier;
-            let mut canonical = Vec::new();
-            for (index, identity) in path.iter().enumerate() {
-                let declaration =
-                    exactly_one(types.clone(), |declaration| declaration.id == current)?;
-                let field = exactly_one(declaration.shape.direct_fields()?.iter(), |field| {
-                    identities.text(field.identity) == Some(identity.as_str())
-                        && !field.relevance.is_erased()
-                })?;
-                canonical.push(Segment::Field(field.id));
-                if index + 1 < path.len() {
-                    current = match field.field_type {
-                        terminal_psi::StructuralFieldType::Structural(child) => child,
-                        _ => return None,
-                    };
-                } else if field.field_type.scalar_type().is_none() {
-                    return None;
-                }
-            }
-            if canonical.is_empty() {
-                return None;
-            }
+            let (canonical, _) = content_scalar_path(types, identities, carrier, path)?;
             output.push(canonical);
             Some(())
         }
     }
+}
+
+/// Resolve a content expression's field names against its exact structural carrier.
+pub fn content_scalar_path<'a>(
+    types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    identities: &TerminalIdentityTable,
+    carrier: StructuralTypeId,
+    path: &[String],
+) -> Option<(Vec<Segment>, ScalarType)> {
+    let mut current = carrier;
+    let mut canonical = Vec::with_capacity(path.len());
+    for (index, identity) in path.iter().enumerate() {
+        let declaration = exactly_one(types.clone(), |declaration| declaration.id == current)?;
+        let field = exactly_one(declaration.shape.direct_fields()?.iter(), |field| {
+            identities.text(field.identity) == Some(identity.as_str())
+                && !field.relevance.is_erased()
+        })?;
+        canonical.push(Segment::Field(field.id));
+        if index + 1 == path.len() {
+            return Some((canonical, field.field_type.scalar_type()?));
+        }
+        let terminal_psi::StructuralFieldType::Structural(child) = field.field_type else {
+            return None;
+        };
+        current = child;
+    }
+    None
 }
 
 pub fn domain_write_is_disjoint<'a>(

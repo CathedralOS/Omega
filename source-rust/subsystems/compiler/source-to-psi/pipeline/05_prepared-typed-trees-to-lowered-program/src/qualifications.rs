@@ -861,7 +861,26 @@ impl Qualifications {
             semantic_domain,
             identity,
             carrier,
-            content_projection: None,
+            content_projection: declared
+                .content_projection
+                .as_ref()
+                .map(|projection| {
+                    let domain = semantic_vocabulary::ContentDomainId::new(semantic_domain.get())
+                        .ok_or_else(|| {
+                        unavailable("content projection lost its semantic domain")
+                    })?;
+                    Ok(terminal_psi::StructuralContentProjection {
+                        identity: semantic_vocabulary::ContentProjectionIdentity {
+                            domain,
+                            projection_report_fingerprint: projection
+                                .expression
+                                .report_fingerprint(&projection.algebra),
+                        },
+                        algebra: projection.algebra.clone(),
+                        expression: projection.expression.clone(),
+                    })
+                })
+                .transpose()?,
             byte_predicate: None,
             establishment_routes,
         });

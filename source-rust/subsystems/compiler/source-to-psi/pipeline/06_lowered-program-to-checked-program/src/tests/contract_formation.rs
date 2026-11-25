@@ -953,3 +953,52 @@ machine build_entry() { let value: u64 in Safe = 7u64 as +Safe; }
         "{violations:?}"
     );
 }
+
+#[test]
+fn content_projection_form_checks_endpoint_order_on_the_actual_subject_fields() {
+    use semantic_vocabulary::{
+        ContentAlgebra, ContentAlgebraKind, ContentDomainId, ContentProjectionExpression,
+        ContentProjectionIdentity, ContentProjectionScalar as Scalar,
+    };
+    let mut accepted = accepted_source(
+        r#"
+data Region { base: u64; length: u64; }
+domain Region::Owned;
+machine retain(value: Region in Owned) -> Region in Owned { value }
+machine build_entry() {}
+"#,
+    );
+    let module = &mut accepted.elaboration.module;
+    let algebra = ContentAlgebra {
+        kind: ContentAlgebraKind::IntervalSet,
+        parameter: "Space".into(),
+    };
+    let base = Scalar::RuntimeScalarEmbedding(vec!["base".into()]);
+    let length = Scalar::RuntimeScalarEmbedding(vec!["length".into()]);
+    let end = Scalar::Add(Box::new(base.clone()), Box::new(length.clone()));
+    let mut form = |lower, upper| {
+        let domain = &mut module.types.structural_domains[0];
+        let expression = ContentProjectionExpression::IntervalSet(vec![(lower, upper)]);
+        domain.content_projection = Some(terminal_psi::StructuralContentProjection {
+            identity: ContentProjectionIdentity {
+                domain: ContentDomainId::new(domain.semantic_domain.get()).unwrap(),
+                projection_report_fingerprint: expression.report_fingerprint(&algebra),
+            },
+            algebra: algebra.clone(),
+            expression,
+        });
+        crate::formation::module(module, &[], &mut Default::default())
+    };
+    form(base.clone(), end.clone()).expect("the mathematical sum may exceed the address carrier");
+    let reversed = form(end, base.clone()).expect_err("a nonnegative length may be positive");
+    assert!(
+        reversed.detail.contains("content projection"),
+        "{reversed:?}"
+    );
+    let unrelated =
+        form(base, length).expect_err("different subject fields have no relative bound");
+    assert!(
+        unrelated.detail.contains("content projection"),
+        "{unrelated:?}"
+    );
+}
