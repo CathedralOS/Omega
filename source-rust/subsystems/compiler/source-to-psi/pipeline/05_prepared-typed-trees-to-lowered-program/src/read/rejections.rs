@@ -241,9 +241,8 @@ impl Program<'_> {
         refused
     }
 
-    /// A closed scalar value or a selected implementation can distinguish
-    /// applications of the same declaration. Other arguments can still need
-    /// substitution or proof before the checker knows whether they differ.
+    /// Compare closed arguments of the same declaration in their supplying scopes.
+    /// An unresolved argument or reference region can still require proof.
     fn different_static_arguments(
         &self,
         destination: Destination,
@@ -311,6 +310,34 @@ impl Program<'_> {
                 continue;
             };
             match parameter.kind {
+                TypeParameterKind::Type => {
+                    let closed_type = |source: &crate::source_state::SourceTypeApplication| {
+                        crate::source_state::domain::index_argument_is_closed(
+                            self.typed,
+                            source.reference,
+                        )
+                        .then(|| {
+                            source
+                                .scope
+                                .region_free_type_identity(self.typed, source.reference)
+                        })
+                        .flatten()
+                    };
+                    if let (Some(wanted), Some(carried)) = (closed_type(&left), closed_type(&right))
+                        && wanted != carried
+                    {
+                        return Some(format!(
+                            "{} requires `{}` with `{} = {}`, but this value carries `{}`",
+                            destination.named(),
+                            definition.name.as_str(),
+                            parameter.name.as_str(),
+                            self.typed
+                                .display_type_reference_with_constraints(left.reference),
+                            self.typed
+                                .display_type_reference_with_constraints(right.reference),
+                        ));
+                    }
+                }
                 TypeParameterKind::Implementation => {
                     if let (Some(left), Some(right)) = (
                         implementation(left.reference),
