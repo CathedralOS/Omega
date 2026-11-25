@@ -1063,39 +1063,30 @@ impl Program<'_> {
                         ));
                     }
                     ExpressionNode::Cast(cast) => {
-                        use language_core::cast_form::CastEntryKind;
                         let entry = cast
                             .form
                             .entry()
                             .ok_or_else(|| unavailable("cast in a clause term"))?;
-                        // Establishment has its own formation obligation. A
-                        // clause cannot assume the predicate it is about to
-                        // state to justify its operand.
-                        if entry.kind == CastEntryKind::Add {
-                            return Err(unavailable("domain establishment in a clause term"));
-                        }
-                        if !cast.result_type.is_valid() {
-                            return Err(unavailable("domain cast typing did not account for"));
-                        }
-                        let (term, before) = self
-                            .clause_term(id, scope, cast.value, ClauseUse::Scalar(expected))?
+                        let run = self.read_domain_cast(
+                            id,
+                            super::casts::CastContext::Clause,
+                            expression,
+                            cast,
+                            entry,
+                        )?;
+                        let (term, actual) = self
+                            .clause_term(id, scope, run.value, ClauseUse::Scalar(expected))?
                             .scalar(id)?;
-                        let after = self.scalar_domain_cast_type(id, cast.result_type, before)?;
-                        let domain = self.domain_entry_change(id, before, after, cast, entry)?;
-                        if entry.kind == CastEntryKind::Remove
-                            && let Some(domain) = domain
-                        {
-                            self.domain_removal(
-                                id,
-                                domain,
-                                before,
-                                SourceOrigin::of(table.source_span(cast.value)),
-                            )?;
+                        if actual != run.input {
+                            return Err(unavailable(
+                                "domain cast does not account for the clause operand's qualifications",
+                            ));
                         }
-                        // Only qualification changed. Keeping the original
-                        // term also keeps its immutable value identity and
-                        // every fact already proved of it.
-                        (term, after)
+                        for (domain, source) in run.removed {
+                            self.domain_removal(id, domain, actual, source)?;
+                        }
+                        // All entries refer to this one immutable scalar term.
+                        (term, run.result)
                     }
                     // `old` reads the invocation input, not the current
                     // working storage. A scalar input already has that

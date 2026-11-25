@@ -335,3 +335,26 @@ fn adding_a_refinement_accounts_for_its_ancestors_on_the_same_value() {
         "{refusal:?}"
     );
 }
+
+#[test]
+fn erasing_a_refinement_in_a_contract_preserves_the_operand_in_either_order() {
+    const DOMAINS: &str = "domain i32::Positive requires self > 0;
+        domain i32::Positive::Small requires self < 100;";
+    for entries in ["-Positive -Positive::Small", "-Positive::Small -Positive"] {
+        Program::of(&format!(
+            "{DOMAINS}
+            machine echo(x: i32 in Positive::Small) -> i32
+                ensures result == (x as {entries}) {{ x as -Positive::Small -Positive }}"
+        ))
+        .judged(|_| {})
+        .accepted();
+    }
+    let wrong = Program::of(&format!(
+        "{DOMAINS}
+        machine wrong(x: i32 in Positive::Small) -> i32
+            ensures result == (x as -Positive -Positive::Small) {{ 0i32 }}"
+    ))
+    .judged(|_| {})
+    .rejected();
+    assert_eq!(wrong.unproved.len(), 1, "{wrong:?}");
+}
