@@ -512,9 +512,14 @@ machine entry() -> bool {{ farther(issue(8), issue(7)) }}
     );
 }
 
+// `-D` discards no fact, and `+D` on a routed domain may retain the exact
+// evidence the same value already carries (wiki/spec/language/domains.md,
+// "Domain-only casts"). The twin's input never carried `Classified`: its
+// predicate is proved, but `rebuild` is not an issuer, so the cast cannot mint
+// the membership.
 #[test]
-fn removing_a_domain_does_not_authorize_its_reintroduction() {
-    let source = format!(
+fn removing_a_domain_keeps_its_evidence_for_the_same_value_but_cannot_mint_it() {
+    let retained = format!(
         r#"
 {DOMAIN}
 machine rebuild(handle: i64 in Classified) -> i64 in Classified {{
@@ -523,9 +528,23 @@ machine rebuild(handle: i64 in Classified) -> i64 in Classified {{
 machine entry() -> i64 in Classified {{ rebuild(issue(7)) }}
 "#
     );
-    let verdict = judge(invocation(&source)).unwrap();
+    let verdict = judge(invocation(&retained)).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+
+    let minted = format!(
+        r#"
+{DOMAIN}
+machine rebuild(handle: i64) -> i64 in Classified
+requires handle != -1
+{{
+    handle as +Classified
+}}
+machine entry() -> i64 in Classified {{ rebuild(7) }}
+"#
+    );
+    let verdict = judge(invocation(&minted)).unwrap();
     let RouteVerdict::Rejected { violations, .. } = verdict else {
-        panic!("the checker must reject reintroduction without authority");
+        panic!("a cast cannot mint a routed domain without its issuer: {verdict:?}");
     };
     assert!(
         violations.iter().any(|row| row
