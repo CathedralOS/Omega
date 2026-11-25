@@ -3541,7 +3541,9 @@ impl<'a> Prover<'a> {
                 // image, while a result's local facts can sharpen that image.
                 let image = self.bound_from_arithmetic_image(term, direction);
                 let definition = self.bound_on_definition(term, integer, direction);
-                let multiple = self.multiple_remainder_bound(term, None, direction);
+                let multiple = self
+                    .multiple_remainder_bound(term, None, direction)
+                    .or_else(|| self.literal_equality_bound(term, direction));
                 let best_extra = match (definition, multiple) {
                     (Some(left), Some(right)) => Some(
                         if direction.prefers(integer.compare(right.literal, left.literal)) {
@@ -3611,6 +3613,40 @@ impl<'a> Prover<'a> {
             .ok_or("the kernel refuses the expression identity")?;
         Self::carrier_bound_from_image(term, relation, equality, direction)
             .ok_or("the image bound is outside the comparison carrier")
+    }
+
+    /// A bound on a term with no value of its own from a fact that it equals
+    /// a literal: `7 == items[i]` bounds `items[i]` by 7 both ways. A read
+    /// of a shared input's cell that no operation captures has only such
+    /// facts.
+    fn literal_equality_bound(&mut self, term: &ScalarTerm, direction: Direction) -> Option<Bound> {
+        let (index, literal, term_first) =
+            self.facts.iter().enumerate().find_map(|(index, fact)| {
+                let Proposition::Equal(left, right) = fact.proposition() else {
+                    return None;
+                };
+                let (literal, term_first) = if left == term {
+                    (right, true)
+                } else if right == term {
+                    (left, false)
+                } else {
+                    return None;
+                };
+                let ScalarTerm::Integer { value, .. } = literal else {
+                    return None;
+                };
+                Some((index, *value, term_first))
+            })?;
+        let equality = self.facts[index].proof(&self.facts);
+        // `term <= literal` reads the equality as written when `term` comes
+        // first; the lower bound reads it the other way round.
+        let proof = if term_first == matches!(direction, Direction::Upper) {
+            weaken(equality)
+        } else {
+            flip(equality).and_then(weaken)
+        }
+        .ok()?;
+        Some(Bound { literal, proof })
     }
 
     /// A predicate can unfold an operation that already produced a scalar

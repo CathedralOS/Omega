@@ -372,6 +372,86 @@ fn a_forwarder_covers_a_projected_route_with_a_guard_on_that_field() {
     assert!(unproved(&twin) && twin.contains("CrashCoverage"), "{twin}");
 }
 
+/// A call may select the guarded cell with a value equal to the caller's
+/// selector but not the same value: a copied record field
+/// (`selection.index`), a callee result whose guarantee is `result == index`,
+/// or a `match` that yields `index` on both arms. The caller's
+/// `requires items[index] == 7` still covers the route `items[selected] ==
+/// 0`, because both read the shared input's cell at entry and the selectors
+/// are equal. Each twin drops only that requirement and is refused; passing
+/// an unrelated selector is refused too, so the cover comes from the
+/// equality and not from the shape of the call.
+#[test]
+fn a_crash_guard_reads_the_cell_an_equal_selector_chooses() {
+    let callee = "machine maybe_zero(items: @[u64; 2], index: u64) -> u64 \
+        requires index < 2 crashes Trap items[index] == 0 \
+        { transition items[index] == 0 { true -> bad(), false -> (items[index]) } \
+          machine bad() -> u64 { crash Trap; } }";
+    let uncovered = |source: &str| {
+        let twin = rejected(source);
+        assert!(unproved(&twin) && twin.contains("CrashCoverage"), "{twin}");
+    };
+    let field = |requires: &str| {
+        format!(
+            "{callee} public data Selection [copy] {{ index: u64; }} \
+             public machine read_seven(items: @[u64; 2], selection: Selection) -> u64 \
+             requires selection.index < 2 {requires} {{ maybe_zero(items, selection.index) }}"
+        )
+    };
+    accepted(&field("requires items[selection.index] == 7"));
+    uncovered(&field(""));
+
+    let call_result = |requires: &str| {
+        format!(
+            "{callee} machine preserve(index: u64) -> u64 ensures result == index {{ index }} \
+             public machine read_seven(items: @[u64; 2], index: u64) -> u64 \
+             requires index < 2 {requires} \
+             {{ let selected: u64 = preserve(index); maybe_zero(items, selected) }}"
+        )
+    };
+    accepted(&call_result("requires items[index] == 7"));
+    uncovered(&call_result(""));
+
+    let join = |requires: &str| {
+        format!(
+            "{callee} public machine read_seven(items: @[u64; 2], index: u64, flag: bool) -> u64 \
+             requires index < 2 {requires} \
+             {{ let selected: u64 = match flag {{ true -> index, false -> index }}; \
+                maybe_zero(items, selected) }}"
+        )
+    };
+    accepted(&join("requires items[index] == 7"));
+    uncovered(&join(""));
+
+    uncovered(&format!(
+        "{callee} public machine read_seven(items: @[u64; 2], index: u64, other: u64) -> u64 \
+         requires index < 2 requires other < 2 requires items[index] == 7 \
+         {{ maybe_zero(items, other) }}"
+    ));
+}
+
+/// The same holds for a `requires` over the cell: `nonzero(items,
+/// selection.index)` owes `items[index] != 0`, which the caller's
+/// `requires items[selection.index] == 7` establishes, and nothing else does.
+#[test]
+fn a_requirement_reads_the_cell_an_equal_selector_chooses() {
+    let program = |requires: &str| {
+        format!(
+            "machine nonzero(items: @[u64; 2], index: u64) -> u64 \
+             requires index < 2 requires items[index] != 0 {{ items[index] }} \
+             public data Selection [copy] {{ index: u64; }} \
+             public machine read_seven(items: @[u64; 2], selection: Selection) -> u64 \
+             requires selection.index < 2 {requires} {{ nonzero(items, selection.index) }}"
+        )
+    };
+    accepted(&program("requires items[selection.index] == 7"));
+    let twin = rejected(&program(""));
+    assert!(
+        unproved(&twin) && twin.contains("CallRequirement"),
+        "{twin}"
+    );
+}
+
 /// An actual that lends an element chosen at run time (`@rows[row]`) has no
 /// static path for a restated route to name, so the call is refused by name
 /// rather than its route dropped: an untranslated continuation cannot erase
