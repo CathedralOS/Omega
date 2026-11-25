@@ -1089,6 +1089,6 @@ fn proof_fact_membership_domain(
     }
     match membership_selection(symbols, name, reference) {
         Ok(Some(MembershipSelection::Domain(symbol))) => symbol,
-        Ok(Some(MembershipSelection::Case { .. })) | Ok(None) | Err(_) => SymbolHandle::invalid(),
+        _ => SymbolHandle::invalid(),
     }
 }

@@ -1406,23 +1406,22 @@ fn expression_candidates(
         }),
         ExpressionNode::Membership(membership) => {
             let members = expressions.name_path_members(membership.domain);
-            if !membership.domain_symbol.is_valid() && !membership.case_type_symbol.is_valid() {
-                let name = members.joined_path();
-                let reference = path_span(members, expression_span);
-                let _ = crate::resolution::names::membership_selection(
-                    &program.symbols,
-                    &name,
-                    reference,
-                )
-                .map_err(|message| Diagnostic::error(message).with_source_span(reference))?;
-            }
-            if membership.domain_symbol.is_valid() {
+            let reference = path_span(members, expression_span);
+            let needs_carrier = !membership.domain_symbol.is_valid()
+                && !membership.case_type_symbol.is_valid()
+                && matches!(
+                    crate::resolution::names::membership_selection(
+                        &program.symbols, &members.joined_path(), reference,
+                    ).map_err(|message| Diagnostic::error(message).with_source_span(reference))?,
+                    Some(crate::resolution::names::MembershipSelection::DomainNeedsCarrier),
+                );
+            if membership.domain_symbol.is_valid() || needs_carrier {
                 candidates.push(Candidate {
                     argument_path: None,
                     expression,
-                    source_span: path_span(members, expression_span),
+                    source_span: reference,
                     kind: Kind::DomainMembership,
-                    target: CandidateTarget::Resolved(membership.domain_symbol),
+                    target: resolved_or_late(membership.domain_symbol, LateBinding::CheckedDomainMembership),
                 });
             } else {
                 if membership.case_type_symbol.is_valid() {
