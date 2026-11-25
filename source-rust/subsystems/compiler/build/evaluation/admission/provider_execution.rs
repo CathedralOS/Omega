@@ -11,6 +11,7 @@ use diagnostics::Diagnostic;
 pub(crate) struct BuildProviderPlans {
     selected: selected_provider_plans::SelectedProviderPlanFacts,
     packages: Option<package_compilation::PackageCompilationInputs>,
+    supplied_scope: Option<declaration_scope::PackageDeclarationScope>,
 }
 
 pub(crate) struct BuildProviderInstallation {
@@ -21,11 +22,26 @@ pub(crate) struct BuildProviderInstallation {
 impl BuildProviderPlans {
     pub(crate) fn for_packages(
         packages: Option<&package_compilation::PackageCompilationInputs>,
+        libraries: &[package_compilation::source_imports::SuppliedBuildLibrary],
     ) -> Self {
         Self {
             packages: packages.cloned(),
+            supplied_scope:
+                package_compilation::source_imports::SuppliedBuildLibrary::declaration_scope(
+                    libraries, None,
+                ),
             ..Self::default()
         }
+    }
+
+    pub(crate) fn selection_scope(
+        &self,
+        purpose: build_declarations::DependencyPurpose,
+    ) -> Option<declaration_scope::PackageDeclarationScope> {
+        self.packages
+            .as_ref()
+            .map(|packages| packages.declaration_scope(purpose))
+            .or_else(|| self.supplied_scope.clone())
     }
 
     pub(crate) fn admit(
@@ -47,10 +63,7 @@ impl BuildProviderPlans {
         let entry = module
             .entry
             .ok_or_else(|| failure("Build declaration admission has no entry"))?;
-        let authority = self
-            .packages
-            .as_ref()
-            .map(|p| p.declaration_scope(build_declarations::DependencyPurpose::Build));
+        let authority = self.selection_scope(build_declarations::DependencyPurpose::Build);
         let pending = evaluation_admission::admit_declaration_selections(
             artifact,
             None,

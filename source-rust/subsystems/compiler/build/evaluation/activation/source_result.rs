@@ -29,6 +29,10 @@ impl<'result> BuildSourceResult<'result> {
         self.returned.requests.iter().map(|issued| issued.request())
     }
 
+    pub fn source_requests(&self) -> impl Iterator<Item = &BuildRequest> {
+        self.returned.source_requests()
+    }
+
     pub fn demanded_sources(&self) -> &[BuildDependencySelection] {
         self.returned.demanded_sources()
     }

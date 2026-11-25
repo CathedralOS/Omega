@@ -190,6 +190,7 @@ impl CheckedBuildInvocation {
         typed: &TypedTrees,
         entry: SymbolHandle,
         subjects: &[Option<PackageKeyIdentity>],
+        declaration_scope: Option<Arc<PackageDeclarationScope>>,
         invocation_sources: Option<Arc<dyn InvocationSourceConsent>>,
     ) -> Result<BuildInvocationJudgment, SourcePreparationFailure> {
         let subjects = if let Some(prefix) = typed.roots.partial_build_entry {
@@ -210,6 +211,7 @@ impl CheckedBuildInvocation {
             accounting: Default::default(),
             admission: SourceAdmission {
                 invocation_sources: invocation_sources.clone(),
+                layout_selection_authority: declaration_scope,
                 ..Default::default()
             },
             compilation: TerminalSourceCompilation {

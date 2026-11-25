@@ -269,7 +269,7 @@ impl ResolvedBuildSources {
             .ok_or("Build does not belong to this resolved source graph")?;
         let requests =
             crate::declarations::dependencies::read::DependencyProjections::from_executed_requests(
-                result.requests(),
+                result.source_requests(),
             )?;
         if &requests != custody.dependency_projections() {
             return Err("Build source requests differ from the executed acquisition ledger".into());
