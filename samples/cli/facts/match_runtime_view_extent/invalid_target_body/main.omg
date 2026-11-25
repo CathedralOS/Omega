@@ -32,7 +32,7 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 
 boundary trait SelectedApply {
     machine apply(chosen: @mutable [i64; 4], other: @mutable [i64; 6], visits: @mutable u64, flag: bool)
-        requires visits == 0
+        requires $visits == 0
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
 }
 

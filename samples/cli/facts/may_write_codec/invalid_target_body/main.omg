@@ -16,7 +16,7 @@ data Counter<'a> { slot: @'a mutable u64; }
 
 boundary trait CodecProbe {
     machine probe(chosen: @mutable u64, other: @mutable u64, items: @[u8; 4]) -> u8
-        reaches none requires chosen < 4 && other < 4 crashes none;
+        reaches none requires $chosen < 4 && $other < 4 crashes none;
 }
 
 StoredCursorProbe satisfies CodecProbe {

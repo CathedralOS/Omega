@@ -98,7 +98,7 @@ A cast followed by arithmetic needs parentheses: `(distance as -Km) + 1`.
 A helper that knows nothing about your domains can still work on your value:
 
 ```omega
-machine reset(n: @mutable i32) ensures n == 1 { n = 1; }
+machine reset(n: @mutable i32) ensures $n == 1 { $n = 1; }
 
 let mutable trip: i32 in Km & Positive = 5 as +Km +Positive;
 reset(@mutable trip as -Km -Positive);

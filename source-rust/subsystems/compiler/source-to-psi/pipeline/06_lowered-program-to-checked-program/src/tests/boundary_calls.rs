@@ -1953,11 +1953,11 @@ fn borrowed_requirement(second: &str, caller_bound: &str) -> crate::lowering::El
         r#"
 trait Touch {{
     machine write(left: @mutable u32, right: @mutable u32)
-    requires left < 10
+    requires $left < 10
     crashes none;
 }}
 machine entry<Selected satisfies Touch>(left: @mutable u32, right: @mutable u32)
-requires left {caller_bound}
+requires $left {caller_bound}
 crashes none
 {{
     Selected::write(left, {second});

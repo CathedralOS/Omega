@@ -661,44 +661,78 @@ impl Program<'_> {
                         };
                         (term, value_type)
                     }
+                    // `$value` reads the scalar a borrowed formal refers to.
+                    // That referent is storage, so the clause's consumer
+                    // observes it at entry or completion through the same
+                    // exact input place as a projected record field.
+                    ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::Dereference => {
+                        let ExpressionNode::Name(path) = table.expression(unary.operand) else {
+                            return Err(unavailable(
+                                "dereference of other than a borrowed formal in a clause",
+                            ));
+                        };
+                        if path.reserved_result_of.is_valid() || path.static_application.is_valid()
+                        {
+                            return Err(unavailable(
+                                "dereference of other than a borrowed formal in a clause",
+                            ));
+                        }
+                        let slot = self.slot_of(id, scope.slots, path)?;
+                        if scope.slots[slot].borrowed.is_none() {
+                            return Err(unavailable(
+                                "dereference of other than a borrowed formal in a clause",
+                            ));
+                        }
+                        if !scope.formal_fields {
+                            return Err(unavailable(
+                                "borrowed formal outside an admitted storage clause",
+                            ));
+                        }
+                        let ValueType::Scalar(scalar_type, qualification) =
+                            scope.slots[slot].value_type
+                        else {
+                            return Err(unavailable("record formal named whole in a clause"));
+                        };
+                        let root = formal_place(id, scope.slots, slot)?;
+                        let version = semantic_vocabulary::ContentPlaceVersion::Current;
+                        let term = match scalar_type {
+                            ScalarType::Integer(integer) => ScalarTerm::IntegerField {
+                                version,
+                                root,
+                                path: Vec::new(),
+                                scalar_type: integer,
+                            },
+                            ScalarType::Boolean => ScalarTerm::BooleanField {
+                                version,
+                                root,
+                                path: Vec::new(),
+                            },
+                            ScalarType::IeeeFloat(format) => {
+                                ScalarTerm::ieee_float_field_path(root, Vec::new(), format)
+                            }
+                            ScalarType::Callable(_) => {
+                                return Err(unavailable("callable field in a clause"));
+                            }
+                        };
+                        (term, ValueType::Scalar(scalar_type, qualification))
+                    }
                     ExpressionNode::Name(path) => {
                         let slot = self.slot_of(id, scope.slots, path)?;
-                        // A borrowed scalar is storage too. The clause's
-                        // consumer observes entry or completion through the
-                        // same exact input place as a projected record field.
+                        // A borrowed scalar named bare is the reference, not
+                        // the value it refers to. expressions.md, "Explicit
+                        // dereference": "Omega never inserts a dereference to
+                        // satisfy an expected value type", operator operands
+                        // included, so a clause reads it as a body does.
                         if scope.slots[slot].borrowed.is_some() {
-                            if !scope.formal_fields {
-                                return Err(unavailable(
-                                    "borrowed formal outside an admitted storage clause",
-                                ));
-                            }
-                            let ValueType::Scalar(scalar_type, qualification) =
-                                scope.slots[slot].value_type
+                            let ValueType::Scalar(referent, _) = scope.slots[slot].value_type
                             else {
                                 return Err(unavailable("record formal named whole in a clause"));
                             };
-                            let root = formal_place(id, scope.slots, slot)?;
-                            let version = semantic_vocabulary::ContentPlaceVersion::Current;
-                            let term = match scalar_type {
-                                ScalarType::Integer(integer) => ScalarTerm::IntegerField {
-                                    version,
-                                    root,
-                                    path: Vec::new(),
-                                    scalar_type: integer,
-                                },
-                                ScalarType::Boolean => ScalarTerm::BooleanField {
-                                    version,
-                                    root,
-                                    path: Vec::new(),
-                                },
-                                ScalarType::IeeeFloat(format) => {
-                                    ScalarTerm::ieee_float_field_path(root, Vec::new(), format)
-                                }
-                                ScalarType::Callable(_) => {
-                                    return Err(unavailable("callable field in a clause"));
-                                }
-                            };
-                            break 'read (term, ValueType::Scalar(scalar_type, qualification));
+                            return Err(super::rejections::implicit_dereference(
+                                id,
+                                SourceOrigin::of(table.source_span(read)),
+                                referent,
+                            ));
                         }
                         // A record formal is a place, not a scalar value: a
                         // clause names it through the field projection above.

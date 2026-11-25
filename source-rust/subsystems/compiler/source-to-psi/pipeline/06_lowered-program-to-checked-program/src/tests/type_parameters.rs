@@ -971,9 +971,9 @@ fn a_generic_call_does_not_preserve_a_mutable_inputs_old_value() {
     for promised in [1, 0] {
         let source = super::boundary_calls::typed(&format!(
             r#"
-            machine update<T>(value: @mutable u32) ensures value == 1u32 {{ value = 1u32; }}
-            machine entry<T>(value: @mutable u32) requires value == 0u32
-                ensures value == {promised}u32 {{ update::<T>(value); }}
+            machine update<T>(value: @mutable u32) ensures $value == 1u32 {{ value = 1u32; }}
+            machine entry<T>(value: @mutable u32) requires $value == 0u32
+                ensures $value == {promised}u32 {{ update::<T>(value); }}
         "#
         ));
         let mut form =

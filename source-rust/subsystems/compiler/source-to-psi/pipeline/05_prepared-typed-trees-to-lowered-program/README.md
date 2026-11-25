@@ -1021,9 +1021,11 @@ call forms for it.
   formal is. Only `@mutable` lets the body store into it. The formals that are
   places, record formals and borrowed formals in position order, are the
   machine's first places, so a clause names the `k`-th of them as place
-  `k + 1`. An entry `requires` may name a borrowed scalar formal (`x < 10`)
-  or a field of a borrowed record (`cell.value > 0`): what the storage holds
-  at entry.
+  `k + 1`. An entry `requires` may read a borrowed scalar formal's referent
+  (`$x < 10`) or a field of a borrowed record (`cell.value > 0`): what the
+  storage holds at entry. A bare `x < 10` is refused as it is in a body,
+  since Omega never inserts a dereference
+  ([explicit dereference](../../../../../../wiki/spec/language/expressions.md#explicit-dereference)).
 - **A loan** is the argument for a borrowed formal: `@place` or `@mutable
   place` with the formal's access, the place a slot or a field path beneath
   one (`ExpressionKind::Borrow`), or a borrowed formal of the caller named

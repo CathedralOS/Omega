@@ -25,7 +25,7 @@ machine add(first: u64 in Wrapping, second: u64 in Wrapping) -> u64 in Wrapping 
 
 boundary trait SelectedProbe {
     machine probe(chosen: @mutable u64, other: @mutable u64, items: @[u8; 4]) -> u8
-        reaches none requires chosen < 4 && other < 4 crashes none;
+        reaches none requires $chosen < 4 && $other < 4 crashes none;
 }
 
 NestedProbe satisfies SelectedProbe {

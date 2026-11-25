@@ -1,6 +1,9 @@
 data Reading { value: u8; }
 machine take(n: u8) -> u8 { n }
-machine read(v: @u8) -> u8 {
+machine read(v: @u8) -> u8
+requires $v < 9u8
+ensures result <= $v
+{
     let copied: u8 = $v;
     let record: Reading = Reading { value: $v };
     let small: bool = match $v { 0 -> false, _ -> true };

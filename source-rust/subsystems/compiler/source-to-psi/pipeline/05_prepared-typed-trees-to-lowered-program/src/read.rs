@@ -1836,13 +1836,61 @@ mod tests {
             read(&missing).unwrap_err().detail,
             "contract formal identity"
         );
+        // A borrowed formal named bare is the reference itself; only `$x`
+        // reads the scalar it refers to, which is storage at the formal's
+        // place rather than an immutable input value.
         let borrowed = [Slot {
             borrowed: Some(language_core::ReferenceAccess::Mutable),
             ..slot(true)
         }];
+        for formal_fields in [false, true] {
+            let refusal = read(&scope(&borrowed, formal_fields)).unwrap_err();
+            assert!(matches!(
+                refusal.reason,
+                terminal_check_tables::RefusalReason::Violation
+            ));
+            assert!(
+                refusal.detail.contains("Omega never inserts a dereference"),
+                "{}",
+                refusal.detail
+            );
+        }
+        use crate::source_state::expression::{TableUnaryExpression, UnaryOperator};
+        let dereferenced =
+            typed
+                .expression_table
+                .insert(ExpressionNode::Unary(TableUnaryExpression {
+                    operator: UnaryOperator::Dereference,
+                    operand: named,
+                }));
+        let mut program = Program::new(&typed, false);
+        let mut read = |scope: &ClauseScope<'_>| {
+            program
+                .clause_term(machine(), scope, dereferenced, ClauseUse::Scalar(None))
+                .and_then(|term| term.scalar(machine()))
+        };
+        let ScalarType::Integer(integer) = u32_type else {
+            unreachable!("u32 is an integer")
+        };
+        assert_eq!(
+            read(&scope(&borrowed, true)),
+            Ok((
+                ScalarTerm::IntegerField {
+                    version: semantic_vocabulary::ContentPlaceVersion::Current,
+                    root: semantic_vocabulary::PlaceId::new(1).unwrap(),
+                    path: Vec::new(),
+                    scalar_type: integer,
+                },
+                ValueType::plain(u32_type),
+            ))
+        );
         assert_eq!(
             read(&scope(&borrowed, false)).unwrap_err().detail,
             "contract borrowed formal outside an admitted storage clause"
+        );
+        assert_eq!(
+            read(&scope(&mutable, true)).unwrap_err().detail,
+            "contract dereference of other than a borrowed formal in a clause"
         );
     }
 
@@ -1928,6 +1976,13 @@ mod tests {
                 }))
         };
         let old = call(&mut typed, builtin, &[named]);
+        let dereferenced = typed.expression_table.insert(ExpressionNode::Unary(
+            crate::source_state::expression::TableUnaryExpression {
+                operator: crate::source_state::expression::UnaryOperator::Dereference,
+                operand: named,
+            },
+        ));
+        let old_referent = call(&mut typed, builtin, &[dereferenced]);
         let literal = typed
             .expression_table
             .insert(ExpressionNode::Integer(IntegerLiteral::from_value(1)));
@@ -2220,19 +2275,26 @@ mod tests {
             ),
             "contract formal identity"
         );
+        // `old($x)` is the entry revision of the place `x` refers to. `old(x)`
+        // names the reference itself, which is no scalar value.
         let borrowed = [Slot {
             borrowed: Some(ReferenceAccess::Mutable),
             ..slot()
         }];
+        let through_reference = ClauseScope {
+            slots: &borrowed,
+            ..scope
+        };
+        assert!(
+            detail(&mut program, &through_reference, old)
+                .contains("Omega never inserts a dereference")
+        );
         assert_eq!(
             program
                 .clause_term(
                     machine(),
-                    &ClauseScope {
-                        slots: &borrowed,
-                        ..scope
-                    },
-                    old,
+                    &through_reference,
+                    old_referent,
                     ClauseUse::Scalar(None)
                 )
                 .and_then(|term| term.scalar(machine())),

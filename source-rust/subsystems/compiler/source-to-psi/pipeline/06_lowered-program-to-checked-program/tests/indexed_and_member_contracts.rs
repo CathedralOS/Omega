@@ -282,7 +282,7 @@ fn a_forwarded_crash_guard_covers_the_call_it_forwards() {
     assert!(unproved(&twin) && twin.contains("CrashCoverage"), "{twin}");
 }
 
-/// A crash guard over a borrowed scalar (`value == 0` over `@u64`) and one
+/// A crash guard over a borrowed scalar (`$value == 0` over `@u64`) and one
 /// over a slice's extent (`items.length == 0`) read the caller's storage at
 /// the call, as the element guard does: each call is accepted when the
 /// caller's `requires` rules the route out and refused without it.
@@ -290,13 +290,13 @@ fn a_forwarded_crash_guard_covers_the_call_it_forwards() {
 fn borrowed_scalar_and_extent_crash_guards_read_the_callers_storage() {
     let scalar = |requires: &str| {
         format!(
-            "machine maybe_zero(value: @u64) -> u64 crashes Trap value == 0 \
+            "machine maybe_zero(value: @u64) -> u64 crashes Trap $value == 0 \
              {{ transition $value == 0 {{ true -> bad(), false -> ($value) }} \
                 machine bad() -> u64 {{ crash Trap; }} }} \
              public machine read_seven(value: @u64) -> u64 {requires} {{ maybe_zero(value) }}"
         )
     };
-    accepted(&scalar("requires value == 7"));
+    accepted(&scalar("requires $value == 7"));
     let twin = rejected(&scalar(""));
     assert!(unproved(&twin) && twin.contains("CrashCoverage"), "{twin}");
 
