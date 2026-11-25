@@ -164,6 +164,12 @@ fn landed_type(
     }
 }
 
+#[derive(Clone, Copy)]
+enum DomainSpelling {
+    CompleteType,
+    CastCoordinate,
+}
+
 impl<'t> Program<'t> {
     /// An application carries its prepared theory, not permission to replace
     /// an unavailable one with the family's unapplied predicate.
@@ -1181,7 +1187,8 @@ impl Program<'_> {
         constraints: arena::HandleSpan<crate::source_state::types::TypeConstraintNode>,
     ) -> Checked<ValueType> {
         let carrier = self.value_type(id, base_type)?;
-        let qualification = self.type_qualification(id, carrier, constraints)?;
+        let qualification =
+            self.type_qualification(id, carrier, constraints, DomainSpelling::CompleteType)?;
         let result = carrier.qualified(qualification).ok_or_else(|| {
             refuse(
                 id,
@@ -1206,6 +1213,7 @@ impl Program<'_> {
         id: MachineId,
         carrier: ValueType,
         constraints: arena::HandleSpan<crate::source_state::types::TypeConstraintNode>,
+        spelling: DomainSpelling,
     ) -> Checked<Qualification> {
         use crate::source_state::types::{DomainConstraintSubject, TypeConstraintNode};
         use numerics::arithmetic::ArithmeticDomain;
@@ -1240,8 +1248,12 @@ impl Program<'_> {
                             Unserved::Type("constrained by one domain twice or by more than four declared domains"),
                         )
                     })?;
-                    qualification.domains =
-                        self.with_refinement(id, qualification.domains, instance)?;
+                    qualification.domains = match spelling {
+                        DomainSpelling::CompleteType => {
+                            self.with_refinement(id, qualification.domains, instance)?
+                        }
+                        DomainSpelling::CastCoordinate => written,
+                    };
                 }
                 TypeConstraintNode::Domain(_) => {
                     return unserved("constrained by a compiler-owned domain");
@@ -1254,7 +1266,7 @@ impl Program<'_> {
         Ok(qualification)
     }
 
-    fn with_refinement(
+    pub(super) fn with_refinement(
         &self,
         id: MachineId,
         mut domains: crate::body::DomainSet,
@@ -1325,7 +1337,8 @@ impl Program<'_> {
         } = self.typed.type_reference_table.type_reference(handle)
         {
             let carrier = self.value_type(id, *base_type)?;
-            let qualification = self.type_qualification(id, carrier, *constraints)?;
+            let qualification =
+                self.type_qualification(id, carrier, *constraints, DomainSpelling::CastCoordinate)?;
             return carrier.qualified(qualification).ok_or_else(|| {
                 refuse(
                     id,
@@ -1380,7 +1393,12 @@ impl Program<'_> {
                     constraints,
                 } => {
                     let carrier = self.qualified_scalar_type(id, *base_type)?;
-                    let qualification = self.type_qualification(id, carrier, *constraints)?;
+                    let qualification = self.type_qualification(
+                        id,
+                        carrier,
+                        *constraints,
+                        DomainSpelling::CompleteType,
+                    )?;
                     return carrier.qualified(qualification).ok_or_else(|| {
                         refuse(
                             id,

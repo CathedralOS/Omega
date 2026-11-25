@@ -113,6 +113,41 @@ pub(crate) fn prepare(
         (handle.arena_index(), matches!(meaning, Meaning::Local(..)))
     });
     let owners = crate::source_state::references::collect_program_operand_owners(program);
+    // A refinement's self membership selects its parent on the declaration's
+    // known carrier. A cast may already need that selection while typing its
+    // operand. Memberships on expressions must wait for their operand types.
+    let mut subjects = std::collections::HashSet::new();
+    if has_memberships {
+        for domain in program.domain_definitions() {
+            for handle in domain.facts.handles() {
+                if program
+                    .proof_facts
+                    .get(handle)
+                    .as_membership()
+                    .is_some_and(|fact| {
+                        crate::source_state::domain::domain_subject_reference(
+                            program, domain, fact.value,
+                        )
+                    })
+                {
+                    subjects.insert(handle);
+                }
+            }
+        }
+    }
+    if !subjects.is_empty() {
+        crate::contracts::proof_facts::normalize_membership_selections(
+            source,
+            program,
+            &owners,
+            |fact| subjects.contains(&fact),
+        )?;
+        crate::contracts::proof_facts::intern_proof_membership_instances(
+            program,
+            &owners,
+            |fact| subjects.contains(&fact),
+        )?;
+    }
     let mut types = crate::typing_queries::DeclaredExpressionTypes::default();
     for (handle, meaning) in sites {
         match meaning {
@@ -166,9 +201,14 @@ pub(crate) fn prepare(
         }
     }
     crate::contracts::proof_facts::normalize_membership_selections(
-        source, program, &owners,
+        source,
+        program,
+        &owners,
+        |fact| !subjects.contains(&fact),
     )?;
-    crate::contracts::proof_facts::intern_proof_membership_instances(program, &owners)?;
+    crate::contracts::proof_facts::intern_proof_membership_instances(program, &owners, |fact| {
+        !subjects.contains(&fact)
+    })?;
     Ok(())
 }
 

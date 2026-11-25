@@ -498,9 +498,16 @@ impl Program<'_> {
             if let Some(domain) = self.domain_entry_change(id, before, after, &site, entry)? {
                 match entry.kind {
                     CastEntryKind::Add => {
-                        added = added
-                            .with(domain)
-                            .ok_or_else(|| unavailable("domain cast repeats an addition"))?;
+                        for gained in after
+                            .qualification()
+                            .domains
+                            .members()
+                            .filter(|d| !before.qualification().domains.contains(*d))
+                        {
+                            added = added
+                                .with(gained)
+                                .ok_or_else(|| unavailable("domain cast repeats an addition"))?;
+                        }
                     }
                     CastEntryKind::Remove => {
                         let at = SourceOrigin::of(self.typed.expression_table.source_span(handle));
@@ -549,7 +556,7 @@ impl Program<'_> {
 
     /// Recover the input of this signed entry from its retained output.
     fn entry_input(
-        &self,
+        &mut self,
         id: MachineId,
         cast: &TableCastExpression,
         entry: language_core::cast_form::CastEntry,
@@ -563,10 +570,20 @@ impl Program<'_> {
                 Unserved::Typing("domain cast result does not account for its input domains"),
             )
         };
+        if entry.kind == CastEntryKind::Add {
+            let written = self.cast_coordinate_type(id, cast.target_type)?;
+            if written.erased().qualified(Qualification::NONE)
+                != result.erased().qualified(Qualification::NONE)
+            {
+                return Err(unavailable());
+            }
+            return result
+                .qualified(written.qualification())
+                .ok_or_else(unavailable);
+        }
         let mut before = result.qualification();
         if let Some(policy) = Policy::of_domain(cast.domain) {
             before.policy = match (entry.kind, before.policy) {
-                (CastEntryKind::Add, Some(after)) if after == policy => None,
                 (CastEntryKind::Remove, None) => Some(policy),
                 (CastEntryKind::Keep, Some(after)) if after == policy => Some(after),
                 _ => return Err(unavailable()),
@@ -582,7 +599,7 @@ impl Program<'_> {
                 identity: cast.semantic_domain_id,
             };
             before.domains = match entry.kind {
-                CastEntryKind::Add => before.domains.without(domain),
+                CastEntryKind::Add => None,
                 CastEntryKind::Remove => before.domains.with(domain),
                 CastEntryKind::Keep => Some(before.domains),
             }
@@ -701,32 +718,42 @@ impl Program<'_> {
             CastEntryKind::Add => (after, before),
             CastEntryKind::Keep => return Err(mistyped("kept domain without an unchanged type")),
         };
-        let mut named = wider
+        let invalid =
+            || mistyped("domain cast entry that does not change exactly the domain it names");
+        if let Some(policy) = Policy::of_domain(cast.domain) {
+            return if wider.policy == Some(policy)
+                && narrower.policy.is_none()
+                && wider.domains == narrower.domains
+            {
+                Ok(None)
+            } else {
+                Err(invalid())
+            };
+        }
+        let selected = crate::body::DomainInstance {
+            declaration: cast.semantic_domain_symbol,
+            identity: cast.semantic_domain_id,
+        };
+        if !narrower.domains.is_subset_of(&wider.domains)
+            || narrower.policy != wider.policy
+            || narrower.domains.contains(selected)
+            || !wider.domains.contains(selected)
+        {
+            return Err(invalid());
+        }
+        let allowed = match entry.kind {
+            CastEntryKind::Add => self.with_refinement(id, DomainSet::EMPTY, selected)?,
+            CastEntryKind::Remove => DomainSet::EMPTY.with(selected).expect("one domain fits"),
+            CastEntryKind::Keep => return Err(invalid()),
+        };
+        if wider
             .domains
             .members()
-            .filter(|domain| !narrower.domains.contains(*domain));
-        let domain = named.next();
-        let one_member = named.next().is_none()
-            && narrower.domains.is_subset_of(&wider.domains)
-            && match (before.policy != after.policy, domain) {
-                (true, None) => wider.policy.is_some() && narrower.policy.is_none(),
-                (false, Some(_)) => true,
-                _ => false,
-            };
-        if !one_member {
-            return Err(mistyped(
-                "domain cast entry that does not change exactly the domain it names",
-            ));
+            .any(|d| !narrower.domains.contains(d) && !allowed.contains(d))
+        {
+            return Err(invalid());
         }
-        if domain.is_some_and(|domain| {
-            domain.declaration != cast.semantic_domain_symbol
-                || domain.identity != cast.semantic_domain_id
-        }) {
-            return Err(mistyped(
-                "changed domain application is not the one the entry selected",
-            ));
-        }
-        Ok(domain)
+        Ok(Some(selected))
     }
 
     /// Issuance restricts adding a domain, not forgetting its displayed
