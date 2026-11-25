@@ -182,6 +182,7 @@ pub(crate) fn adapt(
     selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
     selector_graph: Option<&[DescriptorMachine]>,
     nominal_calls: &[terminal_psi::generic_calls::NominalCallArgument],
+    zeroed_cases: &mut super::ZeroedCaseTable<'_>,
 ) -> Result<DescriptorMachine, super::DescriptorGraphError> {
     // Setup failures have no operation. Reuse the same typed error
     // as the reader advances, so a later failure keeps its real site.
@@ -199,11 +200,13 @@ pub(crate) fn adapt(
         selected_calls,
         selector_graph,
         nominal_calls,
+        zeroed_cases,
         &mut failure,
     )
     .ok_or(failure)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn adapt_flow(
     module: &TerminalModule,
     machines: &[&TerminalMachine],
@@ -212,6 +215,7 @@ fn adapt_flow(
     selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
     selector_graph: Option<&[DescriptorMachine]>,
     nominal_calls: &[terminal_psi::generic_calls::NominalCallArgument],
+    zeroed_cases: &mut super::ZeroedCaseTable<'_>,
     failure: &mut super::DescriptorGraphError,
 ) -> Option<DescriptorMachine> {
     let super::DescriptorGraphError::IncompleteMachine {
@@ -906,11 +910,7 @@ fn adapt_flow(
                     let result = result?;
                     graph.case_constructors.insert(
                         position,
-                        zeroed_case_predicates(
-                            &module.types.structural_types,
-                            result.place,
-                            result.structural_type,
-                        ),
+                        zeroed_cases.predicates_for(result.place, result.structural_type),
                     );
                     for slot in slot_kind
                         .inventory(

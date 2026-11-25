@@ -104,14 +104,6 @@ framework or a list of unimplemented features.
 - Cost: still a large share of checking time for std-using programs. Before #5807, `Replay::summary` was on the stack in 19.6% of all samples of a perf profile of the same check (`omega-linux`, 20,286 samples).
 - Reported: 2026-11-25, Claude Code, while profiling Psi 06 places and loans; updated the same day after Psi 05 shared its walks' tables.
 
-<a id="every-graph-adaptation-expands-every-zeroed-leaf-to-find-its-cases"></a>
-### Every graph adaptation expands every zeroed leaf of a value to find its cases
-- Category: 4. Re-deriving
-- Where: [`zeroed_case_predicates`](source-rust/subsystems/compiler/psi/semantics/src/descriptors/descriptor_results.rs#L875), called by `terminal_flow::adapt_flow` for each `EstablishZeroedStructural` operation, and [`zeroed_structural_leaves_impl`](source-rust/subsystems/compiler/psi/semantics/src/structural/zeroed_structural.rs#L364)
-- Saw: each time an analysis builds a machine's descriptor rows, `zeroed_case_predicates` lists every zeroed leaf of each zero-established value (collecting the module's declarations into a `Vec`, cloning a path per leaf and checking each scalar field accepts zero) only to keep the sum selections. Its answer depends only on the declarations and the value's type, but every analysis of every machine computes it again. The leaf walk also finds each declaration by scanning the whole list.
-- Cost: 3.8% of samples in a perf profile of a release check of `samples/cli/arithmetic/popcount/main.omg` (`omega-linux`, 2026-11-25, 28,689 samples), 2.9% of it inside `zeroed_structural_leaves_impl`. A skip for values that reach no sum did not help there: popcount's zeroed values reach sums.
-- Reported: 2026-11-25, Claude Code, while profiling descriptor replay.
-
 <a id="the-checker-walks-each-machines-affine-ownership-three-times"></a>
 ### The checker walks each machine's affine ownership three times
 - Category: 4. Re-deriving

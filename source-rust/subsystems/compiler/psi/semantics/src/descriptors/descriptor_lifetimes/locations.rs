@@ -115,6 +115,39 @@ impl<'a> StructuralTypeIndex<'a> {
         }
     }
 
+    pub(crate) fn len(&self) -> usize {
+        self.types.len()
+    }
+
+    pub(crate) fn types(&self) -> &'a [StructuralTypeDeclaration] {
+        self.types
+    }
+
+    pub(crate) fn position(&self, id: StructuralTypeId) -> Option<usize> {
+        self.slot(id).first()
+    }
+
+    pub(crate) fn get(&self, position: usize) -> &'a StructuralTypeDeclaration {
+        &self.types[position]
+    }
+
+    /// True if any declaration with `id` satisfies `predicate`, matching
+    /// `types.iter().any(|d| d.id == id && predicate(d))` in O(1) when IDs are unique.
+    pub(crate) fn any_with_id(
+        &self,
+        id: StructuralTypeId,
+        predicate: impl Fn(&StructuralTypeDeclaration) -> bool,
+    ) -> bool {
+        match self.slot(id) {
+            TypeSlot::Empty => false,
+            TypeSlot::Unique(index) => predicate(&self.types[index]),
+            TypeSlot::Duplicate(_) => self
+                .types
+                .iter()
+                .any(|declaration| declaration.id == id && predicate(declaration)),
+        }
+    }
+
     pub(crate) fn find(&self, id: StructuralTypeId) -> Option<&'a StructuralTypeDeclaration> {
         self.slot(id).first().map(|index| &self.types[index])
     }
