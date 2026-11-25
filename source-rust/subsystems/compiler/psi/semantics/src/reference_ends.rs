@@ -325,6 +325,17 @@ fn is_acyclic_block_graph(
     visited == count
 }
 
+/// Build a dead-tail cutoff for acyclic machines whose descriptor queries do
+/// not require additional content observations.
+pub fn dead_tail_cutoff(
+    module: &TerminalModule,
+    machine: &terminal_psi::TerminalMachine,
+    flow: &BTreeMap<DescriptorPosition, crate::descriptor_lifetimes::DescriptorFlowStep>,
+    predecessors: &FlowPredecessors<'_>,
+) -> DeadTailCutoff {
+    build_dead_tail_cutoff(module, machine, flow, predecessors, &[])
+}
+
 fn build_dead_tail_cutoff(
     module: &TerminalModule,
     machine: &terminal_psi::TerminalMachine,

@@ -1,3 +1,4 @@
+
 //! A returned permission keeps the actual input storage its body returned.
 //! This publishes those existing canonical origin mappings from the shared
 //! descriptor analysis. It derives a contract, never its loan or authority;
@@ -291,9 +292,7 @@ struct SuccessorLoan {
     parameter: semantic_vocabulary::PlaceId,
 }
 
-fn publish_successor_loans(
-    elaboration: &mut crate::Elaboration,
-) -> Checked<Vec<SuccessorLoan>> {
+fn publish_successor_loans(elaboration: &mut crate::Elaboration) -> Checked<Vec<SuccessorLoan>> {
     use terminal_check_tables::ProgramPoint;
     use terminal_check_tables::obligations::{Lender, ObligationKind, ObligationRow};
     use terminal_psi::StructuralAccess;
@@ -576,6 +575,55 @@ fn publish_results(
     Ok(())
 }
 
+struct IndexedLoan {
+    id: semantic_vocabulary::ObligationId,
+    access: language_core::ReferenceAccess,
+    root: semantic_vocabulary::PlaceId,
+    path: Vec<terminal_check_tables::bindings::Segment>,
+}
+
+/// Loans of one machine grouped by creation point so parent publication finds
+/// a point's loans in O(log N) instead of rescanning the full obligation table.
+struct MachineLoanIndex {
+    rows: Vec<(terminal_check_tables::ProgramPoint, IndexedLoan)>,
+}
+
+impl MachineLoanIndex {
+    fn build(tables: &terminal_check_tables::MachineTables) -> Result<Self, &'static str> {
+        use terminal_check_tables::obligations::ObligationKind;
+        let mut rows = Vec::new();
+        for (id, row) in tables.obligations.iter() {
+            let ObligationKind::Loan {
+                captured, access, ..
+            } = row.kind
+            else {
+                continue;
+            };
+            let (root, path) = captured_path(tables, captured)?;
+            rows.push((
+                row.created_at,
+                IndexedLoan {
+                    id,
+                    access,
+                    root,
+                    path,
+                },
+            ));
+        }
+        rows.sort_by_key(|(point, _)| *point);
+        Ok(Self { rows })
+    }
+
+    fn at(
+        &self,
+        point: terminal_check_tables::ProgramPoint,
+    ) -> &[(terminal_check_tables::ProgramPoint, IndexedLoan)] {
+        let start = self.rows.partition_point(|(at, _)| *at < point);
+        let end = self.rows.partition_point(|(at, _)| *at <= point);
+        &self.rows[start..end]
+    }
+}
+
 /// Complete the existing lender column after all descriptor transports are
 /// available. These rows describe actual source occurrences; 06 reconstructs
 /// them before deciding any loan and grants no authority from this publication.
@@ -586,7 +634,7 @@ fn publish_parents(
     use terminal_check_tables::ProgramPoint;
     use terminal_check_tables::obligations::{Lender, ObligationKind};
     use terminal_semantics::descriptor_lifetimes::{
-        DescriptorLocation, descriptor_location_lifetime,
+        DescriptorLocation, FlowPredecessors, descriptor_location_lifetime_indexed,
     };
     let module = &elaboration.module;
     let unavailable = |machine, reason| refuse(machine, Construct::Machine, Unserved::Call(reason));
@@ -605,6 +653,8 @@ fn publish_parents(
         if !demanded {
             continue;
         }
+        let loan_index =
+            MachineLoanIndex::build(tables).map_err(|reason| unavailable(machine.id, reason))?;
         let mut children = tables.obligations.map(|_, _| None);
         for (id, row) in tables.obligations.iter() {
             if let ObligationKind::Loan {
@@ -677,12 +727,12 @@ fn publish_parents(
         }
         // Reborrowing an existing descriptor needs its immediate parent even
         // when the machine only observes the new view locally.
-        let mut view_reborrows = std::collections::BTreeSet::new();
+        let mut view_reborrows = Vec::new();
         let mut publish_call_payloads = |arguments, formals, before| {
             publish_payload_children(
                 module,
                 machine,
-                tables,
+                &loan_index,
                 arguments,
                 formals,
                 before,
@@ -706,7 +756,7 @@ fn publish_parents(
                         tip.id,
                     )
                 {
-                    view_reborrows.insert(operation.id);
+                    view_reborrows.push(operation.id);
                 }
                 if let Some(call) = operation.declared_invocation() {
                     publish_call_payloads(
@@ -719,7 +769,8 @@ fn publish_parents(
                     publish_call_payloads(
                         call.structural_arguments,
                         module
-                            .execution.callables
+                            .execution
+                            .callables
                             .contract(call.contract)
                             .map(|contract| contract.structural_parameters.as_slice()),
                         before,
@@ -781,7 +832,8 @@ fn publish_parents(
         if view_reborrows.is_empty() && children.iter().all(|(_, child)| child.is_none()) {
             continue;
         }
-        queries.push((machine, tables, children, view_reborrows));
+        view_reborrows.sort_unstable();
+        queries.push((machine, loan_index, children, view_reborrows));
     }
     if queries.is_empty() {
         return Ok(());
@@ -790,8 +842,18 @@ fn publish_parents(
     let graph = terminal_borrowed_storage_graph_from(module, roots, &[])
         .map_err(|error| graph_unavailable(module, error))?;
     let summaries = module_summaries(module);
-    let mut updates = Vec::new();
-    for (machine, tables, mut children, view_reborrows) in queries {
+    let sources_ref = &elaboration.sources;
+    let names_ref = &elaboration.names;
+    let solve_machine = |query: (
+        &terminal_psi::TerminalMachine,
+        MachineLoanIndex,
+        arena::IdTable<
+            semantic_vocabulary::ObligationId,
+            Option<(ProgramPoint, DescriptorLocation)>,
+        >,
+        Vec<semantic_vocabulary::OperationId>,
+    )| {
+        let (machine, loan_index, mut children, view_reborrows) = query;
         // Calls share one immutable graph and the module's callee summaries.
         // Saved storage states are needed only while finding the parents of
         // this machine's loans.
@@ -799,10 +861,24 @@ fn publish_parents(
         let flow = analysis
             .flow_arc(machine.id)
             .map_err(|error| graph_unavailable(module, error))?;
+        let predecessors = FlowPredecessors::new(&flow);
+        let cutoff = terminal_semantics::reference_ends::dead_tail_cutoff(
+            module,
+            machine,
+            &flow,
+            &predecessors,
+        );
+        let mut op_positions = Vec::new();
         let mut parents = Vec::new();
         for block in &machine.blocks {
             let mut before = ProgramPoint::BlockEntry(block.id);
             for (position, operation) in block.operations.iter().enumerate() {
+                let pos_u32 = u32::try_from(position).map_err(|_| {
+                    unavailable(machine.id, "reference formation position exceeds its graph")
+                })?;
+                if let Some(after_pos) = pos_u32.checked_add(1) {
+                    op_positions.push((operation.id, (block.id, after_pos)));
+                }
                 if let terminal_psi::OperationKind::EstablishReference { source, .. }
                 | terminal_psi::OperationKind::EstablishElementView { source, .. }
                 | terminal_psi::OperationKind::EstablishMutableElementView { source, .. } =
@@ -823,29 +899,16 @@ fn publish_parents(
                         &source.path,
                     )
                     .map_err(|reason| unavailable(machine.id, reason))?;
+                    let expected_access = reference_access(source.access).ok_or_else(|| {
+                        unavailable(machine.id, "reference formation has no borrowed access")
+                    })?;
                     let mut matching = Vec::new();
-                    for (id, row) in tables.obligations.iter() {
-                        let ObligationKind::Loan {
-                            captured, access, ..
-                        } = row.kind
-                        else {
-                            continue;
-                        };
-                        if row.created_at != before
-                            || access
-                                != reference_access(source.access).ok_or_else(|| {
-                                    unavailable(
-                                        machine.id,
-                                        "reference formation has no borrowed access",
-                                    )
-                                })?
+                    for (_, loan) in loan_index.at(before) {
+                        if loan.access == expected_access
+                            && loan.root == source.place
+                            && loan.path == source_path
                         {
-                            continue;
-                        }
-                        let (root, path) = captured_path(tables, captured)
-                            .map_err(|reason| unavailable(machine.id, reason))?;
-                        if root == source.place && path == source_path {
-                            matching.push(id);
+                            matching.push(loan.id);
                         }
                     }
                     let [identity] = matching.as_slice() else {
@@ -854,7 +917,7 @@ fn publish_parents(
                             "reference formation has no unique exact Loan row",
                         ));
                     };
-                    if view_reborrows.contains(&operation.id) {
+                    if view_reborrows.binary_search(&operation.id).is_ok() {
                         let source_location = DescriptorLocation::captured(
                             source.place,
                             &source_path,
@@ -866,12 +929,11 @@ fn publish_parents(
                             unavailable(machine.id, "view formation lost its parent child row")
                         })? = Some((before, source_location));
                     }
-                    let position = u32::try_from(position).map_err(|_| {
-                        unavailable(machine.id, "reference formation position exceeds its graph")
-                    })?;
-                    let at = (block.id, position);
-                    let lifetime = descriptor_location_lifetime(
+                    let at = (block.id, pos_u32);
+                    let lifetime = descriptor_location_lifetime_indexed(
                         &flow,
+                        &predecessors,
+                        Some(&cutoff),
                         at,
                         &DescriptorLocation::whole(result.place),
                     );
@@ -883,8 +945,7 @@ fn publish_parents(
                                 "reference formation overlaps another activation of itself",
                             ),
                         );
-                        refused.source_span = elaboration
-                            .sources
+                        refused.source_span = sources_ref
                             .get(machine.id)
                             .and_then(|source| source.operations.get(operation.id))
                             .and_then(|origin| origin.span());
@@ -911,8 +972,14 @@ fn publish_parents(
                             own.push(None);
                             continue;
                         };
-                        let id = retained_loan_row(
-                            module, machine, tables, before, source, access, &claimed,
+                        let id = retained_loan_row_indexed(
+                            module,
+                            machine,
+                            &loan_index,
+                            before,
+                            source,
+                            access,
+                            &claimed,
                         )
                         .map_err(|reason| unavailable(machine.id, reason))?
                         .ok_or_else(|| {
@@ -939,8 +1006,14 @@ fn publish_parents(
                                 path: retained.path,
                                 access: argument.access,
                             };
-                            let id = retained_loan_row(
-                                module, machine, tables, before, &region, access, &claimed,
+                            let id = retained_loan_row_indexed(
+                                module,
+                                machine,
+                                &loan_index,
+                                before,
+                                &region,
+                                access,
+                                &claimed,
                             )
                             .map_err(|reason| unavailable(machine.id, reason))?;
                             claimed.extend(id);
@@ -958,6 +1031,7 @@ fn publish_parents(
                 before = ProgramPoint::AfterOperation(operation.id);
             }
         }
+        op_positions.sort_unstable_by_key(|(id, _)| *id);
         for successor in successor_loans
             .iter()
             .filter(|loan| loan.machine == machine.id)
@@ -976,16 +1050,18 @@ fn publish_parents(
             })?;
             parents.push((successor.obligation, lifetime));
         }
+        let mut local_updates = Vec::new();
         for (child, parent) in children.iter() {
             let Some((point, descriptor)) = parent else {
                 continue;
             };
-            let at = formation_position(machine, *point).ok_or_else(|| {
-                unavailable(
-                    machine.id,
-                    "reference reborrow has no exact formation point",
-                )
-            })?;
+            let at =
+                formation_position_indexed(machine, &op_positions, *point).ok_or_else(|| {
+                    unavailable(
+                        machine.id,
+                        "reference reborrow has no exact formation point",
+                    )
+                })?;
             use terminal_semantics::{BorrowedLoanSource, BorrowedLoanSources};
             let lender = terminal_semantics::borrowed_loan_sources(
                 module,
@@ -1013,13 +1089,12 @@ fn publish_parents(
                     Construct::Obligation(child),
                     Unserved::Call(reason),
                 );
-                refusal.source_span = elaboration
-                    .sources
+                refusal.source_span = sources_ref
                     .get(machine.id)
                     .and_then(|source| source.obligations.get(child))
                     .and_then(|origin| origin.span());
                 if refusal.source_span.is_none()
-                    && let Some(name) = elaboration.names.get(machine.id)
+                    && let Some(name) = names_ref.get(machine.id)
                 {
                     refusal.detail = format!(
                         "{} in machine `{}` at block {} position {}",
@@ -1031,8 +1106,24 @@ fn publish_parents(
                 }
                 refusal
             })?;
-            updates.push((machine.id, child, lender));
+            local_updates.push((machine.id, child, lender));
         }
+        Ok(local_updates)
+    };
+    let per_machine: Vec<Checked<Vec<_>>> =
+        if worker_budget::current_workers() == 1 || queries.len() < 2 {
+            queries.into_iter().map(solve_machine).collect()
+        } else {
+            use rayon::prelude::*;
+            queries
+                .into_par_iter()
+                .with_max_len(1)
+                .map(solve_machine)
+                .collect()
+        };
+    let mut updates = Vec::new();
+    for machine_updates in per_machine {
+        updates.extend(machine_updates?);
     }
     for (machine, child, lender) in updates {
         let row = elaboration
@@ -1055,6 +1146,37 @@ fn publish_parents(
         *slot = lender;
     }
     Ok(())
+}
+
+/// The unclaimed `Loan` row formed at `before` that captures exactly
+/// `source` with `access`, looked up through the pre-indexed loan table.
+fn retained_loan_row_indexed(
+    module: &TerminalModule,
+    machine: &terminal_psi::TerminalMachine,
+    loan_index: &MachineLoanIndex,
+    before: terminal_check_tables::ProgramPoint,
+    source: &terminal_psi::StructuralArgument,
+    access: language_core::ReferenceAccess,
+    claimed: &[semantic_vocabulary::ObligationId],
+) -> Result<Option<semantic_vocabulary::ObligationId>, &'static str> {
+    let ty = machine
+        .structural_place_type(source.place)
+        .ok_or("retained call loan has no source type")?;
+    let source_path = terminal_semantics::resolved_structural_path(
+        module.types.structural_types.iter(),
+        ty,
+        &source.path,
+    )?;
+    for (_, loan) in loan_index.at(before) {
+        if loan.access == access
+            && !claimed.contains(&loan.id)
+            && loan.root == source.place
+            && loan.path == source_path
+        {
+            return Ok(Some(loan.id));
+        }
+    }
+    Ok(None)
 }
 
 /// The unclaimed `Loan` row formed at `before` that captures exactly
@@ -1102,7 +1224,7 @@ fn retained_loan_row(
 fn publish_payload_children(
     module: &TerminalModule,
     machine: &terminal_psi::TerminalMachine,
-    tables: &terminal_check_tables::MachineTables,
+    loan_index: &MachineLoanIndex,
     arguments: &[terminal_psi::StructuralArgument],
     formals: Option<&[terminal_psi::StructuralParameterDeclaration]>,
     before: terminal_check_tables::ProgramPoint,
@@ -1114,7 +1236,6 @@ fn publish_payload_children(
         )>,
     >,
 ) -> Checked<()> {
-    use terminal_check_tables::obligations::ObligationKind;
     use terminal_semantics::descriptor_lifetimes::descriptor_location;
     let unavailable = |reason| refuse(machine.id, Construct::Machine, Unserved::Call(reason));
     let formals =
@@ -1147,24 +1268,17 @@ fn publish_payload_children(
         )
         .ok_or_else(|| unavailable("payload loan has no exact source descriptor"))?;
         let mut found = None;
-        for (id, row) in tables.obligations.iter() {
-            let ObligationKind::Loan {
-                captured,
-                access: actual,
-                ..
-            } = row.kind
-            else {
-                continue;
-            };
-            if row.created_at != before || actual != access || claimed.contains(&id) {
+        for (_, loan) in loan_index.at(before) {
+            if loan.access != access || claimed.contains(&loan.id) {
                 continue;
             }
-            let (root, path) = captured_path(tables, captured).map_err(unavailable)?;
-            if terminal_semantics::descriptor_lifetimes::DescriptorLocation::captured(root, &path)
-                .as_ref()
+            if terminal_semantics::descriptor_lifetimes::DescriptorLocation::captured(
+                loan.root, &loan.path,
+            )
+            .as_ref()
                 == Some(&location)
             {
-                found = Some(id);
+                found = Some(loan.id);
                 break;
             }
         }
@@ -1223,8 +1337,12 @@ fn captured_path(
     Err("reference capture does not reach its exact storage root")
 }
 
-fn formation_position(
+fn formation_position_indexed(
     machine: &terminal_psi::TerminalMachine,
+    op_positions: &[(
+        semantic_vocabulary::OperationId,
+        terminal_semantics::descriptor_lifetimes::DescriptorPosition,
+    )],
     point: terminal_check_tables::ProgramPoint,
 ) -> Option<terminal_semantics::descriptor_lifetimes::DescriptorPosition> {
     match point {
@@ -1233,16 +1351,10 @@ fn formation_position(
         terminal_check_tables::ProgramPoint::BeforeCleanup { .. }
         | terminal_check_tables::ProgramPoint::AfterCleanup { .. } => None,
         terminal_check_tables::ProgramPoint::BlockEntry(block) => Some((block, 0)),
-        terminal_check_tables::ProgramPoint::AfterOperation(operation) => {
-            machine.blocks.iter().find_map(|block| {
-                block
-                    .operations
-                    .iter()
-                    .position(|row| row.id == operation)
-                    .and_then(|position| u32::try_from(position + 1).ok())
-                    .map(|position| (block.id, position))
-            })
-        }
+        terminal_check_tables::ProgramPoint::AfterOperation(operation) => op_positions
+            .binary_search_by_key(&operation, |(id, _)| *id)
+            .ok()
+            .map(|pos| op_positions[pos].1),
         terminal_check_tables::ProgramPoint::Edge(edge) => {
             machine.blocks.iter().find_map(|block| {
                 block
