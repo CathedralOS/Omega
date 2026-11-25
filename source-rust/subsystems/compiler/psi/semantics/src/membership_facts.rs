@@ -1463,6 +1463,29 @@ pub(crate) struct MembershipFacts {
     machines: Vec<MachineMembershipFacts>,
 }
 
+/// The membership facts that the scalar qualification check proved for one
+/// module's checked bodies. The structural check of the same bodies reads
+/// them rather than replaying every body again. They borrow the module they
+/// were proved from, so it cannot change while they are kept.
+pub struct BodyMemberships<'m> {
+    module: &'m TerminalModule,
+    facts: MembershipFacts,
+}
+
+impl<'m> BodyMemberships<'m> {
+    pub(crate) fn new(module: &'m TerminalModule, facts: MembershipFacts) -> Self {
+        Self { module, facts }
+    }
+
+    pub(crate) fn module(&self) -> &'m TerminalModule {
+        self.module
+    }
+
+    pub(crate) fn facts(&self) -> &MembershipFacts {
+        &self.facts
+    }
+}
+
 struct MachineMembershipFacts {
     machine: MachineId,
     before: Vec<(DescriptorPosition, Facts)>,

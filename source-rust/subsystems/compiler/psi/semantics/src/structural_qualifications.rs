@@ -3257,8 +3257,28 @@ pub fn validate_shape_for_bodies(module: &TerminalModule, bodies: &[MachineId]) 
             detail: error.detail,
         }
     })?;
+    validate_shape_from_facts(module, &facts)
+}
+
+/// `validate_shape_for_bodies` over the bodies whose memberships the scalar
+/// check of this module already proved
+/// (`scalar_qualifications::validate_for_bodies_keeping_memberships`).
+/// Proving them is a function of the module and bodies alone, so these are
+/// the facts the structural check would prove again.
+pub fn validate_shape_with_memberships(
+    memberships: &crate::membership_facts::BodyMemberships<'_>,
+) -> Judged<()> {
+    let module = memberships.module();
+    validate_access_policies(module)?;
+    validate_shape_from_facts(module, memberships.facts())
+}
+
+fn validate_shape_from_facts(
+    module: &TerminalModule,
+    facts: &crate::membership_facts::MembershipFacts,
+) -> Judged<()> {
     for machine in &module.machines {
-        validate_machine(module, machine, &facts, None)?;
+        validate_machine(module, machine, facts, None)?;
     }
     operation_permissions::validate(module)?;
     validate_change_owners(module)

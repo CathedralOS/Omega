@@ -7,7 +7,13 @@ use std::sync::Arc;
 
 use crate::descriptors::descriptor_lifetimes::DescriptorLocation;
 
-const ROOTS_PER_PAGE: u64 = 64;
+// A step that changes one root's row copies that root's whole page, and the
+// saved state that later drops the copy frees all of it. Replay changes a
+// few roots per step, so small pages keep both cheap; the page list stays
+// short because it holds only pages that have rows. In two alternating
+// release checks of popcount (2026-11-25), four roots per page used about 4%
+// less CPU than 64.
+const ROOTS_PER_PAGE: u64 = 4;
 type Page<Value> = (u64, Arc<BTreeMap<DescriptorLocation, Value>>);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -315,13 +321,15 @@ mod tests {
 
     #[test]
     fn rewriting_a_held_value_keeps_the_saved_page_shared() {
+        let page = ROOTS_PER_PAGE;
+        let held = page + 2;
         let copies = Arc::new(AtomicUsize::new(0));
-        let before = counted_roots(1..=128, &copies);
+        let before = counted_roots(1..=2 * page, &copies);
         let mut after = before.clone();
         after.insert(
-            root(70),
+            root(held),
             Counted {
-                value: 70,
+                value: held,
                 copies: Arc::clone(&copies),
             },
         );
@@ -329,50 +337,55 @@ mod tests {
         assert!(Arc::ptr_eq(&before.pages[1].1, &after.pages[1].1));
         // A different value still copies only its own page.
         after.insert(
-            root(70),
+            root(held),
             Counted {
                 value: 7,
                 copies: Arc::clone(&copies),
             },
         );
-        assert_eq!(copies.load(Ordering::Relaxed), ROOTS_PER_PAGE as usize);
+        assert_eq!(copies.load(Ordering::Relaxed), page as usize);
         assert!(Arc::ptr_eq(&before.pages[0].1, &after.pages[0].1));
-        assert_eq!(before.get(&root(70)).unwrap().value, 70);
-        assert_eq!(after.get(&root(70)).unwrap().value, 7);
+        assert_eq!(before.get(&root(held)).unwrap().value, held);
+        assert_eq!(after.get(&root(held)).unwrap().value, 7);
     }
 
     #[test]
     fn retaining_from_a_saved_state_copies_only_the_rows_that_stay() {
+        let page = ROOTS_PER_PAGE;
         let copies = Arc::new(AtomicUsize::new(0));
-        let before = counted_roots(1..=192, &copies);
+        let before = counted_roots(1..=3 * page, &copies);
         let mut after = before.clone();
         let mut asked = Vec::new();
         // Page 0 keeps every row, page 1 loses its odd roots and page 2 empties.
         after.retain(|location, _| {
             let id = location.root.get();
             asked.push(id);
-            id <= 64 || (id <= 128 && id % 2 == 0)
+            id <= page || (id <= 2 * page && id % 2 == 0)
         });
         assert_eq!(
             asked,
-            (1..=192).collect::<Vec<_>>(),
+            (1..=3 * page).collect::<Vec<_>>(),
             "each row is asked once, in order"
         );
-        assert_eq!(copies.load(Ordering::Relaxed), 32);
+        let halved = (page / 2) as usize;
+        assert_eq!(copies.load(Ordering::Relaxed), halved);
         assert!(Arc::ptr_eq(&before.pages[0].1, &after.pages[0].1));
         assert_eq!(after.pages.len(), 2);
         assert_eq!(
             after.keys().map(|key| key.root.get()).collect::<Vec<_>>(),
-            (1..=64).chain((66..=128).step_by(2)).collect::<Vec<_>>()
+            (1..=page)
+                .chain((page + 2..=2 * page).step_by(2))
+                .collect::<Vec<_>>()
         );
-        assert_eq!(before.iter().count(), 192);
-        // `before` still holds page 0, so dropping root 2 copies its other 63 rows.
+        assert_eq!(before.iter().count(), 3 * page as usize);
+        // `before` still holds page 0, so dropping root 2 copies its other rows.
         after.retain(|location, _| location.root.get() != 2);
-        assert_eq!(copies.load(Ordering::Relaxed), 32 + 63);
+        let rest = page as usize - 1;
+        assert_eq!(copies.load(Ordering::Relaxed), halved + rest);
         // Once no saved state holds a page, retain filters it in place.
         drop(before);
-        after.retain(|location, _| location.root.get() > 64);
-        assert_eq!(copies.load(Ordering::Relaxed), 32 + 63);
+        after.retain(|location, _| location.root.get() > page);
+        assert_eq!(copies.load(Ordering::Relaxed), halved + rest);
         assert_eq!(after.pages.len(), 1);
     }
 
