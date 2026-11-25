@@ -188,6 +188,10 @@ let next_health: i32 = player.health - amount;
 player.health = next_health;
 ```
 
+Give every named local its type, including a `let mutable` or a copy of another
+local. For example, `let copy: i32 = amount;` is valid here and `let copy = amount;`
+is rejected. [Local type annotations](../spec/language/ownership.md#local-type-annotations)
+
 Use a fresh name for a local. With a parameter `amount`, the `let amount`
 above would be an error, even inside a nested block. The same rule protects a
 visible generic value parameter such as `const amount: u32`. Once a block

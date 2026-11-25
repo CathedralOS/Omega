@@ -342,7 +342,7 @@ suspension or re-entry. The following access conflict must reject:
 
 ```omega
 let ops: @Console = Provider::get(@preview);
-let write = ops.write_line;
+let write: Console::write_line = ops.write_line;
 preview = next;                 // exclusive write conflicts with the later call
 write("still using preview");
 ```

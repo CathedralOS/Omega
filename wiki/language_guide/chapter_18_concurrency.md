@@ -134,8 +134,8 @@ task C: [ whole stack ........ ]       task C: [ kept frames ]--+    (borrowed w
 ```omega
 machine serve(request: Request) -> Reply suspends { ... }
 
-let a = TaskRuntime::start::<Reply, Request, serve, ActivationStorage::Fixed>(move first);
-let b = TaskRuntime::start::<Reply, Request, serve, ActivationStorage::Split>(move second);
+let a: Task<Reply> = TaskRuntime::start::<Reply, Request, serve, ActivationStorage::Fixed>(move first);
+let b: Task<Reply> = TaskRuntime::start::<Reply, Request, serve, ActivationStorage::Split>(move second);
 ```
 
 `Fixed` gives each task a whole stack, sized by the compiler from its call

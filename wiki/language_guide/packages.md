@@ -50,9 +50,9 @@ machine register_firmware<Backing, const Files: Filesystem<Backing>>(
     plan: @mutable Build,
     child_filesystem: Backing
 ) -> DependencyRegistration {
-    let source = Source::Path { location: "deps/firmware" };
-    let firmware = |dependency|::from_source(source);
-    let configured = |dependency|::with_filesystem::<Backing, Files>(
+    let source: Source = Source::Path { location: "deps/firmware" };
+    let firmware: DependencyDescription = |dependency|::from_source(source);
+    let configured: DependencyDescription = |dependency|::with_filesystem::<Backing, Files>(
         firmware, child_filesystem
     );
     Build::dependency(plan, configured)

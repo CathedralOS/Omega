@@ -30,7 +30,7 @@ data Command {
 
 machine targets_one_user(op: @Command::Operation) -> bool { ... }
 
-let command = Command {
+let command: Command = Command {
     command_id: 17,
     op: Command::Operation::GetUser { user_id: 42 },
 };

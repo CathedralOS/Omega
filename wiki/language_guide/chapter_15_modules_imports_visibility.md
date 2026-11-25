@@ -56,8 +56,8 @@ data Policy { clamp: Clamp; }
 machine agrees(math: Policy, x: u32, low: u32, high: u32) -> bool
 requires low <= high
 {
-    let standard = |math|::clamp(x, low, high);
-    let supplied = math.clamp(x, low, high);
+    let standard: u32 = |math|::clamp(x, low, high);
+    let supplied: u32 = math.clamp(x, low, high);
     standard == supplied
 }
 ```
@@ -109,14 +109,13 @@ fields. Code that names a field has chosen to depend on it.
 ```omega
 use {storage}/filesystem.omg;
 
-let handle = |filesystem|::open(path);
-|filesystem|::read(@handle);
-|filesystem|::close(handle);
+|filesystem|::close(|filesystem|::open(path));
 ```
 
 If `filesystem` returns a type owned by a package you do not depend on, you
-can hold it, move it and pass it back. To name its fields or cases you need to
-depend on its owner directly.
+can pass it straight back as shown. A generic helper can also receive it as
+`T` and declare a local of type `T`. To write the owner's type name or select
+its public fields or cases yourself, declare the direct dependency.
 
 ## Build helpers
 

@@ -18,7 +18,7 @@ The local grant and vacancy providers return a bare `Extent`. Their result
 guarantees supply the evidence for the named domain casts. The local control
 keeps its grant and attempts to add vacancy without the transfer.
 
-The choice of source argument for `Extent::Resident<P, Word>` is open. It determines how initialization and the mutable view identify the access policy selected by `Word::Placed`. The fixed representation continues to come from `WordStorage`. [Resident policy operand question](../../../../OWNER_QUESTIONS.md#resident-policy-operand)
+For `Extent::Resident<P, Word>` the specified index is `Word in Word::Placed`. The domain selects `WordAccess`, and `WordStorage` supplies the fixed representation. The local sample still uses a separate empty `WordPlacement` record. Its migration to a transparent alias is tracked under **DOMAIN-ACCESS-AUTHORITY**. [Resident custody](../../../../wiki/spec/resources/access.md#establishment-and-retirement) · [Migration](../../../../TASKS.md)
 
 The local example and its control parsed after their migration to the public
 owned lifecycle. All nine pairs still need optimized checking, native/Psi

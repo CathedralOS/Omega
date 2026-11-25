@@ -101,17 +101,8 @@ It blocks one direction today. The compiler forms the quotient and proves `a as 
 
 The choices I see: (a) a second selected conformance on the declaration, of a new `core` trait whose one row proves any two proofs of the relation equal; (b) no syntax: the compiler derives the evidence when the relation's formula is an `Identity` at data it can show is a set, and refuses effectivity for any other relation; (c) drop the requirement for relations written as a `proposition`, on the ground that a `proposition` is erased and so already proof-irrelevant, and say so in the specification. I recommend (b) first, because every relation in the recovered corpus is an `Identity` of two computed values, and (a) when a relation that is not one arrives.
 
-<a id="resident-policy-operand"></a>
-### 6. What source argument identifies the access policy of a resident value?
-
-A collection can lend a caller a view of an initialized element and later extract that same element. Both operations must agree on the access policy for the live contents. The spec makes that policy the invariant index `P` in `Extent::Resident<P, T>` and `Run<P, T>`. A domain selects a named `AccessPolicy` implementation, while the core declarations currently take an ordinary type for `P`. [Resident establishment](wiki/spec/resources/access.md#establishment-and-retirement) · [Dense owned runs](wiki/spec/resources/typed_runs.md#carrier-and-establishment) · [Core resident view](source/library/core/access/access.omg)
-
-For `domain Word::Placed access WordAccess`, should a caller pass the qualified type `Word in Word::Placed`, or explicitly select the implementation `WordAccess` as a conformance argument? Consider two domains on `Word` that select the same implementation. May both name the same resident policy index, or must custody preserve which domain the caller selected? That choice determines which initialized contents a view may interpret under its result domain. Layout, live backing, field permissions and the caller's loan still have to be checked for the occurrence. [Canonical domain-index matching](wiki/spec/language/generics.md#canonical-domain-index-matching) · [Access occurrences](wiki/spec/resources/access.md#occurrences-and-views)
-
-The public compiler at `481c61dbeb7` forwarded a resident with the qualified type index through an owned return and a borrowed return. Both refused a change to another domain on the same `Word`. At the actual mutable-view call the qualified type reached the missing-custody diagnostic. Supplying `WordAccess` directly failed while specializing the call's ordinary type argument. The local backing example and dense collection cells need a source choice for establishment. [Forwarding regression](source-rust/application/tests/resident_domain_arguments.rs) · [Resident-backing example](samples/cli/facts/resident_backing/local/main.omg)
-
 <a id="supplying-build-library-bindings"></a>
-### 7. How does an invoker supply an external library to a root Build or to one child Build?
+### 6. How does an invoker supply an external library to a root Build or to one child Build?
 
 A project wants its Build to call a shared topology generator on its first line. A parent may also need to give one child the generator without giving its other children access. What does the invoker write to bind the root’s import alias to a package source? What does the parent write on a particular child’s dependency description to supply that child’s aliases and sources?
 
