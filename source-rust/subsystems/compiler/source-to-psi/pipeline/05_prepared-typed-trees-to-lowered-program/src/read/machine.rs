@@ -4440,16 +4440,6 @@ impl<'t> Program<'t> {
                 )
             })?
             .ranking = ranking;
-        let parked = typed.parked_build_locals.iter().find(|parked| {
-            typed.symbols.symbol_source_span(machine.symbol) == Some(parked.entry)
-                && match parked.state {
-                    Some(span) => typed.symbols.symbol_source_span(state.symbol) == Some(span),
-                    None => typed
-                        .machine_states(machine)
-                        .first()
-                        .is_some_and(|entry| entry.symbol == state.symbol),
-                }
-        });
         let statements = typed.statement_table.statements(state.statement_nodes);
         if let Some(names) = self.names.get_mut(id) {
             for (position, statement) in statements.iter().enumerate() {
@@ -4514,7 +4504,7 @@ impl<'t> Program<'t> {
                     Unserved::Completion("statement after an unconditional arm"),
                 ));
             }
-            let last = position + 1 == statements.len() && parked.is_none();
+            let last = position + 1 == statements.len();
             // A statement skipped by `continue` may still have read a block.
             self.join_block_slots(&mut slots, &mut slot_names);
             self.block_slot_base = slots.len();
@@ -4703,32 +4693,6 @@ impl<'t> Program<'t> {
             position += 1;
         }
         self.join_block_slots(&mut slots, &mut slot_names);
-        if let Some(parked) = parked {
-            let mut retained = Vec::with_capacity(parked.declarations.len());
-            for &declaration in &parked.declarations {
-                let site = SourceSpan::new(parked.entry.source_id, declaration);
-                let mut matching = slots.iter().enumerate().filter(|(_, slot)| {
-                    self.typed.symbols.symbol_source_span(slot.symbol) == Some(site)
-                });
-                let slot = matching
-                    .next()
-                    .filter(|_| matching.next().is_none())
-                    .ok_or_else(|| {
-                        let mut failure = refuse(
-                            id,
-                            Construct::Machine,
-                            Unserved::Machine("parked Build local has no unique checked binding"),
-                        );
-                        failure.source_span = Some(site);
-                        failure
-                    })?;
-                retained.push(slot.0);
-            }
-            body.push(Statement::ParkedBuildLocals(
-                retained,
-                parked.pending_completion_at,
-            ));
-        }
         if let Some(names) = self.names.get_mut(id) {
             for statement in &body {
                 bindings(statement, &slot_names, &mut names.bindings);
@@ -4916,8 +4880,7 @@ fn bindings(statement: &Statement, slot_names: &[String], out: &mut Vec<(SourceS
                 target_spans(target, out);
             }
         }
-        Statement::ParkedBuildLocals(..)
-        | Statement::CaptureReference { .. }
+        Statement::CaptureReference { .. }
         | Statement::Decompose { .. }
         | Statement::Declare { .. }
         | Statement::Witness { .. }
@@ -4937,8 +4900,7 @@ fn value_exits(statement: &Statement, exits: &mut Vec<(SourceSpan, usize)>) {
             .map(|(_, target, source)| (target, *source))
             .chain(default.iter().map(|(target, source)| (target, *source)))
             .collect(),
-        Statement::ParkedBuildLocals(..)
-        | Statement::CaptureReference { .. }
+        Statement::CaptureReference { .. }
         | Statement::Decompose { .. }
         | Statement::Declare { .. }
         | Statement::Witness { .. }

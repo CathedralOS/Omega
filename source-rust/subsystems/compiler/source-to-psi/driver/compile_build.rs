@@ -1,6 +1,5 @@
-//! Compile the Build source selected for one planning stage. The host may
+//! Check the complete Build program before its activation. The host may
 //! inspect the checked program to admit filesystem access before publishing it.
-use declaration_scope::PackageDeclarationScope;
 use crate::compile_time_invocations::{InvocationSourceConsent, SourceCompletionAccounting};
 use crate::driver::judge_lowered_source;
 use crate::driver::prepare_typed_source::{
@@ -14,18 +13,22 @@ use checked_program_to_psi::{
     AcceptedTerminalSource, BuildProtocolUse, ConstantRead, PreparedTerminalPublication,
     ProducedTerminalProgram, TerminalSourceCompilation,
 };
+use declaration_scope::PackageDeclarationScope;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
-mod continuation;
-pub use continuation::{checked_build_stack, locate_build_suspending_call};
-mod product_imports;
 mod target_helpers;
-mod waits;
-use source_text::SourceId;
+use source_text::{SourceId, SourceSpan, Span};
 use std::collections::HashSet;
 use std::sync::Arc;
 use symbols::SymbolHandle;
-pub use waits::{BuildPreparationSite, BuildStage, PendingBuildImport};
+
+/// A Build import without a supplied module binding for this invocation.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PendingBuildImport {
+    pub source: SourceId,
+    pub span: Span,
+    pub target: crate::SourceImportTarget,
+}
 
 /// The parsed files selected by the package capture, including an explicit Build entry.
 pub struct BuildStageSource {
@@ -35,11 +38,9 @@ pub struct BuildStageSource {
     pub entry: source_text::SourceSpan,
 }
 
-/// One typed interval of the Build entry and the exact waits used to project it.
+/// The complete typed source of one Build invocation.
 pub struct TypedBuildInterval {
     pub program: Arc<TypedTrees>,
-    /// The authored preparation paths this checked interval may reach.
-    pub plan: BuildStage,
 }
 
 /// Source selected for declaration queries issued by a suspended Build.
@@ -60,7 +61,7 @@ impl ProductDeclarationSource {
         host: &'static str,
         authority: Option<Arc<PackageDeclarationScope>>,
     ) -> Result<crate::compile_product::ProductDeclarations, Vec<Diagnostic>> {
-        let typed = self.0.typed_declarations(preparation, host, authority)?;
+        let typed = self.0.typed_source(preparation, host, authority)?;
         Ok(crate::compile_product::ProductDeclarations { typed })
     }
 }
@@ -68,7 +69,6 @@ impl ProductDeclarationSource {
 impl BuildStageSource {
     pub fn prepare(
         self,
-        previous: Option<&BuildStage>,
         preparation: &SourcePreparation,
         host: &'static str,
         authority: Option<Arc<PackageDeclarationScope>>,
@@ -82,41 +82,12 @@ impl BuildStageSource {
                         "Build import `{}` has no supplied source",
                         import.target
                     ))
-                    .with_source_span(source_text::SourceSpan::new(import.source, import.span))
+                    .with_source_span(SourceSpan::new(import.source, import.span))
                 })
                 .collect());
         }
-        let entry = self.entry;
-        let mut selected = self;
-        let imports = std::mem::take(&mut selected.pending_imports);
-        let mut request = selected.request(preparation, host, authority)?;
-        let mut plan = waits::EntryPlan::new(
-            &mut request.syntax.trees,
-            entry,
-            previous,
-            !imports.is_empty(),
-        )?;
-        let mut timings = CompileTimings::default();
-        let mut resolved = None;
-        let mut parked = Vec::new();
-        if plan.can_park() && !imports.is_empty() {
-            request.syntax.share_pages();
-            let frontier = request.resolve_build_scope(&mut timings)?;
-            parked = plan.select(frontier.trees(), &imports)?;
-            if !plan.stage.outgoing_preparation_paths().is_empty() {
-                request.syntax.partial_build_entry = Some(entry);
-                request.syntax.partial_build_can_return =
-                    plan.stage.can_finish_before_preparation();
-                plan.project(&mut request.syntax.trees);
-            } else {
-                resolved = Some(frontier);
-            }
-        }
-        let source = request.prepare_build_projection(&mut timings, resolved, parked)?;
-        plan.stage.check_imports(source.typed(), &imports)?;
         Ok(TypedBuildInterval {
-            program: source.shared_typed(),
-            plan: plan.stage,
+            program: self.typed_source(preparation, host, authority)?,
         })
     }
 
@@ -130,7 +101,7 @@ impl BuildStageSource {
         subject: Option<PackageKeyIdentity>,
         declaration: &source_admission::RetainedDeclaration,
     ) -> Result<(Arc<TypedTrees>, SymbolHandle), Vec<Diagnostic>> {
-        let typed = self.typed_declarations(preparation, host, authority)?;
+        let typed = self.typed_source(preparation, host, authority)?;
         let entry = crate::source_state::source_subjects::rejoin_build_activation(
             &typed,
             subject,
@@ -140,7 +111,7 @@ impl BuildStageSource {
         Ok((typed, entry))
     }
 
-    fn typed_declarations(
+    fn typed_source(
         self,
         preparation: &SourcePreparation,
         host: &'static str,
@@ -193,19 +164,6 @@ impl CheckedBuildInvocation {
         declaration_scope: Option<Arc<PackageDeclarationScope>>,
         invocation_sources: Option<Arc<dyn InvocationSourceConsent>>,
     ) -> Result<BuildInvocationJudgment, SourcePreparationFailure> {
-        let subjects = if let Some(prefix) = typed.roots.partial_build_entry {
-            if !typed.symbols.symbols().nodes().is_valid(entry)
-                || typed.symbols.symbol_source_span(entry) != Some(prefix)
-            {
-                return Err(SourcePreparationFailure {
-                    diagnostics: vec![Diagnostic::error("Build prefix belongs to a different entry")],
-                    accounting: Default::default(),
-                });
-            }
-            if typed.roots.partial_build_can_return { subjects } else { &[] }
-        } else {
-            subjects
-        };
         let judged = SourcePreparationRequest {
             program: typed.clone(),
             accounting: Default::default(),

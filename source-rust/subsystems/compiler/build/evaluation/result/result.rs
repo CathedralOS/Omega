@@ -25,8 +25,6 @@ pub enum BuildSubjectValidation {
     /// The whole subject was checked before Build ran, under a check-only owner.
     /// It is checked again under the owner the returned Build establishes.
     CheckedUnderProvisionalOwner,
-    /// The Build returned through a checked arm. Other arms still need an unavailable dependency.
-    CheckedAvailableDeclarations,
     Checked,
 }
 

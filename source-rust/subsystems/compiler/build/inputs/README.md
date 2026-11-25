@@ -9,7 +9,7 @@ Start at [package.rs](package.rs): it builds the
 package graph, checks source roots and dependency bindings, and separates
 shared source from target-specific attachments.
 
-[Source assembly](source/assembly/mod.rs) builds one parsed forest from the captured files, scoped imports and generated sources. [The checkpoint](source/assembly/checkpoint.rs) keeps Product roots deferred until the Build settles. [Resumed assembly](source/assembly/resumed.rs) reselects those same captured sources for a Build continuation or a declaration query. The query returns the source needed to describe Product declarations. The [fixed Build imports migration](../../../../../wiki/spec/build/scoped_execution.md#checked-build-stages) retires resumed assembly for extending an executing Build's imports.
+[Source assembly](source/assembly/mod.rs) builds a parsed forest from captured files, scoped imports and generated sources. [Scoped source selection](source/assembly/scoped_sources.rs) adds the invoker's supplied libraries before the compiler checks the Build. It also selects the source needed to describe a Product's declarations. [The checkpoint](source/assembly/checkpoint.rs) keeps Product roots deferred until the Build settles. A dependency wait resumes the same [checked Build program](../../../../../wiki/spec/build/scoped_execution.md#checked-build-stages).
 
 [build_execution/build_admission.rs](build_execution/build_admission.rs)
 selects the Build machine the source declares, rejects reach into runtime

@@ -503,7 +503,7 @@ impl ProductQueryInputs {
                     let selected = match selected {
                         super::files::FileSelection::Selected(file) => vec![file],
                         super::files::FileSelection::Package(pending) => pending.resolve_with_prepared_build(owner.or(mounted).expect("a package import has an admitted graph"), &mut storage.package_roots, mount.and_then(|dependency| dependency.generated.as_ref()))?,
-                        super::files::FileSelection::Unprepared => continue,
+                        super::files::FileSelection::Unbound => continue,
                     };
                     for resolved in selected {
                         imports.push((resolved.path.clone(), authored.scope));
@@ -541,7 +541,7 @@ impl ProductQueryInputs {
                                 &mut storage.package_roots,
                                 importer,
                             )?;
-                            if paths.is_empty() && request.defers_in(importer) {
+                            if paths.is_empty() && request.is_unbound_build_import(importer) {
                                 continue;
                             }
                             (request.expected_root, paths, prefix)
