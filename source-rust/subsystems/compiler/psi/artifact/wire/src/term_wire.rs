@@ -49,7 +49,7 @@ pub(crate) mod mathematical_certificate_wire {
     use super::wire::{Reader, Writer, bounded_count, decode_canonical, decode_counted};
 
     const MAGIC: &[u8; 8] = b"PSICORE\0";
-    const FORMAT_MARKER: u16 = 4;
+    const FORMAT_MARKER: u16 = 5;
 
     pub struct DecodedMathematicalCertificate {
         pub arena: TermArena,
@@ -259,14 +259,6 @@ pub(crate) mod mathematical_certificate_wire {
                     endpoint,
                     proof,
                 } => vec![motive, base, endpoint, proof],
-                Term::W { carrier, children } => vec![carrier, children],
-                Term::Sup {
-                    carrier,
-                    children,
-                    label,
-                    function,
-                } => vec![carrier, children, label, function],
-                Term::IndW { motive, step, tree } => vec![motive, step, tree],
                 Term::EmptyElim { ty, scrutinee } => vec![ty, scrutinee],
                 Term::Squash { ty } => vec![ty],
                 Term::SquashIntro { ty, value } => vec![ty, value],
@@ -437,38 +429,6 @@ pub(crate) mod mathematical_certificate_wire {
                     node.u32(base);
                     node.u32(endpoint);
                     node.u32(proof);
-                }
-                Term::W { carrier, children } => {
-                    let carrier = self.by_handle[&carrier];
-                    let children = self.by_handle[&children];
-                    node.u8(17);
-                    node.u32(carrier);
-                    node.u32(children);
-                }
-                Term::Sup {
-                    carrier,
-                    children,
-                    label,
-                    function,
-                } => {
-                    let carrier = self.by_handle[&carrier];
-                    let children = self.by_handle[&children];
-                    let label = self.by_handle[&label];
-                    let function = self.by_handle[&function];
-                    node.u8(18);
-                    node.u32(carrier);
-                    node.u32(children);
-                    node.u32(label);
-                    node.u32(function);
-                }
-                Term::IndW { motive, step, tree } => {
-                    let motive = self.by_handle[&motive];
-                    let step = self.by_handle[&step];
-                    let tree = self.by_handle[&tree];
-                    node.u8(19);
-                    node.u32(motive);
-                    node.u32(step);
-                    node.u32(tree);
                 }
                 Term::Constant {
                     declaration,
@@ -680,29 +640,6 @@ pub(crate) mod mathematical_certificate_wire {
                     endpoint,
                     proof,
                 }
-            }
-            17 => {
-                let carrier = child(reader)?;
-                let children = child(reader)?;
-                Term::W { carrier, children }
-            }
-            18 => {
-                let carrier = child(reader)?;
-                let children = child(reader)?;
-                let label = child(reader)?;
-                let function = child(reader)?;
-                Term::Sup {
-                    carrier,
-                    children,
-                    label,
-                    function,
-                }
-            }
-            19 => {
-                let motive = child(reader)?;
-                let step = child(reader)?;
-                let tree = child(reader)?;
-                Term::IndW { motive, step, tree }
             }
             20 => {
                 let declaration = reader.u32()?;

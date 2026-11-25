@@ -3145,9 +3145,6 @@ one certificate.
 | 14 | Id | ty + left + right |
 | 15 | Refl | ty + value |
 | 16 | IdElim | motive + base + endpoint + proof |
-| 17 | W | carrier + children |
-| 18 | Sup | carrier + children + label + function |
-| 19 | IndW | motive + step + tree |
 | 20 | Constant | `u32` declaration index + counted level arguments |
 | 21 | Empty | — |
 | 22 | EmptyElim | ty + scrutinee |

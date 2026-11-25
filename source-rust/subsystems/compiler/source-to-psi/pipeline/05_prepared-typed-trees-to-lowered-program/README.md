@@ -97,14 +97,14 @@ Data whose parameters are values and that holds itself at other values
 Cons(previous: u64, previous_total: u64, head: u64, tail [erased]:
 Vector<previous, previous_total>); }`) is a family of types, one per choice of
 its parameters, and mathematical data like any that contains itself
-(`read/families.rs`). The signature declares the kernel's indexed-family
-scheme and an integer vocabulary first, then the family: its indices and
-payload values are integers, each case's label carries a proof of what the
-declaration's `requires` say of that case, and each child sits at the index
-its field's type names. The `requires` must be one clause per case, each
-naming its case with `self in ..`. A program with a quotient as well holds
-both kernel schemes: the quotient's declarations come first and the family
-names its five from where they start (`indexed_scheme_at`).
+(`read/families.rs`). The signature declares the integer vocabulary first, then
+the family as a native inductive declaration (`IndexedData::declare`): its
+indices and payload values are integers, each case's constructor carries a
+proof of what the declaration's `requires` say of that case, and each recursive
+child sits at the index its field's type names. The `requires` must be one
+clause per case, each naming its case with `self in ..`. A program with a
+quotient as well holds the quotient's declarations first and then the native
+inductive family.
 
 The data may also take types: `data Vector<T [copy], Length: u64, Total: u64>`
 with a field `marker: T`. No clause can say anything of a value of such a

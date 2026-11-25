@@ -189,7 +189,6 @@ impl Program<'_> {
             held: Vec::new(),
             stating_premises: false,
             integers: None,
-            indexed_scheme: 0,
             families: Vec::new(),
         };
         let mut refused = Vec::new();
@@ -206,23 +205,8 @@ impl Program<'_> {
                 );
             }
         }
-        // Data indexed by values needs the kernel's indexed-family
-        // declarations and an integer vocabulary for the indices. The
-        // family names those declarations from where they start, so they
-        // follow the quotient's when the program has both.
+        // Data indexed by values needs an integer vocabulary for the indices.
         if !self.families.is_empty() {
-            converter.indexed_scheme = index(diagnostic, converter.signature.declarations.len())
-                .map_err(|refusal| vec![refusal])?;
-            for declaration in mathematical_kernel::indexed_scheme_at(
-                &mut converter.signature.arena,
-                converter.indexed_scheme,
-            ) {
-                converter.push(
-                    declaration,
-                    SignatureEntryKind::Scheme,
-                    "indexed data".to_owned(),
-                );
-            }
             match proof_admission::SourceIntegerTheory::new(
                 &mut converter.signature.arena,
                 &mut converter.signature.declarations,
@@ -584,8 +568,6 @@ struct Converter<'p, 't> {
     /// The integer vocabulary, declared when the program has data indexed
     /// by values.
     integers: Option<proof_admission::SourceIntegerTheory>,
-    /// Where the kernel's indexed-family declarations start.
-    indexed_scheme: u32,
     /// Each data declaration indexed by values, as it was declared.
     families: Vec<FamilyDeclared>,
 }
@@ -1695,11 +1677,7 @@ impl<'p> Converter<'p, '_> {
             cases: described,
             level_arity: 0,
         }
-        .declare_at(
-            &mut self.signature.arena,
-            &mut self.signature.declarations,
-            self.indexed_scheme,
-        )
+        .declare(&mut self.signature.arena, &mut self.signature.declarations)
         .map_err(|_| unserved(id, "indexed data the kernel's family builder refuses"))?;
         let name = self.name(family.declaration);
         self.sync(&name);
@@ -1973,7 +1951,7 @@ impl<'p> Converter<'p, '_> {
             }
             let body = instantiate(&mut self.signature.arena, goal, &projections);
             let invariant = self.signature.arena.insert(Term::Lambda {
-                domain: instance.family.index,
+                domain: instance.index_type,
                 body,
             });
             let invariant = instance.declare_invariant(
@@ -1986,7 +1964,7 @@ impl<'p> Converter<'p, '_> {
             // For every index and every value of the data at it.
             let arena = &mut self.signature.arena;
             let at = arena.insert(Term::Variable(0));
-            let value = instance.family.indexed_w(arena, at);
+            let value = instance.family_type(arena, at);
             let at = arena.insert(Term::Variable(1));
             let holds = arena.insert(Term::Apply {
                 function: invariant,
@@ -1997,7 +1975,7 @@ impl<'p> Converter<'p, '_> {
                 codomain: holds,
             });
             let statement = arena.insert(Term::Pi {
-                domain: instance.family.index,
+                domain: instance.index_type,
                 codomain: statement,
             });
             let law = index(id, self.signature.laws.len())?;

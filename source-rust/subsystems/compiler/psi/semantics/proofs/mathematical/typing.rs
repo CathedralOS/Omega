@@ -1,6 +1,6 @@
 /*
     Predicative dependent typing, sort inference, and typed conversion judgments
-    for the mathematical core (`Pi`, `Sigma`, `Two`, `Id`, `W`, and strict
+    for the mathematical core (`Pi`, `Sigma`, `Two`, `Id`, native inductives, and strict
     propositions).
 
     We infer sorts and types, check dependent pair and lambda continuations off
@@ -148,25 +148,6 @@ pub enum CoreError {
     IdentityMotiveCodomainNotAUniverse {
         codomain: TermHandle,
     },
-    StrictWCarrier {
-        carrier: TermHandle,
-    },
-    StrictWChildrenCodomain {
-        codomain: TermHandle,
-    },
-    WChildrenCodomainNotAUniverse {
-        codomain: TermHandle,
-    },
-    NotAW {
-        tree: TermHandle,
-        actual_type: TermHandle,
-    },
-    StrictInductionMotiveCodomain {
-        codomain: TermHandle,
-    },
-    InductionMotiveCodomainNotAUniverse {
-        codomain: TermHandle,
-    },
     StrictSquashDomain {
         domain: TermHandle,
     },
@@ -263,10 +244,7 @@ pub fn infer_type(
         | Term::SquashIntro { .. }
         | Term::BoxIntro { .. }
         | Term::EmptyElim { .. }
-        | Term::W { .. }
-        | Term::Sup { .. }
         | Term::CaseTwo { .. }
-        | Term::IndW { .. }
         | Term::BoxElim { .. }
         | Term::SquashElim { .. }
         | Term::IdElim { .. } => judgments::infer(arena, context, term, budget),
@@ -306,10 +284,7 @@ fn infer_leaf_type(
         | Term::SquashIntro { .. }
         | Term::BoxIntro { .. }
         | Term::EmptyElim { .. }
-        | Term::W { .. }
-        | Term::Sup { .. }
         | Term::CaseTwo { .. }
-        | Term::IndW { .. }
         | Term::BoxElim { .. }
         | Term::SquashElim { .. }
         | Term::IdElim { .. } => unreachable!("constructor inference owns these nodes"),
@@ -389,46 +364,6 @@ fn check_level(arity: u32, level: &Level) -> Result<(), CoreError> {
     }
 }
 
-pub(crate) fn w_step_type(
-    arena: &mut TermArena,
-    carrier: TermHandle,
-    children: TermHandle,
-    motive: TermHandle,
-) -> TermHandle {
-    let children_at_one = shift(arena, children, 0, 1);
-    let bound_a = arena.insert(Term::Variable(0));
-    let children_domain = arena.insert(row!(Apply => children_at_one => bound_a));
-    let carrier_at_two = shift(arena, carrier, 0, 2);
-    let children_at_two = shift(arena, children, 0, 2);
-    let w_at_two = arena.insert(Term::W {
-        carrier: carrier_at_two,
-        children: children_at_two,
-    });
-    let function_type = arena.insert(row!(Pi => children_domain => w_at_two));
-    let bound_a = arena.insert(Term::Variable(1));
-    let hypothesis_domain = arena.insert(row!(Apply => children_at_two => bound_a));
-    let motive_at_three = shift(arena, motive, 0, 3);
-    let bound_k = arena.insert(Term::Variable(1));
-    let bound_b = arena.insert(Term::Variable(0));
-    let child = arena.insert(row!(Apply => bound_k => bound_b));
-    let hypothesis_codomain = arena.insert(row!(Apply => motive_at_three => child));
-    let hypothesis = arena.insert(row!(Pi => hypothesis_domain => hypothesis_codomain));
-    let carrier_at_three = shift(arena, carrier, 0, 3);
-    let children_at_three = shift(arena, children, 0, 3);
-    let bound_a = arena.insert(Term::Variable(2));
-    let bound_k = arena.insert(Term::Variable(1));
-    let sup = arena.insert(Term::Sup {
-        carrier: carrier_at_three,
-        children: children_at_three,
-        label: bound_a,
-        function: bound_k,
-    });
-    let result = arena.insert(row!(Apply => motive_at_three => sup));
-    let inner = arena.insert(row!(Pi => hypothesis => result));
-    let middle = arena.insert(row!(Pi => function_type => inner));
-    arena.insert(row!(Pi => carrier => middle))
-}
-
 pub(crate) fn box_body_type(
     arena: &mut TermArena,
     payload: TermHandle,
@@ -446,10 +381,10 @@ pub(crate) fn box_body_type(
 }
 
 mod judgments {
-    use super::{Context, CoreError, box_body_type, infer_leaf_type, inferred_sort, w_step_type};
+    use super::{Context, CoreError, box_body_type, infer_leaf_type, inferred_sort};
     use crate::conversion::{Budget, weak_head_normalize};
     use crate::substitution::{shift, substitute};
-    use crate::term::{Level, Sort, Term, TermArena, TermHandle};
+    use crate::term::{Sort, Term, TermArena, TermHandle};
     use std::collections::HashMap;
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -531,14 +466,6 @@ mod judgments {
         Reflexivity { value: TermHandle },
     }
 
-    enum WUse {
-        Formation,
-        Constructor {
-            label: TermHandle,
-            function: TermHandle,
-        },
-    }
-
     struct IdentityElimination {
         motive: TermHandle,
         base: TermHandle,
@@ -555,12 +482,6 @@ mod judgments {
             one_branch: TermHandle,
             scrutinee: TermHandle,
         },
-        W {
-            carrier: TermHandle,
-            children: TermHandle,
-            tree: TermHandle,
-            step: TermHandle,
-        },
         Box {
             payload: TermHandle,
             body: TermHandle,
@@ -569,11 +490,11 @@ mod judgments {
     }
 
     mod comparison {
-        use super::super::{Context, CoreError, box_body_type, inferred_sort, w_step_type};
+        use super::super::{Context, CoreError, box_body_type, inferred_sort};
         use super::JudgmentValue;
         use crate::conversion::{Budget, weak_head_normalize_retaining};
         use crate::substitution::{shift, substitute};
-        use crate::term::{Level, Sort, Term, TermArena, TermHandle, levels_equal, sorts_equal};
+        use crate::term::{Term, TermArena, TermHandle, levels_equal, sorts_equal};
 
         type Retention<'a> = &'a dyn Fn(u32) -> bool;
 
@@ -685,11 +606,6 @@ mod judgments {
                 endpoints: Terms,
                 proofs: Terms,
             },
-            W {
-                motive: TermHandle,
-                steps: Terms,
-                trees: Terms,
-            },
             Box {
                 motive: TermHandle,
                 bodies: Terms,
@@ -772,53 +688,6 @@ mod judgments {
                 fixed: TermHandle,
                 retained: Retention<'a>,
             },
-            WLeftSort {
-                carriers: Terms,
-                families: Terms,
-                retained: Retention<'a>,
-            },
-            WRightSort {
-                carriers: Terms,
-                families: Terms,
-                left_sort: Sort,
-                retained: Retention<'a>,
-            },
-            WCarriers {
-                carrier: TermHandle,
-                families: Terms,
-                retained: Retention<'a>,
-            },
-            WLeftFamily {
-                carrier: TermHandle,
-                families: Terms,
-                retained: Retention<'a>,
-            },
-            WRightFamily {
-                carrier: TermHandle,
-                families: Terms,
-                left_level: Option<Level>,
-                retained: Retention<'a>,
-            },
-            SupLabels {
-                shared_type: TermHandle,
-                children: TermHandle,
-                label: TermHandle,
-                functions: Terms,
-                retained: Retention<'a>,
-            },
-            InductionTreeType {
-                motive: TermHandle,
-                steps: Terms,
-                trees: Terms,
-                retained: Retention<'a>,
-            },
-            InductionTrees {
-                motive: TermHandle,
-                steps: Terms,
-                carrier: TermHandle,
-                children: TermHandle,
-                retained: Retention<'a>,
-            },
             SquashType {
                 proposition: TermHandle,
                 functions: Terms,
@@ -875,24 +744,6 @@ mod judgments {
                     retained,
                 },
             )
-        }
-
-        fn family_level(
-            arena: &mut TermArena,
-            context: &Context,
-            inferred: TermHandle,
-            budget: &mut Budget,
-            retained: Retention<'_>,
-        ) -> Result<Option<Level>, CoreError> {
-            let inferred = head(arena, context, inferred, budget, retained)?;
-            let Term::Pi { codomain, .. } = arena.get(inferred) else {
-                return Ok(None);
-            };
-            let codomain = head(arena, context, codomain, budget, retained)?;
-            Ok(match arena.get(codomain) {
-                Term::Sort(Sort::Type(level)) => Some(level),
-                _ => None,
-            })
         }
 
         fn enter_heads<'a>(
@@ -1149,92 +1000,6 @@ mod judgments {
                         proofs: Terms {
                             left: lp,
                             right: rp,
-                        },
-                    },
-                    retained,
-                ),
-                (
-                    Term::W {
-                        carrier: lc,
-                        children: lf,
-                    },
-                    Term::W {
-                        carrier: rc,
-                        children: rf,
-                    },
-                ) => infer(
-                    lc,
-                    Work::WLeftSort {
-                        carriers: Terms {
-                            left: lc,
-                            right: rc,
-                        },
-                        families: Terms {
-                            left: lf,
-                            right: rf,
-                        },
-                        retained,
-                    },
-                ),
-                (
-                    Term::Sup {
-                        label: ll,
-                        function: lf,
-                        ..
-                    },
-                    Term::Sup {
-                        label: rl,
-                        function: rf,
-                        ..
-                    },
-                ) => {
-                    let ty = head(arena, context, shared_type, budget, retained)?;
-                    match arena.get(ty) {
-                        Term::W { carrier, children } => compare(
-                            Terms {
-                                left: ll,
-                                right: rl,
-                            }
-                            .at(carrier, retained),
-                            Some(Work::SupLabels {
-                                shared_type: ty,
-                                children,
-                                label: ll,
-                                functions: Terms {
-                                    left: lf,
-                                    right: rf,
-                                },
-                                retained,
-                            }),
-                        ),
-                        _ => Step::Complete(false),
-                    }
-                }
-                (
-                    Term::IndW {
-                        motive: lm,
-                        step: ls,
-                        tree: lt,
-                    },
-                    Term::IndW {
-                        motive: rm,
-                        step: rs,
-                        tree: rt,
-                    },
-                ) => motives(
-                    Terms {
-                        left: lm,
-                        right: rm,
-                    },
-                    Elimination::W {
-                        motive: lm,
-                        steps: Terms {
-                            left: ls,
-                            right: rs,
-                        },
-                        trees: Terms {
-                            left: lt,
-                            right: rt,
                         },
                     },
                     retained,
@@ -1632,19 +1397,6 @@ mod judgments {
                                     retained,
                                 },
                             ),
-                            Elimination::W {
-                                motive,
-                                steps,
-                                trees,
-                            } => infer(
-                                trees.left,
-                                Self::InductionTreeType {
-                                    motive,
-                                    steps,
-                                    trees,
-                                    retained,
-                                },
-                            ),
                             Elimination::Box {
                                 motive,
                                 bodies,
@@ -1769,172 +1521,6 @@ mod judgments {
                         });
                         compare(bases.at(shared, retained), None)
                     }
-                    Self::WLeftSort {
-                        carriers,
-                        families,
-                        retained,
-                    } => {
-                        let left_sort = inferred_sort(
-                            arena,
-                            context,
-                            carriers.left,
-                            value.require_inferred(),
-                            budget,
-                        )?;
-                        infer(
-                            carriers.right,
-                            Self::WRightSort {
-                                carriers,
-                                families,
-                                left_sort,
-                                retained,
-                            },
-                        )
-                    }
-                    Self::WRightSort {
-                        carriers,
-                        families,
-                        left_sort,
-                        retained,
-                    } => {
-                        let right_sort = inferred_sort(
-                            arena,
-                            context,
-                            carriers.right,
-                            value.require_inferred(),
-                            budget,
-                        )?;
-                        if !sorts_equal(&left_sort, &right_sort) {
-                            return Ok(Step::Complete(false));
-                        }
-                        let shared = arena.insert(Term::Sort(left_sort));
-                        compare(
-                            carriers.at(shared, retained),
-                            Some(Self::WCarriers {
-                                carrier: carriers.left,
-                                families,
-                                retained,
-                            }),
-                        )
-                    }
-                    Self::WCarriers {
-                        carrier,
-                        families,
-                        retained,
-                    } => {
-                        if !value.require_converted() {
-                            return Ok(Step::Complete(false));
-                        }
-                        infer(
-                            families.left,
-                            Self::WLeftFamily {
-                                carrier,
-                                families,
-                                retained,
-                            },
-                        )
-                    }
-                    Self::WLeftFamily {
-                        carrier,
-                        families,
-                        retained,
-                    } => {
-                        let left_level = family_level(
-                            arena,
-                            context,
-                            value.require_inferred(),
-                            budget,
-                            retained,
-                        )?;
-                        infer(
-                            families.right,
-                            Self::WRightFamily {
-                                carrier,
-                                families,
-                                left_level,
-                                retained,
-                            },
-                        )
-                    }
-                    Self::WRightFamily {
-                        carrier,
-                        families,
-                        left_level,
-                        retained,
-                    } => {
-                        let right_level = family_level(
-                            arena,
-                            context,
-                            value.require_inferred(),
-                            budget,
-                            retained,
-                        )?;
-                        let (Some(level), Some(other)) = (left_level, right_level) else {
-                            return Ok(Step::Complete(false));
-                        };
-                        if !levels_equal(&level, &other) {
-                            return Ok(Step::Complete(false));
-                        }
-                        let codomain = arena.insert(Term::Sort(Sort::Type(level)));
-                        let shared = arena.insert(Term::Pi {
-                            domain: carrier,
-                            codomain,
-                        });
-                        compare(families.at(shared, retained), None)
-                    }
-                    Self::SupLabels {
-                        shared_type,
-                        children,
-                        label,
-                        functions,
-                        retained,
-                    } => {
-                        if !value.require_converted() {
-                            return Ok(Step::Complete(false));
-                        }
-                        let domain = arena.insert(Term::Apply {
-                            function: children,
-                            argument: label,
-                        });
-                        let codomain = shift(arena, shared_type, 0, 1);
-                        let shared = arena.insert(Term::Pi { domain, codomain });
-                        compare(functions.at(shared, retained), None)
-                    }
-                    Self::InductionTreeType {
-                        motive,
-                        steps,
-                        trees,
-                        retained,
-                    } => {
-                        let inferred =
-                            head(arena, context, value.require_inferred(), budget, retained)?;
-                        match arena.get(inferred) {
-                            Term::W { carrier, children } => compare(
-                                trees.at(inferred, retained),
-                                Some(Self::InductionTrees {
-                                    motive,
-                                    steps,
-                                    carrier,
-                                    children,
-                                    retained,
-                                }),
-                            ),
-                            _ => Step::Complete(false),
-                        }
-                    }
-                    Self::InductionTrees {
-                        motive,
-                        steps,
-                        carrier,
-                        children,
-                        retained,
-                    } => {
-                        if !value.require_converted() {
-                            return Ok(Step::Complete(false));
-                        }
-                        let shared = w_step_type(arena, carrier, children, motive);
-                        compare(steps.at(shared, retained), None)
-                    }
                     Self::SquashType {
                         proposition,
                         functions,
@@ -2029,14 +1615,6 @@ mod judgments {
             scrutinee_type: TermHandle,
             use_kind: MotiveUse,
         },
-        WFamily {
-            carrier: TermHandle,
-            children: TermHandle,
-            carrier_level: Level,
-            domain: TermHandle,
-            codomain: TermHandle,
-            use_kind: WUse,
-        },
         Argument {
             domain: TermHandle,
             codomain: TermHandle,
@@ -2125,11 +1703,6 @@ mod judgments {
             function: TermHandle,
             argument: TermHandle,
         },
-        InductionTree {
-            motive: TermHandle,
-            step: TermHandle,
-            tree: TermHandle,
-        },
         BoxScrutinee {
             motive: TermHandle,
             body: TermHandle,
@@ -2144,32 +1717,6 @@ mod judgments {
             proposition: TermHandle,
             function: TermHandle,
             carrier: TermHandle,
-        },
-
-        WCarrier {
-            carrier: TermHandle,
-            children: TermHandle,
-            use_kind: WUse,
-        },
-        WChildren {
-            carrier: TermHandle,
-            children: TermHandle,
-            carrier_level: Level,
-            use_kind: WUse,
-        },
-        WDomain {
-            carrier: TermHandle,
-            children: TermHandle,
-            carrier_level: Level,
-            domain: TermHandle,
-            codomain: TermHandle,
-            use_kind: WUse,
-        },
-        SupLabel {
-            carrier: TermHandle,
-            children: TermHandle,
-            label: TermHandle,
-            function: TermHandle,
         },
 
         IdentityDomain {
@@ -2589,29 +2136,6 @@ mod judgments {
                         current = Operation::Infer(ty);
                         continue;
                     }
-                    Term::W { carrier, children } => {
-                        pending.push(Pending::WCarrier {
-                            carrier,
-                            children,
-                            use_kind: WUse::Formation,
-                        });
-                        current = Operation::Infer(carrier);
-                        continue;
-                    }
-                    Term::Sup {
-                        carrier,
-                        children,
-                        label,
-                        function,
-                    } => {
-                        pending.push(Pending::WCarrier {
-                            carrier,
-                            children,
-                            use_kind: WUse::Constructor { label, function },
-                        });
-                        current = Operation::Infer(carrier);
-                        continue;
-                    }
                     Term::CaseTwo {
                         motive,
                         zero_branch,
@@ -2629,11 +2153,6 @@ mod judgments {
                             },
                         });
                         current = Operation::Infer(motive);
-                        continue;
-                    }
-                    Term::IndW { motive, step, tree } => {
-                        pending.push(Pending::InductionTree { motive, step, tree });
-                        current = Operation::Infer(tree);
                         continue;
                     }
                     Term::BoxElim {
@@ -2834,27 +2353,6 @@ mod judgments {
                     Some(Pending::ReturnType { ty }) => {
                         value.require_checked();
                         value = JudgmentValue::Inferred(ty);
-                    }
-                    Some(Pending::SupLabel {
-                        carrier,
-                        children,
-                        label,
-                        function,
-                    }) => {
-                        value.require_checked();
-                        let domain = arena.insert(Term::Apply {
-                            function: children,
-                            argument: label,
-                        });
-                        let w_type = arena.insert(Term::W { carrier, children });
-                        let codomain = shift(arena, w_type, 0, 1);
-                        let function_type = arena.insert(Term::Pi { domain, codomain });
-                        pending.push(Pending::ReturnType { ty: w_type });
-                        current = Operation::Check {
-                            term: function,
-                            expected: function_type,
-                        };
-                        break;
                     }
                     Some(Pending::CaseScrutinee {
                         motive,
@@ -3104,40 +2602,6 @@ mod judgments {
                                             expected: two,
                                         };
                                     }
-                                    MotiveUse::W {
-                                        carrier,
-                                        children,
-                                        tree,
-                                        step,
-                                    } => {
-                                        match arena.get(head) {
-                                            Term::Sort(Sort::Type(_)) => {}
-                                            Term::Sort(Sort::Strict(_)) => {
-                                                return Err(
-                                                    CoreError::StrictInductionMotiveCodomain {
-                                                        codomain,
-                                                    },
-                                                );
-                                            }
-                                            _ => {
-                                                return Err(
-                                                CoreError::InductionMotiveCodomainNotAUniverse {
-                                                    codomain,
-                                                },
-                                            );
-                                            }
-                                        }
-                                        let step_type =
-                                            w_step_type(arena, carrier, children, motive);
-                                        pending.push(Pending::ReturnApplication {
-                                            function: motive,
-                                            argument: tree,
-                                        });
-                                        current = Operation::Check {
-                                            term: step,
-                                            expected: step_type,
-                                        };
-                                    }
                                     MotiveUse::Box {
                                         payload,
                                         body,
@@ -3160,62 +2624,6 @@ mod judgments {
                                     }
                                 }
                                 break;
-                            }
-                            Compared::WFamily {
-                                carrier,
-                                children,
-                                carrier_level,
-                                domain,
-                                codomain,
-                                use_kind,
-                            } => {
-                                if !equal {
-                                    return Err(CoreError::TypeMismatch {
-                                        expected: carrier,
-                                        actual: domain,
-                                    });
-                                }
-
-                                let head = weak_head_normalize(
-                                    arena,
-                                    context.signature(),
-                                    codomain,
-                                    budget,
-                                )?;
-                                let children_level = match arena.get(head) {
-                                    Term::Sort(Sort::Type(level)) => level,
-                                    Term::Sort(Sort::Strict(_)) => {
-                                        return Err(CoreError::StrictWChildrenCodomain {
-                                            codomain,
-                                        });
-                                    }
-                                    _ => {
-                                        return Err(CoreError::WChildrenCodomainNotAUniverse {
-                                            codomain,
-                                        });
-                                    }
-                                };
-                                let level = carrier_level.maximum(children_level);
-                                match use_kind {
-                                    WUse::Formation => {
-                                        value = JudgmentValue::Inferred(
-                                            arena.insert(Term::Sort(Sort::Type(level))),
-                                        );
-                                    }
-                                    WUse::Constructor { label, function } => {
-                                        pending.push(Pending::SupLabel {
-                                            carrier,
-                                            children,
-                                            label,
-                                            function,
-                                        });
-                                        current = Operation::Check {
-                                            term: label,
-                                            expected: carrier,
-                                        };
-                                        break;
-                                    }
-                                }
                             }
                             Compared::Argument {
                                 domain,
@@ -3552,32 +2960,6 @@ mod judgments {
                                 current = Operation::Convert(query);
                                 break;
                             }
-                            Pending::InductionTree { motive, step, tree } => {
-                                let head = weak_head_normalize(
-                                    arena,
-                                    context.signature(),
-                                    inferred,
-                                    budget,
-                                )?;
-                                let Term::W { carrier, children } = arena.get(head) else {
-                                    return Err(CoreError::NotAW {
-                                        tree,
-                                        actual_type: head,
-                                    });
-                                };
-                                pending.push(Pending::MotiveType {
-                                    motive,
-                                    scrutinee_type: head,
-                                    use_kind: MotiveUse::W {
-                                        carrier,
-                                        children,
-                                        tree,
-                                        step,
-                                    },
-                                });
-                                current = Operation::Infer(motive);
-                                break;
-                            }
                             Pending::BoxScrutinee {
                                 motive,
                                 body,
@@ -3652,78 +3034,6 @@ mod judgments {
                                     term: function,
                                     expected: function_type,
                                 };
-                                break;
-                            }
-                            Pending::WCarrier {
-                                carrier,
-                                children,
-                                use_kind,
-                            } => {
-                                let carrier_sort =
-                                    inferred_sort(arena, &context, carrier, inferred, budget)?;
-                                let Sort::Type(carrier_level) = carrier_sort else {
-                                    return Err(CoreError::StrictWCarrier { carrier });
-                                };
-                                pending.push(Pending::WChildren {
-                                    carrier,
-                                    children,
-                                    carrier_level,
-                                    use_kind,
-                                });
-                                current = Operation::Infer(children);
-                                break;
-                            }
-                            Pending::WChildren {
-                                carrier,
-                                children,
-                                carrier_level,
-                                use_kind,
-                            } => {
-                                let head = weak_head_normalize(
-                                    arena,
-                                    context.signature(),
-                                    inferred,
-                                    budget,
-                                )?;
-                                let Term::Pi { domain, codomain } = arena.get(head) else {
-                                    return Err(CoreError::NotAFunction {
-                                        function: children,
-                                        actual_type: head,
-                                    });
-                                };
-                                pending.push(Pending::WDomain {
-                                    carrier,
-                                    children,
-                                    carrier_level,
-                                    domain,
-                                    codomain,
-                                    use_kind,
-                                });
-                                current = Operation::Infer(domain);
-                                break;
-                            }
-                            Pending::WDomain {
-                                carrier,
-                                children,
-                                carrier_level,
-                                domain,
-                                codomain,
-                                use_kind,
-                            } => {
-                                let domain_sort =
-                                    inferred_sort(arena, &context, domain, inferred, budget)?;
-                                let shared_domain = arena.insert(Term::Sort(domain_sort));
-                                let query =
-                                    comparison::Query::ordinary(domain, carrier, shared_domain);
-                                pending.push(Pending::Compared(Compared::WFamily {
-                                    carrier,
-                                    children,
-                                    carrier_level,
-                                    domain,
-                                    codomain,
-                                    use_kind,
-                                }));
-                                current = Operation::Convert(query);
                                 break;
                             }
                             Pending::IdentityDomain { ty, use_kind } => {
@@ -3851,7 +3161,6 @@ mod judgments {
                             | Pending::ReflexivityValue { .. }
                             | Pending::LayerIntroduction { .. }
                             | Pending::ReturnType { .. }
-                            | Pending::SupLabel { .. }
                             | Pending::CaseScrutinee { .. }
                             | Pending::CaseZero { .. }
                             | Pending::ReturnApplication { .. }

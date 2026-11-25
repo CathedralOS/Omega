@@ -15,9 +15,6 @@ pub enum Syntax {
     Id(Box<Syntax>, Box<Syntax>, Box<Syntax>),
     Refl(Box<Syntax>, Box<Syntax>),
     IdElim(Box<Syntax>, Box<Syntax>, Box<Syntax>, Box<Syntax>),
-    W(Box<Syntax>, Box<Syntax>),
-    Sup(Box<Syntax>, Box<Syntax>, Box<Syntax>, Box<Syntax>),
-    IndW(Box<Syntax>, Box<Syntax>, Box<Syntax>),
     Squash(Box<Syntax>),
     SquashIntro(Box<Syntax>, Box<Syntax>),
     Boxed(Box<Syntax>),
@@ -113,29 +110,6 @@ pub fn build(arena: &mut TermArena, scope: &mut Vec<&'static str>, syntax: &Synt
                 endpoint,
                 proof,
             })
-        }
-        Syntax::W(carrier, children) => {
-            let carrier = build(arena, scope, carrier);
-            let children = build(arena, scope, children);
-            arena.insert(Term::W { carrier, children })
-        }
-        Syntax::Sup(carrier, children, label, function) => {
-            let carrier = build(arena, scope, carrier);
-            let children = build(arena, scope, children);
-            let label = build(arena, scope, label);
-            let function = build(arena, scope, function);
-            arena.insert(Term::Sup {
-                carrier,
-                children,
-                label,
-                function,
-            })
-        }
-        Syntax::IndW(motive, step, tree) => {
-            let motive = build(arena, scope, motive);
-            let step = build(arena, scope, step);
-            let tree = build(arena, scope, tree);
-            arena.insert(Term::IndW { motive, step, tree })
         }
         Syntax::Squash(ty) => {
             let ty = build(arena, scope, ty);
@@ -234,33 +208,12 @@ pub(crate) fn pair(first: Syntax, second: Syntax) -> Syntax {
     Syntax::Pair(Box::new(first), Box::new(second))
 }
 
-pub(crate) fn fst(pair: Syntax) -> Syntax {
-    Syntax::Fst(Box::new(pair))
-}
-
-pub(crate) fn snd(pair: Syntax) -> Syntax {
-    Syntax::Snd(Box::new(pair))
-}
-
 pub fn id(ty: Syntax, left: Syntax, right: Syntax) -> Syntax {
     Syntax::Id(Box::new(ty), Box::new(left), Box::new(right))
 }
 
 pub(crate) fn refl(ty: Syntax, value: Syntax) -> Syntax {
     Syntax::Refl(Box::new(ty), Box::new(value))
-}
-
-pub(crate) fn w(carrier: Syntax, children: Syntax) -> Syntax {
-    Syntax::W(Box::new(carrier), Box::new(children))
-}
-
-pub(crate) fn sup(carrier: Syntax, children: Syntax, label: Syntax, function: Syntax) -> Syntax {
-    Syntax::Sup(
-        Box::new(carrier),
-        Box::new(children),
-        Box::new(label),
-        Box::new(function),
-    )
 }
 
 pub(crate) fn jelim(motive: Syntax, base: Syntax, endpoint: Syntax, proof: Syntax) -> Syntax {
@@ -270,10 +223,6 @@ pub(crate) fn jelim(motive: Syntax, base: Syntax, endpoint: Syntax, proof: Synta
         Box::new(endpoint),
         Box::new(proof),
     )
-}
-
-pub(crate) fn indw(motive: Syntax, step: Syntax, tree: Syntax) -> Syntax {
-    Syntax::IndW(Box::new(motive), Box::new(step), Box::new(tree))
 }
 
 pub(crate) fn squash(ty: Syntax) -> Syntax {
