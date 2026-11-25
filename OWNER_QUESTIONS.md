@@ -77,28 +77,3 @@ carry the exact compiler inputs? The native borrow decision retires assumed
 provider contracts. Unsafe reach requires explicit admission on every edge.
 General ceiling defaults, composition across uses and CLI stage selection remain open.
 [Decisions for review](wiki/spec/packages/staged_inputs.md#remaining-design-decisions)
-
-<a id="vacant-storage-boundary-calls"></a>
-### 2. May a boundary call run while an owned value is moved out of borrowed storage?
-
-A machine that updates a field of storage it was lent often replaces the field
-with what a provider returns for its old value:
-`conn.session = Tls::advance(conn.session);`. Evaluating the right side moves
-`conn.session` out, so the boundary call runs while that field is vacant. The
-compiler now refuses every boundary call in that position, including one whose
-requirement declares `reaches none`, receives only the detached value and
-names no `invokes` callback; the same update through an ordinary machine that
-reaches nothing compiles. Does such a requirement's declared contract count as
-the "complete access and outcome contracts" that show the call "cannot expose
-the incomplete owner", so the compiler may admit it? If so, must a requirement
-that declares `blocks` still be refused?
-
-[Borrowed-storage invariant windows](wiki/spec/language/ownership.md#borrowed-storage-invariant-windows)
-admits a call only on those contracts and keeps "Boundary/capability calls and
-other invariant-window fences" in force.
-[Invariant windows](wiki/spec/language/dependent_values.md#invariant-windows)
-fences boundary calls "that may observe or expose the affected storage,
-including through authority not named as an argument", without saying whether
-a declared ceiling of `reaches none` shows that a call cannot.
-[Service reach](wiki/spec/language/effects.md) makes reach, `invokes` and
-`blocks` independent axes; neither window page names blocking.
