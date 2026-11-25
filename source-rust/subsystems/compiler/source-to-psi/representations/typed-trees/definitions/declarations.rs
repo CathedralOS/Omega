@@ -1604,9 +1604,18 @@ pub mod domain {
         expected: &str,
         substitutions: &[(SymbolHandle, IndexIdentityArgument<'_>)],
     ) -> Result<String, Diagnostic> {
-        let Named { symbol, name } = program.type_reference_table.type_reference(argument) else {
+        let reference = program.type_reference_table.type_reference(argument);
+        // A literal has no declaration. Named substitutions and selected
+        // constants below still have to agree with their declaration.
+        if !matches!(reference, Named { symbol, .. } if symbol.is_valid())
+            && let Some(value) =
+                crate::source_state::canonical_const_argument_value(program, argument)
+        {
+            return canonical_domain_const_identity(&value, expected);
+        }
+        let Named { symbol, name } = reference else {
             if let crate::source_state::types::TypeReferenceNode::ConstExpression(expression) =
-                program.type_reference_table.type_reference(argument)
+                reference
             {
                 if program.expression_table.binary_node(*expression).is_some()
                     && let Some(identity) =
@@ -1690,6 +1699,43 @@ pub mod domain {
         });
         let refusal = closed_domain_argument_identity(&trees, argument, "Unit", &[]).unwrap_err();
         assert!(refusal.message.contains("`Missing` has no resolved declaration"));
+    }
+
+    #[cfg(test)]
+    #[test]
+    fn boolean_domain_indices_use_the_same_value_in_literal_and_expression_form() {
+        use crate::source_state::{expression::ExpressionNode, types::TypeReferenceNode};
+        use application_identity::const_value::CanonicalConstValue;
+
+        let mut trees = TypedTrees::default();
+        for (spelling, value) in [("false", false), ("true", true)] {
+            let literal = trees.type_reference_table.insert(Named {
+                symbol: SymbolHandle::invalid(),
+                name: Identifier::from(spelling),
+            });
+            let expression = trees
+                .expression_table
+                .insert(ExpressionNode::Boolean(value));
+            let expression = trees
+                .type_reference_table
+                .insert(TypeReferenceNode::ConstExpression(expression));
+            let expected =
+                canonical_domain_const_identity(&CanonicalConstValue::boolean(value), "bool")
+                    .unwrap();
+            for reference in [literal, expression] {
+                assert_eq!(
+                    closed_domain_argument_identity(&trees, reference, "bool", &[]).unwrap(),
+                    expected
+                );
+                let error =
+                    closed_domain_argument_identity(&trees, reference, "u8", &[]).unwrap_err();
+                assert!(
+                    error
+                        .message
+                        .contains("canonical type `bool`, expected `u8`")
+                );
+            }
+        }
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
