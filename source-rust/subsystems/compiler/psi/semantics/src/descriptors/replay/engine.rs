@@ -349,8 +349,6 @@ pub(crate) struct Replay<'a> {
 #[derive(Default)]
 pub(crate) struct DescriptorReadDepth<'state> {
     depth: std::cell::Cell<usize>,
-    // A later result account can change a query that consulted this gap.
-    pub(super) unprepared_summary: std::cell::Cell<bool>,
     pub(super) captured: std::cell::Cell<Option<(MachineId, DescriptorPosition)>>,
     pub(super) history: Option<(&'state DescriptorMachine, &'state States)>,
     pub(super) live: Option<(&'state DescriptorMachine, &'state State)>,
@@ -364,12 +362,6 @@ pub(crate) struct DescriptorReadGuard<'depth> {
 }
 
 impl<'state> DescriptorReadDepth<'state> {
-    pub(super) fn absorb_summary_reads(&self, child: &DescriptorReadDepth<'_>) {
-        if child.unprepared_summary.get() {
-            self.unprepared_summary.set(true);
-        }
-    }
-
     pub(crate) fn at(
         machine: &'state DescriptorMachine,
         live: &'state State,
@@ -3711,7 +3703,7 @@ impl<'a> Replay<'a> {
         // call. Rebase its existing result account at that call's own
         // input cut; callee coordinates never become caller history.
         if let Some((position, origins)) =
-            self.returned_roster_origins(machine, backing, None, None)
+            self.returned_roster_origins(machine, backing, None)
         {
             let call = machine.direct_call(position)?;
             let before = states.get(&position)?;

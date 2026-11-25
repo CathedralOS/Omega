@@ -21,7 +21,7 @@ impl Replay<'_> {
             path: location.path[..index].to_vec(),
         };
         let (position, origins) =
-            self.returned_roster_origins(machine, &roster, completed, Some(depth))?;
+            self.returned_roster_origins(machine, &roster, completed)?;
         if origins.is_empty()
             || !origins.iter().all(|origin| {
                 matches!(
@@ -47,7 +47,7 @@ impl Replay<'_> {
                 .sequence_construction(self.types, location.root, completed)
                 .is_some())
             || self
-                .returned_roster_origins(machine, location, completed, Some(depth))
+                .returned_roster_origins(machine, location, completed)
                 .is_some_and(|(_, origins)| {
                     !origins.is_empty()
                         && origins.iter().all(|origin| {
@@ -65,7 +65,6 @@ impl Replay<'_> {
         machine: &DescriptorMachine,
         location: &DescriptorLocation,
         completed: Option<(MachineId, DescriptorPosition)>,
-        depth: Option<&DescriptorReadDepth<'_>>,
     ) -> Option<(DescriptorPosition, Vec<&'replay DescriptorStoredOrigin>)> {
         if !std::ptr::eq(self.machine(machine.id)?, machine)
             || completed.is_some_and(|(owner, _)| owner != machine.id)
@@ -88,12 +87,7 @@ impl Replay<'_> {
         let DescriptorInvocationTarget::Machine(callee) = call.target else {
             return None;
         };
-        let Some(summary) = self.summaries.get(&callee).and_then(Option::as_ref) else {
-            if let Some(depth) = depth {
-                depth.unprepared_summary.set(true);
-            }
-            return None;
-        };
+        let summary = self.summaries.get(&callee).and_then(Option::as_ref)?;
         let slots = summary.result.slots()?;
         let slot = DescriptorResultSlot::matching(slots, suffix)?;
         Some((position, slot.origins_at(suffix)?))
@@ -158,7 +152,6 @@ impl Replay<'_> {
                             machine,
                             &backing,
                             depth.captured.get(),
-                            Some(depth),
                         )?;
                         if origins.is_empty() {
                             return None;
@@ -451,9 +444,7 @@ impl Replay<'_> {
     ) -> Option<&'state Value> {
         let reads = DescriptorReadDepth::at(machine, state, None);
         let _capture = reads.capture(depth.captured.get());
-        let resolved = self.resolve_storage_with_depth(machine, state, queried, &reads);
-        depth.absorb_summary_reads(&reads);
-        let resolved = resolved?;
+        let resolved = self.resolve_storage_with_depth(machine, state, queried, &reads)?;
         let coordinate = resolved.local_coordinate().unwrap_or(queried);
         (!state.has_selected_inline_contents(coordinate)).then(|| state.slots.get(coordinate))?
     }
@@ -996,18 +987,11 @@ impl Replay<'_> {
         let before = self.target_state(machine, state, Some((owner, position)), depth)?;
         let reads =
             DescriptorReadDepth::at(machine, before, depth.history.map(|(_, states)| states));
-        let value = (|| {
-            let mut value = BTreeSet::new();
-            for origin in origins {
-                value.extend(
-                    self.substitute_result_with_depth(machine, before, call, origin, &reads)?,
-                );
-            }
-            (!value.is_empty()).then_some(value)
-        })();
-        // Failed substitutions still consulted the child read context.
-        depth.absorb_summary_reads(&reads);
-        value
+        let mut value = BTreeSet::new();
+        for origin in origins {
+            value.extend(self.substitute_result_with_depth(machine, before, call, origin, &reads)?);
+        }
+        (!value.is_empty()).then_some(value)
     }
 
     fn stored_view_targets(
@@ -1108,12 +1092,9 @@ impl Replay<'_> {
                     }
                     return Some(targets);
                 }
-                if let Some((producer, origins)) = self.returned_roster_origins(
-                    machine,
-                    &location,
-                    depth.captured.get(),
-                    Some(depth),
-                ) {
+                if let Some((producer, origins)) =
+                    self.returned_roster_origins(machine, &location, depth.captured.get())
+                {
                     let owner = (machine.id, (producer.0, producer.1.checked_add(1)?));
                     let captured = self.target_state(machine, state, Some(owner), depth)?;
                     let _capture = depth.capture(Some(owner));

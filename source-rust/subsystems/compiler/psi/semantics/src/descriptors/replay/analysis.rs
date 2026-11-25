@@ -5,10 +5,12 @@ use crate::descriptors::descriptor_lifetimes::descriptor_location_type;
 
 pub(crate) mod call_origins;
 
-// Proof and loan consumers revisit the same storage at the same cut.
-// These rows belong only to this immutable graph and contain actual flow
-// positions of machines the query has selected, never a raw-ID maximum.
+// Unchanged-entry checks of incoming sources revisit the same storage at the
+// same cut. These rows belong only to this immutable graph and contain actual
+// flow positions of machines the query has selected, never a raw-ID maximum.
 // In-progress replay states remain outside this prepared query owner.
+// Storage resolutions are not kept here: nearly every resolution asks a new
+// cut and location, so a kept answer would cost more than it saves.
 #[derive(Default)]
 struct StorageQueries {
     machines: Vec<MachineStorageQueries>,
@@ -20,7 +22,6 @@ type IncomingTopology =
 
 #[derive(Default)]
 struct StorageQuery {
-    storage: LocationMap<Option<StorageResolution>>,
     incoming: LocationMap<IncomingSources>,
 }
 
@@ -31,23 +32,6 @@ struct MachineStorageQueries {
 }
 
 impl StorageQueries {
-    fn get(
-        &self,
-        machine: MachineId,
-        position: DescriptorPosition,
-        location: &DescriptorLocation,
-    ) -> Option<&Option<StorageResolution>> {
-        let machine = self
-            .machines
-            .binary_search_by_key(&machine, |row| row.identity)
-            .ok()?;
-        let positions = &self.machines[machine].positions;
-        let position = positions
-            .binary_search_by_key(&position, |(position, _)| *position)
-            .ok()?;
-        positions[position].1.storage.get(location)
-    }
-
     fn machine(&mut self, machine: &DescriptorMachine) -> &mut MachineStorageQueries {
         let index = match self
             .machines
@@ -71,18 +55,6 @@ impl StorageQueries {
             }
         };
         &mut self.machines[index]
-    }
-
-    fn at(
-        &mut self,
-        machine: &DescriptorMachine,
-        position: DescriptorPosition,
-    ) -> Option<&mut LocationMap<Option<StorageResolution>>> {
-        let positions = &mut self.machine(machine).positions;
-        let index = positions
-            .binary_search_by_key(&position, |(position, _)| *position)
-            .ok()?;
-        Some(&mut positions[index].1.storage)
     }
 
     fn incoming_at(
@@ -504,17 +476,9 @@ impl<'a> DescriptorAnalysis<'a> {
             .ready()?
             .before
             .get(&position)?;
-        Self::prepared_storage(
-            &self.replay,
-            &mut self.storage_queries,
-            machine,
-            position,
-            state,
-            location,
-            true,
-        )?
-        .local_coordinate()
-        .cloned()
+        Self::resolved_storage(&self.replay, machine, state, location)?
+            .local_coordinate()
+            .cloned()
     }
 
     /// One complete captured storage address, including indexed backing.
@@ -562,16 +526,8 @@ impl<'a> DescriptorAnalysis<'a> {
             .and_then(|cached| cached.ready())
             .and_then(|ready| ready.before.get(&position))
             .ok_or("captured storage position has no reachable snapshot")?;
-        let resolution = Self::prepared_storage(
-            &self.replay,
-            &mut self.storage_queries,
-            machine,
-            position,
-            state,
-            location,
-            true,
-        )
-        .ok_or("captured storage family has a missing, cyclic or unknown arrival")?;
+        let resolution = Self::resolved_storage(&self.replay, machine, state, location)
+            .ok_or("captured storage family has a missing, cyclic or unknown arrival")?;
         self.replay
             .checked_storage_family(machine, state, resolution)
     }
@@ -693,30 +649,16 @@ impl<'a> DescriptorAnalysis<'a> {
             .checked_storage_family(machine, state, resolution)
     }
 
-    fn prepared_storage(
+    /// Resolve `location` in the snapshot `state` of `machine`, afresh on
+    /// every call (see `StorageQueries`).
+    fn resolved_storage(
         replay: &Replay<'_>,
-        queries: &mut StorageQueries,
         machine: &DescriptorMachine,
-        position: DescriptorPosition,
         state: &State,
         location: &DescriptorLocation,
-        retain: bool,
     ) -> Option<StorageResolution> {
-        if let Some(result) = queries.get(machine.id, position, location) {
-            return result.clone();
-        }
         let depth = DescriptorReadDepth::at(machine, state, None);
-        let result = replay.resolve_storage_with_depth(machine, state, location, &depth);
-        // A completed caller snapshot can still consult a callee whose
-        // result account has not been prepared. Its answer can change
-        // later without changing the caller snapshot.
-        if retain
-            && !depth.unprepared_summary.get()
-            && let Some(values) = queries.at(machine, position)
-        {
-            values.insert(location.clone(), result.clone());
-        }
-        result
+        replay.resolve_storage_with_depth(machine, state, location, &depth)
     }
 
     pub fn storage_origins(
@@ -1689,14 +1631,8 @@ impl<'a> DescriptorAnalysis<'a> {
                 step.may_escape = false;
             }
             let replay = &self.replay;
-            let queries = &mut self.storage_queries;
             let mut canonical = |location: &DescriptorLocation| {
-                // Flow visits whole slot inventories. Retain only queries
-                // demanded by individual consumers, rather than keeping
-                // every bulk scan's cut/location combination alive.
-                let resolution = Self::prepared_storage(
-                    replay, queries, machine, *position, before, location, false,
-                );
+                let resolution = Self::resolved_storage(replay, machine, before, location);
                 replay
                     .flow_location(machine, before, location, resolution)
                     .map_err(|detail| DescriptorGraphError::IncompleteMachine {
