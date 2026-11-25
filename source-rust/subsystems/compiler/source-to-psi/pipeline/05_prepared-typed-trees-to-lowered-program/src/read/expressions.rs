@@ -1170,7 +1170,6 @@ impl<'t> Program<'t> {
             return self.guarded_match(id, slots, matched, expected, source);
         }
         let subject = self.expression(id, slots, matched.subject, None)?;
-        let record = self.opened(id, subject.result, Access::Read)?;
         if !self
             .typed
             .expression_table
@@ -1193,6 +1192,30 @@ impl<'t> Program<'t> {
                 "match without its exact completed subject capture",
             ));
         }
+        // An unconditional arm captures its subject without inspecting its
+        // representation. Its value may read the capture through the ordinary
+        // access checks for those operations.
+        if let [arm] = self.typed.expression_table.match_arms(matched.arms)
+            && matches!(arm.pattern, crate::source_state::expression::MatchPattern::Wildcard)
+        {
+            self.captures.push((matched.capture, subject.clone()));
+            let value = self.arm_value(id, slots, arm.value, &mut ArmsDeliver::expected(expected));
+            self.captures.pop();
+            let value = value?;
+            self.label_arm(id, &value, &arm.pattern);
+            return Ok(Expression {
+                call_context: None,
+                result: value.result,
+                kind: ExpressionKind::Match {
+                    capture: Some(matched.capture),
+                    subject: Box::new(subject),
+                    arms: Vec::new(),
+                    default: Some(Box::new(value)),
+                },
+                source,
+            });
+        }
+        let record = self.opened(id, subject.result, Access::Read)?;
         // A scalar subject is compared with value patterns, which
         // "Explicit dereference" lists among the places no dereference is
         // inserted: `match $v { 0 -> ... }`, not `match v`.

@@ -2679,12 +2679,7 @@ pub(crate) mod expression {
                     };
                     let value = self.lower_value(membership.value)?;
                     if membership.domain_symbol.is_valid() {
-                        return lower_domain_membership_expression(
-                            program,
-                            self.target_trees,
-                            value,
-                            membership.domain_symbol,
-                        );
+                        return self.domain_test(program, value, membership.domain_symbol);
                     }
 
                     if let Some(lowered) = lower_case_membership_expression(
@@ -2718,30 +2713,28 @@ pub(crate) mod expression {
                             "unknown domain `{domain_name}` in executable membership expression",
                         )).with_source_span(self.source.source_span(expression))
                         })?;
-                    let carrier = if let Some(carrier) =
-                        crate::typing_queries::declared_expression_type(
-                            self.target_trees,
-                            self.source_owner,
-                            value,
-                        ) {
-                        Some(carrier)
-                    } else {
-                        super::member_binding::declared_type(
-                            program,
-                            self.source,
-                            membership.value,
-                            0,
-                        )
-                        .map(|reference| {
-                            lower_type_reference_into_trees_with_exposure(
-                                program,
-                                self.target_trees,
-                                reference,
-                                None,
-                            )
-                        })
-                        .transpose()?
-                    };
+                    let lowered = &self.lowered_expressions;
+                    let source = self.source;
+                    let carrier = crate::domain_cast_accounting::type_for_domain_selection(
+                        program,
+                        self.target_trees,
+                        self.source_owner,
+                        value,
+                        |typed, subject| {
+                            let reference = lowered
+                                .iter()
+                                .rev()
+                                .find(|(_, _, handle)| *handle == subject)
+                                .and_then(|(original, _, _)| {
+                                    super::member_binding::declared_type(program, source, *original, 0)
+                                });
+                            reference
+                                .map(|ty| lower_type_reference_into_trees_with_exposure(
+                                    program, typed, ty, None,
+                                ))
+                                .transpose()
+                        },
+                    )?;
                     let written = crate::type_reference::carrier_qualifications::DomainUse {
                         name: &domain_name,
                         arguments: &[],
@@ -2774,7 +2767,56 @@ pub(crate) mod expression {
                             ))
                             .with_source_span(at)
                         })?;
-                    lower_domain_membership_expression(program, self.target_trees, value, symbol)
+                    self.domain_test(program, value, symbol)
+                }
+
+                fn domain_test(
+                    &mut self,
+                    program: &resolved::SymbolResolvedTrees,
+                    value: typed::expression::ExpressionHandle,
+                    domain: symbols::SymbolHandle,
+                ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
+                    use typed::expression::{
+                        ExpressionNode, MatchPattern, TableMatchArm, TableMatchExpression,
+                        TableSavedSubject,
+                    };
+                    if self.pending_blocks.is_none()
+                        || matches!(
+                            self.target().expression(value),
+                            ExpressionNode::SavedSubject(_)
+                                | ExpressionNode::Integer(_)
+                                | ExpressionNode::Boolean(_)
+                                | ExpressionNode::Float(_)
+                                | ExpressionNode::String(_)
+                        )
+                    {
+                        return lower_domain_membership_expression(
+                            program, self.target_trees, value, domain,
+                        );
+                    }
+                    // Expanding a domain predicate can read its subject zero or many times.
+                    // A computed executable operand must complete once before those reads.
+                    let source_span = self.target().source_span(value);
+                    let capture = self.target().insert_match_subject(value);
+                    let saved = self.target().insert(ExpressionNode::SavedSubject(TableSavedSubject {
+                        component: Default::default(),
+                        capture,
+                        pattern_head: Default::default(),
+                    }));
+                    self.target().set_source_span(saved, source_span);
+                    let predicate = lower_domain_membership_expression(
+                        program, self.target_trees, saved, domain,
+                    )?;
+                    let arms = self.target().insert_match_arms([TableMatchArm {
+                        pattern: MatchPattern::Wildcard,
+                        value: predicate,
+                        source_span,
+                    }]);
+                    Ok(self.target().insert(ExpressionNode::Match(TableMatchExpression {
+                        subject: value,
+                        capture,
+                        arms,
+                    })))
                 }
             }
 

@@ -1226,6 +1226,35 @@ fn executable_membership_selects_domains_on_an_eligible_operand() {
 }
 
 #[test]
+fn a_cast_in_a_membership_operand_must_establish_its_domain() {
+    let package = PackageKeyIdentity::from_digest([0x74; 32]).unwrap();
+    for (requirement, proved) in [("", true), ("requires self.bits > 0u32", false)] {
+        let source = format!(
+            "data Word {{ bits: u32; }}
+             domain Word::Placed {requirement};
+             domain Word::Other;
+             data Placed = Word in Word::Placed;
+             data Other = Word in Word::Other;
+             domain Placed::Op;
+             domain Other::Op;
+             machine test(x: Word) -> bool {{ (x as +Placed) in Op }}"
+        );
+        let (files, root) = captured(package, &source);
+        let result = compile(product(files, root, package, &[]).unwrap(), None);
+        if proved {
+            result.expect("select Op on the completed cast");
+        } else {
+            let errors = result.expect_err("an empty Op predicate cannot erase an unproved cast");
+            assert!(
+                errors.iter().any(|error| error.message.contains("cannot prove")
+                    && error.message.contains("Word::Placed")),
+                "{errors:?}"
+            );
+        }
+    }
+}
+
+#[test]
 fn an_indexed_domain_retains_the_members_of_its_applied_carrier() {
     let package = PackageKeyIdentity::from_digest([0x63; 32]).unwrap();
     for (input_domain, returned_index, domain_index, refusal) in [
