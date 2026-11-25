@@ -164,11 +164,21 @@ fn landed_type(
     }
 }
 
-/// Using a domain as a qualification retains its nominal theory. A Boolean
-/// test of a predicate-only domain evaluates its clauses at the operand.
+/// A qualification or retained membership fact needs the nominal theory.
+/// A predicate-only test evaluates its clauses on the operand.
 pub(super) enum DomainUse {
-    Qualification,
-    Test,
+    Retained,
+    Predicate,
+}
+
+impl DomainUse {
+    pub(super) fn test(retain_membership: bool) -> Self {
+        if retain_membership {
+            Self::Retained
+        } else {
+            Self::Predicate
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -1477,14 +1487,7 @@ impl Program<'_> {
         carrier_type: TypeReferenceHandle,
         at: crate::SourceOrigin,
     ) -> Checked<()> {
-        self.form_domain(
-            id,
-            domain,
-            carrier,
-            carrier_type,
-            at,
-            DomainUse::Qualification,
-        )
+        self.form_domain(id, domain, carrier, carrier_type, at, DomainUse::Retained)
     }
 
     pub(super) fn form_domain(
@@ -1608,9 +1611,8 @@ impl Program<'_> {
         self.admitted_declarations.include(domain.declaration);
         // The tested expression owns the substituted predicate, including any
         // rigid const index in its machine's scope. It never qualifies a value.
-        if matches!(use_site, DomainUse::Test)
+        if matches!(use_site, DomainUse::Predicate)
             && definition.has_complete_predicate_theory()
-            && !definition.requires_result_membership()
             && self.require_domain_predicate_form(id, declaration)
         {
             return Ok(());

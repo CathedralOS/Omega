@@ -50,6 +50,40 @@ fn a_machine_the_domain_plan_does_not_list_is_refused() {
     assert_denied_cast(&report, source, "Ticket::Stamped");
 }
 
+#[test]
+fn an_unrestricted_policy_checks_its_predicates_on_an_unissued_value() {
+    use platform_custody::temporary_directory::TemporaryDirectory;
+
+    let project = TemporaryDirectory::create("unrestricted-membership-test", false).unwrap();
+    let build = include_str!("fixtures/domains/run/unrestricted_membership_test/build.omg");
+    let source = include_str!("fixtures/domains/run/unrestricted_membership_test/main.omg");
+    std::fs::write(project.path().join("build.omg"), build).unwrap();
+    let arguments = [
+        "--build-input",
+        "build.omg",
+        "--build-input",
+        "main.omg",
+        "build.omg",
+    ];
+    std::fs::write(project.path().join("main.omg"), source).unwrap();
+    let (succeeded, report) = run_both(project.path(), &arguments);
+    assert!(succeeded, "{report}");
+    for receipt in ["native exit 0", "interp exit: 0"] {
+        assert!(report.lines().any(|line| line == receipt), "{report}");
+    }
+
+    let unrestricted = "|layout|::Issuance::Unrestricted";
+    assert_eq!(source.matches(unrestricted).count(), 1);
+    let denied = source.replace(unrestricted, "|layout|::Issuance::Only { routes: [] }");
+    std::fs::write(project.path().join("main.omg"), denied).unwrap();
+    let (succeeded, report) = run_both(project.path(), &arguments);
+    assert!(!succeeded, "{report}");
+    assert!(
+        report.contains("requires retained authorized provenance"),
+        "{report}"
+    );
+}
+
 fn assert_denied_cast(report: &str, source: &str, domain: &str) {
     let (prefix, _) = source.rsplit_once("+Stamped").unwrap();
     let line = prefix.bytes().filter(|byte| *byte == b'\n').count() + 1;

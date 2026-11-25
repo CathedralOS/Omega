@@ -2503,11 +2503,18 @@ impl Program<'_> {
                 Unserved::Typing("membership in a domain without its declaration"),
             ));
         };
-        let routed = definition.requires_result_membership();
+        let retain_domain = definition.requires_result_membership();
+        // A checked unrestricted plan can leave an ordinary Boolean predicate.
+        // Keep independent access and content evidence when the plan needs it.
+        let needs_evidence = !matches!(
+            definition.issuance(),
+            crate::source_state::domain::DomainIssuance::Unrestricted
+        ) || definition.requires_access_retention()
+            || !definition.content_projections.is_empty();
         if !self.typed.domain_type_parameters(definition).is_empty()
             || !definition.index_arguments.is_empty()
         {
-            if routed {
+            if needs_evidence {
                 return Err(refuse(
                     id,
                     Construct::Machine,
@@ -2531,7 +2538,7 @@ impl Program<'_> {
                 definition.semantic_id
             },
         };
-        if routed || test.application.is_valid() {
+        if retain_domain || test.application.is_valid() {
             let actual = subject.result.ok_or_else(|| {
                 refuse(
                     id,
@@ -2545,10 +2552,10 @@ impl Program<'_> {
                 actual,
                 target_type,
                 subject.source,
-                super::types::DomainUse::Test,
+                super::types::DomainUse::test(needs_evidence),
             )?;
         }
-        Ok(routed.then_some((subject, domain)))
+        Ok(needs_evidence.then_some((subject, domain)))
     }
 
     pub(super) fn checked_membership_carrier(

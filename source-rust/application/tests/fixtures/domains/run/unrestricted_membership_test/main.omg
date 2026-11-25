@@ -1,0 +1,28 @@
+use {omega}/language/core/access/access.omg as access;
+use {omega}/language/core/layout.omg as layout;
+use {omega}/language/core/reflect/reflect.omg as reflect;
+
+Observe satisfies |layout|::AccessPolicy {
+    machine plan(schema: |reflect|::TypeSchema) -> |layout|::AccessPlan reaches none crashes none terminates {
+        |access|::new_plan(@schema, |layout|::Issuance::Unrestricted)
+    }
+}
+
+data Word { bits: u32; }
+
+domain u32::SmallWord requires self < 8u32 access Observe;
+domain Word::SmallRecord requires self.bits < 8u32 access Observe;
+
+machine small_scalar(value: u32) -> bool { value in SmallWord }
+machine small_record(value: Word) -> bool { value in SmallRecord }
+
+public machine main() crashes Trap {
+    let scalar: bool = small_scalar(7u32) && !small_scalar(8u32);
+    let record: bool = small_record(Word { bits: 7u32 }) && !small_record(Word { bits: 8u32 });
+    transition scalar && record {
+        true -> done(),
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}
