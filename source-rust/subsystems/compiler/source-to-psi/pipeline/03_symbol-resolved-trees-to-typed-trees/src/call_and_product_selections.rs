@@ -4220,8 +4220,16 @@ pub(crate) mod qualification_casts {
                     arguments.len(),
                 )));
             }
-            let semantic_id =
-                program.retain_domain_application(domain.symbol, carrier, &arguments)?;
+            let (semantic_id, supplied) = crate::type_reference::selected_domain_application(
+                program,
+                domain.symbol,
+                carrier,
+                cast.semantic_domain_arguments,
+            )?;
+            if let ExpressionNode::Cast(selected) = program.expression_table.expression_mut(handle)
+            {
+                selected.semantic_domain_arguments = supplied;
+            }
             updates.push((handle, authored_occurrence, domain.symbol, semantic_id));
         }
 

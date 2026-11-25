@@ -753,6 +753,9 @@ pub(crate) mod const_arguments {
         use application_identity::const_value::DecodedCanonicalConstValue;
         use diagnostics::Diagnostic;
 
+        use crate::source_state::types::TypeReferenceHandle;
+        use symbols::SymbolHandle;
+
         pub(crate) fn normalize(
             source: &crate::source_resolved::SymbolResolvedTrees,
             program: &mut TypedTrees,
@@ -761,7 +764,6 @@ pub(crate) mod const_arguments {
             // A shared argument may appear in several receiving applications.
             // Check each carrier while the selected declaration and any typed
             // literal still exist, then publish the canonical keys together.
-            let mut replacements = Vec::new();
             let mut applications = program
                 .type_reference_table
                 .type_reference_rows()
@@ -942,6 +944,88 @@ pub(crate) mod const_arguments {
                     (bound.trait_symbol, bound.arguments.clone(), owner)
                 }));
             }
+            for (argument, spelling) in replacements(program, frontier, applications)? {
+                program
+                    .type_reference_table
+                    .substitute_node(argument, canonical_argument(spelling));
+            }
+            Ok(())
+        }
+
+        fn canonical_argument(spelling: String) -> TypeReferenceNode {
+            TypeReferenceNode::Named {
+                symbol: SymbolHandle::invalid(),
+                name: Identifier::generated(spelling),
+            }
+        }
+
+        /// A cast or membership fact learns its receiving telescope when it
+        /// selects its domain. Normalize that occurrence with the same carrier
+        /// judgment as a type annotation, preserving the source of each index.
+        pub(crate) fn selected_domain_application(
+            program: &mut TypedTrees,
+            declaration: SymbolHandle,
+            carrier: TypeReferenceHandle,
+            supplied: arena::HandleSpan<TypeReferenceHandle>,
+        ) -> Result<
+            (
+                semantic_vocabulary::SemanticDomainId,
+                arena::HandleSpan<TypeReferenceHandle>,
+            ),
+            Diagnostic,
+        > {
+            let mut indices = program
+                .type_reference_table
+                .type_reference_handles(supplied)
+                .to_vec();
+            let mut normalized = supplied;
+            if indices.iter().any(|index| needs_admission(program, *index)) {
+                let domain = program
+                    .domain_definition(declaration)
+                    .ok_or_else(|| Diagnostic::error("domain application lost its declaration"))?;
+                let mut complete = Vec::new();
+                if crate::source_state::domain::has_generic_carrier(program, domain) {
+                    complete.push(
+                        program
+                            .type_reference_table
+                            .unconstrained_type_reference(carrier),
+                    );
+                }
+                complete.extend_from_slice(&indices);
+                let values = replacements(
+                    program,
+                    0,
+                    [(declaration, complete, SymbolHandle::invalid())],
+                )?;
+                if !values.is_empty() {
+                    for index in &mut indices {
+                        if let Some((_, spelling)) =
+                            values.iter().find(|(argument, _)| argument == index)
+                        {
+                            let fresh = program.type_reference_table.fresh_occurrence(*index);
+                            program
+                                .type_reference_table
+                                .substitute_node(fresh, canonical_argument(spelling.clone()));
+                            *index = fresh;
+                        }
+                    }
+                    normalized = program
+                        .type_reference_table
+                        .insert_type_reference_handles(indices.iter().copied());
+                }
+            }
+            let id = program.retain_domain_application(declaration, carrier, &indices)?;
+            Ok((id, normalized))
+        }
+
+        fn replacements(
+            program: &mut TypedTrees,
+            frontier: usize,
+            applications: impl IntoIterator<
+                Item = (SymbolHandle, Vec<TypeReferenceHandle>, SymbolHandle),
+            >,
+        ) -> Result<Vec<(TypeReferenceHandle, String)>, Diagnostic> {
+            let mut replacements = Vec::new();
             let mut owners = None;
             for (declaration, arguments, owner) in applications {
                 if let Some(sort) = program.symbols.universe_sort_for_symbol(declaration) {
@@ -1062,16 +1146,7 @@ pub(crate) mod const_arguments {
                     replacements.push((argument, spelling));
                 }
             }
-            for (argument, spelling) in replacements {
-                program.type_reference_table.substitute_node(
-                    argument,
-                    TypeReferenceNode::Named {
-                        symbol: symbols::SymbolHandle::invalid(),
-                        name: Identifier::generated(spelling),
-                    },
-                );
-            }
-            Ok(())
+            Ok(replacements)
         }
 
         /// A selected constant already has a declared carrier. Compare it
@@ -2181,6 +2256,7 @@ pub(crate) mod const_arguments {
     }
 
     pub(crate) use closed_applications::normalize as normalize_const_argument_carriers;
+    pub(crate) use closed_applications::selected_domain_application;
 }
 pub(crate) mod constraints {
     use crate::declaration_selection::AuthoredDeclarationSelectionExposure;
@@ -3675,7 +3751,7 @@ pub(crate) fn retain_supplied_operand_owner(
 
 pub(crate) use arithmetic_results::retain_arithmetic_result_type;
 pub(crate) use computed_results::retain_computed_result_types;
-pub(crate) use const_arguments::normalize_const_argument_carriers;
+pub(crate) use const_arguments::{normalize_const_argument_carriers, selected_domain_application};
 pub(crate) use generic_origins::validate_computed_arguments;
 
 use direct::lower_type_reference_handle_with_context;

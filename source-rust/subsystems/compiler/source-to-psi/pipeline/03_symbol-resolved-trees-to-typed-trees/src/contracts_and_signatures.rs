@@ -824,7 +824,7 @@ pub(crate) mod contracts {
             diagnostic: Diagnostic,
             source_span: Option<source_text::SourceSpan>,
         ) -> Diagnostic {
-            match source_span {
+            match diagnostic.source_span.or(source_span) {
                 Some(source_span) => diagnostic.with_source_span(source_span),
                 None => diagnostic,
             }
@@ -955,15 +955,12 @@ pub(crate) mod contracts {
                         handle,
                         membership.domain_symbol,
                         None,
-                        Vec::new(),
+                        membership.domain_arguments,
                         domain.semantic_id,
                     ));
                     continue;
                 }
-                let arguments = program
-                    .type_reference_table
-                    .type_reference_handles(membership.domain_arguments)
-                    .to_vec();
+                let arguments = membership.domain_arguments;
                 let mut carrier = None;
                 let mut missing = false;
                 let holders = owners
@@ -1011,17 +1008,21 @@ pub(crate) mod contracts {
                 }
             }
             for (handle, declaration, carrier, arguments, original) in instances {
-                let semantic_domain = if let Some(carrier) = carrier {
-                    program
-                        .retain_domain_application(declaration, carrier, &arguments)
-                        .map_err(|diagnostic| {
-                            with_optional_source_span(
-                                diagnostic,
-                                program.proof_fact_source_span(handle),
-                            )
-                        })?
+                let (semantic_domain, supplied) = if let Some(carrier) = carrier {
+                    crate::type_reference::selected_domain_application(
+                        program,
+                        declaration,
+                        carrier,
+                        arguments,
+                    )
+                    .map_err(|diagnostic| {
+                        with_optional_source_span(
+                            diagnostic,
+                            program.proof_fact_source_span(handle),
+                        )
+                    })?
                 } else if original.is_valid() {
-                    original
+                    (original, arguments)
                 } else {
                     let typed::domain::ProofFact::Membership(membership) =
                         program.proof_facts.get(handle)
@@ -1053,6 +1054,7 @@ pub(crate) mod contracts {
                     program.proof_facts.get_mut(handle)
                 {
                     membership.semantic_domain = semantic_domain;
+                    membership.domain_arguments = supplied;
                 }
             }
             Ok(())
