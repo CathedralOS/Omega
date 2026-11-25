@@ -215,7 +215,6 @@ fn in_scope(
             }
             Proposition::Atom(_)
             | Proposition::IeeeFloatComparison { .. }
-            | Proposition::ByteSequenceEqual { .. }
             | Proposition::StructuralCaseMembership { .. }
             | Proposition::ContentConservation(_) => inside = false,
             _ => {}

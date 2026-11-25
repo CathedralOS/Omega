@@ -59,13 +59,6 @@ pub fn validate_canonical_proposition(proposition: &Proposition) -> Result<(), C
                         ));
                     }
                 }
-                Proposition::ByteSequenceEqual { left, right } => {
-                    if left > right {
-                        return Err(CodecError::NonCanonicalOrder(
-                            "byte-sequence equality operands",
-                        ));
-                    }
-                }
                 Proposition::StructuralCaseMembership { .. } => {}
                 Proposition::DeclarationIdentity(clause) => clause.validate().map_err(CodecError::MalformedProposition)?,
                 Proposition::Conjunction(conjuncts) => {

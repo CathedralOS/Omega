@@ -926,10 +926,10 @@ pub use identity::{
     SuspensionCrossingId, ValueId, WorkScheduleIdentity,
 };
 pub use proposition::{
-    ByteSequenceStructuralField, CanonicalStructuralPathSegment, IeeeFloatComparisonKind,
-    IeeeFloatFormat, IeeeFloatStructuralField, IeeeFloatValue, IntegerCarrier, IntegerMathLiteral,
-    IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, IntegerWidth, MathematicalArgument,
-    ProofFormalScope, ProofTerm, ProofTermField, Proposition, PropositionContext, PropositionError,
+    CanonicalStructuralPathSegment, IeeeFloatComparisonKind, IeeeFloatFormat,
+    IeeeFloatStructuralField, IeeeFloatValue, IntegerCarrier, IntegerMathLiteral, IntegerMathTerm,
+    IntegerSign, IntegerType, IntegerValue, IntegerWidth, MathematicalArgument, ProofFormalScope,
+    ProofTerm, ProofTermField, Proposition, PropositionContext, PropositionError,
     ScalarReadProjection, ScalarTerm, ScalarType, StructuralCaseSubject, WidthParameter,
 };
 pub use scalars::bounded_integer_type::BoundedIntegerType;

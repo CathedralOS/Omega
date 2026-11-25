@@ -1640,9 +1640,8 @@ mod proof_terms {
 }
 mod propositions {
     use crate::proposition::{
-        ByteSequenceStructuralField, IeeeFloatComparisonKind, IeeeFloatFormat,
-        IeeeFloatStructuralField, IntegerMathTerm, IntegerType, IntegerValue, ScalarTerm,
-        ScalarType, StructuralCaseSubject,
+        IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatStructuralField, IntegerMathTerm,
+        IntegerType, IntegerValue, ScalarTerm, ScalarType, StructuralCaseSubject,
     };
     use crate::{
         ContentConservation, ContentPlaceVersion, ContentTerm, PlaceId, PropositionId,
@@ -1695,10 +1694,6 @@ mod propositions {
                 } => ScalarIeeeFloatComparison {
                     kind: *kind,
                     format: *format,
-                    left: left.clone(),
-                    right: right.clone(),
-                },
-                ByteSequenceEqual { left, right } => ByteSequenceEqual {
                     left: left.clone(),
                     right: right.clone(),
                 },
@@ -1819,8 +1814,6 @@ mod propositions {
                         } => matches!(right,
                             ScalarIeeeFloatComparison { kind: other_kind, format: other_format, left: c, right: d }
                                 if kind == other_kind && format == other_format && a == c && b == d),
-                        ByteSequenceEqual { left: a, right: b } => matches!(right,
-                            ByteSequenceEqual { left: c, right: d } if a == c && b == d),
                         StructuralCaseMembership { subject, case } => matches!(right,
                             StructuralCaseMembership { subject: other_subject, case: other_case }
                                 if subject == other_subject && case == other_case),
@@ -1944,10 +1937,6 @@ mod propositions {
                             left.hash(state);
                             right.hash(state);
                         }
-                        ByteSequenceEqual { left, right } => {
-                            left.hash(state);
-                            right.hash(state);
-                        }
                         StructuralCaseMembership { subject, case } => {
                             subject.hash(state);
                             case.hash(state);
@@ -2001,10 +1990,6 @@ mod propositions {
             format: IeeeFloatFormat,
             left: ScalarTerm,
             right: ScalarTerm,
-        },
-        ByteSequenceEqual {
-            left: ByteSequenceStructuralField,
-            right: ByteSequenceStructuralField,
         },
         StructuralCaseMembership {
             subject: StructuralCaseSubject,
@@ -2171,14 +2156,6 @@ mod propositions {
                             );
                         }
                     }
-                    Self::ByteSequenceEqual { left, right } => {
-                        if left.path.is_empty() || right.path.is_empty() {
-                            return Err(PropositionError::EmptyByteSequenceStructuralFieldPath);
-                        }
-                        if left > right {
-                            return Err(PropositionError::NonCanonicalByteSequenceEqualOperands);
-                        }
-                    }
                     Self::StructuralCaseMembership { .. } => {}
                     Self::Conjunction(conjuncts) => {
                         if conjuncts.len() < 2 {
@@ -2310,13 +2287,6 @@ mod propositions {
                     Proposition::ScalarIeeeFloatComparison { left, right, .. } => {
                         self.validate_term(left)?;
                         self.validate_term(right)?;
-                    }
-                    Proposition::ByteSequenceEqual { left, right } => {
-                        for field in [left, right] {
-                            if !self.structural_places.contains_key(&field.root) {
-                                return Err(PropositionError::UnknownStructuralPlace(field.root));
-                            }
-                        }
                     }
                     Proposition::StructuralCaseMembership { subject, .. } => {
                         if !self.structural_places.contains_key(&subject.root) {
@@ -2604,8 +2574,6 @@ mod propositions {
         NonCanonicalDisjunctionArity(usize),
         EmptyIeeeFloatStructuralFieldPath,
         NonCanonicalIeeeFloatComparisonOperands,
-        EmptyByteSequenceStructuralFieldPath,
-        NonCanonicalByteSequenceEqualOperands,
         EmptyContentAlgebraParameter,
         EmptyContentCaseName,
         EmptyContentFieldName,
@@ -2686,7 +2654,6 @@ mod value_ids {
                             | Self::Falsehood
                             | Self::Atom(_)
                             | Self::IeeeFloatComparison { .. }
-                            | Self::ByteSequenceEqual { .. }
                             | Self::StructuralCaseMembership { .. }
                             | Self::ContentConservation(_) => {}
                             Self::DeclarationIdentity(clause) => {
@@ -2858,7 +2825,6 @@ mod value_ids {
                     Proposition::Truth | Proposition::Falsehood => {}
                     Proposition::Atom(_)
                     | Proposition::IeeeFloatComparison { .. }
-                    | Proposition::ByteSequenceEqual { .. }
                     | Proposition::StructuralCaseMembership { .. }
                     | Proposition::ContentConservation(_) => complete = false,
                     Proposition::DeclarationIdentity(clause) => {
@@ -3146,9 +3112,9 @@ pub use integer_types::{
 pub use proof_terms::{MathematicalArgument, ProofFormalScope, ProofTerm, ProofTermField};
 pub use propositions::{Proposition, PropositionContext, PropositionError};
 pub use scalar_terms::{
-    ByteSequenceStructuralField, CanonicalStructuralPathSegment, IeeeFloatComparisonKind,
-    IeeeFloatFormat, IeeeFloatStructuralField, IeeeFloatValue, ScalarReadProjection, ScalarTerm,
-    ScalarType, StructuralCaseSubject,
+    CanonicalStructuralPathSegment, IeeeFloatComparisonKind, IeeeFloatFormat,
+    IeeeFloatStructuralField, IeeeFloatValue, ScalarReadProjection, ScalarTerm, ScalarType,
+    StructuralCaseSubject,
 };
 
 #[cfg(test)]

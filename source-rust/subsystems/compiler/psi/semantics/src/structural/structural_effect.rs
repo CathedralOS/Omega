@@ -4,10 +4,8 @@ use semantic_vocabulary::{
 };
 use terminal_psi::{Operation, OperationKind, OperationResult, live_field_by_id};
 
-pub(crate) mod byte_equal;
 pub(crate) mod byte_extent;
 pub(crate) mod byte_predicate;
-pub use byte_equal::byte_equal_equation;
 pub use byte_predicate::byte_predicate_equation;
 pub(crate) mod observation;
 pub use observation::{

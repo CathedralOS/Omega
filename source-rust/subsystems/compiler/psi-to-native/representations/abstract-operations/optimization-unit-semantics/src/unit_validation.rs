@@ -10788,10 +10788,6 @@ pub(crate) mod operation_contracts {
                         roots.insert(left.root());
                         roots.insert(right.root());
                     }
-                    Proposition::ByteSequenceEqual { left, right } => {
-                        roots.insert(left.root());
-                        roots.insert(right.root());
-                    }
                     Proposition::StructuralCaseMembership { subject, .. } => {
                         roots.insert(subject.root());
                     }

@@ -3,8 +3,8 @@ use crate::{
     wire::{Reader, Writer, decode_counted},
 };
 use semantic_vocabulary::{
-    ByteSequenceStructuralField, CanonicalStructuralPathSegment, IeeeFloatComparisonKind,
-    IeeeFloatFormat, IeeeFloatStructuralField, PlaceId,
+    CanonicalStructuralPathSegment, IeeeFloatComparisonKind, IeeeFloatFormat,
+    IeeeFloatStructuralField, PlaceId,
 };
 pub fn encode_ieee_float_format(writer: &mut Writer, format: IeeeFloatFormat) {
     writer.u8(match format {
@@ -58,25 +58,6 @@ pub fn decode_ieee_float_field(
 ) -> Result<IeeeFloatStructuralField, CodecError> {
     let (root, path) = decode_canonical_structural_field(reader)?;
     IeeeFloatStructuralField::new(root, path).map_err(CodecError::MalformedProposition)
-}
-
-pub fn encode_byte_sequence_field(
-    writer: &mut Writer,
-    field: &ByteSequenceStructuralField,
-) -> Result<(), CodecError> {
-    encode_canonical_structural_field(
-        writer,
-        field.root(),
-        field.path(),
-        "byte-sequence field path",
-    )
-}
-
-pub fn decode_byte_sequence_field(
-    reader: &mut Reader<'_>,
-) -> Result<ByteSequenceStructuralField, CodecError> {
-    let (root, path) = decode_canonical_structural_field(reader)?;
-    ByteSequenceStructuralField::new(root, path).map_err(CodecError::MalformedProposition)
 }
 
 pub fn encode_canonical_structural_field(

@@ -2,10 +2,9 @@ use semantic_vocabulary::{ContentConservation, Proposition, PropositionId, Struc
 
 use crate::CodecError;
 use crate::structural_fields::{
-    decode_byte_sequence_field, decode_canonical_structural_field,
-    decode_ieee_float_comparison_kind, decode_ieee_float_field, decode_ieee_float_format,
-    encode_byte_sequence_field, encode_canonical_structural_field,
-    encode_ieee_float_comparison_kind, encode_ieee_float_field, encode_ieee_float_format,
+    decode_canonical_structural_field, decode_ieee_float_comparison_kind, decode_ieee_float_field,
+    decode_ieee_float_format, encode_canonical_structural_field, encode_ieee_float_comparison_kind,
+    encode_ieee_float_field, encode_ieee_float_format,
 };
 use crate::terms::content::{
     decode_content_algebra, decode_content_term, encode_content_algebra, encode_content_term,
@@ -288,11 +287,6 @@ fn write_proposition_row(writer: &mut Writer, proposition: &Proposition) -> Resu
             encode_scalar_term(writer, left)?;
             encode_scalar_term(writer, right)?;
         }
-        Proposition::ByteSequenceEqual { left, right } => {
-            writer.u8(12);
-            encode_byte_sequence_field(writer, left)?;
-            encode_byte_sequence_field(writer, right)?;
-        }
         Proposition::StructuralCaseMembership { subject, case } => {
             writer.u8(13);
             encode_canonical_structural_field(
@@ -373,10 +367,6 @@ fn read_proposition_row(
             format: decode_ieee_float_format(reader)?,
             left: decode_ieee_float_field(reader)?,
             right: decode_ieee_float_field(reader)?,
-        },
-        12 => Proposition::ByteSequenceEqual {
-            left: decode_byte_sequence_field(reader)?,
-            right: decode_byte_sequence_field(reader)?,
         },
         13 => {
             let (root, path) = decode_canonical_structural_field(reader)?;
@@ -668,14 +658,16 @@ mod identity_tests {
     }
 
     #[test]
-    fn the_retired_structural_identity_tag_is_rejected() {
-        let mut writer = Writer::default();
-        encode_proposition(&mut writer, &Proposition::Truth).unwrap();
-        let mut bytes = writer.finish();
-        *bytes.last_mut().unwrap() = 18;
-        assert_eq!(
-            decode_proposition(&mut Reader::new(&bytes)),
-            Err(CodecError::InvalidTag("Proposition", 18))
-        );
+    fn the_retired_structural_and_byte_sequence_identity_tags_are_rejected() {
+        for retired in [12, 18] {
+            let mut writer = Writer::default();
+            encode_proposition(&mut writer, &Proposition::Truth).unwrap();
+            let mut bytes = writer.finish();
+            *bytes.last_mut().unwrap() = retired;
+            assert_eq!(
+                decode_proposition(&mut Reader::new(&bytes)),
+                Err(CodecError::InvalidTag("Proposition", retired))
+            );
+        }
     }
 }

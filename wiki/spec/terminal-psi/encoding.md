@@ -42,7 +42,13 @@ table spelling. An entry count larger than the remaining bytes rejects as
 truncation before any entry is read. Encoding and decoding walk a table with an
 explicit stack; nesting depth never consumes host stack.
 
-Current marker 294 publishes `core\Identity` between inputs and scalar terms
+Current marker 295 retires [proposition](#propositions) tag 12, byte-sequence
+equality. Its one producer had no caller, so no compiled program stated it; an
+Identity of two byte views' contents needs its own Identity carrier, which no
+program asks for yet. Readers reject earlier markers before reading the
+payload, so a saved program from marker 294 or earlier must be rebuilt.
+
+Marker 294 publishes `core\Identity` between inputs and scalar terms
 as [proposition](#propositions) tag 23, the general Identity row, and retires
 tag 18, the structural identity row it replaces: nothing wrote tag 18, and an
 Identity of two inputs at their data type is a tag 23 row. Readers reject
@@ -830,7 +836,6 @@ integer math and content operands are their own encodings inside the row.
 | 9 | ContentConservation | content algebra + content term + content term |
 | 10 | Disjunction | `u32` disjunct count + one proposition per disjunct |
 | 11 | IeeeFloatComparison | IEEE float comparison kind + IEEE float format + canonical structural field + canonical structural field |
-| 12 | ByteSequenceEqual | canonical structural field + canonical structural field |
 | 13 | StructuralCaseMembership | canonical structural field + case id |
 | 14 | IntegerMathEqual | integer math term + integer math term |
 | 15 | IntegerMathLessThan | integer math term + integer math term |
@@ -842,7 +847,7 @@ integer math and content operands are their own encodings inside the row.
 | 22 | IntegerIeeeFloatExact | scalar integer source + IEEE target format |
 | 23 | Identity | counted Identity values + `u32` left value position + `u32` right value position |
 
-Tag 18 is retired; a decoder rejects it.
+Tags 12 and 18 are retired; a decoder rejects them.
 
 Tag 23 is `core\Identity` at a type: two values of one carrier are the same
 value. Its layout is a counted list of values, then the `u32` positions of the

@@ -880,12 +880,6 @@ impl IeeeFloatStructuralField {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
-pub struct ByteSequenceStructuralField {
-    pub(crate) root: PlaceId,
-    pub(crate) path: Vec<CanonicalStructuralPathSegment>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
 pub struct StructuralCaseSubject {
     pub(crate) root: PlaceId,
     path: Vec<CanonicalStructuralPathSegment>,
@@ -894,20 +888,6 @@ pub struct StructuralCaseSubject {
 impl StructuralCaseSubject {
     pub fn new(root: PlaceId, path: Vec<CanonicalStructuralPathSegment>) -> Self {
         Self { root, path }
-    }
-
-    canonical_field_accessors!();
-}
-
-impl ByteSequenceStructuralField {
-    pub fn new(
-        root: PlaceId,
-        path: Vec<CanonicalStructuralPathSegment>,
-    ) -> Result<Self, PropositionError> {
-        if path.is_empty() {
-            return Err(PropositionError::EmptyByteSequenceStructuralFieldPath);
-        }
-        Ok(Self { root, path })
     }
 
     canonical_field_accessors!();

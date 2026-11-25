@@ -251,18 +251,6 @@ impl CheckedPrefix<'_> {
                     std::mem::swap(left, right);
                 }
             }
-            ByteSequenceEqual { left, right } => {
-                for field in [&mut *left, &mut *right] {
-                    let mut path = field.path().to_vec();
-                    self.clause_path(roots, field.root(), &mut path)?;
-                    *field =
-                        semantic_vocabulary::ByteSequenceStructuralField::new(field.root(), path)
-                            .ok()?;
-                }
-                if left > right {
-                    std::mem::swap(left, right);
-                }
-            }
             StructuralCaseMembership { subject, case } => {
                 let mut path = subject.path().to_vec();
                 let parent = self.clause_path(roots, subject.root(), &mut path)??;

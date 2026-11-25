@@ -127,7 +127,6 @@ mod value_equalities {
                     })?;
                 }
                 Proposition::IeeeFloatComparison { .. }
-                | Proposition::ByteSequenceEqual { .. }
                 | Proposition::StructuralCaseMembership { .. }
                 | Proposition::ContentConservation(_)
                 | Proposition::Truth
