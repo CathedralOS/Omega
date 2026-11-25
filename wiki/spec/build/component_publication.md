@@ -153,10 +153,8 @@ copying public fields or a semantic key cannot forge completeness. Resource and
 profile admission are checked again per installation occurrence. Cryptographic
 identity detects substitution but discharges no semantic premise.
 
-This API exposes existing closed component evidence, not a topology analyzer or
-mutable compiler-query service. Reflection alone cannot certify absence of hidden
-executable authority. The [topology package](../packages/topology.md) is one
-consumer alongside independent component admission and replacement.
+Independent component admission and replacement consume this verified description.
+Reflection alone cannot certify the absence of hidden executable authority.
 
 ### Consumer acceptance and Build attenuation
 
@@ -209,8 +207,7 @@ as an independent acceptance API. Any ordinary checked Build operation retained
 for this purpose expresses product selection or attenuation only; it cannot
 approve an assumption. Its exact record/API plumbing belongs to the build and
 acceptance owners. Do not recover the removed source harvester or add a new
-digest-spelling policy language. A topology request likewise carries consumer
-intent constrained by this acceptance, not independent authority to approve it.
+digest-spelling policy language.
 
 ## Candidate acceptance and resources
 

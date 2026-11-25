@@ -327,10 +327,6 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
   - Exercise canonicalization, metadata, directories and file I/O on the hosted targets. Include the Linux libc `realpath` case and report unavailable engines explicitly.
   - On native and Psi, run two tests that each exclusively create the same path, write and read different bytes, and leave a pre-existing host file there untouched. A child must observe writes through its delegated view. Reject a child's request for an ungranted raw host backing before test effects. Keep the service-free group runnable and check that application roots retain their original provider.
 
-## Checked boundary topology
-
-- **TOPOLOGY-PLAN-VERIFICATION.** Deliver the [checked boundary topology contract](wiki/spec/packages/topology.md) and [three-process payment customer](wiki/spec/packages/topology.md#first-executable-realization).
-
 ## Embedding and interpreted components
 
 - **EMBEDDING-SOURCE-TO-HOST.** (covers **INTERPRETED-CATHEDRAL**) Finish [embedding](wiki/spec/build/embedding.md), evidence-bearing qualified host inputs, and interpreted Cathedral.
