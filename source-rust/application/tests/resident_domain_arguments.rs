@@ -84,3 +84,42 @@ fn an_owned_run_keeps_its_domain_index_when_transferred() {
     );
     assert!(carried.contains("Word::Placed"), "{report}");
 }
+
+#[test]
+fn a_resident_view_checks_its_lent_extent_before_asking_for_custody() {
+    let declaration = |placement, schema| {
+        format!(
+            "machine carry(input: @mutable |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Resident<{placement}, {schema}>) -> @mutable Word in Word::Placed {{\n    |access|::view_resident_mut::<WordPlacement, Word, Word in Word::Placed>(input)\n}}"
+        )
+    };
+    let (output, report) = inspect(&declaration("Word in Word::Placed", "Word"));
+    assert!(!output.status.success(), "{report}");
+    assert!(
+        report
+            .contains("resident view needs evaluated layout, content, profile and policy custody"),
+        "{report}"
+    );
+
+    for (placement, schema, carried_type) in [
+        ("Word in Word::Other", "Word", "Word::Other"),
+        ("Word in Word::Placed", "u64", "u64"),
+    ] {
+        let (output, report) = inspect(&declaration(placement, schema));
+        assert!(!output.status.success(), "{report}");
+        let (carried, expected) = report
+            .lines()
+            .find_map(|line| line.split_once("the parameter it is passed for declares"))
+            .expect(&report);
+        assert!(
+            carried.contains("Resident") && carried.contains(carried_type),
+            "{report}"
+        );
+        assert!(
+            expected.contains("Resident")
+                && (expected.contains("Word::Placed") || expected.contains("WordPlacement"))
+                && expected.contains(", Word)"),
+            "{report}"
+        );
+        assert!(report.contains("main.omg:18:"), "{report}");
+    }
+}

@@ -5205,6 +5205,7 @@ pub mod expression {
     pub enum AccessBorrowBacking {
         Ordinary,
         Resident {
+            placement_parameter: SymbolHandle,
             extent: SymbolHandle,
             granted: SymbolHandle,
             resident: SymbolHandle,
