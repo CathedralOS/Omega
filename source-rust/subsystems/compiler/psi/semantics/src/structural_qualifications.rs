@@ -365,6 +365,12 @@ pub struct DefaultRequirements<'a> {
     routed: bool,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum DefaultDemand {
+    Snapshot,
+    Restoration,
+}
+
 fn push_routed(
     result: &mut Vec<RoutedOwner>,
     root: PlaceId,
@@ -445,6 +451,7 @@ impl<'a> DefaultRequirements<'a> {
         root: PlaceId,
         path: &[StructuralPathSegment],
         carrier: StructuralTypeId,
+        demand: DefaultDemand,
     ) -> Judged<Vec<DefaultRequirement>> {
         let mut result = Vec::new();
         for position in 0..self.declaration(carrier)?.requires.len() {
@@ -457,7 +464,7 @@ impl<'a> DefaultRequirements<'a> {
         }
         let mut named = Vec::new();
         for id in self.declared.at(root, path).whole {
-            named.extend(self.domain_clauses(id, carrier, path)?);
+            named.extend(self.domain_clauses(id, carrier, path, demand)?);
         }
         named.sort_unstable();
         named.dedup();
@@ -476,6 +483,7 @@ impl<'a> DefaultRequirements<'a> {
         id: StructuralDomainId,
         carrier: StructuralTypeId,
         path: &[StructuralPathSegment],
+        demand: DefaultDemand,
     ) -> Judged<Vec<StructuralDomainId>> {
         let mut named = Vec::new();
         let row = self
@@ -491,7 +499,11 @@ impl<'a> DefaultRequirements<'a> {
             .required_domain_closure(self.domains)
             .ok_or_else(|| self.error("a named default has incomplete membership requirements"))?;
         for domain in closure {
-            if !domain.complete_predicate_theory || domain.content_projection.is_some() {
+            // Snapshot demand names predicate operands. Restoring storage additionally
+            // owes the value's content, which predicate clauses cannot establish.
+            if !domain.complete_predicate_theory
+                || demand == DefaultDemand::Restoration && domain.content_projection.is_some()
+            {
                 return Err(self.error("a named default has no complete storage predicate theory"));
             }
             if domain.predicate.is_some() || domain.byte_predicate.is_some() {
@@ -517,7 +529,12 @@ impl<'a> DefaultRequirements<'a> {
         root: PlaceId,
         path: &[StructuralPathSegment],
     ) -> Judged<Vec<DefaultRequirement>> {
-        self.at(root, path, self.carrier(root, path)?)
+        self.at(
+            root,
+            path,
+            self.carrier(root, path)?,
+            DefaultDemand::Restoration,
+        )
     }
 
     /// Every clause used for snapshot demand, including nested type defaults.
@@ -537,7 +554,7 @@ impl<'a> DefaultRequirements<'a> {
                 *place,
                 &mut Vec::new(),
                 *ty,
-                false,
+                DefaultDemand::Snapshot,
                 &mut Vec::new(),
                 &mut result,
             )?;
@@ -566,7 +583,7 @@ impl<'a> DefaultRequirements<'a> {
         root: PlaceId,
         path: &mut Vec<StructuralPathSegment>,
         carrier: StructuralTypeId,
-        zero: bool,
+        demand: DefaultDemand,
         active: &mut Vec<StructuralTypeId>,
         result: &mut Vec<DefaultRequirement>,
     ) -> Judged<()> {
@@ -574,7 +591,8 @@ impl<'a> DefaultRequirements<'a> {
             return Err(self.error("recursive inline storage has no finite default inventory"));
         }
         active.push(carrier);
-        result.extend(self.at(root, path, carrier)?);
+        let zero = demand == DefaultDemand::Restoration;
+        result.extend(self.at(root, path, carrier, demand)?);
         match &self.declaration(carrier)?.shape {
             StructuralTypeShape::FixedArray {
                 element,
@@ -604,7 +622,12 @@ impl<'a> DefaultRequirements<'a> {
                                     self.error("a default inventory names an absent element path")
                                 })?;
                                 all |= !self
-                                    .domain_clauses(qualified.domain, leaf, &qualified.path)?
+                                    .domain_clauses(
+                                        qualified.domain,
+                                        leaf,
+                                        &qualified.path,
+                                        demand,
+                                    )?
                                     .is_empty();
                             }
                             None => {}
@@ -620,7 +643,7 @@ impl<'a> DefaultRequirements<'a> {
                 selected.dedup();
                 let visit = |index| {
                     path.push(StructuralPathSegment::FixedIndex(index));
-                    let result = self.walk(root, path, *element, zero, active, result);
+                    let result = self.walk(root, path, *element, demand, active, result);
                     path.pop();
                     result
                 };
@@ -638,7 +661,7 @@ impl<'a> DefaultRequirements<'a> {
                 ..
             } if zero => {}
             StructuralTypeShape::Record { fields, .. } => {
-                self.fields(root, path, fields, zero, active, result)?;
+                self.fields(root, path, fields, demand, active, result)?;
             }
             StructuralTypeShape::Sum { cases } => {
                 if zero && cases.is_empty() {
@@ -646,7 +669,7 @@ impl<'a> DefaultRequirements<'a> {
                 }
                 for case in cases.iter().take(if zero { 1 } else { cases.len() }) {
                     path.push(StructuralPathSegment::Case(case.id));
-                    self.fields(root, path, &case.fields, zero, active, result)?;
+                    self.fields(root, path, &case.fields, demand, active, result)?;
                     path.pop();
                 }
             }
@@ -669,7 +692,7 @@ impl<'a> DefaultRequirements<'a> {
         root: PlaceId,
         path: &mut Vec<StructuralPathSegment>,
         fields: &[terminal_psi::StructuralFieldDeclaration],
-        zero: bool,
+        demand: DefaultDemand,
         active: &mut Vec<StructuralTypeId>,
         result: &mut Vec<DefaultRequirement>,
     ) -> Judged<()> {
@@ -677,7 +700,7 @@ impl<'a> DefaultRequirements<'a> {
             if let terminal_psi::StructuralFieldType::Structural(nested) = field.field_type {
                 path.push(StructuralPathSegment::Field(field.identity));
                 if self.type_has_defaults(nested)? || self.projected_beneath(root, path) {
-                    self.walk(root, path, nested, zero, active, result)?;
+                    self.walk(root, path, nested, demand, active, result)?;
                 }
                 path.pop();
             }
@@ -969,7 +992,12 @@ impl<'a> DefaultRequirements<'a> {
     ) -> Judged<()> {
         let displayed = self.declared.at(displayed_root, displayed_path);
         let lost = self
-            .at(root, path, self.carrier(root, path)?)?
+            .at(
+                root,
+                path,
+                self.carrier(root, path)?,
+                DefaultDemand::Restoration,
+            )?
             .into_iter()
             .filter(|required| {
                 matches!(required.origin, DefaultClause::Domain(domain)
@@ -1130,7 +1158,12 @@ impl<'a> DefaultRequirements<'a> {
                     .result
                     .structural()
                     .ok_or_else(|| self.error("a construction produces no storage"))?;
-                return self.at(produced.place, &[], produced.structural_type);
+                return self.at(
+                    produced.place,
+                    &[],
+                    produced.structural_type,
+                    DefaultDemand::Restoration,
+                );
             }
             OperationKind::EstablishZeroedStructural {} => {
                 let produced = operation
@@ -1144,7 +1177,7 @@ impl<'a> DefaultRequirements<'a> {
                     produced.place,
                     &mut Vec::new(),
                     produced.structural_type,
-                    true,
+                    DefaultDemand::Restoration,
                     &mut Vec::new(),
                     &mut result,
                 )?;
@@ -1238,7 +1271,7 @@ impl<'a> DefaultRequirements<'a> {
             ) {
                 return Err(self.error("a default store owner crosses a scalar leaf"));
             }
-            result.extend(self.at(root, path, carrier)?);
+            result.extend(self.at(root, path, carrier, DefaultDemand::Restoration)?);
         }
         Ok(result)
     }
