@@ -88,7 +88,7 @@ impl DomainUse<'_> {
                 )
         }) {
             let available = CarrierQualifications::for_type(source, program, carrier, plain);
-            available.retain_possible(source, program, &mut candidates, self.arguments);
+            available.retain_possible(source, program, plain, &mut candidates, self.arguments);
         }
         candidates
     }
@@ -186,7 +186,12 @@ impl CarrierQualifications {
             let Some(members) = written.members(source, program, &domain) else {
                 continue;
             };
-            for (mut symbol, mut indices) in members {
+            for (mut symbol, indices) in members {
+                let Ok(indices) = super::domain_lookup_indices(program, symbol, carrier, indices.into())
+                else {
+                    continue;
+                };
+                let mut indices = indices.into_owned();
                 while let Some(declaration) = program.domain_definition(symbol) {
                     self.domains.push((symbol, indices.clone()));
                     let Some(parent) = refinement_parent(program, declaration) else {
@@ -213,14 +218,20 @@ impl CarrierQualifications {
     pub(crate) fn retain_possible(
         &self,
         source: &SymbolResolvedTrees,
-        program: &TypedTrees,
+        program: &mut TypedTrees,
+        carrier: TypeReferenceHandle,
         candidates: &mut Vec<DomainDefinition>,
         indices: &[TypeReferenceHandle],
     ) {
         candidates.retain(|candidate| {
+            let Ok(indices) =
+                super::domain_lookup_indices(program, candidate.symbol, carrier, indices.into())
+            else {
+                return false;
+            };
             let substitutions = index_parameters(program, candidate)
                 .iter()
-                .zip(indices)
+                .zip(indices.iter())
                 .map(|(binder, index)| (binder.symbol, IndexIdentityArgument::TypeArgument(*index)))
                 .collect::<Vec<_>>();
             let plain = program

@@ -701,7 +701,7 @@ fn named_domains(
                         }
                         available
                     });
-                    available.retain_possible(source, program, &mut candidates, &arguments);
+                    available.retain_possible(source, program, carrier, &mut candidates, &arguments);
                 }
             }
             let [domain] = candidates.as_slice() else {
