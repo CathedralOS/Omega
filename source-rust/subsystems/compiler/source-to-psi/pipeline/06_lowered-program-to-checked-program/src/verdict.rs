@@ -1032,34 +1032,96 @@ fn examine(
     crate::nominal_calls::validate(&elaboration).map_err(fall_back_or_defect)?;
     crate::static_reach::validate(&elaboration).map_err(fall_back_or_defect)?;
     crate::owned_cleanup::materialize(&mut elaboration).map_err(fall_back_or_defect)?;
+    let prepared = match crate::prepare_discharge(&mut elaboration, laws, activity) {
+        Ok(prepared) => prepared,
+        Err(refused) => {
+            let summaries =
+                terminal_semantics::plain_affine::AffineSummaries::new(&elaboration.module);
+            let _ = check_affine(&elaboration, &summaries, further)?;
+            return Err(fall_back_or_defect(
+                Roster::of(&elaboration).locate(refused),
+            ));
+        }
+    };
+    // Build `AffineSummaries` once after `prepare_discharge` finishes editing
+    // contracts and theorem citations, and share it across `candidates_sharing`,
+    // `plan_affine_machines`, and `minted::follow_the_lowered_form`.
+    let summaries = terminal_semantics::plain_affine::AffineSummaries::new(&elaboration.module);
+    let (affine_unestablished, verified_borrow_ends) =
+        check_affine(&elaboration, &summaries, further)?;
+    let finished = crate::finish_discharge(
+        crate::ElaborationView {
+            module: &elaboration.module,
+            domains: &elaboration.domains,
+            sources: &elaboration.sources,
+            requirements: &elaboration.requirements,
+            machines: &elaboration.machines,
+            nominal_calls: &elaboration.nominal_calls,
+            domain_sources: &elaboration.domain_sources,
+        },
+        &mut elaboration.tables,
+        prepared,
+        carried,
+        Some(&verified_borrow_ends),
+        donors,
+        &summaries,
+        activity,
+    );
+    drop(summaries);
+    match finished.and_then(|discharged| {
+        crate::publish_rankings(&mut elaboration.module, &discharged.machines)?;
+        Ok(discharged)
+    }) {
+        Ok(discharged) => Ok(Examined {
+            elaboration,
+            opaque_storage,
+            discharged,
+            affine_unestablished,
+        }),
+        Err(refused) => Err(fall_back_or_defect(
+            Roster::of(&elaboration).locate(refused),
+        )),
+    }
+}
+
+fn check_affine(
+    elaboration: &Elaboration,
+    summaries: &terminal_semantics::plain_affine::AffineSummaries<'_>,
+    further: &mut Vec<Refusal>,
+) -> Result<
+    (
+        Vec<UnestablishedUse>,
+        Vec<(
+            MachineId,
+            Vec<(semantic_vocabulary::EdgeId, semantic_vocabulary::PlaceId)>,
+        )>,
+    ),
+    Checked<RouteVerdict>,
+> {
     let mut affine_unestablished = Vec::new();
     let mut verified_borrow_ends = Vec::new();
     // A machine the affine check cannot judge yet is one refusal; the check
     // goes on with the next machine, and the first such refusal becomes the
     // verdict with the rest beside it.
     let mut unsupported = Unsupported::default();
-    // The candidate search and every machine's walks replay the same
-    // callees; the module replays each of them once for all of them.
-    let summaries = terminal_semantics::plain_affine::AffineSummaries::new(&elaboration.module);
     let reference_ends =
-        terminal_semantics::reference_ends::candidates_sharing(&elaboration.module, &summaries)
+        terminal_semantics::reference_ends::candidates_sharing(&elaboration.module, summaries)
             .map_err(|error| {
-            fall_back_or_defect(
-                Roster::of(&elaboration).locate(refusal(
-                    RefusalReason::Unsupported,
-                    error.machine,
-                    error
-                        .operation
-                        .map(Construct::Operation)
-                        .unwrap_or(Construct::Machine),
-                    &error.detail,
-                )),
-            )
-        })?;
+                fall_back_or_defect(
+                    Roster::of(elaboration).locate(refusal(
+                        RefusalReason::Unsupported,
+                        error.machine,
+                        error
+                            .operation
+                            .map(Construct::Operation)
+                            .unwrap_or(Construct::Machine),
+                        &error.detail,
+                    )),
+                )
+            })?;
     // Plans are computed on the workers, then read in machine order: the
     // first deciding refusal and the noted machines are those one pass meets.
-    let plans = plan_affine_machines(&elaboration.module, &summaries, &reference_ends);
-    drop(summaries);
+    let plans = plan_affine_machines(&elaboration.module, summaries, &reference_ends);
     for (machine, planned) in plans {
         let plan = match planned {
             Some(Ok(plan)) => plan,
@@ -1068,9 +1130,7 @@ fn examine(
                 continue;
             }
             Some(Err(AffineRefusal::Refused(refused))) => {
-                return Err(fall_back_or_defect(
-                    Roster::of(&elaboration).locate(refused),
-                ));
+                return Err(fall_back_or_defect(Roster::of(elaboration).locate(refused)));
             }
             Some(Err(AffineRefusal::Decided(verdict))) => return Err(verdict),
             // A machine is skipped only after an earlier one decided the
@@ -1111,31 +1171,14 @@ fn examine(
             });
         }
     }
-    if let Some(first) = unsupported.verdict(Roster::of(&elaboration), further) {
+    if let Some(first) = unsupported.verdict(Roster::of(elaboration), further) {
         return Err(Ok(RouteVerdict::FallBack(first)));
     }
     // The established ownership frontier belongs to this elaboration.
     // Replay adds logical call requirements and guarantees without changing
     // the structural operations, selected edges, or their cleanup schedules.
     verified_borrow_ends.sort_unstable_by_key(|(machine, _)| *machine);
-    match crate::discharge_inner(
-        &mut elaboration,
-        carried,
-        laws,
-        Some(&verified_borrow_ends),
-        donors,
-        activity,
-    ) {
-        Ok(discharged) => Ok(Examined {
-            elaboration,
-            opaque_storage,
-            discharged,
-            affine_unestablished,
-        }),
-        Err(refused) => Err(fall_back_or_defect(
-            Roster::of(&elaboration).locate(refused),
-        )),
-    }
+    Ok((affine_unestablished, verified_borrow_ends))
 }
 
 /// Why one machine has no affine plan.

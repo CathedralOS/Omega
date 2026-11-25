@@ -484,17 +484,35 @@ pub fn discharge_carrying(
     discharge_inner(elaboration, carried, &[], None, None, activity)
 }
 
-/// `laws` are the laws the mathematical signature proved. A machine of the
-/// elaboration that one of them is the theorem of takes that law as the
-/// proof of the clause it states (`Discharged::Law`).
-pub(crate) fn discharge_inner(
+/// Read-only fields of `Elaboration` needed while checking machines and
+/// holding `AffineSummaries<'_>` against `module` alongside `&mut CheckTables`.
+pub(crate) struct ElaborationView<'a> {
+    pub(crate) module: &'a TerminalModule,
+    pub(crate) domains: &'a IdTable<StructuralTypeId, Vec<Proposition>>,
+    pub(crate) sources: &'a IdTable<MachineId, terminal_check_tables::program::MachineSources>,
+    pub(crate) requirements: &'a [MachineId],
+    pub(crate) machines: &'a IdTable<MachineId, symbols::SymbolHandle>,
+    pub(crate) nominal_calls: &'a [terminal_psi::generic_calls::NominalCallArgument],
+    pub(crate) domain_sources: &'a IdTable<
+        semantic_vocabulary::DomainSemanticId,
+        terminal_check_tables::program::DomainSource,
+    >,
+}
+
+pub(crate) struct PreparedDischarge<'l> {
+    inhabitation: terminal_semantics::inhabitation::Inhabitation,
+    unreached: Unreached,
+    law_instances: Vec<MachineId>,
+    theorems: Vec<(MachineId, &'l laws::LawJudgment)>,
+    inferred_calls: entry_inputs::InferredCalls,
+    inferred_results: Vec<(MachineId, u32, terminal_psi::ContractClause)>,
+}
+
+pub(crate) fn prepare_discharge<'l>(
     elaboration: &mut Elaboration,
-    carried: &[Carried<'_>],
-    laws: &[laws::LawJudgment],
-    verified_borrow_ends: Option<&VerifiedBorrowEnds>,
-    donors: Option<&reuse::Donors<'_>>,
+    laws: &'l [laws::LawJudgment],
     activity: &mut ProofSearchActivity,
-) -> Checked<Discharge> {
+) -> Checked<PreparedDischarge<'l>> {
     for boundary in &elaboration.module.interfaces.boundary_machines {
         terminal_semantics::boundary_result_lifetimes(
             &elaboration.module.types.structural_types,
@@ -587,8 +605,12 @@ pub(crate) fn discharge_inner(
     scope.infer_inputs(&mut unreached, &inhabitation, activity)?;
     scope.infer_results(&mut unreached, &inhabitation, activity)?;
     scope.finalize_callable_refinements(activity)?;
-    let mut law_instances = scope.source().static_schemas.iter()
-        .flat_map(|schema| &schema.bindings).flat_map(|binding| &binding.members)
+    let mut law_instances = scope
+        .source()
+        .static_schemas
+        .iter()
+        .flat_map(|schema| &schema.bindings)
+        .flat_map(|binding| &binding.members)
         .flat_map(|member| member.instances.iter().map(|instance| instance.machine))
         .collect::<Vec<_>>();
     law_instances.sort_unstable();
@@ -607,16 +629,43 @@ pub(crate) fn discharge_inner(
                 .map(move |law| (id, law))
         })
         .collect();
-    // The source machine of each machine, to find an earlier checked copy
-    // of it among `donors` (`reuse::Donors`).
-    let symbols = donors.map(|_| scope.source().machines.clone());
-    let (formed, domains, checking, sources, requirements) = scope.checking();
-    let module = formed.source();
+    let (inferred_calls, inferred_results) = scope.into_inferred();
+    Ok(PreparedDischarge {
+        inhabitation,
+        unreached,
+        law_instances,
+        theorems,
+        inferred_calls,
+        inferred_results,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn finish_discharge<'m>(
+    view: ElaborationView<'m>,
+    checking: &mut terminal_check_tables::CheckTables,
+    prepared: PreparedDischarge<'_>,
+    carried: &[Carried<'_>],
+    verified_borrow_ends: Option<&VerifiedBorrowEnds>,
+    donors: Option<&reuse::Donors<'_>>,
+    affine: &'m terminal_semantics::plain_affine::AffineSummaries<'m>,
+    activity: &mut ProofSearchActivity,
+) -> Checked<Discharge> {
+    let PreparedDischarge {
+        inhabitation,
+        unreached,
+        law_instances,
+        theorems,
+        inferred_calls,
+        inferred_results,
+    } = prepared;
+    let module = view.module;
+    let formed = formation::FormedModule::new(module, view.nominal_calls, view.domain_sources);
     let inputs = machine_inputs::PreparedMachineInputs::new(
         module,
-        sources,
+        view.sources,
         &checking.machines,
-        requirements,
+        view.requirements,
         carried,
     );
     // Observe the same immutable type family used by inference above. The
@@ -632,7 +681,7 @@ pub(crate) fn discharge_inner(
             module,
             formed.nominal_calls(),
         ),
-        affine: terminal_semantics::plain_affine::AffineSummaries::new(module),
+        affine,
     };
     let machines =
         machine_batch::check(&mut checking.machines, activity, |id, tables, activity| {
@@ -659,8 +708,8 @@ pub(crate) fn discharge_inner(
             }
             let lowered = terminal_machine(&module.machines, id, id)?;
             let beyond = unreached.values(lowered, tables);
-            let donated = donors.zip(symbols.as_ref()).and_then(|(donors, symbols)| {
-                donors.for_machine(*symbols.get(id)?, lowered, tables)
+            let donated = donors.and_then(|donors| {
+                donors.for_machine(*view.machines.get(id)?, lowered, tables)
             });
             let proved = &theorems[theorems.partition_point(|(machine, _)| *machine < id)
                 ..theorems.partition_point(|(machine, _)| *machine <= id)];
@@ -671,7 +720,7 @@ pub(crate) fn discharge_inner(
             machine(
                 formed,
                 &inhabitation,
-                domains,
+                view.domains,
                 id,
                 tables,
                 &beyond,
@@ -686,12 +735,62 @@ pub(crate) fn discharge_inner(
                 activity,
             )
         })?;
-    scope.publish_rankings(&machines)?;
     Ok(Discharge {
         machines,
-        inferred_calls: scope.inferred_calls,
-        inferred_results: scope.inferred_results,
+        inferred_calls,
+        inferred_results,
     })
+}
+
+pub(crate) fn publish_rankings(
+    module: &mut TerminalModule,
+    discharges: &IdTable<MachineId, MachineDischarge>,
+) -> Checked<()> {
+    for machine in &mut module.machines {
+        if machine.ranked_scc.is_none() {
+            continue;
+        }
+        let discharge =
+            terminal_check_tables::row(discharges, machine.id, machine.id, Construct::Machine)?;
+        rankings::publish_comparisons(machine, discharge)?;
+    }
+    Ok(())
+}
+
+/// `laws` are the laws the mathematical signature proved. A machine of the
+/// elaboration that one of them is the theorem of takes that law as the
+/// proof of the clause it states (`Discharged::Law`).
+pub(crate) fn discharge_inner(
+    elaboration: &mut Elaboration,
+    carried: &[Carried<'_>],
+    laws: &[laws::LawJudgment],
+    verified_borrow_ends: Option<&VerifiedBorrowEnds>,
+    donors: Option<&reuse::Donors<'_>>,
+    activity: &mut ProofSearchActivity,
+) -> Checked<Discharge> {
+    let prepared = prepare_discharge(elaboration, laws, activity)?;
+    let summaries = terminal_semantics::plain_affine::AffineSummaries::new(&elaboration.module);
+    let discharged = finish_discharge(
+        ElaborationView {
+            module: &elaboration.module,
+            domains: &elaboration.domains,
+            sources: &elaboration.sources,
+            requirements: &elaboration.requirements,
+            machines: &elaboration.machines,
+            nominal_calls: &elaboration.nominal_calls,
+            domain_sources: &elaboration.domain_sources,
+        },
+        &mut elaboration.tables,
+        prepared,
+        carried,
+        verified_borrow_ends,
+        donors,
+        &summaries,
+        activity,
+    )?;
+    drop(summaries);
+    publish_rankings(&mut elaboration.module, &discharged.machines)?;
+    Ok(discharged)
 }
 
 /// Values that have no defining operation in the machine that names them and
@@ -911,6 +1010,7 @@ fn check_prepared_machine(
             declared: &declared,
             unreached,
             law_instances,
+            donated,
         },
         tables,
         &mut decided,
@@ -1062,7 +1162,7 @@ fn check_prepared_machine(
         ranking_bindings,
         &mut decided,
         |obligation, edge, goal| {
-            decide(
+            decide_borrowing(
                 context,
                 graph,
                 tables,
@@ -1071,6 +1171,7 @@ fn check_prepared_machine(
                 ProgramPoint::Edge(edge),
                 goal,
                 unreached,
+                donated,
                 activity,
             )
         },
@@ -1219,7 +1320,7 @@ fn check_prepared_machine(
             )
         })?;
         let proved = consumption.goal.and_then(|goal| {
-            decide(
+            decide_borrowing(
                 context,
                 graph,
                 tables,
@@ -1228,6 +1329,7 @@ fn check_prepared_machine(
                 consumption.point,
                 goal,
                 unreached,
+                donated,
                 activity,
             )
         });
@@ -1561,7 +1663,7 @@ pub(crate) struct ModuleReplays<'m> {
     borrowed_storage: terminal_semantics::descriptor_results::ModuleSummaries<'m>,
     /// For the affine claim walk of each machine (`minted`), whose graph
     /// has no nominal calls.
-    affine: terminal_semantics::plain_affine::AffineSummaries<'m>,
+    affine: &'m terminal_semantics::plain_affine::AffineSummaries<'m>,
 }
 
 /// What deciding one machine's obligations needs: value types, dominance,
@@ -1672,7 +1774,7 @@ fn with_prepared_machine<Outcome>(
         tables,
         &types,
         inhabitation,
-        summaries.map(|summaries| &summaries.affine),
+        summaries.map(|summaries| summaries.affine),
     )?;
     minted::domains_are_declared(id, structural_types, domains)?;
     let graph = Graph::new(id, lowered, tables)?;

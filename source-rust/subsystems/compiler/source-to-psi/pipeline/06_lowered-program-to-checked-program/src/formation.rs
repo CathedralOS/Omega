@@ -179,6 +179,21 @@ pub(crate) struct FormedModule<'a> {
 }
 
 impl<'a> FormedModule<'a> {
+    pub(crate) fn new(
+        module: &'a TerminalModule,
+        nominal_calls: &'a [terminal_psi::generic_calls::NominalCallArgument],
+        domain_sources: &'a arena::IdTable<
+            semantic_vocabulary::DomainSemanticId,
+            terminal_check_tables::program::DomainSource,
+        >,
+    ) -> Self {
+        Self {
+            module,
+            nominal_calls,
+            domain_sources,
+        }
+    }
+
     pub(crate) fn nominal_calls(self) -> &'a [terminal_psi::generic_calls::NominalCallArgument] {
         self.nominal_calls
     }
@@ -297,19 +312,13 @@ impl ReplayScope<'_> {
         Ok(())
     }
 
-    pub(super) fn publish_rankings(
-        &mut self,
-        discharges: &arena::IdTable<MachineId, crate::MachineDischarge>,
-    ) -> Checked<()> {
-        for machine in &mut self.elaboration.module.machines {
-            if machine.ranked_scc.is_none() {
-                continue;
-            }
-            let discharge =
-                terminal_check_tables::row(discharges, machine.id, machine.id, Construct::Machine)?;
-            crate::rankings::publish_comparisons(machine, discharge)?;
-        }
-        Ok(())
+    pub(super) fn into_inferred(
+        self,
+    ) -> (
+        crate::entry_inputs::InferredCalls,
+        Vec<(MachineId, u32, terminal_psi::ContractClause)>,
+    ) {
+        (self.inferred_calls, self.inferred_results)
     }
 
     pub(crate) fn finalize_callable_refinements(
@@ -322,6 +331,7 @@ impl ReplayScope<'_> {
 
     // Kept private to the replay implementation. No caller can obtain a
     // mutable declaration borrow from a successfully formed scope.
+    #[cfg(any(test, feature = "test-support"))]
     pub(super) fn checking(
         &mut self,
     ) -> (

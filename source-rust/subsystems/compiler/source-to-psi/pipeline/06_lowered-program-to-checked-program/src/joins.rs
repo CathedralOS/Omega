@@ -68,7 +68,7 @@ use terminal_check_tables::{
 use terminal_psi::{ScalarBlockInvariant, SuccessorEdge, TerminalMachine, Terminator};
 
 use crate::graph::Graph;
-use crate::{Discharged, arrivals, decide, goal, push_knowledge, refusal};
+use crate::{Discharged, arrivals, goal, push_knowledge, refusal};
 
 /// The declared and inferred predicates available at block entries. Both
 /// ordinary discharge and private-input inference prepare the same rows;
@@ -1039,6 +1039,7 @@ pub(crate) struct Machine<'view, 'analysis> {
     /// (`crate::Unreached`).
     pub(crate) unreached: &'view [ValueId],
     pub(crate) law_instances: &'view [MachineId],
+    pub(crate) donated: Option<&'view crate::reuse::Donated<'view>>,
 }
 
 /// Decides every `ArrivalInvariant` obligation into `decided`. An inferred
@@ -1098,7 +1099,7 @@ pub(crate) fn check<'a>(
                     )
                     .map(Discharged::Identity);
                 }
-                decide(
+                crate::decide_borrowing(
                     machine.context,
                     machine.graph,
                     tables,
@@ -1107,6 +1108,7 @@ pub(crate) fn check<'a>(
                     point,
                     goal,
                     machine.unreached,
+                    machine.donated,
                     activity,
                 )
                 .map(Discharged::Certificate)

@@ -6546,6 +6546,166 @@ mod reuse {
         assert_eq!(format!("{:?}", shared[2]), format!("{:?}", alone[2]));
         assert_eq!(helper_proof(&shared[1]), helper_proof(&alone[1]));
     }
+
+    #[test]
+    fn a_later_copy_borrows_from_a_matching_contract_variant_among_multiple_donors() {
+        // Shows: Witness 0 and Witness 1 hold the same source helper (`20`)
+        // under two different contracts (`a <= 10` vs `a <= 20`). Multi-variant
+        // `Donors` retains both variants so the closure's `a <= 20` copy
+        // borrows Witness 1's proofs instead of searching again, while a
+        // mismatched `a <= 30` copy borrows nothing and is still rejected.
+        let (borrowing, borrowed) = judged(
+            module_of(add(20), [30, 20]),
+            vec![module_of(add(10), [10, 20]), module_of(add(20), [11, 20])],
+        );
+        let (searching, searched) = judged(
+            module_of(add(20), [30, 22]),
+            vec![module_of(add(10), [10, 20]), module_of(add(20), [11, 21])],
+        );
+        assert_eq!(borrowing.len(), 3);
+        for (borrowed, searched) in borrowing.iter().zip(&searching) {
+            assert_eq!(helper_proof(borrowed), helper_proof(searched));
+        }
+        assert!(
+            borrowed < searched,
+            "multi-variant borrowing started {borrowed} searches, searching alone {searched}"
+        );
+
+        let unbounded = || add_of_formals(vec![at_most(2, 100)]);
+        let (rejected_shared, _) = judged(
+            module_of(unbounded(), [30, 20]),
+            vec![module_of(add(10), [10, 20]), module_of(add(20), [11, 20])],
+        );
+        let (rejected_alone, _) = judged(
+            module_of(unbounded(), [30, 22]),
+            vec![module_of(add(10), [10, 20]), module_of(add(20), [11, 21])],
+        );
+        assert!(
+            matches!(rejected_shared[0], Ok(RouteVerdict::Rejected { .. })),
+            "{:?}",
+            rejected_shared[0]
+        );
+        assert_eq!(
+            format!("{:?}", rejected_shared[0]),
+            format!("{:?}", rejected_alone[0])
+        );
+    }
+
+    #[test]
+    fn joins_and_window_consumptions_borrow_earlier_witness_proofs() {
+        // Shows: `joins::check` (`ArrivalInvariant`) and `storage.consumptions`
+        // (`WindowUse`) both borrow proofs from `Donated` when an earlier copy
+        // checked the same source machine under identical inputs.
+        let join_module = |sources: [u32; 2]| {
+            let invoke = Statement::discard(call(2, vec![unsigned(1)]));
+            let entry = machine(Vec::new(), vec![invoke, returns(unsigned(0))]);
+            let mut module = lower(vec![entry, past_a_disjunction(9000)]).unwrap();
+            module.machines = IdTable::default();
+            for source in sources {
+                module
+                    .machines
+                    .push(symbols::SymbolHandle::from_parts(source, 1));
+            }
+            module
+        };
+        let (shared_joins, borrowed_joins) = judged(
+            join_module([30, 20]),
+            vec![join_module([10, 20]), join_module([11, 20])],
+        );
+        let (alone_joins, searched_joins) = judged(
+            join_module([30, 22]),
+            vec![join_module([10, 20]), join_module([11, 21])],
+        );
+        assert!(
+            borrowed_joins < searched_joins,
+            "join borrowing started {borrowed_joins} searches, searching alone {searched_joins}"
+        );
+        for (shared, alone) in shared_joins.iter().zip(&alone_joins) {
+            let (Ok(RouteVerdict::Accepted(shared)), Ok(RouteVerdict::Accepted(alone))) =
+                (shared, alone)
+            else {
+                panic!("join copies must accept: {shared:?} / {alone:?}");
+            };
+            let shared_arrivals = verdicts(&shared.elaboration, &shared.discharge, 2, arrival);
+            let alone_arrivals = verdicts(&alone.elaboration, &alone.discharge, 2, arrival);
+            assert_eq!(shared_arrivals.len(), 2);
+            assert_eq!(shared_arrivals.len(), alone_arrivals.len());
+            for ((_, s), (_, a)) in shared_arrivals.iter().zip(&alone_arrivals) {
+                assert_eq!(certificate(s).certificate, certificate(a).certificate);
+            }
+        }
+
+        let window_module = |sources: [u32; 3]| {
+            let consume = taking(3, place(1, data(SPAN)));
+            let helper = Shaped {
+                parameters: vec![u32_type().into()],
+                locals: vec![data(SPAN)],
+                result: u32_type().into(),
+                requires: Vec::new(),
+                statements: vec![
+                    bind(1, literal_of(SPAN, vec![unsigned(1), unsigned(9)])),
+                    store(1, &[1], slot(0, u32_type())),
+                    guarded(
+                        compare(Strict::Less, unsigned(0), slot(0, u32_type())),
+                        consume,
+                    ),
+                    store(1, &[1], unsigned(9)),
+                    returns(unsigned(0)),
+                ],
+            };
+            let entry = Shaped {
+                parameters: Vec::new(),
+                locals: Vec::new(),
+                result: u32_type().into(),
+                requires: Vec::new(),
+                statements: vec![
+                    Statement::discard(call(2, vec![unsigned(1)])),
+                    returns(unsigned(0)),
+                ],
+            };
+            let mut module = elaborate_over(vec![entry, helper, taker(SPAN)], &constrained());
+            module.machines = IdTable::default();
+            for source in sources {
+                module
+                    .machines
+                    .push(symbols::SymbolHandle::from_parts(source, 1));
+            }
+            module
+        };
+        let (shared_windows, borrowed_windows) = judged(
+            window_module([30, 20, 40]),
+            vec![window_module([10, 20, 40]), window_module([11, 20, 40])],
+        );
+        let (alone_windows, searched_windows) = judged(
+            window_module([30, 22, 42]),
+            vec![window_module([10, 20, 40]), window_module([11, 21, 41])],
+        );
+        assert!(
+            borrowed_windows < searched_windows,
+            "window borrowing started {borrowed_windows} searches, searching alone {searched_windows}"
+        );
+        for (shared, alone) in shared_windows.iter().zip(&alone_windows) {
+            let (Ok(RouteVerdict::Accepted(shared)), Ok(RouteVerdict::Accepted(alone))) =
+                (shared, alone)
+            else {
+                panic!("window copies must accept: {shared:?} / {alone:?}");
+            };
+            let sw = &shared.discharge.machines.get(id(2)).unwrap().windows;
+            let aw = &alone.discharge.machines.get(id(2)).unwrap().windows;
+            assert_eq!(sw.len(), 3);
+            assert_eq!(sw.len(), aw.len());
+            for (s, a) in sw.iter().zip(aw) {
+                assert_eq!(
+                    s.verdict.as_ref().unwrap().certificate,
+                    a.verdict.as_ref().unwrap().certificate
+                );
+                assert_eq!(
+                    s.verdict.as_ref().unwrap().fact,
+                    a.verdict.as_ref().unwrap().fact
+                );
+            }
+        }
+    }
 }
 
 mod generic_bodies {
