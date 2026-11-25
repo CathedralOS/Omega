@@ -82,6 +82,19 @@ impl PredicateBudget {
                         semantic_vocabulary::ClauseOperand::Application { arguments, .. } => self.count(arguments.len())?,
                         semantic_vocabulary::ClauseOperand::Input(subject) => self.count(subject.path().len())?,
                         semantic_vocabulary::ClauseOperand::Formal(_) => {}
+                        semantic_vocabulary::ClauseOperand::FloatMeaning(
+                            semantic_vocabulary::FloatMeaningClauseValue::Projection { source, .. },
+                        ) => self.scalar(source, depth + 1)?,
+                        semantic_vocabulary::ClauseOperand::FloatMeaning(
+                            semantic_vocabulary::FloatMeaningClauseValue::Application { operands, .. },
+                        ) => {
+                            self.count(operands.len())?;
+                            for operand in operands {
+                                if let semantic_vocabulary::FloatMeaningClauseOperand::Integer(source) = operand {
+                                    self.scalar(source, depth + 1)?;
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -92,30 +105,6 @@ impl PredicateBudget {
             Proposition::IeeeFloatIntegerExact { source, .. }
             | Proposition::IntegerIeeeFloatExact { source, .. } => {
                 self.scalar(source, depth + 1)?
-            }
-            Proposition::FloatMeaningEqual(clause) => {
-                self.count(clause.values.len())?;
-                for value in &clause.values {
-                    match value {
-                        semantic_vocabulary::FloatMeaningClauseValue::Projection {
-                            source, ..
-                        } => self.scalar(source, depth + 1)?,
-                        semantic_vocabulary::FloatMeaningClauseValue::Application {
-                            operands,
-                            ..
-                        } => {
-                            self.count(operands.len())?;
-                            for operand in operands {
-                                if let semantic_vocabulary::FloatMeaningClauseOperand::Integer(
-                                    source,
-                                ) = operand
-                                {
-                                    self.scalar(source, depth + 1)?;
-                                }
-                            }
-                        }
-                    }
-                }
             }
             Proposition::ContentConservation(value) => {
                 self.content(value.left(), depth + 1)?;

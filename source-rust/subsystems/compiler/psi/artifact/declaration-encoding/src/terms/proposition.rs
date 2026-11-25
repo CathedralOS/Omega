@@ -18,8 +18,8 @@ use crate::wire::{Reader, Writer, bounded_count};
 use crate::fields::{Field, List, u32_newtypes, wire_enum, wire_record};
 use crate::terms::float_meaning as float_meaning_wire;
 use semantic_vocabulary::{
-    FloatIntegerConversion, FloatMeaningClause, FloatMeaningClauseOperand, FloatMeaningClauseValue,
-    FloatMeaningSlot, ScalarTerm,
+    FloatIntegerConversion, FloatMeaningClauseOperand, FloatMeaningClauseValue, FloatMeaningSlot,
+    IeeeFloatFormat, ScalarTerm,
 };
 
 struct MeaningSource;
@@ -33,7 +33,6 @@ impl Field<ScalarTerm> for MeaningSource {
 }
 u32_newtypes! { MeaningSlot: FloatMeaningSlot; }
 wire_record! {
-    MeaningEquation: FloatMeaningClause { values: List<MeaningValue>, left: MeaningSlot, right: MeaningSlot }
     IntegerConversion: FloatIntegerConversion {
         source: MeaningSource, result: MeaningSource,
         projection: float_meaning_wire::ProjectionContract,
@@ -131,6 +130,10 @@ fn write_identity(
                 writer.u8(2);
                 writer.id(ty);
             }
+            ClauseCarrier::FloatMeaning(format) => {
+                writer.u8(3);
+                <float_meaning_wire::Format as Field<IeeeFloatFormat>>::write(writer, &format)?;
+            }
         }
         match &value.operand {
             ClauseOperand::Input(subject) => {
@@ -167,6 +170,10 @@ fn write_identity(
                     writer.u32(argument);
                 }
             }
+            ClauseOperand::FloatMeaning(row) => {
+                writer.u8(4);
+                MeaningValue::write(writer, row)?;
+            }
         }
     }
     writer.u32(clause.left);
@@ -174,8 +181,8 @@ fn write_identity(
     Ok(())
 }
 
-/// A published Identity: each value an input at its data type or a scalar
-/// term at its scalar type. The forms only the checker's ordering key holds
+/// A published Identity: each value an input at its data type, a scalar term
+/// at its scalar type or a float meaning. The forms only the checker's ordering key holds
 /// are refused by tag.
 fn read_identity(
     reader: &mut Reader<'_>,
@@ -187,6 +194,9 @@ fn read_identity(
         let carrier = match reader.u8()? {
             1 => ClauseCarrier::Scalar(crate::terms::scalar_types::decode_scalar_type(reader)?),
             2 => ClauseCarrier::Structural(reader.id("StructuralTypeId")?),
+            3 => ClauseCarrier::FloatMeaning(<float_meaning_wire::Format as Field<
+                IeeeFloatFormat,
+            >>::read(reader)?),
             tag => return Err(CodecError::InvalidTag("Identity carrier", tag)),
         };
         let operand = match reader.u8()? {
@@ -195,6 +205,7 @@ fn read_identity(
                 ClauseOperand::Input(StructuralCaseSubject::new(root, path))
             }
             1 => ClauseOperand::Scalar(decode_scalar_term(reader)?),
+            4 => ClauseOperand::FloatMeaning(MeaningValue::read(reader)?),
             tag => return Err(CodecError::InvalidTag("Identity operand", tag)),
         };
         values.push(ClauseValue { carrier, operand });
@@ -305,10 +316,6 @@ fn write_proposition_row(writer: &mut Writer, proposition: &Proposition) -> Resu
             }
             write_identity(writer, clause)?;
         }
-        Proposition::FloatMeaningEqual(clause) => {
-            writer.u8(19);
-            MeaningEquation::write(writer, clause)?;
-        }
         Proposition::FloatIntegerConversion(clause) => {
             writer.u8(20);
             IntegerConversion::write(writer, clause)?;
@@ -393,7 +400,6 @@ fn read_proposition_row(
             left: decode_scalar_term(reader)?,
             right: decode_scalar_term(reader)?,
         },
-        19 => Proposition::FloatMeaningEqual(MeaningEquation::read(reader)?),
         20 => Proposition::FloatIntegerConversion(IntegerConversion::read(reader)?),
         21 => Proposition::IeeeFloatIntegerExact {
             source: decode_scalar_term(reader)?,
@@ -414,7 +420,7 @@ mod meaning_equation_tests {
         FloatSemanticOperation,
         FloatSemanticValueKind::{Format, Meaning},
     };
-    use semantic_vocabulary::{IeeeFloatFormat, ScalarType, ValueId};
+    use semantic_vocabulary::{ClauseIdentity, IeeeFloatFormat, ScalarType, ValueId};
 
     #[test]
     fn integer_conversion_predicates_round_trip_the_complete_contract_and_carriers() {
@@ -485,8 +491,8 @@ mod meaning_equation_tests {
             Meaning,
         )
         .unwrap();
-        let original = Proposition::FloatMeaningEqual(
-            FloatMeaningClause::result_equation(
+        let original = Proposition::DeclarationIdentity(
+            ClauseIdentity::float_result_equation(
                 ScalarTerm::value(
                     ValueId::new(2).unwrap(),
                     ScalarType::IeeeFloat(IeeeFloatFormat::Binary64),
@@ -508,11 +514,11 @@ mod meaning_equation_tests {
         let decoded = decode_proposition(&mut Reader::new(&encoded)).unwrap();
         decoded.validate().unwrap();
         assert_eq!(decoded, original);
-        let Proposition::FloatMeaningEqual(mut clause) = decoded else {
+        let Proposition::DeclarationIdentity(mut clause) = decoded else {
             unreachable!()
         };
         let FloatMeaningClauseValue::Application { operands, .. } =
-            clause.values.last_mut().unwrap()
+            clause.float_meaning_rows_mut().next_back().unwrap()
         else {
             unreachable!()
         };
@@ -522,15 +528,13 @@ mod meaning_equation_tests {
                 semantic_vocabulary::IntegerType::from_fixed(FixedInteger::unsigned(32)).unwrap(),
             ),
         ));
+        // An Identity is checked before it is written, so a changed integer
+        // carrier never reaches the wire.
         let mut writer = Writer::default();
-        encode_proposition(&mut writer, &Proposition::FloatMeaningEqual(clause)).unwrap();
-        let changed = writer.finish();
-        assert!(
-            decode_proposition(&mut Reader::new(&changed))
-                .unwrap()
-                .validate()
-                .is_err()
-        );
+        assert!(matches!(
+            encode_proposition(&mut writer, &Proposition::DeclarationIdentity(clause)),
+            Err(CodecError::MalformedProposition(_))
+        ));
     }
 
     #[test]
@@ -545,8 +549,8 @@ mod meaning_equation_tests {
             Meaning,
         )
         .unwrap();
-        let original = Proposition::FloatMeaningEqual(
-            FloatMeaningClause::result_equation(
+        let original = Proposition::DeclarationIdentity(
+            ClauseIdentity::float_result_equation(
                 value(3),
                 operation.contract_identity(),
                 format,
@@ -569,9 +573,11 @@ mod meaning_equation_tests {
             .position(|window| window == commitment)
             .unwrap();
         changed[position] ^= 1;
-        let decoded = decode_proposition(&mut Reader::new(&changed)).unwrap();
         assert!(
-            decoded.validate().is_err(),
+            matches!(
+                decode_proposition(&mut Reader::new(&changed)),
+                Err(CodecError::MalformedProposition(_))
+            ),
             "catalog commitment mutation cannot become an opaque accepted equality"
         );
     }
@@ -658,8 +664,8 @@ mod identity_tests {
     }
 
     #[test]
-    fn the_retired_structural_and_byte_sequence_identity_tags_are_rejected() {
-        for retired in [12, 18] {
+    fn the_retired_structural_byte_sequence_and_float_meaning_tags_are_rejected() {
+        for retired in [12, 18, 19] {
             let mut writer = Writer::default();
             encode_proposition(&mut writer, &Proposition::Truth).unwrap();
             let mut bytes = writer.finish();

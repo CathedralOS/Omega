@@ -112,8 +112,8 @@ grants no runtime representation or executable conversion to mathematical data.
 
 ## FloatMeaning
 
-Float meaning has a separate proof-value class, accepted only by
-`FloatMeaningEqual`; it does not acquire integer ordering.
+Float meaning has a separate proof-value class, accepted only by an Identity
+at the FloatMeaning carrier; it does not acquire integer ordering.
 
 A term binds its source, IEEE binary format, exact projection operation, and
 recognized core declaration/catalog contract. Identical tuples share one
@@ -177,7 +177,7 @@ The projection is the exact sealed toolchain operation from
 The closed descriptor binds the sealed owners, hermetic operation, private
 contract-free ordinary signature, source carrier, nominal result, and catalog
 version through a domain-separated commitment. The verifier reconstructs it;
-both operands of `FloatMeaningEqual` must share its exact
+both operands of a FloatMeaning Identity must share its exact
 format/operation/contract carrier.
 
 Source-to-Terminal production must establish each source coordinate's exact

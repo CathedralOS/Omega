@@ -10801,19 +10801,19 @@ pub(crate) mod operation_contracts {
                     }
                     Proposition::DeclarationIdentity(clause) => {
                         use semantic_vocabulary::ClauseOperand;
+                        for source in clause.float_sources() {
+                            scalar_term_roots(source, roots);
+                        }
                         for value in &clause.values {
                             match &value.operand {
                                 ClauseOperand::Input(subject) => {
                                     roots.insert(subject.root());
                                 }
                                 ClauseOperand::Scalar(term) => scalar_term_roots(term, roots),
-                                ClauseOperand::Formal(_) | ClauseOperand::Application { .. } => {}
+                                ClauseOperand::Formal(_)
+                                | ClauseOperand::Application { .. }
+                                | ClauseOperand::FloatMeaning(_) => {}
                             }
-                        }
-                    }
-                    Proposition::FloatMeaningEqual(clause) => {
-                        for source in clause.sources() {
-                            scalar_term_roots(source, roots);
                         }
                     }
                     Proposition::ContentConservation(conservation) => {

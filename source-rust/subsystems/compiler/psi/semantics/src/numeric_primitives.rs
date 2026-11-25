@@ -204,13 +204,13 @@ pub fn ensures(meaning: NumericIntrinsic) -> Result<Vec<Proposition>, &'static s
             .scalar_type()
             .as_ieee_float()
             .ok_or("numeric primitive has no float result")?;
-        let clause = semantic_vocabulary::FloatMeaningClause::result_equation(
+        let clause = semantic_vocabulary::ClauseIdentity::float_result_equation(
             result,
             operation.contract_identity(),
             format,
             formals,
         )?;
-        return Ok(vec![Proposition::FloatMeaningEqual(clause)]);
+        return Ok(vec![Proposition::DeclarationIdentity(clause)]);
     }
     let comparison = Comparison::from_meaning(meaning)?;
     let input = |raw| {
@@ -731,7 +731,7 @@ mod tests {
         FloatSemanticValueKind::{Format, Meaning},
     };
     use numerics::intrinsics::{FloatBuiltin, FloatFormat};
-    use semantic_vocabulary::{FloatMeaningClause, IeeeFloatFormat};
+    use semantic_vocabulary::{ClauseIdentity, IeeeFloatFormat};
 
     #[test]
     fn ternary_float_contracts_bind_each_argument_and_the_selected_rounding() {
@@ -750,7 +750,7 @@ mod tests {
                     Meaning,
                 )
                 .unwrap();
-                let equation = FloatMeaningClause::result_equation(
+                let equation = ClauseIdentity::float_result_equation(
                     value(4),
                     operation.contract_identity(),
                     carrier,
@@ -760,7 +760,7 @@ mod tests {
                 equation.validate().unwrap();
                 assert_eq!(
                     ensures(meaning).unwrap(),
-                    [Proposition::FloatMeaningEqual(equation)]
+                    [Proposition::DeclarationIdentity(equation)]
                 );
                 assert_eq!(
                     declaration_path(meaning).unwrap(),

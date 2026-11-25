@@ -2672,7 +2672,7 @@ impl<'a> Declarations<'a> {
                         .collect::<Vec<_>>();
                     self.application(*declaration, ty, &domains, &operands)?
                 }
-                ClauseOperand::Formal(_) => {
+                ClauseOperand::Formal(_) | ClauseOperand::FloatMeaning(_) => {
                     return Err("no whole-value mathematical input for this clause operand");
                 }
             };
@@ -2872,6 +2872,10 @@ pub(super) fn discharge(
     let mut premises = Vec::new();
     for (&row, premise) in known.assumption_rows.iter().zip(&known.assumptions) {
         let justification = tables.knowledge.get(row).map(|row| &row.justification);
+        // A FloatMeaning Identity belongs to the float meaning prover.
+        if matches!(premise, Proposition::DeclarationIdentity(actual) if actual.is_float_meaning()) {
+            continue;
+        }
         if let Some(Justification::EntryRequirement { clause }) = justification
             && let Proposition::DeclarationIdentity(actual) = premise
         {

@@ -42,7 +42,14 @@ table spelling. An entry count larger than the remaining bytes rejects as
 truncation before any entry is read. Encoding and decoding walk a table with an
 explicit stack; nesting depth never consumes host stack.
 
-Current marker 295 retires [proposition](#propositions) tag 12, byte-sequence
+Current marker 296 states FloatMeaning equality as the general Identity row,
+[proposition](#propositions) tag 23 at the FloatMeaning carrier, and retires
+tag 19, the separate float-meaning row. The rows and their receiving checks
+are unchanged; each is now one Identity value. Readers reject earlier markers
+before reading the payload, so a saved program from marker 295 or earlier
+must be rebuilt.
+
+Marker 295 retires [proposition](#propositions) tag 12, byte-sequence
 equality. Its one producer had no caller, so no compiled program stated it; an
 Identity of two byte views' contents needs its own Identity carrier, which no
 program asks for yet. Readers reject earlier markers before reading the
@@ -841,20 +848,19 @@ integer math and content operands are their own encodings inside the row.
 | 15 | IntegerMathLessThan | integer math term + integer math term |
 | 16 | IntegerMathLessOrEqual | integer math term + integer math term |
 | 17 | ScalarIeeeFloatComparison | IEEE float comparison kind + IEEE float format + scalar term + scalar term |
-| 19 | FloatMeaningEqual | counted float-meaning clause rows + `u32` left slot + `u32` right slot |
 | 20 | FloatIntegerConversion | scalar source + scalar integer result + projection contract + semantic application contract |
 | 21 | IeeeFloatIntegerExact | scalar source + integer type |
 | 22 | IntegerIeeeFloatExact | scalar integer source + IEEE target format |
 | 23 | Identity | counted Identity values + `u32` left value position + `u32` right value position |
 
-Tags 12 and 18 are retired; a decoder rejects them.
+Tags 12, 18 and 19 are retired; a decoder rejects them.
 
 Tag 23 is `core\Identity` at a type: two values of one carrier are the same
 value. Its layout is a counted list of values, then the `u32` positions of the
 left and right value. Each value is a carrier followed by an operand. A module
 publishes only an Identity whose every value is an input, or a field of one,
-at its data type (carrier 2, operand 0), or a scalar term at its scalar type
-(carrier 1, operand 1). The input's canonical structural field must end at a
+at its data type (carrier 2, operand 0), a scalar term at its scalar type
+(carrier 1, operand 1), or a float meaning (carrier 3, operand 4). The input's canonical structural field must end at a
 record, sum, mixed or fixed-array declaration equal to the carrier, and module
 validation checks each scalar term as it checks any other. The other carriers
 and operands name what only the source checker's signature defines: a type
@@ -868,6 +874,7 @@ which never leaves the compiler.
 | 0 | Parameter | `u32` type binder |
 | 1 | Scalar | scalar type |
 | 2 | Structural | structural type id |
+| 3 | FloatMeaning | IEEE float format |
 
 | Operand tag | Form | Fields |
 | --- | --- | --- |
@@ -875,14 +882,17 @@ which never leaves the compiler.
 | 1 | Scalar | scalar term |
 | 2 | Formal | `u32` formal position |
 | 3 | Application | Boolean supplier flag, then when set the supplier's `u32` slot and `u32` generation; the applied declaration's `u32` slot and `u32` generation; counted `u32` positions of earlier values |
+| 4 | FloatMeaning | one clause row, below |
 
 An application names a declaration and its arguments in order. The declaration
 is a trait operation with its supplying record, a machine with a result, or a
 case of a data declaration applied to its fields.
 
-A `FloatMeaningEqual` clause records structural meaning equality before a
-call supplies its actual arguments and result. Its slots index only its own
-flat table; they are not runtime values or module proof-value ids.
+An Identity at the FloatMeaning carrier records structural meaning equality
+before a call supplies its actual arguments and result. Every value of it is a
+FloatMeaning value whose carrier format is its row's format, and a meaning
+operand's slot is the position of an earlier value of the same Identity; slots
+are not runtime values or module proof-value ids.
 
 | Clause row tag | Form | Fields |
 | --- | --- | --- |

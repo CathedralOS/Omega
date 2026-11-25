@@ -13,11 +13,6 @@ pub fn validate_canonical_proposition(proposition: &Proposition) -> Result<(), C
     while let Some(step) = pending.pop() {
         match step {
             Step::Validate(proposition) => match proposition {
-                Proposition::FloatMeaningEqual(clause) => {
-                    clause
-                        .validate()
-                        .map_err(CodecError::MalformedStructuralFoundation)?;
-                }
                 Proposition::FloatIntegerConversion(_)
                 | Proposition::IeeeFloatIntegerExact { .. }
                 | Proposition::IntegerIeeeFloatExact { .. } => {

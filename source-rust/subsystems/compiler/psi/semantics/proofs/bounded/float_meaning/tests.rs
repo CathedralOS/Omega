@@ -15,15 +15,15 @@ fn value(raw: u64, format: IeeeFloatFormat) -> ScalarTerm {
 
 fn widening(source: ScalarTerm, wide: ScalarTerm) -> Proposition {
     let convert = Normalization::new().unwrap().convert;
-    Proposition::FloatMeaningEqual(
-        FloatMeaningClause::result_equation(wide, convert, IeeeFloatFormat::Binary64, [source])
+    Proposition::DeclarationIdentity(
+        ClauseIdentity::float_result_equation(wide, convert, IeeeFloatFormat::Binary64, [source])
             .unwrap(),
     )
 }
 
 fn goal(source: ScalarTerm, through: IeeeFloatFormat) -> Proposition {
-    Proposition::FloatMeaningEqual(
-        FloatMeaningClause::conversion_roundtrip(source, through).unwrap(),
+    Proposition::DeclarationIdentity(
+        ClauseIdentity::float_conversion_roundtrip(source, through).unwrap(),
     )
 }
 
@@ -76,11 +76,11 @@ fn literal_equality(left: IeeeFloatValue, right: IeeeFloatValue) -> Proposition 
             contract: operation.contract_identity(),
         }
     };
-    Proposition::FloatMeaningEqual(FloatMeaningClause {
-        values: vec![projection(left), projection(right)],
-        left: semantic_vocabulary::FloatMeaningSlot(0),
-        right: semantic_vocabulary::FloatMeaningSlot(1),
-    })
+    Proposition::DeclarationIdentity(ClauseIdentity::float_meaning(
+        vec![projection(left), projection(right)],
+        0,
+        1,
+    ))
 }
 
 #[test]
@@ -147,10 +147,10 @@ fn roundtrip_certificate_cites_only_the_live_equation_and_refuses_forged_childre
         .is_err()
     );
     let mut wrong_catalog = equation;
-    let Proposition::FloatMeaningEqual(clause) = &mut wrong_catalog else {
+    let Proposition::DeclarationIdentity(clause) = &mut wrong_catalog else {
         unreachable!()
     };
-    for row in &mut clause.values {
+    for row in clause.float_meaning_rows_mut() {
         if let FloatMeaningClauseValue::Application { contract, .. } = row {
             contract.commitment[0] ^= 1;
         }
@@ -318,8 +318,8 @@ fn integer_operands_keep_unknown_value_identity_and_exact_carriers() {
             Meaning,
         )
         .unwrap();
-        Proposition::FloatMeaningEqual(
-            FloatMeaningClause::result_equation(
+        Proposition::DeclarationIdentity(
+            ClauseIdentity::float_result_equation(
                 value(2, IeeeFloatFormat::Binary64),
                 operation.contract_identity(),
                 IeeeFloatFormat::Binary64,
@@ -341,10 +341,10 @@ fn integer_operands_keep_unknown_value_identity_and_exact_carriers() {
         );
     }
     let mut forged = premise.clone();
-    let Proposition::FloatMeaningEqual(clause) = &mut forged else {
+    let Proposition::DeclarationIdentity(clause) = &mut forged else {
         unreachable!()
     };
-    for row in &mut clause.values {
+    for row in clause.float_meaning_rows_mut() {
         if let FloatMeaningClauseValue::Application { operands, .. } = row {
             operands[1] = FloatMeaningClauseOperand::Integer(input(1, unsigned32));
         }
@@ -372,8 +372,8 @@ fn integer_literals_use_the_existing_closed_catalog_without_equating_other_value
     )
     .unwrap();
     let equation = |integer| {
-        Proposition::FloatMeaningEqual(
-            FloatMeaningClause::result_equation(
+        Proposition::DeclarationIdentity(
+            ClauseIdentity::float_result_equation(
                 ScalarTerm::IeeeFloatLiteral(IeeeFloatValue::Binary64(1.0_f64.to_bits())),
                 operation.contract_identity(),
                 IeeeFloatFormat::Binary64,
@@ -406,7 +406,7 @@ fn integer_operand_path_exhaustion_refuses_even_a_cited_equation() {
         Meaning,
     )
     .unwrap();
-    let clause = FloatMeaningClause::result_equation(
+    let clause = ClauseIdentity::float_result_equation(
         value(2, IeeeFloatFormat::Binary64),
         operation.contract_identity(),
         IeeeFloatFormat::Binary64,
@@ -418,7 +418,7 @@ fn integer_operand_path_exhaustion_refuses_even_a_cited_equation() {
     )
     .unwrap();
     clause.validate().unwrap();
-    let equation = Proposition::FloatMeaningEqual(clause);
+    let equation = Proposition::DeclarationIdentity(clause);
     assert_eq!(
         check_float_meaning_normalization(&equation, [&equation]),
         Err(FloatMeaningNormalizationError::WorkLimit),

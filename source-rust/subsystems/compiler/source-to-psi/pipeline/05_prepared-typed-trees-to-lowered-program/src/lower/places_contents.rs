@@ -520,9 +520,7 @@ mod tests {
     #[test]
     fn a_meaning_equation_names_both_of_its_structural_sources() {
         use numerics::float_projection::FloatProjectionOperation;
-        use semantic_vocabulary::{
-            FloatMeaningClause, FloatMeaningClauseValue, FloatMeaningSlot, IeeeFloatFormat,
-        };
+        use semantic_vocabulary::{ClauseIdentity, FloatMeaningClauseValue, IeeeFloatFormat};
 
         let roots = [PlaceId::new(2).unwrap(), PlaceId::new(9).unwrap()];
         let format = IeeeFloatFormat::Binary32;
@@ -533,11 +531,7 @@ mod tests {
                 contract: FloatProjectionOperation::Meaning32.contract_identity(),
             })
             .collect();
-        let clause = Proposition::FloatMeaningEqual(FloatMeaningClause {
-            values,
-            left: FloatMeaningSlot(0),
-            right: FloatMeaningSlot(1),
-        });
+        let clause = Proposition::DeclarationIdentity(ClauseIdentity::float_meaning(values, 0, 1));
         let found: Vec<_> = Observation::in_clause(&clause)
             .into_iter()
             .map(|field| (field.root, field.extent, field.scalar_type))

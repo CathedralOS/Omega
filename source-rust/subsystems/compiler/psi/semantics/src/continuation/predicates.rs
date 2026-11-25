@@ -259,6 +259,16 @@ impl CheckedPrefix<'_> {
             }
             // Only a published Identity crosses: an input at its data type
             // and a scalar term at its scalar type.
+            DeclarationIdentity(clause) if clause.is_float_meaning() => {
+                *clause = clause
+                    .map_float_sources::<&'static str>(|term| {
+                        let mut term = term.clone();
+                        self.clause_scalar(roots, &mut term)
+                            .ok_or("unmatched float operand")?;
+                        Ok(term)
+                    })
+                    .ok()?;
+            }
             DeclarationIdentity(clause) => {
                 use semantic_vocabulary::{ClauseCarrier, ClauseOperand};
                 if !clause.is_portable() {
@@ -290,16 +300,6 @@ impl CheckedPrefix<'_> {
             }
             Conjunction(_) | Disjunction(_) | Implication { .. } => {
                 unreachable!("logical predicates are traversed in pairs")
-            }
-            FloatMeaningEqual(clause) => {
-                *clause = clause
-                    .map_sources::<&'static str>(|term| {
-                        let mut term = term.clone();
-                        self.clause_scalar(roots, &mut term)
-                            .ok_or("unmatched float operand")?;
-                        Ok(term)
-                    })
-                    .ok()?;
             }
             FloatIntegerConversion(clause) => {
                 self.clause_scalar(roots, &mut clause.source)?;

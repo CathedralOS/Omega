@@ -1,12 +1,18 @@
 //! Typed values on either side of a source Identity. Applications refer to
 //! the selected declaration and, for a requirement, its supplying record.
-use crate::{ScalarTerm, ScalarType, StructuralCaseSubject, StructuralTypeId};
+use crate::{
+    FloatMeaningClauseValue, IeeeFloatFormat, ScalarTerm, ScalarType, StructuralCaseSubject,
+    StructuralTypeId,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
 pub enum ClauseCarrier {
     Parameter(u32),
     Scalar(ScalarType),
     Structural(StructuralTypeId),
+    /// The meaning of an IEEE value of this format, kept distinct from raw
+    /// representation identity and from IEEE comparison.
+    FloatMeaning(IeeeFloatFormat),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
@@ -25,6 +31,9 @@ pub enum ClauseOperand {
         declaration: ClauseDeclaration,
         arguments: Vec<u32>,
     },
+    /// A meaning projection of a float, or a float-semantics catalog
+    /// application whose meaning operands name earlier values.
+    FloatMeaning(FloatMeaningClauseValue),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
@@ -42,7 +51,8 @@ pub struct ClauseIdentity {
 
 impl ClauseIdentity {
     /// Whether a Psi module may publish this Identity: a whole input, or a
-    /// field of one, at its data type, and a scalar term at its scalar type.
+    /// field of one, at its data type, a scalar term at its scalar type, and a
+    /// float meaning.
     /// A type parameter, a schema formal and an applied declaration name
     /// something only the source checker's signature defines, so they stay
     /// inside the compiler.
@@ -52,12 +62,29 @@ impl ClauseIdentity {
                 (value.carrier, &value.operand),
                 (ClauseCarrier::Structural(_), ClauseOperand::Input(_))
                     | (ClauseCarrier::Scalar(_), ClauseOperand::Scalar(_))
+                    | (
+                        ClauseCarrier::FloatMeaning(_),
+                        ClauseOperand::FloatMeaning(_)
+                    )
             )
         })
     }
 
     pub fn validate(&self) -> Result<(), crate::PropositionError> {
         let invalid = || crate::PropositionError::InvalidClauseIdentity;
+        // A FloatMeaning Identity is entirely float meanings, under their own
+        // catalog, ordering and connectivity rules.
+        if self.is_float_meaning() {
+            return self
+                .validate_float_meaning()
+                .map_err(crate::PropositionError::InvalidFloatMeaningClause);
+        }
+        if self.values.iter().any(|value| {
+            matches!(value.carrier, ClauseCarrier::FloatMeaning(_))
+                || matches!(value.operand, ClauseOperand::FloatMeaning(_))
+        }) {
+            return Err(invalid());
+        }
         let left = self.values.get(self.left as usize).ok_or_else(invalid)?;
         let right = self.values.get(self.right as usize).ok_or_else(invalid)?;
         if left.carrier != right.carrier {

@@ -197,7 +197,7 @@ impl Program<'_> {
                     ScalarType::IeeeFloat(from),
                 );
                 let clause =
-                    semantic_vocabulary::FloatMeaningClause::conversion_roundtrip(source_term, to)
+                    semantic_vocabulary::ClauseIdentity::float_conversion_roundtrip(source_term, to)
                         .map_err(|detail| {
                             refuse(id, Construct::Machine, Unserved::Expression(detail))
                         })?;
@@ -205,7 +205,7 @@ impl Program<'_> {
                     result: operand.result,
                     kind: ExpressionKind::Establish {
                         operand: Box::new(operand),
-                        clauses: vec![semantic_vocabulary::Proposition::FloatMeaningEqual(clause)],
+                        clauses: vec![semantic_vocabulary::Proposition::DeclarationIdentity(clause)],
                         stated: terminal_check_tables::program::EstablishedCondition::ExactRepresentation(
                             format!(
                                 "the float value is exactly representable in {}",

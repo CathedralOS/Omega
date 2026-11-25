@@ -229,27 +229,18 @@ impl<'t> Program<'t> {
                     MathematicalPredicateBody::Proposition(Proposition::DeclarationIdentity(
                         identity,
                     )) => {
-                        let scalars =
-                            identity
-                                .values
-                                .iter()
-                                .filter_map(|value| match &value.operand {
-                                    semantic_vocabulary::ClauseOperand::Scalar(term) => {
-                                        Some((parameter.symbol, term.clone()))
-                                    }
-                                    _ => None,
-                                });
+                        // Every scalar the Identity names, in a scalar operand
+                        // or as a float meaning's source.
+                        let scalars = identity
+                            .values
+                            .iter()
+                            .filter_map(|value| match &value.operand {
+                                semantic_vocabulary::ClauseOperand::Scalar(term) => Some(term),
+                                _ => None,
+                            })
+                            .chain(identity.float_sources())
+                            .map(|term| (parameter.symbol, term.clone()));
                         self.retain_call_arguments(id, scalars)?;
-                    }
-                    MathematicalPredicateBody::Proposition(Proposition::FloatMeaningEqual(
-                        identity,
-                    )) => {
-                        self.retain_call_arguments(
-                            id,
-                            identity
-                                .sources()
-                                .map(|term| (parameter.symbol, term.clone())),
-                        )?;
                     }
                     MathematicalPredicateBody::Proposition(_) => {
                         return Err(unserved("erased type argument has no type formation"));

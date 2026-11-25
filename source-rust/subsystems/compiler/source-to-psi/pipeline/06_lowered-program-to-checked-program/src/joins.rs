@@ -1082,7 +1082,9 @@ pub(crate) fn check<'a>(
                 machine.ranking_bindings,
             )
             .and_then(|goal| {
-                if let Proposition::DeclarationIdentity(clause) = &goal {
+                if let Proposition::DeclarationIdentity(clause) = &goal
+                    && !clause.is_float_meaning()
+                {
                     return super::equality::discharge(
                         machine.module,
                         machine.lowered,

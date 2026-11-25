@@ -12,7 +12,7 @@ use numerics::float_semantics::{
     FloatSemanticOperand, FloatSemanticOperation, FloatSemanticResult, FloatSemanticValueKind,
 };
 use semantic_vocabulary::{
-    FloatMeaningClause, FloatMeaningClauseOperand, FloatMeaningClauseValue, IeeeFloatFormat,
+    ClauseIdentity, FloatMeaningClauseOperand, FloatMeaningClauseValue, IeeeFloatFormat,
     IeeeFloatValue, IntegerMathLiteral, Proposition, ScalarTerm,
 };
 
@@ -54,11 +54,9 @@ pub fn check_float_meaning_normalization<'a>(
     }
 }
 
-fn equation(
-    proposition: &Proposition,
-) -> Result<&FloatMeaningClause, FloatMeaningNormalizationError> {
+fn equation(proposition: &Proposition) -> Result<&ClauseIdentity, FloatMeaningNormalizationError> {
     match proposition {
-        Proposition::FloatMeaningEqual(clause) => Ok(clause),
+        Proposition::DeclarationIdentity(clause) if clause.is_float_meaning() => Ok(clause),
         _ => Err(FloatMeaningNormalizationError::Malformed(
             "float meaning normalization requires an actual meaning equation",
         )),
@@ -274,10 +272,10 @@ impl Normalization {
 
     fn import(
         &mut self,
-        clause: &FloatMeaningClause,
+        clause: &ClauseIdentity,
     ) -> Result<(usize, usize), FloatMeaningNormalizationError> {
         self.spend(clause.values.len())?;
-        for row in &clause.values {
+        for row in clause.float_meaning_rows() {
             match row {
                 FloatMeaningClauseValue::Application { operands, .. } => {
                     self.spend(operands.len())?;
@@ -303,10 +301,10 @@ impl Normalization {
             }
         }
         clause
-            .validate()
+            .validate_float_meaning()
             .map_err(FloatMeaningNormalizationError::Malformed)?;
         let mut values = Vec::with_capacity(clause.values.len());
-        for row in &clause.values {
+        for row in clause.float_meaning_rows() {
             let value = match row {
                 FloatMeaningClauseValue::Projection {
                     source: ScalarTerm::IeeeFloatLiteral(value),
@@ -339,8 +337,8 @@ impl Normalization {
             values.push(self.intern(value)?);
         }
         Ok((
-            values[clause.left.0 as usize],
-            values[clause.right.0 as usize],
+            values[clause.left as usize],
+            values[clause.right as usize],
         ))
     }
 

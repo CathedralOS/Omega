@@ -384,10 +384,10 @@ mod tests {
     }
     #[test]
     fn meaning_restatement_requires_the_actual_minted_value_and_format() {
-        use semantic_vocabulary::{FloatMeaningClause, IeeeFloatFormat};
+        use semantic_vocabulary::{ClauseIdentity, IeeeFloatFormat};
         let scalar = ScalarType::IeeeFloat(IeeeFloatFormat::Binary64);
-        let clause = Proposition::FloatMeaningEqual(
-            FloatMeaningClause::conversion_roundtrip(
+        let clause = Proposition::DeclarationIdentity(
+            ClauseIdentity::float_conversion_roundtrip(
                 ScalarTerm::value(ValueId::new(1).unwrap(), scalar),
                 IeeeFloatFormat::Binary32,
             )
@@ -397,11 +397,11 @@ mod tests {
         let machine = MachineId::new(1).unwrap();
         let mut roster = values(scalar);
         let mapped = substitute(&clause, &actuals, &roster, machine).unwrap();
-        let Proposition::FloatMeaningEqual(mapped) = mapped else {
+        let Proposition::DeclarationIdentity(mapped) = mapped else {
             unreachable!()
         };
         assert_eq!(
-            mapped.sources().collect::<Vec<_>>(),
+            mapped.float_sources().collect::<Vec<_>>(),
             [&ScalarTerm::value(actuals[0], scalar)]
         );
         assert!(substitute(&clause, &[ValueId::new(9).unwrap()], &roster, machine).is_err());

@@ -10,7 +10,10 @@ use numerics::float_semantics::{
     FloatSemanticContractIdentity, FloatSemanticOperation, FloatSemanticValueKind,
 };
 
-use crate::{IeeeFloatFormat, ScalarTerm, ScalarType};
+use crate::{
+    ClauseCarrier, ClauseIdentity, ClauseOperand, ClauseValue, IeeeFloatFormat, ScalarTerm,
+    ScalarType,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
 pub struct FloatMeaningSlot(pub u32);
@@ -44,17 +47,16 @@ impl FloatMeaningClauseValue {
     }
 }
 
-/// Structural equality of FloatMeaning, separate from IEEE comparison and raw
-/// representation identity. Rows are unique and topological; every row belongs
-/// to the equality. Slot numbers have meaning only inside this template.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
-pub struct FloatMeaningClause {
-    pub values: Vec<FloatMeaningClauseValue>,
-    pub left: FloatMeaningSlot,
-    pub right: FloatMeaningSlot,
+/// The rows of a FloatMeaning Identity while this module builds, checks or
+/// re-interns them. An Identity at the FloatMeaning carrier holds exactly these
+/// rows as its values, so this table never outlives one call.
+struct Table {
+    values: Vec<FloatMeaningClauseValue>,
+    left: FloatMeaningSlot,
+    right: FloatMeaningSlot,
 }
 
-impl FloatMeaningClause {
+impl Table {
     fn projection(source: ScalarTerm) -> Result<FloatMeaningClauseValue, &'static str> {
         let operation = match source.scalar_type() {
             ScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => FloatProjectionOperation::Meaning32,
@@ -70,7 +72,7 @@ impl FloatMeaningClause {
     /// The source is unchanged by conversion to `through` and back to its own
     /// format. This states representability before a runtime result exists;
     /// neither constructing the equation nor naming it proves it.
-    pub fn conversion_roundtrip(
+    fn conversion_roundtrip(
         source: ScalarTerm,
         through: IeeeFloatFormat,
     ) -> Result<Self, &'static str> {
@@ -110,7 +112,7 @@ impl FloatMeaningClause {
     /// The result projection equals one complete semantic application. This
     /// builds the same typed equation for unary, binary and ternary meaning
     /// operations; it does not select or authorize runtime execution.
-    pub fn result_equation(
+    fn result_equation(
         result: ScalarTerm,
         contract: FloatSemanticContractIdentity,
         format: IeeeFloatFormat,
@@ -166,7 +168,7 @@ impl FloatMeaningClause {
         clause.intern_sources::<&'static str>(|source| Ok(source.clone()))
     }
 
-    pub fn validate(&self) -> Result<(), &'static str> {
+    fn validate(&self) -> Result<(), &'static str> {
         use FloatMeaningClauseOperand as Operand;
         use FloatMeaningClauseValue as Value;
         use FloatSemanticValueKind as Kind;
@@ -281,7 +283,7 @@ impl FloatMeaningClause {
     /// Resolve each source exactly once. Re-intern rows after substitution so
     /// aliased actuals share a slot, without recursively substituting an actual
     /// again as though it were another formal.
-    pub fn map_sources<E: From<&'static str>>(
+    fn map_sources<E: From<&'static str>>(
         &self,
         source: impl FnMut(&ScalarTerm) -> Result<ScalarTerm, E>,
     ) -> Result<Self, E> {
@@ -360,10 +362,7 @@ impl FloatMeaningClause {
     /// Legacy renaming APIs cannot return an error. Preserve that interface by
     /// producing an unmistakably malformed equation when a source map fails;
     /// receiving validation must reject it instead of using an unchanged fact.
-    pub fn map_sources_or_invalid(
-        &self,
-        mut source: impl FnMut(&ScalarTerm) -> ScalarTerm,
-    ) -> Self {
+    fn map_sources_or_invalid(&self, mut source: impl FnMut(&ScalarTerm) -> ScalarTerm) -> Self {
         match self.map_sources::<&'static str>(|input| Ok(source(input))) {
             Ok(mapped) => mapped,
             Err(_) => Self {
@@ -373,12 +372,179 @@ impl FloatMeaningClause {
             },
         }
     }
+}
 
-    pub fn sources(&self) -> impl DoubleEndedIterator<Item = &ScalarTerm> {
+impl Table {
+    fn of(identity: &ClauseIdentity) -> Result<Self, &'static str> {
+        let values = identity
+            .values
+            .iter()
+            .map(|value| match (&value.carrier, &value.operand) {
+                (ClauseCarrier::FloatMeaning(format), ClauseOperand::FloatMeaning(row))
+                    if row.format() == Some(*format) =>
+                {
+                    Ok(row.clone())
+                }
+                _ => Err("float meaning Identity has a value of another carrier"),
+            })
+            .collect::<Result<_, _>>()?;
+        Ok(Self {
+            values,
+            left: FloatMeaningSlot(identity.left),
+            right: FloatMeaningSlot(identity.right),
+        })
+    }
+
+    fn identity(self) -> ClauseIdentity {
+        ClauseIdentity {
+            values: self
+                .values
+                .into_iter()
+                .map(|row| ClauseValue {
+                    // A row without a format fails validation; give it one so
+                    // the Identity stays visibly float-valued and is refused.
+                    carrier: ClauseCarrier::FloatMeaning(
+                        row.format().unwrap_or(IeeeFloatFormat::Binary64),
+                    ),
+                    operand: ClauseOperand::FloatMeaning(row),
+                })
+                .collect(),
+            left: self.left.0,
+            right: self.right.0,
+        }
+    }
+}
+
+/// Structural equality of FloatMeaning, separate from IEEE comparison and raw
+/// representation identity, is the Identity at the FloatMeaning carrier. Its
+/// rows are unique and topological, every row belongs to the equality, and a
+/// meaning operand names an earlier row of the same table.
+impl ClauseIdentity {
+    /// Whether this is an Identity of float meanings.
+    pub fn is_float_meaning(&self) -> bool {
+        self.values
+            .first()
+            .is_some_and(|value| matches!(value.carrier, ClauseCarrier::FloatMeaning(_)))
+    }
+
+    /// The rows of a FloatMeaning Identity, in slot order.
+    pub fn float_meaning_rows(&self) -> impl DoubleEndedIterator<Item = &FloatMeaningClauseValue> {
+        self.values.iter().filter_map(|value| match &value.operand {
+            ClauseOperand::FloatMeaning(row) => Some(row),
+            _ => None,
+        })
+    }
+
+    /// The rows of a FloatMeaning Identity, to change in place. A change is
+    /// checked when the Identity is next validated.
+    pub fn float_meaning_rows_mut(
+        &mut self,
+    ) -> impl DoubleEndedIterator<Item = &mut FloatMeaningClauseValue> {
+        self.values
+            .iter_mut()
+            .filter_map(|value| match &mut value.operand {
+                ClauseOperand::FloatMeaning(row) => Some(row),
+                _ => None,
+            })
+    }
+
+    /// The row at `slot` of a FloatMeaning Identity, to change in place. A
+    /// change is checked when the Identity is next validated.
+    pub fn float_meaning_row_mut(&mut self, slot: usize) -> Option<&mut FloatMeaningClauseValue> {
+        match &mut self.values.get_mut(slot)?.operand {
+            ClauseOperand::FloatMeaning(row) => Some(row),
+            _ => None,
+        }
+    }
+
+    /// The row at `slot` of a FloatMeaning Identity.
+    pub fn float_meaning_row(&self, slot: u32) -> Option<&FloatMeaningClauseValue> {
+        match &self.values.get(slot as usize)?.operand {
+            ClauseOperand::FloatMeaning(row) => Some(row),
+            _ => None,
+        }
+    }
+
+    /// The source is unchanged by conversion to `through` and back to its own
+    /// format. This states representability before a runtime result exists;
+    /// neither constructing the equation nor naming it proves it.
+    pub fn float_conversion_roundtrip(
+        source: ScalarTerm,
+        through: IeeeFloatFormat,
+    ) -> Result<Self, &'static str> {
+        Table::conversion_roundtrip(source, through).map(Table::identity)
+    }
+
+    /// The result projection equals one complete semantic application. This
+    /// builds the same typed equation for unary, binary and ternary meaning
+    /// operations; it does not select or authorize runtime execution.
+    pub fn float_result_equation(
+        result: ScalarTerm,
+        contract: FloatSemanticContractIdentity,
+        format: IeeeFloatFormat,
+        arguments: impl IntoIterator<Item = ScalarTerm>,
+    ) -> Result<Self, &'static str> {
+        Table::result_equation(result, contract, format, arguments).map(Table::identity)
+    }
+
+    /// A FloatMeaning Identity from rows a caller assembled; validation
+    /// decides whether they form one.
+    pub fn float_meaning(values: Vec<FloatMeaningClauseValue>, left: u32, right: u32) -> Self {
+        Table {
+            values,
+            left: FloatMeaningSlot(left),
+            right: FloatMeaningSlot(right),
+        }
+        .identity()
+    }
+
+    pub fn validate_float_meaning(&self) -> Result<(), &'static str> {
+        Table::of(self)?.validate()
+    }
+
+    /// Resolve each source exactly once. Re-intern rows after substitution so
+    /// aliased actuals share a slot, without recursively substituting an actual
+    /// again as though it were another formal.
+    pub fn map_float_sources<E: From<&'static str>>(
+        &self,
+        source: impl FnMut(&ScalarTerm) -> Result<ScalarTerm, E>,
+    ) -> Result<Self, E> {
+        Table::of(self)
+            .map_err(E::from)?
+            .map_sources(source)
+            .map(Table::identity)
+    }
+
+    /// Legacy renaming APIs cannot return an error. Preserve that interface by
+    /// producing an unmistakably malformed equation when a source map fails;
+    /// receiving validation must reject it instead of using an unchanged fact.
+    pub fn map_float_sources_or_invalid(
+        &self,
+        source: impl FnMut(&ScalarTerm) -> ScalarTerm,
+    ) -> Self {
+        match Table::of(self) {
+            Ok(table) => table.map_sources_or_invalid(source).identity(),
+            Err(_) => Self {
+                values: Vec::new(),
+                left: 0,
+                right: 0,
+            },
+        }
+    }
+
+    /// Every scalar source of a FloatMeaning Identity: each projected float
+    /// and each integer operand, in row order.
+    pub fn float_sources(&self) -> impl DoubleEndedIterator<Item = &ScalarTerm> {
         self.values.iter().flat_map(|value| {
-            let (projection, operands): (Option<&ScalarTerm>, &[_]) = match value {
-                FloatMeaningClauseValue::Projection { source, .. } => (Some(source), &[]),
-                FloatMeaningClauseValue::Application { operands, .. } => (None, operands),
+            let (projection, operands): (Option<&ScalarTerm>, &[_]) = match &value.operand {
+                ClauseOperand::FloatMeaning(FloatMeaningClauseValue::Projection {
+                    source, ..
+                }) => (Some(source), &[]),
+                ClauseOperand::FloatMeaning(FloatMeaningClauseValue::Application {
+                    operands,
+                    ..
+                }) => (None, operands),
+                _ => (None, &[]),
             };
             projection
                 .into_iter()
@@ -391,9 +557,11 @@ impl FloatMeaningClause {
 
     /// Only IEEE projections need the disjoint float-producer correspondence.
     /// Integer operands are bound by ordinary scalar argument substitution.
-    pub fn projection_sources(&self) -> impl Iterator<Item = &ScalarTerm> {
-        self.values.iter().filter_map(|value| match value {
-            FloatMeaningClauseValue::Projection { source, .. } => Some(source),
+    pub fn float_projection_sources(&self) -> impl Iterator<Item = &ScalarTerm> {
+        self.values.iter().filter_map(|value| match &value.operand {
+            ClauseOperand::FloatMeaning(FloatMeaningClauseValue::Projection { source, .. }) => {
+                Some(source)
+            }
             _ => None,
         })
     }
@@ -404,7 +572,7 @@ mod tests {
     use super::*;
     use crate::{Proposition, PropositionContext, ValueId};
 
-    fn equation() -> FloatMeaningClause {
+    fn equation() -> ClauseIdentity {
         use FloatSemanticValueKind::{Format, Meaning};
         let operation = FloatSemanticOperation::from_source_identity(
             "FloatSemantics",
@@ -415,7 +583,7 @@ mod tests {
         .unwrap();
         let scalar = ScalarType::IeeeFloat(IeeeFloatFormat::Binary32);
         let value = |raw| ScalarTerm::value(ValueId::new(raw).unwrap(), scalar);
-        FloatMeaningClause::result_equation(
+        ClauseIdentity::float_result_equation(
             value(3),
             operation.contract_identity(),
             IeeeFloatFormat::Binary32,
@@ -442,7 +610,7 @@ mod tests {
             ScalarType::IeeeFloat(IeeeFloatFormat::Binary64),
         );
         let source = ScalarTerm::value(ValueId::new(1).unwrap(), integer);
-        let clause = FloatMeaningClause::result_equation(
+        let clause = ClauseIdentity::float_result_equation(
             result,
             operation.contract_identity(),
             IeeeFloatFormat::Binary64,
@@ -450,7 +618,7 @@ mod tests {
         )
         .unwrap();
         let mapped = clause
-            .map_sources::<&'static str>(|source| {
+            .map_float_sources::<&'static str>(|source| {
                 Ok(match source {
                     ScalarTerm::Value { id, scalar_type } => {
                         ScalarTerm::value(ValueId::new(id.get() + 10).unwrap(), *scalar_type)
@@ -459,20 +627,22 @@ mod tests {
                 })
             })
             .unwrap();
-        assert!(mapped.sources().any(|source| matches!(source, ScalarTerm::Value { id, scalar_type } if id.get()==11 && *scalar_type==integer)));
-        assert_eq!(mapped.projection_sources().count(), 1);
+        assert!(mapped.float_sources().any(|source| matches!(source, ScalarTerm::Value { id, scalar_type } if id.get()==11 && *scalar_type==integer)));
+        assert_eq!(mapped.float_projection_sources().count(), 1);
         assert!(
             clause
-                .map_sources::<&'static str>(|source| Ok(if source.scalar_type() == integer {
-                    ScalarTerm::value(
-                        ValueId::new(1).unwrap(),
-                        ScalarType::Integer(
-                            crate::IntegerType::from_fixed(FixedInteger::unsigned(32)).unwrap(),
-                        ),
-                    )
-                } else {
-                    source.clone()
-                }))
+                .map_float_sources::<&'static str>(|source| Ok(
+                    if source.scalar_type() == integer {
+                        ScalarTerm::value(
+                            ValueId::new(1).unwrap(),
+                            ScalarType::Integer(
+                                crate::IntegerType::from_fixed(FixedInteger::unsigned(32)).unwrap(),
+                            ),
+                        )
+                    } else {
+                        source.clone()
+                    }
+                ))
                 .is_err(),
             "equal widths do not make signed and unsigned inputs interchangeable"
         );
@@ -480,7 +650,7 @@ mod tests {
 
     #[test]
     fn float_meaning_equation_remapping_retains_all_sources_and_poisoned_input_rejects() {
-        let original = Proposition::FloatMeaningEqual(equation());
+        let original = Proposition::DeclarationIdentity(equation());
         let mut renamed = original.clone();
         renamed.remap_value_ids(|id| ValueId::new(id.get() + 10).unwrap());
         let mut ids = Vec::new();
@@ -493,11 +663,13 @@ mod tests {
         .unwrap();
         context.validate(&renamed).unwrap();
         let mut broken = equation();
-        let FloatMeaningClauseValue::Projection { contract, .. } = &mut broken.values[0] else {
+        let FloatMeaningClauseValue::Projection { contract, .. } =
+            broken.float_meaning_row_mut(0).unwrap()
+        else {
             unreachable!()
         };
         contract.commitment[0] ^= 1;
-        let mut broken = Proposition::FloatMeaningEqual(broken);
+        let mut broken = Proposition::DeclarationIdentity(broken);
         broken.remap_value_ids(|id| ValueId::new(id.get() + 10).unwrap());
         assert!(broken.validate().is_err());
         assert!(context.validate(&broken).is_err());

@@ -737,7 +737,7 @@ pub(crate) mod boundary_predicates {
         #[test]
         fn undetermined_nan_closes_meaning_and_ieee_boundary_promises() {
             use crate::{TerminalEffectResult, TerminalScalarValue};
-            use semantic_vocabulary::{FloatMeaningClause, ScalarType, ValueId};
+            use semantic_vocabulary::{ClauseIdentity, ScalarType, ValueId};
 
             let format = IeeeFloatFormat::Binary32;
             let scalar = ScalarType::IeeeFloat(format);
@@ -752,8 +752,8 @@ pub(crate) mod boundary_predicates {
                 right: returned.clone(),
             };
             boundary.scalar_ensures = vec![
-                Proposition::FloatMeaningEqual(
-                    FloatMeaningClause::conversion_roundtrip(
+                Proposition::DeclarationIdentity(
+                    ClauseIdentity::float_conversion_roundtrip(
                         returned.clone(),
                         IeeeFloatFormat::Binary64,
                     )
