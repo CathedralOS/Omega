@@ -803,13 +803,13 @@ mutable reference, `-D` is accepted exactly when the lender could write
 [establishment rules](#domain-only-casts) for whatever the place then holds.
 
 ```omega
-machine reset(n: @mutable i32) ensures n == 1 { n = 1; }
-machine scribble(n: @mutable i32) { n = 0; }
+machine reset(n: @mutable i32) ensures $n == 1 { $n = 1; }
+machine scribble(n: @mutable i32) { $n = 0; }
 
 let mutable trip: i32 in Km & Positive = 5 as +Km +Positive;
 
 reset(@mutable trip as -Km -Positive);
-// `Km` returns with nothing to prove. `Positive` is proved by `n == 1`.
+// `Km` returns with nothing to prove. `Positive` is proved by `$n == 1`.
 
 scribble(@mutable trip as -Km -Positive);
 measure(trip);

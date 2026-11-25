@@ -589,7 +589,18 @@ impl Program<'_> {
                     conclusion: Box::new(Proposition::Falsehood),
                 });
             }
-            ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+            // A clause that is one Boolean value reads it as an operand is
+            // read: `requires $flag` over `flag: @bool` reads the referent,
+            // and `clause_term` refuses a bare `flag`.
+            node @ (ExpressionNode::Name(_)
+            | ExpressionNode::Member(_)
+            | ExpressionNode::Indexed(_)
+            | ExpressionNode::Unary(_))
+                if match node {
+                    ExpressionNode::Unary(unary) => unary.operator == UnaryOperator::Dereference,
+                    _ => true,
+                } =>
+            {
                 let (term, value_type) = self
                     .clause_term(
                         id,
@@ -1719,16 +1730,15 @@ impl Program<'_> {
                     return Err(spelling("clause name without a symbol"));
                 }
                 let Some(subject) = scope.subject else {
+                    // A scope that reads no formal storage names none here,
+                    // as the early return above says, whether or not its
+                    // result is structural.
+                    if !scope.formal_fields {
+                        return Ok(None);
+                    }
                     // A record formal is its root place: lowering mints the
                     // record formals' places first, so the `k`-th record
                     // formal is place `k + 1` (`Signature::parameters`).
-                    if !scope.formal_fields {
-                        return Err(refuse(
-                            id,
-                            Construct::Machine,
-                            Unserved::Contract("formal field in a postcondition"),
-                        ));
-                    }
                     let slot = self.slot_of(id, scope.slots, path)?;
                     if scope.slots[slot].erased {
                         return Err(refuse(

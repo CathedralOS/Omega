@@ -136,10 +136,10 @@ requires used <= total
 
 ```omega
 machine increment(value: @mutable u32)
-requires value < 1000
-ensures value == old(value) + 1
+requires $value < 1000
+ensures $value == old($value) + 1
 {
-    value = value + 1;
+    $value = $value + 1;
 }
 ```
 

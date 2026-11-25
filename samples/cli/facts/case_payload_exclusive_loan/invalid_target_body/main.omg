@@ -31,7 +31,7 @@ boundary trait SelectedApply {
     machine apply(chosen: @mutable Slot, other: @mutable Slot, visits: @mutable u64) -> i64 reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     requires chosen in Slot::Present
     requires other in Slot::Present
-    requires visits == 0;
+    requires $visits == 0;
 }
 X86Apply satisfies SelectedApply {
     machine apply(chosen: @mutable Slot, other: @mutable Slot, visits: @mutable u64) -> i64 reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap

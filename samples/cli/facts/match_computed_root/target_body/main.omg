@@ -21,7 +21,7 @@ machine apply(chosen: @mutable [i64; 2], other: @mutable [i64; 2], visits: @muta
 
 boundary trait ComputedRootWrite {
     machine write(chosen: @mutable [i64; 2], other: @mutable [i64; 2], visits: @mutable u64) -> i64
-    requires visits == 0
+    requires $visits == 0
     reaches none crashes none;
 }
 

@@ -33,7 +33,7 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 
 boundary trait SelectedApply {
     machine apply(chosen: @mutable Cell, other: @mutable Cell, visits: @mutable u64, flag: bool)
-        requires visits == 0
+        requires $visits == 0
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
 }
 

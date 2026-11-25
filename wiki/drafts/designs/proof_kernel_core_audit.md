@@ -1396,8 +1396,11 @@ type), and the clause's `ClauseScope` says what each name denotes there.
     raised by the other scopes read without `formal_fields` (an erased
     term, a callee clause unfolded in another clause, data and domain
     predicates, a family machine's value-parameter requirements); whether
-    each states a rule is not decided. "Formal field in a postcondition" is
-    still reached by no production scope. In
+    each states a rule is not decided. "Formal field in a postcondition" was
+    reached by no scope: only a machine's `ensures` scope has a structural
+    result, and it reads formal storage. `read_projection` now answers that
+    a formal names no storage wherever a scope reads none, as its early
+    return already did, and the message is gone (2026-11-25). In
     `samples/cli/facts/indexed_crash_guard/`, `parameter`, `local`,
     `const_name`, `other_machine` and `target_body` are accepted and their
     twins refused. `field` and `call_result` stop where a `requires` analog
@@ -1465,8 +1468,29 @@ type), and the clause's `ClauseScope` says what each name denotes there.
     three then meet generic and lifetime refusals (a static implementation
     family's binder or region proof, a trait with lifetime parameters).
   - "Identity operand has no term at its written carrier" for a field of a
-    record formal outside the mathematical signature: the field arm serves
-    data that contains itself only.
+    record formal outside the mathematical signature is no longer raised:
+    stage 05 reads `outer.inner` as the input's storage at that field path
+    (#5796). `ensures core\Identity::<Inner>(result, outer.inner)` and
+    `ensures core\Identity::<Inner>(result, inner)` now stop in stage 06,
+    where a caller restates the guarantee: the completion binding
+    (`Returned::whole_input` in `places.rs`) looks the result's root up
+    among the formals and refuses with "a completion clause names storage
+    that is no formal".
+- **A clause reads a reference's referent only through `$` (2026-11-25).**
+  `requires value == 7` over `value: @u64` was accepted and read as the
+  referent, while `requires $value == 7` was refused ("expression with no
+  carrier value term"). That is backwards: "Omega never inserts a
+  dereference to satisfy an expected value type", operator operands
+  included ([explicit dereference](../../spec/language/expressions.md#explicit-dereference)).
+  `clause_term` now reads `$value` as the referent's storage at the
+  formal's place, which `requires`, `ensures`, crash guards and `old($value)`
+  observe at entry or completion as before, and refuses a bare `value` with
+  the rule a body applies (`rejections::implicit_dereference`). The clauses
+  that wrote the bare form now write `$`: the boundary trait requirements
+  of 14 `target_body` programs under `samples/cli/facts/` and their 14
+  `invalid_target_body` twins, whose implementations already wrote `$`;
+  three test programs in stage 06; and the examples in `domains.md` and
+  language guide chapters 8 and 10.
 - **A comparison as an operand (added after step 5).** `flag == (a < b)` was
   refused with "arithmetic contract term has no selected integer carrier".
   `clause_term` now reads a comparison as the Boolean value it computes
