@@ -483,6 +483,7 @@ fn summarize(
             declared: &declared_joins,
             unreached: &beyond,
             law_instances: &[],
+            donated: None,
         },
         &mut scratch,
         &mut decided,

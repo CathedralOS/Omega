@@ -2310,15 +2310,22 @@ impl Carry<'_> {
 /// scheduling.
 pub(crate) struct Donors<'a> {
     /// Each donated machine by its source machine, sorted by that machine;
-    /// the earliest donor of each machine only.
+    /// distinct `(symbol, context / contract / knowledge / verdict)` variants
+    /// are retained in donor order.
     machines: Vec<Donation<'a>>,
 }
 
 struct Donation<'a> {
     symbol: (u32, u32),
     lowered: &'a TerminalMachine,
+    view: DonationView<'a>,
+}
+
+#[derive(Clone, Copy)]
+struct DonationView<'a> {
     tables: &'a MachineTables,
     verdicts: &'a IdTable<ObligationId, Checked<Discharged>>,
+    windows: &'a [crate::WindowUse],
 }
 
 /// The source machine as a sort key; handles have no order of their own.
@@ -2326,11 +2333,78 @@ fn symbol_key(symbol: symbols::SymbolHandle) -> (u32, u32) {
     (symbol.arena_index(), symbol.generation())
 }
 
+fn same_evidence_shape(a: &crate::Evidence, b: &crate::Evidence) -> bool {
+    a.goal == b.goal
+        && a.assumptions == b.assumptions
+        && a.axioms == b.axioms
+        && a.fact.obligation == b.fact.obligation
+        && a.fact.proposition == b.fact.proposition
+}
+
+fn same_donation_variant(earlier: &Donation<'_>, candidate: &Donation<'_>) -> bool {
+    if !same_context(
+        earlier.lowered,
+        earlier.view.tables,
+        candidate.lowered,
+        candidate.view.tables,
+    ) || earlier.lowered.contract != candidate.lowered.contract
+        || earlier.view.tables.obligations.len() != candidate.view.tables.obligations.len()
+        || earlier.view.tables.knowledge.len() != candidate.view.tables.knowledge.len()
+        || earlier.view.verdicts.len() != candidate.view.verdicts.len()
+        || earlier.view.windows.len() != candidate.view.windows.len()
+    {
+        return false;
+    }
+    let same_knowledge = earlier
+        .view
+        .tables
+        .knowledge
+        .iter()
+        .zip(candidate.view.tables.knowledge.iter())
+        .all(|((row_a, _), (row_b, _))| {
+            crate::knowledge_proposition(earlier.view.tables, row_a)
+                == crate::knowledge_proposition(candidate.view.tables, row_b)
+        });
+    if !same_knowledge {
+        return false;
+    }
+    let same_verdicts = earlier
+        .view
+        .verdicts
+        .iter()
+        .zip(candidate.view.verdicts.iter())
+        .all(|((_, a), (_, b))| match (a, b) {
+            (Ok(Discharged::Certificate(ea)), Ok(Discharged::Certificate(eb))) => {
+                same_evidence_shape(ea, eb)
+            }
+            (Ok(Discharged::Window(_)), Ok(Discharged::Window(_))) | (Err(_), Err(_)) => true,
+            (Ok(a), Ok(b)) => std::mem::discriminant(a) == std::mem::discriminant(b),
+            _ => false,
+        });
+    if !same_verdicts {
+        return false;
+    }
+    earlier
+        .view
+        .windows
+        .iter()
+        .zip(candidate.view.windows.iter())
+        .all(|(wa, wb)| {
+            wa.opened_by == wb.opened_by
+                && match (&wa.verdict, &wb.verdict) {
+                    (Ok(ea), Ok(eb)) => same_evidence_shape(ea, eb),
+                    (Err(_), Err(_)) => true,
+                    _ => false,
+                }
+        })
+}
+
 impl<'a> Donors<'a> {
     /// The machines of `donors`, each checked module with its discharge, in
-    /// the order given; an earlier module's copy of a machine wins.
+    /// the order given; distinct variants per source machine are retained in
+    /// donor order.
     pub(crate) fn new(donors: impl IntoIterator<Item = (&'a Elaboration, &'a Discharge)>) -> Self {
-        let mut machines = Vec::new();
+        let mut raw = Vec::new();
         for (elaboration, discharge) in donors {
             for (machine, symbol) in elaboration.machines.iter() {
                 let (Ok(lowered), Some(tables), Some(discharged)) = (
@@ -2340,23 +2414,41 @@ impl<'a> Donors<'a> {
                 ) else {
                     continue;
                 };
-                machines.push(Donation {
+                raw.push(Donation {
                     symbol: symbol_key(*symbol),
                     lowered,
-                    tables,
-                    verdicts: &discharged.verdicts,
+                    view: DonationView {
+                        tables,
+                        verdicts: &discharged.verdicts,
+                        windows: &discharged.windows,
+                    },
                 });
             }
         }
-        // Stable: the first module's copy of each machine stays first.
-        machines.sort_by_key(|donation| donation.symbol);
-        machines.dedup_by_key(|donation| donation.symbol);
+        // Stable: earlier donors stay first within each source machine's run.
+        raw.sort_by_key(|donation| donation.symbol);
+        let mut machines: Vec<Donation<'a>> = Vec::with_capacity(raw.len());
+        let mut group_start = 0;
+        for donation in raw {
+            if machines
+                .get(group_start)
+                .is_none_or(|first| first.symbol != donation.symbol)
+            {
+                group_start = machines.len();
+            }
+            if !machines[group_start..]
+                .iter()
+                .any(|earlier| same_donation_variant(earlier, &donation))
+            {
+                machines.push(donation);
+            }
+        }
         Self { machines }
     }
 
-    /// The donor copy of `symbol` whose search inputs agree with this copy's
-    /// before any goal is compared (`same_context`). `None` when there is no
-    /// such copy.
+    /// The donor copies of `symbol` whose search inputs agree with this copy's
+    /// before any goal is compared (`same_context`), in donor order. `None`
+    /// when there is no such copy.
     pub(crate) fn for_machine(
         &self,
         symbol: symbols::SymbolHandle,
@@ -2364,15 +2456,20 @@ impl<'a> Donors<'a> {
         tables: &MachineTables,
     ) -> Option<Donated<'a>> {
         let key = symbol_key(symbol);
-        let position = self
+        let start = self
             .machines
-            .binary_search_by_key(&key, |donation| donation.symbol)
-            .ok()?;
-        let donation = &self.machines[position];
-        same_context(donation.lowered, donation.tables, lowered, tables).then_some(Donated {
-            tables: donation.tables,
-            verdicts: donation.verdicts,
-        })
+            .partition_point(|donation| donation.symbol < key);
+        let end = self
+            .machines
+            .partition_point(|donation| donation.symbol <= key);
+        let variants: Vec<DonationView<'a>> = self.machines[start..end]
+            .iter()
+            .filter(|donation| {
+                same_context(donation.lowered, donation.view.tables, lowered, tables)
+            })
+            .map(|donation| donation.view)
+            .collect();
+        (!variants.is_empty()).then_some(Donated { variants })
     }
 }
 
@@ -2414,10 +2511,9 @@ fn same_context(
             })
 }
 
-/// One donor copy of the machine being checked (`Donors::for_machine`).
+/// Matching donor copies of the machine being checked (`Donors::for_machine`).
 pub(crate) struct Donated<'a> {
-    tables: &'a MachineTables,
-    verdicts: &'a IdTable<ObligationId, Checked<Discharged>>,
+    variants: Vec<DonationView<'a>>,
 }
 
 /// A certificate borrowed for one obligation, its already-verified kernel
@@ -2431,9 +2527,10 @@ pub(crate) struct Borrowed {
 }
 
 impl Donated<'_> {
-    /// The donor's certificate and kernel-accepted fact for `obligation`, when
-    /// the donor's search proved the exact same goal from the exact same
-    /// context and hypothesis set this copy's search would reach it with.
+    /// The first matching donor copy's certificate and kernel-accepted fact for
+    /// `obligation`, when that donor's search proved the exact same goal from
+    /// the exact same context and hypothesis set this copy's search would reach
+    /// it with.
     ///
     /// `Donors::for_machine` already verified `same_context` (identical
     /// `value_types` and `structural_places` keys and discriminants, which are
@@ -2449,9 +2546,46 @@ impl Donated<'_> {
         full: &Hypotheses,
         narrowed: Option<&Hypotheses>,
     ) -> Option<Borrowed> {
-        let Some(Ok(Discharged::Certificate(evidence))) = self.verdicts.get(obligation) else {
-            return None;
-        };
+        self.variants
+            .iter()
+            .find_map(|variant| variant.borrow(obligation, goal, full, narrowed))
+    }
+}
+
+impl DonationView<'_> {
+    fn borrow(
+        &self,
+        obligation: ObligationId,
+        goal: &Proposition,
+        full: &Hypotheses,
+        narrowed: Option<&Hypotheses>,
+    ) -> Option<Borrowed> {
+        match self.verdicts.get(obligation)? {
+            Ok(Discharged::Certificate(evidence)) => {
+                self.borrow_evidence(obligation, goal, full, narrowed, evidence)
+            }
+            Ok(Discharged::Window(_)) => self
+                .windows
+                .iter()
+                .filter(|window_use| window_use.opened_by == obligation)
+                .find_map(|window_use| {
+                    let Ok(evidence) = &window_use.verdict else {
+                        return None;
+                    };
+                    self.borrow_evidence(obligation, goal, full, narrowed, evidence)
+                }),
+            _ => None,
+        }
+    }
+
+    fn borrow_evidence(
+        &self,
+        obligation: ObligationId,
+        goal: &Proposition,
+        full: &Hypotheses,
+        narrowed: Option<&Hypotheses>,
+        evidence: &crate::Evidence,
+    ) -> Option<Borrowed> {
         if evidence.goal != *goal
             || evidence.fact.obligation != obligation
             || evidence.fact.proposition != *goal
