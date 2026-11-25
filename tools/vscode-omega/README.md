@@ -1,10 +1,16 @@
-# Omega syntax highlighting
+# Omega for VS Code
 
-Local VS Code highlighting for `.omg` files: keywords and contract clauses,
-machine/state names, types, lifetimes, `@` borrows, `|alias|::` imports,
-constants, numbers, strings/escapes, line comments and nested block comments.
-Colors follow your theme. It also adds comment shortcuts and bracket matching.
-There is no language server, compiler dependency or background process.
+Local VS Code support for `.omg` files: syntax highlighting, and Go to
+Definition (Ctrl+click or F12) on machines, data, cases, fields, traits,
+domains, constants and local bindings. Go to Definition matches names by
+reading source text, not by asking the compiler, so it can offer several
+declarations that share a spelling. There is no language server, compiler
+dependency or background process.
+
+Highlighting covers keywords and contract clauses, machine/state names, types,
+lifetimes, `@` borrows, `|alias|::` imports, constants, numbers,
+strings/escapes, line comments and nested block comments. Colors follow your
+theme. It also adds comment shortcuts and bracket matching.
 
 ## Install locally
 
@@ -12,8 +18,8 @@ With Node.js 20 or newer and VS Code installed, run from this directory on
 Windows, macOS or Linux:
 
 ```sh
-npx --yes @vscode/vsce@4.0.0 package --no-dependencies --out omega-syntax-0.2.0.vsix
-code --install-extension omega-syntax-0.2.0.vsix
+npx --yes @vscode/vsce@4.0.0 package --no-dependencies --out omega-syntax-0.3.0.vsix
+code --install-extension omega-syntax-0.3.0.vsix
 ```
 
 With Bun instead of Node.js, replace `npx --yes` with `bun x`. On PowerShell,
@@ -28,12 +34,37 @@ language, remove that association or choose **Omega** from the language picker.
 
 ## Source
 
-[package.json](package.json) registers the language and its
-[TextMate grammar](syntaxes/omega.tmLanguage.json).
+[package.json](package.json) registers the language, its
+[TextMate grammar](syntaxes/omega.tmLanguage.json) and the
+[extension entry](src/extension.js).
 [language-configuration.json](language-configuration.json) controls comments and
 brackets. The grammar only highlights tokens; it does not show that the source
-compiles. For example, capitalized names are colored as types by convention;
-resolving them needs a future language server.
+compiles. For example, capitalized names are colored as types by convention.
+
+### Go to Definition
+
+The repository holds thousands of standalone samples that reuse names such as
+`Main` and `entry_start`, so [extension.js](src/extension.js) searches the
+nearest scope first and stops at the first one that declares the name:
+
+1. a `let`, parameter or generic parameter of an enclosing machine;
+2. the current file;
+3. the files its `use` lines name, including `|alias|::` paths, `{dependency}/`
+   paths that `build.omg` locates and `omega\language\core\` library imports;
+4. its package: the nearest folder with a `build.omg`, without nested packages
+   such as test fixtures;
+5. the bundled library in `source/library`;
+6. the whole workspace, only when nothing nearer declares the name.
+
+A qualified click such as `Activation::try_claim` or `integer::max` prefers a
+declaration with that qualifier, owner or file name. Searches skip `.git`,
+`node_modules`, `target`, `_recycling` and `.agents`. A name declared nowhere
+reaches the whole-workspace search, which takes several seconds in the full
+repository before VS Code reports no definition.
+
+[declarations.js](src/declarations.js) does the text scan and has no VS Code
+dependency. To test both files, run `bun test` (or `node --test`) here;
+[fake-vscode.js](test/fake-vscode.js) stands in for the editor API.
 
 The word lists follow the compiler, not a separate vocabulary. The lexer
 reserves only the words in
