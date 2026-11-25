@@ -131,7 +131,11 @@ pub(crate) mod domain_aliases {
         expand(program, symbol, path, &mut Vec::new(), &mut Vec::new())
     }
 }
+#[path = "type_reference/carrier_qualifications.rs"]
+pub(crate) mod carrier_qualifications;
+
 pub(crate) mod domain_constraints {
+    use super::carrier_qualifications::CarrierQualifications;
     use crate::source_resolved::SymbolResolvedTrees;
     use crate::source_state::TypedTrees;
     use crate::source_state::domain::{DomainDefinition, domain_by_symbol};
@@ -202,6 +206,7 @@ pub(crate) mod domain_constraints {
         let mut normalized = Vec::new();
         let mut expanded_alias = false;
 
+        let mut available = None;
         for constraint in authored {
             let TypeConstraintNode::Domain(domain_constraint) = constraint else {
                 normalized.push(constraint);
@@ -213,7 +218,7 @@ pub(crate) mod domain_constraints {
                 .map(|selection| selection.source_span)
                 .filter(|span| span.span.start != span.span.end);
             let (matches, names_no_visible_domain) =
-                written_domain_candidates(source, program, carrier, &domain_constraint, reference)?;
+                written_domain_candidates(source, program, site, carrier, &domain_constraint, reference, &mut available)?;
             /*
                 Distinct visible domains competing for one authored spelling
                 reject: neither the referencing module, its package nor import
@@ -392,34 +397,24 @@ pub(crate) mod domain_constraints {
         )
     }
 
-    /// Prefer declarations on the supplied carrier. A sibling qualification can
-    /// supply a prerequisite for a unique declaration on its underlying carrier.
-    /// The complete destination still owes that prerequisite in lowering.
+    /// Select a visible declaration on the underlying carrier. When several
+    /// share a name, the written qualifications must distinguish their targets.
     fn written_domain_candidates(
         source: &SymbolResolvedTrees,
-        program: &TypedTrees,
+        program: &mut TypedTrees,
+        site: crate::source_state::types::TypeReferenceHandle,
         carrier: crate::source_state::types::TypeReferenceHandle,
         constraint: &DomainConstraint,
         reference: Option<source_text::SourceSpan>,
+        available: &mut Option<CarrierQualifications>,
     ) -> Result<(Vec<DomainDefinition>, bool), Diagnostic> {
         let name = constraint.name.as_str();
-        let matches = select_domain_candidates(
-            source,
-            program,
-            carrier,
-            name,
-            reference,
-            constraint.symbol,
-            &constraint.arguments,
-        );
-        if !matches.is_empty()
-            || constraint.subject != DomainConstraintSubject::Declared
+        if constraint.subject != DomainConstraintSubject::Declared
             || (reference.is_none() && !constraint.symbol.is_valid())
         {
-            return Ok((matches, false));
+            return Ok((select_domain_candidates(source, program, carrier, name, reference,
+                constraint.symbol, &constraint.arguments), false));
         }
-        // An earlier visit can select the family before its index types have
-        // finished resolving. Reuse that selection when rebuilding the instance.
         let visible = select_domain_candidates_where(
             source,
             program,
@@ -429,24 +424,52 @@ pub(crate) mod domain_constraints {
             |_| true,
         );
         if visible.is_empty() {
-            return Ok((matches, reference.is_some()));
+            return Ok((Vec::new(), reference.is_some()));
         }
         if let [family] = visible.as_slice()
             && crate::source_state::domain::has_direct_index_telescope(program, family)
         {
             check_domain_arity(program, family, constraint.arguments.len(), reference)?;
         }
-        let mut compatible = visible.iter().filter(|family| {
+        let plain = program
+            .type_reference_table
+            .unconstrained_type_reference(carrier);
+        let accepts = |family: &DomainDefinition| {
             crate::source_state::domain::domain_accepts_underlying_carrier(
                 program,
                 family,
-                carrier,
+                plain,
                 &constraint.arguments,
             )
-        });
-        match (compatible.next(), compatible.next(), reference) {
-            (Some(family), None, _) => Ok((vec![family.clone()], false)),
-            (None, None, Some(at))
+        };
+        if let [family] = visible.as_slice()
+            && accepts(family)
+        {
+            return Ok((visible, false));
+        }
+        let mut compatible: Vec<_> = visible
+            .iter()
+            .filter(|family| accepts(family))
+            .cloned()
+            .collect();
+        if compatible.len() > 1 {
+            let available = available.get_or_insert_with(|| {
+                CarrierQualifications::for_type(source, program, site, plain)
+            });
+            available.retain_possible(source, program, &mut compatible, &constraint.arguments);
+            if compatible.is_empty()
+                && let Some(at) = reference
+            {
+                return Err(Diagnostic::error(format!(
+                    "no visible domain `{name}` accepts the qualifications of carrier `{}`",
+                    program.display_type_reference_with_constraints(carrier),
+                ))
+                .with_source_span(at));
+            }
+        }
+        match (compatible.as_slice(), reference) {
+            ([_, ..], _) => Ok((compatible, false)),
+            ([], Some(at))
                 if visible.iter().all(|family| {
                     closed_domain_carriers(program, family, carrier, &constraint.arguments)
                 }) =>
@@ -468,7 +491,7 @@ pub(crate) mod domain_constraints {
                 ))
                 .with_source_span(at))
             }
-            _ => Ok((matches, false)),
+            _ => Ok((compatible, false)),
         }
     }
 
