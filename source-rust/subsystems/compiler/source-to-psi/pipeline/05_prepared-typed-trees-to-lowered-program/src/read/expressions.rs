@@ -2444,11 +2444,7 @@ impl Program<'_> {
         {
             return Ok(());
         }
-        let carrier = match self.value_type(id, target_type) {
-            Ok(carrier @ ValueType::Scalar(..)) => carrier,
-            other if definition.alias.is_some() => other?,
-            _ => return Ok(()),
-        };
+        let carrier = self.value_type(id, target_type)?;
         let landing = self
             .wholly_anonymous(test.subject)
             .then_some(carrier.erased());
@@ -2469,17 +2465,52 @@ impl Program<'_> {
         {
             return Err(super::rejections::membership_carrier(id, at, found, wanted));
         }
-        if definition.alias.is_some()
-            && actual.and_then(|ty| ty.erased().qualified(crate::body::Qualification::NONE))
-                != carrier.erased().qualified(crate::body::Qualification::NONE)
+        let plain = carrier.erased().qualified(crate::body::Qualification::NONE);
+        let Some(actual) = actual.filter(|ty| {
+            plain.is_some() && ty.erased().qualified(crate::body::Qualification::NONE) == plain
+        }) else {
+            let kind = if definition.alias.is_some() {
+                "domain alias"
+            } else {
+                "domain"
+            };
+            return Err(reject(
+                id,
+                at,
+                format!(
+                    "membership in {kind} `{}` requires carrier `{}`",
+                    definition.name,
+                    self.typed.display_type_reference(definition.target_type)
+                ),
+            ));
+        };
+        let supplied = actual.qualification();
+        let required = carrier.qualification();
+        if let Some(missing) = required
+            .domains
+            .members()
+            .find(|member| !supplied.domains.contains(*member))
         {
             return Err(reject(
                 id,
                 at,
                 format!(
-                    "membership in domain alias `{}` requires carrier `{}`",
+                    "the carrier of domain `{}` requires membership in {}",
                     definition.name,
-                    self.typed.display_type_reference(definition.target_type)
+                    self.domain_named(missing),
+                ),
+            ));
+        }
+        if let Some(policy) = required.policy
+            && supplied.policy != Some(policy)
+        {
+            return Err(reject(
+                id,
+                at,
+                format!(
+                    "the carrier of domain `{}` requires the `{}` arithmetic policy",
+                    definition.name,
+                    crate::body::Policy::domain(Some(policy)).name(),
                 ),
             ));
         }

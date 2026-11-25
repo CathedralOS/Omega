@@ -308,7 +308,7 @@ mod references {
             Ok(Some(crate::resolution::names::MembershipSelection::Case { owner, case })) => {
                 (SymbolHandle::invalid(), owner, case)
             }
-            Ok(None) | Err(_) => (
+            _ => (
                 SymbolHandle::invalid(),
                 SymbolHandle::invalid(),
                 SymbolHandle::invalid(),

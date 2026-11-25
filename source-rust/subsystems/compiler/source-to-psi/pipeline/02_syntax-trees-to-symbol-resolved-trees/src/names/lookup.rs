@@ -317,6 +317,8 @@ fn child_symbol_by_kinds_matching(
 */
 pub(crate) enum MembershipSelection {
     Domain(SymbolHandle),
+    /// More than one attached domain is visible. Typing selects against the operand.
+    DomainNeedsCarrier,
     Case {
         owner: SymbolHandle,
         case: SymbolHandle,
@@ -424,7 +426,10 @@ pub(crate) fn membership_selection(
     match (domain, case_owner) {
         (DomainMembership::Ambiguous { first, second }, _) => Err(ambiguous(first, second)),
         (_, SymbolLookup::Ambiguous { first, second }) => Err(ambiguous(case(first), case(second))),
-        (DomainMembership::Contested, _) => Ok(None),
+        (DomainMembership::Contested, SymbolLookup::NotFound) => {
+            Ok(Some(MembershipSelection::DomainNeedsCarrier))
+        }
+        (DomainMembership::Contested, SymbolLookup::Unique(_)) => Ok(None),
         (DomainMembership::Unique(domain), SymbolLookup::Unique(owner)) => {
             Err(ambiguous(domain, case(owner)))
         }

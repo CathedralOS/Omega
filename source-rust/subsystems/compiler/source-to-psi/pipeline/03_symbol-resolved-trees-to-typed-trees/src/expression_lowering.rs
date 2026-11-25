@@ -1934,7 +1934,7 @@ pub(crate) mod expression {
                                 .insert(typed::expression::ExpressionNode::Integer(value.clone())))
                         }
                         resolved::expression::ExpressionNode::Membership(membership) => {
-                            self.lower_membership_expression(membership)
+                            self.lower_membership_expression(expression, membership)
                         }
                         resolved::expression::ExpressionNode::Member(member)
                             if member.position.is_some() =>
@@ -2669,6 +2669,7 @@ pub(crate) mod expression {
 
                 fn lower_membership_expression(
                     &mut self,
+                    expression: resolved::expression::ExpressionHandle,
                     membership: &resolved::expression::TableMembershipExpression,
                 ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
                     let Some(program) = self.program else {
@@ -2676,8 +2677,8 @@ pub(crate) mod expression {
                             "cannot lower executable domain membership without a resolved program context",
                         ));
                     };
+                    let value = self.lower_value(membership.value)?;
                     if membership.domain_symbol.is_valid() {
-                        let value = self.lower_value(membership.value)?;
                         return lower_domain_membership_expression(
                             program,
                             self.target_trees,
@@ -2686,7 +2687,6 @@ pub(crate) mod expression {
                         );
                     }
 
-                    let value = self.lower_value(membership.value)?;
                     if let Some(lowered) = lower_case_membership_expression(
                         program,
                         self.source,
@@ -2701,9 +2701,80 @@ pub(crate) mod expression {
 
                     let domain_name =
                         display_name_path(self.source.name_path_members(membership.domain), "::");
-                    Err(Diagnostic::error(format!(
-                        "unknown domain `{domain_name}` in executable membership expression"
-                    )))
+                    use crate::declaration_selection::{
+                        AuthoredDeclarationSelectionKind as Kind,
+                        AuthoredDeclarationSelectionLateBinding as Binding,
+                    };
+                    let (occurrence, at) = self
+                        .source
+                        .authored_selection_occurrences(expression)
+                        .find_map(|id| {
+                            let use_site = program.authored_declaration_selections().get(id)?;
+                            (use_site.kind() == Kind::DomainMembership)
+                                .then_some((id, use_site.source_span()))
+                        })
+                        .ok_or_else(|| {
+                            Diagnostic::error(format!(
+                            "unknown domain `{domain_name}` in executable membership expression",
+                        )).with_source_span(self.source.source_span(expression))
+                        })?;
+                    let carrier = if let Some(carrier) =
+                        crate::typing_queries::declared_expression_type(
+                            self.target_trees,
+                            self.source_owner,
+                            value,
+                        ) {
+                        Some(carrier)
+                    } else {
+                        super::member_binding::declared_type(
+                            program,
+                            self.source,
+                            membership.value,
+                            0,
+                        )
+                        .map(|reference| {
+                            lower_type_reference_into_trees_with_exposure(
+                                program,
+                                self.target_trees,
+                                reference,
+                                None,
+                            )
+                        })
+                        .transpose()?
+                    };
+                    let written = crate::type_reference::carrier_qualifications::DomainUse {
+                        name: &domain_name,
+                        arguments: &[],
+                        reference: Some(at),
+                        retained: membership.domain_symbol,
+                    };
+                    let choices = carrier.map_or_else(Vec::new, |carrier| {
+                        written.on_operand(program, self.target_trees, carrier)
+                    });
+                    let symbol = match choices.as_slice() {
+                        [domain] => domain.symbol,
+                        [first, second, ..] => return Err(Diagnostic::error(format!(
+                            "ambiguous domain `{domain_name}` in executable membership: `{}` and `{}` both classify this carrier",
+                            program.symbols.display_path(first.symbol, "::"),
+                            program.symbols.display_path(second.symbol, "::"),
+                        )).with_source_span(at)),
+                        [] => return Err(Diagnostic::error(format!(
+                            "no visible domain `{domain_name}` qualifies the operand of this executable membership test",
+                        )).with_source_span(at)),
+                    };
+                    self.target_trees
+                        .finalize_late_bound_authored_declaration_selection(
+                            occurrence,
+                            Binding::CheckedDomainMembership,
+                            symbol,
+                        )
+                        .map_err(|error| {
+                            Diagnostic::error(format!(
+                                "cannot retain the selected executable domain: {error:?}",
+                            ))
+                            .with_source_span(at)
+                        })?;
+                    lower_domain_membership_expression(program, self.target_trees, value, symbol)
                 }
             }
 

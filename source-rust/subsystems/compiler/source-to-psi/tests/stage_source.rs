@@ -1188,6 +1188,44 @@ fn a_fixed_carrier_keeps_its_indexed_domain_under_both_local_spellings() {
 }
 
 #[test]
+fn executable_membership_selects_domains_on_an_eligible_operand() {
+    let package = PackageKeyIdentity::from_digest([0x73; 32]).unwrap();
+    for (parameter, tested, refusal) in [
+        ("Word in Placed", "Op", None),
+        ("Word in Other", "Op", None),
+        ("Word in Placed & Placed::Op", "Op", None),
+        ("Word in Placed & Other", "Placed::Op", None),
+        ("Word in Placed & Other", "Op", Some("ambiguous domain")),
+        ("Word", "Op", Some("no visible domain")),
+        ("Word in Other", "Placed::Op", Some("requires membership")),
+        ("Parcel", "Word::Placed", Some("requires carrier")),
+    ] {
+        let source = format!(
+            "data Word {{ bits: u32; }}
+             data Parcel {{ bits: u32; }}
+             domain Word::Placed;
+             domain Word::Other;
+             data Placed = Word in Word::Placed;
+             data Other = Word in Word::Other;
+             domain Placed::Op;
+             domain Other::Op;
+             machine test(x: {parameter}) -> bool {{ x in {tested} }}"
+        );
+        let (files, root) = captured(package, &source);
+        let result = compile(product(files, root, package, &[]).unwrap(), None);
+        if let Some(reason) = refusal {
+            let errors = result.expect_err("the operand must select one applicable domain");
+            assert!(
+                errors.iter().any(|error| error.message.contains(reason)),
+                "{errors:?}"
+            );
+        } else {
+            result.expect("the selected domain accepts this operand");
+        }
+    }
+}
+
+#[test]
 fn an_indexed_domain_retains_the_members_of_its_applied_carrier() {
     let package = PackageKeyIdentity::from_digest([0x63; 32]).unwrap();
     for (input_domain, returned_index, domain_index, refusal) in [
