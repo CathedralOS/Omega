@@ -556,13 +556,12 @@ impl<'a> Storage<'a> {
         if !references
             .symbolic_source_origins(self.machine, at, &descriptor)
             .is_some_and(|origins| {
-                !origins.is_empty()
-                    && origins.iter().all(|origin| {
-                        matches!(
-                            origin,
-                            terminal_semantics::descriptor_results::DescriptorSourceOrigin::Provider(_)
-                        )
-                    })
+                !origins.is_empty() && origins.iter().all(|origin| {
+                    matches!(
+                        origin,
+                        terminal_semantics::descriptor_results::DescriptorSourceOrigin::Provider(_)
+                    )
+                })
             })
         {
             return Ok(None);
@@ -844,13 +843,8 @@ impl<'a> Storage<'a> {
         let (Some((invocation, row)), None) = (invocations.next(), invocations.next()) else {
             return Err(self.foreign(concerns, "a call does not have exactly one invocation row"));
         };
-        let actual = crate::call_contracts::invocation(
-            module,
-            self.lowered,
-            tables,
-            invocation,
-            row,
-        )?;
+        let actual =
+            crate::call_contracts::invocation(module, self.lowered, tables, invocation, row)?;
         if actual.inputs.structural_arguments != arguments {
             return Err(self.foreign(concerns, "loan arguments differ from their canonical call"));
         }
@@ -1083,12 +1077,13 @@ impl<'a> Storage<'a> {
                 terminal_semantics::descriptor_lifetimes::DescriptorFlowStep,
             >,
         >,
+        predecessors: Option<&terminal_semantics::descriptor_lifetimes::FlowPredecessors<'_>>,
         claimed: &mut [bool],
         formed: &mut Vec<Formed>,
     ) -> Checked<()> {
         use terminal_psi::{OperationKind, StructuralTypeShape};
         use terminal_semantics::descriptor_lifetimes::{
-            DescriptorLocation, descriptor_location_lifetime,
+            DescriptorLocation, descriptor_location_lifetime, descriptor_location_lifetime_indexed,
         };
         let concerns = Construct::Operation(operation.id);
         let result = operation.result.as_structural();
@@ -1266,8 +1261,17 @@ impl<'a> Storage<'a> {
         let flow = flow.ok_or_else(|| {
             self.unsupported(concerns, "persistent loan has no complete descriptor flow")
         })?;
-        let lifetime =
-            descriptor_location_lifetime(flow, at, &DescriptorLocation::whole(result.place));
+        let lifetime = if let Some(predecessors) = predecessors {
+            descriptor_location_lifetime_indexed(
+                flow,
+                predecessors,
+                None,
+                at,
+                &DescriptorLocation::whole(result.place),
+            )
+        } else {
+            descriptor_location_lifetime(flow, at, &DescriptorLocation::whole(result.place))
+        };
         if lifetime.live.contains(&at) {
             return Err(self.unsupported(
                 concerns,
@@ -1886,6 +1890,7 @@ impl<'a> Storage<'a> {
         &self,
         references: &mut super::DescriptorAnalysis<'a>,
         formed: &[Formed],
+        active_loans: &ActiveLoanIndex,
     ) -> Checked<()> {
         for block in &self.lowered.blocks {
             let successors = block.terminator.successor_edges();
@@ -1934,7 +1939,8 @@ impl<'a> Storage<'a> {
                             references,
                             at,
                             &descriptor,
-                            formed.iter().filter_map(|loan| {
+                            active_loans.at(at).filter_map(|idx| {
+                                let loan = &formed[idx];
                                 loan.lifetime.as_ref().map(|life| (loan.obligation, life))
                             }),
                         )
@@ -2021,6 +2027,7 @@ impl<'a> Storage<'a> {
         references: &mut super::DescriptorAnalysis<'a>,
         module: &terminal_psi::TerminalModule,
         formed: &mut [Formed],
+        active_loans: &ActiveLoanIndex,
     ) -> Checked<()> {
         use terminal_semantics::BorrowedLoanSources;
         let mut selections = Vec::new();
@@ -2041,10 +2048,11 @@ impl<'a> Storage<'a> {
                 references,
                 loan.at,
                 descriptor,
-                formed
-                    .iter()
-                    .filter(|other| other.obligation != loan.obligation)
-                    .filter_map(|other| {
+                active_loans
+                    .at(loan.at)
+                    .filter(|&idx| formed[idx].obligation != loan.obligation)
+                    .filter_map(|idx| {
+                        let other = &formed[idx];
                         other.lifetime.as_ref().map(|life| (other.obligation, life))
                     }),
             )
@@ -2463,29 +2471,48 @@ impl<'a> Storage<'a> {
             .as_mut()
             .map(|flow| self.borrow_header_ends(flow, borrow_ends))
             .unwrap_or_default();
+        let flow_predecessors = flow
+            .as_ref()
+            .map(terminal_semantics::descriptor_lifetimes::FlowPredecessors::new);
         for block in &self.lowered.blocks {
             let mut before = ProgramPoint::BlockEntry(block.id);
-            for operation in &block.operations {
+            for (position, operation) in block.operations.iter().enumerate() {
                 let concerns = Construct::Operation(operation.id);
+                let pos_u32 = crate::position(position, self.machine)?;
                 self.reference_loan(
                     references,
                     tables,
                     operation,
                     before,
                     flow.as_ref(),
+                    flow_predecessors.as_ref(),
                     &mut claimed,
                     &mut formed,
                 )?;
                 let arguments = operation.kind.structural_arguments();
                 let site = InvocationSite::Operation(operation.id);
-                let call =
-                    crate::call_contracts::inputs_at(self.lowered, site)?.map(|_| site);
-                let retained = terminal_semantics::reference_call_lifetimes(
-                    module,
-                    self.lowered,
-                    operation,
-                    references,
-                )
+                let call = crate::call_contracts::inputs_at(self.lowered, site)?.map(|_| site);
+                let retained = if let Some(predecessors) = flow_predecessors.as_ref() {
+                    terminal_semantics::reference_call_lifetimes_indexed(
+                        module,
+                        self.lowered,
+                        operation,
+                        references,
+                        terminal_semantics::CallLifetimeIndex {
+                            predecessors,
+                            cutoff: None,
+                            at: (block.id, pos_u32),
+                            include_surviving: true,
+                        },
+                    )
+                } else {
+                    terminal_semantics::reference_call_lifetimes(
+                        module,
+                        self.lowered,
+                        operation,
+                        references,
+                    )
+                }
                 .map_err(|error| graph_refusal(module, error))?;
                 self.lent(
                     references,
@@ -2502,10 +2529,9 @@ impl<'a> Storage<'a> {
             }
             // A terminator that is a call lends as an operation does; the
             // loans of one that never returns are disposed of on its edge.
-            if let Some(site) = crate::call_contracts::terminator_site(&block.terminator)
-            {
-                let inputs = crate::call_contracts::inputs_at(self.lowered, site)?
-                    .ok_or_else(|| {
+            if let Some(site) = crate::call_contracts::terminator_site(&block.terminator) {
+                let inputs =
+                    crate::call_contracts::inputs_at(self.lowered, site)?.ok_or_else(|| {
                         self.foreign(
                             Construct::Block(block.id),
                             "terminal call lost its canonical inputs",
@@ -2587,14 +2613,20 @@ impl<'a> Storage<'a> {
                             "successor lender differs from its original resource",
                         ));
                     }
+                    let (flow_steps, predecessors) = flow
+                        .as_ref()
+                        .zip(flow_predecessors.as_ref())
+                        .ok_or_else(|| {
+                            self.unsupported(
+                                concerns,
+                                "successor loan has no complete descriptor flow",
+                            )
+                        })?;
                     let lifetime =
-                        terminal_semantics::descriptor_lifetimes::descriptor_successor_lifetime(
-                            flow.as_ref().ok_or_else(|| {
-                                self.unsupported(
-                                    concerns,
-                                    "successor loan has no complete descriptor flow",
-                                )
-                            })?,
+                        terminal_semantics::descriptor_lifetimes::descriptor_successor_lifetime_indexed(
+                            flow_steps,
+                            predecessors,
+                            None,
                             at,
                             (target, 0),
                             &terminal_semantics::descriptor_lifetimes::DescriptorLocation::whole(
@@ -2986,7 +3018,7 @@ impl<'a> Storage<'a> {
             // child debt remain live independently of that temporary spelling.
             // Plain-affine verification still requires complete restoration.
             for positions in [&mut lifetime.authorized, &mut lifetime.surviving] {
-                for (at, names) in positions {
+                for (at, names) in &mut *positions {
                     let mut missing = false;
                     names.retain(|name| {
                         if !name.path.is_empty() || !addresses.is_address_header(name.root) {
@@ -3007,11 +3039,13 @@ impl<'a> Storage<'a> {
                         ));
                     }
                 }
+                positions.retain(|_, names| !names.is_empty());
             }
         }
 
-        self.parents(references, module, &mut formed)?;
-        self.successor_borrows(references, &formed)?;
+        let active_loans = ActiveLoanIndex::build(&formed);
+        self.parents(references, module, &mut formed, &active_loans)?;
+        self.successor_borrows(references, &formed, &active_loans)?;
         self.reference_completions(references, module, &formed, flow.as_ref())?;
         self.retain_ancestors(&mut formed)?;
         let mut cleanup_flow = std::collections::BTreeMap::new();
@@ -3116,7 +3150,8 @@ impl<'a> Storage<'a> {
                     Err(Refusal {
                         reason: RefusalReason::Conflict,
                         site: terminal_check_tables::RefusalSite::Machine(
-                            self.machine, Construct::Obligation(loan.obligation),
+                            self.machine,
+                            Construct::Obligation(loan.obligation),
                         ),
                         source_span: None,
                         detail: String::from(match conflict {
@@ -3167,6 +3202,50 @@ enum Touch {
     Change,
     /// An atomic access changes storage that a shared loan may also observe.
     AtomicChange,
+}
+
+struct ActiveLoanIndex {
+    entries: Vec<(
+        terminal_semantics::descriptor_lifetimes::DescriptorPosition,
+        usize,
+    )>,
+}
+
+impl ActiveLoanIndex {
+    fn build(formed: &[Formed]) -> Self {
+        let mut entries = Vec::new();
+        for (idx, loan) in formed.iter().enumerate() {
+            let Some(life) = &loan.lifetime else {
+                continue;
+            };
+            if life
+                .authorized
+                .values()
+                .all(std::collections::BTreeSet::is_empty)
+            {
+                continue;
+            }
+            for &pos in life.authorized.keys().chain(life.surviving.keys()) {
+                entries.push((pos, idx));
+            }
+        }
+        entries.sort_unstable();
+        entries.dedup();
+        Self { entries }
+    }
+
+    fn at(
+        &self,
+        pos: terminal_semantics::descriptor_lifetimes::DescriptorPosition,
+    ) -> impl Iterator<Item = usize> + '_ {
+        let start = self
+            .entries
+            .partition_point(|(entry_pos, _)| *entry_pos < pos);
+        let end = self
+            .entries
+            .partition_point(|(entry_pos, _)| *entry_pos <= pos);
+        self.entries[start..end].iter().map(|&(_, idx)| idx)
+    }
 }
 
 fn holds(

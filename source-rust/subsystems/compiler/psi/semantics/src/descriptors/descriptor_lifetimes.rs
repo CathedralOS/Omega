@@ -6,8 +6,7 @@ pub use terminal_psi::types::descriptor_locations::{
 
 pub(crate) mod arrivals;
 pub use arrivals::{
-    DescriptorContentsQuery, DescriptorContentsStep, DescriptorFlowBinding,
-    DescriptorFlowSource,
+    DescriptorContentsQuery, DescriptorContentsStep, DescriptorFlowBinding, DescriptorFlowSource,
 };
 pub(crate) mod locations;
 pub(crate) mod residences;
@@ -96,10 +95,7 @@ impl DescriptorFlowStep {
     /// replacing the instruction's actual memory operations. Constructor
     /// operands are never rewritten here: their order and duplicates are
     /// the captured element roster.
-    pub fn replace_value_inputs(
-        &mut self,
-        inputs: impl IntoIterator<Item = DescriptorLocation>,
-    ) {
+    pub fn replace_value_inputs(&mut self, inputs: impl IntoIterator<Item = DescriptorLocation>) {
         self.inputs.retain(|(_, access)| access.is_some());
         for (observed, _) in &mut self.inputs {
             *observed = None;
@@ -147,8 +143,7 @@ impl DescriptorFlowEdge {
                     .iter()
                     .rposition(|step| *step == DescriptorPathSegment::Referent);
                 let prefix = parent.map_or(&[][..], |position| &source.path[..position]);
-                (name.root == source.root && name.path == prefix)
-                    .then(|| binding.parameter.clone())
+                (name.root == source.root && name.path == prefix).then(|| binding.parameter.clone())
             })
             .collect()
     }
@@ -544,7 +539,6 @@ pub(crate) fn descriptor_entry_lifetime_with_contents(
     )
 }
 
-
 pub fn descriptor_location_lifetime(
     steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
     birth: DescriptorPosition,
@@ -627,6 +621,7 @@ impl<'a> FlowPredecessors<'a> {
 /// Same lifetime as `descriptor_location_lifetime` (including `surviving`
 /// locations for join authority), reusing precomputed `predecessors` and
 /// optional acyclic `cutoff` across every query on one machine.
+/// `authorized` and `surviving` omit positions with no active locations.
 pub fn descriptor_location_lifetime_indexed(
     steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
     predecessors: &FlowPredecessors<'_>,
@@ -641,9 +636,49 @@ pub fn descriptor_location_lifetime_indexed(
         birth,
         descriptor,
         DescriptorStart::AfterDefinition,
+        true,
         false,
         |_, _| false,
     )
+}
+
+/// Same lifetime as `descriptor_successor_lifetime` (including `surviving`
+/// locations for join authority), reusing precomputed `predecessors` and
+/// optional acyclic `cutoff` across every query on one machine.
+/// `authorized` and `surviving` omit positions with no active locations.
+pub fn descriptor_successor_lifetime_indexed(
+    steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
+    predecessors: &FlowPredecessors<'_>,
+    cutoff: Option<&DeadTailCutoff>,
+    birth: DescriptorPosition,
+    target: DescriptorPosition,
+    descriptor: &DescriptorLocation,
+) -> Option<DescriptorLifetime> {
+    let mut matching = steps
+        .get(&birth)?
+        .successors
+        .iter()
+        .filter(|edge| edge.target == target);
+    let selected = matching.next()?;
+    if matching.next().is_some()
+        || !selected.bindings.iter().any(|binding| {
+            binding.parameter == *descriptor
+                && binding.access != terminal_psi::StructuralAccess::Owned
+        })
+    {
+        return None;
+    }
+    Some(descriptor_lifetime_with_predecessors(
+        steps,
+        Some(predecessors),
+        cutoff,
+        birth,
+        descriptor,
+        DescriptorStart::OnEdgeTo(target),
+        true,
+        false,
+        |_, _| false,
+    ))
 }
 
 pub(crate) fn descriptor_entry_lifetime_with_contents_indexed(
@@ -661,7 +696,8 @@ pub(crate) fn descriptor_entry_lifetime_with_contents_indexed(
         entry,
         descriptor,
         DescriptorStart::AtEntry,
-        true,
+        false,
+        false,
         needs_contents,
     )
 }
@@ -681,7 +717,8 @@ pub(crate) fn descriptor_location_lifetime_with_contents_indexed(
         birth,
         descriptor,
         DescriptorStart::AfterDefinition,
-        true,
+        false,
+        false,
         needs_contents,
     )
 }
@@ -702,7 +739,7 @@ pub(crate) fn descriptor_continuation_locations_indexed(
         descriptor,
         DescriptorStart::AtEntry,
         false,
-        true,
+        false,
         None,
     )
 }
@@ -721,7 +758,8 @@ fn descriptor_lifetime(
         birth,
         descriptor,
         start,
-        false,
+        true,
+        true,
         needs_contents,
     )
 }
@@ -734,7 +772,8 @@ fn descriptor_lifetime_with_predecessors(
     birth: DescriptorPosition,
     descriptor: &DescriptorLocation,
     start: DescriptorStart,
-    sparse: bool,
+    include_surviving: bool,
+    pad_empty_positions: bool,
     needs_contents: impl Fn(DescriptorPosition, &DescriptorLocation) -> bool,
 ) -> DescriptorLifetime {
     let demand = location_live_positions(
@@ -761,8 +800,8 @@ fn descriptor_lifetime_with_predecessors(
             descriptor,
             start,
             false,
-            sparse,
-            (!sparse).then_some(&mut surviving),
+            pad_empty_positions,
+            include_surviving.then_some(&mut surviving),
         )
     };
     DescriptorLifetime {
@@ -948,7 +987,7 @@ fn transported_locations(
         descriptor,
         start,
         invalidate_containers,
-        false,
+        true,
         surviving,
     )
 }
@@ -963,7 +1002,7 @@ fn transported_locations_with_predecessors(
     descriptor: &DescriptorLocation,
     start: DescriptorStart,
     invalidate_containers: bool,
-    sparse: bool,
+    pad_empty_positions: bool,
     surviving: Option<&mut LocationsByPosition>,
 ) -> LocationsByPosition {
     let owned_predecessors;
@@ -1034,7 +1073,10 @@ fn transported_locations_with_predecessors(
                     if kept.peek().is_none() {
                         continue;
                     }
-                    if predecessors.get(&edge.target).is_some_and(|rows| rows.len() > 1) {
+                    if predecessors
+                        .get(&edge.target)
+                        .is_some_and(|rows| rows.len() > 1)
+                    {
                         needs_must_pass = true;
                     }
                     let target_set = established.entry(edge.target).or_default();
@@ -1047,7 +1089,10 @@ fn transported_locations_with_predecessors(
                     }
                     continue;
                 }
-                if predecessors.get(&edge.target).is_some_and(|rows| rows.len() > 1) {
+                if predecessors
+                    .get(&edge.target)
+                    .is_some_and(|rows| rows.len() > 1)
+                {
                     needs_must_pass = true;
                 }
                 let target_set = established.entry(edge.target).or_default();
@@ -1085,7 +1130,10 @@ fn transported_locations_with_predecessors(
             if transported.is_empty() {
                 continue;
             }
-            if predecessors.get(&edge.target).is_some_and(|rows| rows.len() > 1) {
+            if predecessors
+                .get(&edge.target)
+                .is_some_and(|rows| rows.len() > 1)
+            {
                 needs_must_pass = true;
             }
             let target_set = established.entry(edge.target).or_default();
@@ -1098,7 +1146,7 @@ fn transported_locations_with_predecessors(
     }
     if let Some(surviving) = surviving {
         surviving.clone_from(&established);
-        if !sparse {
+        if pad_empty_positions {
             for &position in steps.keys() {
                 surviving.entry(position).or_default();
             }
@@ -1175,10 +1223,12 @@ fn transported_locations_with_predecessors(
             }
         }
     }
-    if !sparse {
+    if pad_empty_positions {
         for &position in steps.keys() {
             established.entry(position).or_default();
         }
+    } else {
+        established.retain(|_, locations| !locations.is_empty());
     }
     established
 }
@@ -1211,9 +1261,7 @@ fn transport_authority<'locations>(
         .flat_map(|location| {
             derivations
                 .clone()
-                .filter_map(move |(source, destination)| {
-                    location.transported(source, destination)
-                })
+                .filter_map(move |(source, destination)| location.transported(source, destination))
         })
         .collect::<BTreeSet<_>>();
     for candidate in candidates {

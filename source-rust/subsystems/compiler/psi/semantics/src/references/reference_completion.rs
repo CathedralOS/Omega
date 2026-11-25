@@ -116,9 +116,7 @@ pub fn borrowed_entry_reference_referent<'a>(
     {
         return None;
     }
-    match crate::runtime_structural_path_tip(declarations, parameter.structural_type, path)?
-        .shape
-    {
+    match crate::runtime_structural_path_tip(declarations, parameter.structural_type, path)?.shape {
         StructuralTypeShape::Reference { referent, .. } => Some(referent),
         _ => None,
     }
@@ -136,17 +134,13 @@ pub enum ReferenceCompletionError {
 impl ReferenceCompletionError {
     pub const fn description(self) -> &'static str {
         match self {
-            Self::DuplicateOccurrence => {
-                "reference completion has duplicate occurrence identities"
-            }
+            Self::DuplicateOccurrence => "reference completion has duplicate occurrence identities",
             Self::MissingParent => "reference completion lost an immediate parent",
             Self::CyclicAncestry => "reference completion has cyclic ancestry",
             Self::UndisposedParent => {
                 "reference completion does not dispose an intermediate parent"
             }
-            Self::SurvivingChild => {
-                "reference completion leaves a child of a closing parent live"
-            }
+            Self::SurvivingChild => "reference completion leaves a child of a closing parent live",
         }
     }
 }
@@ -254,14 +248,17 @@ fn borrowed_descriptor_shape(
         }
     } else {
         StructuralTypeShape::ByteSequence(
-            crate::runtime_structural_field(module.types.structural_types.iter(), root_type, &path)?
-                .field_type
-                .byte_sequence_carrier()?,
+            crate::runtime_structural_field(
+                module.types.structural_types.iter(),
+                root_type,
+                &path,
+            )?
+            .field_type
+            .byte_sequence_carrier()?,
         )
     };
-    (shape.is_borrowed_byte_carrier()
-        || matches!(shape, StructuralTypeShape::ElementView { .. }))
-    .then_some(shape)
+    (shape.is_borrowed_byte_carrier() || matches!(shape, StructuralTypeShape::ElementView { .. }))
+        .then_some(shape)
 }
 
 /// Different slices may borrow the same input value. Every possible source
@@ -311,11 +308,11 @@ pub fn incoming_view_occurrence(
             }
             _ => return Err("the view's original borrow cannot be identified"),
         };
-        let parameter = crate::exactly_one::exactly_one(
-            machine.structural_parameters.iter(),
-            |parameter| parameter.place == location.root,
-        )
-        .ok_or("the view's original incoming borrow cannot be identified")?;
+        let parameter =
+            crate::exactly_one::exactly_one(machine.structural_parameters.iter(), |parameter| {
+                parameter.place == location.root
+            })
+            .ok_or("the view's original incoming borrow cannot be identified")?;
         let path = descriptor_path(
             &module.types.structural_types,
             parameter.structural_type,
@@ -385,9 +382,8 @@ fn joined_incoming_loans(
     let origins = analysis
         .symbolic_source_origins(machine.id, at, descriptor)
         .ok_or(UNRESOLVED)?;
-    let [
-        DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument { source, projection }),
-    ] = origins.as_slice()
+    let [DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument { source, projection })] =
+        origins.as_slice()
     else {
         return Err("joined reference arms borrow from different lenders");
     };
@@ -430,9 +426,9 @@ impl BorrowedLoanSources {
             Self::Incoming(_) => {
                 Err("reference descriptor has no single immediate incoming occurrence")
             }
-            Self::Selected(_) => Err(
-                "reference descriptor has an unresolved surviving immediate loan occurrence",
-            ),
+            Self::Selected(_) => {
+                Err("reference descriptor has an unresolved surviving immediate loan occurrence")
+            }
         }
     }
 }
@@ -516,8 +512,7 @@ pub fn borrowed_loan_sources<'a>(
         if parent.is_some() {
             return Err(UNRESOLVED);
         }
-        let unresolved = match joined_incoming_loans(module, machine, analysis, at, descriptor)
-        {
+        let unresolved = match joined_incoming_loans(module, machine, analysis, at, descriptor) {
             Ok(source) => return Ok(BorrowedLoanSources::Single(source)),
             Err(reason) => reason,
         };
@@ -605,10 +600,8 @@ pub fn borrowed_loan_sources<'a>(
         };
         let family = analysis.captured_storage_family(machine.id, at, descriptor)?;
         for origin in &family {
-            let crate::descriptor_results::DescriptorCallOrigin::Argument {
-                source,
-                projection,
-            } = origin
+            let crate::descriptor_results::DescriptorCallOrigin::Argument { source, projection } =
+                origin
             else {
                 break 'incoming_storage;
             };
@@ -910,6 +903,47 @@ fn retain_call_lifetime(
     }
 }
 
+#[derive(Clone, Copy)]
+pub struct CallLifetimeIndex<'a> {
+    pub predecessors: &'a crate::descriptor_lifetimes::FlowPredecessors<'a>,
+    pub cutoff: Option<&'a crate::descriptor_lifetimes::DeadTailCutoff>,
+    pub at: crate::descriptor_lifetimes::DescriptorPosition,
+    pub include_surviving: bool,
+}
+
+fn indexed_descriptor_lifetime(
+    flow: &std::collections::BTreeMap<
+        crate::descriptor_lifetimes::DescriptorPosition,
+        crate::descriptor_lifetimes::DescriptorFlowStep,
+    >,
+    at: crate::descriptor_lifetimes::DescriptorPosition,
+    descriptor: &crate::descriptor_lifetimes::DescriptorLocation,
+    index: Option<CallLifetimeIndex<'_>>,
+) -> crate::descriptor_lifetimes::DescriptorLifetime {
+    match index {
+        Some(index) if index.include_surviving => {
+            crate::descriptor_lifetimes::descriptor_location_lifetime_indexed(
+                flow,
+                index.predecessors,
+                index.cutoff,
+                at,
+                descriptor,
+            )
+        }
+        Some(index) => {
+            crate::descriptor_lifetimes::descriptor_location_lifetime_with_contents_indexed(
+                flow,
+                index.predecessors,
+                index.cutoff,
+                at,
+                descriptor,
+                |_, _| false,
+            )
+        }
+        None => crate::descriptor_lifetimes::descriptor_location_lifetime(flow, at, descriptor),
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn retain_provider_inputs(
     module: &terminal_psi::TerminalModule,
@@ -922,8 +956,7 @@ fn retain_provider_inputs(
         crate::descriptor_lifetimes::DescriptorPosition,
         crate::descriptor_lifetimes::DescriptorFlowStep,
     >,
-    predecessors: Option<&crate::descriptor_lifetimes::FlowPredecessors<'_>>,
-    cutoff: Option<&crate::descriptor_lifetimes::DeadTailCutoff>,
+    index: Option<CallLifetimeIndex<'_>>,
     retained: &mut Vec<RetainedCallLoan>,
 ) -> Result<(), &'static str> {
     use crate::descriptor_results::DescriptorStoredOrigin;
@@ -961,22 +994,7 @@ fn retain_provider_inputs(
                 if pending.is_empty() {
                     return Ok(());
                 }
-                let lifetime = if let Some(predecessors) = predecessors {
-                    crate::descriptor_lifetimes::descriptor_location_lifetime_with_contents_indexed(
-                        flow,
-                        predecessors,
-                        cutoff,
-                        at,
-                        &descriptor,
-                        |_, _| false,
-                    )
-                } else {
-                    crate::descriptor_lifetimes::descriptor_location_lifetime(
-                        flow,
-                        at,
-                        &descriptor,
-                    )
-                };
+                let lifetime = indexed_descriptor_lifetime(flow, at, &descriptor, index);
                 if lifetime.live.contains(&at) {
                     return Err("returned provider dependency crosses its own call formation");
                 }
@@ -1104,18 +1122,25 @@ pub fn reference_call_lifetimes(
     operation: &terminal_psi::Operation,
     analysis: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
 ) -> Result<Vec<RetainedCallLoan>, crate::descriptor_results::DescriptorGraphError> {
-    reference_call_lifetimes_indexed(module, caller, operation, analysis, None, None, None)
+    reference_call_lifetimes_with_index(module, caller, operation, analysis, None)
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn reference_call_lifetimes_indexed(
+pub fn reference_call_lifetimes_indexed(
     module: &terminal_psi::TerminalModule,
     caller: &terminal_psi::TerminalMachine,
     operation: &terminal_psi::Operation,
     analysis: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
-    predecessors: Option<&crate::descriptor_lifetimes::FlowPredecessors<'_>>,
-    cutoff: Option<&crate::descriptor_lifetimes::DeadTailCutoff>,
-    at_override: Option<crate::descriptor_lifetimes::DescriptorPosition>,
+    index: CallLifetimeIndex<'_>,
+) -> Result<Vec<RetainedCallLoan>, crate::descriptor_results::DescriptorGraphError> {
+    reference_call_lifetimes_with_index(module, caller, operation, analysis, Some(index))
+}
+
+fn reference_call_lifetimes_with_index(
+    module: &terminal_psi::TerminalModule,
+    caller: &terminal_psi::TerminalMachine,
+    operation: &terminal_psi::Operation,
+    analysis: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
+    index: Option<CallLifetimeIndex<'_>>,
 ) -> Result<Vec<RetainedCallLoan>, crate::descriptor_results::DescriptorGraphError> {
     let refuse = |detail| {
         crate::descriptor_results::DescriptorGraphError::at_operation(
@@ -1125,9 +1150,7 @@ pub(crate) fn reference_call_lifetimes_indexed(
     use super::reference_origins::{
         ReferenceCallContract, ReferenceCallOrigin, bind_reference_call_results,
     };
-    use crate::descriptor_lifetimes::{
-        DescriptorLocation, descriptor_location, descriptor_location_lifetime, descriptor_path,
-    };
+    use crate::descriptor_lifetimes::{DescriptorLocation, descriptor_location, descriptor_path};
 
     let invocation = operation.declared_invocation();
     let runtime = operation.kind.callable_invocation();
@@ -1164,7 +1187,8 @@ pub(crate) fn reference_call_lifetimes_indexed(
     let arguments = operation.kind.structural_arguments();
     let (declared_parameters, slots, actual, public) = if let Some(call) = runtime {
         let contract = module
-            .execution.callables
+            .execution
+            .callables
             .contract(call.contract)
             .ok_or_else(|| refuse("returned runtime value has no exact public contract"))?;
         let declared = super::callable_reference_result(&module.types.structural_types, contract)
@@ -1208,11 +1232,10 @@ pub(crate) fn reference_call_lifetimes_indexed(
         };
         match call.callee {
             terminal_psi::TargetMachineCallable::Boundary(boundary) => {
-                let declaration = module.boundary_machine(boundary).ok_or_else(|| {
-                    refuse("returned boundary borrow has no exact declaration")
-                })?;
-                let terminal_psi::BoundaryMachineResult::Structural(expected) =
-                    &declaration.result
+                let declaration = module
+                    .boundary_machine(boundary)
+                    .ok_or_else(|| refuse("returned boundary borrow has no exact declaration"))?;
+                let terminal_psi::BoundaryMachineResult::Structural(expected) = &declaration.result
                 else {
                     return Err(refuse("returned borrow has no structural boundary result"));
                 };
@@ -1238,9 +1261,9 @@ pub(crate) fn reference_call_lifetimes_indexed(
                 )
             }
             terminal_psi::TargetMachineCallable::Machine(callee) => {
-                let callee = module.machine(callee).ok_or_else(|| {
-                    refuse("returned reference call has no actual callee body")
-                })?;
+                let callee = module
+                    .machine(callee)
+                    .ok_or_else(|| refuse("returned reference call has no actual callee body"))?;
                 let signature = callee.result.structural().ok_or_else(|| {
                     refuse("returned reference call has no structural result contract")
                 })?;
@@ -1291,9 +1314,7 @@ pub(crate) fn reference_call_lifetimes_indexed(
                         .required_contract
                         .filter(|_| returns_reference)
                         .map(|required| {
-                            super::selected_reference_result(
-                                module, caller.id, callee.id, required,
-                            )
+                            super::selected_reference_result(module, caller.id, callee.id, required)
                         })
                         .transpose()
                         .map_err(refuse)?;
@@ -1344,7 +1365,7 @@ pub(crate) fn reference_call_lifetimes_indexed(
         )
         .map_err(refuse)?
     };
-    let at = if let Some(at) = at_override {
+    let at = if let Some(at) = index.map(|i| i.at) {
         at
     } else {
         let mut positions = caller.blocks.iter().flat_map(|block| {
@@ -1371,20 +1392,8 @@ pub(crate) fn reference_call_lifetimes_indexed(
         )
     };
     let flow = analysis.flow_arc(caller.id)?;
-    let compute_lifetime = |descriptor: &DescriptorLocation| {
-        if let Some(predecessors) = predecessors {
-            crate::descriptor_lifetimes::descriptor_location_lifetime_with_contents_indexed(
-                &flow,
-                predecessors,
-                cutoff,
-                at,
-                descriptor,
-                |_, _| false,
-            )
-        } else {
-            descriptor_location_lifetime(&flow, at, descriptor)
-        }
-    };
+    let compute_lifetime =
+        |descriptor: &DescriptorLocation| indexed_descriptor_lifetime(&flow, at, descriptor, index);
     let mut retained = Vec::new();
     for (mapping_index, binding) in bindings.into_iter().enumerate() {
         let source_positions = if let Some(public) = &public {
@@ -1393,9 +1402,8 @@ pub(crate) fn reference_call_lifetimes_indexed(
                 .reference_regions(&binding.path)
                 .map(|region| {
                     let region = region.map_err(refuse)?;
-                    let terminal_psi::TerminalDynamicReferenceOrigin::Parameter {
-                        argument_index,
-                    } = region.origin
+                    let terminal_psi::TerminalDynamicReferenceOrigin::Parameter { argument_index } =
+                        region.origin
                     else {
                         return Err(refuse(
                             "selected reference input unexpectedly uses provider storage",
@@ -1413,10 +1421,13 @@ pub(crate) fn reference_call_lifetimes_indexed(
                 .sources
                 .iter()
                 .map(|origin| {
-                    origin.parameter().map(|formal|
-                        terminal_psi::structural_parameter_position(parameters, formal.place)
-                            .ok_or_else(|| refuse("returned reference names no formal input"))
-                    ).transpose()
+                    origin
+                        .parameter()
+                        .map(|formal| {
+                            terminal_psi::structural_parameter_position(parameters, formal.place)
+                                .ok_or_else(|| refuse("returned reference names no formal input"))
+                        })
+                        .transpose()
                 })
                 .collect::<Result<Vec<_>, _>>()?
         };
@@ -1435,8 +1446,13 @@ pub(crate) fn reference_call_lifetimes_indexed(
         .ok_or_else(|| refuse("returned reference has no exact result descriptor path"))?;
         for (position, bound) in source_positions.into_iter().zip(binding.sources) {
             let (position, source, transfers_existing) = match (position, bound.origin) {
-                (Some(position), ReferenceCallOrigin::Parameter { source, transfers_existing }) =>
-                    (position, source, transfers_existing),
+                (
+                    Some(position),
+                    ReferenceCallOrigin::Parameter {
+                        source,
+                        transfers_existing,
+                    },
+                ) => (position, source, transfers_existing),
                 // The producing call establishes its own address. Its reconstructed
                 // provider debts below still retain every required input loan.
                 (None, ReferenceCallOrigin::Invocation { .. }) => continue,
@@ -1575,16 +1591,9 @@ pub(crate) fn reference_call_lifetimes_indexed(
                     }
                     let lifetime = compute_lifetime(&descriptor);
                     if lifetime.live.contains(&at) {
-                        return Err(refuse(
-                            "returned view loan crosses its own call formation",
-                        ));
+                        return Err(refuse("returned view loan crosses its own call formation"));
                     }
-                    retain_call_lifetime(
-                        &mut retained,
-                        *position,
-                        argument.path.clone(),
-                        lifetime,
-                    );
+                    retain_call_lifetime(&mut retained, *position, argument.path.clone(), lifetime);
                 }
                 Ok::<(), crate::descriptor_results::DescriptorGraphError>(())
             },
@@ -1598,8 +1607,7 @@ pub(crate) fn reference_call_lifetimes_indexed(
         &slots,
         at,
         &flow,
-        predecessors,
-        cutoff,
+        index,
         &mut retained,
     )
     .map_err(refuse)?;
