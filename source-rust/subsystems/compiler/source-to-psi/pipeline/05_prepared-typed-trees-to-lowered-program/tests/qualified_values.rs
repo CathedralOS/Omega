@@ -389,3 +389,66 @@ fn erasing_a_refinement_in_a_contract_preserves_the_operand_in_either_order() {
     .rejected();
     assert_eq!(wrong.unproved.len(), 1, "{wrong:?}");
 }
+
+#[test]
+fn scalar_domain_predicates_bind_each_const_index_in_the_declaration() {
+    const DOMAIN: &str = "domain<const Lo: u8, const Hi: u8> u8::Between<Lo, Hi>
+        requires self >= Lo && self < Hi;";
+    for value in [3, 4] {
+        let source = format!(
+            "{DOMAIN}
+            machine f() -> u8 in Between<2,4> {{ {value}u8 as +Between<2,4> }}"
+        );
+        let program = Program::of(&source);
+        let [family] = program.lowered.forms.as_slice() else {
+            panic!("the reached domain must have its own check form")
+        };
+        let [form] = family.forms.as_ref().unwrap().as_slice() else {
+            panic!("the domain must form once under arbitrary inputs")
+        };
+        let [predicate] = form.module.scalars.scalar_predicate_definitions.as_slice() else {
+            panic!("expected the declaration's predicate")
+        };
+        assert_eq!(predicate.parameters.len(), 3);
+        assert!(
+            program
+                .elaboration()
+                .module
+                .scalars
+                .scalar_predicate_definitions
+                .is_empty()
+        );
+        let verdict = program.judged(|_| {});
+        if value == 3 {
+            verdict.accepted();
+        } else {
+            assert_eq!(verdict.rejected().unproved.len(), 1);
+        }
+    }
+}
+
+#[test]
+fn an_unused_domain_predicate_must_form_for_every_const_index() {
+    let domain = "domain<const N: u8> u8::Bound<N> requires self / N == 1u8;";
+    for machine in [
+        "machine f() {}",
+        "machine f() -> u8 in Bound<3> { 3u8 as +Bound<3> }",
+    ] {
+        let rejected = Program::of(&format!("{domain} {machine}"))
+            .judged(|_| {})
+            .rejected();
+        assert!(
+            rejected
+                .violations
+                .iter()
+                .any(|violation| { violation.contains("contract arithmetic is not proved total") }),
+            "{rejected:?}"
+        );
+    }
+    Program::of(
+        "domain<const N: u8> u8::Empty<N> requires self < N && self > N;
+        machine f() {}",
+    )
+    .judged(|_| {})
+    .accepted();
+}

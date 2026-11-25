@@ -1182,8 +1182,21 @@ impl TypedReferences for Capture<'_> {
             self.fail("source selection traversed a stale proof fact");
             return false;
         }
-        let key = (self.owner, fact);
-        self.seen_facts.insert(key)
+        // A closed application reads substituted facts. Its family's check form
+        // answers the selections in the declaration's original facts.
+        let owner = (self.owner.arena_index(), self.owner.generation());
+        if self
+            .template_requirements
+            .binary_search_by_key(&owner, |symbol| (symbol.arena_index(), symbol.generation()))
+            .is_ok()
+            && self
+                .typed
+                .domain_definition(self.owner)
+                .is_some_and(|domain| domain.facts.handles().any(|source| source == fact))
+        {
+            return false;
+        }
+        self.seen_facts.insert((self.owner, fact))
     }
     fn authored_selection(&mut self, occurrence: AuthoredDeclarationSelectionOccurrenceId) {
         self.next_authored_symbol = None;
