@@ -28,6 +28,17 @@ use crate::canonical::{self, Repeated};
 use crate::{Binder, MachineNames, SourceOrigin, Unserved, refuse};
 use source_text::SourceSpan;
 
+/// Where a conformance witness found the requirement contract it proves.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum WitnessRequirement {
+    /// The implementation's own row or the trait's declaration. Every call
+    /// that selects the implementation proves this same contract.
+    Declared,
+    /// The selected call's closed trait application, read because the
+    /// implementation owns no row and its trait has parameters.
+    Selected,
+}
+
 /// A declared contract and a callback binder are different abstract targets,
 /// even when they promise the same complete signature. Record-member targets
 /// belong to their existing receiver/member account instead of this family.
@@ -979,7 +990,9 @@ impl<'t> Program<'t> {
 
     /// The first machine of a conformance witness: the requirement's
     /// signature and contract at `arguments`, the literals of its value
-    /// parameters, on a body the caller supplies.
+    /// parameters, on a body the caller supplies. The second value says
+    /// whether that contract came from `expected` or from the
+    /// implementation's own declarations.
     pub fn witnessed(
         &mut self,
         declaring_trait: SymbolHandle,
@@ -987,7 +1000,8 @@ impl<'t> Program<'t> {
         arguments: &[semantic_vocabulary::ScalarTerm],
         implementation: SymbolHandle,
         expected: Option<&'t StateSignature>,
-    ) -> Checked<MachineId> {
+    ) -> Checked<(MachineId, WitnessRequirement)> {
+        let mut source = WitnessRequirement::Declared;
         let id = self.next_identity()?;
         if self.rigid {
             let machine = self
@@ -1044,6 +1058,7 @@ impl<'t> Program<'t> {
                         Unserved::Machine("witness needs its exact closed trait application"),
                     )
                 })?;
+            source = WitnessRequirement::Selected;
         }
         if expected.is_some_and(|signature| {
             signature.symbol != requirement
@@ -1080,7 +1095,7 @@ impl<'t> Program<'t> {
             self.witnessed_signature(declared, arguments, expected)
         };
         self.signature_view_owner = outer;
-        witnessed
+        Ok((witnessed?, source))
     }
 
     pub(crate) fn witnessed_signature(

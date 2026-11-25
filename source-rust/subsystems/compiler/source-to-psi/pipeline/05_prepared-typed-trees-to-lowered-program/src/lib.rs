@@ -828,6 +828,52 @@ pub fn elaborate_witness(
     .and_then(PreparedProgram::into_check_form)
 }
 
+/// The empty reading a conformance witness of `implementation` starts from.
+fn witness_program<'source>(
+    typed: &'source TypedTrees,
+    implementation: SymbolHandle,
+    inputs: WitnessInputs<'_>,
+) -> read::Program<'source> {
+    let generic = typed
+        .machine_by_symbol(implementation)
+        .is_some_and(|machine| is_generic_template(typed, machine));
+    let mut program = read::Program::with_captures(typed, generic, inputs.purpose, inputs.captures);
+    program.local_summary_scope = inputs
+        .outcome_subjects
+        .map(|subjects| read::LocalSummaryScope::Witness(subjects.to_vec()));
+    program
+}
+
+/// Whether a call selecting `implementation` under the header `selected`
+/// proves the same statement as its conformance row read without a header,
+/// so the row's witness also decides the selection.
+///
+/// `selected` changes a witness in two ways (`read::Program::witnessed`):
+/// it can refuse, when it names another declaration or disagrees with the
+/// row's own header, and it supplies the contract when the implementation
+/// owns no row of a trait with parameters. This reads only that header.
+/// Both refusals are judged here, and a contract the header supplied is
+/// never treated as the row's.
+fn selected_witness_is_declared<'source>(
+    typed: &'source TypedTrees,
+    declaring_trait: SymbolHandle,
+    requirement: SymbolHandle,
+    arguments: &[semantic_vocabulary::ScalarTerm],
+    implementation: SymbolHandle,
+    selected: &'source crate::source_state::signature::StateSignature,
+    inputs: WitnessInputs<'_>,
+) -> bool {
+    witness_program(typed, implementation, inputs)
+        .witnessed(
+            declaring_trait,
+            requirement,
+            arguments,
+            implementation,
+            Some(selected),
+        )
+        .is_ok_and(|(_, source)| source == read::WitnessRequirement::Declared)
+}
+
 fn prepare_witness<'source>(
     typed: &'source TypedTrees,
     declaring_trait: SymbolHandle,
@@ -837,14 +883,8 @@ fn prepare_witness<'source>(
     expected: Option<&'source crate::source_state::signature::StateSignature>,
     inputs: WitnessInputs<'_>,
 ) -> Checked<PreparedProgram<'source>> {
-    let generic = typed
-        .machine_by_symbol(implementation)
-        .is_some_and(|machine| is_generic_template(typed, machine));
-    let mut program = read::Program::with_captures(typed, generic, inputs.purpose, inputs.captures);
-    program.local_summary_scope = inputs
-        .outcome_subjects
-        .map(|subjects| read::LocalSummaryScope::Witness(subjects.to_vec()));
-    let entry = program.witnessed(
+    let mut program = witness_program(typed, implementation, inputs);
+    let (entry, _) = program.witnessed(
         declaring_trait,
         requirement,
         arguments,

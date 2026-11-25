@@ -3036,7 +3036,7 @@ fn a_named_owned_member_keeps_public_inputs_and_guarantees() {
             terminal_codec::TerminalPublication::Invocation,
         )
         .expect("fixture must lower to checker input");
-        assert_eq!(prepared_source.source.forms.len(), 3);
+        assert_eq!(prepared_source.source.forms.len(), 2);
         assert!(prepared_source.source.forms.iter().all(Option::is_some));
         let terminal_check_tables::compilation::TerminalCompilation::Prepared(prepared) =
             prepared_source.program
@@ -3045,10 +3045,11 @@ fn a_named_owned_member_keeps_public_inputs_and_guarantees() {
         };
         assert!(prepared.forms.is_empty());
         assert!(prepared.arrivals.is_empty());
-        assert_eq!(prepared.witnesses.len(), 2);
-        // The body's independent conformance comes first. The separate
-        // selected-call signature witness belongs to this exact selection.
-        assert_eq!(prepared.selection_witnesses, [(0, 1)]);
+        // The selected call's header agrees with the owning row, so the call
+        // proves the same refinement as the body's own conformance and
+        // shares its one witness instead of proving a second copy.
+        assert_eq!(prepared.witnesses.len(), 1);
+        assert_eq!(prepared.selection_witnesses, [(0, 0)]);
         let closure = prepared.closure.as_ref().expect("the actual entry closure");
         assert_eq!(closure.machines.get(id(1)), Some(&entry));
         let [selected] = closure.selections.as_slice() else {
@@ -3088,7 +3089,7 @@ fn a_named_owned_member_keeps_public_inputs_and_guarantees() {
         .into_iter()
         .map(Result::unwrap)
         .collect::<Vec<_>>();
-        assert_eq!(verdicts.len(), 3, "{verdicts:?}");
+        assert_eq!(verdicts.len(), 2, "{verdicts:?}");
         let RouteVerdict::Rejected { unproved, .. } = &verdicts[0] else {
             panic!("{verdicts:?}")
         };
@@ -3102,11 +3103,7 @@ fn a_named_owned_member_keeps_public_inputs_and_guarantees() {
         );
         assert!(
             matches!(verdicts[1], RouteVerdict::Accepted(_)),
-            "the own-body witness remains valid: {verdicts:?}"
-        );
-        assert!(
-            matches!(verdicts[2], RouteVerdict::Accepted(_)),
-            "the exact selected public signature witness remains valid: {verdicts:?}"
+            "the shared own-body witness remains valid: {verdicts:?}"
         );
     }
 }

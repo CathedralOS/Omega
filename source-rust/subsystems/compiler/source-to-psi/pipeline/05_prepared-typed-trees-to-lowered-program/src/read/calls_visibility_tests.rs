@@ -709,7 +709,7 @@ fn a_requirement_signature_retains_operational_promises_without_an_executable_bo
             .trait_machine_signature(fixture.requirement)
             .unwrap();
         let mut program = Program::new(&fixture.typed, false);
-        let identity = program
+        let (identity, _) = program
             .witnessed(
                 fixture.owner,
                 fixture.requirement,
