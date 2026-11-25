@@ -2051,28 +2051,45 @@ impl<'t> Program<'t> {
     }
 
     /// One canonical scalar Const leaf, shared by scalar-only and mixed schema applications.
-    pub(super) fn bound_scalar_value(
+    /// The value is written as a type reference's operand, or as the static
+    /// operand itself where a call keeps only that (a definition's binder);
+    /// with `rigid`, one of the reading machine's own binders stands for its
+    /// input.
+    pub(super) fn bound_scalar_value<'a>(
         &self,
         id: MachineId,
         scalar_type: semantic_vocabulary::ScalarType,
-        reference: crate::source_state::types::TypeReferenceHandle,
+        written: impl Into<StaticValue<'a>>,
         rigid: bool,
     ) -> Checked<semantic_vocabulary::ScalarTerm> {
         use crate::source_state::types::PrimitiveType;
         use semantic_vocabulary::{ScalarTerm, ScalarType};
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Call(what));
-        if !self
-            .typed
-            .type_reference_table
-            .contains_type_reference(reference)
-        {
-            return Err(unserved("static value lost its retained type reference"));
-        }
+        let (symbol, operand) = match written.into() {
+            StaticValue::Reference(reference) => {
+                if !self
+                    .typed
+                    .type_reference_table
+                    .contains_type_reference(reference)
+                {
+                    return Err(unserved("static value lost its retained type reference"));
+                }
+                let symbol = match self.typed.type_reference_table.type_reference(reference) {
+                    crate::source_state::types::TypeReferenceNode::Named { symbol, .. } => *symbol,
+                    _ => SymbolHandle::invalid(),
+                };
+                let operand = self
+                    .typed
+                    .static_operand_from_type_reference(reference)
+                    .map_err(unserved)?;
+                (symbol, std::borrow::Cow::Owned(operand))
+            }
+            StaticValue::Operand(operand) => (operand.symbol, std::borrow::Cow::Borrowed(operand)),
+        };
         if rigid
-            && let crate::source_state::types::TypeReferenceNode::Named { symbol, .. } =
-                self.typed.type_reference_table.type_reference(reference)
+            && symbol.is_valid()
             && let Some(input) = self.const_scope.iter().find(|input| {
-                input.symbol == *symbol && input.owner == id && input.scalar_type == scalar_type
+                input.symbol == symbol && input.owner == id && input.scalar_type == scalar_type
             })
         {
             return Ok(ScalarTerm::value(input.value, scalar_type));
@@ -2097,10 +2114,6 @@ impl<'t> Program<'t> {
                 ));
             }
         };
-        let operand = self
-            .typed
-            .static_operand_from_type_reference(reference)
-            .map_err(unserved)?;
         let value = self
             .typed
             .prepare_callable_scalar_argument(primitive, &operand)
@@ -4543,6 +4556,26 @@ impl Touches<'_> {
                 Ok(false)
             }
         }
+    }
+}
+
+/// How a static value is written where `bound_scalar_value` reads it.
+pub(super) enum StaticValue<'a> {
+    /// The type reference a value argument is retained as.
+    Reference(crate::source_state::types::TypeReferenceHandle),
+    /// The written operand itself, where the call keeps no reference.
+    Operand(&'a StaticMachineArgument),
+}
+
+impl From<crate::source_state::types::TypeReferenceHandle> for StaticValue<'_> {
+    fn from(reference: crate::source_state::types::TypeReferenceHandle) -> Self {
+        Self::Reference(reference)
+    }
+}
+
+impl<'a> From<&'a StaticMachineArgument> for StaticValue<'a> {
+    fn from(operand: &'a StaticMachineArgument) -> Self {
+        Self::Operand(operand)
     }
 }
 
