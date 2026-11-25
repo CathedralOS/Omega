@@ -1579,6 +1579,44 @@ machine build() {}
 }
 
 #[test]
+fn a_reached_boundary_member_keeps_its_qualified_formal_for_package_review() {
+    let source = typed(
+        r#"
+public domain [u8]::Path;
+public boundary trait Files {
+    machine create(path: @[u8] in Path) -> i32 reaches none crashes none;
+    machine unused(path: @[u8] in Path) -> i32 reaches none crashes none;
+}
+machine build(path: @[u8] in Path) -> i32 reaches Files invokes Files crashes none {
+    Files::create(path)
+}
+"#,
+    );
+    let files = source
+        .traits()
+        .iter()
+        .find(|row| row.name.as_str() == "Files")
+        .unwrap();
+    let signatures = source.trait_machine_signatures(files);
+    let (create, unused) = (signatures[0].symbol, signatures[1].symbol);
+    let path = source
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.name.as_str() == "[u8]::Path")
+        .unwrap()
+        .symbol;
+    let accepted =
+        accepted_frontier_with_subjects(source, terminal_codec::TerminalPublication::Portable, &[])
+            .expect("check the entry and its dependency closure");
+    let review = accepted.requirement_review(create).unwrap();
+    let [(0, qualification)] = review.parameter_qualifications.as_slice() else {
+        panic!("create's path parameter retains its declared qualification");
+    };
+    assert_eq!(qualification.declaration, path);
+    assert!(accepted.requirement_review(unused).is_err());
+}
+
+#[test]
 fn a_plain_integer_and_a_lookalike_enum_cannot_select_a_provider() {
     let prelude = provider_selection_prelude();
     for operand in ["7u64", "CustomMode::Independent"] {
