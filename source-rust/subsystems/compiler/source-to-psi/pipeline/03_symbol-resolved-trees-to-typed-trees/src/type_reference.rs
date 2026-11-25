@@ -148,15 +148,8 @@ pub(crate) mod domain_constraints {
                 .source_selection
                 .map(|selection| selection.source_span)
                 .filter(|span| span.span.start != span.span.end);
-            let matches = select_domain_candidates(
-                source,
-                program,
-                carrier,
-                authored_name,
-                reference,
-                domain_constraint.symbol,
-                &domain_constraint.arguments,
-            );
+            let (matches, names_no_visible_domain) =
+                written_domain_candidates(source, program, carrier, &domain_constraint, reference)?;
             /*
                 Distinct visible domains competing for one authored spelling
                 reject: neither the referencing module, its package nor import
@@ -182,21 +175,6 @@ pub(crate) mod domain_constraints {
                 .with_source_span(reference));
             }
             let [domain] = matches.as_slice() else {
-                // Whether any domain of this name is visible here at all,
-                // for any carrier: if none is, the name is unknown and the
-                // type malformed, not a selection a reader defers.
-                let names_no_visible_domain = matches.is_empty()
-                    && domain_constraint.subject == DomainConstraintSubject::Declared
-                    && reference.is_some()
-                    && select_domain_candidates_where(
-                        source,
-                        program,
-                        authored_name,
-                        reference,
-                        domain_constraint.symbol,
-                        |_| true,
-                    )
-                    .is_empty();
                 normalized.push(TypeConstraintNode::Domain(DomainConstraint {
                     names_no_visible_domain,
                     ..domain_constraint
@@ -204,6 +182,12 @@ pub(crate) mod domain_constraints {
                 continue;
             };
 
+            check_domain_arity(
+                program,
+                domain,
+                domain_constraint.arguments.len(),
+                reference,
+            )?;
             if let Some(authored) = domain_constraint.source_selection
                 && let Some(exposure) = authored.authored_exposure
             {
@@ -222,15 +206,6 @@ pub(crate) mod domain_constraints {
                 })?;
             }
 
-            let index_parameters = crate::source_state::domain::index_parameters(program, domain);
-            if domain_constraint.arguments.len() != index_parameters.len() {
-                return Err(Diagnostic::error(format!(
-                    "domain family `{}` requires {} closed index argument(s), but {} were supplied",
-                    domain.name,
-                    index_parameters.len(),
-                    domain_constraint.arguments.len()
-                )));
-            }
             let semantic_id = program.retain_domain_application(
                 domain.symbol,
                 carrier,
@@ -352,6 +327,150 @@ pub(crate) mod domain_constraints {
             |index| spell_domain_range(source, definitions, index, 0..definitions.len()),
             reader,
         )
+    }
+
+    /// Prefer declarations on the supplied carrier. A sibling qualification can
+    /// supply a prerequisite for a unique declaration on its underlying carrier.
+    /// The complete destination still owes that prerequisite in lowering.
+    fn written_domain_candidates(
+        source: &SymbolResolvedTrees,
+        program: &TypedTrees,
+        carrier: crate::source_state::types::TypeReferenceHandle,
+        constraint: &DomainConstraint,
+        reference: Option<source_text::SourceSpan>,
+    ) -> Result<(Vec<DomainDefinition>, bool), Diagnostic> {
+        let name = constraint.name.as_str();
+        let matches = select_domain_candidates(
+            source,
+            program,
+            carrier,
+            name,
+            reference,
+            constraint.symbol,
+            &constraint.arguments,
+        );
+        let Some(at) = reference.filter(|_| {
+            matches.is_empty() && constraint.subject == DomainConstraintSubject::Declared
+        }) else {
+            return Ok((matches, false));
+        };
+        let visible = select_domain_candidates_where(
+            source,
+            program,
+            name,
+            Some(at),
+            constraint.symbol,
+            |_| true,
+        );
+        if visible.is_empty() {
+            return Ok((matches, true));
+        }
+        if let [family] = visible.as_slice()
+            && crate::source_state::domain::has_direct_index_telescope(program, family)
+        {
+            check_domain_arity(program, family, constraint.arguments.len(), Some(at))?;
+        }
+        let mut compatible = visible.iter().filter(|family| {
+            crate::source_state::domain::domain_accepts_underlying_carrier(
+                program,
+                family,
+                carrier,
+                &constraint.arguments,
+            )
+        });
+        match (compatible.next(), compatible.next()) {
+            (Some(family), None) => Ok((vec![family.clone()], false)),
+            (None, None)
+                if visible.iter().all(|family| {
+                    closed_domain_carriers(program, family, carrier, &constraint.arguments)
+                }) =>
+            {
+                let application = if constraint.arguments.is_empty() {
+                    name.to_owned()
+                } else {
+                    let arguments = constraint
+                        .arguments
+                        .iter()
+                        .map(|argument| program.display_type_reference_with_constraints(*argument))
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    format!("{name}<{arguments}>")
+                };
+                Err(Diagnostic::error(format!(
+                    "domain `{application}` does not qualify carrier `{}`",
+                    program.display_type_reference_with_constraints(carrier),
+                ))
+                .with_source_span(at))
+            }
+            _ => Ok((matches, false)),
+        }
+    }
+
+    fn check_domain_arity(
+        program: &TypedTrees,
+        domain: &DomainDefinition,
+        actual: usize,
+        source_span: Option<source_text::SourceSpan>,
+    ) -> Result<(), Diagnostic> {
+        let expected = crate::source_state::domain::index_parameters(program, domain).len();
+        if expected == actual {
+            return Ok(());
+        }
+        Err(Diagnostic {
+            source_span,
+            ..Diagnostic::error(format!(
+                "wrong number of indices for domain family `{}` (expected {expected}, received {actual})",
+                domain.name,
+            ))
+        })
+    }
+
+    /// A closed application can be diagnosed as a carrier mismatch only when
+    /// its input and its substituted declaration target have resolved owners.
+    fn closed_domain_carriers(
+        program: &TypedTrees,
+        family: &DomainDefinition,
+        carrier: crate::source_state::types::TypeReferenceHandle,
+        arguments: &[crate::source_state::types::TypeReferenceHandle],
+    ) -> bool {
+        use crate::source_state::domain::{
+            has_direct_index_telescope, index_argument_is_closed,
+            index_argument_is_closed_with_substitutions, index_parameters,
+        };
+        use crate::source_state::type_identity::ExactOwnerTypeIdentityRequest;
+
+        let parameters = index_parameters(program, family);
+        if !has_direct_index_telescope(program, family)
+            || parameters.len() != arguments.len()
+            || !index_argument_is_closed(program, carrier)
+            || !arguments
+                .iter()
+                .all(|argument| index_argument_is_closed(program, *argument))
+        {
+            return false;
+        }
+        let substitutions = parameters
+            .iter()
+            .zip(arguments)
+            .map(|(parameter, argument)| (parameter.symbol, *argument))
+            .collect::<Vec<_>>();
+        index_argument_is_closed_with_substitutions(program, family.target_type, &substitutions)
+            && [
+                (carrier, &[][..]),
+                (family.target_type, substitutions.as_slice()),
+            ]
+            .into_iter()
+            .all(|(reference, bindings)| {
+                program
+                    .exact_owner_type_identity(ExactOwnerTypeIdentityRequest {
+                        type_reference: reference,
+                        substitutions: bindings,
+                        lifetime_scope: None,
+                        binders: &[],
+                        exact_toolchain_sources: &[],
+                    })
+                    .is_some()
+            })
     }
 
     pub(crate) fn select_domain_candidates(

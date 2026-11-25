@@ -1418,10 +1418,10 @@ pub mod domain {
         domain_target_matches_carrier(program, domain, domain.target_type, carrier, arguments)
     }
 
-    /// Cast entries account for both sides simultaneously. The name selects
-    /// on the underlying data carrier. Establishment still owes every
-    /// membership required by the declaration's complete target.
-    pub fn domain_accepts_cast_carrier(
+    /// Compare the underlying data carrier when a cast or a written type
+    /// assembles its qualifications together. Its complete destination must
+    /// still carry every membership required by the declaration.
+    pub fn domain_accepts_underlying_carrier(
         program: &TypedTrees,
         domain: &DomainDefinition,
         carrier: TypeReferenceHandle,
