@@ -909,6 +909,47 @@ pub fn scalar_domain(
         .map(|index| &domains[index])
 }
 
+/// Every prerequisite of a displayed domain must survive on this value.
+/// The verifier checks the origin of each added member on this same edge.
+/// Since the declaration graph is acyclic, this also covers transitive
+/// prerequisites independently of the order in which the cast names them.
+fn check_successor_prerequisites(
+    module: &TerminalModule,
+    source: &ValueDeclaration,
+    destination: &ValueDeclaration,
+    forwarded: impl Fn(ScalarDomainId) -> bool,
+) -> Result<(), ScalarQualificationError> {
+    let held = qualification_domains(module, source.qualifications).ok_or(
+        ScalarQualificationError::MalformedStructuralFoundation(
+            "scalar successor has an absent source qualification set",
+        ),
+    )?;
+    let displayed = qualification_domains(module, destination.qualifications)
+        .and_then(|set| {
+            set.iter()
+                .map(|id| scalar_domain(module, *id))
+                .collect::<Option<Vec<_>>>()
+        })
+        .ok_or(ScalarQualificationError::MalformedStructuralFoundation(
+            "scalar successor has an absent domain or qualification set",
+        ))?;
+    for domain in &displayed {
+        if domain.carrier != destination.scalar_type {
+            return malformed("scalar successor has a domain on a different carrier");
+        }
+        let satisfied = match domain.required_memberships.as_deref() {
+            Some(required) => required
+                .iter()
+                .all(|id| displayed.iter().any(|shown| shown.semantic_domain == *id)),
+            None => held.contains(&domain.id) || forwarded(domain.id),
+        };
+        if !satisfied {
+            return malformed("scalar coercion has unresolved prerequisite memberships");
+        }
+    }
+    Ok(())
+}
+
 pub fn values(machine: &TerminalMachine) -> impl Iterator<Item = &ValueDeclaration> {
     machine
         .parameters
@@ -1103,17 +1144,14 @@ pub fn validate_for_bodies(
         if source.scalar_type != destination.scalar_type
             || source.id == destination.id
             || source_domains == destination_domains
-            || (!source_domains
-                .iter()
-                .all(|id| destination_domains.contains(id))
-                && !destination_domains
-                    .iter()
-                    .all(|id| source_domains.contains(id)))
         {
             return malformed(
-                "scalar coercion must strictly add or erase same-carrier memberships",
+                "scalar coercion must change memberships on the same carrier",
             );
         }
+        let erases = source_domains
+            .iter()
+            .any(|id| !destination_domains.contains(id));
         for id in destination_domains {
             let domain = scalar_domain(module, *id).ok_or(
                 ScalarQualificationError::MalformedStructuralFoundation(
@@ -1122,18 +1160,6 @@ pub fn validate_for_bodies(
             )?;
             let membership =
                 membership_facts.scalar_on_edge(module, machine.id, coercion.edge, source.id, *id);
-            let forwarded = membership == Some(true);
-            if !forwarded
-                && domain
-                    .missing_membership_requirements(&catalog.domains, source_domains)
-                    .is_none_or(|missing| {
-                        missing
-                            .iter()
-                            .any(|node| !node.has_no_required_memberships())
-                    })
-            {
-                return malformed("scalar coercion has unresolved prerequisite memberships");
-            }
             if source_domains.contains(id) {
                 continue;
             }
@@ -1150,7 +1176,13 @@ pub fn validate_for_bodies(
                     );
                 }
             }
-            if domain.establishment_routes.is_none() && domain.predicate.is_none() {
+            // An unrestricted leaf tag can be added directly. A replacement
+            // or an addition with prerequisites retains its exact completion.
+            if !erases
+                && domain.establishment_routes.is_none()
+                && domain.predicate.is_none()
+                && domain.has_no_required_memberships()
+            {
                 continue;
             }
             let completion = catalog.returns.iter().find(|returned| {
@@ -1298,13 +1330,13 @@ pub fn validate_for_bodies(
                     matches!(returned.site, ScalarReturnSite::Completion { .. })
                         && domain.predicate.is_none()
                         && domain.establishment_routes.is_none()
-                        && domain.has_no_required_memberships()
+                        && domain.required_memberships.is_some()
                 }
                 ScalarReturnOrigin::Proved => {
                     matches!(returned.site, ScalarReturnSite::Completion { .. })
                         && domain.predicate.is_some()
                         && domain.establishment_routes.is_none()
-                        && domain.has_no_required_memberships()
+                        && domain.required_memberships.is_some()
                 }
                 ScalarReturnOrigin::Forwarded => {
                     catalog.sets.iter().any(|set| {
@@ -1336,7 +1368,9 @@ pub fn validate_for_bodies(
                         })
                 }
             };
-            let prerequisites = if matches!(origin, ScalarReturnOrigin::Established { .. }) {
+            let prerequisites = if returned.site == ScalarReturnSite::NormalExit
+                && matches!(origin, ScalarReturnOrigin::Established { .. })
+            {
                 let supplied = qualification_domains(module, source.qualifications).ok_or(
                     ScalarQualificationError::MalformedStructuralFoundation(
                         "scalar issuer lost its source qualification set",
@@ -1460,24 +1494,29 @@ pub fn validate_for_bodies(
                     if source.scalar_type != destination.scalar_type {
                         return malformed("scalar successor changes its payload carrier");
                     }
-                    if source.qualifications != destination.qualifications
-                        && !catalog.coercions.iter().any(|row| {
-                            row.machine == machine.id
-                                && row.edge == edge
-                                && row.source == source.id
-                                && row.destination == destination.id
-                                && row.argument_ordinal as usize == ordinal
-                        })
-                        && !checked_introduction(
-                            module,
-                            machine.id,
-                            edge,
-                            source,
-                            destination,
-                            ScalarReturnSite::Completion {
-                                argument_ordinal: ordinal as u32,
-                            },
-                        )?
+                    if source.qualifications == destination.qualifications {
+                        continue;
+                    }
+                    check_successor_prerequisites(module, source, destination, |id| {
+                        membership_facts.scalar_on_edge(module, machine.id, edge, source.id, id)
+                            == Some(true)
+                    })?;
+                    if !catalog.coercions.iter().any(|row| {
+                        row.machine == machine.id
+                            && row.edge == edge
+                            && row.source == source.id
+                            && row.destination == destination.id
+                            && row.argument_ordinal as usize == ordinal
+                    }) && !checked_introduction(
+                        module,
+                        machine.id,
+                        edge,
+                        source,
+                        destination,
+                        ScalarReturnSite::Completion {
+                            argument_ordinal: ordinal as u32,
+                        },
+                    )?
                     {
                         return malformed(
                             "scalar successor changes membership without its explicit cast or checked completion",

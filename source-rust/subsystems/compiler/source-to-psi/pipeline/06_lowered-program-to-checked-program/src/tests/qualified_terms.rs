@@ -86,7 +86,9 @@ fn the_checker_rejects_a_missing_nominal_argument_even_with_the_same_carrier() {
 #[test]
 fn a_qualified_result_annotation_does_not_replace_its_cast_edge() {
     let mut elaboration = invocation(UNIT_DOMAIN).unwrap();
-    elaboration.module.types.scalar_qualifications.coercions.clear();
+    let catalog = &mut elaboration.module.types.scalar_qualifications;
+    catalog.coercions.clear();
+    catalog.returns.clear();
     let refusal = judge(Ok(elaboration)).unwrap_err();
     assert_eq!(refusal.reason, RefusalReason::ForeignIdentity);
     assert!(
@@ -99,41 +101,21 @@ fn a_qualified_result_annotation_does_not_replace_its_cast_edge() {
 
 #[test]
 fn a_forged_completion_cannot_issue_a_domain_whose_issuer_set_is_empty() {
-    use terminal_psi::{
-        ScalarDomainPredicate, ScalarReturnOrigin, ScalarReturnQualification, ScalarReturnSite,
-    };
-    let mut elaboration = invocation(UNIT_DOMAIN).unwrap();
+    use terminal_psi::{ScalarReturnOrigin, ScalarReturnSite};
+    let mut elaboration = invocation(
+        "domain u32::Span requires self > 0u32;
+         machine entry() -> u32 in Span { 7u32 as +Span }",
+    )
+    .unwrap();
     let catalog = &mut elaboration.module.types.scalar_qualifications;
     catalog.domains[0].establishment_routes = Some(Vec::new());
-    catalog.domains[0].predicate = Some(ScalarDomainPredicate {
-        subject: semantic_vocabulary::ValueId::new(1).unwrap(),
-        proposition: Proposition::Truth,
-    });
-    let introduced = catalog
-        .coercions
-        .iter()
-        .find(|edge| {
-            elaboration
-                .module
-                .machines
-                .iter()
-                .find(|machine| machine.id == edge.machine)
-                .unwrap()
-                .block_parameters()
-                .any(|value| value.id == edge.destination && !value.qualifications.is_empty())
-        })
+    let completion = catalog
+        .returns
+        .iter_mut()
+        .find(|row| matches!(row.site, ScalarReturnSite::Completion { .. }))
         .unwrap();
-    catalog.returns.push(ScalarReturnQualification {
-        site: ScalarReturnSite::Completion {
-            argument_ordinal: introduced.argument_ordinal,
-        },
-        machine: introduced.machine,
-        edge: introduced.edge,
-        source: introduced.source,
-        result: introduced.destination,
-        domain: catalog.domains[0].id,
-        origins: vec![ScalarReturnOrigin::Vacuous],
-    });
+    assert_eq!(completion.origins, [ScalarReturnOrigin::Proved]);
+    completion.origins = vec![ScalarReturnOrigin::Vacuous];
     let refusal = judge(Ok(elaboration)).unwrap_err();
     assert_eq!(refusal.reason, RefusalReason::ForeignIdentity);
     assert!(refusal.detail.contains("authorized issuer"), "{refusal:?}");
@@ -1237,4 +1219,33 @@ fn a_view_used_after_a_cyclic_byte_write_keeps_its_loan() {
         if conflicts.iter().any(|row| row.conflict == crate::LoanConflict::ExclusiveAndShared)),
         "a prior view used after the write must keep its loan: {verdict:?}"
     );
+}
+
+#[test]
+fn a_scalar_cast_must_establish_each_required_membership_on_its_own_arrival() {
+    let text = "domain u16::Stored requires self > 0u16;
+                data Kept = u16 in Stored;
+                domain Kept::Side;
+                machine make() -> Kept in Side { 7u16 as +Side +Stored }";
+    let elaboration = invocation(text).unwrap();
+    let mut missing = elaboration.clone();
+    let catalog = &mut missing.module.types.scalar_qualifications;
+    let stored = catalog
+        .domains
+        .iter()
+        .find(|domain| domain.predicate.is_some())
+        .unwrap()
+        .id;
+    let before = catalog.returns.len();
+    catalog.returns.retain(|row| row.domain != stored);
+    assert_eq!(before - catalog.returns.len(), 1);
+    let refusal = judge(Ok(missing)).unwrap_err();
+    assert!(
+        refusal.detail.contains("checked establishment completion"),
+        "{refusal:?}"
+    );
+    assert!(matches!(
+        judge(Ok(elaboration)).unwrap(),
+        RouteVerdict::Accepted(_)
+    ));
 }
