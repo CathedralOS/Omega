@@ -25,7 +25,7 @@ type HeaderLink = (
 
 pub(super) fn publish(
     typed: &TypedTrees,
-    program: &crate::lowering::read::Program<'_>,
+    program: &crate::read::Program<'_>,
     sources: &[(source_text::SourceId, [u8; 32])],
     module: &mut TerminalModule,
     identities: &mut TerminalIdentityTableBuilder,

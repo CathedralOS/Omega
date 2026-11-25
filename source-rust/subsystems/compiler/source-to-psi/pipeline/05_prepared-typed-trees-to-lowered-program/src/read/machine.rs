@@ -4,8 +4,8 @@ gate), their signatures and formals, and
 the driver that reads one body statement by statement.
 */
 
-use crate::lowering::body::Qualification;
-use crate::lowering::selection_questions::TransitionRead;
+use crate::body::Qualification;
+use crate::selection_questions::TransitionRead;
 use crate::source_state::machine::{Machine, MachineBodyStatus, MachinePurpose};
 use crate::source_state::signature::{SignatureContractKind, StateParameter, StateSignature};
 use crate::source_state::state::State;
@@ -20,12 +20,12 @@ use terminal_psi::{CrashPredicateTerm, CrashRouteGuard};
 
 use super::contracts::{ClauseScope, ResultTerm};
 use super::{LocalSummaryBodies, Program, Slot, crash_cause, span};
-use crate::lowering::body::{
+use crate::body::{
     ArmGuard, Body, BorrowedReferent, CrashCeiling, Expression, ExpressionKind, Signature,
     Statement, Target, Termination, ValueType,
 };
-use crate::lowering::canonical::{self, Repeated};
-use crate::lowering::{Binder, MachineNames, SourceOrigin, Unserved, refuse};
+use crate::canonical::{self, Repeated};
+use crate::{Binder, MachineNames, SourceOrigin, Unserved, refuse};
 use source_text::SourceSpan;
 
 /// A declared contract and a callback binder are different abstract targets,
@@ -125,7 +125,7 @@ impl<'t> Program<'t> {
     }
 
     pub(super) fn is_generic_template(&self, machine: &Machine) -> bool {
-        crate::lowering::is_generic_template(self.typed, machine)
+        crate::is_generic_template(self.typed, machine)
     }
 
     pub(super) fn generic_parameters(
@@ -388,7 +388,7 @@ impl<'t> Program<'t> {
             };
             // Application copies are private symbols even when their source
             // declaration is public or belongs to an implementation.
-            let template = crate::lowering::template_of(self.typed, symbol);
+            let template = crate::template_of(self.typed, symbol);
             let declaration = self
                 .typed
                 .machine_by_symbol(template.unwrap_or(symbol))
@@ -1141,13 +1141,13 @@ impl<'t> Program<'t> {
     #[cfg(any(test, feature = "test-support"))]
     pub fn callable_contract(
         &mut self,
-        supplied: crate::lowering::CallableDeclaration<'t>,
+        supplied: crate::CallableDeclaration<'t>,
     ) -> Checked<MachineId> {
         let id = match supplied {
-            crate::lowering::CallableDeclaration::Signature(signature) => {
+            crate::CallableDeclaration::Signature(signature) => {
                 self.witnessed_signature(signature, &[], None)?
             }
-            crate::lowering::CallableDeclaration::Machine(symbol) => {
+            crate::CallableDeclaration::Machine(symbol) => {
                 let id = self.next_identity()?;
                 self.read_machine(id, symbol, Reading::Closed)?;
                 id
@@ -1467,10 +1467,10 @@ impl<'t> Program<'t> {
     }
 
     /// Where `declaration` is written, for a rule it breaks as a whole.
-    pub(super) fn declared_at(&self, declaration: SymbolHandle) -> crate::lowering::SourceOrigin {
+    pub(super) fn declared_at(&self, declaration: SymbolHandle) -> crate::SourceOrigin {
         self.typed.symbols.symbol_source_span(declaration).map_or(
-            crate::lowering::SourceOrigin::Unpositioned(crate::lowering::Unpositioned::SpanAbsent),
-            crate::lowering::SourceOrigin::of,
+            crate::SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent),
+            crate::SourceOrigin::of,
         )
     }
 
@@ -1499,7 +1499,7 @@ impl<'t> Program<'t> {
         // an unsupported preparation request remains an unavailable judgment.
         let source = SourceOrigin::of(row.source_span);
         let mut refusal = if row.request.is_violation() {
-            crate::lowering::reject(id, source, row.request.construct())
+            crate::reject(id, source, row.request.construct())
         } else {
             refuse(
                 id,
@@ -1540,7 +1540,7 @@ impl<'t> Program<'t> {
         // explicit state"). Test retained attachment, not name spelling:
         // module, trait and lexical qualification remain independent.
         if machine.has_data_owner() {
-            return Err(crate::lowering::reject(
+            return Err(crate::reject(
                 id,
                 SourceOrigin::of(
                     self.typed
@@ -1898,7 +1898,7 @@ impl<'t> Program<'t> {
             crate::source_state::types::TypeReferenceHandle,
         )],
     ) -> Checked<(PreparedFormalValues, Vec<super::ConstBinding>)> {
-        use crate::lowering::body::FormalValueShape;
+        use crate::body::FormalValueShape;
 
         let typed = self.typed;
         let mut scope = self.scope.clone();
@@ -1944,7 +1944,7 @@ impl<'t> Program<'t> {
                 TypeReferenceNode::Unit
             );
         let result = result && self.declared_value_shape(id, return_type, &scope)?;
-        let values = crate::lowering::body::formal_value_ids(shapes.iter().copied(), result);
+        let values = crate::body::formal_value_ids(shapes.iter().copied(), result);
         let mut inputs = Vec::new();
         for (position, (symbol, type_reference)) in binders.iter().enumerate() {
             // Dependent integer carriers are read after their width inputs
@@ -2299,7 +2299,7 @@ impl<'t> Program<'t> {
         // explicitly written false promise that the effect is absent.
         let bound =
             |allowed, written: bool| (machine.is_public || written || allowed).then_some(allowed);
-        signature.operational = crate::lowering::body::OperationalCeilings {
+        signature.operational = crate::body::OperationalCeilings {
             suspension: bound(
                 machine.suspends,
                 !machine.suspends_keyword_source_spans.is_empty(),
@@ -2328,7 +2328,7 @@ impl<'t> Program<'t> {
         )?;
         // Diagnostics name the declaration the author wrote, not a clone
         // stage 04 generated from it.
-        let authored = crate::lowering::template_of(self.typed, symbol)
+        let authored = crate::template_of(self.typed, symbol)
             .and_then(|template| self.typed.machine_by_symbol(template))
             .unwrap_or(machine);
         names.machine = authored.name.as_str().to_owned();
@@ -2361,7 +2361,7 @@ impl<'t> Program<'t> {
             // inference; replacing that with the abstract bound would
             // reject a child whose wider bound resolves to a smaller row.
             if !requirement.service_reach_is_installation_bound
-                && !matches!(routed.reaches, crate::lowering::Ceiling::Inferred)
+                && !matches!(routed.reaches, crate::Ceiling::Inferred)
             {
                 signature.reaches = routed.reaches;
             }
@@ -2371,7 +2371,7 @@ impl<'t> Program<'t> {
             if !matches!(routed.crashes, CrashCeiling::Inferred) {
                 signature.crashes = routed.crashes;
             }
-            let witness = crate::lowering::ConformanceWitness {
+            let witness = crate::ConformanceWitness {
                 declaring_trait: owner,
                 requirement: requirement.symbol,
                 implementation: machine.symbol,
@@ -2950,7 +2950,7 @@ impl<'t> Program<'t> {
             self.typed.state_parameters(state),
             true,
         )?;
-        signature.operational = crate::lowering::body::OperationalCeilings {
+        signature.operational = crate::body::OperationalCeilings {
             suspension: Some(machine.suspends),
             blocking: Some(machine.blocks),
         };
@@ -2958,7 +2958,7 @@ impl<'t> Program<'t> {
             [ValueType::Record(record, qualification, _)] if qualification.domains.is_empty() => {
                 matches!(
                     self.data_type(id, *record)?.shape,
-                    crate::lowering::body::StorageShape::ByteSequence(
+                    crate::body::StorageShape::ByteSequence(
                         terminal_psi::ByteSequenceCarrier::BorrowedView {
                             access: Some(terminal_psi::StructuralAccess::SharedBorrow),
                         }
@@ -2977,7 +2977,7 @@ impl<'t> Program<'t> {
             || signature.borrowed.len() != 1
             || signature.borrowed[0].position != 0
             || signature.borrowed[0].access != language_core::ReferenceAccess::Shared
-            || signature.borrowed[0].referent != crate::lowering::body::BorrowedReferent::Slice
+            || signature.borrowed[0].referent != crate::body::BorrowedReferent::Slice
             || self.region_tuple(signature.borrowed[0].regions) != [input_region]
             || self.region_tuple(signature.parameters[0].regions()) != [input_region]
             || !signature.erased.is_empty()
@@ -2985,8 +2985,8 @@ impl<'t> Program<'t> {
             || !signature.requires.is_empty()
             || !signature.ensures.is_empty()
             || signature.crashes != CrashCeiling::DeclaredNone
-            || signature.reaches != crate::lowering::Ceiling::Authored(Vec::new())
-            || signature.invokes != crate::lowering::Ceiling::Authored(Vec::new())
+            || signature.reaches != crate::Ceiling::Authored(Vec::new())
+            || signature.invokes != crate::Ceiling::Authored(Vec::new())
             || signature.termination != Termination::Promised
             || signature.ranking.is_some()
             || machine.suspends
@@ -3050,7 +3050,7 @@ impl<'t> Program<'t> {
         {
             None => Qualification::NONE,
             Some(domain) => Qualification::of_policy(
-                crate::lowering::body::Policy::of_domain(domain).ok_or_else(|| {
+                crate::body::Policy::of_domain(domain).ok_or_else(|| {
                     unavailable("numeric primitive has an unsupported result policy")
                 })?,
             ),
@@ -3066,7 +3066,7 @@ impl<'t> Program<'t> {
             ));
         }
         let signature = Signature {
-            operational: crate::lowering::body::OperationalCeilings {
+            operational: crate::body::OperationalCeilings {
                 suspension: Some(false),
                 blocking: Some(false),
             },
@@ -3097,8 +3097,8 @@ impl<'t> Program<'t> {
                     CrashCeiling::Authored(routes)
                 }
             },
-            reaches: crate::lowering::Ceiling::Authored(Vec::new()),
-            invokes: crate::lowering::Ceiling::Authored(Vec::new()),
+            reaches: crate::Ceiling::Authored(Vec::new()),
+            invokes: crate::Ceiling::Authored(Vec::new()),
             termination: Termination::Promised,
             ranking: None,
         };
@@ -3336,7 +3336,7 @@ impl<'t> Program<'t> {
             )?,
             true,
         )?;
-        signature.operational = crate::lowering::body::OperationalCeilings {
+        signature.operational = crate::body::OperationalCeilings {
             suspension: Some(source.suspends),
             blocking: Some(source.blocks),
         };
@@ -3388,7 +3388,7 @@ impl<'t> Program<'t> {
                 };
                 type_argument_meets_bounds(self.typed, parameter, reference).map_err(|reason| {
                     match reason {
-                        Stop::Rejected(detail) => crate::lowering::reject(
+                        Stop::Rejected(detail) => crate::reject(
                             id,
                             self.declared_at(requirement.symbol),
                             detail,
@@ -3550,11 +3550,11 @@ impl<'t> Program<'t> {
             let access = reference.as_ref().map(|reference| reference.access);
             let borrowed_regions = reference
                 .as_ref()
-                .map_or(crate::lowering::body::Regions::NONE, |reference| {
+                .map_or(crate::body::Regions::NONE, |reference| {
                     reference.regions
                 });
             if let Some(reference) = reference {
-                borrowed.push(crate::lowering::body::Borrowed {
+                borrowed.push(crate::body::Borrowed {
                     position,
                     ..reference
                 });
@@ -3581,7 +3581,7 @@ impl<'t> Program<'t> {
                 homed: false,
                 erased: false,
                 borrowed: None,
-                borrowed_regions: crate::lowering::body::Regions::NONE,
+                borrowed_regions: crate::body::Regions::NONE,
             });
         }
         // An elided lifetime in the result is the one its inputs carry
@@ -3593,7 +3593,7 @@ impl<'t> Program<'t> {
         let result = self.result_type(id, return_type);
         self.elision = inputs;
         let result = result?;
-        let values = crate::lowering::body::formal_values(
+        let values = crate::body::formal_values(
             slots
                 .iter()
                 .map(|slot| (slot.value_type, slot.erased, slot.borrowed.is_some())),
@@ -3876,11 +3876,11 @@ impl<'t> Program<'t> {
                 membership_ensures,
                 requires,
                 ensures,
-                reaches: crate::lowering::Ceiling::Inferred,
+                reaches: crate::Ceiling::Inferred,
                 // The declaration's own reader states this axis: a machine
                 // and a requirement keep their `invokes` rows in different
                 // tables and read omission differently.
-                invokes: crate::lowering::Ceiling::Inferred,
+                invokes: crate::Ceiling::Inferred,
                 crashes,
                 // A requirement's termination is its selected member's to
                 // keep; a machine's is read from its plan by its caller.
@@ -3987,11 +3987,11 @@ impl<'t> Program<'t> {
         let mut nothing = true;
         for conjunct in stated {
             let text = || table.display_name(conjunct);
-            let at = || crate::lowering::SourceOrigin::of(table.source_span(conjunct));
+            let at = || crate::SourceOrigin::of(table.source_span(conjunct));
             match self.clause_truth(conjunct) {
                 Some(TypeTruth::Known(true)) => {}
                 Some(TypeTruth::Known(false)) if requirement && !self.premise_reading => {
-                    return Err(crate::lowering::reject(
+                    return Err(crate::reject(
                         id,
                         at(),
                         format!(
@@ -4010,7 +4010,7 @@ impl<'t> Program<'t> {
                     ));
                 }
                 Some(TypeTruth::Open) if requirement && !self.premise_reading => {
-                    return Err(crate::lowering::reject(
+                    return Err(crate::reject(
                         id,
                         at(),
                         format!(
@@ -4105,7 +4105,7 @@ impl<'t> Program<'t> {
         &mut self,
         id: MachineId,
         formal: &StateParameter,
-    ) -> Checked<(ValueType, bool, Option<crate::lowering::body::Borrowed>)> {
+    ) -> Checked<(ValueType, bool, Option<crate::body::Borrowed>)> {
         if !formal.symbol.is_valid() {
             return Err(refuse(
                 id,
@@ -4254,7 +4254,7 @@ impl<'t> Program<'t> {
         Ok((
             value_type,
             false,
-            Some(crate::lowering::body::Borrowed {
+            Some(crate::body::Borrowed {
                 position: 0,
                 access,
                 referent,
@@ -4423,7 +4423,7 @@ impl<'t> Program<'t> {
                     borrowed,
                     borrowed_regions: signature
                         .borrowed(position)
-                        .map_or(crate::lowering::body::Regions::NONE, |reference| {
+                        .map_or(crate::body::Regions::NONE, |reference| {
                             reference.regions
                         }),
                 }
@@ -4562,7 +4562,7 @@ impl<'t> Program<'t> {
                     let mut expression = self.expression(id, &slots, *expression, expected)?;
                     // The expression is the whole statement, or the machine's
                     // terminal expression: both are suspension positions.
-                    crate::lowering::operational::boundary(&mut expression);
+                    crate::operational::boundary(&mut expression);
                     match (last, signature.result) {
                         (true, Some(result)) => {
                             if !self.agrees(expression.result, Some(result)) {
@@ -5099,7 +5099,7 @@ pub(super) enum Declarer {
 }
 
 struct PreparedFormalValues {
-    shapes: Vec<crate::lowering::body::FormalValueShape>,
+    shapes: Vec<crate::body::FormalValueShape>,
     result: bool,
     values: Vec<Option<ValueId>>,
 }

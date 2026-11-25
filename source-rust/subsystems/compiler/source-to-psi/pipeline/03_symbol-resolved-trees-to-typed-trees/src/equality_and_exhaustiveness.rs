@@ -27,7 +27,7 @@ pub(crate) mod equality {
     */
 
     use crate::source_resolved as resolved;
-    use crate::typing::tables::resolved_statements;
+    use crate::tables::resolved_statements;
     use diagnostics::Diagnostic;
     use resolved::SymbolResolvedTrees;
     use resolved::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
@@ -35,7 +35,7 @@ pub(crate) mod equality {
 
     pub(crate) fn validate_equality_operands_in(
         program: &SymbolResolvedTrees,
-        cohort: &crate::typing::lowerer::TypingCohort<'_>,
+        cohort: &crate::lowerer::TypingCohort<'_>,
     ) -> Result<(), Diagnostic> {
         for (ordinal, machine) in program.machines.iter().enumerate() {
             if ordinal < cohort.machines && !cohort.completes(machine.symbol) {
@@ -299,8 +299,8 @@ pub(crate) mod equality {
 
 pub(crate) mod exhaustiveness {
     use crate::source_resolved as resolved;
-    use crate::typing::expressions::call_results::declared_call_return;
-    use crate::typing::tables::resolved_expressions;
+    use crate::expressions::call_results::declared_call_return;
+    use crate::tables::resolved_expressions;
     use arena::HandleSpan;
     use diagnostics::Diagnostic;
     use resolved::SymbolResolvedTrees;
@@ -314,7 +314,7 @@ pub(crate) mod exhaustiveness {
     #[cfg(test)]
     mod tests {
         use super::*;
-        use crate::typing::lowerer::TypingCohort;
+        use crate::lowerer::TypingCohort;
         use resolved::expression::TableBinaryExpression;
         use resolved::statement::{TableTransition, TransitionTargetNode};
 
@@ -323,11 +323,11 @@ pub(crate) mod exhaustiveness {
             let source = sources
                 .add("coverage/main.omg".into(), text.to_owned())
                 .source_id;
-            let tokens = crate::typing::frontend_fixture::Lexer::new(text)
+            let tokens = crate::frontend_fixture::Lexer::new(text)
                 .tokenize()
                 .unwrap();
             let syntax =
-                crate::typing::frontend_fixture::parse_syntax_trees_with_id(source, &tokens)
+                crate::frontend_fixture::parse_syntax_trees_with_id(source, &tokens)
                     .unwrap();
             let mut request = crate::resolution::ResolutionRequest::new(syntax);
             request.sources = Some(std::sync::Arc::new(sources));
@@ -358,7 +358,7 @@ pub(crate) mod exhaustiveness {
                 "machine covered(value: u32) { transition { value == 0u32 -> {}, value != 0u32 -> {} } }",
             ] {
                 let program = resolve(text);
-                crate::typing::lower_symbol_resolved_trees(&program)
+                crate::lower_symbol_resolved_trees(&program)
                     .expect("one captured value or wildcard has exhaustive coverage");
             }
         }
@@ -379,7 +379,7 @@ pub(crate) mod exhaustiveness {
                 "machine covered(value: u8) { transition { 0 == (value * 0u8) -> {}, 0 != (value * 0u8) -> {} } }",
             ] {
                 let program = resolve(text);
-                crate::typing::lower_symbol_resolved_trees(&program)
+                crate::lower_symbol_resolved_trees(&program)
                     .expect("the same builtin computation covers its complement");
             }
         }
@@ -398,7 +398,7 @@ pub(crate) mod exhaustiveness {
                 "machine covered(value: @mutable bool) { transition { flip(value) == true -> {}, $value == true -> {}, $value == false -> {} } }",
             ] {
                 let program = resolve(&format!("{prefix}{body}"));
-                crate::typing::lower_symbol_resolved_trees(&program).expect(
+                crate::lower_symbol_resolved_trees(&program).expect(
                     "snapshots, complete prefixes and fresh complete suffixes cover arrivals",
                 );
             }
@@ -412,7 +412,7 @@ pub(crate) mod exhaustiveness {
                 "machine covered(flags: @Flags) { let captured: bool = flags.flag; transition { captured == true -> {}, captured == false -> {} } }",
             ] {
                 let program = resolve(&format!("data Flags {{ flag: bool; }} {body}"));
-                crate::typing::lower_symbol_resolved_trees(&program)
+                crate::lower_symbol_resolved_trees(&program)
                     .unwrap_or_else(|error| panic!("{body}: {error:?}"));
             }
         }
@@ -431,7 +431,7 @@ pub(crate) mod exhaustiveness {
                 "data Flags { flag: bool; } data Holder<T> { flag: bool; other: T; } machine covered(flags: @Holder<@mutable Flags>) { transition { flags.flag == true -> {}, noise() == true -> {}, flags.flag == false -> {} } }",
             ] {
                 let program = resolve(&format!("machine noise() -> bool {{ false }} {source}"));
-                crate::typing::lower_symbol_resolved_trees(&program)
+                crate::lower_symbol_resolved_trees(&program)
                     .unwrap_or_else(|error| panic!("{source}: {error:?}"));
             }
         }
@@ -533,7 +533,7 @@ pub(crate) mod exhaustiveness {
                 "machine covered(items: @[bool; 2]) { transition items[0u64] { true -> {}, false -> {} } }",
             ] {
                 let program = resolve(text);
-                crate::typing::lower_symbol_resolved_trees(&program)
+                crate::lower_symbol_resolved_trees(&program)
                     .unwrap_or_else(|error| panic!("{text}: {error:?}"));
             }
         }
@@ -724,7 +724,7 @@ pub(crate) mod exhaustiveness {
 
     pub(crate) fn validate_case_dispatch_exhaustiveness_in(
         program: &SymbolResolvedTrees,
-        cohort: &crate::typing::lowerer::TypingCohort<'_>,
+        cohort: &crate::lowerer::TypingCohort<'_>,
     ) -> Result<(), Diagnostic> {
         for (ordinal, machine) in program.machines.iter().enumerate() {
             if ordinal < cohort.machines && !cohort.completes(machine.symbol) {
@@ -2554,10 +2554,10 @@ pub(crate) mod exhaustiveness {
 pub(crate) mod proposition {
     use crate::source_resolved as resolved;
     use crate::source_state as typed;
-    use crate::typing::expressions::expression::lower_expression_handle_from_table_in_fact_position;
-    use crate::typing::lowerer::Lowerer;
-    use crate::typing::lowerer::name::lower_name;
-    use crate::typing::tables::{expression_table_mut, resolved_expressions};
+    use crate::expressions::expression::lower_expression_handle_from_table_in_fact_position;
+    use crate::lowerer::Lowerer;
+    use crate::lowerer::name::lower_name;
+    use crate::tables::{expression_table_mut, resolved_expressions};
     use diagnostics::Diagnostic;
     use resolved::types::TypeReference;
     use typed::proposition::PropositionBinderArgumentKind as ArgumentKind;
@@ -2986,7 +2986,7 @@ mod equality_identity_tests {
             "/../../../../../../source-rust/subsystems/compiler/source-to-psi/pipeline/03_symbol-resolved-trees-to-typed-trees/tests/fixtures/equality/fail/exact_nested_comparison_mismatch/main.omg"
         ));
         let check = |main| {
-            crate::typing::qualified_operator_home_tests::checked_with_equality(&[
+            crate::qualified_operator_home_tests::checked_with_equality(&[
                 ("points/points.omg", points),
                 ("main.omg", main),
             ])
@@ -3008,7 +3008,7 @@ mod equality_identity_tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../../../../../../source-rust/subsystems/compiler/source-to-psi/pipeline/03_symbol-resolved-trees-to-typed-trees/tests/fixtures/equality/run/closed_generic_comparison/main.omg"
         ));
-        let checked = crate::typing::qualified_operator_home_tests::checked_with_equality(&[(
+        let checked = crate::qualified_operator_home_tests::checked_with_equality(&[(
             "main.omg", accepted,
         )]);
         assert!(checked.is_ok(), "{checked:?}");
@@ -3016,7 +3016,7 @@ mod equality_identity_tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../../../../../../source-rust/subsystems/compiler/source-to-psi/pipeline/03_symbol-resolved-trees-to-typed-trees/tests/fixtures/equality/fail/closed_generic_comparison_wrong_argument/main.omg"
         ));
-        let error = crate::typing::qualified_operator_home_tests::checked_with_equality(&[(
+        let error = crate::qualified_operator_home_tests::checked_with_equality(&[(
             "main.omg", refused,
         )])
         .unwrap_err();
@@ -3032,7 +3032,7 @@ mod equality_identity_tests {
         for name in ["Equatable", "UserComparable"] {
             let source = source.replace("Equatable", name);
             let error =
-                crate::typing::qualified_operator_home_tests::checked(&[("main.omg", &source)])
+                crate::qualified_operator_home_tests::checked(&[("main.omg", &source)])
                     .unwrap_err();
             assert!(error.contains("equals"), "{name}: {error}");
         }
@@ -3041,12 +3041,12 @@ mod equality_identity_tests {
     #[test]
     fn qualified_record_operands_keep_their_exact_domains() {
         let source = "data Point<T> [copy] { x: i32; } domain i32::A; domain i32::B; AEquality satisfies Equatable<Point<i32 in A>> { } machine compare(left: Point<i32 in A>, right: Point<i32 in A>) -> bool { left == right }";
-        let checked = crate::typing::qualified_operator_home_tests::checked_with_equality(&[(
+        let checked = crate::qualified_operator_home_tests::checked_with_equality(&[(
             "main.omg", source,
         )]);
         assert!(checked.is_ok(), "{checked:?}");
         let wrong = source.replace("right: Point<i32 in A>", "right: Point<i32 in B>");
-        let error = crate::typing::qualified_operator_home_tests::checked_with_equality(&[(
+        let error = crate::qualified_operator_home_tests::checked_with_equality(&[(
             "main.omg", &wrong,
         )])
         .unwrap_err();
@@ -3057,13 +3057,13 @@ mod equality_identity_tests {
     fn only_payloadless_sums_have_implicit_data_equality() {
         let source =
             "data Empty { } machine compare(left: Empty, right: Empty) -> bool { left == right }";
-        let error = crate::typing::qualified_operator_home_tests::checked_with_equality(&[(
+        let error = crate::qualified_operator_home_tests::checked_with_equality(&[(
             "main.omg", source,
         )])
         .unwrap_err();
         assert!(error.contains("is not Equatable"), "{error}");
         let sum = "data Tag { case A; case B; } machine compare(left: Tag, right: Tag) -> bool { left == right }";
-        let checked = crate::typing::qualified_operator_home_tests::checked_with_equality(&[(
+        let checked = crate::qualified_operator_home_tests::checked_with_equality(&[(
             "main.omg", sum,
         )]);
         assert!(checked.is_ok(), "{checked:?}");

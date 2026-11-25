@@ -13,8 +13,8 @@ use terminal_psi::{CrashPredicateTerm, CrashRouteGuard};
 
 use super::contracts::{ClauseScope, ResultTerm};
 use super::{Program, Slot, crash_cause, span};
-use crate::lowering::body::{CrashCeiling, Regions, Signature, ValueType};
-use crate::lowering::{Unserved, canonical, refuse};
+use crate::body::{CrashCeiling, Regions, Signature, ValueType};
+use crate::{Unserved, canonical, refuse};
 
 impl<'t> Program<'t> {
     pub(super) fn numeric_contract_sources(
@@ -38,7 +38,7 @@ impl<'t> Program<'t> {
                 borrowed_regions: Regions::NONE,
             })
             .collect();
-        let values = crate::lowering::body::formal_values(
+        let values = crate::body::formal_values(
             slots.iter().map(|slot| (slot.value_type, false, false)),
             signature.result,
         );

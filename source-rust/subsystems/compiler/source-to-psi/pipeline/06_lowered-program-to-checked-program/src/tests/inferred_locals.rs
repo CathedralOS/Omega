@@ -6,10 +6,10 @@ const SOURCE: &str =
 const REPEATED: &str =
     include_str!("../../tests/fixtures/ownership/fail/inferred_generic_record_reuse/main.omg");
 
-fn judged(text: &str) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
+fn judged(text: &str) -> Vec<Result<RouteVerdict, crate::CompilationRefusal>> {
     let typed = crate::preparation::prepare_typed_trees(super::boundary_calls::typed(text), &[], &[])
         .expect("the actual initializer must reach checked preparation");
-    crate::checking::judge_compilation(
+    crate::judge_compilation(
         crate::lowering::prepare_compilation(
             &typed,
             crate::lowering::Compilation {
@@ -50,7 +50,7 @@ fn inferred_locals_keep_actual_generic_results_and_linear_ownership() {
     }
     assert!(
         rejected.iter().any(|verdict| match verdict {
-            Err(crate::checking::CompilationRefusal::Elaboration(refusal))
+            Err(crate::CompilationRefusal::Elaboration(refusal))
             | Ok(RouteVerdict::FallBack(refusal)) => refusal
                 .detail
                 .contains("decomposition source is not a complete live value"),

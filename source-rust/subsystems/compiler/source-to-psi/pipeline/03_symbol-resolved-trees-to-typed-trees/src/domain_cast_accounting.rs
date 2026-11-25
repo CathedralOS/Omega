@@ -29,11 +29,11 @@ use crate::source_state::types::{
     DomainConstraint, DomainConstraintSubject, TypeConstraintNode, TypeReferenceHandle,
     TypeReferenceNode,
 };
-use crate::typing::tables::expression_table;
-use crate::typing::type_reference::domain_constraints::{
+use crate::tables::expression_table;
+use crate::type_reference::domain_constraints::{
     normalize_domain_constraints_for_type, select_domain_candidates, select_domain_candidates_where,
 };
-use crate::typing::typing_queries::declared_expression_type as declared_type;
+use crate::typing_queries::declared_expression_type as declared_type;
 use diagnostics::Diagnostic;
 use language_core::cast_form::{CastEntry, CastEntryKind};
 use numerics::arithmetic::ArithmeticDomain;

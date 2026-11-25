@@ -1,7 +1,7 @@
 //! Transport private member inputs along the lowered component's actual edges.
 
 use super::{CallSites, canonical, conjuncts, describe_calls};
-use crate::checking::{ProofSearchActivity, ReplayScope, Unreached, joins, terminal_machine};
+use crate::{ProofSearchActivity, ReplayScope, Unreached, joins, terminal_machine};
 use arena::IdTable;
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, ContentPlaceVersion, MachineId, PlaceId, Proposition,

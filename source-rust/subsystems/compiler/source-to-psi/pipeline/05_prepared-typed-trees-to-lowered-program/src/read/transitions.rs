@@ -4,7 +4,7 @@ target (a value, a terminal call or Unit) and the crash exit; and dispatch
 over a sum, which stage 01 writes as one guarded transition per case arm.
 */
 
-use crate::lowering::body::Qualification;
+use crate::body::Qualification;
 use crate::source_state::expression::{ExpressionHandle, TableDestructurePattern};
 use crate::source_state::statement::{
     StatementHandle, StatementNode, TableTransition, TransitionExit, TransitionGuardNode,
@@ -16,10 +16,10 @@ use terminal_check_tables::{Checked, Construct};
 use super::authority::Access;
 use super::expressions::{case_test_of, same_computation};
 use super::{Program, Slot, crash_cause};
-use crate::lowering::body::{
+use crate::body::{
     CaseSelector, Expression, ExpressionKind, Statement, Target, ValueType,
 };
-use crate::lowering::{SourceOrigin, Unserved, refuse};
+use crate::{SourceOrigin, Unserved, refuse};
 
 impl Program<'_> {
     /// One transition arm: its guard, read once, and its target. A guard of
@@ -75,7 +75,7 @@ impl Program<'_> {
             (None, []) => Some(String::from("_")),
             (Some(guard), [_]) => match &guard.kind {
                 ExpressionKind::Strict {
-                    operation: crate::lowering::body::Strict::Equal,
+                    operation: crate::body::Strict::Equal,
                     right,
                     ..
                 } => match right.kind {
@@ -284,7 +284,7 @@ impl Program<'_> {
         let mut arms: Vec<(CaseSelector, Target, SourceOrigin)> = Vec::new();
         let mut default = None;
         let mut taken = 0;
-        let mut source = SourceOrigin::Unpositioned(crate::lowering::Unpositioned::SpanAbsent);
+        let mut source = SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent);
         let mut wildcard = None;
         let mut full_cases = Vec::new();
         let is_reflected = self
@@ -374,7 +374,7 @@ impl Program<'_> {
                     if is_reflected {
                         let coverage = reflected_coverage.get_or_insert_with(|| {
                             terminal_semantics::inhabitation::Inhabitation::prepare(
-                                &crate::lowering::inhabitation::SourceContracts(&self.records),
+                                &crate::inhabitation::SourceContracts(&self.records),
                             )
                         });
                         if coverage.as_ref().is_ok_and(|coverage| {
@@ -579,11 +579,11 @@ impl Program<'_> {
                     )?;
                     self.retain_static_reach(id, call, static_reach_binding)?
                 };
-                crate::lowering::operational::retain(&mut call, *operational_acknowledgement, true);
+                crate::operational::retain(&mut call, *operational_acknowledgement, true);
                 call
             }
         };
-        crate::lowering::operational::boundary(&mut target);
+        crate::operational::boundary(&mut target);
         if !self.agrees(target.result, result) {
             return Err(self.mistyped(
                 id,

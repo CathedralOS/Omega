@@ -7,7 +7,7 @@ use terminal_psi::Terminator;
 
 use super::Lowering;
 use super::calls::{Arguments, EvaluatedCallTarget};
-use crate::lowering::{Outcome, Signature, SourceOrigin, canonical};
+use crate::{Outcome, Signature, SourceOrigin, canonical};
 
 impl Lowering<'_> {
     pub(super) fn boundary_signature(&self, boundary: BoundaryMachineId) -> Checked<Signature> {

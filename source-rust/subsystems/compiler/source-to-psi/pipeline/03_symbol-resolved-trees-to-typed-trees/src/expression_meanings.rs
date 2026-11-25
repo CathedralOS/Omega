@@ -21,13 +21,13 @@ pub(crate) fn prepare(
             symbols::SymbolHandle,
         ),
     }
-    let casts = crate::typing::domain_cast_accounting::PreparedCasts::new(program, frontier)?;
+    let casts = crate::domain_cast_accounting::PreparedCasts::new(program, frontier)?;
     let mut sites = casts
         .sites()
         .map(|(handle, position)| (handle, Meaning::Cast(position)))
         .collect::<Vec<_>>();
     sites.extend(
-        crate::typing::operator_calls::sites(program, frontier)
+        crate::operator_calls::sites(program, frontier)
             .into_iter()
             .map(|handle| (handle, Meaning::Operator)),
     );
@@ -101,7 +101,7 @@ pub(crate) fn prepare(
         .collect::<Vec<_>>();
     type_values.sort_unstable_by_key(|expression| expression.arena_index());
     type_values.dedup();
-    let has_memberships = crate::typing::contracts::proof_facts::has_pending_memberships(program);
+    let has_memberships = crate::contracts::proof_facts::has_pending_memberships(program);
     if sites.is_empty() && type_values.is_empty() && !has_memberships {
         return Ok(());
     }
@@ -113,7 +113,7 @@ pub(crate) fn prepare(
         (handle.arena_index(), matches!(meaning, Meaning::Local(..)))
     });
     let owners = crate::source_state::references::collect_program_operand_owners(program);
-    let mut types = crate::typing::typing_queries::DeclaredExpressionTypes::default();
+    let mut types = crate::typing_queries::DeclaredExpressionTypes::default();
     for (handle, meaning) in sites {
         match meaning {
             Meaning::Cast(position) => {
@@ -123,7 +123,7 @@ pub(crate) fn prepare(
                 prepare_member(program, &owners, &mut types, handle, &member)?;
             }
             Meaning::Operator => {
-                crate::typing::operator_calls::prepare_site(program, &owners, &mut types, handle)?
+                crate::operator_calls::prepare_site(program, &owners, &mut types, handle)?
             }
             // A range a declared `[..]` selected is already its call.
             Meaning::Range
@@ -132,7 +132,7 @@ pub(crate) fn prepare(
                     crate::source_state::expression::ExpressionNode::Indexed(_)
                 ) => {}
             Meaning::Range => {
-                crate::typing::constructor_applications::retain_indexed_operand_type(
+                crate::constructor_applications::retain_indexed_operand_type(
                     program, &owners, &mut types, handle,
                 )?;
             }
@@ -165,10 +165,10 @@ pub(crate) fn prepare(
                 .set_constructed_value_type_reference(expression, carrier);
         }
     }
-    crate::typing::contracts::proof_facts::normalize_membership_selections(
+    crate::contracts::proof_facts::normalize_membership_selections(
         source, program, &owners,
     )?;
-    crate::typing::contracts::proof_facts::intern_proof_membership_instances(program, &owners)?;
+    crate::contracts::proof_facts::intern_proof_membership_instances(program, &owners)?;
     Ok(())
 }
 
@@ -177,7 +177,7 @@ pub(crate) fn prepare(
 fn prepare_member(
     program: &mut TypedTrees,
     owners: &crate::source_state::references::ProgramOperandOwners,
-    types: &mut crate::typing::typing_queries::DeclaredExpressionTypes,
+    types: &mut crate::typing_queries::DeclaredExpressionTypes,
     handle: crate::source_state::expression::ExpressionHandle,
     member: &crate::source_state::expression::TableMemberExpression,
 ) -> Result<(), diagnostics::Diagnostic> {
@@ -196,7 +196,7 @@ fn prepare_member(
     if !receivers.all(|other| other == Some(receiver)) {
         return Ok(());
     }
-    let selected = crate::typing::typing_queries::declared_projection_field(
+    let selected = crate::typing_queries::declared_projection_field(
         program,
         receiver,
         member.member.as_str(),
@@ -221,7 +221,7 @@ fn prepare_member(
     if let ExpressionNode::Member(member) = program.expression_table.expression_mut(handle) {
         member.selection = selected;
     }
-    crate::typing::expressions::expression::table::member_binding::finalize_authored_member_selection(
+    crate::expressions::expression::table::member_binding::finalize_authored_member_selection(
         program, handle,
     )
 }

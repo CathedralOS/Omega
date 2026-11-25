@@ -111,7 +111,7 @@ pub(crate) fn forms(
 /// first form with a matching declaration is the occurrence's selection.
 pub(crate) fn selection(
     program: &TypedTrees,
-    types: &mut crate::typing::typing_queries::DeclaredExpressionTypes,
+    types: &mut crate::typing_queries::DeclaredExpressionTypes,
     owner: symbols::SymbolHandle,
     handle: crate::source_state::expression::ExpressionHandle,
 ) -> Result<Option<(SelectedOperator, OperatorForm)>, Diagnostic> {
@@ -289,7 +289,7 @@ pub(crate) fn sites(
 /// selected yet, is not decided here; the lowered-form reader refuses those.
 fn qualified_builtin_operand(
     program: &TypedTrees,
-    types: &mut crate::typing::typing_queries::DeclaredExpressionTypes,
+    types: &mut crate::typing_queries::DeclaredExpressionTypes,
     owner: symbols::SymbolHandle,
     handle: crate::source_state::expression::ExpressionHandle,
     binary: crate::source_state::expression::TableBinaryExpression,
@@ -387,7 +387,7 @@ enum SelectedMeaning {
 
 fn core_application(
     program: &TypedTrees,
-    types: &mut crate::typing::typing_queries::DeclaredExpressionTypes,
+    types: &mut crate::typing_queries::DeclaredExpressionTypes,
     owner: symbols::SymbolHandle,
     binary: crate::source_state::expression::TableBinaryExpression,
 ) -> Option<numerics::intrinsics::CoreIntegerOperatorSignature> {
@@ -495,7 +495,7 @@ fn retain_core_application(
 pub(crate) fn prepare_site(
     program: &mut TypedTrees,
     owners: &crate::source_state::references::ProgramOperandOwners,
-    types: &mut crate::typing::typing_queries::DeclaredExpressionTypes,
+    types: &mut crate::typing_queries::DeclaredExpressionTypes,
     handle: crate::source_state::expression::ExpressionHandle,
 ) -> Result<(), Diagnostic> {
     let span = program.expression_table.source_span(handle);

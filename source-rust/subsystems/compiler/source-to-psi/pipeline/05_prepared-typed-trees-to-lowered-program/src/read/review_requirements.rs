@@ -1,12 +1,12 @@
 //! Retain public requirement contracts before releasing their checked forms.
 
 use super::Program;
-use crate::lowering::body::{Policy, Signature};
-use crate::lowering::publication::{
+use crate::body::{Policy, Signature};
+use crate::publication::{
     RequirementInvocation, RequirementReview, RequirementReviewMetadata, RequirementService,
 };
-use crate::lowering::reach::SourceInvocation;
-use crate::lowering::static_contracts::SourceServiceCeiling;
+use crate::reach::SourceInvocation;
+use crate::static_contracts::SourceServiceCeiling;
 use crate::source_state::signature::StateSignature;
 use crate::source_state::trait_definition::{AppliedTraitScope, TraitDefinition};
 use semantic_vocabulary::MachineId;
@@ -227,7 +227,7 @@ impl Program<'_> {
             return Err("public requirement source and lowered parameter counts differ".to_owned());
         }
         if !rigid_values.is_empty() {
-            use crate::lowering::body::{Qualification, ValueType};
+            use crate::body::{Qualification, ValueType};
             let binders = self
                 .requirement_binders(machine.unwrap_or(context), source)
                 .map_err(|_| "public requirement lost its declared value parameters")?;

@@ -10,7 +10,7 @@ use crate::declaration_selection::BuildOperation;
 use crate::declaration_selection::BuildSelectionRequest;
 use crate::declaration_selection::NativeBindingFormation;
 use crate::declaration_selection::ProductDeclarationRequest;
-use crate::production::{
+use crate::{
     AcceptedTerminalSource, BuildCallSite, ProviderSelectionOption, TerminalBuildBindingCall,
     TerminalBuildBindingOperand, TerminalBuildBindingOperation, TerminalBuildFilesystemCall,
     TerminalBuildFilesystemOperation, TerminalBuildNativeLocator, TerminalBuildQueryCall,
@@ -421,7 +421,7 @@ fn binding(
             .map(|boundary| boundary.id)
             .collect::<Vec<_>>();
         boundaries.sort_unstable();
-        Ok(crate::production::TerminalBuildProviderRequirement {
+        Ok(crate::TerminalBuildProviderRequirement {
             declaration,
             application,
             boundaries,

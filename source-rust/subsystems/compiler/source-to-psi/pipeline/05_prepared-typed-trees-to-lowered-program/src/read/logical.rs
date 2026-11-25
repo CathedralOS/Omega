@@ -5,7 +5,7 @@
 //! Unread theory refuses the witness before proof search, so failure under an
 //! approximation cannot reject source.
 
-use crate::lowering::qualifications::explain_policy_refusal;
+use crate::qualifications::explain_policy_refusal;
 use crate::source_state::data::DataMember;
 use crate::source_state::domain::{ProofFact, ProofMembershipFact};
 use crate::source_state::expression::{ExpressionHandle, ExpressionNode};
@@ -30,11 +30,11 @@ use super::{
     contracts::{ClauseScope, ResultTerm},
     span,
 };
-use crate::lowering::body::{
+use crate::body::{
     Body, CrashCeiling, Expression, ExpressionKind, Qualification, Signature, Termination,
     ValueType,
 };
-use crate::lowering::{
+use crate::{
     CallableArrivalWitness, CallableInputOrigin, MachineNames, NominalPremiseOrigin, SourceOrigin,
     Unserved, refuse,
 };
@@ -426,7 +426,7 @@ impl<'a> LogicalScope<'a> {
         program: &mut Program<'_>,
         scope: &ClauseScope<'_>,
         fact: &ProofMembershipFact,
-    ) -> Checked<(Proposition, crate::lowering::ClauseText)> {
+    ) -> Checked<(Proposition, crate::ClauseText)> {
         self.inputs
             .membership_clause(program, self.machine, scope, fact, self.atoms)
     }
@@ -573,7 +573,7 @@ impl<'a> LogicalScope<'a> {
             })?;
             requires.push((
                 Proposition::Atom(atom),
-                crate::lowering::ClauseText::from(vec![crate::lowering::Piece::Text(format!(
+                crate::ClauseText::from(vec![crate::Piece::Text(format!(
                     "{} in {}",
                     program.typed.symbols.name(membership.subject.root),
                     membership.domain.name.as_str()
@@ -641,21 +641,21 @@ impl<'a> LogicalScope<'a> {
                 }
             }
         }
-        requires.extend(crate::lowering::canonical::associated_clauses(
+        requires.extend(crate::canonical::associated_clauses(
             authored,
-            crate::lowering::canonical::Repeated::Refuse,
+            crate::canonical::Repeated::Refuse,
             machine,
         )?);
-        let (requires, requires_text) = crate::lowering::canonical::associated_clauses(
+        let (requires, requires_text) = crate::canonical::associated_clauses(
             requires,
-            crate::lowering::canonical::Repeated::Merge,
+            crate::canonical::Repeated::Merge,
             machine,
         )?
         .into_iter()
         .unzip();
-        let (ensures, ensures_text) = crate::lowering::canonical::associated_clauses(
+        let (ensures, ensures_text) = crate::canonical::associated_clauses(
             ensures,
-            crate::lowering::canonical::Repeated::Refuse,
+            crate::canonical::Repeated::Refuse,
             machine,
         )?
         .into_iter()
@@ -676,7 +676,7 @@ impl<'a> LogicalScope<'a> {
                 // These are mathematical subjects, never executable storage.
                 // Reference poststate reads refuse at their source occurrence;
                 // the executable closure retains operational admission.
-                operational: crate::lowering::body::OperationalCeilings::default(),
+                operational: crate::body::OperationalCeilings::default(),
                 parameters: inputs
                     .leaves
                     .iter()
@@ -691,8 +691,8 @@ impl<'a> LogicalScope<'a> {
                 crashes: CrashCeiling::Inferred,
                 termination: Termination::Silent,
                 ranking: None,
-                reaches: crate::lowering::Ceiling::Inferred,
-                invokes: crate::lowering::Ceiling::Inferred,
+                reaches: crate::Ceiling::Inferred,
+                invokes: crate::Ceiling::Inferred,
             },
             names,
         ))
@@ -1140,7 +1140,7 @@ impl Inputs {
         scope: &ClauseScope<'_>,
         fact: &ProofMembershipFact,
         atoms: &[NominalKey],
-    ) -> Checked<(Proposition, crate::lowering::ClauseText)> {
+    ) -> Checked<(Proposition, crate::ClauseText)> {
         let unserved = |what| refuse(machine, Construct::Machine, Unserved::Contract(what));
         let logical = scope
             .logical
@@ -1244,7 +1244,7 @@ impl Inputs {
         };
         Ok((
             proposition,
-            crate::lowering::ClauseText::from(vec![crate::lowering::Piece::Text(format!(
+            crate::ClauseText::from(vec![crate::Piece::Text(format!(
                 "{} in {}",
                 program.typed.symbols.name(path.root),
                 membership.domain.name.as_str()
@@ -1261,7 +1261,7 @@ pub(crate) fn projected_arrival(
     projection: &[ParameterOccurrence],
     model: Option<&CallableAddressModel>,
     source: SourceOrigin,
-    captures: crate::lowering::SharedReading,
+    captures: crate::SharedReading,
 ) -> Checked<CallableArrivalWitness> {
     let entry = MachineId::new(1).expect("nonzero identity");
     let callee = MachineId::new(2).expect("nonzero identity");
@@ -1529,7 +1529,7 @@ pub(crate) fn projected_arrival(
     signatures.push(entry_signature.clone());
     signatures.push(callee_signature.clone());
     let mut bodies = IdTable::default();
-    bodies.push(crate::lowering::callable_refinement_body(
+    bodies.push(crate::callable_refinement_body(
         &entry_signature,
         Expression {
             call_context: None,
@@ -1553,7 +1553,7 @@ pub(crate) fn projected_arrival(
         slots: callee_signature.parameters,
         statements: Vec::new(),
     });
-    let mut elaboration = crate::lowering::lower_generic(
+    let mut elaboration = crate::lower_generic(
         entry,
         &bodies,
         &signatures,

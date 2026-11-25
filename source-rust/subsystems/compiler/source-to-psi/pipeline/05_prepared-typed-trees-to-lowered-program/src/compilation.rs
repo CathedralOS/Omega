@@ -20,7 +20,7 @@ type WitnessRow<'source> = (
 /// into checking. Both were minted from the same source owner and traversal.
 pub struct LoweredCompilationWithSource {
     pub program: TerminalCompilation,
-    pub source: crate::lowering::SourceCorrespondence,
+    pub source: crate::SourceCorrespondence,
 }
 
 /// Lower one selected compilation of the source that completed typed
@@ -30,7 +30,7 @@ pub struct LoweredCompilationWithSource {
 /// ```compile_fail,E0308
 /// use std::sync::Arc;
 /// use typed_trees::source_state::FrozenTypedTrees;
-/// use prepared_typed_trees_to_lowered_program::lowering::{Compilation, lower_for_publication};
+/// use prepared_typed_trees_to_lowered_program::{Compilation, lower_for_publication};
 /// fn bypass(snapshot: Arc<FrozenTypedTrees>, roots: Compilation<'_>) {
 ///     let _ = lower_for_publication(snapshot, roots, terminal_codec::TerminalPublication::Portable);
 /// }
@@ -43,8 +43,8 @@ pub struct LoweredCompilationWithSource {
 /// let _ = prepared_source_issuer::PREPARATION;
 /// ```
 pub fn lower_for_publication(
-    owner: crate::lowering::PreparedTypedTrees,
-    compilation: crate::lowering::Compilation<'_>,
+    owner: crate::PreparedTypedTrees,
+    compilation: crate::Compilation<'_>,
     publication: terminal_codec::TerminalPublication,
 ) -> Result<LoweredSourcePublication, Vec<diagnostics::Diagnostic>> {
     let prepared = prepare_compilation(&owner, compilation, publication)?;
@@ -54,10 +54,10 @@ pub fn lower_for_publication(
 /// Bind what `prepare_compilation` derived from `owner` to that owner.
 /// `roster` is the Product roster the roots were borrowed from, when there is one.
 pub(super) fn bind_source(
-    owner: crate::lowering::PreparedTypedTrees,
+    owner: crate::PreparedTypedTrees,
     publication: terminal_codec::TerminalPublication,
     prepared: LoweredCompilationWithSource,
-    roster: Option<crate::lowering::source_roster::SourceCompilationRoster>,
+    roster: Option<crate::source_roster::SourceCompilationRoster>,
 ) -> LoweredSourcePublication {
     LoweredSourcePublication::from_lowering(
         LOWERING,
@@ -75,18 +75,18 @@ pub(super) fn bind_source(
 ///
 /// ```compile_fail,E0308
 /// use typed_trees::source_state::FrozenTypedTrees;
-/// use prepared_typed_trees_to_lowered_program::lowering::{Compilation, prepare_compilation};
+/// use prepared_typed_trees_to_lowered_program::{Compilation, prepare_compilation};
 /// fn bypass(snapshot: &FrozenTypedTrees, roots: Compilation<'_>) {
 ///     let _ = prepare_compilation(snapshot, roots, terminal_codec::TerminalPublication::Portable);
 /// }
 /// ```
 pub fn prepare_compilation(
-    typed: &crate::lowering::PreparedTypedTrees,
-    compilation: crate::lowering::Compilation<'_>,
+    typed: &crate::PreparedTypedTrees,
+    compilation: crate::Compilation<'_>,
     publication: terminal_codec::TerminalPublication,
 ) -> Result<LoweredCompilationWithSource, Vec<diagnostics::Diagnostic>> {
     let typed = typed.trees();
-    match crate::lowering::check_bound_callable_shapes(typed, compilation.bindings) {
+    match crate::check_bound_callable_shapes(typed, compilation.bindings) {
         Ok(failures) if !failures.is_empty() => {
             return Ok(LoweredCompilationWithSource {
                 program: TerminalCompilation::FormationFailures(failures),
@@ -101,7 +101,7 @@ pub fn prepare_compilation(
             });
         }
     }
-    let captures = crate::lowering::shared_reading(typed);
+    let captures = crate::shared_reading(typed);
     let arrivals = compilation
         .bindings
         .iter()
@@ -123,21 +123,21 @@ pub fn prepare_compilation(
                 detail: detail.to_owned(),
             })?;
             let (_, required) = typed.trait_machine_signature(requirement).ok_or_else(|| {
-                crate::lowering::refuse(
+                crate::refuse(
                     semantic_vocabulary::MachineId::new(1).expect("nonzero diagnostic identity"),
                     terminal_check_tables::Construct::Machine,
-                    crate::lowering::Unserved::Contract(
+                    crate::Unserved::Contract(
                         "bound arrival lost its exact source signature",
                     ),
                 )
             })?;
             let source = binding.source_span.map_or(
-                crate::lowering::SourceOrigin::Unpositioned(
-                    crate::lowering::Unpositioned::ConformanceWitness,
+                crate::SourceOrigin::Unpositioned(
+                    crate::Unpositioned::ConformanceWitness,
                 ),
-                crate::lowering::SourceOrigin::Authored,
+                crate::SourceOrigin::Authored,
             );
-            let mut witness = crate::lowering::read::logical::projected_arrival(
+            let mut witness = crate::read::logical::projected_arrival(
                 typed,
                 compilation.purpose,
                 required,
@@ -156,7 +156,7 @@ pub fn prepare_compilation(
     let mut further = Vec::new();
     let mathematical_roots = (compilation.subjects.to_vec(), compilation.purpose);
     let (mut closure, primary_source, signatures, prepared_applications, pending_publication) =
-        match crate::lowering::elaborate_source_for(
+        match crate::elaborate_source_for(
             typed,
             compilation,
             publication,
@@ -178,14 +178,14 @@ pub fn prepare_compilation(
     // The declarations over data that contains itself are read apart from
     // the closure: they become one kernel signature and no operations.
     let mathematics =
-        match crate::lowering::mathematics::read(typed, &mathematical_roots, captures.clone()) {
+        match crate::mathematics::read(typed, &mathematical_roots, captures.clone()) {
             Ok(mathematics) => mathematics,
             Err(mut refused) => {
                 further.append(&mut refused);
                 Default::default()
             }
         };
-    let mut source = crate::lowering::SourceCorrespondence {
+    let mut source = crate::SourceCorrespondence {
         forms: vec![primary_source],
     };
     let mut templates = Vec::new();
@@ -214,14 +214,14 @@ pub fn prepare_compilation(
                 }),
         );
         for (_, symbol) in closure.machines.iter() {
-            let template = crate::lowering::template_of(typed, *symbol);
+            let template = crate::template_of(typed, *symbol);
             // A closed invocation still owes the generic source declaration's
             // universal check, even when no whole-package subject was requested.
             if let Some(template) = template
                 && indexed_templates.insert(template, ()).is_none()
                 && typed
                     .machine_by_symbol(template)
-                    .is_some_and(|machine| crate::lowering::is_generic_template(typed, machine))
+                    .is_some_and(|machine| crate::is_generic_template(typed, machine))
             {
                 templates.push(template);
             }
@@ -239,10 +239,10 @@ pub fn prepare_compilation(
                     .binary_search_by_key(&key, |row| row.key)
                     .map(|position| signatures[position].signature)
                     .map_err(|_| {
-                        crate::lowering::refuse(
+                        crate::refuse(
                             selected.caller,
                             terminal_check_tables::Construct::Machine,
-                            crate::lowering::Unserved::Declaration(
+                            crate::Unserved::Declaration(
                                 "selected witness has no exact source call correspondence",
                             ),
                         )
@@ -303,21 +303,21 @@ pub fn prepare_compilation(
         }
     }
     closure = closure.and_then(|mut elaboration| {
-        crate::lowering::declare::close_specializations(
+        crate::declare::close_specializations(
             &forms,
             prepared_applications,
             &mut elaboration,
         )
         .map_err(|(owner, reason)| {
-            crate::lowering::refuse(
+            crate::refuse(
                 owner,
                 terminal_check_tables::Construct::Machine,
-                crate::lowering::Unserved::Declaration(reason),
+                crate::Unserved::Declaration(reason),
             )
         })?;
         // Proof scope retains the completed callable headers for later
         // admission. Capture commitments are part of those headers.
-        crate::lowering::publication::finalize_source(
+        crate::publication::finalize_source(
             typed,
             &mut elaboration,
             &signatures,
@@ -329,30 +329,30 @@ pub fn prepare_compilation(
     let mut next = 0;
     while next < rows.len() {
         let (declaring_trait, requirement, arguments, implementation, signature) = &rows[next];
-        let prepared = crate::lowering::prepare_witness(
+        let prepared = crate::prepare_witness(
             typed,
             *declaring_trait,
             *requirement,
             arguments,
             *implementation,
             *signature,
-            crate::lowering::WitnessInputs {
+            crate::WitnessInputs {
                 captures: captures.clone(),
                 purpose: compilation.purpose,
                 outcome_subjects: Some(compilation.subjects),
             },
         );
         let prepared = prepared.and_then(|mut prepared| {
-            crate::lowering::declare::close_specializations(
+            crate::declare::close_specializations(
                 &forms,
                 std::mem::take(&mut prepared.prepared_applications),
                 &mut prepared.program,
             )
             .map_err(|(owner, reason)| {
-                crate::lowering::refuse(
+                crate::refuse(
                     owner,
                     terminal_check_tables::Construct::Machine,
-                    crate::lowering::Unserved::Declaration(reason),
+                    crate::Unserved::Declaration(reason),
                 )
             })?;
             prepared.finalize_check_form()
@@ -438,13 +438,13 @@ pub(crate) struct SelectedSourceCall<'source> {
 }
 
 fn selected_signature_key(
-    selected: &crate::lowering::Selected,
+    selected: &crate::Selected,
 ) -> terminal_check_tables::Checked<SelectedSignatureKey> {
     let required = selected.required_contract.ok_or_else(|| {
-        crate::lowering::refuse(
+        crate::refuse(
             selected.caller,
             terminal_check_tables::Construct::Machine,
-            crate::lowering::Unserved::Declaration("selected witness has no public header"),
+            crate::Unserved::Declaration("selected witness has no public header"),
         )
     })?;
     Ok((selected.caller, required, selected.implementation))
@@ -455,8 +455,8 @@ fn selected_signature_key(
 /// independent witnesses. A body's identity cannot choose its public contract.
 pub(crate) fn prepare_selected_signatures<'source>(
     typed: &'source TypedTrees,
-    closure: &crate::lowering::Elaboration,
-    source: &crate::lowering::SourceFormCorrespondence,
+    closure: &crate::Elaboration,
+    source: &crate::SourceFormCorrespondence,
 ) -> terminal_check_tables::Checked<Vec<SelectedSourceCall<'source>>> {
     use crate::source_state::expression::ExpressionNode;
     use terminal_check_tables::Construct;
@@ -489,10 +489,10 @@ pub(crate) fn prepare_selected_signatures<'source>(
         .collect::<Vec<_>>();
     invocations.sort_unstable_by_key(|(site, _, _)| *site);
     if let Some(pair) = invocations.windows(2).find(|pair| pair[0].0 == pair[1].0) {
-        return Err(crate::lowering::refuse(
+        return Err(crate::refuse(
             pair[0].0.0,
             Construct::Machine,
-            crate::lowering::Unserved::Declaration(
+            crate::Unserved::Declaration(
                 "selected source call has duplicate emitted sites",
             ),
         ));
@@ -511,10 +511,10 @@ pub(crate) fn prepare_selected_signatures<'source>(
             continue;
         }
         let unavailable = |reason| {
-            crate::lowering::refuse(
+            crate::refuse(
                 member,
                 Construct::Machine,
-                crate::lowering::Unserved::Declaration(reason),
+                crate::Unserved::Declaration(reason),
             )
         };
         let declaration = closure
@@ -605,10 +605,10 @@ pub(crate) fn prepare_selected_signatures<'source>(
     for pair in signatures.windows(2) {
         if pair[0].key == pair[1].key && pair[0].signature != pair[1].signature {
             let (caller, _, _) = pair[0].key;
-            return Err(crate::lowering::refuse(
+            return Err(crate::refuse(
                 caller,
                 Construct::Machine,
-                crate::lowering::Unserved::Declaration(
+                crate::Unserved::Declaration(
                     "selected witness has different applied public signatures",
                 ),
             ));
@@ -622,10 +622,10 @@ pub(crate) fn prepare_selected_signatures<'source>(
             .binary_search_by_key(&(caller, required, body), |row| row.key)
             .is_err()
         {
-            return Err(crate::lowering::refuse(
+            return Err(crate::refuse(
                 caller,
                 Construct::Machine,
-                crate::lowering::Unserved::Declaration(
+                crate::Unserved::Declaration(
                     "selected witness has no exact source call correspondence",
                 ),
             ));
@@ -638,15 +638,15 @@ fn prepare_generic_forms(
     typed: &TypedTrees,
     purpose: source_provenance::DependencyScope,
     mut templates: Vec<SymbolHandle>,
-    captures: &crate::lowering::SharedReading,
+    captures: &crate::SharedReading,
     publication: terminal_codec::TerminalPublication,
-    source: &mut crate::lowering::SourceCorrespondence,
+    source: &mut crate::SourceCorrespondence,
 ) -> Vec<GenericForms> {
     struct PreparedGeneric<'source> {
         template: SymbolHandle,
         name: String,
         forms: terminal_check_tables::Checked<
-            Vec<crate::lowering::publication::PreparedProgram<'source>>,
+            Vec<crate::publication::PreparedProgram<'source>>,
         >,
         applies: Option<Vec<usize>>,
     }
@@ -654,7 +654,7 @@ fn prepare_generic_forms(
     let mut next = 0;
     while next < templates.len() {
         let template = templates[next];
-        let mut elaborated = crate::lowering::prepare_generic_forms(
+        let mut elaborated = crate::prepare_generic_forms(
             typed,
             purpose,
             &[template],
@@ -695,11 +695,11 @@ fn prepare_generic_forms(
     }
     // Borrow the source forms' actual headers once. Closing applications adds
     // their receipts; it does not change the template's public contract hash.
-    let bases: crate::lowering::declare::TemplateCommitments = prepared
+    let bases: crate::declare::TemplateCommitments = prepared
         .iter()
         .map(|generic| {
             let commitment = match &generic.forms {
-                Ok(forms) => crate::lowering::declare::template_commitment_for(
+                Ok(forms) => crate::declare::template_commitment_for(
                     generic.template,
                     forms.iter().map(|form| &form.program),
                 ),
@@ -715,16 +715,16 @@ fn prepare_generic_forms(
                 let forms = forms
                     .into_iter()
                     .map(|mut prepared| {
-                        crate::lowering::declare::close_specializations_with_bases(
+                        crate::declare::close_specializations_with_bases(
                             &bases,
                             std::mem::take(&mut prepared.prepared_applications),
                             &mut prepared.program,
                         )
                         .map_err(|(owner, reason)| {
-                            crate::lowering::refuse(
+                            crate::refuse(
                                 owner,
                                 terminal_check_tables::Construct::Machine,
-                                crate::lowering::Unserved::Declaration(reason),
+                                crate::Unserved::Declaration(reason),
                             )
                         })?;
                         prepared.finalize_check_form()

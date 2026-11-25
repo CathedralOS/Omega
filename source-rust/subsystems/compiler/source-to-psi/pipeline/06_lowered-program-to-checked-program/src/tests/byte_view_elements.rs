@@ -104,7 +104,7 @@ machine consume(bytes: @[u8]) {}
 /// refusal's text.
 fn verdict(build: &str) -> String {
     match judge_build(build) {
-        Err(crate::checking::CompilationRefusal::Elaboration(refusal))
+        Err(crate::CompilationRefusal::Elaboration(refusal))
         | Ok(RouteVerdict::FallBack(refusal)) => refusal.detail,
         Ok(RouteVerdict::Accepted(accepted)) => {
             accepted.publish_invocation().unwrap();
@@ -550,7 +550,7 @@ fn mutable_windows_reborrow_the_same_backing_without_moving_the_parent() {
     assert!(
         conflicts
             .iter()
-            .any(|conflict| conflict.conflict == crate::checking::LoanConflict::ChangeWhileBorrowed),
+            .any(|conflict| conflict.conflict == crate::LoanConflict::ChangeWhileBorrowed),
         "{conflicts:?}"
     );
 }
@@ -669,7 +669,7 @@ fn prefix_domain_cast_reestablishes_the_predicate_after_explicit_removal() {
     ));
     let prefix_symbol = super::build_purpose::symbol(typed.trees(), "prefix_length");
     let entry = super::build_purpose::symbol(typed.trees(), "build_entry");
-    let verdicts = crate::checking::judge_compilation(
+    let verdicts = crate::judge_compilation(
         crate::lowering::prepare_compilation(
             &typed,
             super::build_purpose::roster(
@@ -947,7 +947,7 @@ fn an_exclusive_array_view_lends_shared_access_after_its_cohort_ends() {
     let rejected = judge_build(&source("demand(@mutable bytes[..]); demand(view);")).unwrap();
     assert!(
         matches!(rejected, RouteVerdict::Rejected { ref conflicts, .. }
-            if conflicts.iter().any(|row| row.conflict == crate::checking::LoanConflict::ExclusiveAndShared)),
+            if conflicts.iter().any(|row| row.conflict == crate::LoanConflict::ExclusiveAndShared)),
         "the written exclusive array formation overlaps the live shared view: {rejected:?}"
     );
     let immutable =
@@ -1462,7 +1462,7 @@ fn a_shared_array_view_cannot_observe_write_only_backing() {
     };
     assert!(
         matches!(refused, RouteVerdict::Rejected { ref conflicts, .. }
-        if conflicts.iter().any(|row| row.conflict == crate::checking::LoanConflict::AccessExceedsParent)),
+        if conflicts.iter().any(|row| row.conflict == crate::LoanConflict::AccessExceedsParent)),
         "expected the source loan authority check to refuse write-only observation: {category}"
     );
 }
@@ -2077,8 +2077,8 @@ machine entry() -> u32 {
     assert!(
         matches!(&verdict, Ok(RouteVerdict::Rejected { conflicts, .. })
             if conflicts.iter().any(|conflict| matches!(conflict.conflict,
-                crate::checking::LoanConflict::ChangeWhileBorrowed
-                | crate::checking::LoanConflict::TwiceExclusive))),
+                crate::LoanConflict::ChangeWhileBorrowed
+                | crate::LoanConflict::TwiceExclusive))),
         "the original owner cannot bypass its still-live view: {verdict:?}"
     );
     let missing = source.replace("index < cells.length", "index <= cells.length");
@@ -2092,7 +2092,7 @@ machine entry() -> u32 {
     let verdict = check(&moving);
     assert!(
         match &verdict {
-            Err(crate::checking::CompilationRefusal::Elaboration(Refusal { detail, .. }))
+            Err(crate::CompilationRefusal::Elaboration(Refusal { detail, .. }))
             | Ok(RouteVerdict::FallBack(Refusal { detail, .. })) =>
                 detail.contains("copying a slice element requires a copyable element type"),
             _ => false,

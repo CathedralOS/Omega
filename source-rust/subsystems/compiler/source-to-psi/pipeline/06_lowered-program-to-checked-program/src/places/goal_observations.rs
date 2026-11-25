@@ -94,7 +94,7 @@ impl Held<'_, '_> {
         &mut self,
         leaf: &Lineage,
         scalar_type: ScalarType,
-    ) -> Result<Vec<ScalarTerm>, crate::checking::Unbound> {
+    ) -> Result<Vec<ScalarTerm>, crate::Unbound> {
         let saved = (self.up_to, self.point);
         let mut observed = leaf.clone();
         let mut alternatives = Vec::new();
@@ -109,7 +109,7 @@ impl Held<'_, '_> {
                         alternatives.dedup();
                         return Ok(alternatives);
                     }
-                    Err(crate::checking::Unbound::Unproved(_)) => {}
+                    Err(crate::Unbound::Unproved(_)) => {}
                     Err(error) => return Err(error),
                 }
                 let storage = self.storage;
@@ -121,7 +121,7 @@ impl Held<'_, '_> {
                         self.up_to,
                         self.concerns,
                     )
-                    .map_err(crate::checking::Unbound::Refused)?;
+                    .map_err(crate::Unbound::Refused)?;
                 let begin = storage.log.partition_point(|row| row.block < self.block);
                 let end = storage.log.partition_point(|row| row.block <= self.block);
                 // The write owner resolved this backing at the store. Its
@@ -130,29 +130,29 @@ impl Held<'_, '_> {
                     .iter()
                     .rev()
                     .find(|row| row.position <= self.up_to && overlap(&row.backing, &backed))
-                    .ok_or(crate::checking::Unbound::Unproved(
+                    .ok_or(crate::Unbound::Unproved(
                         "the scalar observation has no local indexed store correspondence",
                     ))?;
                 let Stored::Value(value) = row.stored else {
-                    return Err(crate::checking::Unbound::Unproved(
+                    return Err(crate::Unbound::Unproved(
                         "the last overlapping store supplies no scalar operand",
                     ));
                 };
                 let written =
                     row.backing
                         .single_place()
-                        .ok_or(crate::checking::Unbound::Unproved(
+                        .ok_or(crate::Unbound::Unproved(
                             "an indexed store has more than one possible cell",
                         ))?;
                 let selected = backed
                     .single_place()
-                    .ok_or(crate::checking::Unbound::Unproved(
+                    .ok_or(crate::Unbound::Unproved(
                         "an indexed observation has more than one possible cell",
                     ))?;
                 if written.root != selected.root
                     || written.segments.len() != selected.segments.len()
                 {
-                    return Err(crate::checking::Unbound::Unproved(
+                    return Err(crate::Unbound::Unproved(
                         "the store and observed cell have different storage paths",
                     ));
                 }
@@ -167,13 +167,13 @@ impl Held<'_, '_> {
                     {
                         selector = Some((*id, *index));
                     } else {
-                        return Err(crate::checking::Unbound::Unproved(
+                        return Err(crate::Unbound::Unproved(
                             "the indexed store has no single-cell correspondence to the observation",
                         ));
                     }
                 }
                 let (selector, observed_index) =
-                    selector.ok_or(crate::checking::Unbound::Unproved(
+                    selector.ok_or(crate::Unbound::Unproved(
                         "the scalar store has no uncertain selector",
                     ))?;
                 let written_index = storage.fixed_write_indices.get(selector).copied().flatten();
@@ -183,22 +183,22 @@ impl Held<'_, '_> {
                     storage.machine,
                     self.concerns,
                 )
-                .map_err(crate::checking::Unbound::Refused)?
+                .map_err(crate::Unbound::Refused)?
                 .scalar_type;
                 if supplied != scalar_type {
-                    return Err(crate::checking::Unbound::Unsupported(
+                    return Err(crate::Unbound::Unsupported(
                         "an indexed store operand has another scalar carrier",
                     ));
                 }
                 let position =
                     row.position
                         .checked_sub(1)
-                        .ok_or(crate::checking::Unbound::Unsupported(
+                        .ok_or(crate::Unbound::Unsupported(
                             "an indexed store has no prestate",
                         ))?;
                 let block = storage
                     .block(self.block)
-                    .map_err(crate::checking::Unbound::Refused)?;
+                    .map_err(crate::Unbound::Refused)?;
                 let before = position
                     .checked_sub(1)
                     .map_or(ProgramPoint::BlockEntry(self.block), |previous| {

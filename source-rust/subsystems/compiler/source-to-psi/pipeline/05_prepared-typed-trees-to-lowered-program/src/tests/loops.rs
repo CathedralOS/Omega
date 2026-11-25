@@ -5,7 +5,7 @@
 use terminal_psi::{ScalarBlockInvariant, TerminalModule};
 
 use super::*;
-use crate::lowering::Elaboration;
+use crate::Elaboration;
 
 fn guarded(guard: Expression, value: Expression) -> Statement {
     Statement::Arm {
@@ -51,7 +51,7 @@ fn elaborate(machines: Vec<(Body, Signature)>) -> terminal_check_tables::Checked
         bodies.push(body);
         signatures.push(signature);
     }
-    crate::lowering::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
+    crate::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
 }
 
 fn machine(module: &TerminalModule, raw: u64) -> &TerminalMachine {
@@ -415,7 +415,7 @@ fn what_the_lane_does_not_serve_yet_on_a_cycle_is_refused_by_name() {
 fn ranked_countdown() -> (Body, Signature) {
     let mut witnessed = signature(vec![u32_type()], Some(u32_type()));
     witnessed.termination = Termination::Promised;
-    witnessed.ranking = Some(crate::lowering::body::Ranking::without_range(vec![slot(
+    witnessed.ranking = Some(crate::body::Ranking::without_range(vec![slot(
         0,
         u32_type(),
     )]));
@@ -565,7 +565,7 @@ fn a_promise_over_a_ranked_loop_is_served_and_over_an_unranked_one_refused() {
     };
     let mut witnessed = signature(vec![u32_type()], Some(u32_type()));
     witnessed.termination = Termination::Promised;
-    witnessed.ranking = Some(crate::lowering::body::Ranking::without_range(vec![slot(
+    witnessed.ranking = Some(crate::body::Ranking::without_range(vec![slot(
         0,
         u32_type(),
     )]));
@@ -596,7 +596,7 @@ fn a_promise_on_a_machine_that_reaches_no_cycle_is_served() {
 #[test]
 fn a_private_countdown_measure_survives_loop_lowering() {
     let mut declared = signature(vec![u32_type()], Some(u32_type()));
-    declared.ranking = Some(crate::lowering::body::Ranking::without_range(vec![slot(
+    declared.ranking = Some(crate::body::Ranking::without_range(vec![slot(
         0,
         u32_type(),
     )]));
@@ -615,10 +615,10 @@ fn ranking_observations_keep_the_selected_arithmetic_policy() {
     let ExpressionKind::Strict { policy, right, .. } = &mut observation.kind else {
         unreachable!()
     };
-    *policy = Some(crate::lowering::body::Policy::Wrapping);
+    *policy = Some(crate::body::Policy::Wrapping);
     **right = integer(0);
     let mut declared = signature(vec![u32_type()], Some(u32_type()));
-    declared.ranking = Some(crate::lowering::body::Ranking::without_range(vec![
+    declared.ranking = Some(crate::body::Ranking::without_range(vec![
         observation,
     ]));
     let lowered = elaborate(vec![countdown(declared)]).expect("the canonical measure lowers");

@@ -22,16 +22,16 @@ pub struct AcceptedTerminalSource {
 pub struct PreparedTerminalPublication {
     kind: terminal_codec::TerminalPublication,
     module: checked_program::CheckedPublicationModule,
-    selections: crate::production::source_selection_publication::PreparedSelections,
+    selections: crate::source_selection_publication::PreparedSelections,
     provenance: psi_publication_records::TerminalMachineProvenance,
-    companions: crate::production::build_companions::BuildCompanions,
+    companions: crate::build_companions::BuildCompanions,
     source_records: Vec<crate::source_state::SourceRecordCorrespondence>,
 }
 
 impl PreparedTerminalPublication {
     /// The Build program’s host requirements, derived from its prepared calls.
-    pub fn build_protocol_use(&self) -> crate::production::BuildProtocolUse {
-        crate::production::BuildProtocolUse {
+    pub fn build_protocol_use(&self) -> crate::BuildProtocolUse {
+        crate::BuildProtocolUse {
             reaches_outside: self.companions.unowned != 0,
             filesystem: !self.companions.filesystem.is_empty(),
         }
@@ -39,9 +39,9 @@ impl PreparedTerminalPublication {
 
     pub fn publish(
         self,
-        applications: &[crate::production::TerminalApplicationCustody<'_>],
+        applications: &[crate::TerminalApplicationCustody<'_>],
         timings: &mut artifacts::compile_timings::CompileTimings,
-    ) -> Result<crate::production::ProducedTerminalProgram, Vec<Diagnostic>> {
+    ) -> Result<crate::ProducedTerminalProgram, Vec<Diagnostic>> {
         let (program, evidence) =
             timings.record_result(artifacts::compile_timings::source::PUBLISH, || {
                 let published = match self.kind {
@@ -73,7 +73,7 @@ impl PreparedTerminalPublication {
                     ))]
                 })
             })?;
-        let source_selections = crate::production::TerminalSourceSelections::new(
+        let source_selections = crate::TerminalSourceSelections::new(
             program.view(),
             self.selections.questions,
             self.selections.invocation_consent,
@@ -84,7 +84,7 @@ impl PreparedTerminalPublication {
         let applications = applications
             .iter()
             .map(|application| {
-                crate::production::application::attach(
+                crate::application::attach(
                     application,
                     program.view(),
                     program.portable(),
@@ -93,7 +93,7 @@ impl PreparedTerminalPublication {
                 )
             })
             .collect();
-        crate::production::build_bindings::validate_companions(
+        crate::build_bindings::validate_companions(
             program.view(),
             &companions.bindings,
             &companions.queries,
@@ -101,7 +101,7 @@ impl PreparedTerminalPublication {
             &companions.filesystem,
         )
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        let build_bindings = crate::production::TerminalBuildBindings::new(
+        let build_bindings = crate::TerminalBuildBindings::new(
             program.view(),
             companions.bindings,
             companions.declarations,
@@ -109,10 +109,10 @@ impl PreparedTerminalPublication {
             companions.native_formations,
         );
         let build_requests =
-            crate::production::TerminalBuildRequests::new(program.view(), companions.requests);
+            crate::TerminalBuildRequests::new(program.view(), companions.requests);
         let build_filesystem =
-            crate::production::TerminalBuildFilesystem::new(program.view(), companions.filesystem);
-        Ok(crate::production::ProducedTerminalProgram {
+            crate::TerminalBuildFilesystem::new(program.view(), companions.filesystem);
+        Ok(crate::ProducedTerminalProgram {
             program,
             evidence: Some(Arc::new(evidence)),
             build_bindings,
@@ -187,7 +187,7 @@ impl AcceptedTerminalSource {
     ///
     /// ```compile_fail,E0308
     /// use checked_program_to_psi::AcceptedTerminalSource;
-    /// use lowered_program_to_checked_program::checking::judge_publication;
+    /// use lowered_program_to_checked_program::judge_publication;
     /// use terminal_check_tables::compilation::{CompilationForPublication, TerminalCompilation};
     /// use lowered_source_publication::LoweredSourcePublication;
     ///
@@ -295,7 +295,7 @@ impl AcceptedTerminalSource {
             ))]
         })?;
         let elaboration = self.closure.elaboration();
-        let selections = crate::production::source_selection_publication::prepare(
+        let selections = crate::source_selection_publication::prepare(
             self,
             module.module(),
             invocation_sources,
@@ -320,7 +320,7 @@ impl AcceptedTerminalSource {
             Some(entry) => provenance.for_root(&elaboration.module, entry, None),
             None => provenance,
         };
-        let companions = crate::production::build_companions::produce(self, module.module())
+        let companions = crate::build_companions::produce(self, module.module())
             .map_err(|diagnostic| vec![diagnostic])?;
         Ok(PreparedTerminalPublication {
             kind: self.publication,
@@ -334,9 +334,9 @@ impl AcceptedTerminalSource {
 
     pub fn produce(
         &self,
-        custody: crate::production::TerminalProductionCustody<'_>,
+        custody: crate::TerminalProductionCustody<'_>,
         timings: &mut artifacts::compile_timings::CompileTimings,
-    ) -> Result<crate::production::ProducedTerminalProgram, Vec<Diagnostic>> {
+    ) -> Result<crate::ProducedTerminalProgram, Vec<Diagnostic>> {
         self.prepare_publication(custody.invocation_sources)?
             .publish(custody.applications, timings)
     }
@@ -450,7 +450,7 @@ impl AcceptedTerminalSource {
     pub fn boundary_calls_reached(
         &self,
         entry: semantic_vocabulary::MachineId,
-        implementations: &[crate::production::CallableBoundaryImplementation],
+        implementations: &[crate::CallableBoundaryImplementation],
         target: Option<&str>,
     ) -> Result<Vec<semantic_vocabulary::BoundaryMachineId>, Diagnostic> {
         Ok(self
@@ -464,7 +464,7 @@ impl AcceptedTerminalSource {
     pub fn boundary_call_reach(
         &self,
         entry: semantic_vocabulary::MachineId,
-        implementations: &[crate::production::CallableBoundaryImplementation],
+        implementations: &[crate::CallableBoundaryImplementation],
         target: Option<&str>,
     ) -> Result<terminal_semantics::callable_values::ReachedBoundaryCalls, Diagnostic> {
         psi_provider_selections::logical_reach::boundary_call_reach(
@@ -507,7 +507,7 @@ impl AcceptedTerminalSource {
         &self,
         package: semantic_vocabulary::PackageKeyIdentity,
         declaration_path: &str,
-    ) -> Result<crate::production::ProducedBuildProvider, Vec<Diagnostic>> {
+    ) -> Result<crate::ProducedBuildProvider, Vec<Diagnostic>> {
         let refuse = |reason: &str| vec![Diagnostic::error(reason)];
         let source = self.source();
         let selected = build_backing(source, package, declaration_path)?;
@@ -554,7 +554,7 @@ impl AcceptedTerminalSource {
         } else {
             None
         };
-        Ok(crate::production::ProducedBuildProvider::new(
+        Ok(crate::ProducedBuildProvider::new(
             code,
             declaration_path.to_owned(),
             package,
@@ -767,7 +767,7 @@ mod tests {
         drop(accepted);
         assert!(owner.upgrade().is_none());
         let missing = terminal_psi::PreparedNominalRoot::new("absent", "absent", None).unwrap();
-        let application = crate::production::TerminalApplicationCustody::prepare(
+        let application = crate::TerminalApplicationCustody::prepare(
             Ok(missing),
             Some([7; 32]),
             Some(Default::default()),
@@ -821,11 +821,11 @@ mod tests {
                 source_provenance::DependencyScope::Product,
             )
             .source_id;
-        let tokens = crate::production::frontend_fixture::Lexer::new(&text)
+        let tokens = crate::frontend_fixture::Lexer::new(&text)
             .tokenize()
             .unwrap();
         let syntax =
-            crate::production::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
+            crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
         let resolved = crate::resolution::resolve(crate::resolution::ResolutionRequest {
             syntax,
             sources: Some(Arc::new(sources)),

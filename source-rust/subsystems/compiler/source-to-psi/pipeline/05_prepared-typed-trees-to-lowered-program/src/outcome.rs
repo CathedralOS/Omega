@@ -45,13 +45,13 @@ use semantic_vocabulary::{CrashCause, MachineId, ServiceId};
 use terminal_check_tables::{Checked, Construct};
 use terminal_psi::{CrashRouteBucket, CrashRouteGuard};
 
-use crate::lowering::body::{
+use crate::body::{
     Axis, Body, CallTarget, Ceiling, CrashCeiling, Expression, ExpressionKind, Signatures,
     Statement, Target,
 };
-use crate::lowering::canonical;
-use crate::lowering::components::{Components, index};
-use crate::lowering::{Unserved, refuse};
+use crate::canonical;
+use crate::components::{Components, index};
+use crate::{Unserved, refuse};
 use terminal_check_tables::Refusal;
 
 /// Call-visible outcomes in this compilation's fixed source unit.
@@ -107,7 +107,7 @@ pub(crate) fn outcomes(
     bodies: &IdTable<MachineId, Body>,
     signatures: Signatures<'_>,
     requirements: &[MachineId],
-    callables: &crate::lowering::callables::CallableNamespace,
+    callables: &crate::callables::CallableNamespace,
     local_bodies: Option<&[MachineId]>,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
     components: &Components,
@@ -136,7 +136,7 @@ pub(crate) fn counted_outcomes(
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
     by_rounds: bool,
 ) -> Checked<(IdTable<MachineId, Outcome>, usize)> {
-    let callables = crate::lowering::callables::CallableNamespace::default();
+    let callables = crate::callables::CallableNamespace::default();
     let mut walk = Walk::new(
         bodies,
         signatures,
@@ -156,7 +156,7 @@ pub(crate) fn counted_outcomes(
             }
         }
     } else {
-        walk.settle(bodies, &crate::lowering::components::discover(bodies)?)?;
+        walk.settle(bodies, &crate::components::discover(bodies)?)?;
     }
     Ok((walk.table()?, walk.visits))
 }
@@ -217,7 +217,7 @@ impl CaseProgress {
 
 struct Walk<'b> {
     signatures: Signatures<'b>,
-    callables: &'b crate::lowering::callables::CallableNamespace,
+    callables: &'b crate::callables::CallableNamespace,
     /// Whether a machine's normal-completion inference is its own body's.
     local: IdTable<MachineId, bool>,
     inhabitation: &'b terminal_semantics::inhabitation::Inhabitation,
@@ -239,7 +239,7 @@ impl<'b> Walk<'b> {
         bodies: &IdTable<MachineId, Body>,
         signatures: Signatures<'b>,
         requirements: &'b [MachineId],
-        callables: &'b crate::lowering::callables::CallableNamespace,
+        callables: &'b crate::callables::CallableNamespace,
         local_bodies: Option<&[MachineId]>,
         inhabitation: &'b terminal_semantics::inhabitation::Inhabitation,
     ) -> Checked<Self> {
@@ -339,7 +339,7 @@ impl<'b> Walk<'b> {
         self.causes.clear();
         self.contributed = Default::default();
         self.operational = [false; 2];
-        let declared_empty = crate::lowering::inhabitation::excludes_result(
+        let declared_empty = crate::inhabitation::excludes_result(
             self.inhabitation,
             self.signatures.get(machine.into(), machine)?.result,
         );
@@ -657,7 +657,7 @@ impl<'b> Walk<'b> {
                         break;
                     }
                     completes |= self.expression(machine, arm)?;
-                    if let crate::lowering::body::Selector::Case(case) = selector
+                    if let crate::body::Selector::Case(case) = selector
                         && case.condition.is_none()
                     {
                         ended_cases.close(case.case);
@@ -715,7 +715,7 @@ impl<'b> Walk<'b> {
             } => {
                 let completes =
                     self.expression(machine, left)? && self.expression(machine, right)?;
-                if *policy == Some(crate::lowering::body::Policy::Trapping) {
+                if *policy == Some(crate::body::Policy::Trapping) {
                     self.causes.insert(CrashCause::Trap);
                 }
                 Ok(completes)
@@ -855,7 +855,7 @@ impl<'b> Walk<'b> {
                 let signature =
                     self.signatures
                         .invocation((*callee).into(), *required_contract, machine)?;
-                let completes = !crate::lowering::inhabitation::excludes_result(
+                let completes = !crate::inhabitation::excludes_result(
                     self.inhabitation,
                     signature.result,
                 ) && !terminal_semantics::inhabitation::predicates_are_false(

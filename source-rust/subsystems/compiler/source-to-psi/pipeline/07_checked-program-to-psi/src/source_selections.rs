@@ -214,11 +214,11 @@ mod tests {
                     source_provenance::DependencyScope::Product,
                 )
                 .source_id;
-            let tokens = crate::production::frontend_fixture::Lexer::new(text)
+            let tokens = crate::frontend_fixture::Lexer::new(text)
                 .tokenize()
                 .unwrap();
             let syntax =
-                crate::production::frontend_fixture::parse_syntax_trees_with_id(id, &tokens)
+                crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens)
                     .unwrap();
             let mut request = crate::resolution::ResolutionRequest::new(syntax);
             request.sources = Some(Arc::new(sources));
@@ -240,7 +240,7 @@ mod tests {
             let frozen = crate::preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
             let accepted = crate::judge_fixture(
                 frozen,
-                crate::production::TerminalSourceCompilation {
+                crate::TerminalSourceCompilation {
                     declaration_metadata: &[],
                     entries: &[entry],
                     subjects: &[None],
@@ -328,11 +328,11 @@ mod tests {
             )
             .source_id;
         let sources = Arc::new(sources);
-        let tokens = crate::production::frontend_fixture::Lexer::new(text)
+        let tokens = crate::frontend_fixture::Lexer::new(text)
             .tokenize()
             .unwrap();
         let syntax =
-            crate::production::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
+            crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
         let mut request = crate::resolution::ResolutionRequest::new(syntax);
         request.sources = Some(Arc::clone(&sources));
         let resolved = crate::resolution::resolve(request).unwrap();
@@ -341,7 +341,7 @@ mod tests {
         let frozen = crate::preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
         let accepted = crate::judge_fixture(
             frozen,
-            crate::production::TerminalSourceCompilation {
+            crate::TerminalSourceCompilation {
                 declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[None],
@@ -362,7 +362,7 @@ mod tests {
         let produce = |consent: Option<&dyn crate::source_inputs::InvocationSourceConsent>| {
             accepted
                 .produce(
-                    crate::production::TerminalProductionCustody {
+                    crate::TerminalProductionCustody {
                         invocation_sources: consent,
                         ..Default::default()
                     },

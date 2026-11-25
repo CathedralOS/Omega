@@ -1,5 +1,12 @@
 #![forbid(unsafe_code)]
 
+// Crate-wide aliases for sibling stages and the shared test fixtures.
+use source_declarations::{declaration_selection, source_selections};
+#[cfg(test)]
+use source_symbol_table::source_inputs;
+use source_symbol_table::{source_symbols, source_tables};
+use typed_trees::source_state;
+
 /*
 We lower prepared typed trees into an unsealed Terminal Psi module and its
 check tables. Each operation that owes a proof records the obligation at
@@ -1270,7 +1277,7 @@ fn finish_reading_into<'source>(
             )
         })?,
     );
-    crate::lowering::reach::publish(entry, &services, &mut elaboration)?;
+    crate::reach::publish(entry, &services, &mut elaboration)?;
     calling_abis.publish(&mut elaboration.module)?;
     program.publish_record_layouts(diagnostic, &mut elaboration.module)?;
     let declaration_error = |reason| {
@@ -2231,8 +2238,8 @@ mod publication_scope_tests {
             requires: Vec::new(),
             ensures: Vec::new(),
             membership_ensures: Vec::new(),
-            reaches: crate::lowering::Ceiling::Inferred,
-            invokes: crate::lowering::Ceiling::Inferred,
+            reaches: crate::Ceiling::Inferred,
+            invokes: crate::Ceiling::Inferred,
             crashes: CrashCeiling::Authored(Vec::new()),
             termination: Termination::Silent,
             ranking: None,

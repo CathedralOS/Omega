@@ -718,7 +718,7 @@ fn zero_reads_derive_their_value_only_from_the_establishing_store() {
         let read = field_reads(&compact)[0];
         discharge(
             &mut compact,
-            &mut crate::checking::ProofSearchActivity::default(),
+            &mut crate::ProofSearchActivity::default(),
         )
         .unwrap();
         let tables = compact.tables.machines.get(id(1)).unwrap();
@@ -928,7 +928,7 @@ fn a_borrowed_zero_read_uses_its_actual_backing_and_keeps_later_writes() {
             &["entry"],
             terminal_codec::TerminalPublication::Invocation,
         );
-        let verdicts = crate::checking::judge_compilation(compilation);
+        let verdicts = crate::judge_compilation(compilation);
         assert!(!verdicts.is_empty());
         if field == "y" {
             assert!(

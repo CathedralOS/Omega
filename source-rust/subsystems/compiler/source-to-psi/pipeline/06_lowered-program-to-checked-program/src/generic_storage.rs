@@ -6,10 +6,10 @@ use semantic_vocabulary::MachineId;
 use terminal_check_tables::{Checked, Construct, RefusalReason};
 use terminal_psi::StructuralTypeShape;
 
-pub(crate) fn declared(elaboration: &crate::checking::Elaboration) -> Checked<()> {
+pub(crate) fn declared(elaboration: &crate::Elaboration) -> Checked<()> {
     let machine = MachineId::new(1).expect("one is nonzero");
     let fault = |detail| {
-        crate::checking::refusal(
+        crate::refusal(
             RefusalReason::ForeignIdentity,
             machine,
             Construct::Machine,

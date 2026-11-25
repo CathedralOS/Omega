@@ -16,7 +16,7 @@ use super::*;
 /// for one it judges wrong, else the refusal's text.
 fn verdict(build: &str) -> String {
     match judge_build(build) {
-        Err(crate::checking::CompilationRefusal::Elaboration(refusal))
+        Err(crate::CompilationRefusal::Elaboration(refusal))
         | Ok(RouteVerdict::FallBack(refusal)) => refusal.detail,
         Ok(RouteVerdict::Accepted(accepted)) => {
             accepted.publish_invocation().unwrap();
@@ -48,7 +48,7 @@ fn published_label_signature(source: &str) -> (Vec<String>, String, [u8; 32]) {
         terminal_codec::TerminalPublication::Portable,
     )
     .expect("fixture must lower to checker input");
-    let mut verdicts = crate::checking::judge_compilation(input.program);
+    let mut verdicts = crate::judge_compilation(input.program);
     assert_eq!(verdicts.len(), 1);
     let verdict = verdicts.remove(0);
     let Ok(RouteVerdict::Accepted(accepted)) = verdict else {

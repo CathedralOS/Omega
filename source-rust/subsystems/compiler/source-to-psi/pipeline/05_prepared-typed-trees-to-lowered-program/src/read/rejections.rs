@@ -6,8 +6,8 @@ The reader computes each supported expression's type while resolving its
 body, so receiving-type comparisons share this diagnostic owner. Differences
 it cannot judge (a view whose region it does not follow, for example) stay
 refusals
-(`crate::lowering::refuse`, "not supported yet"). A difference is a rejection
-(`crate::lowering::reject`) only when the specification defines the error for every
+(`crate::refuse`, "not supported yet"). A difference is a rejection
+(`crate::reject`) only when the specification defines the error for every
 program of that form, and each rule here names its sentence:
 
 - `wiki/spec/language/numeric_values.md`, "Integer equality and order":
@@ -45,7 +45,7 @@ program of that form, and each rule here names its sentence:
 
 Every other rejection is made where its rule is checked (`casts`,
 `contracts`, a domain name nothing declares in `types`, an `invokes` row
-naming nothing in `services`), through the same `crate::lowering::reject`.
+naming nothing in `services`), through the same `crate::reject`.
 */
 
 use semantic_vocabulary::{IeeeFloatFormat, IntegerSign, IntegerWidth, MachineId, ScalarType};
@@ -53,8 +53,8 @@ use terminal_check_tables::{Construct, Refusal};
 
 use super::Program;
 use super::regions::Region;
-use crate::lowering::body::{Policy, Qualification, ValueType};
-use crate::lowering::{SourceOrigin, Unserved, refuse, reject};
+use crate::body::{Policy, Qualification, ValueType};
+use crate::{SourceOrigin, Unserved, refuse, reject};
 
 /// What a value is supplied to, for the rules above.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -162,9 +162,9 @@ impl Program<'_> {
             };
             if !matches!(
                 self.records.get(record)?.shape,
-                crate::lowering::StorageShape::Record(_)
-                    | crate::lowering::StorageShape::Sum(_)
-                    | crate::lowering::StorageShape::Opaque
+                crate::StorageShape::Record(_)
+                    | crate::StorageShape::Sum(_)
+                    | crate::StorageShape::Opaque
             ) {
                 return None;
             }
@@ -440,7 +440,7 @@ impl Program<'_> {
     }
 
     /// One declared domain as a diagnostic names it.
-    pub(crate) fn domain_named(&self, domain: crate::lowering::body::DomainInstance) -> String {
+    pub(crate) fn domain_named(&self, domain: crate::body::DomainInstance) -> String {
         match self.typed.domain_definition(domain.declaration) {
             Some(definition) => {
                 match self
@@ -593,7 +593,7 @@ mod tests {
                     }
                     let refusal = program.mistyped(
                         MachineId::new(1).unwrap(),
-                        SourceOrigin::Unpositioned(crate::lowering::Unpositioned::SpanAbsent),
+                        SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent),
                         destination,
                         Some(ValueType::plain(expected)),
                         Some(ValueType::plain(found)),
@@ -626,7 +626,7 @@ mod tests {
         ));
         let refusal = program.mistyped(
             MachineId::new(1).unwrap(),
-            SourceOrigin::Unpositioned(crate::lowering::Unpositioned::SpanAbsent),
+            SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent),
             Destination::Result,
             Some(ValueType::plain(ScalarType::Boolean)),
             Some(ValueType::plain(open_integer)),
@@ -640,7 +640,7 @@ mod tests {
 
     #[test]
     fn a_fixed_array_length_mismatch_names_both_lengths() {
-        use crate::lowering::body::{RecordType, StorageShape};
+        use crate::body::{RecordType, StorageShape};
         use terminal_psi::ArrayExtent;
         let typed = TypedTrees::default();
         let mut program = Program::new(&typed, false);
@@ -681,7 +681,7 @@ mod tests {
         let mismatch = |actual| {
             program.mistyped(
                 id,
-                SourceOrigin::Unpositioned(crate::lowering::Unpositioned::SpanAbsent),
+                SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent),
                 Destination::Parameter,
                 Some(four),
                 Some(actual),
@@ -716,7 +716,7 @@ mod tests {
         ] {
             let refusal = program.mistyped(
                 MachineId::new(1).unwrap(),
-                SourceOrigin::Unpositioned(crate::lowering::Unpositioned::SpanAbsent),
+                SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent),
                 Destination::Result,
                 expected,
                 found,

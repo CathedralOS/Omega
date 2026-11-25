@@ -12,8 +12,8 @@
 // the result against the specialization's own goal and hypotheses.
 
 use super::*;
-use crate::checking::ProofSearchActivity;
-use crate::checking::reverify_specialization;
+use crate::ProofSearchActivity;
+use crate::reverify_specialization;
 
 fn below(left: ScalarTerm, right: ScalarTerm) -> Proposition {
     Proposition::LessOrEqual(left, right)
@@ -49,8 +49,8 @@ fn carried(
 ) {
     let mut consumer = lower(vec![specialization]).unwrap();
     let mut activity = ProofSearchActivity::default();
-    let generic = crate::checking::prepare_replay(form, &mut activity).unwrap();
-    let mut replay = crate::checking::prepare_replay(&mut consumer, &mut activity).unwrap();
+    let generic = crate::prepare_replay(form, &mut activity).unwrap();
+    let mut replay = crate::prepare_replay(&mut consumer, &mut activity).unwrap();
     let before = activity.started();
     let verdicts = reverify_specialization(
         &generic,
@@ -307,8 +307,8 @@ fn actual_width_carry_refuses_a_foreign_owner_or_disagreeing_value_carriers() {
         .unwrap()
         .scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap());
     let mut activity = ProofSearchActivity::default();
-    let generic = crate::checking::prepare_replay(&mut form, &mut activity).unwrap();
-    let mut replay = crate::checking::prepare_replay(&mut consumer, &mut activity).unwrap();
+    let generic = crate::prepare_replay(&mut form, &mut activity).unwrap();
+    let mut replay = crate::prepare_replay(&mut consumer, &mut activity).unwrap();
     let before = activity.started();
     let moved = reverify_specialization(
         &generic,
@@ -339,10 +339,10 @@ fn width_form_without_discharge(requires_positive: bool) -> crate::lowering::Ela
 #[test]
 fn a_width_question_cannot_turn_a_runtime_input_into_a_static_width() {
     let form = width_form_without_discharge(true);
-    crate::checking::minted::width_questions_are_minted(&form).unwrap();
+    crate::minted::width_questions_are_minted(&form).unwrap();
     let mut runtime = form.clone();
     *runtime.value_parameters.get_mut(id(1)).unwrap() = 0;
-    assert!(crate::checking::minted::width_questions_are_minted(&runtime).is_err());
+    assert!(crate::minted::width_questions_are_minted(&runtime).is_err());
     let mut foreign = form;
     foreign.module.machines[0].contract.parameters[0].scalar_type =
         ScalarType::Integer(IntegerType::parameterized(
@@ -352,7 +352,7 @@ fn a_width_question_cannot_turn_a_runtime_input_into_a_static_width() {
                 value: id(2),
             },
         ));
-    assert!(crate::checking::minted::width_questions_are_minted(&foreign).is_err());
+    assert!(crate::minted::width_questions_are_minted(&foreign).is_err());
 }
 
 #[test]
@@ -378,7 +378,7 @@ fn width_questions_are_exact_and_cannot_move_after_the_entry() {
             .map(|(id, row)| (id, *row)),
     )
     .unwrap();
-    assert!(crate::checking::minted::width_questions_are_minted(&omitted).is_err());
+    assert!(crate::minted::width_questions_are_minted(&omitted).is_err());
     let mut duplicate = form.clone();
     duplicate
         .tables
@@ -387,7 +387,7 @@ fn width_questions_are_exact_and_cannot_move_after_the_entry() {
         .unwrap()
         .obligations
         .push(row);
-    assert!(crate::checking::minted::width_questions_are_minted(&duplicate).is_err());
+    assert!(crate::minted::width_questions_are_minted(&duplicate).is_err());
     let mut moved = form.clone();
     moved
         .tables
@@ -398,7 +398,7 @@ fn width_questions_are_exact_and_cannot_move_after_the_entry() {
         .get_mut(obligation)
         .unwrap()
         .created_at = ProgramPoint::Edge(id(1));
-    assert!(crate::checking::minted::width_questions_are_minted(&moved).is_err());
+    assert!(crate::minted::width_questions_are_minted(&moved).is_err());
     let mut extra = form;
     extra
         .tables
@@ -409,7 +409,7 @@ fn width_questions_are_exact_and_cannot_move_after_the_entry() {
         .get_mut(obligation)
         .unwrap()
         .kind = ObligationKind::IntegerWidthPositive { parameter: id(1) };
-    assert!(crate::checking::minted::width_questions_are_minted(&extra).is_err());
+    assert!(crate::minted::width_questions_are_minted(&extra).is_err());
 }
 
 #[test]
@@ -417,7 +417,7 @@ fn a_width_body_needs_its_own_positive_width_proof() {
     let mut valid = width_form_without_discharge(true);
     let found = discharge(
         &mut valid,
-        &mut crate::checking::ProofSearchActivity::default(),
+        &mut crate::ProofSearchActivity::default(),
     )
     .unwrap();
     assert!(
@@ -431,7 +431,7 @@ fn a_width_body_needs_its_own_positive_width_proof() {
     let mut missing = width_form_without_discharge(false);
     let found = discharge(
         &mut missing,
-        &mut crate::checking::ProofSearchActivity::default(),
+        &mut crate::ProofSearchActivity::default(),
     )
     .unwrap();
     let questions = verdicts(&missing, &found, 1, |kind| {
@@ -469,7 +469,7 @@ fn a_width_binder_keeps_its_position_after_an_erased_formal() {
     }])
     .unwrap();
     form.value_parameters.push(1);
-    crate::checking::minted::width_questions_are_minted(&form).unwrap();
+    crate::minted::width_questions_are_minted(&form).unwrap();
     let origin = &mut form
         .tables
         .machines
@@ -484,5 +484,5 @@ fn a_width_binder_keeps_its_position_after_an_erased_formal() {
         terminal_check_tables::values::ValueOrigin::MachineParameter { position: 2 }
     );
     *origin = terminal_check_tables::values::ValueOrigin::MachineParameter { position: 1 };
-    assert!(crate::checking::minted::width_questions_are_minted(&form).is_err());
+    assert!(crate::minted::width_questions_are_minted(&form).is_err());
 }

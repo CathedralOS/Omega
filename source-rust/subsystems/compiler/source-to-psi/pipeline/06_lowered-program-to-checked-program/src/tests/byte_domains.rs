@@ -27,7 +27,7 @@ const BYTE_OBSERVATION_SOURCE: &[(&str, &str, &str)] = &[(
 
 pub(super) fn judge_build(
     build: &str,
-) -> Result<RouteVerdict, crate::checking::CompilationRefusal> {
+) -> Result<RouteVerdict, crate::CompilationRefusal> {
     let source = format!("use omega\\language\\core\\byte_observation;\n{build}");
     super::build_purpose::judge_build_with_core(&source, BYTE_OBSERVATION_SOURCE)
 }
@@ -36,7 +36,7 @@ pub(super) fn judge_build(
 /// judges wrong, what it could not establish; else the refusal's text.
 fn verdict(build: &str) -> String {
     match judge_build(build) {
-        Err(crate::checking::CompilationRefusal::Elaboration(refusal))
+        Err(crate::CompilationRefusal::Elaboration(refusal))
         | Ok(RouteVerdict::FallBack(refusal)) => refusal.detail,
         Ok(RouteVerdict::Accepted(accepted)) => {
             accepted.publish_invocation().unwrap();
@@ -83,7 +83,7 @@ machine build_entry() {{
 
 fn judge_portable_byte_build(
     source: &str,
-) -> Result<RouteVerdict, crate::checking::CompilationRefusal> {
+) -> Result<RouteVerdict, crate::CompilationRefusal> {
     use super::build_purpose::{frontier_with_core, package, roster, symbol};
     let source = format!("use omega\\language\\core\\byte_observation;\n{source}");
     let typed = crate::prepare_fixture(frontier_with_core(
@@ -104,7 +104,7 @@ fn judge_portable_byte_build(
         terminal_codec::TerminalPublication::Portable,
     )
     .expect("fixture must lower to checker input");
-    let mut verdicts = crate::checking::judge_compilation(prepared.program);
+    let mut verdicts = crate::judge_compilation(prepared.program);
     assert_eq!(
         verdicts.len(),
         1,
@@ -1015,7 +1015,7 @@ machine build_entry() {
     let verdict = judge_build(unknown);
     let unproved_at_cast = matches!(
         &verdict,
-        Err(crate::checking::CompilationRefusal::Elaboration(refusal))
+        Err(crate::CompilationRefusal::Elaboration(refusal))
             if matches!(refusal.reason, terminal_check_tables::RefusalReason::Unproved(_))
     );
     assert!(

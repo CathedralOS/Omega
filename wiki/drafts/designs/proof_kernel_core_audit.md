@@ -1547,9 +1547,11 @@ stages 03 and 04. What is built:
   the proof of its guarantee, so the guarantee is never assumed: with no
   proof of the theorem, the program is refused. (Until 2026-11-24 the
   guarantee was instead added to the citing machine's `requires`, which
-  the specification does not allow.) Not done: the specification erases
-  a call made only for its guarantee, and the call still runs, as an empty
-  machine.
+  the specification does not allow.) The citation emits no call: it is a
+  theorem application that names the theorem's machine, a jump that owes
+  the theorem's `requires` on its edge and has its `ensures` after it.
+  Terminal Psi lets an application name a machine only when that machine's
+  body does nothing.
 - **A type parameter beside the indices.** `Vector<T [copy], Length, Total>`
   with a field `marker: T` is the same kernel family as without `T`: no
   clause can say anything of a value of type `T` and no index depends on

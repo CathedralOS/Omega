@@ -6,7 +6,7 @@
 //! apart. Only the induction gives the law as a hypothesis.
 
 use super::*;
-use crate::checking::laws::{SignatureJudgment, UnprovedLaw};
+use crate::laws::{SignatureJudgment, UnprovedLaw};
 
 const TRANSITIVE: &str =
     include_str!("../../tests/fixtures/nested_cases/pass/order_is_transitive/main.omg");
@@ -38,7 +38,7 @@ fn judged(source: &str, core: &[(&str, &str, &str)]) -> Vec<RouteVerdict> {
         terminal_codec::TerminalPublication::Invocation,
     )
     .unwrap();
-    crate::checking::judge_compilation(compilation.program)
+    crate::judge_compilation(compilation.program)
         .into_iter()
         .map(|verdict| verdict.expect("a judged part"))
         .collect()

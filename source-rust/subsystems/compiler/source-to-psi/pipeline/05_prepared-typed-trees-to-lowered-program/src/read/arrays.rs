@@ -4,7 +4,7 @@
 
 mod argument_types;
 
-use crate::lowering::body::Qualification;
+use crate::body::Qualification;
 use crate::source_state::SourceTypeApplication;
 use crate::source_state::expression::{ExpressionHandle, ExpressionNode, TableIndexedExpression};
 use crate::source_state::types::{FixedArrayLength, TypeReferenceHandle};
@@ -16,7 +16,7 @@ use terminal_semantics::CollectionExtent;
 
 use super::authority::Access;
 use super::{Program, Slot, places::RecordSource};
-use crate::lowering::{
+use crate::{
     Expression, ExpressionKind, RecordType, SourceOrigin, StorageShape, Unserved, ValueType, refuse,
 };
 
@@ -238,7 +238,7 @@ impl Program<'_> {
                     ..
                 }
             ) {
-                return Err(crate::lowering::reject(
+                return Err(crate::reject(
                     machine,
                     source,
                     "the explicit array view lends only immutable access; a mutable parameter cannot grant writable access to that backing",
@@ -270,7 +270,7 @@ impl Program<'_> {
             if requested == StructuralAccess::SharedBorrow
                 && access == StructuralAccess::MutableBorrow
             {
-                return Err(crate::lowering::reject(
+                return Err(crate::reject(
                     machine,
                     source,
                     "the explicit array view lends only immutable access; a mutable parameter cannot grant writable access to that backing",
@@ -721,7 +721,7 @@ impl Program<'_> {
         }
         let regions = base
             .result
-            .map_or(crate::lowering::body::Regions::NONE, ValueType::regions);
+            .map_or(crate::body::Regions::NONE, ValueType::regions);
         let element_regions = self.collection_element_regions(
             machine,
             array.record(),
@@ -838,7 +838,7 @@ impl Program<'_> {
                 scalar_type,
                 qualification,
             } => ValueType::Scalar(scalar_type, qualification),
-            _ => ValueType::Record(storage, qualification, crate::lowering::body::Regions::NONE),
+            _ => ValueType::Record(storage, qualification, crate::body::Regions::NONE),
         })
     }
 
@@ -942,7 +942,7 @@ impl Program<'_> {
         let constant_input_owner = self.storage_constant_input_owner(machine, &shape)?;
         let identity = super::places::storage_identity_for_inputs(identity, constant_input_owner);
         let id = self.records.push(RecordType {
-            multiplicity: crate::lowering::body::source_multiplicity(
+            multiplicity: crate::body::source_multiplicity(
                 self.typed.stored_value_multiplicity(reference),
             ),
             cleanup: None,
@@ -1100,7 +1100,7 @@ impl Program<'_> {
                 (
                     scalar,
                     Qualification {
-                        domains: crate::lowering::body::DomainSet::EMPTY,
+                        domains: crate::body::DomainSet::EMPTY,
                         ..qualification
                     },
                 )

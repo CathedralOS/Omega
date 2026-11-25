@@ -135,7 +135,7 @@ machine main() crashes Trap {
 // Portable acceptance keeps this target prerequisite pending. The CLI twin
 // must refuse it after selecting the actual layout; no early certificate
 // may replace that check.
-fn assert_deferred_wrong_size(closure: &crate::checking::AcceptedClosure) {
+fn assert_deferred_wrong_size(closure: &crate::AcceptedClosure) {
     use numerics::scalar_predicates::ScalarValue;
     use terminal_psi::{
         LayoutMeasurement, ScalarApplication, ScalarRangeObservation, StructuralTypeShape,
@@ -191,7 +191,7 @@ fn assert_deferred_wrong_size(closure: &crate::checking::AcceptedClosure) {
             let Ok(Discharged::TargetCondition(retained)) = verdict else {
                 panic!("a target prerequisite was replaced by another discharge: {verdict:?}");
             };
-            let crate::checking::TargetCondition::Predicate(retained) = retained.as_ref() else {
+            let crate::TargetCondition::Predicate(retained) = retained.as_ref() else {
                 panic!("a call predicate was replaced by another target condition");
             };
             assert_eq!(retained, &condition);

@@ -7,7 +7,7 @@ use source_provenance::DependencyScope;
 use source_compiler::representations::declaration_selection::BuildSelectionRequest;
 use source_compiler::representations::declaration_selection::RootBindingOperand;
 use source_compiler::CompileTimings;
-use checked_program_to_psi::production::{
+use checked_program_to_psi::{
     AcceptedTerminalSource, BuildCallSite, ProducedTerminalProgram, TerminalBuildBindingOperation,
     TerminalBuildQueryOperation, TerminalBuildRequestOperation, TerminalProductionCustody,
 };
@@ -639,7 +639,7 @@ machine build(builder: @mutable Build) {
 fn saved_build_rows_do_not_authorize_changed_actions_or_protocol_families() {
     use record_storage::{Record, RecordLimits, RecordWriter};
     use source_compiler::CompileTimings;
-use checked_program_to_psi::production::{TerminalBuildQueryCall, TerminalBuildRequestCall};
+use checked_program_to_psi::{TerminalBuildQueryCall, TerminalBuildRequestCall};
 
     let program = accepted_for(ONE_BINDING, terminal_codec::TerminalPublication::Portable)
         .unwrap()
@@ -670,12 +670,12 @@ use checked_program_to_psi::production::{TerminalBuildQueryCall, TerminalBuildRe
         output.record(|output| {
             u64::from_le_bytes(*b"OMGBLD03").write(output)?;
             program.artifact().unwrap().to_bytes().write(output)?;
-            Arc::<[checked_program_to_psi::production::TerminalBuildBindingCall]>::from([]).write(output)?;
+            Arc::<[checked_program_to_psi::TerminalBuildBindingCall]>::from([]).write(output)?;
             Arc::<[Arc<source_compiler::representations::declaration_selection::ProductDeclarationRequest>]>::from([]).write(output)?;
             Arc::<[TerminalBuildQueryCall]>::from([]).write(output)?;
             Arc::<[source_compiler::representations::declaration_selection::NativeBindingFormation]>::from([]).write(output)?;
             Arc::<[TerminalBuildRequestCall]>::from([request]).write(output)?;
-            Arc::<[checked_program_to_psi::production::TerminalBuildFilesystemCall]>::from([]).write(output)
+            Arc::<[checked_program_to_psi::TerminalBuildFilesystemCall]>::from([]).write(output)
         }).unwrap();
         let refused = record_storage::decode::<ProducedTerminalProgram>(
             &output.finish(),
@@ -823,7 +823,7 @@ fn native_binding_program(build: &str) -> ProducedTerminalProgram {
 
 fn published_native_locator(
     program: &ProducedTerminalProgram,
-) -> &checked_program_to_psi::production::TerminalBuildNativeLocator {
+) -> &checked_program_to_psi::TerminalBuildNativeLocator {
     let call = program
         .build_bindings()
         .calls_for(program.view())
@@ -831,7 +831,7 @@ fn published_native_locator(
         .iter()
         .find(|call| call.action == TerminalBuildBindingOperation::BindNative)
         .expect("the published native call keeps its source-issued row");
-    let Some(checked_program_to_psi::production::TerminalBuildBindingOperand::NativeLocator(
+    let Some(checked_program_to_psi::TerminalBuildBindingOperand::NativeLocator(
         locator,
     )) = &call.operand
     else {
@@ -1002,7 +1002,7 @@ fn a_selection_row_keeps_the_exact_operation_typing_recorded() {
 
 #[test]
 fn a_native_import_infers_nested_byte_widths_and_publishes_their_shapes() {
-    use checked_program_to_psi::production::TerminalBuildValueShape;
+    use checked_program_to_psi::TerminalBuildValueShape;
     let program = native_binding_program(
         r#"
 machine build(builder: @mutable Build) {

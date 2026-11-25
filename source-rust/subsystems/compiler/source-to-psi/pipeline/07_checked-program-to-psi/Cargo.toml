@@ -7,9 +7,6 @@ autotests = false
 autoexamples = false
 autobenches = false
 
-[lib]
-path = "lib.rs"
-
 [dependencies]
 application-identity = { path = "../../../psi/identities/applications" }
 artifacts = { path = "../../../foundation/measurements" }

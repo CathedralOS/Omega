@@ -14,8 +14,8 @@
 // `forward` for it.
 
 use super::*;
-use crate::checking::ProofSearchActivity;
-use crate::checking::reverify_specialization;
+use crate::ProofSearchActivity;
+use crate::reverify_specialization;
 use terminal_check_tables::values::RigidType;
 
 fn rigid() -> ValueType {
@@ -392,8 +392,8 @@ fn a_body_over_a_type_parameter_is_checked_once_and_carried_to_two_types() {
     for item_type in [ValueType::plain(i32_type()), ValueType::plain(bool_type())] {
         let mut consumer = specialized(item_type, 11);
         let mut activity = ProofSearchActivity::default();
-        let generic = crate::checking::prepare_replay(&mut form, &mut activity).unwrap();
-        let mut replay = crate::checking::prepare_replay(&mut consumer, &mut activity).unwrap();
+        let generic = crate::prepare_replay(&mut form, &mut activity).unwrap();
+        let mut replay = crate::prepare_replay(&mut consumer, &mut activity).unwrap();
         let started = activity.started();
         let verdicts = reverify_specialization(
             &generic,
@@ -431,8 +431,8 @@ fn a_bound_the_callee_does_not_give_is_refused_for_every_type() {
     ));
     let mut consumer = specialized(ValueType::plain(i32_type()), 10);
     let mut activity = ProofSearchActivity::default();
-    let generic = crate::checking::prepare_replay(&mut form, &mut activity).unwrap();
-    let mut replay = crate::checking::prepare_replay(&mut consumer, &mut activity).unwrap();
+    let generic = crate::prepare_replay(&mut form, &mut activity).unwrap();
+    let mut replay = crate::prepare_replay(&mut consumer, &mut activity).unwrap();
     let started = activity.started();
     let verdicts = reverify_specialization(
         &generic,
@@ -506,9 +506,9 @@ fn one_type_parameter_is_one_type_in_a_specialization() {
     let found = discharge(&mut form, &mut Default::default()).unwrap();
     let mut carry = |left, right| {
         let mut consumer = lowered(vec![both(left, right)], &[]);
-        let mut activity = crate::checking::ProofSearchActivity::default();
-        let generic = crate::checking::prepare_replay(&mut form, &mut activity).unwrap();
-        let mut replay = crate::checking::prepare_replay(&mut consumer, &mut activity).unwrap();
+        let mut activity = crate::ProofSearchActivity::default();
+        let generic = crate::prepare_replay(&mut form, &mut activity).unwrap();
+        let mut replay = crate::prepare_replay(&mut consumer, &mut activity).unwrap();
         reverify_specialization(
             &generic,
             &found,
@@ -529,7 +529,7 @@ fn one_type_parameter_is_one_type_in_a_specialization() {
 
 #[test]
 fn an_applied_contract_is_left_to_its_own_check_form_only_when_one_is_judged() {
-    use crate::checking::verdict::{AppliedContracts, judge_owing};
+    use crate::verdict::{AppliedContracts, judge_owing};
     // Shows: `relay<T>` relies on `forward<T>`'s `ensures`, which is in
     // `relay`'s form as a row of a machine with no body. Judged alone, the
     // form is undecided, because nothing in it proves that row. Judged in a
@@ -635,7 +635,7 @@ fn a_call_result_keeps_its_rigid_identity_without_placeholder_facts() {
     assert_eq!(result.rigid, Some(RigidType(0)));
     let found = discharge(
         &mut form,
-        &mut crate::checking::ProofSearchActivity::default(),
+        &mut crate::ProofSearchActivity::default(),
     )
     .unwrap();
     let (_, verdict) = verdicts(&form, &found, 1, guarantee)[0];
@@ -668,11 +668,11 @@ fn a_const_only_generic_form_cannot_publish_its_extra_formal() {
     };
     assert!(matches!(
         accepted.publish(),
-        Err(crate::checking::PublicationError::GenericCheckForm(_))
+        Err(crate::PublicationError::GenericCheckForm(_))
     ));
     assert!(matches!(
         accepted.publish_invocation(),
-        Err(crate::checking::PublicationError::GenericCheckForm(_))
+        Err(crate::PublicationError::GenericCheckForm(_))
     ));
 }
 
@@ -702,11 +702,11 @@ fn an_unused_type_binder_still_prevents_generic_form_publication() {
     };
     assert!(matches!(
         accepted.publish(),
-        Err(crate::checking::PublicationError::GenericCheckForm(_))
+        Err(crate::PublicationError::GenericCheckForm(_))
     ));
     assert!(matches!(
         accepted.publish_invocation(),
-        Err(crate::checking::PublicationError::GenericCheckForm(_))
+        Err(crate::PublicationError::GenericCheckForm(_))
     ));
 }
 
@@ -735,11 +735,11 @@ fn an_empty_generic_schema_retains_its_real_binder_without_an_entry() {
     };
     assert!(matches!(
         accepted.publish(),
-        Err(crate::checking::PublicationError::GenericCheckForm(_))
+        Err(crate::PublicationError::GenericCheckForm(_))
     ));
     assert!(matches!(
         accepted.publish_invocation(),
-        Err(crate::checking::PublicationError::GenericCheckForm(_))
+        Err(crate::PublicationError::GenericCheckForm(_))
     ));
 }
 
@@ -851,7 +851,7 @@ machine entry() -> u64 { first::<u32>(3u64) }
         .expect("fixture must lower to Psi")
         .program
     };
-    let verdicts = crate::checking::judge_compilation(prepare(mutually_recursive));
+    let verdicts = crate::judge_compilation(prepare(mutually_recursive));
     assert!(
         verdicts
             .iter()
@@ -860,10 +860,10 @@ machine entry() -> u64 { first::<u32>(3u64) }
     );
     let stalled =
         mutually_recursive.replace("second::<T>(remaining - 1u64)", "second::<T>(remaining)");
-    let refused = crate::checking::judge_compilation(prepare(&stalled));
+    let refused = crate::judge_compilation(prepare(&stalled));
     assert!(
         refused.iter().any(|verdict| match verdict {
-            Err(crate::checking::CompilationRefusal::Elaboration(refusal)) => refusal
+            Err(crate::CompilationRefusal::Elaboration(refusal)) => refusal
                 .detail
                 .contains("removing strict rank edges leaves a control cycle"),
             Ok(RouteVerdict::Rejected { unproved, .. }) => unproved
@@ -886,10 +886,10 @@ machine entry() -> u64 { first::<u32>(3u64) }
             .first_mut()
             .expect("the source retains its generic check forms");
         form.applies = if missing { None } else { Some(vec![count]) };
-        let refused = crate::checking::judge_compilation(input);
+        let refused = crate::judge_compilation(input);
         assert!(
             refused.iter().any(|verdict| matches!(verdict,
-            Err(crate::checking::CompilationRefusal::Elaboration(Refusal {
+            Err(crate::CompilationRefusal::Elaboration(Refusal {
                 reason: RefusalReason::ForeignIdentity, detail, ..
             })) if detail.contains("incomplete dependency roster"))),
             "{refused:?}"
@@ -978,7 +978,7 @@ fn a_generic_call_does_not_preserve_a_mutable_inputs_old_value() {
                 .unwrap();
         // The callee's guarantee is proved with its own implementation, not
         // as the caller's obligation. Inspect this body's proofs independently.
-        let mut activity = crate::checking::ProofSearchActivity::default();
+        let mut activity = crate::ProofSearchActivity::default();
         let found = discharge(&mut form, &mut activity).unwrap();
         let root = found.machines.get(id(1)).unwrap();
         assert!(root.conflicts.is_empty(), "{:?}", root.conflicts);
@@ -1061,7 +1061,7 @@ fn a_guard_after_a_callback_proves_the_call_until_storage_changes() {
             terminal_codec::TerminalPublication::Invocation,
         )
         .expect("fixture must lower to checker input");
-        crate::checking::judge_compilation(prepared.program)
+        crate::judge_compilation(prepared.program)
     };
     let accepted = judge(source);
     assert!(
@@ -1121,7 +1121,7 @@ fn specialized_calls_keep_independent_input_and_result_lifetimes() {
             terminal_codec::TerminalPublication::Invocation,
         )
         .expect("fixture must lower to checker input");
-        let verdicts = crate::checking::judge_compilation(prepared.program);
+        let verdicts = crate::judge_compilation(prepared.program);
         if arguments == "value, other" {
             assert!(
                 !verdicts.is_empty()
@@ -1354,7 +1354,7 @@ fn closed_callback_applications_prove_the_full_termination_contract() {
             terminal_codec::TerminalPublication::Portable,
         )
         .expect("fixture must lower to Psi");
-        let verdicts = crate::checking::judge_compilation(compilation.program);
+        let verdicts = crate::judge_compilation(compilation.program);
         for (position, verdict) in verdicts.iter().enumerate() {
             match verdict {
                 Ok(RouteVerdict::Accepted(_)) => eprintln!("judgment {position}: accepted"),
@@ -1379,7 +1379,7 @@ fn closed_callback_applications_prove_the_full_termination_contract() {
         .publish()
         .expect("a closed callback application must publish executable Terminal Psi");
     assert!(
-        matches!(&results[1], Err(crate::checking::CompilationRefusal::Elaboration(refusal))
+        matches!(&results[1], Err(crate::CompilationRefusal::Elaboration(refusal))
         if refusal.reason == RefusalReason::Conflict
         && refusal.detail == "selected machine has no published callable termination guarantee"),
         "the selected callback must prove the binder's progress promise: {:?}",
@@ -1420,7 +1420,7 @@ fn an_unused_closed_callback_still_proves_its_type_requirement() {
             terminal_codec::TerminalPublication::Portable,
         )
         .expect("fixture must lower to Psi");
-        super::entryless::whole_subject_result(crate::checking::judge_compilation(
+        super::entryless::whole_subject_result(crate::judge_compilation(
             compilation.program,
         ))
     });
@@ -1501,7 +1501,7 @@ fn a_static_callback_uses_its_published_reach_at_the_call() {
         if reaches_output {
             assert!(
                 matches!(&verdict, RouteVerdict::Rejected { exceeded, .. }
-                if exceeded.iter().any(|row| row.axis == crate::checking::ceilings::Axis::Reach)),
+                if exceeded.iter().any(|row| row.axis == crate::ceilings::Axis::Reach)),
                 "a pure body cannot narrow its published Output promise: {verdict:?}"
             );
         } else {
@@ -1510,7 +1510,7 @@ fn a_static_callback_uses_its_published_reach_at_the_call() {
             };
             assert!(matches!(
                 accepted.publish(),
-                Err(crate::checking::PublicationError::GenericCheckForm(_))
+                Err(crate::PublicationError::GenericCheckForm(_))
             ));
         }
     }
@@ -1575,7 +1575,7 @@ fn a_nested_generic_callback_uses_its_selected_reach_for_refinement() {
     crash.static_conformances[selected as usize]
         .required
         .crash_policy = semantic_vocabulary::CallableCrashPolicy::Closed;
-    let refusal = crate::checking::static_contracts::admit(&crash).unwrap_err();
+    let refusal = crate::static_contracts::admit(&crash).unwrap_err();
     assert_eq!(
         refusal.detail,
         "the nested callback's crash routes need coverage at its invocation"
@@ -1595,7 +1595,7 @@ fn a_nested_generic_callback_uses_its_selected_reach_for_refinement() {
     effectful.static_conformances[selected as usize]
         .envelope
         .service_reach = terminal_check_tables::contracts::StaticServiceCeiling::Closed(Vec::new());
-    let refusal = crate::checking::static_contracts::admit(&effectful).unwrap_err();
+    let refusal = crate::static_contracts::admit(&effectful).unwrap_err();
     assert_eq!(refusal.reason, RefusalReason::Conflict, "{refusal:?}");
     assert_eq!(
         refusal.detail,
@@ -1776,7 +1776,7 @@ fn open_callback_reach_keeps_known_invocation_limits() {
         } else {
             assert!(
                 matches!(&verdict, RouteVerdict::Rejected { exceeded, .. }
-                if exceeded.iter().any(|row| row.axis == crate::checking::ceilings::Axis::Entries)),
+                if exceeded.iter().any(|row| row.axis == crate::ceilings::Axis::Entries)),
                 "the fixed helper's published entry remains owed: {verdict:?}"
             );
         }
@@ -2298,7 +2298,7 @@ fn nested_helpers_keep_mixed_inherited_static_parameters() {
 
 fn judge_prepared_source(
     source: &str,
-) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
+) -> Vec<Result<RouteVerdict, crate::CompilationRefusal>> {
     let typed =
         crate::preparation::prepare_typed_trees(super::boundary_calls::typed(source), &[], &[]).unwrap();
     let entry = super::build_purpose::symbol(typed.trees(), "main");
@@ -2312,18 +2312,18 @@ fn judge_prepared_source(
         terminal_codec::TerminalPublication::Invocation,
     )
     .expect("fixture must lower to Psi");
-    crate::checking::judge_compilation(prepared.program)
+    crate::judge_compilation(prepared.program)
 }
 
 #[test]
 fn a_callback_retains_its_supplied_slice_type_and_access() {
-    let summarize = |verdicts: &[Result<RouteVerdict, crate::checking::CompilationRefusal>]| {
+    let summarize = |verdicts: &[Result<RouteVerdict, crate::CompilationRefusal>]| {
         verdicts
             .iter()
             .filter_map(|verdict| match verdict {
                 Ok(RouteVerdict::Accepted(_)) => None,
                 Ok(RouteVerdict::FallBack(refusal))
-                | Err(crate::checking::CompilationRefusal::Elaboration(refusal)) => {
+                | Err(crate::CompilationRefusal::Elaboration(refusal)) => {
                     Some(refusal.detail.clone())
                 }
                 Err(refusal) => Some(format!("{refusal:?}")),
@@ -2478,7 +2478,7 @@ machine entry() -> u32 {
             terminal_codec::TerminalPublication::Portable,
         )
         .expect("fixture must lower to Psi");
-        let judgments = crate::checking::judge_compilation(compilation.program);
+        let judgments = crate::judge_compilation(compilation.program);
         for (position, judgment) in judgments.iter().enumerate() {
             match judgment {
                 Ok(RouteVerdict::Accepted(_)) => eprintln!("form {position}: accepted"),

@@ -77,7 +77,7 @@ fn equal_selectors_do_not_share_bounds_between_different_extents() {
     let mut elaboration = elaborate_over(vec![program], &array_types());
     let result = discharge(
         &mut elaboration,
-        &mut crate::checking::ProofSearchActivity::default(),
+        &mut crate::ProofSearchActivity::default(),
     )
     .unwrap();
     let actual = verdicts(&elaboration, &result, 1, safety);
@@ -121,7 +121,7 @@ fn every_bound_in_a_long_short_circuit_guard_reaches_its_array_read() {
         let mut elaboration = elaborate_over(vec![program], &array_types());
         let result = discharge(
             &mut elaboration,
-            &mut crate::checking::ProofSearchActivity::default(),
+            &mut crate::ProofSearchActivity::default(),
         )
         .unwrap();
         let obligations = verdicts(&elaboration, &result, 1, safety);

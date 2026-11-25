@@ -46,12 +46,12 @@ fn copy(from: &Path, to: &Path) {
 /// `omega --check` on the fixture with `backing::TestImage` replaced by
 /// `backing::{backing}` in its Build.
 fn check(backing: &str) -> (bool, String) {
-    check_with_mount(backing, None)
+    check_with_product_wait(backing, None)
 }
 
-fn check_with_mount(backing: &str, observe_before_mount: Option<bool>) -> (bool, String) {
+fn check_with_product_wait(backing: &str, observe_before_wait: Option<bool>) -> (bool, String) {
     let root = std::env::temp_dir().join(format!(
-        "omega-build-provider-readiness-{}-{backing}-{observe_before_mount:?}",
+        "omega-build-provider-readiness-{}-{backing}-{observe_before_wait:?}",
         std::process::id()
     ));
     let _ = std::fs::remove_dir_all(&root);
@@ -61,19 +61,25 @@ fn check_with_mount(backing: &str, observe_before_mount: Option<bool>) -> (bool,
     let marker = r"backing\TestImage";
     assert!(text.contains(marker));
     let mut text = text.replace(marker, &format!(r"backing\{backing}"));
-    if let Some(read_first) = observe_before_mount {
-        // Keep the vendor directory distinct from the authored import. A directory
-        // named backing is also a package-local Omega module before registration.
+    if let Some(read_first) = observe_before_wait {
+        // Only the provider request names the backing package. Its code never
+        // becomes an ordinary source import of the running Build.
         std::fs::rename(root.join("backing"), root.join("vendor")).unwrap();
         text = text.replace(r#"location: "backing""#, r#"location: "vendor""#);
-        let package = root.join("vendor/main.omg");
-        let mut code = std::fs::read_to_string(&package).unwrap();
-        code.push_str("\npublic machine expected_offset() -> addr { 64 }\n");
-        std::fs::write(package, code).unwrap();
-        text = format!("use backing;\n{text}").replace(
-            "    let observed:",
-            "    suspend Build::prepare_dependency(builder, backing_registration);\n    let expected: addr = backing\\expected_offset();\n    let observed:",
-        ).replace("observed == 64", "observed == expected");
+        let product = root.join("product");
+        std::fs::create_dir(&product).unwrap();
+        std::fs::write(
+            product.join("build.omg"),
+            r#"machine build(builder: @mutable Build) { Build::package(builder, "product"); }"#,
+        )
+        .unwrap();
+        std::fs::write(product.join("main.omg"), "public data Item {}").unwrap();
+        text = text.replace("    let observed:", r#"    let request = dependency\from_source(Source::Path { location: "product" });
+    let registration = Build::dependency(builder, request);
+    suspend Build::prepare_dependency(builder, registration);
+    let expected: addr = expected_offset();
+    let observed:"#).replace("observed == 64", "observed == expected");
+        text.push_str("\nmachine expected_offset() -> addr { 64 }\n");
         if read_first {
             text = text.replace("    suspend Build::prepare_dependency", "    let prior: addr = ProgramImage::retained_suffix_start();\n    suspend Build::prepare_dependency")
                 .replace("observed == expected", "prior == observed && observed == expected");
@@ -122,11 +128,11 @@ fn a_backing_that_is_private_or_absent_is_refused() {
 }
 
 #[test]
-fn installed_provider_survives_a_dependency_mount() {
+fn the_installed_provider_survives_a_product_dependency_wait() {
     for read_first in [false, true] {
-        let (compiled, report) = check_with_mount("TestImage", Some(read_first));
+        let (compiled, report) = check_with_product_wait("TestImage", Some(read_first));
         assert!(compiled, "{report}");
-        let (compiled, report) = check_with_mount("OtherImage", Some(read_first));
+        let (compiled, report) = check_with_product_wait("OtherImage", Some(read_first));
         assert!(!compiled && report.contains("project role"), "{report}");
     }
 }

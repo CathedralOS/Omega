@@ -9,7 +9,7 @@ data Holder { value: Envelope<Buffer<u8, capacity()>>; }
 machine capacity() -> u64 { 4 }
 "#;
     let resolved = crate::resolve_fixture(text);
-    let mut program = crate::typing::lower_symbol_resolved_trees(&resolved).unwrap();
+    let mut program = crate::lower_symbol_resolved_trees(&resolved).unwrap();
     let holder = program
         .data_definitions()
         .iter()

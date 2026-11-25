@@ -1,10 +1,10 @@
 //! Raw stage operations used to construct and inspect test fixtures.
-pub use checked_program_to_psi::production::TerminalSourceCompilation;
-pub use lowered_program_to_checked_program::checking;
-pub use prepared_typed_trees_to_lowered_program::lowering;
+pub use checked_program_to_psi::TerminalSourceCompilation;
+pub use lowered_program_to_checked_program as checking;
+pub use prepared_typed_trees_to_lowered_program as lowering;
 pub use source_lexer as lexing;
 pub use source_parser as parsing;
-pub use symbol_resolved_trees_to_typed_trees::typing;
+pub use symbol_resolved_trees_to_typed_trees as typing;
 pub use syntax_trees_to_symbol_resolved_trees::resolution;
 pub use typed_trees_to_prepared_typed_trees as preparation;
 

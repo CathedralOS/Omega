@@ -1,5 +1,35 @@
 #![forbid(unsafe_code)]
 
+// Crate-wide aliases for sibling stages and the shared test fixtures.
+#[cfg(test)]
+use source_declarations::declaration_selection;
+#[cfg(test)]
+use source_lexer as lexing;
+#[cfg(test)]
+use source_parser as parsing;
+#[cfg(test)]
+use source_symbol_table::{source_inputs, source_symbols};
+#[cfg(test)]
+use symbol_resolved_trees_to_typed_trees as typing;
+#[cfg(test)]
+use syntax_trees_to_symbol_resolved_trees::resolution;
+#[cfg(test)]
+use typed_trees::source_state;
+#[cfg(test)]
+use prepared_typed_trees_to_lowered_program as lowering;
+#[cfg(test)]
+use typed_trees_to_prepared_typed_trees as preparation;
+#[cfg(test)]
+use source_admission::LoadedSource;
+#[cfg(test)]
+#[path = "../../../../../../../tests/support/frontend_operations.rs"]
+mod frontend_fixture;
+
+#[cfg(test)]
+fn prepare_fixture(typed: source_state::TypedTrees) -> preparation::PreparedTypedTrees {
+    preparation::prepare_typed_trees(typed, &[], &[]).expect("prepare checker fixture")
+}
+
 /*
 Discharge on the lowered form: settle every obligation that elaboration
 minted. The proof kernel accepts certificates for proof goals. A ground
@@ -2908,6 +2938,3 @@ pub fn derive_contract_obligation(
     })?;
     Ok(certificate)
 }
-
-#[cfg(test)]
-use crate::frontend_fixture;

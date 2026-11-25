@@ -2,7 +2,7 @@
 //! of whether the declaration combines types, scalar consts or schema consts.
 
 use super::Program;
-use crate::lowering::body::ValueType;
+use crate::body::ValueType;
 use crate::source_state::trait_definition::AppliedTraitScope;
 use semantic_vocabulary::{MachineId, ScalarTerm};
 use symbols::SymbolHandle;

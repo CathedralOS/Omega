@@ -3,7 +3,7 @@
 //! descriptor analysis. It derives a contract, never its loan or authority;
 //! the checker reconstructs formation and completion itself.
 
-use crate::lowering::{Unserved, refuse};
+use crate::{Unserved, refuse};
 use semantic_vocabulary::MachineId;
 use terminal_check_tables::{Checked, Construct, Refusal};
 use terminal_psi::TerminalModule;
@@ -25,8 +25,8 @@ fn graph_unavailable(module: &TerminalModule, error: DescriptorGraphError) -> Re
 }
 
 pub(crate) fn publish(
-    elaboration: &mut crate::lowering::Elaboration,
-    selections: &[crate::lowering::Selected],
+    elaboration: &mut crate::Elaboration,
+    selections: &[crate::Selected],
 ) -> Checked<()> {
     let published = (|| {
         publish_results(
@@ -64,7 +64,7 @@ pub(crate) fn publish(
 /// reconstructed, which read this header.
 pub(crate) fn publish_requirements(
     module: &mut TerminalModule,
-    program: &crate::lowering::read::Program<'_>,
+    program: &crate::read::Program<'_>,
     requirements: &[MachineId],
 ) -> Checked<()> {
     let unavailable =
@@ -116,7 +116,7 @@ pub(crate) fn publish_requirements(
 /// result's lifetime (lifetimes.md, "Returned views"). Mint that row here,
 /// once results are published, so the checker can reconstruct the same
 /// region from `reference_call_lifetimes` and claim it.
-fn publish_retained_call_loans(elaboration: &mut crate::lowering::Elaboration) -> Checked<()> {
+fn publish_retained_call_loans(elaboration: &mut crate::Elaboration) -> Checked<()> {
     use terminal_check_tables::ProgramPoint;
     use terminal_check_tables::obligations::{ObligationKind, ObligationRow};
     let module = &elaboration.module;
@@ -265,7 +265,7 @@ struct SuccessorLoan {
 }
 
 fn publish_successor_loans(
-    elaboration: &mut crate::lowering::Elaboration,
+    elaboration: &mut crate::Elaboration,
 ) -> Checked<Vec<SuccessorLoan>> {
     use terminal_check_tables::ProgramPoint;
     use terminal_check_tables::obligations::{Lender, ObligationKind, ObligationRow};
@@ -420,7 +420,7 @@ fn capture_argument(
 
 fn publish_results(
     module: &mut TerminalModule,
-    selections: &[crate::lowering::Selected],
+    selections: &[crate::Selected],
     nominal_calls: &[terminal_psi::generic_calls::NominalCallArgument],
 ) -> Checked<()> {
     let selected: Vec<_> = module
@@ -553,7 +553,7 @@ fn publish_results(
 /// available. These rows describe actual source occurrences; 06 reconstructs
 /// them before deciding any loan and grants no authority from this publication.
 fn publish_parents(
-    elaboration: &mut crate::lowering::Elaboration,
+    elaboration: &mut crate::Elaboration,
     successor_loans: &[SuccessorLoan],
 ) -> Checked<()> {
     use terminal_check_tables::ProgramPoint;

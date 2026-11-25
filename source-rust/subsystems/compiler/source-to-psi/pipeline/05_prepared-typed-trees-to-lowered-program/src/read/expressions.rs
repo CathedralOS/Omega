@@ -5,7 +5,7 @@ are the same computation. Record literals and member paths are read in
 `places`.
 */
 
-use crate::lowering::body::Qualification;
+use crate::body::Qualification;
 use crate::source_state::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableNamePath, UnaryOperator,
 };
@@ -15,10 +15,10 @@ use terminal_check_tables::{Checked, Construct};
 
 use super::authority::Access;
 use super::{Program, Slot, symbol_kind};
-use crate::lowering::body::{
+use crate::body::{
     CaseSelector, Expression, ExpressionKind, Policy, Selector, Strict, ValueType,
 };
-use crate::lowering::{SourceOrigin, Unserved, refuse, reject};
+use crate::{SourceOrigin, Unserved, refuse, reject};
 
 impl<'t> Program<'t> {
     pub(super) fn authored_node(
@@ -308,7 +308,7 @@ impl<'t> Program<'t> {
                 if !discarded.is_empty() {
                     return unserved("an erased application discards an operand that needs formation");
                 }
-                let term = crate::lowering::body::scalar_clause_value(operands);
+                let term = crate::body::scalar_clause_value(operands);
                 if let Some(term) = &term {
                     let mut pending = vec![term];
                     while let Some(operand) = pending.pop() {
@@ -589,7 +589,7 @@ impl<'t> Program<'t> {
                         {
                             return unserved("arithmetic on an address");
                         }
-                        let result = crate::lowering::policy::bitwise_not_type(value_type)
+                        let result = crate::policy::bitwise_not_type(value_type)
                             .ok_or_else(|| {
                                 refuse(
                                     id,
@@ -680,7 +680,7 @@ impl<'t> Program<'t> {
                 // A suffixed operator (`+%`, `+|`, `+!`) names its policy at
                 // this one node (`wiki/spec/language/numeric_values.md`,
                 // "Policy operators").
-                let suffix = crate::lowering::body::Policy::of_domain(binary.policy);
+                let suffix = crate::body::Policy::of_domain(binary.policy);
                 // What an operand expects from outside: an arithmetic or shift
                 // result has its (value) operand's type, `&&`/`||` operands
                 // are Boolean, comparison operands expect nothing. An
@@ -1963,12 +1963,12 @@ pub(super) fn binary_selection(
     }
     let unserved = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
     if suffix.is_some() {
-        let operation = crate::lowering::policy::suffixed(operator).map_err(unserved)?;
+        let operation = crate::policy::suffixed(operator).map_err(unserved)?;
         if anonymous == (true, true) {
             return Err(reject(
                 id,
                 source,
-                crate::lowering::policy::WHOLLY_ANONYMOUS,
+                crate::policy::WHOLLY_ANONYMOUS,
             ));
         }
         for operand in [left, right] {
@@ -1978,17 +1978,17 @@ pub(super) fn binary_selection(
                     return Err(reject(
                         id,
                         source,
-                        crate::lowering::policy::QUALIFIED_OPERAND,
+                        crate::policy::QUALIFIED_OPERAND,
                     ));
                 }
                 Some(ValueType::Rigid(_)) | None => {
-                    return Err(unserved(crate::lowering::policy::QUALIFIED_OPERAND));
+                    return Err(unserved(crate::policy::QUALIFIED_OPERAND));
                 }
             }
         }
         // A suffix chooses a carrier-specific operation, so mismatched
         // carriers are invalid source. Only a shift count keeps its own type.
-        if !crate::lowering::policy::shifts(operation)
+        if !crate::policy::shifts(operation)
             && left.and_then(ValueType::scalar) != right.and_then(ValueType::scalar)
         {
             return Err(reject(
@@ -2228,7 +2228,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
             ) => {
                 // A boundary may observe supplied state or issue a fresh
                 // host ticket. Equal syntax is not one observed result.
-                matches!(a, crate::lowering::body::CallTarget::Machine(_))
+                matches!(a, crate::body::CallTarget::Machine(_))
                     && a == b
                     && a_required == b_required
                     && a_designated == b_designated
@@ -2476,7 +2476,7 @@ mod tests {
 
     #[test]
     fn suffix_policy_belongs_to_the_operation_not_its_values() {
-        let source = SourceOrigin::Unpositioned(crate::lowering::Unpositioned::SpanAbsent);
+        let source = SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent);
         let plain = ValueType::plain(carrier());
         let operand = |slot, result| Expression {
             call_context: None,
@@ -2533,7 +2533,7 @@ mod tests {
                 for (left, right) in [(qualified, plain), (plain, qualified)] {
                     assert_eq!(
                         suffixed(operator, policy, left, right).unwrap_err().detail,
-                        crate::lowering::policy::QUALIFIED_OPERAND,
+                        crate::policy::QUALIFIED_OPERAND,
                     );
                 }
             }
@@ -2548,7 +2548,7 @@ mod tests {
         right: ValueType,
         anonymous: (bool, bool),
     ) -> Result<ValueType, String> {
-        let source = SourceOrigin::Unpositioned(crate::lowering::Unpositioned::SpanAbsent);
+        let source = SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent);
         let operand = |slot, value_type| Expression {
             call_context: None,
             kind: ExpressionKind::Slot(slot),
@@ -2585,7 +2585,7 @@ mod tests {
         let boolean = ValueType::plain(ScalarType::Boolean);
         let neither = (false, false);
         let id = MachineId::new(1).unwrap();
-        let source = SourceOrigin::Unpositioned(crate::lowering::Unpositioned::SpanAbsent);
+        let source = SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent);
         let select = |operator, left, right| {
             binary_selection(
                 id,

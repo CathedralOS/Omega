@@ -23,9 +23,9 @@ use terminal_check_tables::{Checked, Construct};
 
 use super::Program;
 use super::authority::Access;
-use crate::lowering::body::ValueType;
-use crate::lowering::canonical::{self, Repeated};
-use crate::lowering::{Unserved, refuse};
+use crate::body::ValueType;
+use crate::canonical::{self, Repeated};
+use crate::{Unserved, refuse};
 
 /// The bytes of one fixed array, by position, and how to write a statement
 /// about them in canonical form.

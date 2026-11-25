@@ -1,7 +1,7 @@
 //! Warnings about a compilation the checker accepted, computed on first read.
 use super::AcceptedClosure;
-use crate::checking::Discharge;
-use crate::checking::verdict::AcceptedProgram;
+use crate::Discharge;
+use crate::verdict::AcceptedProgram;
 use checked_program::CheckedProgram;
 use diagnostics::Diagnostic;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -168,7 +168,7 @@ mod tests {
         )
         .unwrap();
         let (_, advisories) =
-            crate::checking::judge_publication(lowered, Default::default()).unwrap();
+            crate::judge_publication(lowered, Default::default()).unwrap();
         advisories
     }
 

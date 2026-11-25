@@ -530,7 +530,8 @@ pub(crate) fn introduction_predicate(
         let proposition = crate::substitution::substitute_proposition_structural_places(
             &predicate.proposition,
             &std::collections::BTreeMap::from([(predicate.subject, (subject, Vec::new()))]),
-        );
+        )
+        .ok()?;
         if proposition != Proposition::Truth {
             clauses.push(proposition);
         }

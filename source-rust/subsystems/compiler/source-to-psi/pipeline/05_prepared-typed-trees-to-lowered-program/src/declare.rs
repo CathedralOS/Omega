@@ -49,7 +49,7 @@ use terminal_psi::{
     TerminalMachine,
 };
 
-use crate::lowering::{Elaboration, Signature};
+use crate::{Elaboration, Signature};
 
 const COMMITMENT_DOMAIN: &[u8] = b"omega.lowered-machine-public-contract.v2\0";
 
@@ -99,23 +99,23 @@ impl DeclarationError {
     pub(crate) fn into_refusal(
         self,
         diagnostic: MachineId,
-        program: &crate::lowering::read::Program<'_>,
+        program: &crate::read::Program<'_>,
     ) -> terminal_check_tables::Refusal {
         let error = match self {
             Self::Reason(reason) => {
-                return crate::lowering::refuse(
+                return crate::refuse(
                     diagnostic,
                     terminal_check_tables::Construct::Machine,
-                    crate::lowering::Unserved::Declaration(reason),
+                    crate::Unserved::Declaration(reason),
                 );
             }
             Self::StaticReach(error) => error,
         };
         let machine = error.call.as_ref().map_or(diagnostic, |call| call.caller);
-        let mut refusal = crate::lowering::refuse(
+        let mut refusal = crate::refuse(
             machine,
             terminal_check_tables::Construct::Machine,
-            crate::lowering::Unserved::Declaration(error.reason),
+            crate::Unserved::Declaration(error.reason),
         );
         if let Some(call) = &error.call {
             if let Some(&caller) = program.symbols.get(call.caller) {
@@ -162,8 +162,8 @@ enum PreparedParameter {
 /// requirement descriptions without giving a requirement an executable body.
 pub(crate) fn declare(
     typed: &TypedTrees,
-    program: &crate::lowering::read::Program<'_>,
-    outcomes: &arena::IdTable<MachineId, crate::lowering::outcome::Outcome>,
+    program: &crate::read::Program<'_>,
+    outcomes: &arena::IdTable<MachineId, crate::outcome::Outcome>,
     binder_reach: &arena::IdTable<MachineId, BinderReach>,
     checking_envelopes: &IdTable<
         MachineId,
@@ -229,8 +229,8 @@ pub(crate) fn declare(
                         .requirement_ceilings
                         .get(id)
                         .map(|row| match &row.reaches {
-                            crate::lowering::Ceiling::Inferred => None,
-                            crate::lowering::Ceiling::Authored(reach) => Some(reach.as_slice()),
+                            crate::Ceiling::Inferred => None,
+                            crate::Ceiling::Authored(reach) => Some(reach.as_slice()),
                         })
                 })
             },
@@ -262,7 +262,7 @@ pub(crate) fn declare(
                     && program.is_generic_check_form()
                     && typed
                         .machine_by_symbol(*symbol)
-                        .is_some_and(|source| crate::lowering::is_generic_template(typed, source))
+                        .is_some_and(|source| crate::is_generic_template(typed, source))
                 {
                     Some(
                         elaboration
@@ -425,7 +425,7 @@ pub(crate) fn declare(
                 });
             elaboration
                 .predicate_sources
-                .push(crate::lowering::PredicateSource {
+                .push(crate::PredicateSource {
                     declaration,
                     name: typed.symbols.display_path(definition.symbol, "::"),
                     machine: definition.diagnostic,
@@ -560,7 +560,7 @@ pub(crate) fn provider_candidates(
     typed: &TypedTrees,
     machines: &IdTable<MachineId, SymbolHandle>,
     boundaries: &IdTable<semantic_vocabulary::BoundaryMachineId, SymbolHandle>,
-    supplied: &[crate::lowering::SuppliedRequirement],
+    supplied: &[crate::SuppliedRequirement],
     static_conformances: &[terminal_check_tables::contracts::StaticConformanceQuestion],
     module: &mut terminal_psi::TerminalModule,
 ) -> Result<Vec<terminal_psi::ProviderCandidateConformance>, &'static str> {
@@ -972,12 +972,12 @@ fn declaration(
         // Preserve authored promises in its source commitment. The continuation
         // checks every previously reached service against the new admission.
         let effects = Published {
-            reach: if is_entry && matches!(signature.reaches, crate::lowering::Ceiling::Inferred) {
+            reach: if is_entry && matches!(signature.reaches, crate::Ceiling::Inferred) {
                 &[]
             } else {
                 published.reach
             },
-            entries: if is_entry && matches!(signature.invokes, crate::lowering::Ceiling::Inferred)
+            entries: if is_entry && matches!(signature.invokes, crate::Ceiling::Inferred)
             {
                 &[]
             } else {
@@ -2392,8 +2392,8 @@ fn commit_result_memberships(
     b"normal-result-memberships.v1".hash(commitment);
     signature.membership_ensures.len().hash(commitment);
     for membership in &signature.membership_ensures {
-        use crate::lowering::body::RuntimeMembershipSubject;
-        let identity = crate::lowering::qualifications::domain_identity(
+        use crate::body::RuntimeMembershipSubject;
+        let identity = crate::qualifications::domain_identity(
             typed,
             sources,
             membership.domain,
@@ -2465,8 +2465,8 @@ fn declaration_contract_commitment<'a>(
     signature.termination.hash(&mut commitment);
     // Open requirements and explicit empty promises must not share identity.
     (
-        matches!(signature.reaches, crate::lowering::Ceiling::Authored(_)),
-        matches!(signature.invokes, crate::lowering::Ceiling::Authored(_)),
+        matches!(signature.reaches, crate::Ceiling::Authored(_)),
+        matches!(signature.invokes, crate::Ceiling::Authored(_)),
         signature.declared_crash_routes().is_some(),
     )
         .hash(&mut commitment);
@@ -2811,7 +2811,7 @@ pub(crate) fn provider_declaration(
     signature: &Signature,
     proof: &terminal_psi::MachineContract,
     envelope: &terminal_psi::TerminalCallableEnvelope,
-    services: &crate::lowering::reach::ServiceMap,
+    services: &crate::reach::ServiceMap,
     identities: &mut TerminalIdentityTableBuilder,
 ) -> Result<CheckedMachineDeclaration, &'static str> {
     let mut declaration = boundary_declaration(typed, source, signature, proof, identities)?;

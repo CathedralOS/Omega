@@ -75,7 +75,7 @@ use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::program::{Branch, Elaboration, SourceOrigin};
 use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason, UnprovedCause};
 
-use crate::checking::{Discharge, ImpossibleArm, describe, refusal};
+use crate::{Discharge, ImpossibleArm, describe, refusal};
 
 /// What the route decided for one closure.
 #[derive(Debug)]
@@ -96,7 +96,7 @@ pub enum RouteVerdict {
     /// is not empty.
     Rejected {
         /// Calling-shape failures known before any body is elaborated.
-        formations: Vec<crate::checking::CallableFormationFailure>,
+        formations: Vec<crate::CallableFormationFailure>,
         /// One per rule of the language the program breaks as written,
         /// found while its typed trees were read.
         violations: Vec<RuleViolation>,
@@ -116,10 +116,10 @@ pub enum RouteVerdict {
     FallBack(Refusal),
     /// The compilation's mathematical signature: the kernel checked every
     /// declaration once and judged every law. Reported after every closure.
-    Laws(Box<crate::checking::laws::SignatureJudgment>),
+    Laws(Box<crate::laws::SignatureJudgment>),
     /// Laws of that signature the checker could not prove, one entry per
     /// law. The compilation is refused.
-    UnprovedLaws(Vec<crate::checking::laws::UnprovedLaw>),
+    UnprovedLaws(Vec<crate::laws::UnprovedLaw>),
 }
 
 pub use super::publication::AcceptedClosure;
@@ -156,7 +156,7 @@ pub(crate) struct AcceptedProgram<'a> {
 
 impl AcceptedProgram<'_> {
     pub(crate) fn advisories(&self) -> Vec<Diagnostic> {
-        let mut activity = crate::checking::ProofSearchActivity::default();
+        let mut activity = crate::ProofSearchActivity::default();
         let located = |diagnostic: Diagnostic, origin: SourceOrigin| match origin {
             SourceOrigin::Authored(span) => diagnostic.with_source_span(span),
             SourceOrigin::Unpositioned(_) => diagnostic,
@@ -642,7 +642,7 @@ impl RuleViolation {
 /// identities its requirement declares, and the ceiling."
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExceededReach {
-    pub axis: crate::checking::ceilings::Axis,
+    pub axis: crate::ceilings::Axis,
     pub machine: MachineId,
     /// The call operation or edge.
     pub at: Construct,
@@ -654,15 +654,15 @@ pub struct ExceededReach {
 impl ExceededReach {
     pub fn message(&self) -> String {
         match self.axis {
-            crate::checking::ceilings::Axis::Reach => format!("{} (service reach)", self.statement),
-            crate::checking::ceilings::Axis::Entries => {
+            crate::ceilings::Axis::Reach => format!("{} (service reach)", self.statement),
+            crate::ceilings::Axis::Entries => {
                 format!("{} (synchronous invocation)", self.statement)
             }
-            crate::checking::ceilings::Axis::Suspension => {
+            crate::ceilings::Axis::Suspension => {
                 format!("{} (suspension)", self.statement)
             }
-            crate::checking::ceilings::Axis::Blocking => format!("{} (blocking)", self.statement),
-            crate::checking::ceilings::Axis::Termination => {
+            crate::ceilings::Axis::Blocking => format!("{} (blocking)", self.statement),
+            crate::ceilings::Axis::Termination => {
                 format!("{} (termination)", self.statement)
             }
         }
@@ -680,21 +680,21 @@ impl ExceededReach {
 
 fn exceeded_reach(
     elaboration: &Elaboration,
-    excess: crate::checking::ceilings::Excess,
+    excess: crate::ceilings::Excess,
 ) -> Checked<ExceededReach> {
     let module = &elaboration.module;
-    let permissions = |row: &[crate::checking::ceilings::Permission]| {
+    let permissions = |row: &[crate::ceilings::Permission]| {
         if row.is_empty() {
             return "none".to_owned();
         }
         row.iter()
             .map(|entry| match entry {
-                crate::checking::ceilings::Permission::Entry(
+                crate::ceilings::Permission::Entry(
                     terminal_psi::TerminalCallableInvocation::Parameter(position),
                 ) => {
                     format!("parameter {}", u64::from(*position) + 1)
                 }
-                crate::checking::ceilings::Permission::Entry(
+                crate::ceilings::Permission::Entry(
                     terminal_psi::TerminalCallableInvocation::Service(service),
                 ) => module
                     .interfaces.services
@@ -703,9 +703,9 @@ fn exceeded_reach(
                     .and_then(|declaration| module.identities.text(declaration.identity))
                     .unwrap_or("an unnamed service")
                     .to_owned(),
-                crate::checking::ceilings::Permission::MaySuspend => "suspension".to_owned(),
-                crate::checking::ceilings::Permission::MayBlock => "blocking".to_owned(),
-                crate::checking::ceilings::Permission::MayDiverge => "nontermination".to_owned(),
+                crate::ceilings::Permission::MaySuspend => "suspension".to_owned(),
+                crate::ceilings::Permission::MayBlock => "blocking".to_owned(),
+                crate::ceilings::Permission::MayDiverge => "nontermination".to_owned(),
             })
             .collect::<Vec<_>>()
             .join(" + ")
@@ -734,15 +734,15 @@ fn exceeded_reach(
         }
     };
     let ceiling_description = match excess.axis {
-        crate::checking::ceilings::Axis::Reach => {
+        crate::ceilings::Axis::Reach => {
             format!("reaches `{}`", permissions(&excess.ceiling))
         }
-        crate::checking::ceilings::Axis::Entries => {
+        crate::ceilings::Axis::Entries => {
             format!("invokes `{}`", permissions(&excess.ceiling))
         }
-        crate::checking::ceilings::Axis::Suspension => "permits no suspension".to_owned(),
-        crate::checking::ceilings::Axis::Blocking => "permits no blocking".to_owned(),
-        crate::checking::ceilings::Axis::Termination => "guarantees termination".to_owned(),
+        crate::ceilings::Axis::Suspension => "permits no suspension".to_owned(),
+        crate::ceilings::Axis::Blocking => "permits no blocking".to_owned(),
+        crate::ceilings::Axis::Termination => "guarantees termination".to_owned(),
     };
     let site = match elaboration.sources.get(excess.machine) {
         Some(sources) => Some(source_of(sources, excess.machine, excess.at)?),
@@ -772,7 +772,7 @@ pub struct ConflictingUse {
     pub machine: MachineId,
     /// The row of a conflicting formation. A successor forwards its existing loans.
     pub loan: Option<ObligationId>,
-    pub conflict: crate::checking::LoanConflict,
+    pub conflict: crate::LoanConflict,
     /// Where the call that forms it arises in the source.
     pub site: SourceOrigin,
     /// What the conflict is, naming the callee and binding when retained.
@@ -804,7 +804,7 @@ fn conflict_statement(
     machine: MachineId,
     tables: &terminal_check_tables::MachineTables,
     site: SourceOrigin,
-    conflict: &crate::checking::ConflictingLoan,
+    conflict: &crate::ConflictingLoan,
 ) -> String {
     let callee = conflict
         .invocation
@@ -829,21 +829,21 @@ fn conflict_statement(
             .map(str::to_owned)
     });
     let how = match conflict.conflict {
-        crate::checking::LoanConflict::TwiceExclusive => "as mutable more than once",
-        crate::checking::LoanConflict::ExclusiveAndShared => "as both mutable and read-only",
-        crate::checking::LoanConflict::ExclusiveOfShared => {
+        crate::LoanConflict::TwiceExclusive => "as mutable more than once",
+        crate::LoanConflict::ExclusiveAndShared => "as both mutable and read-only",
+        crate::LoanConflict::ExclusiveOfShared => {
             "as mutable through a shared reference, which grants no mutation"
         }
-        crate::checking::LoanConflict::ObserveWhileExclusive => {
+        crate::LoanConflict::ObserveWhileExclusive => {
             return "storage is observed outside its live exclusive reference".into();
         }
-        crate::checking::LoanConflict::ChangeWhileBorrowed => {
+        crate::LoanConflict::ChangeWhileBorrowed => {
             return "storage is changed while a conflicting reference remains live".into();
         }
-        crate::checking::LoanConflict::ReleaseBeforeChildren => {
+        crate::LoanConflict::ReleaseBeforeChildren => {
             return "reference release precedes its complete child-loan closure".into();
         }
-        crate::checking::LoanConflict::AccessExceedsParent => {
+        crate::LoanConflict::AccessExceedsParent => {
             return "reborrow exceeds the access of its actual source path".into();
         }
     };
@@ -921,14 +921,14 @@ pub(crate) fn judge_owing(
     judge_owing_with_activity(
         elaborated,
         applied,
-        &mut crate::checking::ProofSearchActivity::default(),
+        &mut crate::ProofSearchActivity::default(),
     )
 }
 
 pub(super) fn judge_owing_with_activity(
     elaborated: Checked<Elaboration>,
     applied: AppliedContracts,
-    activity: &mut crate::checking::ProofSearchActivity,
+    activity: &mut crate::ProofSearchActivity,
 ) -> Checked<RouteVerdict> {
     let mut further = Vec::new();
     match examine(elaborated, &[], &[], activity, &mut further) {
@@ -958,9 +958,9 @@ struct Examined {
 /// the verdict names, in machine order.
 fn examine(
     elaborated: Checked<Elaboration>,
-    carried: &[crate::checking::Carried<'_>],
-    laws: &[crate::checking::laws::LawJudgment],
-    activity: &mut crate::checking::ProofSearchActivity,
+    carried: &[crate::Carried<'_>],
+    laws: &[crate::laws::LawJudgment],
+    activity: &mut crate::ProofSearchActivity,
     further: &mut Vec<Refusal>,
 ) -> Result<Examined, Checked<RouteVerdict>> {
     let mut elaboration = match elaborated {
@@ -1001,10 +1001,10 @@ fn examine(
             "implementation rows without their refinement witnesses",
         ))));
     }
-    crate::checking::generic_storage::declared(&elaboration).map_err(fall_back_or_defect)?;
-    crate::checking::nominal_calls::validate(&elaboration).map_err(fall_back_or_defect)?;
-    crate::checking::static_reach::validate(&elaboration).map_err(fall_back_or_defect)?;
-    crate::checking::owned_cleanup::materialize(&mut elaboration).map_err(fall_back_or_defect)?;
+    crate::generic_storage::declared(&elaboration).map_err(fall_back_or_defect)?;
+    crate::nominal_calls::validate(&elaboration).map_err(fall_back_or_defect)?;
+    crate::static_reach::validate(&elaboration).map_err(fall_back_or_defect)?;
+    crate::owned_cleanup::materialize(&mut elaboration).map_err(fall_back_or_defect)?;
     let mut affine_unestablished = Vec::new();
     let mut verified_borrow_ends = Vec::new();
     // A machine the affine check cannot judge yet is one refusal; the check
@@ -1153,7 +1153,7 @@ fn examine(
     // Replay adds logical call requirements and guarantees without changing
     // the structural operations, selected edges, or their cleanup schedules.
     verified_borrow_ends.sort_unstable_by_key(|(machine, _)| *machine);
-    match crate::checking::discharge_inner(
+    match crate::discharge_inner(
         &mut elaboration,
         carried,
         laws,
@@ -1391,7 +1391,7 @@ fn conclude(
     if let Some(first) = unsupported.verdict(Roster::of(&elaboration), further) {
         return Ok(RouteVerdict::FallBack(first));
     }
-    let exceeded = match crate::checking::ceilings::judge(&elaboration) {
+    let exceeded = match crate::ceilings::judge(&elaboration) {
         Ok(found) => found
             .into_iter()
             .map(|excess| exceeded_reach(&elaboration, excess))
@@ -1428,21 +1428,21 @@ fn conclude(
             },
         );
     }
-    if let Err(refused) = crate::checking::external_providers::publish(&mut elaboration) {
+    if let Err(refused) = crate::external_providers::publish(&mut elaboration) {
         return fall_back_or_defect(refused);
     }
-    if let Err(refused) = crate::checking::static_contracts::publish(&mut elaboration) {
+    if let Err(refused) = crate::static_contracts::publish(&mut elaboration) {
         return fall_back_or_defect(Roster::of(&elaboration).locate(refused));
     }
     let applications = &mut elaboration.module.scalars.scalar_applications;
     let mut pending = Vec::new();
     for (machine, result) in discharged.machines.iter() {
         for (obligation, verdict) in result.verdicts.iter() {
-            let Ok(crate::checking::Discharged::TargetCondition(condition)) = verdict else {
+            let Ok(crate::Discharged::TargetCondition(condition)) = verdict else {
                 continue;
             };
             let owner = match condition.as_ref() {
-                crate::checking::TargetCondition::Predicate(condition) => {
+                crate::TargetCondition::Predicate(condition) => {
                     let terminal_psi::ScalarConditionSubject::Declaration(owner) =
                         condition.subject
                     else {
@@ -1456,7 +1456,7 @@ fn conclude(
                     applications.conditions.insert_predicate(condition.clone());
                     owner
                 }
-                crate::checking::TargetCondition::Range(range) => {
+                crate::TargetCondition::Range(range) => {
                     if let Err(detail) = range.retain(&mut applications.conditions) {
                         return fall_back_or_defect(refusal(
                             RefusalReason::ForeignIdentity,
@@ -1503,7 +1503,7 @@ fn conclude(
         })?;
     if elaboration.module.identities.invocation_scope().is_some() {
         let inferred = std::mem::take(&mut discharged.inferred_results);
-        let results = crate::checking::result_summaries::checked_results(
+        let results = crate::result_summaries::checked_results(
             inferred,
             &elaboration,
             &discharged,
@@ -1559,7 +1559,7 @@ fn conclude(
 pub enum CompilationRefusal {
     Elaboration(Refusal),
     #[cfg_attr(not(any(test, feature = "test-support")), allow(dead_code))]
-    Binding(crate::checking::CallableFormationDefect),
+    Binding(crate::CallableFormationDefect),
 }
 
 /// Judges the complete prepared Terminal compilation without consulting typed
@@ -1568,12 +1568,12 @@ pub enum CompilationRefusal {
 pub fn judge_compilation(
     input: terminal_check_tables::compilation::TerminalCompilation,
 ) -> Vec<Result<RouteVerdict, CompilationRefusal>> {
-    judge_compilation_with_activity(input, &mut crate::checking::ProofSearchActivity::default())
+    judge_compilation_with_activity(input, &mut crate::ProofSearchActivity::default())
 }
 
 pub(crate) fn judge_compilation_with_activity(
     input: terminal_check_tables::compilation::TerminalCompilation,
-    activity: &mut crate::checking::ProofSearchActivity,
+    activity: &mut crate::ProofSearchActivity,
 ) -> Vec<Result<RouteVerdict, CompilationRefusal>> {
     use terminal_check_tables::compilation::TerminalCompilation;
     let mut prepared = match input {
@@ -1592,7 +1592,7 @@ pub(crate) fn judge_compilation_with_activity(
         }
         TerminalCompilation::Prepared(prepared) => prepared,
     };
-    match crate::checking::callable_arrivals::check(prepared.arrivals, activity) {
+    match crate::callable_arrivals::check(prepared.arrivals, activity) {
         Ok(unproved) if unproved.is_empty() => {}
         Ok(unproved) => {
             let verdict = if unproved
@@ -1625,7 +1625,7 @@ pub(crate) fn judge_compilation_with_activity(
     // It goes first because a theorem over indexed data has its guarantees
     // proved there, and a machine that cites the theorem imports them
     // (`Discharged::Law`).
-    let signature = (!mathematics.is_empty()).then(|| crate::checking::laws::judge(mathematics));
+    let signature = (!mathematics.is_empty()).then(|| crate::laws::judge(mathematics));
     let laws = signature
         .as_ref()
         .map_or(&[][..], |judged| judged.theorems.as_slice());
@@ -1797,7 +1797,7 @@ fn carried<'a>(
     forms: &'a [GenericForm],
     witnesses: &'a [Witnessed<'a>],
     specializations: &arena::IdTable<MachineId, Option<symbols::SymbolHandle>>,
-) -> Vec<crate::checking::Carried<'a>> {
+) -> Vec<crate::Carried<'a>> {
     // Prepare the actual record-binding family once for each immutable check form.
     // Borrow profiles; only the instance membership roster owns copied IDs.
     let forms: Vec<_> = forms
@@ -1896,21 +1896,21 @@ fn carried<'a>(
                         .map(|(machine, _)| machine)
                 };
                 if let Some(requirement) = requirement {
-                    selections.push(crate::checking::Selection {
+                    selections.push(crate::Selection {
                         requirement,
                         witness: &witnessed.examined.elaboration,
                         refinement: &witnessed.examined.discharged,
                     });
                 }
             }
-            candidates.push(crate::checking::CarriedForm {
+            candidates.push(crate::CarriedForm {
                 generic,
                 found: &examined.discharged,
                 selections,
             });
         }
         if !candidates.is_empty() {
-            carried.push(crate::checking::Carried {
+            carried.push(crate::Carried {
                 specialization,
                 forms: candidates,
             });
@@ -1930,8 +1930,8 @@ fn carried<'a>(
 /// their body obligations to exact implementation witnesses.
 fn examine_generic_forms(
     forms: Vec<terminal_check_tables::compilation::GenericForms>,
-    laws: &[crate::checking::laws::LawJudgment],
-    activity: &mut crate::checking::ProofSearchActivity,
+    laws: &[crate::laws::LawJudgment],
+    activity: &mut crate::ProofSearchActivity,
     further: &mut Vec<Refusal>,
 ) -> Vec<GenericForm> {
     let count = forms.len();

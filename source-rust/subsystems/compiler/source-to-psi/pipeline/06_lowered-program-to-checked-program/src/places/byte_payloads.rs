@@ -47,7 +47,7 @@ impl<'a> Storage<'a> {
                 if let OperationKind::ByteSequenceWrite { destination, .. } = operation.kind {
                     let destination = self.stored_at(destination, &[], concerns)?;
                     inventory = self.byte_payload_descriptors(&destination, concerns)?;
-                } else if crate::checking::call_contracts::operation_inputs(operation).is_some() {
+                } else if crate::call_contracts::operation_inputs(operation).is_some() {
                     // Most calls have no mutable byte descriptor. Inventory
                     // actual operands once before requesting their frame.
                     for argument in operation
@@ -269,7 +269,7 @@ impl<'a> Storage<'a> {
                     invocations.binary_search_by_key(&operation.id, |(id, _, _)| *id)
             {
                 let (_, id, row) = invocations[position];
-                let call = crate::checking::call_contracts::invocation(
+                let call = crate::call_contracts::invocation(
                     self.module,
                     self.lowered,
                     tables,

@@ -8,7 +8,7 @@
 //! assembles the cases with the family's induction.
 
 use super::*;
-use crate::checking::laws::{SignatureJudgment, UnprovedLaw};
+use crate::laws::{SignatureJudgment, UnprovedLaw};
 
 const BOUND: &str =
     include_str!("../../tests/fixtures/indexed_family/pass/vector_sum_bound/main.omg");
@@ -37,7 +37,7 @@ fn judged(source: &str) -> Vec<RouteVerdict> {
         terminal_codec::TerminalPublication::Invocation,
     )
     .unwrap();
-    crate::checking::judge_compilation(compilation.program)
+    crate::judge_compilation(compilation.program)
         .into_iter()
         .map(|verdict| verdict.expect("a judged part"))
         .collect()
@@ -272,6 +272,76 @@ fn closures(verdicts: &[RouteVerdict], machine: &str) -> Vec<u32> {
             _ => panic!("the kernel must judge the law: {law:?}"),
         })
         .collect()
+}
+
+#[test]
+fn a_citation_emits_no_call() {
+    // `bounded` cites `vector_bound` only for its guarantee. The citation is
+    // a theorem application that names the theorem's machine, on a jump,
+    // and no operation of any machine calls the theorem, in the closure or
+    // in a generic machine's check form.
+    let typed = super::build_purpose::frontier_with_core(
+        &proofs(RUNNING),
+        "machine build_entry() {}",
+        source_provenance::DependencyScope::Product,
+        &[],
+    );
+    let prepared = crate::prepare_fixture(typed);
+    let scope = source_provenance::DependencyScope::Product;
+    let compilation = crate::lowering::prepare_compilation(
+        &prepared,
+        super::build_purpose::roster(&[], &[Some(super::build_purpose::package())], scope),
+        terminal_codec::TerminalPublication::Invocation,
+    )
+    .unwrap();
+    let terminal_check_tables::compilation::TerminalCompilation::Prepared(prepared) =
+        &compilation.program
+    else {
+        panic!("the compilation is prepared");
+    };
+    let mut elaborations = vec![prepared.closure.as_ref().expect("the closure")];
+    for form in &prepared.forms {
+        elaborations.extend(form.forms.as_ref().expect("the check forms"));
+    }
+    let mut applications = 0;
+    for elaboration in elaborations {
+        let module = &elaboration.module;
+        let name = |id| {
+            elaboration
+                .names
+                .get(id)
+                .map(|names| names.machine.as_str())
+        };
+        let theorem = module
+            .machines
+            .iter()
+            .find(|machine| name(machine.id) == Some("vector_bound"))
+            .expect("the theorem's machine")
+            .id;
+        for machine in &module.machines {
+            for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
+                let text = format!("{:?}", operation.kind);
+                assert!(
+                    !text.contains(&format!("callee: {theorem:?}")),
+                    "{:?} calls the theorem: {text}",
+                    name(machine.id)
+                );
+            }
+        }
+        for application in &module.proofs.theorem_applications {
+            if name(application.machine) == Some("bounded") {
+                assert_eq!(
+                    application.source,
+                    terminal_psi::TheoremSource::Named(theorem)
+                );
+                applications += 1;
+            }
+        }
+    }
+    assert_eq!(
+        applications, 2,
+        "the closed copy of `bounded` and its check form"
+    );
 }
 
 #[test]

@@ -13,10 +13,10 @@
 //! refused: no later stage could still give a place its field.
 
 use crate::source_resolved as resolved;
-use crate::typing::expressions::call_results::peel;
-use crate::typing::expressions::expression::table::lowerer::resolved_data_definition_for_type;
-use crate::typing::expressions::expression::table::member_binding::declared_type;
-use crate::typing::lowerer::exact_field_symbol;
+use crate::expressions::call_results::peel;
+use crate::expressions::expression::table::lowerer::resolved_data_definition_for_type;
+use crate::expressions::expression::table::member_binding::declared_type;
+use crate::lowerer::exact_field_symbol;
 use diagnostics::Diagnostic;
 use language_core::PatternSelector;
 use resolved::data::{DataDefinition, DataField, DataMember};

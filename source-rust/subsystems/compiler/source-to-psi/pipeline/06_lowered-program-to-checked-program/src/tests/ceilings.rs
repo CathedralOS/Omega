@@ -13,7 +13,7 @@ fn judged(text: &str) -> RouteVerdict {
     let typed = typed(text);
     let entry = entry(&typed);
     let frozen = crate::prepare_fixture(typed);
-    let mut verdicts = crate::checking::judge_compilation(
+    let mut verdicts = crate::judge_compilation(
         crate::lowering::prepare_compilation(
             &frozen,
             crate::lowering::Compilation {
@@ -65,7 +65,7 @@ fn verdict_kind(verdict: &RouteVerdict) -> String {
     }
 }
 
-fn accepted(text: &str) -> Box<crate::checking::AcceptedClosure> {
+fn accepted(text: &str) -> Box<crate::AcceptedClosure> {
     match judged(text) {
         RouteVerdict::Accepted(accepted) => accepted,
         other => panic!("{}", verdict_kind(&other)),
@@ -92,7 +92,7 @@ fn exceeded(text: &str) -> Vec<String> {
 
 /// The rows of `name`, as (written ceiling, published reach), by service
 /// identity.
-fn rows(accepted: &crate::checking::AcceptedClosure, position: u64) -> (Vec<String>, Vec<String>) {
+fn rows(accepted: &crate::AcceptedClosure, position: u64) -> (Vec<String>, Vec<String>) {
     let module = &accepted.elaboration.module;
     let machine = module.machine(id(position)).unwrap();
     let names = |row: &[semantic_vocabulary::ServiceId]| {
@@ -201,7 +201,7 @@ machine entry() {entry_reach} {{ application(1); }}
 
 /// The published synchronous entries of the machine at `position`, by
 /// service identity.
-fn entries(accepted: &crate::checking::AcceptedClosure, position: u64) -> Vec<String> {
+fn entries(accepted: &crate::AcceptedClosure, position: u64) -> Vec<String> {
     let module = &accepted.elaboration.module;
     module
         .machine(id(position))
@@ -530,9 +530,9 @@ machine supplied(value: u32) {supplied} {{ Console::write(value); }}
 fn a_supplied_callable_outside_the_required_ceiling_is_refused() {
     let refine = |required: &str, supplied: &str| {
         let witness = callable_witness(required, supplied)?;
-        crate::checking::prove_callable_refinement(
+        crate::prove_callable_refinement(
             witness,
-            &mut crate::checking::ProofSearchActivity::default(),
+            &mut crate::ProofSearchActivity::default(),
         )
     };
     let inside = "reaches Output crashes none invokes Handler";
@@ -564,9 +564,9 @@ fn a_callable_witness_keeps_exact_service_declarations_for_its_abstract_ceilings
     // Removing the declarations must remain a foreign-identity refusal; the
     // logical witness cannot bypass service admission because it has no body.
     witness.module.interfaces.services.clear();
-    let refused = crate::checking::prove_callable_refinement(
+    let refused = crate::prove_callable_refinement(
         witness,
-        &mut crate::checking::ProofSearchActivity::default(),
+        &mut crate::ProofSearchActivity::default(),
     )
     .unwrap_err();
     assert_eq!(
@@ -637,7 +637,7 @@ terminates
         .unwrap();
     assert_ne!(header.header.proof.id.get(), instance.get());
     assert_eq!(header.header.proof.id, requirement.contract.id);
-    crate::checking::static_contracts::requirement_declarations(&form).unwrap();
+    crate::static_contracts::requirement_declarations(&form).unwrap();
 
     let mut forged = form.clone();
     let header = forged
@@ -648,7 +648,7 @@ terminates
         .find(|header| header.machine == instance)
         .unwrap();
     header.header.proof.id = semantic_vocabulary::ContractId::new(instance.get()).unwrap();
-    let refused = crate::checking::static_contracts::requirement_declarations(&forged).unwrap_err();
+    let refused = crate::static_contracts::requirement_declarations(&forged).unwrap_err();
     assert_eq!(refused.reason, RefusalReason::ForeignIdentity);
     assert_eq!(
         refused.detail,
@@ -667,7 +667,7 @@ terminates
         })
         .unwrap();
     declaration.signature = None;
-    let refused = crate::checking::static_contracts::requirement_declarations(&forged).unwrap_err();
+    let refused = crate::static_contracts::requirement_declarations(&forged).unwrap_err();
     assert_eq!(refused.reason, RefusalReason::ForeignIdentity);
     assert_eq!(
         refused.detail,
@@ -693,7 +693,7 @@ terminates
 
     let discharged = discharge(
         &mut form,
-        &mut crate::checking::ProofSearchActivity::default(),
+        &mut crate::ProofSearchActivity::default(),
     )
     .expect("the real calls retain their blocking acknowledgements");
     for (machine, result) in discharged.machines.iter() {
@@ -707,7 +707,7 @@ terminates
         }
     }
     assert!(
-        crate::checking::ceilings::judge(&form).unwrap().is_empty(),
+        crate::ceilings::judge(&form).unwrap().is_empty(),
         "the complete abstract contract fits the real helper and generic entry"
     );
 
@@ -722,7 +722,7 @@ terminates
     let mut form = crate::lowering::elaborate_generic(&source, entry(&source)).unwrap();
     let refused = discharge(
         &mut form,
-        &mut crate::checking::ProofSearchActivity::default(),
+        &mut crate::ProofSearchActivity::default(),
     )
     .unwrap_err();
     assert_eq!(refused.reason, RefusalReason::Violation);
@@ -786,7 +786,7 @@ requires machine Callback();
         form.requirement_ceilings.get(requirement).unwrap().reaches,
         terminal_check_tables::contracts::Ceiling::Inferred
     ));
-    assert!(crate::checking::ceilings::judge(&form).unwrap().is_empty());
+    assert!(crate::ceilings::judge(&form).unwrap().is_empty());
 
     let mut unknown = form.clone();
     unknown
@@ -796,7 +796,7 @@ requires machine Callback();
         .suspension = None;
     // The generic declaration still establishes the relay's suspension bound.
     assert!(
-        crate::checking::ceilings::judge(&unknown)
+        crate::ceilings::judge(&unknown)
             .unwrap()
             .is_empty()
     );
@@ -813,7 +813,7 @@ requires machine Callback();
     assert!(declaration.envelope.invocations.is_empty());
     unknown.requirement_ceilings.get_mut(relay).unwrap().invokes =
         terminal_check_tables::contracts::Ceiling::Authored(Vec::new());
-    let refused = crate::checking::ceilings::judge(&unknown).unwrap_err();
+    let refused = crate::ceilings::judge(&unknown).unwrap_err();
     assert_eq!(
         refused.detail,
         "abstract callable has no closed suspension, blocking or progress envelope"
@@ -869,7 +869,7 @@ machine helper() -> u32 { 7u32 }
         form.requirement_ceilings.get(requirement).unwrap().reaches,
         terminal_check_tables::contracts::Ceiling::Inferred
     ));
-    assert!(crate::checking::ceilings::judge(&form).unwrap().is_empty());
+    assert!(crate::ceilings::judge(&form).unwrap().is_empty());
 
     // A complete helper summary still has to fit its caller's authored bound.
     // The call keeps its acknowledgement, so only that bound is violated.
@@ -881,12 +881,12 @@ machine helper() -> u32 { 7u32 }
     let source = typed(&denied);
     let form = crate::lowering::elaborate_generic(&source, entry(&source))
         .expect("the checker receives the complete suspending helper contract");
-    let excess = crate::checking::ceilings::judge(&form).unwrap();
+    let excess = crate::ceilings::judge(&form).unwrap();
     assert_eq!(excess.len(), 1, "{excess:?}");
-    assert_eq!(excess[0].axis, crate::checking::ceilings::Axis::Suspension);
+    assert_eq!(excess[0].axis, crate::ceilings::Axis::Suspension);
     assert_eq!(
         excess[0].outside,
-        vec![crate::checking::ceilings::Permission::MaySuspend]
+        vec![crate::ceilings::Permission::MaySuspend]
     );
 }
 
@@ -970,11 +970,11 @@ fn a_bodyless_requirement_keeps_its_own_envelope_when_a_parameter_is_callable() 
     let requirement = *requirement;
     assert!(!form.module.execution.callables.contracts.is_empty());
     assert!(form.module.execution.callables.machine_envelope(requirement).is_none());
-    assert!(crate::checking::ceilings::judge(form).unwrap().is_empty());
+    assert!(crate::ceilings::judge(form).unwrap().is_empty());
 
     // The structural callback's own contract cannot supply the lost requirement row.
     form.requirement_ceilings.get_mut(requirement).unwrap().envelope = None;
-    let error = crate::checking::ceilings::judge(form).unwrap_err();
+    let error = crate::ceilings::judge(form).unwrap_err();
     assert_eq!(error.reason, RefusalReason::ForeignIdentity);
     assert_eq!(error.detail, "abstract requirement lost its declared operational row");
 }

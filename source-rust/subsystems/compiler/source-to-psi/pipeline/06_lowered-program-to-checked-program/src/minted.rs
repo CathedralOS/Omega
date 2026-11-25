@@ -63,7 +63,7 @@ use terminal_psi::{
     TerminalMachine, TerminalMachineResult, Terminator, ValueDeclaration,
 };
 
-use crate::checking::{call_contracts, refusal, semantics_refusal};
+use crate::{call_contracts, refusal, semantics_refusal};
 
 fn index(raw: u64) -> usize {
     usize::try_from(raw - 1).unwrap_or(usize::MAX)
@@ -408,7 +408,7 @@ struct Minted<'a> {
     machine: MachineId,
     module: &'a terminal_psi::TerminalModule,
     lowered: &'a TerminalMachine,
-    cleanup_catalog: crate::checking::owned_cleanup::Catalog<'a>,
+    cleanup_catalog: crate::owned_cleanup::Catalog<'a>,
     claims: terminal_semantics::plain_affine::ClaimsPlan,
     tables: &'a MachineTables,
     /// Whether the lowered form has claimed each obligation row, by position.
@@ -548,7 +548,7 @@ impl Minted<'_> {
                 Actual::Place(place) => records.next().is_some_and(|argument| {
                     if argument.access == terminal_psi::StructuralAccess::Owned {
                         if matches!(site, InvocationSite::Cleanup { .. }) {
-                            crate::checking::owned_cleanup::exact_place(
+                            crate::owned_cleanup::exact_place(
                                 self.module,
                                 self.lowered,
                                 self.tables,
@@ -634,7 +634,7 @@ impl Minted<'_> {
         } else if !self.claims.call_is_unreachable(site) {
             return Err(self.foreign(concerns, "a call has no reconstructed claim frontier"));
         }
-        crate::checking::erased_actuals(&call.contract, inputs, self.machine, invocation)?;
+        crate::erased_actuals(&call.contract, inputs, self.machine, invocation)?;
         if inputs.arguments.len() != call.contract.scalar_parameters.len()
             || inputs.structural_arguments.len() != call.contract.structural_parameters.len()
             || row.actuals.len() != call.contract.parameter_order.len()
@@ -705,7 +705,7 @@ impl Minted<'_> {
             ));
         }
         for (clause, obligation) in inputs.requirements.iter().enumerate() {
-            let clause = crate::checking::position(clause, self.machine)?;
+            let clause = crate::position(clause, self.machine)?;
             self.claim(
                 *obligation,
                 ObligationKind::CallRequirement { invocation, clause },
@@ -755,7 +755,7 @@ pub(crate) fn follow_the_lowered_form(
         machine: id,
         module,
         lowered,
-        cleanup_catalog: crate::checking::owned_cleanup::Catalog::new(module).map_err(
+        cleanup_catalog: crate::owned_cleanup::Catalog::new(module).map_err(
             |detail| {
                 refusal(
                     RefusalReason::ForeignIdentity,
@@ -798,9 +798,9 @@ pub(crate) fn follow_the_lowered_form(
         .iter()
         .filter(|row| row.machine == id)
     {
-        let parameter = terminal_semantics::theorems::application(module, lowered, application)
+        let contract = terminal_semantics::theorems::application(module, lowered, application)
             .map_err(|reason| minted.foreign(Construct::Edge(application.edge), reason))?;
-        if application.requirements.len() != parameter.contract.requires.len() {
+        if application.requirements.len() != contract.requires.len() {
             return Err(minted.foreign(
                 Construct::Edge(application.edge),
                 "logical use lost a premise obligation",
@@ -873,7 +873,7 @@ pub(crate) fn follow_the_lowered_form(
         minted.claim(
             ensures.obligation,
             ObligationKind::PublishedGuarantee {
-                clause: crate::checking::position(clause, id)?,
+                clause: crate::position(clause, id)?,
             },
             ProgramPoint::BlockEntry(lowered.entry),
         )?;
@@ -1036,7 +1036,7 @@ pub(crate) fn follow_the_lowered_form(
         for (edge, actions) in block.terminator.cleanup_rosters() {
             for (ordinal, action) in actions.iter().enumerate() {
                 if let terminal_psi::TerminalAffineCleanupAction::InvokeOwned(cleanup) = action {
-                    let action_ordinal = crate::checking::position(ordinal, id)?;
+                    let action_ordinal = crate::position(ordinal, id)?;
                     let target = minted
                         .cleanup_catalog
                         .target(cleanup)
@@ -1054,7 +1054,7 @@ pub(crate) fn follow_the_lowered_form(
                             edge,
                             action_ordinal,
                         },
-                        call_contracts::Inputs::declared(crate::checking::owned_cleanup::inputs(
+                        call_contracts::Inputs::declared(crate::owned_cleanup::inputs(
                             cleanup,
                         )),
                         ProgramPoint::BeforeCleanup {
@@ -1098,7 +1098,7 @@ pub(crate) fn follow_the_lowered_form(
     // comparison on each of its edges (control_flow.md: "a shared
     // well-foundedness question and comparison obligations for every
     // internal edge").
-    for (kind, point, concerns) in crate::checking::rankings::owed(lowered) {
+    for (kind, point, concerns) in crate::rankings::owed(lowered) {
         minted.owed(kind, point, concerns)?;
     }
 
@@ -1261,7 +1261,7 @@ fn scalar_formals_with_origins(
         formals.push((*formal, ValueOrigin::MachineParameter { position }));
     }
     let mut runtime_positions = (0..total)
-        .map(|position| crate::checking::position(position, id))
+        .map(|position| crate::position(position, id))
         .collect::<Checked<Vec<u32>>>()?
         .into_iter()
         .filter(|position| erased_positions.binary_search(position).is_err());
@@ -1332,7 +1332,7 @@ fn values_are_declared(
                 *parameter,
                 ValueOrigin::BlockParameter {
                     block: block.id,
-                    position: crate::checking::position(position, id)?,
+                    position: crate::position(position, id)?,
                 },
             )?;
         }
@@ -1374,7 +1374,7 @@ impl Minted<'_> {
         for (clause, ensures) in lowered.contract.ensures.iter().enumerate() {
             let kind = ObligationKind::NormalGuarantee {
                 exit,
-                clause: crate::checking::position(clause, self.machine)?,
+                clause: crate::position(clause, self.machine)?,
                 published: ensures.obligation,
             };
             let (obligation, _) = self

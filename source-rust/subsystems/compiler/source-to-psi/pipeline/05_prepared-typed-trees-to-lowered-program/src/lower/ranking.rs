@@ -4,8 +4,8 @@
 
 use super::places::Bound;
 use super::{Lowering, Value};
-use crate::lowering::body::{Expression, ExpressionKind, RankRange, Signature, Strict, ValueType};
-use crate::lowering::{SourceOrigin, Unpositioned, Unserved, refuse};
+use crate::body::{Expression, ExpressionKind, RankRange, Signature, Strict, ValueType};
+use crate::{SourceOrigin, Unpositioned, Unserved, refuse};
 use arena::IdTable;
 use semantic_vocabulary::{BlockId, MachineId, OperationId, ScalarType, ValueId};
 use terminal_check_tables::obligations::ObligationKind;
@@ -115,7 +115,7 @@ impl Lowering<'_> {
         self.invariants.push(terminal_psi::ScalarBlockInvariant {
             machine: self.id,
             header: established,
-            predicate: crate::lowering::canonical::conjunction(
+            predicate: crate::canonical::conjunction(
                 vec![Proposition::LessOrEqual(floor, measure), below_ceiling],
                 self.id,
             )?,
@@ -188,7 +188,7 @@ impl Lowering<'_> {
             self.parameter(established, id, scalar_type)?;
             Ok(ScalarTerm::Value { id, scalar_type })
         };
-        let predicate = crate::lowering::canonical::equal(bind(0)?, bind(1)?, self.id)?;
+        let predicate = crate::canonical::equal(bind(0)?, bind(1)?, self.id)?;
         self.sources.predicate_establishments.push((
             established,
             terminal_check_tables::program::EstablishedCondition::FixedRankBound,

@@ -59,7 +59,7 @@ fn an_acknowledged_blocking_call_preserves_its_returned_value() {
     assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
 }
 
-fn accepted(text: &str) -> Box<crate::checking::AcceptedClosure> {
+fn accepted(text: &str) -> Box<crate::AcceptedClosure> {
     match judge(invocation(text)).unwrap() {
         RouteVerdict::Accepted(accepted) => accepted,
         other => panic!("expected accepted: {other:?}"),
@@ -220,7 +220,7 @@ fn a_missing_or_altered_crossing_is_not_accepted() {
     let refusal = |alter: &dyn Fn(&mut crate::lowering::Elaboration)| {
         let mut elaboration = invocation(SUSPENDING).unwrap();
         alter(&mut elaboration);
-        let refused = crate::checking::operational::judge(&elaboration).unwrap_err();
+        let refused = crate::operational::judge(&elaboration).unwrap_err();
         assert_eq!(
             refused.reason,
             RefusalReason::ForeignIdentity,
@@ -356,13 +356,13 @@ fn malformed_or_forged_operational_metadata_is_not_a_program_rejection() {
     let mut elaboration = invocation(BLOCKING).unwrap();
     let machine = &mut elaboration.module.machines[0];
     machine.call_formations.push(machine.call_formations[0]);
-    let refused = crate::checking::operational::judge(&elaboration).unwrap_err();
+    let refused = crate::operational::judge(&elaboration).unwrap_err();
     assert_eq!(refused.reason, RefusalReason::ForeignIdentity);
     assert!(refused.detail.contains("strictly ordered"));
     let mut elaboration = invocation(BLOCKING).unwrap();
     elaboration.module.machines[0].published_may_block = false;
     assert!(
-        crate::checking::operational::judge(&elaboration)
+        crate::operational::judge(&elaboration)
             .unwrap_err()
             .detail
             .contains("published operational contract")
@@ -372,7 +372,7 @@ fn malformed_or_forged_operational_metadata_is_not_a_program_rejection() {
     row.truncate(1);
     row[0].site = terminal_psi::CallSite::Operation(id(999));
     assert!(
-        crate::checking::operational::judge(&elaboration)
+        crate::operational::judge(&elaboration)
             .unwrap_err()
             .detail
             .contains("no canonical call")
@@ -409,7 +409,7 @@ fn an_implementation_keeps_its_own_bound_and_owes_the_requirement_bound() {
         requirement: &str,
         supplied: &str,
         body: &str,
-    ) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
+    ) -> Vec<Result<RouteVerdict, crate::CompilationRefusal>> {
         let text = format!(
             r#"
             trait Probe {{ machine wait() -> u32 reaches none {requirement}; }}
@@ -432,7 +432,7 @@ fn an_implementation_keeps_its_own_bound_and_owes_the_requirement_bound() {
             .expect("the checked fixture has its actual package identity");
         // The implementation body and its refinement are separate obligations.
         // Check both in the same compilation instead of a bodyless logical form.
-        crate::checking::judge_compilation(
+        crate::judge_compilation(
             crate::lowering::prepare_compilation(
                 &typed,
                 crate::lowering::Compilation {
@@ -470,17 +470,17 @@ fn an_implementation_keeps_its_own_bound_and_owes_the_requirement_bound() {
         .expect("the conformance proof retains its generated checking frame");
     assert!(matches!(
         check_form.publish(),
-        Err(crate::checking::PublicationError::GenericCheckForm(_))
+        Err(crate::PublicationError::GenericCheckForm(_))
     ));
     assert!(matches!(
         check_form.publish_invocation(),
-        Err(crate::checking::PublicationError::GenericCheckForm(_))
+        Err(crate::PublicationError::GenericCheckForm(_))
     ));
-    assert!(crate::checking::ceilings::judge(&check_form.elaboration).is_ok());
+    assert!(crate::ceilings::judge(&check_form.elaboration).is_ok());
     let mut duplicate = check_form.elaboration.clone();
     let frame = duplicate.check_form_envelopes[0].clone();
     duplicate.check_form_envelopes.insert(0, frame);
-    let refused = crate::checking::ceilings::judge(&duplicate).unwrap_err();
+    let refused = crate::ceilings::judge(&duplicate).unwrap_err();
     assert_eq!(
         refused.reason,
         RefusalReason::ForeignIdentity,
@@ -619,7 +619,7 @@ fn canonical_roundtrip_keeps_bounds_and_source_acknowledgements() {
     );
 }
 
-fn selected_verdicts(text: &str) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
+fn selected_verdicts(text: &str) -> Vec<Result<RouteVerdict, crate::CompilationRefusal>> {
     let typed = crate::prepare_fixture(boundary_calls::typed(text));
     let entry = typed
         .trees()
@@ -630,7 +630,7 @@ fn selected_verdicts(text: &str) -> Vec<Result<RouteVerdict, crate::checking::Co
         .symbol;
     // A real selection owes its implementation witness. Use the same complete
     // preparation/judgment route as the public reach-ceiling source control.
-    crate::checking::judge_compilation(
+    crate::judge_compilation(
         crate::lowering::prepare_compilation(
             &typed,
             crate::lowering::Compilation {
@@ -736,7 +736,7 @@ fn a_tail_call_keeps_its_borrowed_formal_contract() {
     "#,
     )
     .unwrap();
-    crate::checking::operational::judge(&original).unwrap();
+    crate::operational::judge(&original).unwrap();
     for change in 0..3 {
         let mut forged = original.clone();
         let machine = &mut forged.module.machines[0];
@@ -767,7 +767,7 @@ fn a_tail_call_keeps_its_borrowed_formal_contract() {
             1 => parameter.multiplicity = terminal_psi::StructuralMultiplicity::Affine,
             _ => parameter.position += 1,
         }
-        let refusal = crate::checking::operational::judge(&forged).unwrap_err();
+        let refusal = crate::operational::judge(&forged).unwrap_err();
         assert!(
             refusal
                 .detail
@@ -841,7 +841,7 @@ machine main(left: @Cell, right: @Cell) -> bool suspends {
 "#;
     let mut lowered = invocation(source).unwrap();
     let (index, [first, second]) = backing_links(&lowered.module);
-    crate::checking::operational::judge(&lowered).expect("exact incoming referents");
+    crate::operational::judge(&lowered).expect("exact incoming referents");
     let plan = &mut lowered.module.execution.suspension_call_plans[index];
     let first_backing = plan.loans.occurrences.get(first).backing.clone();
     plan.loans.occurrences.get_mut(first).backing =
@@ -856,7 +856,7 @@ machine main(left: @Cell, right: @Cell) -> bool suspends {
         .unwrap();
     site.frontier_commitment =
         terminal_psi::suspension_frontier_commitment(&lowered.module.identities, plan);
-    let refused = crate::checking::operational::judge(&lowered).unwrap_err();
+    let refused = crate::operational::judge(&lowered).unwrap_err();
     assert_eq!(
         refused.detail,
         "a suspension plan is not the live frontier of its call"
@@ -917,7 +917,7 @@ machine main() -> bool suspends {
 
 fn assert_local_borrow_retains_backing(source: &str, path: &[terminal_psi::StructuralPathSegment]) {
     let lowered = invocation(source).unwrap();
-    crate::checking::operational::judge(&lowered).unwrap();
+    crate::operational::judge(&lowered).unwrap();
     let module = &lowered.module;
     let [plan] = module.execution.suspension_call_plans.as_slice() else {
         panic!("one wait")
@@ -979,7 +979,7 @@ machine main() -> bool suspends {
 }
 "#;
     let lowered = invocation(source).unwrap();
-    crate::checking::operational::judge(&lowered).unwrap();
+    crate::operational::judge(&lowered).unwrap();
     let plans = &lowered.module.execution.suspension_call_plans;
     let [first, second] = plans.as_slice() else {
         panic!("two ordinary suspension calls")
@@ -1015,7 +1015,7 @@ machine main() suspends {
 }
 "#;
     let lowered = invocation(source).unwrap();
-    crate::checking::operational::judge(&lowered).unwrap();
+    crate::operational::judge(&lowered).unwrap();
     let module = &lowered.module;
     let [plan] = module.execution.suspension_call_plans.as_slice() else {
         panic!("one ordinary wait")

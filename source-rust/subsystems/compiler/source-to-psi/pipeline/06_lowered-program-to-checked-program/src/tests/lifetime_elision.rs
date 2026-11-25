@@ -20,7 +20,7 @@ fn violation(build: &str) -> String {
 
 fn refusal(build: &str) -> String {
     match judge_build(build) {
-        Err(crate::checking::CompilationRefusal::Elaboration(refusal))
+        Err(crate::CompilationRefusal::Elaboration(refusal))
         | Ok(RouteVerdict::FallBack(refusal)) => refusal.detail,
         // A program the compiler rejects reads as its one violation.
         Ok(RouteVerdict::Rejected { violations, .. }) if violations.len() == 1 => {
@@ -240,7 +240,7 @@ fn record_rows(build: &str) -> Vec<(String, bool)> {
         terminal_codec::TerminalPublication::Invocation,
     )
     .expect("fixture must lower to checker input");
-    let mut verdicts = crate::checking::judge_compilation(prepared.program);
+    let mut verdicts = crate::judge_compilation(prepared.program);
     assert_eq!(verdicts.len(), 1);
     let verdict = verdicts.remove(0).unwrap();
     let RouteVerdict::Accepted(accepted) = verdict else {

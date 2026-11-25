@@ -7,11 +7,11 @@ use crate::source_state::TypedTrees;
 use crate::source_state::data::DataMember;
 use crate::source_state::types::{FixedArrayLength, TypeReferenceNode};
 use crate::test_support::frontend_fixture;
-use checked_program_to_psi::production;
+use checked_program_to_psi as production;
 use source_completion_accounting::{PureEvaluationRecord, PureTerminalEvaluationOutcome};
 use source_provenance::DependencyScope;
 use std::sync::Arc;
-use symbol_resolved_trees_to_typed_trees::typing;
+use symbol_resolved_trees_to_typed_trees as typing;
 use syntax_trees_to_symbol_resolved_trees::resolution;
 use typed_trees_to_prepared_typed_trees::{
     PreparedValue, TargetInputs, ValueInputs, prepare_typed_trees,

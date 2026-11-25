@@ -14,7 +14,7 @@ use symbols::SymbolHandle;
 use terminal_check_tables::Checked;
 
 use super::{Program, services};
-use crate::lowering::external_providers::{ExternalProviderSource, ProviderOwnerSource};
+use crate::external_providers::{ExternalProviderSource, ProviderOwnerSource};
 
 impl Program<'_> {
     pub(super) fn select_native_provider(
@@ -255,7 +255,7 @@ impl Program<'_> {
                 requirement,
                 satisfaction.external_binding,
             )?;
-            if !crate::lowering::reach::has_authored_ceiling(typed, context, requirement.symbol)? {
+            if !crate::reach::has_authored_ceiling(typed, context, requirement.symbol)? {
                 return Err(services::unavailable(
                     context,
                     "native conformance requirement has an open service ceiling",
@@ -269,10 +269,10 @@ impl Program<'_> {
         let (mut signature, _) = self.boundary_signature(context, &declared)?;
         signature.termination = match &envelope.termination {
             terminal_psi::TerminalCallableTermination::NotGuaranteed => {
-                crate::lowering::body::Termination::Silent
+                crate::body::Termination::Silent
             }
             terminal_psi::TerminalCallableTermination::Terminates { .. } => {
-                crate::lowering::body::Termination::Promised
+                crate::body::Termination::Promised
             }
         };
         let provider_symbol =
@@ -296,7 +296,7 @@ impl Program<'_> {
             .ok_or_else(|| {
                 services::unavailable(context, "native provider has no exact callable identity")
             })?;
-        let declaration = crate::lowering::declare::boundary_source(
+        let declaration = crate::declare::boundary_source(
             typed,
             machine.symbol,
             provider_symbol.unwrap_or(machine.symbol),
@@ -342,7 +342,7 @@ impl Program<'_> {
     ) -> Checked<
         Option<(
             semantic_vocabulary::BoundaryMachineId,
-            crate::lowering::Signature,
+            crate::Signature,
         )>,
     > {
         let typed = self.typed;
@@ -365,7 +365,7 @@ impl Program<'_> {
         let boundary = self
             .boundaries
             .rows
-            .push(crate::lowering::boundaries::BoundarySource {
+            .push(crate::boundaries::BoundarySource {
                 source: target,
                 owner,
                 signature: signature.clone(),

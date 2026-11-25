@@ -1,12 +1,10 @@
-//! Exercise Build preparation through the CLI. A Build can use a local or a
-//! loan after a wait, while a dependency name becomes selectable only after
-//! its registration has been prepared.
+//! Exercise Build dependency waits through the CLI, including the values, loans
+//! and host-issued registrations a Build can use after it wakes.
 
 use std::process::Command;
 
-/// `omega --check` on a project whose Build registers `dep/` as the build
-/// dependency `kit`. `before` runs before the Build waits for `kit`, `after`
-/// runs after it, and `value` is what the dependency's `v()` returns.
+/// Check code on both sides of a Product dependency wait. The local Build helper
+/// supplies `value` independently of the package whose preparation we await.
 fn check(name: &str, before: &str, after: &str, value: i32) -> (bool, String) {
     check_with_dependency_build(name, before, after, value, "", &["--check", "main.omg"])
 }
@@ -22,7 +20,7 @@ fn check_with_dependency_build(
     let target = target::TargetProfile::host_if_supported().expect("a hosted test target");
     let target = target.target_name();
     let build = format!(
-        "use kit;
+        "use support/support.omg as amounts;
 
 machine build(builder: @mutable Build)
 suspends
@@ -43,7 +41,7 @@ suspends
 }}
 machine register(builder: @mutable Build, request: DependencyDescription) -> DependencyRegistration {{
     Build::application(builder, \"staged\");
-    Build::build_dependency(builder, request)
+    Build::dependency(builder, request)
 }}
 machine needs_seven(value: i32)
 requires value == 7
@@ -58,7 +56,15 @@ machine initial_amount(builder: @mutable Build) -> i32 {{
 }}
 "
     );
-    check_project(name, &build, value, dependency_body, arguments)
+    let helper = format!("public machine value() -> i32 {{ {value} }}");
+    check_project_with_support(
+        name,
+        &build,
+        value,
+        dependency_body,
+        Some(&helper),
+        arguments,
+    )
 }
 
 fn check_project(
@@ -87,6 +93,13 @@ fn check_project_with_support(
     std::fs::create_dir_all(root.join("dep")).expect("staging directory");
     std::fs::write(root.join("main.omg"), "machine main() { }\n").expect("staged program");
     std::fs::write(root.join("build.omg"), build).expect("staged Build");
+    std::fs::write(
+        root.join("counts.omg"),
+        format!(
+            "public data Number {{ value: i32; }}\npublic machine value() -> i32 {{ {value} }}"
+        ),
+    )
+    .expect("local Build helper");
     std::fs::write(
         root.join("dep/build.omg"),
         format!(
@@ -164,14 +177,14 @@ machine build(builder: @mutable Build) {{
 }
 
 #[test]
-fn a_build_calls_the_dependency_it_prepared_and_keeps_what_it_did_before() {
-    let (compiled, stderr) = check("called", "", &after("kit\\v"), 7);
+fn a_build_keeps_its_setting_while_it_waits_for_a_product_dependency() {
+    let (compiled, stderr) = check("called", "", &after("|amounts|::value"), 7);
     assert!(compiled, "{stderr}");
 }
 
 #[test]
-fn the_value_after_the_wait_is_the_one_the_dependency_returns() {
-    let (compiled, stderr) = check("other-value", "", &after("kit\\v"), 8);
+fn the_build_uses_the_value_its_local_helper_returns_after_the_wait() {
+    let (compiled, stderr) = check("other-value", "", &after("|amounts|::value"), 8);
     assert!(!compiled);
     assert!(stderr.contains("project role"), "{stderr}");
     assert!(
@@ -188,7 +201,7 @@ fn preparation_keeps_the_registration_and_its_live_shared_loan() {
         "captured-registration",
         "    let held: @DependencyRegistration = @kit_registered;",
         "    suspend Build::prepare_dependency(builder, $held);
-    let seven: i32 = kit\\v();
+    let seven: i32 = |amounts|::value();
     transition seven == 7 {
         true -> carried(builder),
         _ -> wrong(builder)
@@ -215,7 +228,7 @@ fn a_mutable_loan_still_names_the_original_local_after_a_wait() {
 }
 
 #[test]
-fn the_build_uses_a_loan_then_calls_the_newly_visible_dependency_after_one_wait() {
+fn a_build_uses_its_loan_and_local_helper_after_a_product_wait() {
     let (compiled, stderr) = check(
         "loan-and-import",
         "    let message: @[u8] = \"prepared\";
@@ -223,7 +236,7 @@ fn the_build_uses_a_loan_then_calls_the_newly_visible_dependency_after_one_wait(
     let held: @i32 = @amount;",
         &format!(
             "    builder.tests.disabled = $held == 7;\n    BuildLog::write_line(@mutable builder.log, message);\n{}",
-            after("kit\\v")
+            after("|amounts|::value")
         ),
         7,
     );
@@ -235,7 +248,7 @@ fn a_wait_preserves_the_proof_for_an_already_resolved_call() {
     let (compiled, report) = check(
         "retained-proof",
         "    let amount: i32 = 7;",
-        &format!("    needs_seven(amount);\n{}", after("kit\\v")),
+        &format!("    needs_seven(amount);\n{}", after("|amounts|::value")),
         7,
     );
     assert!(compiled, "{report}");
@@ -248,7 +261,7 @@ fn a_prepared_call_and_an_earlier_borrow_are_visible_together() {
         r#"    let mutable amount: i32 = initial_amount(builder);
     amount = 7;
     let held: @i32 = @amount;"#,
-        r#"    let seven: i32 = kit\v();
+        r#"    let seven: i32 = |amounts|::value();
     needs_seven($held);
     transition seven == $held && !builder.tests.disabled {
         true -> carried(builder),
@@ -269,7 +282,7 @@ fn a_write_through_the_loan_invalidates_the_value_proved_before_preparation() {
     let (compiled, report) = check(
         "overwritten-frame-fact",
         "    let mutable amount: i32 = 7;\n    let held: @mutable i32 = @mutable amount;",
-        r#"    let seven: i32 = kit\v();
+        r#"    let seven: i32 = |amounts|::value();
     $held = 8;
     needs_seven(amount);
     carried(builder);"#,
@@ -290,7 +303,7 @@ fn preparation_preserves_only_the_proved_range_of_a_local() {
             callee,
             "    let amount: i32 = choose_amount(builder.optimizations.human_report != 0u8);",
             &format!(
-                r#"    let seven: i32 = kit\v();
+                r#"    let seven: i32 = |amounts|::value();
     {callee}(amount);
     carried(builder);"#
             ),
@@ -312,15 +325,15 @@ fn build_helpers_are_checked_at_the_call_site_in_both_file_layouts() {
         .unwrap()
         .target_name();
     let helpers = r"machine seven() -> i32 { read_count() }
-    machine read_count() -> i32 { kit\v() }";
+    machine read_count() -> i32 { |counts|::value() }";
     for (layout, import, call, nested, support, file) in [
-        ("nested", "use kit;", "seven()", helpers, None, "build.omg:"),
+        ("nested", "use counts.omg as counts;", "seven()", helpers, None, "build.omg:"),
         (
             "imported",
-            "use support;",
-            r"support\seven()",
+            "use support/support.omg as support;",
+            r"|support|::seven()",
             "",
-            Some(format!("use kit;\npublic {helpers}")),
+            Some(format!("use counts.omg as counts;\npublic {helpers}")),
             "support.omg:",
         ),
     ] {
@@ -330,7 +343,7 @@ machine build(builder: @mutable Build) suspends {{
     announce(builder);
     let mutable request: DependencyDescription = dependency\from_source(Source::Path {{ location: "dep" }});
     dependency\with_alias(@mutable request, "kit");
-    let registered: DependencyRegistration = Build::build_dependency(builder, request);
+    let registered: DependencyRegistration = Build::dependency(builder, request);
     let expected: i32 = 7;
     suspend Build::prepare_dependency(builder, registered);
     transition {call} == expected {{ true -> bind(builder), _ -> wrong(builder) }}
@@ -364,27 +377,22 @@ machine build(builder: @mutable Build) suspends {{
         );
         let (ran, output) = run("before", &early, support.as_deref());
         assert!(
-            !ran && output.contains("no visible declaration in its source scope")
-                && output.contains("read_count")
-                && output.contains(file)
-                && !output.contains("while resuming"),
+            ran && output.contains("native exit 0") && output.contains("interp exit: 0"),
             "{layout}: {output}"
         );
 
-        // No call to the prepared package can make either type use available.
-        for (form, expression, diagnostic) in [
+        // The helper file supplies both the type and the constructor from the start.
+        for (form, expression) in [
             (
                 "annotation",
-                r"let item: kit\Number = kit\Number { value: 7 }; item.value",
-                "this type name has no visible declaration in its source scope",
+                r"let item: |counts|::Number = |counts|::Number { value: 7 }; item.value",
             ),
             (
                 "constructor",
-                r"(kit\Number { value: 7 }).value",
-                "member without a field symbol",
+                r"(|counts|::Number { value: 7 }).value",
             ),
         ] {
-            let type_helper = |text: &str| text.replace(r"kit\v()", expression);
+            let type_helper = |text: &str| text.replace(r"|counts|::value()", expression);
             let type_support = support.as_deref().map(type_helper);
             let (ran, output) = run(
                 &format!("{form}-after"),
@@ -401,10 +409,7 @@ machine build(builder: @mutable Build) suspends {{
                 type_support.as_deref(),
             );
             assert!(
-                !ran && output.contains(diagnostic)
-                    && output.contains("read_count")
-                    && output.contains(file)
-                    && !output.contains("while resuming"),
+                ran && output.contains("native exit 0") && output.contains("interp exit: 0"),
                 "{layout} {form}: {output}"
             );
         }
@@ -431,7 +436,7 @@ machine build(builder: @mutable Build) suspends {{
                 !ran && output.contains(diagnostic)
                     && output.contains("unused`")
                     && output.contains(file)
-                    && output.contains("while resuming"),
+                    && !output.contains("while resuming"),
                 "{layout}: {output}"
             );
         }
@@ -465,16 +470,16 @@ requires a == b && a < larger && flag == second && enabled { }";
             .unwrap()
             .target_name();
         let build = format!(
-            r#"use kit;
+            r#"use counts.omg as counts;
 machine build(builder: @mutable Build) suspends {{
     Build::application(builder, "staged");
     builder.tests.disabled = true;
     let mutable request: DependencyDescription = dependency\from_source(Source::Path {{ location: "dep" }});
     dependency\with_alias(@mutable request, "kit");
-    let registered: DependencyRegistration = Build::build_dependency(builder, request);
+    let registered: DependencyRegistration = Build::dependency(builder, request);
 {before}
     suspend Build::prepare_dependency(builder, registered);
-    let seven: i32 = kit\v();
+    let seven: i32 = |counts|::value();
     require_related(amount, expected, larger, flag, second, enabled);
     suspend Build::prepare_dependency(builder, registered);
     Build::bind(builder, {target}\ProgramEntry, main);
@@ -502,11 +507,11 @@ machine choose_amount(flag: bool) -> i32 ensures result >= 7 && result <= 9 {{
 }
 
 #[test]
-fn the_prepared_package_cannot_change_a_home_while_its_shared_loan_is_live() {
+fn a_write_after_the_wait_conflicts_with_a_shared_loan_of_its_destination() {
     let (compiled, report) = check(
         "live-loan-conflict-in-extended-scope",
         "    let mutable amount: i32 = 3;\n    let held: @i32 = @amount;",
-        r#"    amount = kit\v();
+        r#"    amount = |amounts|::value();
     transition $held == 3 { true -> carried(builder), _ -> wrong(builder) }"#,
         7,
     );
@@ -522,7 +527,7 @@ fn a_live_loan_also_prevents_writes_before_preparation() {
     let (compiled, report) = check(
         "live-loan-conflict-in-prefix",
         "    let mutable amount: i32 = 3;\n    let held: @i32 = @amount;\n    amount = 7;",
-        r#"    let seven: i32 = kit\v();
+        r#"    let seven: i32 = |amounts|::value();
     transition $held == seven { true -> carried(builder), _ -> wrong(builder) }"#,
         7,
     );
@@ -540,7 +545,7 @@ fn a_resumed_mutable_loan_updates_its_own_home() {
         r#"    let other: i32 = 3;
     let mutable amount: i32 = 1;
     let held: @mutable i32 = @mutable amount;"#,
-        r#"    let seven: i32 = kit\v();
+        r#"    let seven: i32 = |amounts|::value();
     $held = seven;
     transition amount == 7 && other == 3 { true -> carried(builder), _ -> wrong(builder) }"#,
         7,
@@ -557,7 +562,7 @@ fn a_resumed_mutable_loan_updates_its_own_home() {
 fn registration_and_a_mutable_local_survive_the_same_preparation() {
     let after_wait = format!(
         "    $held = 7;\n    builder.tests.disabled = amount == 7;\n    suspend Build::prepare_dependency(builder, kit_registered);\n{}",
-        after("kit\\v")
+        after("|amounts|::value")
     );
     let (ran, report) = check_with_dependency_build(
         "registration-and-mutable-local",
@@ -574,11 +579,11 @@ fn registration_and_a_mutable_local_survive_the_same_preparation() {
 }
 
 #[test]
-fn a_new_dependency_can_run_before_the_build_releases_its_live_borrow() {
+fn a_local_helper_can_run_before_the_build_releases_its_live_borrow() {
     let (ran, report) = check_with_dependency_build(
         "call-with-live-borrow",
         "    let mutable amount: i32 = 3;\n    let held: @mutable i32 = @mutable amount;",
-        "    let seven: i32 = kit\\v();\n    $held = seven;\n    suspend Build::prepare_dependency(builder, kit_registered);\n    transition amount == 7 {\n        true -> carried(builder),\n        _ -> wrong(builder)\n    }",
+        "    let seven: i32 = |amounts|::value();\n    $held = seven;\n    suspend Build::prepare_dependency(builder, kit_registered);\n    transition amount == 7 {\n        true -> carried(builder),\n        _ -> wrong(builder)\n    }",
         7,
         "",
         &["run", "--both", "build.omg"],
@@ -592,16 +597,16 @@ fn a_new_dependency_can_run_before_the_build_releases_its_live_borrow() {
 #[test]
 fn a_build_keeps_the_byte_its_helper_read_before_preparation() {
     let target = target::TargetProfile::host_if_supported().expect("hosted test target");
-    let build = r#"use kit;
+    let build = r#"use counts.omg as counts;
 machine middle(bytes: @[u8]) -> u8 requires bytes.length == 3 { bytes[1] }
 machine build(builder: @mutable Build) suspends {
     Build::application(builder, "staged_byte_read");
     let mutable request: DependencyDescription = dependency\from_source(Source::Path { location: "dep" });
     dependency\with_alias(@mutable request, "kit");
-    let registered: DependencyRegistration = Build::build_dependency(builder, request);
+    let registered: DependencyRegistration = Build::dependency(builder, request);
     let byte: u8 = middle("kit");
     suspend Build::prepare_dependency(builder, registered);
-    let seven: i32 = kit\v();
+    let seven: i32 = |counts|::value();
     transition byte == 105u8 && seven == 7 {
         true -> done(builder),
         _ -> wrong(builder)
@@ -624,7 +629,7 @@ machine build(builder: @mutable Build) suspends {
 }
 
 #[test]
-fn a_field_borrow_survives_a_newly_visible_dependency() {
+fn a_field_borrow_survives_preparing_a_product_dependency() {
     let target = target::TargetProfile::host_if_supported().expect("hosted test target");
     let source = include_str!("fixtures/build/run/borrowed_field_after_mount/build.omg").replace(
         "linux_x86_64\\ProgramEntry",
@@ -658,7 +663,7 @@ fn a_field_borrow_survives_a_newly_visible_dependency() {
 }
 
 #[test]
-fn a_parked_helper_returns_the_value_of_the_newly_mounted_package() {
+fn a_suspending_helper_returns_its_local_value_after_preparation() {
     let target = target::TargetProfile::host_if_supported().expect("hosted test target");
     let original = include_str!("fixtures/build/run/borrowed_field_after_mount/build.omg")
         .replace("\r\n", "\n")
@@ -668,15 +673,15 @@ fn a_parked_helper_returns_the_value_of_the_newly_mounted_package() {
         );
     let wait = "suspend Build::prepare_dependency(builder, registration);";
     let mut build = original.replace(
-        &format!("{wait}\n    let seven: i32 = kit\\v();"),
+        &format!("{wait}\n    let seven: i32 = helper_value();"),
         "let seven: i32 = suspend ready(builder, registration);",
     );
     assert_ne!(build, original);
     build.push_str(&format!(
-        "\nmachine ready(builder: @mutable Build, registration: DependencyRegistration) -> i32 suspends {{\n    {wait}\n    kit\\v()\n}}\n"
+        "\nmachine ready(builder: @mutable Build, registration: DependencyRegistration) -> i32 suspends {{\n    {wait}\n    helper_value()\n}}\n"
     ));
     let (ok, report) = check_project(
-        "helper-mounted-result",
+        "suspending-helper-result",
         &build,
         7,
         "",
@@ -686,10 +691,15 @@ fn a_parked_helper_returns_the_value_of_the_newly_mounted_package() {
         ok && report.contains("native exit 0") && report.contains("interp exit: 0"),
         "{report}"
     );
+    let wrong = build.replace(
+        "machine helper_value() -> i32 { 7 }",
+        "machine helper_value() -> i32 { 8 }",
+    );
+    assert_ne!(wrong, build);
     let (ok, report) = check_project(
-        "helper-mounted-result-twin",
-        &build,
-        8,
+        "wrong-suspending-helper-result",
+        &wrong,
+        7,
         "",
         &["--check", "main.omg"],
     );
@@ -699,12 +709,12 @@ fn a_parked_helper_returns_the_value_of_the_newly_mounted_package() {
 #[test]
 fn a_transition_can_use_the_result_of_a_suspending_build_helper() {
     let target = target::TargetProfile::host_if_supported().expect("hosted test target");
-    let build = r#"use kit;
+    let build = r#"use counts.omg as counts;
 machine build(builder: @mutable Build) suspends {
     Build::application(builder, "ready_subject");
     let mutable request: DependencyDescription = dependency\from_source(Source::Path { location: "dep" });
     dependency\with_alias(@mutable request, "kit");
-    let registered: DependencyRegistration = Build::build_dependency(builder, request);
+    let registered: DependencyRegistration = Build::dependency(builder, request);
     SUBJECT {
         true -> finish(builder),
         _ -> wrong(builder)
@@ -714,7 +724,7 @@ machine build(builder: @mutable Build) suspends {
 }
 machine ready(builder: @mutable Build, item: DependencyRegistration) -> bool suspends {
     suspend Build::prepare_dependency(builder, item);
-    kit\v() == 7
+    |counts|::value() == 7
 }
 "#.replace("HOST", target.target_name());
     let call = "suspend ready(builder, registered)";
@@ -725,7 +735,7 @@ machine ready(builder: @mutable Build, item: DependencyRegistration) -> bool sus
     );
     // The second subject can only be evaluated after the first one returns.
     let pair = build
-        .replace("SUBJECT", &format!(r"transition ({call}, kit\v())"))
+        .replace("SUBJECT", &format!(r"transition ({call}, |counts|::value())"))
         .replace("true ->", "(_, 7) ->")
         .replace("_ ->", "(_, _) ->");
     for (name, source) in [
@@ -751,10 +761,10 @@ fn a_helper_prepares_a_package_with_the_callers_borrow_still_live() {
         &format!("{}\\ProgramEntry", target.target_name()),
     );
     let wait = "suspend Build::prepare_dependency(builder, registration);";
-    for (name, inside) in [("helper-wait", false), ("helper-uses-package", true)] {
+    for (name, inside) in [("helper-wait", false), ("helper-calls-local", true)] {
         let mut source = original.replace(wait, "suspend ready(builder, registration);");
         let body = if inside {
-            "builder.tests.disabled = kit\\v() == 7;"
+            "builder.tests.disabled = helper_value() == 7;"
         } else {
             ""
         };
@@ -768,7 +778,7 @@ fn a_helper_prepares_a_package_with_the_callers_borrow_still_live() {
 }
 
 #[test]
-fn a_build_helper_in_another_file_can_use_a_prepared_type() {
+fn a_build_helper_can_use_its_imported_type_on_both_sides_of_a_wait() {
     let target = target::TargetProfile::host_if_supported().expect("hosted test target");
     let project = platform_custody::temporary_directory::TemporaryDirectory::create(
         "prepared-helper-type",
@@ -785,25 +795,26 @@ fn a_build_helper_in_another_file_can_use_a_prepared_type() {
     }"#,
     )
     .unwrap();
-    std::fs::write(root.join("vendor/main.omg"), "public data Score = i32;").unwrap();
+    std::fs::write(root.join("types.omg"), "public data Score = i32;").unwrap();
+    std::fs::write(root.join("vendor/main.omg"), "public data Exported = i32;").unwrap();
     std::fs::write(root.join("main.omg"), "machine main() {}").unwrap();
     std::fs::write(
         root.join("support/helpers.omg"),
-        r#"use kit;
+        r#"use types.omg as types;
 public machine score() -> i32 {
-    let seven: kit\Score = 7;
+    let seven: |types|::Score = 7;
     seven
 }"#,
     )
     .unwrap();
-    let build = r#"use support;
+    let build = r#"use support/helpers.omg as support;
 machine build(builder: @mutable Build) suspends {
     Build::application(builder, "prepared_type");
     let mutable request: DependencyDescription = dependency\from_source(Source::Path { location: "vendor" });
     dependency\with_alias(@mutable request, "kit");
-    let registered: DependencyRegistration = Build::build_dependency(builder, request);
+    let registered: DependencyRegistration = Build::dependency(builder, request);
     suspend Build::prepare_dependency(builder, registered);
-    let score: i32 = support\score();
+    let score: i32 = |support|::score();
     transition score == 7 { true -> finish(builder), _ -> wrong(builder) }
     machine finish(builder: @mutable Build) { Build::bind(builder, HOST\ProgramEntry, main); }
     machine wrong(builder: @mutable Build) { Build::application(builder, "duplicate"); }
@@ -830,15 +841,17 @@ machine build(builder: @mutable Build) suspends {
         "{report}"
     );
     let wait = "    suspend Build::prepare_dependency(builder, registered);\n";
-    let call = "    let score: i32 = support\\score();\n";
+    let call = "    let score: i32 = |support|::score();\n";
     let early = build.replace(&format!("{wait}{call}"), &format!("{call}{wait}"));
     assert_ne!(early, build);
     let result = run(&early);
-    let report = String::from_utf8_lossy(&result.stderr);
+    let report = format!(
+        "{}{}",
+        String::from_utf8_lossy(&result.stdout),
+        String::from_utf8_lossy(&result.stderr)
+    );
     assert!(
-        !result.status.success()
-            && report.contains("helpers.omg:3:")
-            && !report.contains("while resuming"),
+        result.status.success() && report.contains("native exit 0") && report.contains("interp exit: 0"),
         "{report}"
     );
 }
@@ -854,6 +867,8 @@ fn each_transition_arm_can_prepare_its_own_dependency() {
     let root = project.path();
     std::fs::write(root.join("main.omg"), "machine main() {}").unwrap();
     for (directory, name, value) in [("left_vendor", "alpha", 7), ("right_vendor", "beta", 13)] {
+        std::fs::write(root.join(format!("{name}.omg")),
+            format!("public machine value() -> i32 {{ {value} }}")).unwrap();
         let package = root.join(directory);
         std::fs::create_dir(&package).unwrap();
         std::fs::write(
@@ -869,8 +884,8 @@ fn each_transition_arm_can_prepare_its_own_dependency() {
         )
         .unwrap();
     }
-    let build = r#"use alpha;
-use beta;
+    let build = r#"use alpha.omg as alpha;
+use beta.omg as beta;
 machine build(builder: @mutable Build) suspends {
     Build::application(builder, "alternatives");
     builder.tests.disabled = FLAG;
@@ -879,15 +894,15 @@ machine build(builder: @mutable Build) suspends {
         _ -> suspend right(builder)
     }
     machine left(builder: @mutable Build) suspends {
-        let item: DependencyRegistration = Build::build_dependency(builder, dependency\from_source(Source::Path { location: "left_vendor" }));
+        let item: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "left_vendor" }));
         suspend Build::prepare_dependency(builder, item);
-        let actual: i32 = alpha\value();
+        let actual: i32 = |alpha|::value();
         transition actual == 7 { true -> done(builder), _ -> wrong(builder) }
     }
     machine right(builder: @mutable Build) suspends {
-        let item: DependencyRegistration = Build::build_dependency(builder, dependency\from_source(Source::Path { location: "right_vendor" }));
+        let item: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "right_vendor" }));
         suspend Build::prepare_dependency(builder, item);
-        let actual: i32 = beta\value();
+        let actual: i32 = |beta|::value();
         transition actual == 13 { true -> done(builder), _ -> wrong(builder) }
     }
     machine done(builder: @mutable Build) { Build::bind(builder, HOST\ProgramEntry, main); }
@@ -931,17 +946,17 @@ machine build(builder: @mutable Build) suspends {
 #[test]
 fn resumption_preserves_arithmetic_and_float_contracts() {
     let target = target::TargetProfile::host_if_supported().expect("hosted test target");
-    let build = r#"use kit;
+    let build = r#"use counts.omg as counts;
 machine build(builder: @mutable Build) suspends {
     Build::application(builder, "staged_proofs");
     let mutable request: DependencyDescription = dependency\from_source(Source::Path { location: "dep" });
     dependency\with_alias(@mutable request, "kit");
-    let registered: DependencyRegistration = Build::build_dependency(builder, request);
+    let registered: DependencyRegistration = Build::dependency(builder, request);
     let start: i32 = pick(builder.tests.disabled);
     let after: i32 = increment(start);
     let measured: f64 = reading(builder.optimizations.human_report != 0u8);
     suspend Build::prepare_dependency(builder, registered);
-    let value: i32 = kit\v();
+    let value: i32 = |counts|::value();
     require_step(start, after);
     require_small(measured);
     Build::bind(builder, HOST\ProgramEntry, main);
@@ -986,13 +1001,13 @@ machine require_small(x: f64) requires x >= 0.0 && x <= 0.5 {}
 #[test]
 fn only_the_selected_transition_arm_waits_for_its_dependency() {
     let target = target::TargetProfile::host_if_supported().expect("hosted test target");
-    let build = r#"use kit;
+    let build = r#"use counts.omg as counts;
 const CHOSEN: bool = FLAG;
 machine build(builder: @mutable Build) suspends {
     Build::application(builder, "conditional");
     let mutable request: DependencyDescription = dependency\from_source(Source::Path { location: "dep" });
     dependency\with_alias(@mutable request, "kit");
-    let registered: DependencyRegistration = Build::build_dependency(builder, request);
+    let registered: DependencyRegistration = Build::dependency(builder, request);
     builder.tests.disabled = CHOSEN;
     transition builder.tests.disabled {
         true -> suspend ready(builder, registered),
@@ -1000,7 +1015,7 @@ machine build(builder: @mutable Build) suspends {
     }
     machine ready(builder: @mutable Build, registered: DependencyRegistration) suspends {
         suspend Build::prepare_dependency(builder, registered);
-        let value: i32 = kit\v();
+        let value: i32 = |counts|::value();
         transition value == 7 { true -> finish(builder), _ -> wrong(builder) }
     }
     machine finish(builder: @mutable Build) { Build::bind(builder, HOST\ProgramEntry, main); }
@@ -1020,8 +1035,8 @@ machine build(builder: @mutable Build) suspends {
         );
     }
     let wrong_local = build.replace("FLAG", "false").replace(
-        r"let value: i32 = kit\v();",
-        r"let value: i32 = kit\v(); let wrong_type: i32 = true;",
+        r"let value: i32 = |counts|::value();",
+        r"let value: i32 = |counts|::value(); let wrong_type: i32 = true;",
     );
     let (ran, report) = check_project(
         "conditional-skip-known-type",
@@ -1070,7 +1085,7 @@ fn an_open_reader_and_writer_keep_their_cursor_and_staged_bytes_across_preparati
     let output: BuildPath = BuildOutput::resolve(@builder.output, "joined.txt");
     let writer: i32 = BuildOutput::create(@mutable builder.output, output, 0);
     _ = BuildOutput::write(@mutable builder.output, writer, "machine joined() -> i32 { ");"#;
-    let after = r#"    let selected: i32 = kit\v();
+    let after = r#"    let selected: i32 = |amounts|::value();
     let mutable second: [u8; 1] = [0u8];
     let second_count: i64 = BuildSource::read(@builder.source, reader, @mutable second[..], 1u64);
     _ = BuildSource::close(@builder.source, reader);
@@ -1153,7 +1168,7 @@ fn an_issued_output_keeps_its_borrowed_path_and_obligation_across_preparation() 
         &format!("{}\\ProgramEntry", target.target_name()),
     );
     let (ran, report) = check_project(
-        "issued-output-after-mount",
+        "issued-output-after-wait",
         &build,
         7,
         "",
@@ -1166,8 +1181,9 @@ fn an_issued_output_keeps_its_borrowed_path_and_obligation_across_preparation() 
 
     // Settling the same obligation with a fresh, guest-constructed path must fail.
     let forged = build.replace("obligation, checked);", "obligation, BuildPath {});");
+    assert_ne!(forged, build);
     let (ran, report) = check_project(
-        "unissued-output-after-mount",
+        "unissued-output-after-wait",
         &forged,
         7,
         "",
@@ -1183,11 +1199,11 @@ fn an_issued_output_keeps_its_borrowed_path_and_obligation_across_preparation() 
 }
 
 #[test]
-fn replacing_the_output_facet_before_a_mount_does_not_reissue_it() {
+fn replacing_the_output_facet_before_a_wait_does_not_reissue_it() {
     let (ran, report) = check(
         "replaced-output",
         "    builder.output = BuildOutput {};",
-        "    builder.tests.disabled = kit\\v() == 7;\n    let path: BuildPath = BuildOutput::resolve(@builder.output, \"answer.dat\");",
+        "    builder.tests.disabled = |amounts|::value() == 7;\n    let path: BuildPath = BuildOutput::resolve(@builder.output, \"answer.dat\");",
         7,
     );
     assert!(
@@ -1197,13 +1213,13 @@ fn replacing_the_output_facet_before_a_mount_does_not_reissue_it() {
 }
 
 #[test]
-fn copies_of_an_issued_registration_still_name_the_same_request_after_a_mount() {
+fn copies_of_an_issued_registration_still_name_the_same_request_after_a_wait() {
     let (ran, report) = check(
         "copied-registration-after-mount",
         "    let copy: DependencyRegistration = kit_registered;\n    let held: @DependencyRegistration = @copy;",
         &format!(
-            "    builder.tests.disabled = kit\\v() == 7;\n    suspend Build::prepare_dependency(builder, $held);\n    suspend Build::prepare_dependency(builder, kit_registered);\n{}",
-            after("kit\\v"),
+            "    builder.tests.disabled = |amounts|::value() == 7;\n    suspend Build::prepare_dependency(builder, $held);\n    suspend Build::prepare_dependency(builder, kit_registered);\n{}",
+            after("|amounts|::value"),
         ),
         7,
     );
@@ -1211,17 +1227,17 @@ fn copies_of_an_issued_registration_still_name_the_same_request_after_a_mount() 
 }
 
 #[test]
-fn the_mounted_call_does_not_end_a_live_shared_borrow() {
+fn a_local_call_after_a_wait_does_not_end_a_live_shared_borrow() {
     let (ran, report) = check(
         "conflict-after-mounted-call",
         "    let mutable amount: i32 = 3;\n    let held: @i32 = @amount;",
-        "    let seven: i32 = kit\\v();\n    amount = seven;\n    builder.tests.disabled = $held == 7;",
+        "    let seven: i32 = |amounts|::value();\n    amount = seven;\n    builder.tests.disabled = $held == 7;",
         7,
     );
     assert!(
         !ran && report.contains("storage is changed while a conflicting reference remains live")
-            && report.contains("while resuming the Build after dependency preparation")
-            && report.contains("build.omg:14:"),
+            && report.contains("build.omg:14:14")
+            && !report.contains("while resuming the Build after dependency preparation"),
         "{report}"
     );
 }
@@ -1231,17 +1247,17 @@ fn a_user_record_named_dependency_registration_keeps_its_own_fields() {
     let target = target::TargetProfile::host_if_supported().expect("a hosted test target");
     let target = target.target_name();
     let build = format!(
-        r#"use kit;
+        r#"use counts.omg as counts;
 data DependencyRegistration [copy] {{ mark: u32; }}
 machine build(builder: @mutable Build) suspends {{
     Build::application(builder, "staged");
     let mutable request: DependencyDescription = dependency\from_source(Source::Path {{ location: "dep" }});
     dependency\with_alias(@mutable request, "kit");
     let shadow: DependencyRegistration = DependencyRegistration {{ mark: 7u32 }};
-    let real = Build::build_dependency(builder, request);
+    let real = Build::dependency(builder, request);
     suspend Build::prepare_dependency(builder, real);
     builder.tests.disabled = shadow.mark == 7u32;
-    let seven: i32 = kit\v();
+    let seven: i32 = |counts|::value();
     transition seven == 7 && builder.tests.disabled {{
         true -> carried(builder), _ -> wrong(builder)
     }}
@@ -1264,7 +1280,7 @@ machine build(builder: @mutable Build) suspends {{
 fn resumption_cannot_turn_a_guest_value_into_an_issued_registration() {
     let fake = "    let fake: DependencyRegistration = DependencyRegistration {};\n    let held: @DependencyRegistration = @fake;";
     let replaced = "    let mutable slot: DependencyRegistration = kit_registered;\n    slot = DependencyRegistration {};\n    let held: @DependencyRegistration = @slot;";
-    let mounted = "    builder.tests.disabled = kit\\v() == 7;\n";
+    let mounted = "    builder.tests.disabled = |amounts|::value() == 7;\n";
     for (name, before, use_dependency) in [
         ("forged-registration", fake, ""),
         ("forged-after-mount", fake, mounted),
@@ -1310,7 +1326,7 @@ fn a_preparation_refuses_shadowing_before_the_first_build_effects() {
         "duplicate-local",
         "    Build::application(builder, \"second_role\");
     let seven: i32 = 1;",
-        &after("kit\\v"),
+        &after("|amounts|::value"),
         7,
     );
     assert!(!compiled, "{stderr}");
@@ -1339,35 +1355,15 @@ fn a_local_resolution_error_after_a_wait_is_reported_before_the_dependency_runs(
 }
 
 #[test]
-fn a_call_written_before_the_wait_names_nothing() {
-    let (compiled, stderr) = check(
-        "used-before",
-        "    let early: i32 = kit\\v();",
-        &after("kit\\v"),
+fn a_build_can_call_its_local_helper_before_and_after_a_product_wait() {
+    let (compiled, report) = check(
+        "helper-before-and-after",
+        "    let early: i32 = |amounts|::value();",
+        "    let late: i32 = |amounts|::value();
+    transition early == 7 && early == late { true -> carried(builder), _ -> wrong(builder) }",
         7,
     );
-    assert!(!compiled);
-    assert!(
-        stderr.contains(concat!(
-            "this call has no visible declaration in its source scope: ",
-            "an unknown machine name is an error wherever it appears, ",
-            "in a statement that never executes as in any other"
-        )),
-        "{stderr}"
-    );
-    let location = stderr.lines().map(str::trim).find_map(|line| {
-        line.strip_prefix("at ")
-            .and_then(|position| position.strip_suffix(":10:22"))
-    });
-    let expected_path = std::path::PathBuf::from(format!(
-        "omega-build-staged-dependency-calls-{}-used-before",
-        std::process::id()
-    ))
-    .join("build.omg");
-    assert!(
-        location.is_some_and(|path| std::path::Path::new(path).ends_with(&expected_path)),
-        "the refusal identifies the call before dependency preparation: {stderr}"
-    );
+    assert!(compiled, "{report}");
 }
 
 #[test]
@@ -1415,7 +1411,7 @@ fn a_dependency_build_error_reports_the_childs_source() {
     let (compiled, stderr) = check_with_dependency_build(
         "invalid-dependency-build",
         "",
-        &after("kit\\v"),
+        &after("|amounts|::value"),
         7,
         "    unknown();",
         &["--check", "main.omg"],
@@ -1444,12 +1440,6 @@ fn a_dependency_build_error_reports_the_childs_source() {
         stderr.contains(&format!("{}:3:5", expected.display())),
         "{stderr}"
     );
-}
-
-#[test]
-fn a_private_machine_of_the_dependency_is_not_selectable() {
-    let (compiled, _) = check("private", "", &after("kit\\hidden"), 7);
-    assert!(!compiled);
 }
 
 #[test]
@@ -1590,6 +1580,14 @@ machine build(builder: @mutable Build) suspends {
         |case: &str, source: &str| check_project(case, source, 7, "", &["--check", "main.omg"]);
     let (ok, report) = check("exact-file-ready", &build);
     assert!(ok, "{report}");
+    let (ok, report) = check(
+        "private-machine-in-file",
+        &build.replace("|chosen|::v()", "|chosen|::hidden()"),
+    );
+    assert!(
+        !ok,
+        "the Build called a private machine in another package: {report}"
+    );
     let (ok, report) = check(
         "exact-file-missing",
         &build.replace("{kit}/main.omg", "{kit}/other.omg"),

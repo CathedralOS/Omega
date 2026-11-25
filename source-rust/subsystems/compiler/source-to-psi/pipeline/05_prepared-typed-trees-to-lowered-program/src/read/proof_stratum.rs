@@ -2,7 +2,7 @@
 Which declarations are mathematical only. Data that contains itself by value
 has no layout, so no value of it is stored and no machine over it runs: such a
 machine is a definition or a law, read into the compilation's mathematical
-signature (`crate::lowering::mathematics`) and never lowered to operations.
+signature (`crate::mathematics`) and never lowered to operations.
 Data with a field of such a type has no layout either, so it is mathematical
 too, however many declarations lie between.
 

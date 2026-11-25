@@ -51,7 +51,7 @@ use terminal_psi::{
     CrashRouteBucket, CrashRouteGuard, TerminalMachine, TerminalModule, Terminator,
 };
 
-use crate::checking::refusal;
+use crate::refusal;
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn coverage_goal(
@@ -146,7 +146,7 @@ fn operation_site(
             )
         })?;
     if let Some(semantics) = terminal_semantics::trapping_integer_semantics(found, types)
-        .map_err(crate::checking::semantics_refusal(id, found.id))?
+        .map_err(crate::semantics_refusal(id, found.id))?
     {
         if cause != CrashCause::Trap {
             return Err(refusal(
@@ -160,7 +160,7 @@ fn operation_site(
             .completes()
             .kernel_proposition()
             .map(Guard::Unless)
-            .map_err(crate::checking::semantics_refusal(id, found.id));
+            .map_err(crate::semantics_refusal(id, found.id));
     }
     call_site(
         module,
@@ -201,14 +201,14 @@ fn call_site(
         return Err(refuse());
     };
     let call =
-        crate::checking::call_contracts::invocation(module, lowered, tables, invocation, row)?;
+        crate::call_contracts::invocation(module, lowered, tables, invocation, row)?;
     let guard = match call.inputs.crash_continuations {
         Some(routes) => route(routes, cause).ok_or_else(refuse)?,
         None => {
             let guard = route(call.contract.crash_routes, cause).ok_or_else(refuse)?;
-            crate::checking::substitute(
+            crate::substitute(
                 &guard,
-                &mut crate::checking::ScalarActuals {
+                &mut crate::ScalarActuals {
                     actuals: call.inputs.arguments,
                     result: None,
                     tables,

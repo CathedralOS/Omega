@@ -116,7 +116,7 @@ impl SourcePublication {
         timings.record_result(artifacts::compile_timings::source::CHECK_SELECTIONS, || {
             let module = accepted.module();
             let selections =
-                crate::production::source_selection_publication::prepare(accepted, module, None)
+                crate::source_selection_publication::prepare(accepted, module, None)
                     .map_err(|diagnostic| vec![diagnostic])?;
             psi_authorization::selection_questions::admit_selection_questions(
                 module,

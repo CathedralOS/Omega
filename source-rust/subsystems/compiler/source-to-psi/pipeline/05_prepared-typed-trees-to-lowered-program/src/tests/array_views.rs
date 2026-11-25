@@ -1,5 +1,5 @@
 use super::*;
-use crate::lowering::body::{Borrowed, BorrowedReferent, Regions};
+use crate::body::{Borrowed, BorrowedReferent, Regions};
 use language_core::ReferenceAccess;
 use terminal_psi::{ArrayExtent, ByteSequenceCarrier, ElementViewRegion};
 
@@ -22,7 +22,7 @@ fn array_types(access: StructuralAccess) -> IdTable<StructuralTypeId, RecordType
     add(
         "u8",
         true,
-        crate::lowering::StorageShape::PrimitiveScalar {
+        crate::StorageShape::PrimitiveScalar {
             scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap()),
             qualification: Qualification::NONE,
         },
@@ -30,7 +30,7 @@ fn array_types(access: StructuralAccess) -> IdTable<StructuralTypeId, RecordType
     add(
         "[u8;3]",
         true,
-        crate::lowering::StorageShape::FixedArray {
+        crate::StorageShape::FixedArray {
             element: id(1),
             qualification: Qualification::NONE,
             length: ArrayExtent::Literal(3),
@@ -39,7 +39,7 @@ fn array_types(access: StructuralAccess) -> IdTable<StructuralTypeId, RecordType
     add(
         "byte view",
         access == StructuralAccess::SharedBorrow,
-        crate::lowering::StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+        crate::StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
             access: Some(access),
         }),
     );

@@ -35,9 +35,9 @@ use semantic_vocabulary::{MachineId, StructuralTypeId};
 use terminal_check_tables::{Checked, Construct};
 
 use super::Program;
-use crate::lowering::qualifications::explain_policy_refusal;
-use crate::lowering::body::{Expression, StorageShape, ValueType};
-use crate::lowering::{Unserved, refuse};
+use crate::qualifications::explain_policy_refusal;
+use crate::body::{Expression, StorageShape, ValueType};
+use crate::{Unserved, refuse};
 
 /// What a site does to the contents of a value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -231,10 +231,10 @@ impl Program<'_> {
         id: MachineId,
         value_type: ValueType,
         omitted: Option<&str>,
-        source: crate::lowering::SourceOrigin,
+        source: crate::SourceOrigin,
     ) -> Checked<()> {
         let no_zero = |held: &str, unserved: &'static str| match omitted {
-            Some(field) => Err(crate::lowering::reject(
+            Some(field) => Err(crate::reject(
                 id,
                 source,
                 format!(

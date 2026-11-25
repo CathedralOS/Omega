@@ -2,7 +2,7 @@
 
 use super::*;
 use crate::source_state::statement::{StatementNode, TransitionTargetNode};
-use crate::typing::typing_queries::{declared_callable_value_type, declared_place_type};
+use crate::typing_queries::{declared_callable_value_type, declared_place_type};
 use std::sync::Arc;
 
 fn source_result(
@@ -15,14 +15,14 @@ fn source_result(
     let id = sources
         .add("cast_contexts/main.omg".into(), text.to_owned())
         .source_id;
-    let tokens = crate::typing::frontend_fixture::Lexer::new(text)
+    let tokens = crate::frontend_fixture::Lexer::new(text)
         .tokenize()
         .unwrap();
-    let syntax = crate::typing::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
+    let syntax = crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
     let mut request = crate::resolution::ResolutionRequest::new(syntax);
     request.sources = Some(Arc::new(sources));
     let resolved = crate::resolution::resolve(request).unwrap();
-    let typed = crate::typing::lower_symbol_resolved_trees(&resolved);
+    let typed = crate::lower_symbol_resolved_trees(&resolved);
     (resolved, typed)
 }
 
@@ -480,7 +480,7 @@ machine second(value: i64 in Marked) -> i64 { value as -Marked }
     let second_state = typed.machine_by_symbol(second).unwrap().states.start();
     typed.machine_states.get_mut(second_state).statement_nodes = first_state.statement_nodes;
     let refused =
-        crate::typing::expression_meanings::prepare(&resolved, &mut typed, 0, 0, &[]).unwrap_err();
+        crate::expression_meanings::prepare(&resolved, &mut typed, 0, 0, &[]).unwrap_err();
     assert!(
         refused
             .message

@@ -15,10 +15,10 @@ use terminal_psi::{AtomicAccessEvent, AtomicReadModifyWrite};
 
 use super::authority::Access;
 use super::{Program, Slot};
-use crate::lowering::body::{
+use crate::body::{
     Expression, ExpressionKind, RecordType, Statement, StorageShape, ValueType,
 };
-use crate::lowering::{SourceOrigin, Unserved, refuse, reject};
+use crate::{SourceOrigin, Unserved, refuse, reject};
 
 impl Program<'_> {
     pub(super) fn atomic_type(
@@ -186,7 +186,7 @@ impl Program<'_> {
         let (place, scalar) = self.atomic_place(machine, slots, atomic.value, true, false)?;
         Ok(Expression {
             call_context: None,
-            kind: ExpressionKind::Atomic(crate::lowering::body::AtomicOperation::Access {
+            kind: ExpressionKind::Atomic(crate::body::AtomicOperation::Access {
                 place: Box::new(place),
                 event: AtomicAccessEvent::Load { ordering },
                 operands: Vec::new(),
@@ -297,7 +297,7 @@ impl Program<'_> {
         };
         Ok(Some(Expression {
             call_context: None,
-            kind: ExpressionKind::Atomic(crate::lowering::body::AtomicOperation::Fence(ordering)),
+            kind: ExpressionKind::Atomic(crate::body::AtomicOperation::Fence(ordering)),
             result: None,
             source,
         }))
@@ -333,7 +333,7 @@ impl Program<'_> {
         Ok(Statement::Evaluate {
             expression: Expression {
                 call_context: None,
-                kind: ExpressionKind::Atomic(crate::lowering::body::AtomicOperation::Access {
+                kind: ExpressionKind::Atomic(crate::body::AtomicOperation::Access {
                     place: Box::new(place),
                     event: AtomicAccessEvent::Store { value: 0, ordering },
                     operands: vec![operand],
@@ -457,7 +457,7 @@ impl Program<'_> {
         let operand = self.atomic_operand(machine, slots, operand, scalar)?;
         let value = Expression {
             call_context: None,
-            kind: ExpressionKind::Atomic(crate::lowering::body::AtomicOperation::Access {
+            kind: ExpressionKind::Atomic(crate::body::AtomicOperation::Access {
                 place: Box::new(place),
                 event,
                 operands: vec![operand],
@@ -473,7 +473,7 @@ impl Program<'_> {
                 homed: false,
                 erased: false,
                 borrowed: None,
-                borrowed_regions: crate::lowering::body::Regions::NONE,
+                borrowed_regions: crate::body::Regions::NONE,
             },
             Statement::Bind {
                 slot: self.next_slot(slots),

@@ -3,8 +3,8 @@
 //! that their values agree.
 
 use super::{Program, contracts::ClauseScope};
-use crate::lowering::body::{Qualification, Regions, ValueType};
-use crate::lowering::canonical;
+use crate::body::{Qualification, Regions, ValueType};
+use crate::canonical;
 use crate::source_state::SourceTypeApplication;
 use crate::source_state::data::TypeParameterKind;
 use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};

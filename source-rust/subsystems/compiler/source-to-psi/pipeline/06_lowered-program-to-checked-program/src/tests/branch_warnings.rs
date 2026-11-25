@@ -2,8 +2,8 @@
 //! series of proof searches. These tests use the real lowered/checker tables.
 
 use super::*;
-use crate::checking::branch_warnings::Analysis;
-use crate::checking::graph::Graph;
+use crate::branch_warnings::Analysis;
+use crate::graph::Graph;
 
 fn guarded_program(unrelated: usize, contradictory: bool, impossible_entry: bool) -> Machine {
     let mut requires = vec![at_most(1, 5)];
@@ -40,7 +40,7 @@ fn guarded_program(unrelated: usize, contradictory: bool, impossible_entry: bool
 fn warning_explanations_use_one_refutation_per_point_not_one_per_premise_or_arm() {
     for unrelated in [0, 32, 128] {
         let (elaboration, result) = run(vec![guarded_program(unrelated, true, false)]);
-        let mut activity = crate::checking::ProofSearchActivity::default();
+        let mut activity = crate::ProofSearchActivity::default();
         let tables = elaboration.tables.machines.get(id(1)).unwrap();
         let lowered = &elaboration.module.machines[0];
         let branches = &elaboration.sources.get(id(1)).unwrap().branches;
@@ -79,7 +79,7 @@ fn warning_explanations_use_one_refutation_per_point_not_one_per_premise_or_arm(
         let mut analysis = Analysis::new(&context, &graph, tables, lowered, id(1));
         let repeated = analysis.run(
             &vec![branch; 64],
-            &mut crate::checking::ProofSearchActivity::default(),
+            &mut crate::ProofSearchActivity::default(),
         );
         assert_eq!(repeated.len(), 64);
         assert_eq!(analysis.searches, 2, "unrelated premises: {unrelated}");
@@ -102,7 +102,7 @@ fn consistent_arms_and_arrivals_already_impossible_before_the_branch_stay_quiet(
             tables.values.iter().map(|(value, row)| (value, row.scalar_type)),
         ).unwrap();
         let mut analysis = Analysis::new(&context, &graph, tables, lowered, id(1));
-        let warnings = analysis.run(branches, &mut crate::checking::ProofSearchActivity::default());
+        let warnings = analysis.run(branches, &mut crate::ProofSearchActivity::default());
         if !contradictory {
             assert_eq!(analysis.searches, branches.len(), "reachable arms need only their own point");
         }
@@ -130,17 +130,17 @@ fn mandatory_checking_leaves_warning_search_to_accepted_diagnostics() {
             }
             input
         };
-        let mut activity = crate::checking::ProofSearchActivity::default();
-        let verdict = crate::checking::verdict::judge_owing_with_activity(
+        let mut activity = crate::ProofSearchActivity::default();
+        let verdict = crate::verdict::judge_owing_with_activity(
             Ok(lower_program(false)),
-            crate::checking::verdict::AppliedContracts::Undecided,
+            crate::verdict::AppliedContracts::Undecided,
             &mut activity,
         )
         .unwrap();
-        let mut mandatory = crate::checking::ProofSearchActivity::default();
-        let control = crate::checking::verdict::judge_owing_with_activity(
+        let mut mandatory = crate::ProofSearchActivity::default();
+        let control = crate::verdict::judge_owing_with_activity(
             Ok(lower_program(true)),
-            crate::checking::verdict::AppliedContracts::Undecided,
+            crate::verdict::AppliedContracts::Undecided,
             &mut mandatory,
         )
         .unwrap();

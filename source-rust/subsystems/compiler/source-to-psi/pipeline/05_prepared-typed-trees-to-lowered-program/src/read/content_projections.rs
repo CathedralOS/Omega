@@ -3,7 +3,7 @@
 //! identifies which application the machine implements.
 
 use super::Program;
-use crate::lowering::{Unserved, refuse};
+use crate::{Unserved, refuse};
 use crate::source_state::domain::DomainDefinition;
 use crate::source_state::machine::{Machine, SatisfiedDeclaration};
 use crate::source_state::types::TypeReferenceNode;
@@ -53,9 +53,9 @@ impl Program<'_> {
         let typed = self.typed;
         let missing = |what| refuse(id, Construct::Machine, Unserved::Declaration(what));
         let invalid = |rule| {
-            crate::lowering::reject(
+            crate::reject(
                 id,
-                crate::lowering::SourceOrigin::of(
+                crate::SourceOrigin::of(
                     typed
                         .symbols
                         .symbol_provenance_source_span(symbol)

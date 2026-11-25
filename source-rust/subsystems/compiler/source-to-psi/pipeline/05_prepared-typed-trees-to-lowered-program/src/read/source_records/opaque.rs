@@ -3,8 +3,8 @@
 //! needs its bytes and retains the exact selection that supplied them.
 
 use super::{Program, malformed};
-use crate::lowering::body::ValueType;
-use crate::lowering::read::services::unavailable;
+use crate::body::ValueType;
+use crate::read::services::unavailable;
 use crate::source_state::opaque_representations::OpaqueRepresentationSelection;
 use semantic_vocabulary::{MachineId, StructuralCaseId, StructuralFieldId, StructuralTypeId};
 use terminal_check_tables::Checked;

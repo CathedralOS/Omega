@@ -52,7 +52,7 @@ use terminal_psi::{
 };
 
 use super::{Backing, Lineage, Shape, Storage, StorageAddresses, index, lineage};
-use crate::checking::refusal;
+use crate::refusal;
 use terminal_check_tables::RefusalReason;
 
 /// What one store put into its place.
@@ -633,7 +633,7 @@ impl<'a> Storage<'a> {
             // does not know of.
             _ => {
                 if produced.is_some()
-                    || crate::checking::result_equation(
+                    || crate::result_equation(
                         self.module,
                         self.lowered,
                         operation,

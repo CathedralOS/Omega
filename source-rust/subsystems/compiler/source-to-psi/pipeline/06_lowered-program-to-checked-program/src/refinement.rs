@@ -24,9 +24,9 @@ use terminal_check_tables::{Checked, Construct, RefusalReason};
 #[cfg(any(test, feature = "test-support"))]
 pub fn prove_callable_refinement(
     mut witness: Elaboration,
-    activity: &mut crate::checking::ProofSearchActivity,
+    activity: &mut crate::ProofSearchActivity,
 ) -> Checked<()> {
-    let discharged = crate::checking::discharge(&mut witness, activity)?;
+    let discharged = crate::discharge(&mut witness, activity)?;
     for (machine, result) in discharged.machines.iter() {
         if witness.requirements.contains(&machine) {
             continue;
@@ -78,28 +78,28 @@ pub fn prove_callable_refinement(
     // as a rejection: this operation has no rejection of its own. The same
     // containment on the entries axis is "Bound the entries of every
     // admitted implementation".
-    if let Some(excess) = crate::checking::ceilings::judge_declared_rows(&witness)?
+    if let Some(excess) = crate::ceilings::judge_declared_rows(&witness)?
         .into_iter()
         .next()
     {
-        return Err(crate::checking::refusal(
+        return Err(crate::refusal(
             RefusalReason::Unsupported,
             excess.machine,
             excess.at,
             match excess.axis {
-                crate::checking::ceilings::Axis::Reach => {
+                crate::ceilings::Axis::Reach => {
                     "supplied callable reaches a service outside the required ceiling"
                 }
-                crate::checking::ceilings::Axis::Entries => {
+                crate::ceilings::Axis::Entries => {
                     "supplied callable enters a callback outside the required invokes ceiling"
                 }
-                crate::checking::ceilings::Axis::Suspension => {
+                crate::ceilings::Axis::Suspension => {
                     "supplied callable may suspend outside the required ceiling"
                 }
-                crate::checking::ceilings::Axis::Blocking => {
+                crate::ceilings::Axis::Blocking => {
                     "supplied callable may block outside the required ceiling"
                 }
-                crate::checking::ceilings::Axis::Termination => {
+                crate::ceilings::Axis::Termination => {
                     "supplied callable lacks the required termination guarantee"
                 }
             },
@@ -113,7 +113,7 @@ pub fn prove_callable_refinement(
 /// malformed imported proof never becomes a freshly trusted construction.
 pub fn finalize_callable_refinements(
     module: &mut terminal_psi::TerminalModule,
-    activity: &mut crate::checking::ProofSearchActivity,
+    activity: &mut crate::ProofSearchActivity,
 ) -> Checked<()> {
     use terminal_semantics::calls::callable_refinement::{
         callable_refinement_context, descriptor_refinement_goals,
@@ -125,7 +125,7 @@ pub fn finalize_callable_refinements(
     if let Some(descriptor) = module.execution.callables.descriptors.first() {
         terminal_semantics::callable_envelopes::validate_callable_operational_refinements(module)
             .map_err(|detail| {
-            crate::checking::refusal(
+            crate::refusal(
                 RefusalReason::ForeignIdentity,
                 descriptor.machine,
                 Construct::Machine,
@@ -135,7 +135,7 @@ pub fn finalize_callable_refinements(
     }
     terminal_semantics::calls::callable_refinement::validate_callable_result_refinements(module)
         .map_err(|error| {
-            crate::checking::refusal(
+            crate::refusal(
                 RefusalReason::ForeignIdentity,
                 error
                     .machine
@@ -150,7 +150,7 @@ pub fn finalize_callable_refinements(
     let mut prepared = Vec::with_capacity(module.execution.callables.descriptors.len());
     for descriptor in &module.execution.callables.descriptors {
         let refuse = |reason, detail: &str| {
-            crate::checking::refusal(reason, descriptor.machine, Construct::Machine, detail)
+            crate::refusal(reason, descriptor.machine, Construct::Machine, detail)
         };
         let goals = descriptor_refinement_goals(module, descriptor.id)
             .map_err(|detail| refuse(RefusalReason::ForeignIdentity, detail))?;
@@ -180,7 +180,7 @@ pub fn finalize_callable_refinements(
         let certificates = goals
             .into_iter()
             .map(|(id, goal)| {
-                crate::checking::derive_contract_obligation(
+                crate::derive_contract_obligation(
                     descriptor.machine.into(),
                     &context,
                     id,
@@ -201,7 +201,7 @@ pub fn finalize_callable_refinements(
             &module.proofs.evidence_contract_lanes,
         )
         .map_err(|detail| {
-            crate::checking::refusal(
+            crate::refusal(
                 RefusalReason::ForeignIdentity,
                 descriptor.machine,
                 Construct::Machine,
@@ -220,7 +220,7 @@ pub fn finalize_callable_refinements(
     }
     if let Some(descriptor) = module.execution.callables.descriptors.first() {
         validate_descriptor_refinement_evidence(module).map_err(|detail| {
-            crate::checking::refusal(
+            crate::refusal(
                 RefusalReason::ForeignIdentity,
                 descriptor.machine,
                 Construct::Machine,

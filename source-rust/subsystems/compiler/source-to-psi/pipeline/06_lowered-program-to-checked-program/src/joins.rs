@@ -67,8 +67,8 @@ use terminal_check_tables::{
 };
 use terminal_psi::{ScalarBlockInvariant, SuccessorEdge, TerminalMachine, Terminator};
 
-use crate::checking::graph::Graph;
-use crate::checking::{Discharged, arrivals, decide, goal, push_knowledge, refusal};
+use crate::graph::Graph;
+use crate::{Discharged, arrivals, decide, goal, push_knowledge, refusal};
 
 /// The declared and inferred predicates available at block entries. Both
 /// ordinary discharge and private-input inference prepare the same rows;
@@ -81,9 +81,9 @@ pub(crate) fn prepare<'a>(
     graph: &Graph,
     context: &PropositionContext,
     invariants: &[ScalarBlockInvariant],
-    storage: &crate::checking::places::Storage<'a>,
+    storage: &crate::places::Storage<'a>,
     references: &mut terminal_semantics::descriptor_results::DescriptorAnalysis<'a>,
-    activity: &mut crate::checking::ProofSearchActivity,
+    activity: &mut crate::ProofSearchActivity,
 ) -> Checked<Vec<(BlockId, Proposition)>> {
     let mut declared = Vec::new();
     for invariant in invariants.iter().filter(|row| row.machine == id) {
@@ -101,7 +101,7 @@ pub(crate) fn prepare<'a>(
             .iter()
             .map(|formal| terminal_psi::StructuralArgument::whole(formal.place, formal.access))
             .collect::<Vec<_>>();
-        let premises = crate::checking::storage_conjuncts(
+        let premises = crate::storage_conjuncts(
             &invariant.predicate,
             &mut storage.at_join(
                 references,
@@ -304,7 +304,7 @@ fn available_value(
     {
         Some((ValueOrigin::MachineParameter { .. }, _)) => true,
         Some((ValueOrigin::StorageContent { place, after: None }, _)) => {
-            match crate::checking::places::content_root_kind(lowered, tables, place) {
+            match crate::places::content_root_kind(lowered, tables, place) {
                 Some(StructuralPlaceKind::Parameter { .. }) => true,
                 Some(StructuralPlaceKind::BlockParameter { block: owner, .. }) => {
                     owner == block || dominates(ProgramPoint::BlockEntry(owner))
@@ -383,9 +383,9 @@ pub(crate) fn infer<'a>(
     tables: &mut MachineTables,
     graph: &Graph,
     context: &PropositionContext,
-    storage: &crate::checking::places::Storage<'a>,
+    storage: &crate::places::Storage<'a>,
     references: &mut terminal_semantics::descriptor_results::DescriptorAnalysis<'a>,
-    activity: &mut crate::checking::ProofSearchActivity,
+    activity: &mut crate::ProofSearchActivity,
 ) -> Checked<()> {
     // Only actual demanded snapshots participate. Group them once by the
     // owning block, using the already validated dense block roster rather
@@ -395,7 +395,7 @@ pub(crate) fn infer<'a>(
         let ValueOrigin::StorageContent { place, after: None } = row.origin else {
             continue;
         };
-        let Some(root) = crate::checking::places::content_root(lowered, tables, place) else {
+        let Some(root) = crate::places::content_root(lowered, tables, place) else {
             return Err(refusal(
                 RefusalReason::ForeignIdentity,
                 id,
@@ -505,16 +505,16 @@ pub(crate) fn infer<'a>(
                     concerns,
                 )?;
                 for &(value, scalar_type) in snapshots {
-                    match crate::checking::Bindings::value(&mut inputs, value, scalar_type) {
+                    match crate::Bindings::value(&mut inputs, value, scalar_type) {
                         Ok(actual) => snapshot_bindings.push(Proposition::Equal(
                             ScalarTerm::value(value, scalar_type),
                             actual,
                         )),
                         Err(
-                            crate::checking::Unbound::Unproved(_)
-                            | crate::checking::Unbound::Unsupported(_),
+                            crate::Unbound::Unproved(_)
+                            | crate::Unbound::Unsupported(_),
                         ) => {}
-                        Err(crate::checking::Unbound::Refused(refused)) => return Err(refused),
+                        Err(crate::Unbound::Refused(refused)) => return Err(refused),
                     }
                 }
             }
@@ -595,7 +595,7 @@ fn argument_bounds(
     join: &terminal_psi::Block,
     at_edge: ProgramPoint,
     arguments: &[ValueId],
-    activity: &mut crate::checking::ProofSearchActivity,
+    activity: &mut crate::ProofSearchActivity,
 ) -> Vec<Proposition> {
     let mut bounds = Vec::new();
     if !join
@@ -608,10 +608,10 @@ fn argument_bounds(
     let Some(identity) = ObligationId::new(1) else {
         return bounds;
     };
-    let Ok(known) = crate::checking::hypotheses(graph, tables, id, identity, at_edge) else {
+    let Ok(known) = crate::hypotheses(graph, tables, id, identity, at_edge) else {
         return bounds;
     };
-    let mut prover = crate::checking::prove::Prover::new(
+    let mut prover = crate::prove::Prover::new(
         context,
         &known.assumptions,
         &known.axioms,
@@ -893,7 +893,7 @@ pub(crate) fn arrival_goal<'a>(
     obligation: ObligationId,
     edge: EdgeId,
     tables: &MachineTables,
-    storage: &crate::checking::places::Storage<'a>,
+    storage: &crate::places::Storage<'a>,
     invariants: &[ScalarBlockInvariant],
     references: &mut terminal_semantics::descriptor_results::DescriptorAnalysis<'a>,
 ) -> Checked<Proposition> {
@@ -945,7 +945,7 @@ pub(crate) fn arrival_goal<'a>(
         ProgramPoint::Edge(edge),
         concerns,
     )?;
-    let explain = |error: crate::checking::Unbound| {
+    let explain = |error: crate::Unbound| {
         let mut refused = error.refusal(id, concerns);
         refused.detail = format!(
             "arrival edge {} into block {}: {}",
@@ -955,7 +955,7 @@ pub(crate) fn arrival_goal<'a>(
         );
         refused
     };
-    let stated = crate::checking::substitute_goal(predicate, &mut bindings).map_err(explain)?;
+    let stated = crate::substitute_goal(predicate, &mut bindings).map_err(explain)?;
     // The original contract remains an arrival goal after its header's
     // storage observations have been stated over exact logical values.
     let original = invariants
@@ -982,7 +982,8 @@ pub(crate) fn arrival_goal<'a>(
                 terminal_semantics::substitution::substitute_proposition_structural_places(
                     &rename(&original.predicate, &renaming),
                     &roots,
-                );
+                )
+                .map_err(|detail| refusal(RefusalReason::Unsupported, id, concerns, detail))?;
             lowered
                 .contract
                 .requires
@@ -993,14 +994,14 @@ pub(crate) fn arrival_goal<'a>(
         };
         let original = match forwarded {
             Some(incoming) => connective(
-                crate::checking::entry_snapshot_conjuncts(
+                crate::entry_snapshot_conjuncts(
                     &incoming,
                     &mut storage.at_entry(references, tables),
                 )
                 .map_err(explain)?,
                 true,
             ),
-            None => crate::checking::substitute_goal(&original.predicate, &mut bindings)
+            None => crate::substitute_goal(&original.predicate, &mut bindings)
                 .map_err(explain)?,
         };
         Ok(connective(vec![stated, original], true))
@@ -1027,17 +1028,17 @@ pub(crate) fn rename(proposition: &Proposition, renaming: &[(ValueId, ValueId)])
 pub(crate) struct Machine<'view, 'analysis> {
     pub(crate) module: &'analysis terminal_psi::TerminalModule,
     pub(crate) lowered: &'analysis TerminalMachine,
-    pub(crate) storage: &'view crate::checking::places::Storage<'analysis>,
+    pub(crate) storage: &'view crate::places::Storage<'analysis>,
     pub(crate) id: MachineId,
     pub(crate) types: &'view arena::IdTable<ValueId, ScalarType>,
     pub(crate) graph: &'view Graph,
     pub(crate) context: &'view PropositionContext,
-    pub(crate) ranking_bindings: &'view crate::checking::rankings::Bindings,
+    pub(crate) ranking_bindings: &'view crate::rankings::Bindings,
     /// Keep the producer's original predicates separate from inferred facts.
     /// An inference can be discarded; a failed declared claim still rejects.
     pub(crate) declared: &'view [(BlockId, Proposition)],
     /// The machine's values the integer rules do not reach
-    /// (`crate::checking::Unreached`).
+    /// (`crate::Unreached`).
     pub(crate) unreached: &'view [ValueId],
     pub(crate) law_instances: &'view [MachineId],
 }
@@ -1052,7 +1053,7 @@ pub(crate) fn check<'a>(
     machine: &Machine<'_, 'a>,
     tables: &mut MachineTables,
     decided: &mut [Option<Checked<Discharged>>],
-    activity: &mut crate::checking::ProofSearchActivity,
+    activity: &mut crate::ProofSearchActivity,
     references: &mut terminal_semantics::descriptor_results::DescriptorAnalysis<'a>,
 ) -> Checked<Vec<BlockId>> {
     let arrivals: Vec<(usize, ObligationId, EdgeId, ProgramPoint)> = tables
@@ -1187,7 +1188,7 @@ mod tests {
 
     #[test]
     fn structural_only_join_snapshots_keep_every_distinct_arrival() {
-        fn judged(text: &str) -> Vec<crate::checking::RouteVerdict> {
+        fn judged(text: &str) -> Vec<crate::RouteVerdict> {
             let mut sources = crate::source_inputs::SourceMap::default();
             let source = sources
                 .add_checked_instance(
@@ -1200,11 +1201,11 @@ mod tests {
                     source_provenance::DependencyScope::Product,
                 )
                 .source_id;
-            let tokens = crate::checking::frontend_fixture::Lexer::new(text)
+            let tokens = crate::frontend_fixture::Lexer::new(text)
                 .tokenize()
                 .unwrap();
             let syntax =
-                crate::checking::frontend_fixture::parse_syntax_trees_with_id(source, &tokens)
+                crate::frontend_fixture::parse_syntax_trees_with_id(source, &tokens)
                     .unwrap();
             let mut request = crate::resolution::ResolutionRequest::new(syntax);
             request.sources = Some(std::sync::Arc::new(sources));
@@ -1226,7 +1227,7 @@ mod tests {
                 terminal_codec::TerminalPublication::Invocation,
             )
             .expect("fixture must lower to checker input");
-            let verdicts = crate::checking::judge_compilation(prepared.program);
+            let verdicts = crate::judge_compilation(prepared.program);
             assert!(!verdicts.is_empty(), "the real source must be checked");
             verdicts.into_iter().map(Result::unwrap).collect()
         }
@@ -1245,7 +1246,7 @@ mod tests {
         assert!(
             positive
                 .iter()
-                .all(|verdict| matches!(verdict, crate::checking::RouteVerdict::Accepted(_))),
+                .all(|verdict| matches!(verdict, crate::RouteVerdict::Accepted(_))),
             "{positive:?}"
         );
         let changed = source.replace("result == 1u8 || result == 2u8", "result == 1u8");
@@ -1254,8 +1255,8 @@ mod tests {
         let mut guarantee_refused = false;
         for verdict in negative {
             match verdict {
-                crate::checking::RouteVerdict::Accepted(_) => {}
-                crate::checking::RouteVerdict::Rejected {
+                crate::RouteVerdict::Accepted(_) => {}
+                crate::RouteVerdict::Rejected {
                     formations,
                     violations,
                     unproved,

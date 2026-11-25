@@ -27,10 +27,10 @@ pub(super) fn source_view(
         .scope
         .slice_application(typed, source.reference)
         .map_err(|reason| {
-            crate::lowering::refuse(
+            crate::refuse(
                 machine,
                 Construct::Machine,
-                crate::lowering::Unserved::Type(reason),
+                crate::Unserved::Type(reason),
             )
         })?
     else {

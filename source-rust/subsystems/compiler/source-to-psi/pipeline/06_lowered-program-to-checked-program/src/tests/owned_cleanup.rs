@@ -31,7 +31,7 @@ fn prepared(text: &str) -> crate::preparation::PreparedTypedTrees {
         .expect("ordinary typed preparation must preserve this source program")
 }
 
-fn judged(text: &str) -> Result<RouteVerdict, crate::checking::CompilationRefusal> {
+fn judged(text: &str) -> Result<RouteVerdict, crate::CompilationRefusal> {
     super::entryless::judged_typed_result(prepared(text).trees(), false)
 }
 
@@ -162,10 +162,10 @@ fn receiving_rejects_missing_reordered_or_relocated_cleanup_requirements() {
         terminal_codec::TerminalPublication::Invocation,
     )
     .expect("the actual source produces fresh receiving input");
-    crate::checking::owned_cleanup::materialize(&mut unjudged).unwrap();
+    crate::owned_cleanup::materialize(&mut unjudged).unwrap();
     let mut baseline = unjudged.clone();
-    let mut activity = crate::checking::ProofSearchActivity::default();
-    let verified = crate::checking::discharge(&mut baseline, &mut activity)
+    let mut activity = crate::ProofSearchActivity::default();
+    let verified = crate::discharge(&mut baseline, &mut activity)
         .expect("fresh untampered input must discharge");
     for machine in verified.machines.values() {
         assert!(machine.verdicts.values().all(Result::is_ok), "{verified:?}");
@@ -222,8 +222,8 @@ fn receiving_rejects_missing_reordered_or_relocated_cleanup_requirements() {
                 };
             }
         }
-        let mut activity = crate::checking::ProofSearchActivity::default();
-        let refused = crate::checking::discharge(&mut changed, &mut activity)
+        let mut activity = crate::ProofSearchActivity::default();
+        let refused = crate::discharge(&mut changed, &mut activity)
             .expect_err("receiving must not repair generated call proofs");
         assert_eq!(
             refused.reason,
@@ -247,7 +247,7 @@ fn undecomposed_recursive_or_abnormal_consumers_never_gain_a_disposition() {
     ] {
         let result = judged(&program(1, receiver, body, effects));
         let refusal = match result {
-            Err(crate::checking::CompilationRefusal::Elaboration(refusal))
+            Err(crate::CompilationRefusal::Elaboration(refusal))
             | Ok(RouteVerdict::FallBack(refusal)) => refusal,
             other => panic!("{receiver}: expected {expected}, got {other:?}"),
         };
@@ -310,7 +310,7 @@ fn complete_patterns_end_linear_wrappers_without_forgetting_components() {
         // A linear value left unconsumed is the program's error: the
         // compiler rejects it rather than refusing it as unsupported.
         let detail = match judged(source) {
-            Err(crate::checking::CompilationRefusal::Elaboration(refusal))
+            Err(crate::CompilationRefusal::Elaboration(refusal))
             | Ok(RouteVerdict::FallBack(refusal)) => refusal.detail,
             Ok(RouteVerdict::Rejected { violations, .. }) if violations.len() == 1 => {
                 violations[0].statement.clone()

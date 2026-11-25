@@ -30,7 +30,7 @@ use terminal_check_tables::values::ValueOrigin;
 use terminal_check_tables::{Checked, Construct, MachineTables, RefusalReason};
 use terminal_psi::{ScalarBlockInvariant, TerminalMachine};
 
-use crate::checking::refusal;
+use crate::refusal;
 
 fn block(lowered: &TerminalMachine, id: BlockId) -> Option<&terminal_psi::Block> {
     usize::try_from(id.get() - 1)

@@ -33,9 +33,9 @@ pub(crate) struct SourceProviderSelection {
 pub(crate) fn publish(
     context: MachineId,
     source: &SourceProviderSelections<'_>,
-    elaboration: &mut crate::lowering::Elaboration,
+    elaboration: &mut crate::Elaboration,
 ) -> Checked<()> {
-    use crate::lowering::read::services::unavailable;
+    use crate::read::services::unavailable;
     if !elaboration.module.interfaces.provider_selections.is_empty() {
         return Err(unavailable(
             context,
@@ -86,7 +86,7 @@ pub(crate) fn publish(
                     "source provider selection repeats an exact target slot",
                 ));
             }
-            let provider_declaration = crate::lowering::declare::nominal(
+            let provider_declaration = crate::declare::nominal(
                 source_owner,
                 &source_identities,
                 source.provider_declaration,

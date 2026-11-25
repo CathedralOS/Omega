@@ -2,7 +2,7 @@
 //! receives its complete schema and target; only a checked result becomes
 //! geometry for that application and target.
 
-use checked_program_to_psi::production;
+use checked_program_to_psi as production;
 use std::sync::Arc;
 
 use crate::source_state::references::{

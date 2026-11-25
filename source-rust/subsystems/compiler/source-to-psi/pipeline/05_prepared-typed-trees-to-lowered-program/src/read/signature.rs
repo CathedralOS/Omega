@@ -54,11 +54,11 @@ use terminal_check_tables::{Checked, Construct, Refusal};
 use super::Program;
 use super::families::{EvidenceTerm, EvidenceUse, FamilyRecord, FamilyTerm, FamilyTheorem};
 use super::quotients::LiftedOperation;
-use crate::lowering::body::{
+use crate::body::{
     ArmGuard, Body, CallTarget, CaseSelector, Expression, ExpressionKind, Statement, Target,
     ValueType,
 };
-use crate::lowering::{Unserved, refuse};
+use crate::{Unserved, refuse};
 
 /// The trait requirement a mathematical machine satisfies, read at the
 /// trait's actual type arguments.
@@ -1394,7 +1394,7 @@ impl<'p> Converter<'p, '_> {
                 .copied()
                 .ok_or_else(|| unserved(id, "clause over indexed data names another value")),
             ScalarTerm::IntegerField { root, path, .. }
-                if Some(*root) == crate::lowering::body::self_place() =>
+                if Some(*root) == crate::body::self_place() =>
             {
                 match (path.as_slice(), scope.payload) {
                     (
@@ -2556,7 +2556,7 @@ impl<'p> Converter<'p, '_> {
         &mut self,
         defining: &Defining<'_>,
         subject: usize,
-        arms: &[(CaseSelector, Target, crate::lowering::SourceOrigin)],
+        arms: &[(CaseSelector, Target, crate::SourceOrigin)],
     ) -> Checked<(TermHandle, FunctionCases)> {
         let id = defining.id;
         let formals = defining.formals;
@@ -2977,7 +2977,7 @@ impl<'p> Converter<'p, '_> {
         &mut self,
         machine: MachineId,
         subject: &Expression,
-        arms: &[(CaseSelector, Target, crate::lowering::SourceOrigin)],
+        arms: &[(CaseSelector, Target, crate::SourceOrigin)],
         scope: &Scope<'_>,
         valuing: &Valuing<'_>,
     ) -> Checked<TermHandle> {
@@ -4221,7 +4221,7 @@ impl<'p> Converter<'p, '_> {
                     .map(|field| field.identity.clone())
                     .collect(),
                 source: match origin {
-                    crate::lowering::SourceOrigin::Authored(span) => Some(*span),
+                    crate::SourceOrigin::Authored(span) => Some(*span),
                     _ => None,
                 },
                 split: None,
@@ -4325,7 +4325,7 @@ impl<'p> Converter<'p, '_> {
         law: MachineId,
         machine: MachineId,
         subject: &Expression,
-        arms: &[(CaseSelector, Target, crate::lowering::SourceOrigin)],
+        arms: &[(CaseSelector, Target, crate::SourceOrigin)],
         defaulted: bool,
         before: &[&Statement],
         scope: &Scope<'_>,
@@ -4353,7 +4353,7 @@ impl<'p> Converter<'p, '_> {
                 }
                 let mut nested = LawCase {
                     source: match origin {
-                        crate::lowering::SourceOrigin::Authored(span) => Some(*span),
+                        crate::SourceOrigin::Authored(span) => Some(*span),
                         _ => None,
                     },
                     ..LawCase::default()

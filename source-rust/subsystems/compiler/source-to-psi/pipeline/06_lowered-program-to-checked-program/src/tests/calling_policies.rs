@@ -73,8 +73,8 @@ pub(super) fn prepared(
 fn judged(
     text: &str,
     roots: &[&str],
-) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
-    crate::checking::judge_compilation(prepared(
+) -> Vec<Result<RouteVerdict, crate::CompilationRefusal>> {
+    crate::judge_compilation(prepared(
         typed(text),
         roots,
         terminal_codec::TerminalPublication::Invocation,
@@ -86,12 +86,12 @@ fn verdict(text: &str, roots: &[&str]) -> String {
 }
 
 fn describe_verdicts(
-    verdicts: Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>>,
+    verdicts: Vec<Result<RouteVerdict, crate::CompilationRefusal>>,
 ) -> String {
     let parts: Vec<String> = verdicts
         .into_iter()
         .map(|verdict| match verdict {
-            Err(crate::checking::CompilationRefusal::Elaboration(refusal))
+            Err(crate::CompilationRefusal::Elaboration(refusal))
             | Ok(RouteVerdict::FallBack(refusal)) => refusal.detail,
             Ok(RouteVerdict::Accepted(accepted)) => match accepted.publish_invocation() {
                 Ok(_) => "accepted".to_owned(),
@@ -181,7 +181,7 @@ boundary trait ",
             + start;
         let typed = typed_hosted_policy(&source[start..end]);
         let program = prepared(typed, &[plan], terminal_codec::TerminalPublication::Invocation);
-        verdicts.push((policy, describe_verdicts(crate::checking::judge_compilation(program))));
+        verdicts.push((policy, describe_verdicts(crate::judge_compilation(program))));
     }
     for (policy, verdict) in &verdicts {
         let (closure, witness) = verdict.split_once("; ").unwrap_or((verdict, ""));
@@ -580,7 +580,7 @@ ensures result == 9
         Some(vec![(0, vec![*left])])
     );
 
-    let verdicts = crate::checking::judge_compilation(input);
+    let verdicts = crate::judge_compilation(input);
     let [Ok(RouteVerdict::Accepted(accepted))] = verdicts.as_slice() else {
         panic!("the untouched right field retains its actual entry value: {verdicts:?}")
     };
@@ -728,7 +728,7 @@ ensures result == 9
     // Private input writes must not turn a returned record into the old
     // supplied value. The result has its own established contents, even when
     // the helper publishes no outward write to the consumed input storage.
-    let owned = crate::checking::judge_compilation(prepared(
+    let owned = crate::judge_compilation(prepared(
         super::build_purpose::frontier_of(source, "machine build_entry() { }"),
         &["owned_result"],
         terminal_codec::TerminalPublication::Portable,
@@ -766,7 +766,7 @@ ensures result == 9
         "ensures result == 9\n{\n    let returned",
         "ensures result == 7\n{\n    let returned",
     );
-    let owned = crate::checking::judge_compilation(prepared(
+    let owned = crate::judge_compilation(prepared(
         super::build_purpose::frontier_of(&correct, "machine build_entry() { }"),
         &["owned_result"],
         terminal_codec::TerminalPublication::Portable,
@@ -777,7 +777,7 @@ ensures result == 9
     accepted.publish().unwrap();
 
     let changed = source.replace("pair.left = value;", "pair.right = value;");
-    let rejected = crate::checking::judge_compilation(prepared(
+    let rejected = crate::judge_compilation(prepared(
         super::build_purpose::frontier_of(&changed, "machine build_entry() { }"),
         &["root"],
         terminal_codec::TerminalPublication::Portable,

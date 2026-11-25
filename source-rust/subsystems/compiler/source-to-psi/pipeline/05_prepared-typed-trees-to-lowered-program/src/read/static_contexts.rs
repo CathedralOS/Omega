@@ -9,7 +9,7 @@ use terminal_check_tables::{Checked, Construct};
 use terminal_psi::static_reach::StaticReachParameter;
 
 use super::Program;
-use crate::lowering::{Unserved, refuse};
+use crate::{Unserved, refuse};
 
 struct Origin {
     declaration: TypeParameter,
@@ -20,7 +20,7 @@ fn symbol_key(symbol: SymbolHandle) -> (u32, u32) {
     (symbol.arena_index(), symbol.generation())
 }
 
-fn unavailable(owner: MachineId, reason: &'static str) -> crate::lowering::Refusal {
+fn unavailable(owner: MachineId, reason: &'static str) -> crate::Refusal {
     refuse(owner, Construct::Machine, Unserved::Declaration(reason))
 }
 

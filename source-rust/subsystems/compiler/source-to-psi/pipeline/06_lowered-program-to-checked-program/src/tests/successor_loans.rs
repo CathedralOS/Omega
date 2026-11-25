@@ -89,7 +89,7 @@ fn a_successor_cannot_duplicate_one_exclusive_borrow_into_two_headers() {
     assert!(
         matches!(verdict, Ok(RouteVerdict::Rejected { conflicts, .. })
             if conflicts.iter().any(|conflict| conflict.loan.is_none()
-                && conflict.conflict == crate::checking::LoanConflict::TwiceExclusive)),
+                && conflict.conflict == crate::LoanConflict::TwiceExclusive)),
         "the successor must reject the overlapping exclusive cohort"
     );
 }
@@ -148,7 +148,7 @@ fn an_attenuated_successor_still_conflicts_with_an_exclusive_sibling() {
     assert!(
         matches!(&verdict, Ok(RouteVerdict::Rejected { conflicts, .. })
             if conflicts.iter().any(|conflict| conflict.loan.is_none()
-                && conflict.conflict == crate::checking::LoanConflict::ExclusiveAndShared)),
+                && conflict.conflict == crate::LoanConflict::ExclusiveAndShared)),
         "attenuation cannot hide overlapping siblings: {verdict:?}"
     );
 }
@@ -193,7 +193,7 @@ fn loop_element_reborrows_keep_distinct_incoming_backing() {
                 Ok(RouteVerdict::Rejected { conflicts, .. }) => assert!(
                     conflicts.iter().any(|conflict| matches!(
                         conflict.conflict,
-                        crate::checking::LoanConflict::TwiceExclusive
+                        crate::LoanConflict::TwiceExclusive
                     )),
                     "{conflicts:?}"
                 ),
@@ -273,7 +273,7 @@ fn a_dispatch_releases_a_dead_view_before_lending_its_backing_to_the_next_state(
     };
     let conflict = conflicts
         .iter()
-        .find(|conflict| conflict.conflict == crate::checking::LoanConflict::ExclusiveAndShared)
+        .find(|conflict| conflict.conflict == crate::LoanConflict::ExclusiveAndShared)
         .expect("passing the window must conflict with the mutable successor borrow");
     let source = conflict
         .site
@@ -388,15 +388,15 @@ machine entry(first: bool) -> bool {
         .cloned()
         .collect();
     assert!(!when_true.cleanup_actions.is_empty());
-    let mut activity = crate::checking::ProofSearchActivity::default();
-    let mut scope = crate::checking::prepare_replay(&mut input, &mut activity).unwrap();
+    let mut activity = crate::ProofSearchActivity::default();
+    let mut scope = crate::prepare_replay(&mut input, &mut activity).unwrap();
     let (formed, domains, checking, _, _) = scope.checking();
     let module = formed.source();
     let tables = checking.machines.get_mut(identity).unwrap();
-    let prepared = crate::checking::prepare(formed, domains, identity, tables).unwrap();
+    let prepared = crate::prepare(formed, domains, identity, tables).unwrap();
     let mut references = prepared.references(&module.types.structural_types);
     let machine = module.machine(identity).unwrap();
-    let storage = crate::checking::places::Storage::new(
+    let storage = crate::places::Storage::new(
         identity,
         machine,
         module,
@@ -413,7 +413,7 @@ machine entry(first: bool) -> bool {
     assert!(
         conflicts
             .iter()
-            .any(|conflict| conflict.conflict == crate::checking::LoanConflict::ChangeWhileBorrowed),
+            .any(|conflict| conflict.conflict == crate::LoanConflict::ChangeWhileBorrowed),
         "cleanup on the continuing edge must preserve the packet's live view"
     );
 }
@@ -563,7 +563,7 @@ machine main() crashes Trap {
                 matches!(block.terminator, Terminator::Jump { target, .. } if target == folded_forward)));
         }
         let expected_verdicts = 1 + program.forms.len() + program.witnesses.len();
-        let verdicts = crate::checking::judge_compilation(positive);
+        let verdicts = crate::judge_compilation(positive);
         assert_eq!(verdicts.len(), expected_verdicts);
         assert!(
             verdicts
@@ -657,14 +657,14 @@ machine main() crashes Trap {
         owner,
     ));
 
-    let mut activity = crate::checking::ProofSearchActivity::default();
-    let mut scope = crate::checking::prepare_replay(&mut input, &mut activity).unwrap();
+    let mut activity = crate::ProofSearchActivity::default();
+    let mut scope = crate::prepare_replay(&mut input, &mut activity).unwrap();
     let (formed, domains, checking, _, _) = scope.checking();
     let module = formed.source();
     let tables = checking.machines.get_mut(identity).unwrap();
-    let prepared = crate::checking::prepare(formed, domains, identity, tables).unwrap();
+    let prepared = crate::prepare(formed, domains, identity, tables).unwrap();
     let mut references = prepared.references(&module.types.structural_types);
-    let storage = crate::checking::places::Storage::new(
+    let storage = crate::places::Storage::new(
         identity,
         module.machine(identity).unwrap(),
         module,
@@ -728,7 +728,7 @@ machine entry() -> u64 {
                     });
             }
             Ok(RouteVerdict::FallBack(refusal))
-            | Err(crate::checking::CompilationRefusal::Elaboration(refusal)) => {
+            | Err(crate::CompilationRefusal::Elaboration(refusal)) => {
                 panic!("empty shared payload was refused: {}", refusal.detail);
             }
             _ => panic!("empty shared payload call was not accepted"),
@@ -1263,14 +1263,14 @@ requires index < 2 {
     drop(ambiguous);
     // Check the entered machine's complete loan judgment, including both
     // successors, with the full source module and its actual tables intact.
-    let mut activity = crate::checking::ProofSearchActivity::default();
-    let mut scope = crate::checking::prepare_replay(&mut input, &mut activity).unwrap();
+    let mut activity = crate::ProofSearchActivity::default();
+    let mut scope = crate::prepare_replay(&mut input, &mut activity).unwrap();
     let (formed, domains, checking, _, _) = scope.checking();
     let module = formed.source();
     let tables = checking.machines.get_mut(identity).unwrap();
-    let prepared = crate::checking::prepare(formed, domains, identity, tables).unwrap();
+    let prepared = crate::prepare(formed, domains, identity, tables).unwrap();
     let mut references = prepared.references(&module.types.structural_types);
-    let storage = crate::checking::places::Storage::new(
+    let storage = crate::places::Storage::new(
         identity,
         module.machine(identity).unwrap(),
         module,
