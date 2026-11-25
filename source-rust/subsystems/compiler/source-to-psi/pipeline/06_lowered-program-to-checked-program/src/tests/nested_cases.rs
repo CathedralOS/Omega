@@ -79,9 +79,7 @@ fn a_law_is_proved_by_cases_inside_cases() {
         .iter()
         .find(|law| law.machine == "order_is_transitive")
         .expect("the law");
-    let MathematicalCoreDecision::Judged(receipt) = law.decision else {
-        panic!("the kernel must judge the law: {law:?}")
-    };
+    let MathematicalCoreDecision::Judged(receipt) = law.decision;
     // It stands on the two lemmas it cites and on nothing assumed: the two
     // impossible cases are refuted from the law's own premises.
     assert_eq!((receipt.context_depth, receipt.assumption_closure), (0, 2));

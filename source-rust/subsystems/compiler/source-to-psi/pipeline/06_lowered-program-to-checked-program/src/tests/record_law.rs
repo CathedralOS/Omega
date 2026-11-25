@@ -82,9 +82,7 @@ fn laws_about_a_record_of_mathematical_values_are_judged() {
             .iter()
             .find(|law| law.machine == machine)
             .unwrap_or_else(|| panic!("the law `{machine}`: {judgment:?}"));
-        let MathematicalCoreDecision::Judged(receipt) = law.decision else {
-            panic!("the kernel must judge `{machine}`: {law:?}")
-        };
+        let MathematicalCoreDecision::Judged(receipt) = law.decision;
         assert_eq!(
             (receipt.context_depth, receipt.assumption_closure),
             (0, assumptions),

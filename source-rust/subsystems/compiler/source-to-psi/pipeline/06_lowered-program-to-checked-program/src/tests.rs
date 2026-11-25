@@ -113,7 +113,6 @@ mod sum_hypothesis;
 mod termination;
 mod type_parameters;
 mod uninhabited_results;
-mod unjudged_certificates;
 mod value_indexed_data;
 mod value_parameters;
 mod width_parameters;

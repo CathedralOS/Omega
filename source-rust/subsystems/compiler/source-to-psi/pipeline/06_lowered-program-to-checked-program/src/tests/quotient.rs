@@ -83,9 +83,7 @@ fn related_representatives_have_one_class() {
             .iter()
             .find(|law| law.machine == machine)
             .unwrap_or_else(|| panic!("the law `{machine}`: {judgment:?}"));
-        let MathematicalCoreDecision::Judged(receipt) = law.decision else {
-            panic!("the kernel must judge the law: {law:?}")
-        };
+        let MathematicalCoreDecision::Judged(receipt) = law.decision;
         assert_eq!(receipt.context_depth, 0);
         eprintln!("{machine}: {} conversion steps", law.conversion_steps);
         receipt.assumption_closure
@@ -156,9 +154,7 @@ fn judged_laws(judgment: &SignatureJudgment, machine: &str) -> Vec<(u32, u32)> {
         .iter()
         .filter(|law| law.machine == machine)
         .map(|law| {
-            let MathematicalCoreDecision::Judged(receipt) = law.decision else {
-                panic!("the kernel must judge the law: {law:?}")
-            };
+            let MathematicalCoreDecision::Judged(receipt) = law.decision;
             (law.conversion_steps, receipt.assumption_closure)
         })
         .collect()

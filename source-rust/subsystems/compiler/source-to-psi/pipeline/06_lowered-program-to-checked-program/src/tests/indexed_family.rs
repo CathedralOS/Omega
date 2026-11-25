@@ -87,9 +87,7 @@ fn the_sum_of_a_vector_is_bounded_by_induction_over_it() {
         panic!("one law: {judgment:?}")
     };
     assert_eq!(law.machine, "vector_bound");
-    let MathematicalCoreDecision::Judged(receipt) = law.decision else {
-        panic!("the kernel must judge the theorem: {law:?}")
-    };
+    let MathematicalCoreDecision::Judged(receipt) = law.decision;
     assert_eq!(receipt.context_depth, 0);
     // The theorem rests on the integer vocabulary and the laws of integers
     // its two cases used, and on nothing about the data: the family, its
@@ -269,7 +267,6 @@ fn closures(verdicts: &[RouteVerdict], machine: &str) -> Vec<u32> {
         .filter(|law| law.machine == machine)
         .map(|law| match law.decision {
             MathematicalCoreDecision::Judged(receipt) => receipt.assumption_closure,
-            _ => panic!("the kernel must judge the law: {law:?}"),
         })
         .collect()
 }

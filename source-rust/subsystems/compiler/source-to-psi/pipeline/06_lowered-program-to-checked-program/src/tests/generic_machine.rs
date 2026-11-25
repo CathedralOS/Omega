@@ -77,9 +77,7 @@ fn a_law_about_every_machine_of_a_signature_is_judged() {
         .iter()
         .find(|law| law.machine == "twice_keeps_a_fixed_point")
         .expect("the law");
-    let MathematicalCoreDecision::Judged(receipt) = law.decision else {
-        panic!("the kernel must judge the law: {law:?}")
-    };
+    let MathematicalCoreDecision::Judged(receipt) = law.decision;
     assert_eq!((receipt.context_depth, receipt.assumption_closure), (0, 0));
     // The statement the kernel judged is for every function from the data
     // to itself: its first binder is that function type.

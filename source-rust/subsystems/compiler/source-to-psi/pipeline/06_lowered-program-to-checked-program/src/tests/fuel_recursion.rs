@@ -82,9 +82,7 @@ fn a_law_about_a_machine_that_recurses_on_a_computed_value_is_judged() {
         .iter()
         .find(|law| law.machine == "drain")
         .expect("the law");
-    let MathematicalCoreDecision::Judged(receipt) = law.decision else {
-        panic!("the kernel must judge the law: {law:?}")
-    };
+    let MathematicalCoreDecision::Judged(receipt) = law.decision;
     // Nothing is assumed: the machine is a definition over fuel the kernel
     // checked, and the law at one unit less is the induction's hypothesis.
     assert_eq!((receipt.context_depth, receipt.assumption_closure), (0, 0));

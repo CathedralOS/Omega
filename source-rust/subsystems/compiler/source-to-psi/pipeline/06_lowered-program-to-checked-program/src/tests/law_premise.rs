@@ -77,9 +77,7 @@ fn a_law_with_a_premise_is_a_statement_that_takes_its_proof() {
             .iter()
             .find(|law| law.machine == machine)
             .unwrap_or_else(|| panic!("the law `{machine}`: {judgment:?}"));
-        let MathematicalCoreDecision::Judged(receipt) = law.decision else {
-            panic!("the kernel must judge `{machine}`: {law:?}")
-        };
+        let MathematicalCoreDecision::Judged(receipt) = law.decision;
         // Closed, and resting on no assumption: the premise is bound in the
         // statement, not assumed in the signature.
         assert_eq!((receipt.context_depth, receipt.assumption_closure), (0, 0));
