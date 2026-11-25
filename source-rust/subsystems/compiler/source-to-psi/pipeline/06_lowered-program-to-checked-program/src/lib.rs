@@ -208,6 +208,8 @@ pub enum TargetCondition {
 pub enum Discharged {
     /// A typed source Identity checked against its actual mathematical term.
     Identity(equality::Judgment),
+    /// The declared closed projection follows this unchanged owned entry claim on every normal return.
+    ForwardedContent(semantic_vocabulary::ClaimId),
     /// A certificate the kernel accepted.
     Certificate(Evidence),
     /// A `NormalGuarantee` of a theorem over data indexed by values. The
@@ -277,7 +279,7 @@ impl Discharged {
     pub const fn certificate(&self) -> Option<&Evidence> {
         match self {
             Self::Certificate(evidence) => Some(evidence),
-            Self::Identity(_) | Self::Law(_) | Self::TargetCondition(_)
+            Self::Identity(_) | Self::Law(_) | Self::ForwardedContent(_) | Self::TargetCondition(_)
             | Self::PendingNormalGuarantee(_)
             | Self::EveryExit(_)
             | Self::Window(_)
@@ -911,6 +913,8 @@ fn check_prepared_machine(
             })?
             .into_iter()
             .peekable();
+    let content_returns = terminal_semantics::content_transformations::forwarding::checked_returns(module, lowered)
+        .map_err(|detail| refusal(RefusalReason::Unestablished, id, Construct::Machine, detail))?;
     for (index, (obligation, row)) in tables.obligations.iter().enumerate() {
         if decided[index].is_some() {
             continue;
@@ -959,6 +963,12 @@ fn check_prepared_machine(
             decided[index] = Some(Ok(Discharged::TargetCondition(Box::new(
                 TargetCondition::Range(range),
             ))));
+            continue;
+        }
+        if let ObligationKind::NormalGuarantee { clause, .. } = row.kind
+            && let Some(claim) = content_returns.get(&(clause as usize))
+        {
+            decided[index] = Some(Ok(Discharged::ForwardedContent(*claim)));
             continue;
         }
         // A theorem over indexed data: the signature proved this clause.
@@ -1723,7 +1733,7 @@ fn published(
         let position = usize::try_from(obligation.get() - 1).unwrap_or(usize::MAX);
         match decided.get(position) {
             Some(Some(Ok(
-                Discharged::Certificate(_) | Discharged::Identity(_) | Discharged::Law(_),
+                Discharged::Certificate(_) | Discharged::Identity(_) | Discharged::Law(_) | Discharged::ForwardedContent(_),
             ))) => exits.push(obligation),
             _ => return Err(unproved("a normal return does not establish this clause")),
         }

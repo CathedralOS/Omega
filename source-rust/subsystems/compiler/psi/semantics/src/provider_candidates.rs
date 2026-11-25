@@ -2,6 +2,8 @@
 //! Source settlement and native admission use this same declaration query;
 //! no calling convention or native instruction participates in the choice.
 
+pub mod conservation;
+
 use service_surface::ServiceSurface;
 use semantic_vocabulary::PackageKeyIdentity;
 use terminal_psi::{TerminalIdentityIndex, TerminalModule};

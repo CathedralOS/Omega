@@ -279,7 +279,7 @@ impl BoundaryNamespace {
                 .is_some_and(|(owner, signature)| {
                     owner.is_boundary && signature.service_reach_is_installation_bound
                 });
-            let content_guarantees = content_guarantees(&header.proof).map_err(refusal)?;
+            let content_guarantees = terminal_psi::BoundaryContentGuarantee::from_contract(&header.proof).map_err(refusal)?;
             module.interfaces.boundary_machines.push(BoundaryMachineDeclaration {
                 id,
                 declaration: Some(checked),
@@ -318,25 +318,4 @@ impl BoundaryNamespace {
         module.identities = std::mem::take(&mut qualifications.identities).build();
         Ok(())
     }
-}
-
-/// Each root is the actual structural formal at its declared ordinal or the
-/// actual result. The report fingerprint alone supplies no equality evidence.
-fn content_guarantees(
-    contract: &terminal_psi::MachineContract,
-) -> Result<Vec<terminal_psi::BoundaryContentGuarantee>, &'static str> {
-    let result = contract.result.structural().map(|result| result.place);
-    let mut guarantees = Vec::new();
-    for clause in &contract.ensures {
-        if let semantic_vocabulary::Proposition::ContentConservation(law) = &clause.proposition {
-            let report = terminal_psi::ContentConservationGuarantee::from_declaration(
-                law,
-                &contract.structural_parameters,
-                result,
-            )?;
-            guarantees.push(terminal_psi::BoundaryContentGuarantee::Conservation(report));
-        }
-    }
-    guarantees.sort();
-    Ok(guarantees)
 }

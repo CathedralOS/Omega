@@ -333,7 +333,7 @@ fn begin<'a>(
     lowering.enter(entry);
     // One published identity per `ensures` clause, the one `ContractClause`
     // carries; every normal exit's guarantee names it.
-    for clause in 0..signature.ensures.len() {
+    for clause in 0..signature.ensures.len() + signature.content_ensures.len() {
         let clause = lowering.position(clause)?;
         let published = lowering.obligation(
             ObligationKind::PublishedGuarantee { clause },
@@ -1416,15 +1416,6 @@ impl<'a> Lowering<'a> {
     ) -> Checked<Lowered> {
         self.arrivals()?;
         let mut drafts = std::mem::take(&mut self.blocks);
-        if !self.signature.content_ensures.is_empty() {
-            return Err(refuse(
-                self.id,
-                Construct::Machine,
-                Unserved::Contract(
-                    "checked content conservation requires a body judgment over the actual normal return",
-                ),
-            ));
-        }
         let mut blocks = Vec::with_capacity(drafts.len());
         for position in 1..=drafts.len() as u64 {
             let block =

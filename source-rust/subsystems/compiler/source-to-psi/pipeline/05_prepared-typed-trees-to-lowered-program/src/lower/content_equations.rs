@@ -45,10 +45,13 @@ impl Lowering<'_> {
                     "duplicate normal content conservation guarantee",
                 ));
             }
-            let obligation = last
-                .checked_add(1)
-                .and_then(ObligationId::new)
-                .ok_or_else(|| invalid(self.id, "content guarantee obligation overflow"))?;
+            let obligation = if self.published.is_empty() {
+                last.checked_add(1).and_then(ObligationId::new)
+                    .ok_or_else(|| invalid(self.id, "content guarantee obligation overflow"))?
+            } else {
+                *self.published.get(contract.ensures.len())
+                    .ok_or_else(|| invalid(self.id, "content equation lost its published normal-return obligation"))?
+            };
             last = obligation.get();
             contract.ensures.push(ContractClause {
                 obligation,

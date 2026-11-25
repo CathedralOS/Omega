@@ -832,7 +832,14 @@ pub(crate) fn publish(elaboration: &mut Elaboration) -> Checked<()> {
                 "static provider requirement disappeared after admission",
             )
         })?;
-        if boundary.parameter_order != question.required.parameter_order
+        let required_content =
+            terminal_psi::BoundaryContentGuarantee::from_contract(&question.required.proof)
+                .map_err(|reason| fault(id, reason))?;
+        let conservation = boundary.content_guarantees.iter().filter(|row| {
+            matches!(row, terminal_psi::BoundaryContentGuarantee::Conservation(_))
+        });
+        if conservation.ne(&required_content)
+            || boundary.parameter_order != question.required.parameter_order
             || boundary.scalar_parameters
                 != question
                     .required
@@ -842,14 +849,11 @@ pub(crate) fn publish(elaboration: &mut Elaboration) -> Checked<()> {
                     .collect::<Vec<_>>()
             || boundary.structural_parameters != question.required.structural_parameters
             || boundary.scalar_requires != question.required.proof.requires
-            || boundary.scalar_ensures
-                != question
-                    .required
-                    .proof
-                    .ensures
-                    .iter()
-                    .map(|clause| clause.proposition.clone())
-                    .collect::<Vec<_>>()
+            || boundary.scalar_ensures.iter().ne(
+                question.required.proof.ensures.iter()
+                    .map(|clause| &clause.proposition)
+                    .filter(|row| !matches!(row, semantic_vocabulary::Proposition::ContentConservation(_))),
+            )
             || boundary.membership_ensures != question.required.proof.membership_ensures
             || boundary.crash_routes != question.required.proof.crash_routes
             || question.required.crash_policy != CallableCrashPolicy::Closed
@@ -945,6 +949,10 @@ pub(crate) fn publish(elaboration: &mut Elaboration) -> Checked<()> {
     }
     order_provider_candidates(&identities, &mut candidates)?;
     module.identities = identities.build();
+    for candidate in &candidates {
+        terminal_semantics::provider_candidates::conservation::verify(module, candidate)
+            .map_err(|reason| fault(candidate.candidate, reason))?;
+    }
     module.interfaces.provider_candidates = candidates;
     external_completion_providers(module)
 }

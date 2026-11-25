@@ -50,15 +50,6 @@ impl Program<'_> {
         if self.content_algebra_kind(*base_symbol).is_none() {
             return Ok(None);
         }
-        if !typed
-            .trait_machine_signature(scope.owner)
-            .is_some_and(|(owner, _)| owner.is_boundary)
-        {
-            return Err(unavailable(
-                id,
-                "checked content conservation requires a body judgment over the actual normal return",
-            ));
-        }
         let (_, [left, right], _) = self.identity_inputs(id, scope, *expression, call)?;
         let expected = crate::source_state::reflection::construction::schema_type_identity(
             typed,

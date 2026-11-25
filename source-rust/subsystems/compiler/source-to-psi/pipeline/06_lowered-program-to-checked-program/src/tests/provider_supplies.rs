@@ -68,7 +68,15 @@ fn supplied_with_subjects(
     slot: &str,
     subjects: &[Option<semantic_vocabulary::PackageKeyIdentity>],
 ) -> Result<Vec<String>, String> {
-    let typed = crate::prepare_fixture(typed(text));
+    supplied_trees(typed(text), slot, subjects)
+}
+
+pub(super) fn supplied_trees(
+    typed: crate::source_state::TypedTrees,
+    slot: &str,
+    subjects: &[Option<semantic_vocabulary::PackageKeyIdentity>],
+) -> Result<Vec<String>, String> {
+    let typed = crate::prepare_fixture(typed);
     let trees = typed.trees();
     let slot = match slot {
         "Service::go" => {
