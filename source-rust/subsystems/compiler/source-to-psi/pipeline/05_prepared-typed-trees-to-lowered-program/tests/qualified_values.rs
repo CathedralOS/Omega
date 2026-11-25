@@ -462,6 +462,26 @@ fn indexed_membership_evaluates_with_its_written_application() {
 }
 
 #[test]
+fn indexed_membership_keeps_the_generic_machines_const_in_scope() {
+    let source = "domain<const N: u64> u64::AtMost<N> requires self <= N;
+        machine test<const K: u64>(x: u64) -> bool
+            ensures result == (x <= K) { x in AtMost::<K> }
+        machine exact() -> bool ensures result { test::<8>(8u64) }
+        machine above() -> bool ensures !result { test::<7>(8u64) }";
+    Program::of(source).judged(|_| {}).accepted();
+
+    let wrong = source.replace("const K: u64", "const K: u8");
+    let error = Program::try_of(&[("product/main.omg", &wrong)])
+        .err()
+        .expect("K cannot supply the family's u64 const index");
+    assert!(
+        error.message.contains("has type `u8`, expected `u64`"),
+        "{}",
+        error.message
+    );
+}
+
+#[test]
 fn scalar_domain_predicates_bind_each_const_index_in_the_declaration() {
     const DOMAIN: &str = "domain<const Lo: u8, const Hi: u8> u8::Between<Lo, Hi>
         requires self >= Lo && self < Hi;";

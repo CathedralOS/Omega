@@ -2524,7 +2524,7 @@ impl Program<'_> {
                     Unserved::Expression("domain membership without a value"),
                 )
             })?;
-            self.declared_domain(
+            self.form_domain(
                 id,
                 crate::body::DomainInstance {
                     declaration: test.domain,
@@ -2533,6 +2533,7 @@ impl Program<'_> {
                 actual,
                 target_type,
                 subject.source,
+                super::types::DomainUse::Test,
             )?;
         }
         Ok(())
