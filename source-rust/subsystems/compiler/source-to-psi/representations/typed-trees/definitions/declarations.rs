@@ -1683,10 +1683,47 @@ pub mod domain {
                 "indexed-domain const argument `{name}` has no resolved declaration"
             )));
         }
+        let declared_type = match program.data_type_parameter_by_symbol(*symbol).map(|parameter| &parameter.kind) {
+            Some(crate::source_state::data::TypeParameterKind::Const { type_reference }) => Some(*type_reference),
+            Some(_) => None,
+            None => program.const_declaration_by_symbol(*symbol).map(|declaration| declaration.declared_type),
+        }.ok_or_else(|| Diagnostic::error(format!(
+            "indexed-domain const argument `{name}` must name a constant or a const parameter"
+        )))?;
+        let actual = const_index_type_name(program, declared_type)?;
+        if actual != expected {
+            return Err(Diagnostic::error(format!(
+                "indexed-domain const argument `{name}` has type `{actual}`, expected `{expected}`"
+            )));
+        }
         Ok(format!(
             "binder:{}:{expected}",
             program.symbols.display_path(*symbol, "::")
         ))
+    }
+
+    #[cfg(test)]
+    #[test]
+    fn a_const_domain_index_uses_its_binders_declared_carrier() {
+        use crate::source_state::data::{TypeParameter, TypeParameterKind};
+        use symbols::{SymbolKind, SymbolNameRef};
+
+        let mut trees = TypedTrees::default();
+        let carrier = trees.type_reference_table.insert(crate::source_state::types::TypeReferenceNode::Unit);
+        let binder = trees.symbols.insert_root(SymbolKind::TypeParameter, SymbolNameRef::Static("K"));
+        trees.data_type_parameters.insert(TypeParameter {
+            symbol: binder,
+            kind: TypeParameterKind::Const { type_reference: carrier },
+            ..Default::default()
+        });
+        let argument = trees.type_reference_table.insert(Named { symbol: binder, name: Identifier::from("K") });
+        assert!(closed_domain_argument_identity(&trees, argument, "()", &[]).is_ok());
+        let wrong = closed_domain_argument_identity(&trees, argument, "u8", &[]).unwrap_err();
+        assert!(wrong.message.contains("has type `()`, expected `u8`"));
+        let named_type = trees.symbols.insert_root(SymbolKind::BuiltinType, SymbolNameRef::Static("bool"));
+        let argument = trees.type_reference_table.insert(Named { symbol: named_type, name: Identifier::from("bool") });
+        let wrong = closed_domain_argument_identity(&trees, argument, "u8", &[]).unwrap_err();
+        assert!(wrong.message.contains("must name a constant or a const parameter"));
     }
 
     #[cfg(test)]
