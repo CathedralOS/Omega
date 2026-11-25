@@ -2,14 +2,15 @@
 
 Omega is a systems language built around explicit state machines, mathematical proofs, and ownership of memory and resources. It rules out whole classes of bugs while matching C's performance.
 
-A program can only misbehave when a premise it trusts is false, such as an operating system API breaking its contract. There is no `unsafe` escape hatch: even inline assembly must satisfy checked contracts.
+A program can only misbehave when a premise it trusts is false, such as an operating system API breaking its contract. In Omega, there is no general language-approved `unsafe` escape hatch. Even high performance low-level code works without this, using checked inline assembly instead.
 
 Because Omega programs are state machines, your codebase becomes a queryable graph that answers hard questions quickly:
-- Does an API access the filesystem, including through its dependencies?
-- Does an API call crash? Does it provably terminate? Under what conditions?
+- Does a library API access the filesystem, including through its dependencies?
+- Does a library API call crash? Does it provably terminate? Under what conditions?
+- Can a library do anything fundamentally unsafe, like loading a dynamic library? In most cases, `reaches Unsafe` is considered malicious.
 - Does a program perform well under load?
 
-Omega is built for software where performance is critical and failure is costly, from user-facing apps to aircraft systems to OS kernels.
+Omega is built for software where performance matters, security is crucial, and failure is costly. This ranges from user-facing apps, to aircraft systems, to OS kernels.
 
 Its first major application is **[Cathedral](https://github.com/CathedralOS/Cathedral)**, an operating system being developed alongside the language. Cathedral applies the design to kernel problems: managing memory, controlling hardware, and running untrusted software.
 
