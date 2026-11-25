@@ -6761,6 +6761,50 @@ mod storage_ownership_tests {
         ));
     }
 
+    /*
+        A callable application copies a template expression and then reads only
+        the copy's rows. Reading from the copy's first slot must name exactly
+        the rows a filter over the whole table would, in the same order, even
+        after unowned roots were dropped below that slot.
+    */
+    #[test]
+    fn rows_from_a_copys_first_slot_match_a_whole_table_filter() {
+        use crate::source_state::expression::{BinaryOperator, TableBinaryExpression};
+        let mut table = ExpressionTable::default();
+        let mut leaves = Vec::new();
+        for value in 0..12 {
+            leaves.push(table.insert(ExpressionNode::Boolean(value % 2 == 0)));
+        }
+        let template = table.insert(ExpressionNode::Binary(TableBinaryExpression {
+            left: leaves[3],
+            operator: BinaryOperator::Equal,
+            right: leaves[8],
+            policy: numerics::arithmetic::ArithmeticDomain::Exact,
+            negation: false,
+        }));
+        let dropped = leaves[5];
+        table.retain_expression_roots(|_, handle| handle != dropped);
+        let first = table.expression_count() + 1;
+        let copied = table.insert_copy(template);
+        let scanned = table
+            .iter_expressions()
+            .filter(|(handle, _)| handle.arena_index() as usize >= first)
+            .map(|(handle, _)| handle)
+            .collect::<Vec<_>>();
+        let from_first = table
+            .iter_expressions_from(first)
+            .map(|(handle, _)| handle)
+            .collect::<Vec<_>>();
+        assert_eq!(from_first, scanned);
+        assert!(from_first.contains(&copied));
+        assert!(from_first.len() >= 3, "the copy has its own operand rows");
+        assert!(
+            from_first
+                .iter()
+                .all(|handle| !leaves.contains(handle) && *handle != template)
+        );
+    }
+
     #[test]
     fn declaration_output_keeps_untouched_body_pages_shared() {
         let mut source = crate::source_state::TypedTreeTables::default();

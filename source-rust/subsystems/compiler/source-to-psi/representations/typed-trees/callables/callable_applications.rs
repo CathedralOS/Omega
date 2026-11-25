@@ -3060,12 +3060,13 @@ pub(crate) mod payloads {
             if !original.is_valid() {
                 return Ok(original);
             }
+            // The copy appends its rows after every existing one, so start at the
+            // first new slot instead of scanning the whole table on each copy.
             let first = program.expression_table.expression_count() + 1;
             let copied = program.expression_table.insert_copy(original);
             let rows = program
                 .expression_table
-                .iter_expressions()
-                .filter(|(handle, _)| handle.arena_index() as usize >= first)
+                .iter_expressions_from(first)
                 .map(|(handle, _)| handle)
                 .collect::<Vec<_>>();
             for handle in &rows {
@@ -7658,8 +7659,13 @@ pub(crate) mod trait_scopes {
         pub fn prepare_applied_callable_signatures_reporting_change(
             &mut self,
         ) -> Result<(Vec<signature::StateSignature>, bool), &'static str> {
-            let invocation_scopes = self.refinement_invocation_scopes()?;
-            let mut roots = self.applied_trait_roots();
+            let (invocation_scopes, unchanged_walk) = self.refinement_invocation_scopes()?;
+            // Reuse the occurrence walk when collecting the scopes changed
+            // nothing it could have seen; otherwise walk the changed program.
+            let mut roots = match unchanged_walk {
+                Some(occurrences) => self.applied_trait_roots_from(occurrences),
+                None => self.applied_trait_roots(),
+            };
             roots.extend(
                 invocation_scopes
                     .iter()
@@ -7851,10 +7857,16 @@ pub(crate) mod trait_scopes {
             Ok((produced, wrote))
         }
 
+        /// The refined invocation scopes, and the occurrence walk they came
+        /// from when collecting them retained no operand type, so the program
+        /// is still exactly the one that walk read.
         fn refinement_invocation_scopes(
             &mut self,
         ) -> Result<
-            Vec<crate::source_state::trait_definition::TraitApplicationEnvironment>,
+            (
+                Vec<crate::source_state::trait_definition::TraitApplicationEnvironment>,
+                Option<crate::source_state::references::ProgramApplicationOccurrences>,
+            ),
             &'static str,
         > {
             use crate::source_state::static_applications::StaticMachineBindingValue;
@@ -7864,7 +7876,8 @@ pub(crate) mod trait_scopes {
             let occurrences =
                 crate::source_state::references::collect_program_application_occurrences(self);
             let mut scopes = Vec::new();
-            for invocation in occurrences.invocation_applications {
+            let mut changed = false;
+            for &invocation in &occurrences.invocation_applications {
                 let record = self.static_machine_application(invocation).clone();
                 let Some(machine) = self.machine_by_symbol(record.binding_declaration) else {
                     continue;
@@ -7927,6 +7940,7 @@ pub(crate) mod trait_scopes {
                     arguments.push((binding.parameter, actual));
                 }
                 if retained_types {
+                    changed = true;
                     self.expression_table
                         .set_static_machine_application_bindings(invocation, &bindings);
                 }
@@ -7961,7 +7975,7 @@ pub(crate) mod trait_scopes {
                     scopes.push(scope.environment());
                 }
             }
-            Ok(scopes)
+            Ok((scopes, (!changed).then_some(occurrences)))
         }
 
         pub fn materialize_trait_application_arguments(

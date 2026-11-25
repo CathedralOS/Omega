@@ -769,8 +769,19 @@ fn assign_machine_references(
     let assembly_expressions = &tables.declarations.assembly_expressions;
     let child_type_references = &mut tables.declarations.child_type_references;
     let type_constraints = &tables.types.constraints;
+    // A Product selects every body, so test membership by binary search
+    // rather than scanning the selection once per machine.
+    let symbol_key = |symbol: symbols::SymbolHandle| (symbol.arena_index(), symbol.generation());
+    let selected_keys = selected_bodies.map(|selected| {
+        let mut keys = selected.iter().copied().map(symbol_key).collect::<Vec<_>>();
+        keys.sort_unstable();
+        keys
+    });
     machines.for_each_mut(|machine| {
-        if selected_bodies.is_some_and(|selected| !selected.contains(&machine.symbol)) {
+        if selected_keys
+            .as_ref()
+            .is_some_and(|keys| keys.binary_search(&symbol_key(machine.symbol)).is_err())
+        {
             return;
         }
         let machine_symbol = machine.symbol;

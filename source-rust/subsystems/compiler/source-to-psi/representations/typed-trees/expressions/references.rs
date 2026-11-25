@@ -1807,6 +1807,18 @@ impl<Element> Default for ScopedOccurrences<Element> {
 }
 
 impl<Element> ScopedOccurrences<Element> {
+    /*
+        Size the tables for a walk over `slots` arena slots. Most slots get
+        one owner, so this avoids regrowing (and copying) both tables while a
+        whole-program walk runs. It is only a capacity hint.
+    */
+    fn with_slot_capacity(slots: usize) -> Self {
+        Self {
+            heads: Vec::with_capacity(slots + 1),
+            rows: Vec::with_capacity(slots),
+        }
+    }
+
     /// Record `owner` for `reference`; false when that pair was already seen.
     fn insert(&mut self, owner: SymbolHandle, reference: arena::Handle<Element>) -> bool {
         let slot = reference.arena_index() as usize;
@@ -1925,6 +1937,10 @@ fn collect_operand_owners(
     mut occurrences: TypeOccurrences,
 ) -> ProgramOperandOwners {
     occurrences.operand_owners_only = true;
+    occurrences.seen_types =
+        ScopedOccurrences::with_slot_capacity(program.type_reference_table.type_reference_count());
+    occurrences.seen_expressions =
+        ScopedOccurrences::with_slot_capacity(program.expression_table.expression_count());
     visit_program(program, &mut occurrences);
     ProgramOperandOwners {
         types: occurrences.seen_types,
