@@ -509,7 +509,7 @@ impl Lowering<'_> {
             loans: Vec::new(),
             erased: Vec::new(),
         };
-        let observes_storage = !signature.requires.is_empty() || !signature.ensures.is_empty();
+        let observes_storage = signature.observing_clauses().next().is_some();
         let last_runtime_argument =
             (0..arguments.len()).rfind(|&position| !signature.is_erased(position));
         let mut argument_types = Vec::new();
@@ -597,7 +597,7 @@ impl Lowering<'_> {
             })
             .collect::<Checked<Vec<_>>>()?;
         let result = signature.structural_result_place();
-        for clause in signature.requires.iter().chain(&signature.ensures) {
+        for clause in signature.observing_clauses() {
             self.name_call_clause_contents(clause, &bindings, result, &argument_types)?;
         }
         Ok(Reached::Value(evaluated))
@@ -877,12 +877,6 @@ impl Lowering<'_> {
         // It has no normal continuation at which a loan could be restored or
         // its contents observed, but formation still owes the ordinary access
         // and overlap judgments at the exact call site.
-        let crash_continuations = canonical::substituted_routes(
-            &outcome.crash_routes,
-            &arguments.scalars,
-            &self.tables.values,
-            self.id,
-        )?;
         let site = self.current()?;
         let before = self.here()?;
         let loans = self.loans(&arguments.loans, before, source);
@@ -900,7 +894,7 @@ impl Lowering<'_> {
             source,
             acknowledgement,
         )?;
-        for bucket in &crash_continuations {
+        for bucket in &outcome.crash_routes {
             self.obligation(
                 ObligationKind::CrashCoverage {
                     site: CrashSite::Block(site),
@@ -912,6 +906,12 @@ impl Lowering<'_> {
         }
         let structural_arguments =
             self.structural_arguments(arguments.structural, ExecutionSite::Block(site), source)?;
+        let crash_continuations = canonical::substituted_routes(
+            &outcome.crash_routes,
+            &arguments.scalars,
+            &structural_arguments,
+            self.id,
+        )?;
         if !static_reach_arguments.is_empty() {
             self.static_reach_applications.push(
                 terminal_psi::static_reach::StaticReachApplication {
@@ -1097,12 +1097,6 @@ impl Lowering<'_> {
             )?;
             return Ok(Reached::Ended(source));
         }
-        let crash_continuations = canonical::substituted_routes(
-            &outcome.crash_routes,
-            &arguments.scalars,
-            &self.tables.values,
-            self.id,
-        )?;
         let before = self.here()?;
         let operation = self.operation_identity(source);
         let theorem_count = match callee {
@@ -1142,7 +1136,7 @@ impl Lowering<'_> {
             acknowledgement,
         )?;
         let _ = self.loans(&arguments.loans, before, source);
-        for bucket in &crash_continuations {
+        for bucket in &outcome.crash_routes {
             self.obligation(
                 ObligationKind::CrashCoverage {
                     site: CrashSite::Operation(operation),
@@ -1156,6 +1150,12 @@ impl Lowering<'_> {
             std::mem::take(&mut arguments.structural),
             ExecutionSite::Operation(operation),
             source,
+        )?;
+        let crash_continuations = canonical::substituted_routes(
+            &outcome.crash_routes,
+            &arguments.scalars,
+            &structural_arguments,
+            self.id,
         )?;
         let erased_arguments = std::mem::take(&mut arguments.erased);
         let scalars = std::mem::take(&mut arguments.scalars);

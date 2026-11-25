@@ -561,6 +561,18 @@ pub enum RuntimeMembershipSubject {
 mod content_contracts;
 pub use content_contracts::{ContentEquation, ProjectedContent};
 
+/// The guard predicates of `routes`, every cause together. An unconditional
+/// route has none.
+pub(crate) fn route_predicates(routes: &[CrashRouteBucket]) -> impl Iterator<Item = &Proposition> {
+    routes
+        .iter()
+        .flat_map(|bucket| &bucket.alternatives)
+        .filter_map(|guard| match guard {
+            terminal_psi::CrashRouteGuard::Predicate(term) => Some(term.proposition()),
+            terminal_psi::CrashRouteGuard::Truth => None,
+        })
+}
+
 /// A machine's published signature as lowering and its callers need it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Signature {
@@ -814,6 +826,19 @@ impl Signature {
             CrashCeiling::Authored(routes) => Some(routes),
             CrashCeiling::Inferred => None,
         }
+    }
+
+    /// The clauses that observe the formals' storage: each `requires`, each
+    /// `ensures` and each declared crash guard. A crash guard over a formal's
+    /// storage reads that storage at entry and at each call, exactly as a
+    /// `requires` does.
+    pub(crate) fn observing_clauses(&self) -> impl Iterator<Item = &Proposition> {
+        self.requires
+            .iter()
+            .chain(&self.ensures)
+            .chain(route_predicates(
+                self.declared_crash_routes().unwrap_or(&[]),
+            ))
     }
 
     pub fn is_erased(&self, position: usize) -> bool {

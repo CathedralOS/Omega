@@ -36,23 +36,17 @@ omega run --both samples/cli/facts/indexed_crash_guard/other_machine/main.omg
 omega run --both samples/cli/facts/indexed_crash_guard/target_body/main.omg
 ```
 
-Every positive passes with native and Terminal Psi agreement (`exit 0`).
+`parameter`, `local`, `const_name` and `other_machine` pass `omega --check` and run with native/Psi agreement (exit 0, empty stdout and stderr on both engines). `target_body` passes `omega --check`; `omega run` on `windows_x86_64` stops at Build provider selection ("boundary requirement `SelectedForward::forward` has no provider"). `field` and `call_result` are refused where the same program with a `requires` in place of the guard is refused: the checker cannot yet show the call's index equals the selector the caller's `requires` names. `other_state` calls a nested machine whose omitted crash route is inferred as unconditional. `match_join` and the root application stop at "call argument that names storage another argument lends"; the root package also compiles every `invalid_*` twin as one of its modules. `TASKS.md` (**PROOF-KERNEL-CORE**, step 5) tracks these.
 
 ## Reject twins
 
-Each place has an `invalid/` twin whose `main.omg` omits only the `requires items[index] == 7` precondition (or equivalent carrier constraint). Because `read_seven` is `pub` and declares no `crashes Trap` clause, public crash omission is forbidden. Each twin fails closed with:
+Each place has an `invalid_<place>/` twin whose `main.omg` omits only the `requires items[index] == 7` precondition (or equivalent carrier constraint). Because `read_seven` is `pub` and declares no `crashes Trap` clause, public crash omission is forbidden. Each twin fails closed with:
 
 ```text
-error: call from `read_seven` to `maybe_zero` at statement ... call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+error: call from `read_seven` to `maybe_zero` has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 ```
 
-(or `call from read_seven to forward` for `other_machine` and `target_body`). Check a twin with `omega --check samples/cli/facts/indexed_crash_guard/<place>/invalid/main.omg`.
-
-The root-level [`private_omission/`](private_omission/main.omg) is not a
-reject twin: it keeps `read_seven` private while omitting the equality, so
-the public omitted-cause prohibition does not apply and it compiles and runs
-with exit 0. It stands as the recorded exposure of that private coverage gap,
-not as a ninth-tenth control.
+(or `call from read_seven to forward` for `other_machine`; `invalid_target_body` is refused for the same uncovered route but names the machine `read_seven`, not the boundary call). Check a twin with `omega --check samples/cli/facts/indexed_crash_guard/invalid_<place>/main.omg`.
 
 ## Requirements and Evidence
 
@@ -60,21 +54,24 @@ Owning task: **CRASH-CONTRACT** (`TASKS.md`) under
 [crash call composition](../../../../wiki/spec/terminal-psi/calls_and_outcomes.md#crash),
 [guarded crashes and public omission](../../../../wiki/spec/language/effects.md#guarded-crashes),
 and [independent numeric formation](../../../../wiki/spec/language/numeric_values.md).
-This row establishes that an entry observation `items[index] == 7` with `index < 2` statically discharges the callee's indexed crash guard `crashes Trap items[index] == 0` without requiring a caller crash ceiling across all nine places.
+This row establishes that an entry observation `items[index] == 7` with `index < 2` statically discharges the callee's indexed crash guard `crashes Trap items[index] == 0` without requiring a caller crash ceiling. Today that holds in `parameter`, `local`, `const_name`, `other_machine` and `target_body`; the paragraph after the run commands says what stops the other places. The bullets below describe those five places only.
 
 - **Establishment:** The entry precondition `requires index < 2` combined with `requires items[index] == 7` establishes that `items[index] != 0` at the invocation of `maybe_zero(items, index)`. Because `7 != 0`, the callee's crash condition `items[index] == 0` is proved unreachable at this call site, discharging the crash obligation directly without requiring a caller crash ceiling or relying on post-hoc caller equality guards (`transition x == 100`).
-- **Identity and lifetime:** The guarded fact `items[index] == 7` stays bound to the exact scalar subject and immutable collection length across local variable copy (`let selected = index`), record field projection (`selection.index`), explicit parameter, call result guarantee (`ensures result == index`), all-arm match joins (`match flag { true -> index, false -> index }`), named constants (`const SEVEN: u64 = 7`), successor machine transitions (`machine consume(values: @[u64; 2], selected: u64)`), forwarding machines (`forward`), and target-scoped bodies across all four targets. Storage versions, distinct element slots, and borrow lifetimes are preserved without invalidation.
-- **Composition:** The crash-guarded index bound composes into the consuming `maybe_zero` invocation across all nine places. Calls substitute exact actuals (`items`, `index`), `match_join` preserves the selector identity on both branch paths (both executed at runtime), and state transitions prove their arrival obligations before invoking the callee. Each `<place>/main.omg` vs. `<place>/invalid/main.omg` differs solely in the presence versus deletion of the precondition `requires items[index] == 7`, maintaining identical carrier shapes, bounds, and operations.
-- **Soundness boundaries:** All nine `<place>/invalid/main.omg` reject twins
-  fail closed at compile time: omitting the equality leaves the potential
-  zero-element crash route uncovered. Because `read_seven` is `pub`, the
-  compiler refuses public crash omission with `error: call from read_seven to
-  ... has an uncovered Trap crash route; publish a same-cause route whose guard
-  covers this invocation`.
-- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Source constructs lower without loss into canonical target-neutral Terminal Psi (`PSITERM\0`), translating guarded state transitions, crash edges, and indexed reads while erasing proof-only obligation tags (`proof-term-tags`). The Terminal Psi interpreter evaluates the guarded paths and validates agreement with native execution (`omega run --both`, exit 0).
+- **Identity and lifetime:** The guarded fact `items[index] == 7` stays bound to the exact scalar subject and immutable collection length across a local variable copy (`local`, `let selected = index`), the explicit parameter (`parameter`), a named constant (`const_name`, `const SEVEN: u64 = 7`), a forwarding machine (`other_machine`, `forward`) and a target-scoped forwarder (`target_body`). The record field (`field`), call result (`call_result`), match join (`match_join`) and nested machine (`other_state`) places do not pass yet. Storage versions, distinct element slots, and borrow lifetimes are preserved without invalidation.
+- **Composition:** In those five places the crash-guarded index bound composes into the consuming `maybe_zero` invocation: the call substitutes the exact actuals (`items`, `index`), and a forwarder's own published route covers the call it forwards. Each `<place>/main.omg` vs. `invalid_<place>/main.omg` differs solely in the presence versus deletion of the precondition `requires items[index] == 7`, maintaining identical carrier shapes, bounds, and operations.
+- **Soundness boundaries:** Every `invalid_<place>/main.omg` twin is refused at
+  compile time. `invalid_parameter`, `invalid_local`, `invalid_const_name` and
+  `invalid_other_machine` fail closed because omitting the equality leaves the
+  zero-element crash route uncovered: `read_seven` is `pub`, so the compiler
+  refuses public crash omission with `error: call from read_seven to ... has an
+  uncovered Trap crash route; publish a same-cause route whose guard covers
+  this invocation`. `invalid_target_body` is refused for the same route but
+  names the machine (`machine read_seven has an uncovered Trap crash`). The
+  other four twins are refused for the same causes as their positives.
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Source constructs lower without loss into canonical target-neutral Terminal Psi (`PSITERM\0`), translating guarded state transitions, crash edges, and indexed reads while erasing proof-only obligation tags (`proof-term-tags`). For `parameter`, `local`, `const_name` and `other_machine` on `windows_x86_64`, the Terminal Psi interpreter and the native program both exit 0 with empty stdout and stderr; `target_body` stops at Build provider selection before it runs.
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Build companion rows join `ProgramEntry` declarations across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) to the Terminal catalog without reopening source. Fixed-array layout geometry for `[u64; 2]` (`size_of = 16`, align 8, stride 8) and record layout for `Selection` (`size_of = 8`, align 8) validate. Target `CallPlan`/`StatePlan` lower array references (`@[u64; 2]`), index arguments (`u64`), and return values across register lanes (`rcx`/`rdx`/`rax` on Windows x86_64, `rdi`/`rsi`/`rax` on Linux x86_64, `x0`/`x1` on AArch64) and stack slots.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Target backend lowering selects 64-bit indexed memory loads (`mov` with scaled index on `x86_64`, `ldr` with shifted register on `arm64`), integer equality comparisons (`cmp`/`je`/`jne` or `cbz`/`cbnz`), and conditional crash branches. Register homes and disjoint stack-frame activation storage are assigned for the local `items` array, and entry prologues and multi-return epilogues are inserted honoring the `StatePlan` ceiling.
-- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic stack-frame displacements resolve to concrete frame offsets for local array elements, function basic blocks lay out with branch relaxation and offset reflow around crash/exit routes, transitive machine-state footprint evidence is validated, and direct PE/ELF/Mach-O executables are emitted, achieving native execution agreement with Terminal Psi (`omega run --both`, exit 0) across host targets including `windows_x86_64` and `macos_arm64`.
+- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic stack-frame displacements resolve to concrete frame offsets for local array elements, function basic blocks lay out with branch relaxation and offset reflow around crash/exit routes, transitive machine-state footprint evidence is validated, and direct PE/ELF/Mach-O executables are emitted. Native/Psi agreement has been observed only on `windows_x86_64`, for the four places named in the previous bullet; the other hosted targets have not run this revision.
 
 ## Build-owned target-body migration
 

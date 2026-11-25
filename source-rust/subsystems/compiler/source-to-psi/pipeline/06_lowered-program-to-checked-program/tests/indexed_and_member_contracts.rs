@@ -205,6 +205,166 @@ fn a_boundary_call_is_judged_by_the_selected_members_reach() {
     );
 }
 
+/// The callee `maybe_zero` crashes exactly when the element its caller
+/// selects is zero (`crashes Trap items[index] == 0`). A public caller that
+/// publishes no crash route must show the call never takes it: its own
+/// `requires items[index] == 7` says so, and without that requirement the
+/// call is refused. The guard reads the caller's array at the call, as a
+/// `requires` does (calls_and_outcomes.md, "Call contracts": "Declared
+/// requirements and published crash routes describe invocation entry").
+#[test]
+fn a_crash_guard_reads_the_element_its_caller_selects() {
+    let callee = "machine maybe_zero(items: @[u64; 2], index: u64) -> u64 \
+        requires index < 2 crashes Trap items[index] == 0 \
+        { transition items[index] == 0 { true -> bad(), false -> (items[index]) } \
+          machine bad() -> u64 { crash Trap; } }";
+    let caller = |requires: &str| {
+        format!(
+            "{callee} public machine read_seven(items: @[u64; 2], index: u64) -> u64 \
+             requires index < 2 {requires} {{ maybe_zero(items, index) }}"
+        )
+    };
+    accepted(&caller("requires items[index] == 7"));
+    let twin = rejected(&caller(""));
+    assert!(unproved(&twin) && twin.contains("CrashCoverage"), "{twin}");
+
+    // A guard describes invocation entry, so it still cannot name `result`.
+    let result =
+        rejected("machine f(items: @[u64; 2]) -> u64 crashes Trap result == 0 { items[0] }");
+    assert!(
+        result.contains("contract result in an entry clause"),
+        "{result}"
+    );
+}
+
+/// A crash guard over a field, `p.a == 0`, reads that field of the lent
+/// record as it is when the call is made. Writing the sibling field `b`
+/// leaves `a` at 7 and the call cannot crash; writing `a` itself makes the
+/// route reachable, and the public caller is refused (AGENTS.md rule 3:
+/// facts follow each field path).
+#[test]
+fn a_crash_guard_reads_the_field_version_at_the_call() {
+    let program = |write: &str| {
+        format!(
+            "public data Pair {{ a: u64; b: u64; }} \
+             machine maybe_zero(p: @Pair) -> u64 crashes Trap p.a == 0 \
+             {{ transition p.a == 0 {{ true -> bad(), false -> (p.a) }} \
+                machine bad() -> u64 {{ crash Trap; }} }} \
+             public machine run() -> u64 {{ \
+                let mutable q: Pair = Pair {{ a: 7, b: 11 }}; {write} = 0; maybe_zero(@q) }}"
+        )
+    };
+    accepted(&program("q.b"));
+    let twin = rejected(&program("q.a"));
+    assert!(unproved(&twin) && twin.contains("CrashCoverage"), "{twin}");
+}
+
+/// `forward` publishes the same element guard as `maybe_zero` and never
+/// reads the element itself. Its call is covered by its own route, stated
+/// over the array it received at entry; a forwarder that publishes a guard
+/// over another value (`items[index] == 1`) does not cover the call.
+#[test]
+fn a_forwarded_crash_guard_covers_the_call_it_forwards() {
+    let program = |guard: &str| {
+        format!(
+            "machine maybe_zero(items: @[u64; 2], index: u64) -> u64 \
+             requires index < 2 crashes Trap items[index] == 0 \
+             {{ transition items[index] == 0 {{ true -> bad(), false -> (items[index]) }} \
+                machine bad() -> u64 {{ crash Trap; }} }} \
+             machine forward(items: @[u64; 2], index: u64) -> u64 \
+             requires index < 2 crashes Trap {guard} {{ maybe_zero(items, index) }} \
+             public machine read_seven(items: @[u64; 2], index: u64) -> u64 \
+             requires index < 2 requires items[index] == 7 {{ forward(items, index) }}"
+        )
+    };
+    accepted(&program("items[index] == 0"));
+    let twin = rejected(&program("items[index] == 1"));
+    assert!(unproved(&twin) && twin.contains("CrashCoverage"), "{twin}");
+}
+
+/// A crash guard over a borrowed scalar (`value == 0` over `@u64`) and one
+/// over a slice's extent (`items.length == 0`) read the caller's storage at
+/// the call, as the element guard does: each call is accepted when the
+/// caller's `requires` rules the route out and refused without it.
+#[test]
+fn borrowed_scalar_and_extent_crash_guards_read_the_callers_storage() {
+    let scalar = |requires: &str| {
+        format!(
+            "machine maybe_zero(value: @u64) -> u64 crashes Trap value == 0 \
+             {{ transition $value == 0 {{ true -> bad(), false -> ($value) }} \
+                machine bad() -> u64 {{ crash Trap; }} }} \
+             public machine read_seven(value: @u64) -> u64 {requires} {{ maybe_zero(value) }}"
+        )
+    };
+    accepted(&scalar("requires value == 7"));
+    let twin = rejected(&scalar(""));
+    assert!(unproved(&twin) && twin.contains("CrashCoverage"), "{twin}");
+
+    let extent = |requires: &str| {
+        format!(
+            "machine maybe_empty(items: @[u8]) -> u64 crashes Trap items.length == 0 \
+             {{ transition items.length == 0 {{ true -> bad(), false -> (items.length) }} \
+                machine bad() -> u64 {{ crash Trap; }} }} \
+             public machine count(items: @[u8]) -> u64 {requires} {{ maybe_empty(items) }}"
+        )
+    };
+    accepted(&extent("requires items.length > 0"));
+    let twin = rejected(&extent(""));
+    assert!(unproved(&twin) && twin.contains("CrashCoverage"), "{twin}");
+}
+
+/// A call's crash continuation names the place of each whole structural
+/// actual. An actual that lends a field of a record (`@pair.items`) has no
+/// place of its own, so the route over that formal is refused by name rather
+/// than dropped: an untranslated continuation cannot erase a crash
+/// (calls_and_outcomes.md, "Call contracts"). The twin lends a whole local
+/// array holding the same elements and is accepted.
+#[test]
+fn a_crash_guard_over_a_projected_actual_is_refused_by_name() {
+    let program = |setup: &str, actual: &str| {
+        format!(
+            "public data Pair {{ items: [u64; 2]; tag: u64; }} \
+             machine maybe_zero(items: @[u64; 2], index: u64) -> u64 \
+             requires index < 2 crashes Trap items[index] == 0 \
+             {{ transition items[index] == 0 {{ true -> bad(), false -> (items[index]) }} \
+                machine bad() -> u64 {{ crash Trap; }} }} \
+             public machine run() -> u64 {{ {setup} maybe_zero({actual}, 0) }}"
+        )
+    };
+    accepted(&program("let items: [u64; 2] = [7, 7];", "@items"));
+    let twin = rejected(&program(
+        "let pair: Pair = Pair { items: [7, 7], tag: 0 };",
+        "@pair.items",
+    ));
+    assert!(
+        twin.contains("clause names a structural formal whose actual projects a place"),
+        "{twin}"
+    );
+}
+
+/// A forwarder over `@mutable` storage that writes the element before the
+/// call cannot rely on its entry guard, which described the element as it
+/// arrived. The call is refused. The same forwarder without the write is
+/// refused too today, because the checker cannot yet read the element's
+/// value at the call through a `@mutable` formal (`TASKS.md`,
+/// PROOF-KERNEL-CORE); so this test pins only the case that must stay
+/// refused.
+#[test]
+fn a_mutable_forwarder_that_writes_the_guarded_element_is_refused() {
+    let program = "machine maybe_zero(items: @[u64; 2], index: u64) -> u64 \
+         requires index < 2 crashes Trap items[index] == 0 \
+         { transition items[index] == 0 { true -> bad(), false -> (items[index]) } \
+           machine bad() -> u64 { crash Trap; } } \
+         machine forward(items: @mutable [u64; 2], index: u64) -> u64 \
+         requires index < 2 crashes Trap items[index] == 0 \
+         { items[index] = 0; maybe_zero(items, index) }";
+    let refused = rejected(program);
+    assert!(
+        unproved(&refused) && refused.contains("CrashCoverage"),
+        "{refused}"
+    );
+}
+
 /// A suspending call's result may be bound first or tested directly by a
 /// `transition`; both forms are accepted with the same nested suspension.
 #[test]

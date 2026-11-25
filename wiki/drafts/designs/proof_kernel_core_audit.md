@@ -1377,38 +1377,37 @@ type), and the clause's `ClauseScope` says what each name denotes there.
   - "call in a clause of a state other than the entry" (`unfold_definition`):
     whether a clause may unfold a call of a machine's non-entry state.
   - "borrowed formal outside an admitted storage clause", "clause that
-    projects a formal or result", "formal field in a postcondition" and
-    "extent without a structural subject" refuse a form the specification
-    admits (checked against it 2026-11-24). All four are raised only where
-    a clause is read without `formal_fields`, which today is a crash guard.
-    A guard may read storage behind a borrowed formal: a published crash
+    projects a formal or result" and "extent without a structural subject"
+    are no longer raised for a crash guard (2026-11-25). A published crash
     route is "a canonical disjunction of predicates over the same lowered
     values and places as executable Terminal Psi"
-    ([crash](../../spec/terminal-psi/calls_and_outcomes.md#crash)), and in a
-    declared guard "borrowed observations still use their appropriate
-    storage revisions, not an invented deep snapshot"
-    ([entry facts and crash coverage](../../spec/terminal-psi/fact_validity.md#entry-facts-and-crash-coverage)).
-    The guard is over the invocation's inputs: a crash site in the body
-    "must prove its relationship to the published input-based guard", and a
-    caller decides a route by substituting its actuals
-    ([guarded crashes](../../spec/language/effects.md#guarded-crashes)). No
-    page names the storage revision in so many words; the one at entry is
-    the only one a caller can substitute. The eighteen programs of
-    `samples/cli/facts/indexed_crash_guard/` are the customer, not the
-    ground: they write `crashes Trap items[index] == 0` over a borrowed
-    array and are refused for it. `requires` and `ensures` already read a
-    field of an owned or borrowed formal and of the result (five small
-    programs, one for each of those forms, were accepted). A trial showed
-    three layers to build. (1) Stage 05 reads
-    the guard once it uses the scope `requires` uses. (2) Stage 05 restates
-    a callee's crash routes at each call over scalar actuals only
-    (`canonical::substituted_routes`); passing the whole structural
-    arguments' places lets it restate a storage guard. (3) Stage 06 then
-    refuses the caller with "indexed clause needs a current observation of
-    its selected storage": it judges a call's crash route as a proposition
-    over values (`crashes.rs`, `ScalarActuals`), with no storage to observe
-    the argument at the call, as `AtCall` does for a `requires`. The
-    callee's own coverage of a guard over storage is untested.
+    ([crash](../../spec/terminal-psi/calls_and_outcomes.md#crash)), and
+    "declared requirements and published crash routes describe invocation
+    entry" ([call contracts](../../spec/terminal-psi/calls_and_outcomes.md#call-contracts)),
+    so stage 05 reads a guard in the scope of an entry `requires`. Lowering
+    names the leaves a guard reads in the callee and at each call, and a
+    call's crash continuations name the place of each whole structural
+    actual (`contract_forms::substituted_routes`, which stage 05 and stage
+    06's retained-row check now share). Stage 06 judges a call's route with
+    the binding a `requires` uses (`at_call_actuals`), so the guard reads
+    the actual's storage when the call is made, and states the machine's own
+    coverage over its entry storage (`entry_goal`). The three are still
+    raised by the other scopes read without `formal_fields` (an erased
+    term, a callee clause unfolded in another clause, data and domain
+    predicates, a family machine's value-parameter requirements); whether
+    each states a rule is not decided. "Formal field in a postcondition" is
+    still reached by no production scope. In
+    `samples/cli/facts/indexed_crash_guard/`, `parameter`, `local`,
+    `const_name`, `other_machine` and `target_body` are accepted and their
+    twins refused. `field` and `call_result` stop where a `requires` analog
+    stops: the prover cannot show the call's index equals the selector the
+    caller's `requires` names ("comparison term outside the scalar
+    subset"). `other_state` calls a nested machine whose omitted crash
+    route is inferred as `Truth`. `match_join` and the root package stop at
+    "call argument that names storage another argument lends". Two limits
+    fail closed: a route over an actual that projects a place
+    (`@pair.items`) is refused by name, and a forwarder over a `@mutable`
+    formal is refused whether or not it writes the guarded element.
   - "case membership" in a machine clause (`read_clause`) refused a form
     the specification admits, and is now served where the clause states the
     test outright (2026-11-24). A case is a domain: "A case implicitly

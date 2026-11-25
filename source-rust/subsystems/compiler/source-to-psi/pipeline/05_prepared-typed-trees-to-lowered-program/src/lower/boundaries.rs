@@ -7,7 +7,7 @@ use terminal_psi::Terminator;
 
 use super::Lowering;
 use super::calls::{Arguments, EvaluatedCallTarget};
-use crate::{Outcome, Signature, SourceOrigin, canonical};
+use crate::{Outcome, Signature, SourceOrigin};
 
 impl Lowering<'_> {
     pub(super) fn boundary_signature(&self, boundary: BoundaryMachineId) -> Checked<Signature> {
@@ -37,13 +37,7 @@ impl Lowering<'_> {
             return Err(self.internal("external completion cannot discard erased actuals"));
         }
         let signature = self.boundary_signature(boundary)?;
-        let crash_continuations = canonical::substituted_routes(
-            &self.boundary_outcome(boundary)?.crash_routes,
-            &arguments.scalars,
-            &self.tables.values,
-            self.id,
-        )?;
-        if !crash_continuations.is_empty() {
+        if !self.boundary_outcome(boundary)?.crash_routes.is_empty() {
             return Err(self.internal("external completion that declares a crash route"));
         }
         let before = self.here()?;

@@ -731,9 +731,13 @@ Crash guards and loop-head requirements replace formals with actual values
 the same checked way call requirements and guarantees do. The substitution
 keeps mathematical arithmetic and total policy operations and replaces each
 exact formal identity; a name with no binding is refused, never left to be
-mistaken for a value of the caller. A crash guard over storage still needs
-the reader to capture what that storage held at entry before it can be
-admitted.
+mistaken for a value of the caller. A crash guard is read in the scope of an
+entry `requires`, so it may read a formal's field or element
+(`crashes Trap items[index] == 0`). Lowering names the leaves it reads in the
+callee and at each call, and a call's crash continuations name the place of
+each whole structural actual; a guard over an actual that projects a place
+is refused (`contract clause names a structural formal whose actual projects
+a place`).
 
 ### Erased scalar bindings
 
@@ -1060,7 +1064,7 @@ refuses, by name, what the slice does not serve:
 | a loan that would give an SSA local a home inside the right of `&&` or `||` or a value `match` arm, so on some paths only | `call loan of a value local on some paths only` |
 | `let r = reference;` without a declared type | `statement local bound to a reference without a declared type` |
 | whole assignment to a slice formal | `statement whole assignment through a reference` |
-| an `ensures` or crash guard that names a borrowed formal: what it holds at the return is a version no slice states yet | `contract clause that names a borrowed formal outside requires`, `contract clause that projects a formal or result` |
+| an `ensures` that names a borrowed formal: what it holds at the return is a version no slice states yet | `contract clause that names a borrowed formal outside requires`, `contract clause that projects a formal or result` |
 
 ### Sums
 
@@ -1116,7 +1120,7 @@ the slice that serves it:
 | a `match` arm with a separate guard | `transition case arm with a guard` |
 | `s in S::C` whose right side names no case | `expression case membership` |
 | a pattern that names fewer than all payload fields without `..` | `typing pattern misses a payload field` |
-| a clause that names a record formal whole, an `ensures` or crash guard that projects a formal, and any clause that projects `result` | `contract record formal named whole in a clause`, `contract clause that projects a formal or result`, `contract result of a record machine` |
+| a clause that names a record formal whole, an `ensures` that projects a formal, and any clause that projects `result` | `contract record formal named whole in a clause`, `contract clause that projects a formal or result`, `contract result of a record machine` |
 | `==` and `!=` between records or between two sum values | `expression operator on a record` |
 | a field, literal type or pattern roster the typed trees hold only as a spelling | `spelling member without a field symbol`, `spelling record literal without a type symbol`, `spelling record literal field without a symbol`, `spelling field without a symbol`, `spelling record pattern without a resolved subject`, `spelling record pattern field without a symbol` |
 
@@ -1207,8 +1211,13 @@ value equal to the Boolean its edge took ([crash](../../../../../../wiki/spec/te
 used as route witnesses are proof information and are not added here. A call
 of a machine with no normal completion is an `InvokeNoNormal` terminator whose
 crash continuations are the callee's published routes with each formal
-replaced by the actual at its position; nothing is dropped or simplified.
-Both edges go to `Destination::NoNormal`. A call of a machine that may return
+replaced by the actual at its position, a structural formal by the place of
+its whole actual (`contract_forms::substituted_routes`); nothing is dropped
+or simplified, and a route over an actual that projects a place is refused.
+A loop header and a record cast restate their requirements through the same
+binding (`contract_forms::substitute_formals`); they also keep the byte
+predicates and float meaning sources the lowered value table traces, because
+each arriving edge still proves the restated clause. Both edges go to `Destination::NoNormal`. A call of a machine that may return
 and also publishes crash routes stays a `Call` or `CallUnit` operation and
 carries the same substituted routes as its crash continuations: the block
 goes on after it, so the crash site is the operation
@@ -1805,16 +1814,17 @@ worked around by adding to `terminal-check-tables`.
     `DomainSemanticId`, which a data `requires` clause does not have, and a
     conserved row would need a disposition on every edge, which
     `no_successor_dispositions` refuses today.
-27. **An entry `requires` may project a record formal; nothing may project
-    `result` yet.** `requires p.first == 7` is read as a field term rooted
-    at the formal's place (the `k`-th record formal is place `k + 1`), the
-    form the module's contract carries; the checker states it over the
-    formal's entry content inside the machine and over the actual's leaf at
-    each call. `ensures result.x <= 9`, `ensures result in S::C`, a formal's
-    field in an `ensures` and in a crash route guard are still refused as
-    `contract clause that projects a formal or result`: they need the
-    returned leaves logged on the return edge (finding 14) and a result
-    leaf stated as a value in the caller, which this slice does not do.
+27. **An entry `requires` or crash guard may project a record formal;
+    nothing may project `result` yet.** `requires p.first == 7` and
+    `crashes Trap p.first == 0` are read as field terms rooted at the
+    formal's place (the `k`-th record formal is place `k + 1`), the form the
+    module's contract carries; the checker states them over the formal's
+    entry content inside the machine and over the actual's leaf at each
+    call. `ensures result.x <= 9`, `ensures result in S::C` and a formal's
+    field in an `ensures` are still refused as `contract clause that
+    projects a formal or result`: they need the returned leaves logged on
+    the return edge (finding 14) and a result leaf stated as a value in the
+    caller, which this slice does not do.
 29. **A machine generated for a static application keeps its declaration's
     identities.** Stage 04 generates one machine per application of a
     generic machine; its retained application records the template, the

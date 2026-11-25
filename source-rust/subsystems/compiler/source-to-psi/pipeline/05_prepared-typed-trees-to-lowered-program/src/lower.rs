@@ -772,7 +772,9 @@ impl Lowering<'_> {
                     .map(|exact| (formal.place, exact))
             })
             .collect::<Checked<_>>()?;
-        for clause in signature.requires.iter().chain(&signature.ensures) {
+        // A declared crash guard reads the inputs at entry like a `requires`,
+        // so its leaves are named even when the body never reads them.
+        for clause in signature.observing_clauses() {
             self.name_clause_contents(
                 clause,
                 &bindings,
@@ -1163,7 +1165,7 @@ impl<'a> Lowering<'a> {
             let roots: Vec<_> = parameters
                 .records
                 .iter()
-                .map(|formal| formal.place)
+                .map(|formal| Some(formal.place))
                 .collect();
             if !signature.requires.is_empty() {
                 let mut clauses = Vec::with_capacity(signature.requires.len());

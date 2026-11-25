@@ -3763,22 +3763,19 @@ impl<'t> Program<'t> {
                 Unserved::Contract("result identity"),
             )
         })?;
-        let entry = ClauseScope {
+        // Requirements and crash guards describe invocation entry, so they
+        // observe the inputs, a formal's fields and elements included;
+        // guarantees choose owned inputs or borrowed completion storage in
+        // the shared clause binding.
+        let required = ClauseScope {
             slots: &slots,
             values: &values,
             bound,
             owner,
             result: ResultTerm::Absent("result in an entry clause"),
             subject: None,
-            formal_fields: false,
-            logical: None,
-        };
-        // Requirements observe inputs; guarantees choose owned inputs or
-        // borrowed completion storage in the shared clause binding.
-        let required = ClauseScope {
             formal_fields: true,
             logical: None,
-            ..entry
         };
         let exit = ClauseScope {
             formal_fields: true,
@@ -3798,7 +3795,7 @@ impl<'t> Program<'t> {
                 None => ResultTerm::Absent("result of a Unit machine"),
             },
             logical: None,
-            ..entry
+            ..required
         };
         let mut requires = Vec::new();
         let mut ensures = Vec::new();
@@ -3880,8 +3877,9 @@ impl<'t> Program<'t> {
                 // effects.md, "Guarded crashes": "Each `crashes` clause names
                 // one cause (`Trap` or `Abort`); its route guards are
                 // alternatives, and an empty route list means `true`." Route
-                // guards describe invocation entry, so they cannot name
-                // `result`.
+                // guards describe invocation entry (calls_and_outcomes.md,
+                // "Call contracts"), so they read the inputs as a `requires`
+                // does and cannot name `result`.
                 SignatureContractKind::Crashes { cause } => {
                     crash_clauses = true;
                     let cause = crash_cause(cause);
@@ -3889,7 +3887,7 @@ impl<'t> Program<'t> {
                         routes.push((cause, CrashRouteGuard::Truth));
                     }
                     for fact in facts {
-                        let guard = self.clause(id, &entry, self.fact(id, fact)?)?;
+                        let guard = self.clause(id, &required, self.fact(id, fact)?)?;
                         routes.push((
                             cause,
                             CrashRouteGuard::Predicate(CrashPredicateTerm::new(guard)),

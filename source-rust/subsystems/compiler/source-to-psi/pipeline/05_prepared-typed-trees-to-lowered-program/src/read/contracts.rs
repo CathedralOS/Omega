@@ -67,10 +67,9 @@ pub(super) struct ClauseScope<'s> {
     /// checker replaces its names by values before it is a goal.
     pub(super) subject: Option<DataSubject<'s>>,
     /// Whether a term may project a formal (`p.first`). Entry requirements
-    /// read the invocation input. Normal guarantees keep owned inline input
-    /// fields, but read borrowed storage at completion. `old` explicitly
-    /// selects the input observation. Crash guards retain their separate
-    /// admission rule.
+    /// and crash guards read the invocation input. Normal guarantees keep
+    /// owned inline input fields, but read borrowed storage at completion.
+    /// `old` explicitly selects the input observation.
     pub(super) formal_fields: bool,
     pub(super) logical: Option<super::logical::LogicalScope<'s>>,
 }

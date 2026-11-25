@@ -107,17 +107,34 @@ pub fn routes(
 
 /// Retain every published crash alternative under simultaneous actuals.
 /// This operation does not prove a route impossible or remove one.
+///
+/// A guard over a structural formal (`items[index] == 0`) names the place of
+/// the call's structural actual in that lane, read when the call is made. An
+/// actual that projects its place (`@pair.items`) has no place of its own to
+/// name, so a guard over that formal is refused rather than dropped: an
+/// untranslated continuation cannot erase a crash (calls_and_outcomes.md,
+/// "Call contracts").
 pub fn substituted_routes(
     routes: &[CrashRouteBucket],
     actuals: &[ValueId],
+    structural: &[terminal_psi::StructuralArgument],
 ) -> Result<Vec<CrashRouteBucket>, String> {
+    let places: Vec<_> = structural
+        .iter()
+        .map(|argument| argument.path.is_empty().then_some(argument.place))
+        .collect();
     let mut alternatives = Vec::new();
     for bucket in routes {
         for guard in &bucket.alternatives {
             let guard = match guard {
                 CrashRouteGuard::Truth => CrashRouteGuard::Truth,
                 CrashRouteGuard::Predicate(predicate) => CrashRouteGuard::Predicate(
-                    CrashPredicateTerm::new(substitute(predicate.proposition(), actuals)?),
+                    CrashPredicateTerm::new(substitute_formals(
+                        predicate.proposition(),
+                        actuals,
+                        &places,
+                        &mut CallActuals,
+                    )?),
                 ),
             };
             alternatives.push((bucket.cause, guard));
@@ -127,21 +144,50 @@ pub fn substituted_routes(
 }
 
 pub fn substitute(proposition: &Proposition, actuals: &[ValueId]) -> Result<Proposition, String> {
-    substitute_parameters(proposition, actuals, &[])
+    substitute_formals(proposition, actuals, &[], &mut CallActuals)
 }
 
-/// Substitute exact scalar and storage formal identities together. Storage
-/// observations remain predicates to prove, not facts introduced by this step.
-pub fn substitute_parameters(
+/// What a restated clause may keep beyond the renamed formals. Each consumer
+/// says which sources it can trace; the defaults refuse, because a consumer
+/// that cannot trace a source must not invent one.
+pub trait RestatedSources {
+    /// Accept the source of a float meaning projection
+    /// (`float_conversion_roundtrip(x, ..)`) after renaming.
+    fn float_meaning_source(&mut self, _source: &ScalarTerm) -> Result<(), &'static str> {
+        Err("float meaning projection has no actual owner correspondence")
+    }
+
+    /// Whether a byte predicate over a structural formal keeps its renamed
+    /// place. A consumer that proves the restated clause at each arrival can
+    /// keep it; a call's crash continuation cannot.
+    fn keeps_byte_predicates(&self) -> bool {
+        false
+    }
+}
+
+/// A call's crash continuation: it renames formals and traces no other source.
+struct CallActuals;
+
+impl RestatedSources for CallActuals {}
+
+/// Substitute exact scalar and storage formal identities together, then
+/// restore canonical order. Storage observations remain predicates to prove,
+/// not facts introduced by this step. `places` holds the place each structural
+/// formal stands for, or `None` when its actual projects a place. A crash
+/// continuation and a stage 05 loop header or record cast restate their
+/// clauses through this one binding.
+pub fn substitute_formals(
     proposition: &Proposition,
     actuals: &[ValueId],
-    places: &[semantic_vocabulary::PlaceId],
+    places: &[Option<semantic_vocabulary::PlaceId>],
+    sources: &mut impl RestatedSources,
 ) -> Result<Proposition, String> {
     let substituted = terminal_semantics::substitution::clauses::substitute_clause(
         proposition,
         &mut ScalarFormals {
             values: actuals,
             places,
+            sources,
         },
     )
     .map_err(str::to_owned)?;
@@ -186,12 +232,15 @@ pub fn canonical_clause(proposition: Proposition) -> Result<Proposition, String>
     }
 }
 
-struct ScalarFormals<'a> {
+struct ScalarFormals<'a, S> {
     values: &'a [ValueId],
-    places: &'a [semantic_vocabulary::PlaceId],
+    /// The place each structural formal stands for, or `None` when its actual
+    /// projects a place.
+    places: &'a [Option<semantic_vocabulary::PlaceId>],
+    sources: &'a mut S,
 }
 
-impl ScalarFormals<'_> {
+impl<S> ScalarFormals<'_, S> {
     fn place(
         &self,
         formal: semantic_vocabulary::PlaceId,
@@ -200,12 +249,14 @@ impl ScalarFormals<'_> {
             .ok()
             .and_then(|position| position.checked_sub(1))
             .and_then(|position| self.places.get(position))
-            .copied()
-            .ok_or("clause names storage that is not a structural formal")
+            .ok_or("clause names storage that is not a structural formal")?
+            .ok_or("clause names a structural formal whose actual projects a place")
     }
 }
 
-impl terminal_semantics::substitution::clauses::ClauseBindings for ScalarFormals<'_> {
+impl<S: RestatedSources> terminal_semantics::substitution::clauses::ClauseBindings
+    for ScalarFormals<'_, S>
+{
     type Error = &'static str;
 
     fn value(
@@ -229,7 +280,7 @@ impl terminal_semantics::substitution::clauses::ClauseBindings for ScalarFormals
         scalar_type: semantic_vocabulary::ScalarType,
     ) -> Result<ScalarTerm, Self::Error> {
         if version != semantic_vocabulary::ContentPlaceVersion::Current {
-            return Err("a loop header cannot restate a prior invocation's storage snapshot");
+            return Err("a restated clause cannot name a prior invocation's storage snapshot");
         }
         let root = self.place(root)?;
         let path = path.to_vec();
@@ -255,6 +306,42 @@ impl terminal_semantics::substitution::clauses::ClauseBindings for ScalarFormals
                 return Err("a callable field has no scalar contract term");
             }
         })
+    }
+
+    fn structural_read(
+        &mut self,
+        root: semantic_vocabulary::PlaceId,
+        path: &[semantic_vocabulary::ScalarReadProjection],
+        scalar_type: semantic_vocabulary::ScalarType,
+    ) -> Result<ScalarTerm, Self::Error> {
+        // Substitution already renamed each selector into the consumer's
+        // scope. The restated clause names the observation; the checker reads
+        // that storage where the call is made or the edge arrives.
+        Ok(ScalarTerm::StructuralRead {
+            root: self.place(root)?,
+            path: path.to_vec(),
+            scalar_type,
+        })
+    }
+
+    fn validate_float_meaning_source(&mut self, source: &ScalarTerm) -> Result<(), Self::Error> {
+        self.sources.float_meaning_source(source)
+    }
+
+    fn byte_predicate(
+        &mut self,
+        predicate: semantic_vocabulary::ByteSequencePredicate,
+        root: semantic_vocabulary::PlaceId,
+        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+    ) -> Result<ScalarTerm, Self::Error> {
+        if !self.sources.keeps_byte_predicates() {
+            return Err("clause byte predicate has no byte source observation");
+        }
+        Ok(ScalarTerm::byte_sequence_predicate(
+            predicate,
+            self.place(root)?,
+            path.to_vec(),
+        ))
     }
 
     fn extent(
