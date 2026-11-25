@@ -112,7 +112,7 @@ fn missing_whole_local_repair() -> terminal_check_tables::program::Elaboration {
 #[test]
 fn claim_verification_preserves_the_exact_unavailable_storage() {
     use terminal_check_tables::program::SourceOrigin as TerminalSourceOrigin;
-    use terminal_semantics::plain_affine::{Error, Site};
+    use terminal_semantics::plain_affine::{Error, Site, UnavailableReason};
 
     let mut elaboration = missing_whole_local_repair();
     let machine = elaboration.module.machines[0].id;
@@ -122,7 +122,7 @@ fn claim_verification_preserves_the_exact_unavailable_storage() {
         .unavailable
         .first()
         .expect("the whole local home is still owed back when its reference ends");
-    assert!(expected.unrestored);
+    assert_eq!(expected.reason, UnavailableReason::Unrestored);
     let error = terminal_semantics::plain_affine::verify_claims_in(&elaboration.module, machine)
         .unwrap_err();
     assert_eq!(error.site(), Some(expected.site));
@@ -131,7 +131,7 @@ fn claim_verification_preserves_the_exact_unavailable_storage() {
     };
     assert_eq!(actual.site, expected.site);
     assert_eq!(actual.place, expected.place);
-    assert_eq!(actual.unrestored, expected.unrestored);
+    assert_eq!(actual.reason, expected.reason);
     assert!(actual.message().contains(NOT_RESTORED));
 
     let concerns = match actual.site {
@@ -549,6 +549,81 @@ fn the_lent_value_is_not_passed_on_while_a_field_is_vacant() {
         &program("observe(holder);", "holder.inner = next;"),
         USED_VACANT,
     );
+}
+
+const FENCED_CALL: &str = "cannot make a call that may reach a boundary or service while an \
+                           owned value is moved out of borrowed storage";
+
+const CLOCK: &str = "public boundary trait Clock {\n    \
+                     machine tick() reaches none crashes none;\n}\n\
+                     machine helper() reaches Clock { Clock::tick(); }\n\
+                     machine relay() { helper(); }\n\
+                     machine observe(value: @u32) { }\n";
+
+/// The same `swap` with two statements in either order: `holder.inner =
+/// next;` closes the window, so whatever runs first runs with it open.
+fn window_call(first: &str, second: &str) -> String {
+    format!(
+        "{CLOCK}machine swap(holder: @mutable Holder, next: Inner) -> Inner {{\n    \
+         let taken: Inner = holder.inner;\n    {first}\n    {second}\n    taken\n}}\n"
+    )
+}
+
+/// ownership.md: "Boundary/capability calls and other invariant-window
+/// fences remain in force." A helper that reaches the `Clock` service runs
+/// after the store in the accepted program and before it in the twin.
+#[test]
+fn a_call_that_reaches_a_service_waits_until_the_window_closes() {
+    accepted(&window_call("holder.inner = next;", "helper();"));
+    rejected(
+        &window_call("helper();", "holder.inner = next;"),
+        FENCED_CALL,
+    );
+}
+
+/// A boundary call is fenced even when its requirement declares `reaches
+/// none`: nothing in the spec makes that declaration a complete access
+/// contract for the vacant storage, so the checker refuses.
+#[test]
+fn a_boundary_call_waits_until_the_window_closes() {
+    accepted(&window_call("holder.inner = next;", "Clock::tick();"));
+    rejected(
+        &window_call("Clock::tick();", "holder.inner = next;"),
+        FENCED_CALL,
+    );
+}
+
+/// `relay` declares no reach and makes no boundary call itself; it is
+/// fenced because the helper it calls reaches a service. A call to a quiet
+/// machine that borrows a disjoint established sibling stays usable inside
+/// the window ("Disjoint established siblings remain usable").
+#[test]
+fn a_call_is_fenced_by_what_its_callees_reach() {
+    rejected(
+        &window_call("relay();", "holder.inner = next;"),
+        FENCED_CALL,
+    );
+    accepted(&window_call(
+        "observe(@holder.tag);",
+        "holder.inner = next;",
+    ));
+}
+
+/// A local `@mutable` reference to an owned local opens the same window in
+/// the storage it captured, and the same fence holds there.
+#[test]
+fn a_window_through_a_local_reference_fences_the_same_calls() {
+    let program = |first: &str, second: &str| {
+        format!(
+            "{CLOCK}machine keep() -> Inner {{\n    \
+             let mutable holder: Holder = Holder {{ inner: Inner {{ value: 3u32 }}, tag: 1u32 }};\n    \
+             let local: @mutable Holder = @mutable holder;\n    \
+             let taken: Inner = move local.inner;\n    {first}\n    {second}\n    taken\n}}\n"
+        )
+    };
+    let store = "local.inner = Inner { value: 7u32 };";
+    accepted(&program(store, "helper();"));
+    rejected(&program("helper();", store), FENCED_CALL);
 }
 
 /// A shared reference lends no window: the move stays outside what this

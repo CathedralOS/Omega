@@ -1416,6 +1416,7 @@ fn reconvergence_types() -> [StructuralTypeDeclaration; 3] {
 fn owned_analysis(types: &[StructuralTypeDeclaration]) -> Analysis<'_> {
     Analysis {
         module: None,
+        fences: None,
         types,
         dispositions: vec![Some(true); types.len()],
         borrowed_headers: Vec::new(),

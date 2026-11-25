@@ -7,6 +7,7 @@
 
 mod claims;
 pub use claims::{ClaimLocation, ClaimsPlan, publish_contract_claims};
+mod fences;
 
 use arena::IdSet;
 use semantic_vocabulary::{
@@ -27,23 +28,42 @@ pub enum Site {
 pub struct Unavailable {
     pub site: Site,
     pub place: PlaceId,
+    pub reason: UnavailableReason,
+}
+
+/// Why the storage at `Unavailable::place` cannot be used at its site.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UnavailableReason {
+    /// The site observes storage whose value was transferred or consumed.
+    Use,
     /// The site returns custody of a borrowed region while an owned move
     /// still leaves part of it vacant. This includes descriptor release and
-    /// cleanup as well as normal handback of incoming storage. Every other
-    /// row is a use of storage unavailable at its observation.
-    pub unrestored: bool,
+    /// cleanup as well as normal handback of incoming storage.
+    Unrestored,
+    /// The site calls code that may reach a boundary or service, or whose
+    /// access is unknown, while an owned move leaves borrowed storage vacant
+    /// (`fences`). `place` is the storage holding the vacancy.
+    FencedCall,
 }
 
 impl Unavailable {
-    /// The ownership walk knows whether storage is vacant at an observation
-    /// or still owed back when a borrow ends; every consumer reports that reason.
+    /// The ownership walk knows why the storage is unavailable at its site;
+    /// every consumer reports that reason.
     pub const fn message(&self) -> &'static str {
-        if self.unrestored {
-            "an owned value was moved out of borrowed storage, and the place does not \
-             hold a value again where the machine returns the borrow: a replacement \
-             must be stored into the vacant place on every path that leaves the machine"
-        } else {
-            "owned storage is used after its value was transferred or consumed"
+        match self.reason {
+            UnavailableReason::Use => {
+                "owned storage is used after its value was transferred or consumed"
+            }
+            UnavailableReason::Unrestored => {
+                "an owned value was moved out of borrowed storage, and the place does not \
+                 hold a value again where the machine returns the borrow: a replacement \
+                 must be stored into the vacant place on every path that leaves the machine"
+            }
+            UnavailableReason::FencedCall => {
+                "cannot make a call that may reach a boundary or service while an owned \
+                 value is moved out of borrowed storage: store a replacement into the \
+                 vacant place before this call"
+            }
         }
     }
 }
@@ -511,6 +531,8 @@ impl WindowBacking {
 
 struct Analysis<'a> {
     module: Option<&'a terminal_psi::TerminalModule>,
+    /// The quiet machines of `module`; `None` exactly when `module` is.
+    fences: Option<&'a fences::CallFences<'a>>,
     types: &'a [StructuralTypeDeclaration],
     dispositions: Vec<Option<bool>>,
     roots: Vec<Option<Root>>,
@@ -1055,6 +1077,7 @@ static NO_NOMINAL_CALLS: [terminal_psi::generic_calls::NominalCallArgument; 0] =
 /// equal copy, replays alone.
 pub struct AffineSummaries<'m> {
     summaries: crate::descriptor_results::ModuleSummaries<'m>,
+    fences: fences::CallFences<'m>,
 }
 
 impl<'m> AffineSummaries<'m> {
@@ -1064,6 +1087,7 @@ impl<'m> AffineSummaries<'m> {
                 module,
                 &NO_NOMINAL_CALLS,
             ),
+            fences: fences::CallFences::new(module),
         }
     }
 
@@ -1099,6 +1123,8 @@ pub struct MachineAffine<'s> {
             crate::descriptor_results::DescriptorGraphError,
         >,
     >,
+    /// Used only without a module table built from this exact module.
+    fences: fences::CallFences<'s>,
 }
 
 impl<'s> MachineAffine<'s> {
@@ -1112,7 +1138,19 @@ impl<'s> MachineAffine<'s> {
             machine: module_machine(module, identity)?,
             summaries,
             graph: std::cell::OnceCell::new(),
+            fences: fences::CallFences::new(module),
         })
+    }
+
+    /// The module table's quiet machines when it was built from this module,
+    /// so every walk over the module shares one; otherwise this walk's own.
+    fn fences(&self) -> &fences::CallFences<'s> {
+        match self.summaries {
+            Some(summaries) if std::ptr::eq(summaries.fences.module(), self.module) => {
+                &summaries.fences
+            }
+            _ => &self.fences,
+        }
     }
 
     fn graph(
@@ -2131,6 +2169,7 @@ fn analyze(
         .collect();
     let mut analysis = Analysis {
         module,
+        fences: walks.map(MachineAffine::fences),
         types,
         dispositions,
         roots,
@@ -2438,6 +2477,80 @@ impl<'a> Analysis<'a> {
         Ok(())
     }
 
+    /// The storage holding an open borrowed-storage window at the current
+    /// position, if any: a home captured by a live reference whose captured
+    /// region is not available, or a lent affine parameter that is not whole.
+    /// Every fence on an open window asks this one question.
+    fn open_window(&self, state: &State) -> Result<Option<PlaceId>, Error> {
+        let raw = self
+            .residences
+            .iter()
+            .enumerate()
+            .find(|(raw, captures)| {
+                captures.iter().any(|capture| {
+                    self.position.is_some_and(|at| capture.live.contains(&at))
+                        && state.regions[*raw]
+                            .as_ref()
+                            .is_none_or(|region| !region.available(&capture.path))
+                })
+            })
+            .map(|(raw, _)| raw)
+            .or_else(|| {
+                self.roots.iter().enumerate().find_map(|(raw, root)| {
+                    (root
+                        .as_ref()
+                        .is_some_and(|root| root.parameter && !root.owned && root.affine)
+                        && state.regions[raw]
+                            .as_ref()
+                            .is_some_and(|region| !region.available(&[])))
+                    .then_some(raw)
+                })
+            });
+        raw.map(|raw| {
+            u64::try_from(raw)
+                .ok()
+                .and_then(|raw| raw.checked_add(1))
+                .and_then(PlaceId::new)
+                .ok_or(Error::malformed("place position is outside its identity"))
+        })
+        .transpose()
+    }
+
+    /// A call made while a window is open, unless the callee is quiet
+    /// (`fences`). Without the module the callee's reach is unknown, and the
+    /// call is not served.
+    fn fenced(
+        &self,
+        state: &State,
+        reach: fences::Reach,
+        site: Site,
+    ) -> Result<Option<Unavailable>, Error> {
+        let callee = match reach {
+            fences::Reach::Plain => return Ok(None),
+            fences::Reach::Calls(callee) => Some(callee),
+            fences::Reach::Fenced => None,
+        };
+        let Some(place) = self.open_window(state)? else {
+            return Ok(None);
+        };
+        if let Some(callee) = callee {
+            let fences = self.fences.ok_or(
+                Error::unsupported(
+                    "a call while an owned value is out of borrowed storage needs its exact module",
+                )
+                .at(site),
+            )?;
+            if fences.quiet(callee) {
+                return Ok(None);
+            }
+        }
+        Ok(Some(Unavailable {
+            site,
+            place,
+            reason: UnavailableReason::FencedCall,
+        }))
+    }
+
     /// Returning a reference returns the captured region, rather than just
     /// disposing a pointer-sized carrier. Availability is read from the same
     /// frontier that the extraction and receiving store update.
@@ -2469,7 +2582,7 @@ impl<'a> Analysis<'a> {
                 self.unavailable.push(Unavailable {
                     site,
                     place: *root,
-                    unrestored: true,
+                    reason: UnavailableReason::Unrestored,
                 });
             }
         }
@@ -2566,7 +2679,7 @@ impl<'a> Analysis<'a> {
                 self.unavailable.push(Unavailable {
                     site,
                     place: source,
-                    unrestored: true,
+                    reason: UnavailableReason::Unrestored,
                 });
             }
         }
@@ -2636,29 +2749,18 @@ impl<'a> Analysis<'a> {
             // otherwise suspension with the window open rejects." A
             // suspension plan states none of that yet, so a crossing reached
             // with lent storage partly vacant is not served.
-            if operation.suspension_crossing.is_some()
-                && (self.residences.iter().enumerate().any(|(raw, captures)| {
-                    captures.iter().any(|capture| {
-                        self.position.is_some_and(|at| capture.live.contains(&at))
-                            && state.regions[raw]
-                                .as_ref()
-                                .is_none_or(|region| !region.available(&capture.path))
-                    })
-                }) || self.roots.iter().enumerate().any(|(raw, root)| {
-                    root.as_ref()
-                        .is_some_and(|root| root.parameter && !root.owned && root.affine)
-                        && state.regions[raw]
-                            .as_ref()
-                            .is_some_and(|region| !region.available(&[]))
-                }))
-            {
+            if operation.suspension_crossing.is_some() && self.open_window(&state)?.is_some() {
                 return Err(Error::unsupported(
                     "a possibly suspending call while an owned value is out of borrowed storage",
                 )
                 .at(site));
             }
+            // Judged on the frontier the call starts from, reported after
+            // the call's own argument uses, which name the storage directly.
+            let fenced = self.fenced(&state, fences::operation(&operation.kind), site)?;
             self.operation(&mut state, operation, entering.is_some())
                 .map_err(|error| error.at(site))?;
+            self.unavailable.extend(fenced);
         }
         let at = (
             block.id,
@@ -2722,6 +2824,8 @@ impl<'a> Analysis<'a> {
                 .next()
                 .ok_or(Error::malformed("terminator has no edge"))?,
         );
+        let fenced = self.fenced(&state, fences::terminator(&block.terminator), site)?;
+        self.unavailable.extend(fenced);
         if let Some(flow) = &mut self.claim_flow {
             flow.terminal(&mut state.claims, &block.terminator, entering.is_some())
                 .map_err(|error| error.at(site))?;
@@ -2894,7 +2998,7 @@ impl<'a> Analysis<'a> {
                         self.unavailable.push(Unavailable {
                             site: Site::Edge(edge),
                             place,
-                            unrestored: true,
+                            reason: UnavailableReason::Unrestored,
                         });
                     }
                 }
@@ -3065,6 +3169,18 @@ impl<'a> Analysis<'a> {
             }
             retained.reverse();
             outgoing.active = retained;
+            // Owned cleanup on this edge calls its cleanup machine while
+            // any window the edge carries is still open.
+            for action in &actions {
+                if let TerminalAffineCleanupAction::InvokeOwned(cleanup) = action {
+                    let fenced = self.fenced(
+                        &outgoing,
+                        fences::Reach::Calls(cleanup.cleanup_machine),
+                        Site::Edge(edge),
+                    )?;
+                    self.unavailable.extend(fenced);
+                }
+            }
             if let Some(flow) = &mut self.claim_flow {
                 flow.cleanup(&mut outgoing.claims, edge, supplied, entering.is_some())
                     .map_err(|error| error.at(Site::Edge(edge)))?;
@@ -4574,7 +4690,7 @@ impl<'a> Analysis<'a> {
                 self.unavailable.push(Unavailable {
                     site,
                     place,
-                    unrestored: false,
+                    reason: UnavailableReason::Use,
                 });
                 *last = Some(site);
             }

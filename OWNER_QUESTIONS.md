@@ -85,3 +85,28 @@ separate policy approval from the host's ability to confine execution.
 Generators run in an earlier stage and hand files to the next Build through its supplied filesystem. Local helpers already use ordinary file imports. What concrete Build needs a separately supplied library to execute its own code? For that case, what should the root invoker write, and how should a parent bind an alias for just one child?
 
 The current spec assigns bindings to the invoker or parent before the Build starts. Package installation names an alias but does not specify these per-invocation inputs. [Dependency declarations and binding](wiki/spec/build/scoped_execution.md#dependency-declarations-and-binding) · [Command vocabulary](wiki/spec/build/command_line.md#command-vocabulary)
+
+<a id="vacant-storage-boundary-calls"></a>
+### 3. May a boundary call run while an owned value is moved out of borrowed storage?
+
+A machine that updates a field of storage it was lent often replaces the field
+with what a provider returns for its old value:
+`conn.session = Tls::advance(conn.session);`. Evaluating the right side moves
+`conn.session` out, so the boundary call runs while that field is vacant. The
+compiler now refuses every boundary call in that position, including one whose
+requirement declares `reaches none`, receives only the detached value and
+names no `invokes` callback; the same update through an ordinary machine that
+reaches nothing compiles. Does such a requirement's declared contract count as
+the "complete access and outcome contracts" that show the call "cannot expose
+the incomplete owner", so the compiler may admit it? If so, must a requirement
+that declares `blocks` still be refused?
+
+[Borrowed-storage invariant windows](wiki/spec/language/ownership.md#borrowed-storage-invariant-windows)
+admits a call only on those contracts and keeps "Boundary/capability calls and
+other invariant-window fences" in force.
+[Invariant windows](wiki/spec/language/dependent_values.md#invariant-windows)
+fences boundary calls "that may observe or expose the affected storage,
+including through authority not named as an argument", without saying whether
+a declared ceiling of `reaches none` shows that a call cannot.
+[Service reach](wiki/spec/language/effects.md) makes reach, `invokes` and
+`blocks` independent axes; neither window page names blocking.
