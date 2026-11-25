@@ -71,8 +71,11 @@ The [staged package input draft](wiki/spec/packages/staged_inputs.md) records
 the preparing-stage proposal, source pins and consumer reach ceilings. For
 A → B → C, what typed value lets B forward the exact package it received
 without resolving it again? Which caller-owned inputs replace version 4
-acceptance for restricted operations and foreign assumptions? The draft also
-identifies unresolved ceiling defaults and CLI stage selection.
+acceptance for restricted Build operations, terminal permissions and external
+assumptions, and how do we
+carry the exact compiler inputs? The native borrow decision retires assumed
+provider contracts. Unsafe reach requires explicit admission on every edge.
+General ceiling defaults, composition across uses and CLI stage selection remain open.
 [Decisions for review](wiki/spec/packages/staged_inputs.md#remaining-design-decisions)
 
 <a id="vacant-storage-boundary-calls"></a>

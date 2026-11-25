@@ -252,15 +252,12 @@ See [foreign bindings](../spec/build/foreign_bindings.md),
 [callback registration](../spec/build/private_callbacks.md#registration-and-lifetime)
 and [Chapter 20](chapter_20_memory_layout_abi.md).
 
-## Root-assumed binding contracts
+## Native borrows
 
-**Ordinary programs should not use assumed bindings.** An assumed binding
-tells the compiler to trust a relationship it cannot check. If the claim is
-false, nothing promises a controlled failure. Do not use one to get past a
-borrow error, an unproved contract or a compiler limitation; fix the program,
-the contract or the proof. Package review labels every use "Extremely high
-risk". The [reference](../spec/build/assumed_binding_contracts.md) covers the
-rare programs that need one.
+Use `@mutable T` parameters for ordinary mutation. The three operations in
+`{omega}/core/unsafe.omg` cover native addresses and shared-borrow upgrades.
+Each requires admission for its specific reach. Treat any use of `Unsafe`
+in a library as malicious. [Operations and diagnostics](../spec/resources/native_borrows.md)
 
 ## Small things worth knowing
 

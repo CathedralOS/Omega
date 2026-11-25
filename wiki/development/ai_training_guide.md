@@ -142,9 +142,10 @@ shortcut that makes the checker stop complaining.
 Any candidate rollout gets **reward = 0** (regardless of test output) if it
 violates any of the following:
 
-1. **No `assumed` escape hatches:** Reject any rollout that introduces an
-   [assumed binding](../spec/build/assumed_binding_contracts.md) unless the
-   task prompt explicitly authorizes one.
+1. **Check provider contracts.** Reject repairs that assume provider
+   conformance or introduce [native borrows](../spec/resources/native_borrows.md)
+   to silence a proof or borrow error.
+
 2. **No contract weakening:** On repair and implementation tasks where a
    signature or `requires`/`ensures` contract is specified, verify AST/signature
    preservation. Loosening a precondition, widening a bound, or dropping a

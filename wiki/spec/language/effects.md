@@ -286,6 +286,13 @@ Recoverable failure and cancellation are result
 sums, not `fails` clauses. Resource capacity follows explicit capabilities and
 dependent contracts, not a `budget` or quantitative service member.
 
+## Unsafe reach
+
+`Unsafe` is a memberless boundary parent of `RawMemoryRead`, `RawMemoryWrite`,
+`BorrowMutabilityUpgrade`, and `ForeignCodeExecution`. Report each specific atom
+and its parent through ordinary reach closure. Admission and diagnostics follow
+the [native borrow contract](../resources/native_borrows.md#build-admission-and-diagnostics).
+
 ## Native images and foreign calls
 
 Core declares two distinct service identities. `NativeImageLoad` covers an
@@ -293,7 +300,8 @@ operation that can load a native executable image into the running process or
 execution environment. `ForeignCodeExecution` covers an operation that can
 enter an implementation across a foreign boundary. Declare the union of what
 the interface permits, including initializers. Both identities propagate
-through helpers and appear in the full reach report.
+through helpers and appear in the full reach report. Foreign execution also
+contributes its parent `Unsafe`. Loading alone does not.
 
 | Operation | Reach from loading or entering code |
 | --- | --- |

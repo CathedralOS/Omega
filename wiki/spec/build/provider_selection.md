@@ -3,13 +3,9 @@
 [Target slots](entry_roots.md) declare what can be selected.
 [Boundary realization](../terminal-psi/boundary_calls.md) defines execution and
 coverage evidence. Selection chooses a declared candidate; it does not construct
-provider rows or grant runtime permission. An explicit
-[assumed binding contract](assumed_binding_contracts.md) is the separate,
-root-only runtime route for linking compatible requirements without a proved
-semantic refinement. Ordinary selection and `satisfies` never imply that route.
-Ordinary programs should reject assumed bindings. If a provider fails to satisfy
-a requirement, repair its implementation or contract, or use a checked adapter;
-do not substitute an assumed relationship merely to make selection succeed.
+provider rows or grant runtime permission. The selected implementation must
+satisfy the caller-facing requirement directly or through a checked adapter.
+
 Receiving [permission policy](permissions.md) independently checks exact
 service/schema permissions against exercised physical mechanisms at explicit
 receiver admission, not as a mandatory gate on ordinary artifact production.
@@ -346,14 +342,6 @@ summaries, dependencies, calling/layout applications, and normalized identity.
 Composite adapters are ordinary checked machines, not plan-shaped call sequences.
 Build-time code may choose declared candidates or compute a leaf binding; it
 cannot append plan rows. Structural coincidence never supplies a satisfaction.
-
-`Build::assume_binding_contract::<Required::operation, Supplied::operation>(builder)`
-records a relationship for the compiler to validate and derive, not authored
-ProviderPlan rows. It retains the caller contract and actual supplied operation
-separately. The supplier's body stays checked against its own contract; the
-root assumption accounts for the exact admitted semantic difference. Complete
-coverage, runtime-shape and operational compatibility, exact identity, receiving
-policy and custody checks remain mandatory. It is not ordinary conformance.
 
 Derivation, structural validation, semantic admission under boundary-grant
 authority, and slot selection under the slot owner's capability are distinct

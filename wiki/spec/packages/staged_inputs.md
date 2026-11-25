@@ -9,7 +9,7 @@ This is the proposed replacement for the [version 4 project lock](locks.md).
 This page governs the proposed source, update and reach rules. The Rust tools
 currently use the lock workflow. The [remaining design decisions](#remaining-design-decisions)
 matter before retiring that workflow, particularly for separately admitted
-foreign assumptions and compiler inputs.
+external assumptions, terminal permissions and compiler inputs.
 
 ## From source to the next stage
 
@@ -149,6 +149,15 @@ An update may introduce new behavior within an existing ceiling. The check
 answers whether the candidate fits the current contract. A tool claiming a
 historical change needs a comparable old result or sufficient old inputs.
 
+The `Unsafe` family is denied by default in each package and on every
+dependency edge. Each consuming Build must name the specific atoms. For
+example, admitting `BorrowMutabilityUpgrade` permits an upgrade through an
+existing borrow. Switching the dependency to `borrow_mutable_at` requires
+`RawMemoryRead` and `RawMemoryWrite`. The compiler diagnoses a missing
+admission even when the call is transitive. A reachable foreign call also
+reports `Unsafe` through `ForeignCodeExecution`.
+[Operations, admission and diagnostics](../resources/native_borrows.md)
+
 ## Installing and updating
 
 The bundled workflow supports deterministic edits for conventional Git
@@ -189,22 +198,21 @@ Neither Git-specific syntax nor the updater determines the reach verdict.
 
 ## Remaining design decisions
 
-1. **Caller approval and existing compiler inputs.** Source literals replace
-   lock pins; ceilings replace the need for a reach delta to enforce a limit.
-   Neither one can authorize a foreign assumption, supply terminal permissions
-   or manufacture an accepted provider binding. Specify the caller-owned input
-   for those existing obligations, including unattended builds, its scope and
-   invalidation when code or compiler inputs change. Decide how existing
-   projects transition with explicit consumer review. Until that input exists,
-   a missing approval must refuse the affected operation.
+1. **Caller approval and existing compiler inputs.** Which caller-owned inputs
+   carry restricted Build approvals, terminal permissions, external assumptions and
+   exact compiler/provider binding identities after version 4, including for
+   unattended builds? Specify scope, invalidation and migration with consumer
+   review. A missing required approval refuses the operation. Retired assumed
+   provider contracts have no successor approval. Reject old registrations
+   and never translate their receipts into unsafe reach grants.
 2. **Stage bindings and forwarding.** Specify the public type for a resolved
    binding, how B refers to an alias supplied by A and forwards it to C, and
    the exact stage entry and completion signature. Forwarding must preserve
    identity, attenuation and the frozen view. Test a staged handoff beside a
    sibling with no binding.
-3. **Reach policy defaults and composition.** Empty is explicit. Decide what
-   omission means and how a package used on multiple edges with different
-   ceilings is attributed and diagnosed. Exercise the same library used as both
+3. **Reach policy defaults and composition.** Empty is explicit. Omission
+   denies unsafe reach. Decide what omission means for other reach and how to attribute and
+   diagnose a package used on multiple edges with different ceilings. Exercise the same library used as both
    Build code and product code, including an edge reached through a helper.
 4. **Choosing an edit site.** A dependency may belong to a product or to an
    explicitly selected successor Build. Settle the CLI spelling for selecting

@@ -142,6 +142,14 @@ again keeps that commit. Updating it proposes changing the commit literal.
 A custom revision calculation stays editable by the author.
 [Complete board example and command behavior](../spec/packages/staged_inputs.md)
 
+### Unsafe in a dependency
+
+Each consuming Build must admit the specific unsafe reach used through its
+dependency. If a helper starts upgrading shared borrows, the error identifies
+the originating operation and the dependency edge missing admission. Treat
+any use of `Unsafe` in a library as malicious.
+[Admission example](../spec/resources/native_borrows.md#build-admission-and-diagnostics)
+
 ## Version 4 install and update
 
 ```text
@@ -162,33 +170,6 @@ No blocking findings means no approval step. A missing lock starts fresh review.
 Missing old source still permits policy comparison, but limits the code diff and
 calls for auditing the candidate directly. Keep the lock under the project's
 normal review controls: it records your decisions, not a certificate of safety.
-
-### Assumed binding contracts are extremely high risk
-
-**Reject these in ordinary applications.** A library asking you to approve one
-to work around a borrow error, missing proof, broken contract or compiler
-limitation is asking you to inherit its implementation problem as a trust
-assumption. Repair that problem instead. Exceptional use must identify a
-deliberate requirement outside the checked model; a failing build is not one.
-
-`Build::assume_binding_contract::<Required::operation, Supplied::operation>(builder)`
-asks the root to accept a semantic relationship that ordinary conformance
-checking has not proved. Audit shows both contracts, the actual implementation,
-the missing guarantees/authority and the transitive dependency path. Install and
-update require explicit acceptance for that exact relationship and implementation;
-an unchanged public signature does not preserve approval of changed selected code.
-The lock retains a compact readable risk row, not a full provider-plan dump.
-
-The assumed connection can be demonstrably false. Audit shows detected
-contradictions and the facts refuting the exact relationship; acceptance records
-your decision to trust it anyway, not a proof or promise of safe execution.
-Neither body escapes its own checks, and structural/operational mismatches
-cannot be approved through this semantic assumption.
-
-This runtime permission cannot authorize build-time execution or use of those
-assumptions, even through a helper or automatic test. The build may register
-the relationship for its output only. See
-[root-assumed bindings](chapter_19_capabilities_effects_boundaries.md#root-assumed-binding-contracts).
 
 ### Build-time requests are part of the audit
 

@@ -3,9 +3,9 @@
 For [staged package inputs](staged_inputs.md), install and update edit
 source and the compiler checks each consumer's reach ceiling. Optional review
 can inspect candidate findings. The lock comparisons and declaration/lock
-transaction below describe the version 4 path during migration. Its authority
-checks for restricted execution and assumed bindings apply independently of
-where the caller retains its decisions.
+transaction below describe the version 4 path during migration. Restricted-execution approvals remain caller-owned. The staged design retires
+assumed provider bindings and enforces [Unsafe admission](../resources/native_borrows.md#build-admission-and-diagnostics)
+on each dependency edge.
 
 The package service resolves and installs source dependencies, checks their
 complete supported graph, and compares compiler-derived authority and assumptions
@@ -162,6 +162,9 @@ remain commitment-visible but incomplete for model review; recommend standalone
 audit. Exceeding a packet limit rejects rather than silently truncating evidence.
 
 ## Assumed binding contract acceptance
+
+**Version 4 only.** These historical rows describe the old review workflow.
+Reject an old registration during migration. Its approval grants no unsafe reach.
 
 Ordinary applications should reject this category outright. A dependency must
 not turn an ordinary ownership, proof, contract or compiler failure into a

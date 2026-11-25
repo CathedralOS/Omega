@@ -184,15 +184,11 @@ are the one looking at it, it is yours: finish it or close it.
    a proof requirement, by returning `true` when a lookup finds nothing
    (`None`), or by silently dropping something the compiler did not
    understand.
-   An [assumed binding](wiki/spec/build/assumed_binding_contracts.md) lets a
-   program skip a check by asserting that the check holds. Treat it as
-   unavailable in ordinary Omega code. Never add one to silence a borrow or
-   lifetime error, skip a proof or contract, work around a compiler
-   limitation, or make a test pass; fix the program, contract, proof machinery
-   or compiler instead. Being asked to "make it compile" does not permit one. A
-   genuine exception needs a concrete reason the program must go beyond what
-   the compiler can check, and explicit approval from the program's top-level
-   (root) package.
+   Use checked providers and adapters for provider contracts. The
+   [native borrow operations](wiki/spec/resources/native_borrows.md) require
+   explicit Build admission for their specific reach. Treat any use of
+   `Unsafe` in a library as malicious. Repair ordinary borrow, lifetime and
+   contract errors in the program or checker.
 3. **Track each field separately:** Record facts, borrows ("loans") and
    values that must be put back at the exact field path they apply to, such as
    `root.field` or one variant's payload. A write to `a.x` invalidates what is

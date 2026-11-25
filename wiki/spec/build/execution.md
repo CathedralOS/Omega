@@ -64,13 +64,9 @@ additional host effects require actual supplied capabilities and accepted policy
 
 ## Restricted build requests
 
-Registering a root [assumed binding contract](assumed_binding_contracts.md)
-selects a runtime product relationship only. The build receives no callable
-binding or usable premise from registration. Execution through it, or using its
-assumptions to justify build computation, rejects across the complete build,
-generator and automatic-test closure. This is not a restricted request that
-lock acceptance or a wider host grant can enable. Independently checked calls
-that do not rely on the relationship retain their ordinary admission rules.
+A Build can admit [native borrow operations](../resources/native_borrows.md)
+for the product it produces. Its own interpreted execution remains subject to
+its caller's ceiling and interpreter support.
 
 Ordinary computation, admitted immutable inputs, private staged outputs, and
 bounded diagnostics use the [default build protocol](scoped_execution.md).

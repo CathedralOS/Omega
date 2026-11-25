@@ -291,17 +291,9 @@ write to the wrong modeled place, missing ordering or a path bypassing the
 effect leaves the value live and rejects. No native binding or assembly-specific
 trust assertion substitutes for this proof.
 
-An [assumed binding contract](../build/assumed_binding_contracts.md) can supply
-explicitly admitted premises at an authorized runtime crossing. It cannot exempt
-an assembly block from the instruction catalog, reinterpret an assembly contract as an
-assumption, admit raw emitted bytes, or suppress instruction obligations. The
-checked body consumes authority under its own contract, just like non-assembly
-code; the potentially false relationship belongs to the root-selected boundary.
-Low-level instructions alone do not justify this escape hatch. If ordinary
-assembly fails an ownership, authority or instruction check, repair its contract
-and implementation or the checker; do not introduce an assumed binding to
-silence that failure. The [exceptional-use rule](../build/assumed_binding_contracts.md)
-applies equally to assembly and other code.
+Checked assembly enforces the instruction catalog, ownership and authority
+requirements on the block. Admitting a [native borrow](../resources/native_borrows.md)
+preserves these checks.
 
 ## Interpreted execution
 
@@ -373,9 +365,7 @@ Scratch isolation does not remove that requirement.
 
 Interpretability alone grants no compile-time execution permission. Pure
 operations remain subject to [semantic-evaluation admission](evaluation.md);
-build/test environments retain their existing authority limits. Runtime
-[assumed binding contracts](../build/assumed_binding_contracts.md#runtime-only)
-neither supply missing instruction semantics nor become build-admissible.
+build/test environments retain their existing authority limits.
 
 ## Control flow and machine state
 

@@ -51,6 +51,8 @@ runtime value or retain context arguments. Ordinary machine calls still
 require their complete argument lists. Machine/reference `as addr` is not an
 alternate spelling; neither arbitrary value-to-address conversions nor the
 inverse address-to-borrow/callable conversion follow from these queries.
+Forming a reference from a native address requires a separately admitted
+[native borrow operation](../resources/native_borrows.md).
 
 The companion [data queries](../layouts/plans.md#size-and-alignment-queries)
 are `size_of::<T>()` and `align_of::<T>()`, both returning `u64`. A numeric result
@@ -212,8 +214,8 @@ native size nor an implicit Psi representation-size API.
 
 The queries do not force other calls to avoid inlining, prevent code sharing,
 make pages writable, or guarantee that editing an exposed entry edits every
-invocation. Patching remains subject to the program's selected boundaries and
-the exact [assumed contract](../build/assumed_binding_contracts.md), if any.
+invocation. Patching requires valid writable backing and the authority of the
+selected boundaries. See [native borrows](../resources/native_borrows.md).
 
 ### Describing an address window
 

@@ -1,5 +1,10 @@
 # Assumed binding contracts
 
+**Historical version 4 contract.** The staged Build design retires this
+operation and its acceptance records. The text below describes the old
+mechanism for migration. The current decision is [native borrows and
+provider contracts](../resources/native_borrows.md#provider-contracts-and-migration).
+
 **Ordinary Omega programs should reject assumed bindings outright.** They remain
 available for exceptional programs that deliberately exceed the checked model,
 including some forms of self-modifying code. They are not a workaround for

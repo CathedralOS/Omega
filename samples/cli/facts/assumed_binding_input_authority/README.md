@@ -1,5 +1,7 @@
 # Assumed binding input authority
 
+Version 4 fixture. Owning task: NATIVE-BORROW-ADMISSION. The [migration rules](../../../../wiki/spec/resources/native_borrows.md#provider-contracts-and-migration) retire this registration. The results below describe the legacy contract.
+
 The root-assumed input qualification `value <= 1` indexes `[7, 11]` of length 2,
 observing 11; `Supplied::get` retains its own contract.
 
@@ -12,7 +14,7 @@ prove the domain. On current main, installation refused the link:
 native artifact checked-provider installation failed: PsiAdmission(AssumedBindingRejected { required: BoundaryMachineId(3), supplied_requirement: BoundaryMachineId(4), reason: UnsupportedAssumedAuthority })
 ```
 
-Owning task: ASSUMED-BINDING-CONTRACTS. This row is the input-side
+This row is the input-side
 qualification the installation gate dropped. The exit result-bound row
 stays in `assumed_binding_result_bound`.
 

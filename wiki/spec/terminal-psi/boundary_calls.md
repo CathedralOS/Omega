@@ -195,28 +195,13 @@ graph contributes its boundary dependencies to provider discovery, including
 calls inside ordinary scalar helpers and constructed values; selected provider
 installation still joins the exact requirement and candidate identities.
 
-## Assumed runtime relationships
+## Provider contract checking
 
-These relationships are exceptional root-approved departures from the checked
-model. Ordinary programs should reject them. Lowering or provider installation
-must not invent one to carry a rejected ownership, lifetime or contract
-obligation; follow the [usage rule](../build/assumed_binding_contracts.md).
-
-A root-selected [assumed binding contract](../build/assumed_binding_contracts.md)
-is not a checked-provider conformance row. Retain the original requirement,
-the supplied requirement and selected checked implementation, exact argument/
-result correspondence, admitted entry/exit facts, authority receipts and full
-assumption closure. Verify runtime-shape, operational and custody compatibility
-independently of the assumed semantic relationship. A result fact is established
-only for the actual successful return; direct calls to the supplied implementation
-do not acquire caller-facing qualifications. Entry qualifications are scoped to
-that exact admitted crossing, not added to arbitrary caller values.
-
-The interpreter and native installation consume the same relationship. Neither
-may rewrite it into proved conformance, hide the selected implementation, or
-fabricate a successful result after a failed/suspended call. Build and automatic
-test execution reject these relationships and their assumption-dependent helpers
-before execution, even if the runtime root accepted them.
+Retain the selected requirement and its checked conformance. Reject a legacy
+assumed relationship even when a version 4 receipt is present. Carry the exact
+reach of [native borrow operations](../resources/native_borrows.md) through
+wrappers and provider dispatch. Interpreted execution rejects native
+address-to-borrow calls before touching storage.
 
 ## Host result validation
 

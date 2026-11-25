@@ -33,12 +33,9 @@ not relax constant/proof evaluation admission or expose host state to it.
 
 ## Invocation admission
 
-[Assumed binding contracts](../build/assumed_binding_contracts.md#runtime-only)
-are runtime-only. Neither executing such a relationship nor using its admitted
-facts to justify computation is eligible here, including through helpers,
-selected providers or erased evidence. Empty reach and root runtime acceptance
-cannot override that exclusion. Inspecting runtime declarations and checking
-their conditional proofs is not execution of the relationship.
+The [native borrow operations](../resources/native_borrows.md) carry nonempty
+service reach. Semantic evaluation cannot execute them or obtain logical
+evidence by invoking them through another machine.
 
 Specialize the selected machine's complete contract at its concrete arguments
 and available facts. Admission requires all of the following:

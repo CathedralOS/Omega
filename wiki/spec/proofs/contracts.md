@@ -759,33 +759,12 @@ them. Development use is not consumer or release acceptance. A provider-slot
 grant covers only its exact selected plan; unselected or partial candidates
 cannot inherit that receipt merely by implementing the same requirement.
 
-A boundary claim that the checker can refute against established bounds, domains,
-or accepted statements rejects even when ordinarily granted. The sole exception
-here is the exact semantic relationship of an explicitly accepted root-assumed
-runtime binding, described below. This veto is not a proof that the complete
-assumption set is consistent.
-
-Root [assumed binding contracts](../build/assumed_binding_contracts.md) record
-an unproved relationship between two runtime boundary contracts, not a checked
-`satisfies` edge or an exemption for either body. Their exact premises survive
-through the normal assumption closure, including statements and erased evidence.
-They are inadmissible for build-time computation. An explicitly accepted
-relationship may override the refutable-claim veto at that exact crossing,
-including when the supplied guarantee contradicts the caller-facing guarantee.
-Both statements and the refutation remain in its trust record under
-[known contradictions](../build/assumed_binding_contracts.md#known-contradictions-at-the-trust-crossing).
-Neither body nor any ordinary conformance gains an exemption from its own checks.
-The assumption is not a checked proof of the relationship; derived guarantees
-remain conditional on it. Registration grants no ambient proposition, permits
-no malformed derivation, and cannot make its assumptions admissible for
-build-time evaluation. Ordinary mathematical axioms retain the veto above.
-
-Ordinary programs should reject this exceptional runtime relationship. A missing
-proof, borrow-checker refusal, incorrect contract or compiler limitation is a
-reason to repair the program or checker, not to request an assumed binding.
-Libraries must not transfer these ordinary implementation failures into their
-consumers' trust decisions. See the
-[exceptional-use rule](../build/assumed_binding_contracts.md).
+A boundary claim that the checker can refute against established bounds,
+domains or accepted statements rejects even when granted. Build cannot
+override a refuted postcondition by assuming a provider relationship.
+[Native borrows](../resources/native_borrows.md) trust specific storage and
+aliasing premises at the operation. A false premise can invalidate proofs
+about that storage. The operation itself supplies no mathematical axiom.
 
 ### Admission and runtime diagnostics
 

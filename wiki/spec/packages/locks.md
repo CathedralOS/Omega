@@ -52,7 +52,7 @@ from a package name. Purpose, checked target, and build execution profile remain
 exact occurrence coordinates; root, dependency, Product, and Build acceptance
 are not interchangeable.
 
-[Assumed binding relationships](../build/assumed_binding_contracts.md) are
+In version 4, [assumed binding relationships](../build/assumed_binding_contracts.md) are
 risk-bearing assumption rows: retain the required/supplied contract identities,
 positional mapping, admitted semantic difference, runtime/root scope, and exact
 selected implementation and semantic-dependency commitment. These are not the

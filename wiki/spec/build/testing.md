@@ -286,13 +286,9 @@ pair agrees and each invocation passes its own test.
 
 ## Scheduling, execution, and outcomes
 
-Automatic build-time tests cannot execute
-[assumed binding contracts](assumed_binding_contracts.md#runtime-only) or use
-their assumptions, including through fixtures, helpers, provider selections and
-erased evidence. Runtime acceptance and live-host grants do not override this
-restriction. A separately executed runtime harness is a runtime product under
-its own acceptance, not permission to launch the prohibited relationship inside
-the automatic build-time runner.
+An interpreted test that reaches either native address-to-borrow operation
+is refused, including through fixtures, helpers or selected providers.
+[Product admission](../resources/native_borrows.md) cannot grant interpreter support.
 
 The lifecycle is:
 

@@ -1,5 +1,7 @@
 # Assumed binding result bound
 
+Version 4 fixture. Owning task: NATIVE-BORROW-ADMISSION. The [migration rules](../../../../wiki/spec/resources/native_borrows.md#provider-contracts-and-migration) retire this registration. The results below describe the legacy contract.
+
 The root-assumed u32 result <= 1 survives each boundary and indexes `[7, 11]`
 of length 2, observing 11; `Supplied::get` retains its own contract.
 
@@ -96,7 +98,7 @@ Full 8-layer specification and lowering evidence:
   Terminal Psi agreement (`omega run --both` reports `native exit 0` and `interp exit: 0`)
   on host platforms (`windows_x86_64` and `macos_arm64`).
 
-Remaining open on the ASSUMED-BINDING-CONTRACTS board: input-side authority
+In the legacy implementation, input-side authority
 issuance, invocation correspondence and operational/lifetime relationships
 fail closed; unsupported authority establishment is not demonstrated here;
 project-level acceptance across real dependency packages is exercised only
@@ -118,7 +120,7 @@ mismatches, blocking incompatibility and build-time calls — all rejecting at
   alpha-equivalent lifetime correspondence.
 
 The bounded result link does not close input-side authority issuance or the
-full ASSUMED-BINDING-CONTRACTS board outcome. Unsupported authority
+other legacy provider obligations. Unsupported authority
 establishment, invocation correspondence and operational/lifetime
 relationships fail closed.
 
