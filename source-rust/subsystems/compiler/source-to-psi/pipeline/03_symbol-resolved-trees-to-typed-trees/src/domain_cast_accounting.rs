@@ -113,6 +113,45 @@ fn read_run(program: &TypedTrees, outermost: ExpressionHandle) -> Run {
     run
 }
 
+/// A membership can immediately observe a signed cast. Compute inner casts
+/// first, using the same accounting as the enclosing declaration. During
+/// expression lowering the source can still supply an operand declaration
+/// whose formal or local has not yet been installed in the typed tables.
+pub(crate) fn type_for_domain_selection(
+    source: &crate::source_resolved::SymbolResolvedTrees,
+    program: &mut TypedTrees,
+    owner: SymbolHandle,
+    mut expression: ExpressionHandle,
+    source_type: impl FnOnce(
+        &mut TypedTrees,
+        ExpressionHandle,
+    ) -> Result<Option<TypeReferenceHandle>, Diagnostic>,
+) -> Result<Option<TypeReferenceHandle>, Diagnostic> {
+    let mut runs = Vec::new();
+    let mut carrier = loop {
+        if let Some(known) = declared_type(program, owner, expression) {
+            break Some(known);
+        }
+        let run = read_run(program, expression);
+        let Some((_, first, _)) = run.first() else {
+            break source_type(program, expression)?;
+        };
+        expression = first.value;
+        runs.push(run);
+    };
+    for run in runs.iter().rev() {
+        match account_run(source, program, Some(owner), run, &[], carrier) {
+            Ok(()) => {
+                let outer = run.last().expect("a collected cast run is nonempty").0;
+                carrier = declared_type(program, owner, outer);
+            }
+            Err(Unaccounted::Deferred(_)) => return Ok(None),
+            Err(Unaccounted::Rejected(diagnostic)) => return Err(diagnostic),
+        }
+    }
+    Ok(carrier)
+}
+
 /// A domain-only cast names its complete input set with `=` and `-`.
 /// Use that set to select an operand call, without establishing any domain
 /// or borrowing the post-cast domains from its receiving declaration.
@@ -273,7 +312,7 @@ impl PreparedCasts {
                 ));
             }
         };
-        let request = match account_run(source, program, owner, run, cast_destinations) {
+        let request = match account_run(source, program, owner, run, cast_destinations, None) {
             Ok(()) => return Ok(()),
             Err(Unaccounted::Rejected(diagnostic)) => return Err(diagnostic),
             Err(Unaccounted::Deferred(request)) => request,
@@ -791,10 +830,14 @@ fn account_run(
     owner: Option<SymbolHandle>,
     run: &Run,
     cast_destinations: &[TypeReferenceHandle],
+    known_operand: Option<TypeReferenceHandle>,
 ) -> Result<(), Unaccounted> {
     let outermost = run[run.len() - 1].0;
     refuse_qualified_carrier_operand(program, owner, run)?;
-    let operand_type = operand_type(source, program, owner, run, cast_destinations)?;
+    let operand_type = match known_operand {
+        Some(operand) => operand,
+        None => operand_type(source, program, owner, run, cast_destinations)?,
+    };
     // domains.md, "Mutable views": "A cast applies to a reference by
     // accounting for the domains displayed on its referent, with the same
     // syntax ... The cast preserves the referent, lifetime and access mode".
