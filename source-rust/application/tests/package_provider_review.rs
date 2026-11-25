@@ -371,7 +371,7 @@ fn public_generic_callables_review_their_own_checked_bodies() {
         r#"machine build(builder: @mutable Build) { Build::package(builder, "review_scope"); }"#,
     )
     .unwrap();
-    let source = r#"boundary trait Reader { machine read() -> u32 reaches none crashes none; }
+    let source = r#"boundary trait Reader { machine read() -> u32 reaches Reader crashes none; }
 boundary trait Idle { machine idle() reaches none crashes none; }
 public machine uncalled<const Count: u64>(bytes: @[u8; Count]) -> u32
 reaches Reader + Idle { Reader::read() }
