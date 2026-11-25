@@ -147,3 +147,81 @@ fn a_simultaneous_cast_forms_the_complete_qualified_carrier() {
         program.judged(|_| {}).accepted();
     }
 }
+
+#[test]
+fn structural_casts_keep_carrier_prerequisites_on_the_destination_place() {
+    let source = "data Parcel { n: u16; }
+         domain Parcel::Stored requires self.n > 0u16;
+         data Kept = Parcel in Stored;
+         domain Kept::Side;
+         domain Parcel::Previous;
+         machine gain(x: Parcel) -> Kept in Side requires x.n > 0u16 { x as +Side +Stored }
+         machine replace(x: Parcel in Previous) -> Kept in Side requires x.n > 0u16 { x as -Previous +Stored +Side }
+         machine lose(x: Kept in Side) -> Parcel { x as -Stored -Side }";
+    let program = Program::of(source);
+    let module = &program.elaboration().module;
+    let changes = &module.types.structural_qualification_changes;
+    for (name, count) in [("gain", 1), ("replace", 2), ("lose", 1)] {
+        let machine = program.machine(name).id;
+        assert_eq!(
+            changes.iter().filter(|row| row.machine == machine).count(),
+            count
+        );
+    }
+    program.judged(|_| {}).accepted();
+    Program::of(&source.replacen(" requires x.n > 0u16", "", 1))
+        .judged(|_| {})
+        .rejected();
+
+    let side = module
+        .types
+        .structural_domains
+        .iter()
+        .find(|row| {
+            row.required_memberships
+                .as_ref()
+                .is_some_and(|domains| !domains.is_empty())
+        })
+        .unwrap();
+    let stored = module
+        .types
+        .structural_domains
+        .iter()
+        .find(|row| {
+            row.semantic_domain == side.required_memberships.as_ref().unwrap()[0]
+                && row.carrier == side.carrier
+        })
+        .unwrap();
+    // A forged gain drops Stored on arrival. A forged erasure keeps Side alone.
+    for name in ["gain", "lose"] {
+        let changed = changes
+            .iter()
+            .find(|row| row.machine == program.machine(name).id)
+            .unwrap();
+        let mut altered = module.clone();
+        let machine = altered
+            .machines
+            .iter_mut()
+            .find(|machine| machine.id == changed.machine)
+            .unwrap();
+        let dest = machine
+            .blocks
+            .iter_mut()
+            .flat_map(|block| &mut block.structural_parameters)
+            .find(|param| param.place == changed.destination)
+            .unwrap();
+        if name == "gain" {
+            assert!(dest.qualifications.contains(&stored.id));
+            dest.qualifications.retain(|id| *id != stored.id);
+        } else {
+            assert!(dest.qualifications.is_empty());
+            dest.qualifications.push(side.id);
+        }
+        let refusal =
+            terminal_semantics::structural_qualifications::validate(&altered).unwrap_err();
+        assert_eq!(
+            refusal.detail,
+            "a structural cast result lacks its required memberships"
+        );
+    }
+}

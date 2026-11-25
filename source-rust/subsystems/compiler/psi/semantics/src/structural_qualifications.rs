@@ -1801,6 +1801,42 @@ fn validate_change(
             "a structural qualification change alters a projected membership",
         );
     }
+    // A whole value and its referent are distinct subjects. Each known
+    // carrier prerequisite must be displayed on the same one, even when
+    // both domains are added on this edge.
+    for &(id, referent) in &shown {
+        let Some(declared) = domain(module, id) else {
+            return malformed(
+                machine,
+                "a structural qualification change displays an absent domain",
+            );
+        };
+        let satisfied = match declared.required_memberships.as_deref() {
+            Some([]) => true,
+            Some(required) => {
+                declared.required_memberships_are_well_formed(&module.types.structural_domains)
+                    && required.iter().all(|semantic| {
+                        shown.iter().any(|&(other, on_referent)| {
+                            on_referent == referent
+                                && domain(module, other).is_some_and(|row| {
+                                    row.carrier == declared.carrier
+                                        && row.semantic_domain == *semantic
+                                })
+                        })
+                    })
+            }
+            None => {
+                held.contains(&(id, referent))
+                    || facts.structural_on_edge(module, change, referent, id) == Some(true)
+            }
+        };
+        if !satisfied {
+            return malformed(
+                machine,
+                "a structural cast result lacks its required memberships",
+            );
+        }
+    }
     let added: Vec<_> = shown
         .iter()
         .filter(|id| !held.contains(id))
@@ -1831,7 +1867,6 @@ fn validate_change(
         return Ok(());
     }
     let declaration = places.machine.declaration.as_ref();
-    let held: Vec<_> = held.iter().map(|(id, _)| *id).collect();
     for (id, referent) in &added {
         let Some(declared) = domain(module, *id) else {
             return malformed(
@@ -1868,10 +1903,12 @@ fn validate_change(
             let retained = module.proofs.scalar_block_invariants.iter().any(|invariant| {
                 Some(invariant.machine) == machine
                     && invariant.header == target
-                    && crate::scalar_qualifications::retains_conjunct(
-                        &invariant.predicate,
-                        &expected,
-                    )
+                    // The complete empty theory is encoded as Truth. Any
+                    // invariant at this arrival establishes that conjunct.
+                    && (expected == Proposition::Truth
+                        || crate::scalar_qualifications::retains_conjunct(
+                            &invariant.predicate, &expected,
+                        ))
             });
             if !retained {
                 return malformed(
@@ -1880,17 +1917,8 @@ fn validate_change(
                 );
             }
         }
-        let missing = declared
-            .missing_membership_requirements(&module.types.structural_domains, &held)
-            .is_none_or(|missing| missing.iter().any(|node| node.id != declared.id));
         let membership = facts.structural_on_edge(module, change, *referent, *id);
         let forwarded = membership == Some(true);
-        if missing && !forwarded {
-            return malformed(
-                machine,
-                "a structural cast adds a domain without its required memberships",
-            );
-        }
         let establishment = change.establishments.iter().find(|row| row.domain == *id);
         match (&declared.establishment_routes, establishment) {
             (None, None) => {}
