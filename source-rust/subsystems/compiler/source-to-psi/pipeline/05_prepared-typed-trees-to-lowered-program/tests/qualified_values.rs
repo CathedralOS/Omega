@@ -191,7 +191,8 @@ fn a_domain_declared_on_a_qualified_alias_keeps_its_carrier_membership() {
          data Kept = Segment<Count> in Stored<Count>;
          domain<P> Kept::Side<P>;
          machine scalar(x: Count in Selected) -> Count in Selected { x }
-         machine structural(x: Kept in Side<Count>) -> Kept in Side<Count> { x }",
+         machine structural(x: Kept in Side<Count>) -> Kept in Side<Count> { x }
+         machine explicit_scalar(x: u16 in Positive & Selected) -> Count in Selected { x }",
     );
     program
         .judged(|lowered| {

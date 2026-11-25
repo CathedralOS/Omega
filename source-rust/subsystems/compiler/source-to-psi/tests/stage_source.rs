@@ -1159,8 +1159,11 @@ fn a_fixed_carrier_keeps_its_indexed_domain_under_both_local_spellings() {
     for (domain, refusal) in [
         ("Occupied<Word, Other>", None),
         ("Tag::Occupied<Word, Other>", None),
-        ("Word::Occupied<Word, Other>", Some("no domain of that name is visible")),
-        ("Tag::Occupied<Word>", Some("2 closed index argument")),
+        (
+            "Word::Occupied<Word, Other>",
+            Some("no domain of that name is visible"),
+        ),
+        ("Tag::Occupied<Word>", Some("expected 2, received 1")),
     ] {
         let source = format!(
             "data Tag {{}} data Word {{}} data Other {{}}
@@ -1187,11 +1190,37 @@ fn a_fixed_carrier_keeps_its_indexed_domain_under_both_local_spellings() {
 #[test]
 fn an_indexed_domain_retains_the_members_of_its_applied_carrier() {
     let package = PackageKeyIdentity::from_digest([0x63; 32]).unwrap();
-    for (input_domain, returned_index, refusal) in [
-        (" in Live<Placed, Word>", "Word in Word::Placed", None),
-        (" in Segment::Live<Placed, Word>", "Word in Word::Placed", None),
-        ("", "Word in Word::Placed", Some("carries no domain")),
-        (" in Live<Placed, Word>", "Word in Word::Other", Some("but this value carries")),
+    for (input_domain, returned_index, domain_index, refusal) in [
+        (
+            " in Live<Placed, Word>",
+            "Word in Word::Placed",
+            "Placed",
+            None,
+        ),
+        (
+            " in Segment::Live<Placed, Word>",
+            "Word in Word::Placed",
+            "Placed",
+            None,
+        ),
+        (
+            "",
+            "Word in Word::Placed",
+            "Placed",
+            Some("carries no domain"),
+        ),
+        (
+            " in Live<Placed, Word>",
+            "Word in Word::Other",
+            "Word in Word::Other",
+            Some("but this value carries"),
+        ),
+        (
+            " in Live<Placed, Word>",
+            "Placed",
+            "Word in Word::Other",
+            Some("does not qualify carrier"),
+        ),
     ] {
         let source = format!(
             "data Word {{ bits: u64; }}
@@ -1203,7 +1232,7 @@ fn an_indexed_domain_retains_the_members_of_its_applied_carrier() {
              data Second<P, T> {{ value: T; }}
              domain<P, T> Second<P, T>::Live<P, T>;
              machine carry(value: Segment<Placed, Word>{input_domain})
-                 -> Segment<{returned_index}, Word> in Live<{returned_index}, Word> {{ value }}"
+                 -> Segment<{returned_index}, Word> in Live<{domain_index}, Word> {{ value }}"
         );
         let (files, root) = captured(package, &source);
         let result = compile(product(files, root, package, &[]).unwrap(), None);

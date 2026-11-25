@@ -694,7 +694,7 @@ fn named_domains(
                 authored_span(program, *handle),
                 SymbolHandle::invalid(),
                 |domain| {
-                    crate::source_state::domain::domain_accepts_cast_carrier(
+                    crate::source_state::domain::domain_accepts_underlying_carrier(
                         program, domain, carrier, &arguments,
                     )
                 },
