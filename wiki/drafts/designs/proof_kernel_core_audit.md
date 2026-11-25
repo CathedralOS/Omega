@@ -602,7 +602,11 @@ What the code shows:
   of an integer whose width is a parameter"). Admission then records
   `MathematicalCoreDecision::Refused` and still accepts the certificate on
   the bounded rule (`bounded/proof.rs:257-259`). Nothing in `source-to-psi`
-  reads that decision, so nobody counts these.
+  read that decision, so nobody counted these. Since 2026-11-24 stage 06
+  counts them per obligation kind and shape (`unjudged.rs`) and adds a note
+  to an accepted compilation's advisories, which `omega --check` prints and
+  `xtask sweep` records per program; there were 14 such return sites then.
+  Closing or refusing the shapes is still owed (`TASKS.md`).
 - **Terminal Psi has one slot per construct.** `mathematical_carriers`,
   `identity_formations` and `indexed_theorems` each carry one kind of
   declaration, and none has a writer.

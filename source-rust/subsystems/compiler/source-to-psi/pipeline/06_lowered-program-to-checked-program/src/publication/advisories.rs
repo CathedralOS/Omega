@@ -75,10 +75,23 @@ impl AcceptedAdvisories {
                 .advisories(),
                 (None, None) => Vec::new(),
             };
-            let result = aggregate(
+            let mut result = aggregate(
                 std::iter::once(first)
                     .chain(pending.additional.iter().map(|part| part.advisories())),
             );
+            // How many accepted certificates the mathematical kernel did not
+            // judge, over every part (`crate::unjudged`).
+            let mut unjudged = Vec::new();
+            if let Some(original) = &pending.original {
+                crate::unjudged::count(&original.elaboration, &original.discharge, &mut unjudged);
+            }
+            if let Some((program, discharge)) = &pending.root {
+                crate::unjudged::count(program.elaboration(), discharge, &mut unjudged);
+            }
+            for part in &pending.additional {
+                crate::unjudged::count(&part.elaboration, &part.discharge, &mut unjudged);
+            }
+            result.extend(crate::unjudged::note(unjudged));
             *pending = AdvisoryParts::default();
             result
         })
@@ -167,8 +180,7 @@ mod tests {
             terminal_codec::TerminalPublication::Invocation,
         )
         .unwrap();
-        let (_, advisories) =
-            crate::judge_publication(lowered, Default::default()).unwrap();
+        let (_, advisories) = crate::judge_publication(lowered, Default::default()).unwrap();
         advisories
     }
 
