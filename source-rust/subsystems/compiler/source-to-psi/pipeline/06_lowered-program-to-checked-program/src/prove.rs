@@ -5065,6 +5065,10 @@ impl<'a> Prover<'a> {
         let mut fallback = None;
         let mut transport = None;
         for target in std::iter::once(target).chain(exchanged.as_ref()) {
+            let mut checked_roots: Vec<(
+                &ScalarTerm,
+                Option<_>,
+            )> = Vec::new();
             for fact in &self.facts {
                 let (left, right, strict) = match fact.proposition() {
                     Proposition::LessOrEqual(left, right) => (left, right, false),
@@ -5072,60 +5076,86 @@ impl<'a> Prover<'a> {
                     _ => continue,
                 };
                 for (root_endpoint, root) in [left, right].into_iter().enumerate() {
-                    let def_fact_and_axiom = match root {
-                        ScalarTerm::Value { id, .. } => self
-                            .definitions
-                            .get(*id)
-                            .and_then(|slot| *slot)
-                            .and_then(|definition| {
-                                let fact_index = self.equations[definition];
-                                self.facts[fact_index]
-                                    .axiom
-                                    .map(|axiom_index| (fact_index, axiom_index))
-                            }),
-                        _ => None,
-                    };
-                    if !target_values.is_empty()
-                        && !term_shares_value(root, &target_values)
-                        && !def_fact_and_axiom.is_some_and(|(fact_index, _)| {
-                            matches!(
-                                self.facts[fact_index].proposition(),
-                                Proposition::Equal(eq_left, eq_right)
-                                    if term_shares_value(eq_left, &target_values)
-                                        || term_shares_value(eq_right, &target_values)
-                            )
-                        })
+                    let cached = if let Some((_, entry)) =
+                        checked_roots.iter().find(|(seen, _)| *seen == root)
                     {
-                        continue;
-                    }
-                    let mut witness = IntegerAffineWitness {
-                        root: root.clone(),
-                        target: target.clone(),
-                        definition_axioms: Vec::new(),
-                        literal_axioms: Vec::new(),
+                        entry.as_ref()
+                    } else {
+                        let def_fact_and_axiom = match root {
+                            ScalarTerm::Value { id, .. } => self
+                                .definitions
+                                .get(*id)
+                                .and_then(|slot| *slot)
+                                .and_then(|definition| {
+                                    let fact_index = self.equations[definition];
+                                    self.facts[fact_index]
+                                        .axiom
+                                        .map(|axiom_index| (fact_index, axiom_index))
+                                }),
+                            _ => None,
+                        };
+                        let entry = if !target_values.is_empty()
+                            && !term_shares_value(root, &target_values)
+                            && !def_fact_and_axiom.is_some_and(|(fact_index, _)| {
+                                matches!(
+                                    self.facts[fact_index].proposition(),
+                                    Proposition::Equal(eq_left, eq_right)
+                                        if term_shares_value(eq_left, &target_values)
+                                            || term_shares_value(eq_right, &target_values)
+                                )
+                            }) {
+                            None
+                        } else {
+                            let mut witness = IntegerAffineWitness {
+                                root: root.clone(),
+                                target: target.clone(),
+                                definition_axioms: Vec::new(),
+                                literal_axioms: Vec::new(),
+                            };
+                            if let Some((_, index)) = def_fact_and_axiom {
+                                witness.definition_axioms.push(index);
+                                witness.literal_axioms.push(None);
+                            }
+                            check_integer_affine_witness(self.context, self.axioms, &witness)
+                                .ok()
+                                .map(|form| (witness, form))
+                        };
+                        checked_roots.push((root, entry));
+                        checked_roots.last().and_then(|(_, entry)| entry.as_ref())
                     };
-                    if let Some((_, index)) = def_fact_and_axiom {
-                        witness.definition_axioms.push(index);
-                        witness.literal_axioms.push(None);
-                    }
-                    let Ok(form) =
-                        check_integer_affine_witness(self.context, self.axioms, &witness)
-                    else {
+                    let Some((witness, form)) = cached else {
                         continue;
                     };
                     let order = Proposition::LessOrEqual(left.clone(), right.clone());
-                    let (conclusion, transported) = match map_integer_affine_bound(&form, &order) {
+                    let (conclusion, transported) = match map_integer_affine_bound(form, &order) {
                         Ok(conclusion) => (conclusion, None),
                         Err(_) => {
                             let ScalarTerm::ExactIntegerAdd { left: operand, .. } = target else {
                                 continue;
                             };
+                            let other = if root_endpoint == 0 { right } else { left };
+                            let is_undefined_value = |term: &ScalarTerm| {
+                                matches!(
+                                    term,
+                                    ScalarTerm::Value { id, .. }
+                                        if self.definitions.get(*id).copied().flatten().is_none()
+                                )
+                            };
+                            if other != operand.as_ref()
+                                && ((matches!(other, ScalarTerm::Integer { .. })
+                                    && is_undefined_value(operand))
+                                    || (matches!(operand.as_ref(), ScalarTerm::Integer { .. })
+                                        && is_undefined_value(other))
+                                    || (is_undefined_value(other) && is_undefined_value(operand)))
+                            {
+                                continue;
+                            }
                             let aligned = if root_endpoint == 0 {
                                 Proposition::LessOrEqual(root.clone(), operand.as_ref().clone())
                             } else {
                                 Proposition::LessOrEqual(operand.as_ref().clone(), root.clone())
                             };
-                            let Ok(conclusion) = map_integer_affine_bound(&form, &aligned) else {
+                            let Ok(conclusion) = map_integer_affine_bound(form, &aligned) else {
                                 continue;
                             };
                             let scratch = transport.get_or_insert_with(|| {
@@ -5204,7 +5234,7 @@ impl<'a> Prover<'a> {
                         conclusion,
                         ProofRule::IntegerAffineBound {
                             root_bound: Box::new(premise),
-                            witness,
+                            witness: witness.clone(),
                         },
                     );
                     let candidate = node(
