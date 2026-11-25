@@ -72,7 +72,7 @@ Generators run in an earlier stage and hand files to the next Build through its 
 The current spec assigns bindings to the invoker or parent before the Build starts. Package installation names an alias but does not specify these per-invocation inputs. [Dependency declarations and binding](wiki/spec/build/scoped_execution.md#dependency-declarations-and-binding) · [Command vocabulary](wiki/spec/build/command_line.md#command-vocabulary)
 
 <a id="vacant-storage-boundary-calls"></a>
-### 3. May a boundary call run while an owned value is moved out of borrowed storage?
+### 2. May a boundary call run while an owned value is moved out of borrowed storage?
 
 A machine that updates a field of storage it was lent often replaces the field
 with what a provider returns for its old value:
