@@ -9,7 +9,7 @@ use crate::resolution::source::{
     WorkspaceMemberObservation,
 };
 use crate::{PackageBuildSession, PackageCommandError};
-use artifacts::compile_timings::CompileTimings;
+use artifacts::compile_timings::{CompileTimings, StageMeta};
 use build_declarations::DependencyPurpose;
 use diagnostics::Diagnostic;
 use package_compilation::{BuildSnapshotRequest, PackageCompilationInputs};
@@ -378,6 +378,7 @@ type Deployment = Result<Rc<project_build::PlannedProduct>, Vec<Diagnostic>>;
 pub struct ProjectProducts(
     Vec<(TargetProfile, Deployment)>,
     Vec<(TargetProfile, Rc<RefCell<OwedRechecks>>)>,
+    CompileTimings,
 );
 
 /// The rechecks one deployment owes, until they are settled once.
@@ -391,6 +392,7 @@ impl ProjectProducts {
         profiles: &[TargetProfile],
         planned: project_build::PlannedProduct,
         rechecks: services::DependencyRechecks,
+        open_timings: CompileTimings,
     ) -> Self {
         let planned = Rc::new(planned);
         let owed = Rc::new(RefCell::new(OwedRechecks::Running(rechecks)));
@@ -403,6 +405,7 @@ impl ProjectProducts {
                 .iter()
                 .map(|&target| (target, Rc::clone(&owed)))
                 .collect(),
+            open_timings,
         )
     }
 
@@ -414,12 +417,14 @@ impl ProjectProducts {
         root: ReturnedPlanningStage,
         inputs: Option<&PackageCompilationInputs>,
         alongside: bool,
+        open_timings: CompileTimings,
     ) -> Result<Self, build_evaluation_result::CompileFailure> {
         if !(alongside && project_build::rechecks_outlive_caller()) {
             return Ok(Self::shared(
                 profiles,
                 root.open_product(inputs)?,
                 Default::default(),
+                open_timings,
             ));
         }
         let (planned, own) = root.open_pending(inputs)?.release_for_check();
@@ -427,7 +432,12 @@ impl ProjectProducts {
             profiles,
             planned,
             services::DependencyRechecks::own(own),
+            open_timings,
         ))
+    }
+
+    pub fn open_timings(&self) -> &CompileTimings {
+        &self.2
     }
 
     /// Wait for the Build rechecks the Product for `target` still owes: its
@@ -500,7 +510,9 @@ pub enum ProjectInput<'a> {
 impl ProjectInput<'_> {
     fn path(&self) -> &Path {
         match self {
-            Self::File(path) | Self::PackageCheck(path) | Self::WithBuildLibraries { file: path, .. } => path,
+            Self::File(path)
+            | Self::PackageCheck(path)
+            | Self::WithBuildLibraries { file: path, .. } => path,
         }
     }
 }
@@ -573,6 +585,17 @@ pub fn open_products_alongside_rechecks(
     )
 }
 
+const OPEN_PREPARE: StageMeta = StageMeta::new("prepare", "ProjectInput", "LocalPreparation");
+const OPEN_ACQUIRE_ROOT: StageMeta =
+    StageMeta::new("acquire root", "LocalPreparation", "CapturedRoot");
+const OPEN_EXECUTE_BUILD: StageMeta = StageMeta::new("execute Build", "CapturedRoot", "BuildStage");
+const OPEN_RESOLVE_SOURCES: StageMeta =
+    StageMeta::new("resolve sources", "BuildStage", "ProjectSources");
+const OPEN_DEPENDENCY_HANDOFF: StageMeta =
+    StageMeta::new("dependency handoff", "ProjectSources", "PlannedProducts");
+const OPEN_DISPOSE_SESSION: StageMeta =
+    StageMeta::new("dispose session", "PlannedProducts", "ProjectProducts");
+
 fn open_products_with(
     input: ProjectInput<'_>,
     profiles: &[TargetProfile],
@@ -584,6 +607,7 @@ fn open_products_with(
 ) -> Result<ProjectProducts, Vec<diagnostics::Diagnostic>> {
     use crate::operations::begin_local_project_preparation;
     use package_compilation::build_execution::BuildSnapshotCapture;
+    let mut open_timings = planning_timings(timings);
     let error = |error: PackageCommandError| {
         error
             .compilation_failure()
@@ -597,8 +621,11 @@ fn open_products_with(
         )]
     })?;
     let root = input.path();
-    let preparation =
-        begin_local_project_preparation(root, profiles, offline).map_err(|e| error(e.into()))?;
+    let preparation = open_timings
+        .record_result(OPEN_PREPARE, || {
+            begin_local_project_preparation(root, profiles, offline)
+        })
+        .map_err(|e| error(e.into()))?;
     let mut session = PackageBuildSession::create(&build_directory.join("package-manager"))
         .map_err(|e| error(e.into()))?;
     let result = (|| -> Result<_, PackageCommandError> {
@@ -607,8 +634,9 @@ fn open_products_with(
             .map(|(target, reason)| (target, Err(vec![Diagnostic::error(reason.to_string())])))
             .collect();
         if rejected.len() == profiles.len() {
-            return Ok(ProjectProducts(rejected, Vec::new()));
+            return Ok(ProjectProducts(rejected, Vec::new(), open_timings.clone()));
         }
+        let step = timings.then(std::time::Instant::now);
         let selected = match snapshot.as_ref().map(|snapshot| snapshot.capture()) {
             Some(BuildSnapshotCapture::Scoped(selected)) => Some(selected),
             _ => None,
@@ -619,6 +647,9 @@ fn open_products_with(
         };
         let mut acquisitions = preparation.source_acquisitions()?;
         let acquired = acquisitions.retain_root(acquired)?;
+        if let Some(started) = step {
+            open_timings.add_completed(OPEN_ACQUIRE_ROOT, started.elapsed().as_micros());
+        }
         let mut host = SourceHost {
             session: &mut session,
             acquisitions: &mut acquisitions,
@@ -640,15 +671,22 @@ fn open_products_with(
             ProjectInput::WithBuildLibraries { libraries, .. } => libraries,
             _ => &[],
         };
-        let returned = host
-            .execute(&entry, &acquired, snapshot, false, libraries)?
+        let returned = open_timings
+            .record_result(OPEN_EXECUTE_BUILD, || {
+                host.execute(&entry, &acquired, snapshot, false, libraries)
+            })?
             .stage;
         if returned.returned().declaration().is_none() {
             preparation.require_unlocked_anonymous()?;
             return Ok(ProjectProducts::open_shared(
-                profiles, returned, None, alongside,
+                profiles,
+                returned,
+                None,
+                alongside,
+                open_timings.clone(),
             )?);
         }
+        let step = timings.then(std::time::Instant::now);
         let resolved = host.join(acquired, returned)?;
         let settled = host.settled;
         let project = preparation.complete_source_resolution(resolved.sources)?;
@@ -667,6 +705,9 @@ fn open_products_with(
                 )
             })
             .collect();
+        if let Some(started) = step {
+            open_timings.add_completed(OPEN_RESOLVE_SOURCES, started.elapsed().as_micros());
+        }
         if resolved
             .inputs
             .required_dependency_source_instances()
@@ -680,57 +721,75 @@ fn open_products_with(
                 resolved.root,
                 Some(&resolved.inputs),
                 alongside,
+                open_timings.clone(),
             )?);
         }
+        let step = timings.then(std::time::Instant::now);
         let root = resolved.root.settle_dependency(resolved.inputs)?;
         let mut owed = Vec::new();
-        Ok(ProjectProducts(
-            decisions
-                .into_iter()
-                .map(|(target, decision)| {
-                    let product = decision.and_then(|accepted| {
-                        let sources = services::HandoffSources {
-                            profile,
-                            settled: &settled,
-                            accepted,
-                        };
-                        // A Build-host occurrence can carry different accepted bindings in different
-                        // deployment sections even when its target and host are the same.
-                        let mut dependencies = sources.deployment_products(&root, target);
-                        let consent = accepted
-                            .map(|policy| policy.root_permissions())
-                            .transpose()
-                            .map_err(|reason| vec![Diagnostic::error(reason)])?;
-                        let (planned, rechecks) = sources
-                            .dependency_product(
-                                &root,
-                                build_declarations::DependencyPurpose::Product,
-                                target,
-                                &mut dependencies,
-                                alongside,
-                            )
-                            .map_err(|failure| error(failure.into()))?;
-                        owed.push((target, Rc::new(RefCell::new(OwedRechecks::Running(rechecks)))));
-                        let planned = planned
-                            .with_dependency_timings(dependencies.take_timings())
-                            .with_component_suppliers(dependencies.into_suppliers());
-                        Ok(Rc::new(match consent {
-                            Some(consent) => planned.with_runtime_consents(vec![consent]),
-                            None => planned,
-                        }))
-                    });
-                    (target, product)
-                })
-                .collect(),
-            owed,
-        ))
+        let products = decisions
+            .into_iter()
+            .map(|(target, decision)| {
+                let product = decision.and_then(|accepted| {
+                    let sources = services::HandoffSources {
+                        profile,
+                        settled: &settled,
+                        accepted,
+                    };
+                    // A Build-host occurrence can carry different accepted bindings in different
+                    // deployment sections even when its target and host are the same.
+                    let mut dependencies = sources.deployment_products(&root, target);
+                    let consent = accepted
+                        .map(|policy| policy.root_permissions())
+                        .transpose()
+                        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+                    let (planned, rechecks) = sources
+                        .dependency_product(
+                            &root,
+                            build_declarations::DependencyPurpose::Product,
+                            target,
+                            &mut dependencies,
+                            alongside,
+                        )
+                        .map_err(|failure| error(failure.into()))?;
+                    owed.push((
+                        target,
+                        Rc::new(RefCell::new(OwedRechecks::Running(rechecks))),
+                    ));
+                    let planned = planned
+                        .with_dependency_timings(dependencies.take_timings())
+                        .with_component_suppliers(dependencies.into_suppliers());
+                    Ok(Rc::new(match consent {
+                        Some(consent) => planned.with_runtime_consents(vec![consent]),
+                        None => planned,
+                    }))
+                });
+                (target, product)
+            })
+            .collect();
+        if let Some(started) = step {
+            open_timings.add_completed(OPEN_DEPENDENCY_HANDOFF, started.elapsed().as_micros());
+        }
+        Ok(ProjectProducts(products, owed, open_timings.clone()))
     })();
-    session.dispose(result).map_err(error)
+    let (dispose_us, result) = if timings {
+        let dispose_start = std::time::Instant::now();
+        let disposed = session.dispose(result);
+        (Some(dispose_start.elapsed().as_micros()), disposed)
+    } else {
+        (None, session.dispose(result))
+    };
+    let mut products = result.map_err(error)?;
+    if let Some(microseconds) = dispose_us {
+        products.2.add_completed(OPEN_DISPOSE_SESSION, microseconds);
+    }
+    Ok(products)
 }
 
 #[cfg(test)]
 mod owed_recheck_tests {
     use super::{OwedRechecks, ProjectProducts};
+    use artifacts::compile_timings::CompileTimings;
     use diagnostics::Diagnostic;
     use std::cell::RefCell;
     use std::rc::Rc;
@@ -754,6 +813,7 @@ mod owed_recheck_tests {
                     Rc::new(RefCell::new(OwedRechecks::Running(Default::default()))),
                 ),
             ],
+            CompileTimings::default(),
         );
         for _ in 0..2 {
             assert_eq!(

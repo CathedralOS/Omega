@@ -13,8 +13,53 @@ use diagnostics::Diagnostic;
 use package_compilation::build_execution::{BuildSnapshotRequest, RetainedBuildOutputs};
 use product_publication::CompletedProduct;
 use project_build::PlannedProduct;
+use std::cell::RefCell;
 use std::fmt::Write as _;
 use target::TargetProfile;
+
+struct Timeline {
+    started: Instant,
+    enabled: bool,
+    spans: Vec<(&'static str, u128, u128)>,
+}
+
+impl Timeline {
+    fn new(started: Instant, enabled: bool) -> Self {
+        Self {
+            started,
+            enabled,
+            spans: Vec::new(),
+        }
+    }
+
+    fn record<T>(&mut self, label: &'static str, work: impl FnOnce() -> T) -> T {
+        if !self.enabled {
+            return work();
+        }
+        let start = self.started.elapsed().as_micros();
+        let value = work();
+        let end = self.started.elapsed().as_micros();
+        self.spans.push((label, start, end));
+        value
+    }
+
+    fn push(&mut self, label: &'static str, start: u128, end: u128) {
+        if self.enabled {
+            self.spans.push((label, start, end));
+        }
+    }
+
+    fn print(&self) {
+        for &(label, start, end) in &self.spans {
+            eprintln!(
+                "{:>8.3}..{:>8.3} ms ({:>8.3} ms)  timeline / {label}",
+                start as f64 / 1_000.0,
+                end as f64 / 1_000.0,
+                end.saturating_sub(start) as f64 / 1_000.0,
+            );
+        }
+    }
+}
 
 pub(crate) fn run(arguments: CompileArguments, output: DiagnosticOutput) {
     if arguments
@@ -36,7 +81,7 @@ pub(crate) fn run(arguments: CompileArguments, output: DiagnosticOutput) {
         return;
     }
     let started = Instant::now();
-    let outcome = compile_project(&arguments, output);
+    let outcome = compile_project(&arguments, output, started);
     if arguments.timings {
         print_elapsed(started);
     }
@@ -48,6 +93,7 @@ pub(crate) fn run(arguments: CompileArguments, output: DiagnosticOutput) {
 fn compile_project(
     arguments: &CompileArguments,
     output: DiagnosticOutput,
+    started: Instant,
 ) -> CompilerRequestOutcome {
     let mut report = String::new();
     if arguments.stage_validators.enumerates_every() {
@@ -69,7 +115,8 @@ fn compile_project(
         println!("{}", assumption_text(row));
     }
 
-    let result = compile_targets(arguments, output, &mut report);
+    let timeline = RefCell::new(Timeline::new(started, arguments.timings));
+    let result = compile_targets(arguments, output, &mut report, started, &timeline);
     let verdict = match result {
         Ok(refusals) if refusals.is_empty() => CompilerRequestOutcome::Complete,
         Ok(refusals) => batch_outcome(refusals),
@@ -88,6 +135,9 @@ fn compile_project(
     if let Some(path) = &arguments.report_file {
         write_report_or_exit(path, &report);
     }
+    if arguments.timings {
+        timeline.borrow().print();
+    }
     verdict
 }
 
@@ -95,6 +145,8 @@ fn compile_targets(
     arguments: &CompileArguments,
     output: DiagnosticOutput,
     report: &mut String,
+    started: Instant,
+    timeline: &RefCell<Timeline>,
 ) -> Result<Vec<CompilerRequestOutcome>, Vec<Diagnostic>> {
     let targets = resolve_targets(&arguments.target_names)?;
     let profiles = targets.profiles()?;
@@ -149,55 +201,59 @@ fn compile_targets(
     let plans = if active.is_empty() {
         None
     } else {
-        Some(open(
-            if arguments.check_only {
-                package_manager::project::ProjectInput::PackageCheck(&arguments.root_path)
-            } else {
-                package_manager::project::ProjectInput::File(&arguments.root_path)
-            },
-            &active,
-            arguments.offline,
-            arguments.timings,
-            &base,
-            snapshot,
-        ))
+        Some(timeline.borrow_mut().record("open_products", || {
+            open(
+                if arguments.check_only {
+                    package_manager::project::ProjectInput::PackageCheck(&arguments.root_path)
+                } else {
+                    package_manager::project::ProjectInput::File(&arguments.root_path)
+                },
+                &active,
+                arguments.offline,
+                arguments.timings,
+                &base,
+                snapshot,
+            )
+        }))
     };
     // Announce every selected target's test plan before starting any of its guests.
     let mut prepared = Vec::with_capacity(profiles.len());
     let mut portable_plans = Vec::new();
-    for (&profile, lease) in profiles.iter().zip(&leases) {
-        let selected = (|| {
-            let lease = lease.as_ref().map_err(output_error)?;
-            let plans = plans
-                .as_ref()
-                .expect("an acquired target lease opens a Product")
-                .as_ref()
-                .map_err(Clone::clone)?;
-            Ok::<_, NativeValidationError>((plans.select(profile)?, lease))
-        })();
-        // A shared plan with the complete target set issues a single portable program.
-        if arguments.emit_psi.is_some()
-            && let Ok((planned, _)) = &selected
-        {
-            if portable_plans
-                .iter()
-                .any(|&previous| std::ptr::eq(previous, *planned))
+    timeline.borrow_mut().record("prepare_targets", || {
+        for (&profile, lease) in profiles.iter().zip(&leases) {
+            let selected = (|| {
+                let lease = lease.as_ref().map_err(output_error)?;
+                let plans = plans
+                    .as_ref()
+                    .expect("an acquired target lease opens a Product")
+                    .as_ref()
+                    .map_err(Clone::clone)?;
+                Ok::<_, NativeValidationError>((plans.select(profile)?, lease))
+            })();
+            // A shared plan with the complete target set issues a single portable program.
+            if arguments.emit_psi.is_some()
+                && let Ok((planned, _)) = &selected
             {
-                continue;
+                if portable_plans
+                    .iter()
+                    .any(|&previous| std::ptr::eq(previous, *planned))
+                {
+                    continue;
+                }
+                portable_plans.push(*planned);
             }
-            portable_plans.push(*planned);
+            let target = selected.and_then(|(planned, lease)| {
+                let deployments = if arguments.emit_psi.is_some() {
+                    profiles.as_slice()
+                } else {
+                    std::slice::from_ref(&profile)
+                };
+                PreparedTarget::new(arguments, planned, deployments, profile, lease.directory())
+                    .map_err(|error| attribute_error(planned, error))
+            });
+            prepared.push((profile, target));
         }
-        let target = selected.and_then(|(planned, lease)| {
-            let deployments = if arguments.emit_psi.is_some() {
-                profiles.as_slice()
-            } else {
-                std::slice::from_ref(&profile)
-            };
-            PreparedTarget::new(arguments, planned, deployments, profile, lease.directory())
-                .map_err(|error| attribute_error(planned, error))
-        });
-        prepared.push((profile, target));
-    }
+    });
     for target in prepared
         .iter()
         .filter_map(|(_, result)| result.as_ref().ok())
@@ -207,22 +263,25 @@ fn compile_targets(
             writeln!(report, "{row}").unwrap();
         }
     }
-    if arguments.timings
-        && let Some(target) = prepared.iter().find_map(|(_, result)| result.as_ref().ok())
-    {
-        print_phases("Build", target.planned.timings());
-        print_phases("Dependency Builds", target.planned.dependency_timings());
+    if arguments.timings {
+        if let Some(Ok(plans)) = plans.as_ref() {
+            print_phases("Open", plans.open_timings());
+        }
+        if let Some(target) = prepared.iter().find_map(|(_, result)| result.as_ref().ok()) {
+            print_phases("Build", target.planned.timings());
+            print_phases("Dependency Builds", target.planned.dependency_timings());
+        }
     }
     let settle_rechecks = |profile: TargetProfile| -> Result<(), NativeValidationError> {
         let Some(Ok(plans)) = plans.as_ref() else {
             return Ok(());
         };
+        let start = started.elapsed().as_micros();
         let timings = plans.settle_rechecks(profile)?;
+        let end = started.elapsed().as_micros();
         if arguments.timings && timings.is_enabled() {
-            print_phases(
-                "Build rechecks (finished alongside the Product)",
-                &timings,
-            );
+            timeline.borrow_mut().push("settle_rechecks", start, end);
+            print_phases("Build rechecks (finished alongside the Product)", &timings);
         }
         Ok(())
     };
@@ -241,8 +300,9 @@ fn compile_targets(
         };
         let result = target.and_then(|target| {
             let planned = target.planned;
-            let mut result = compile_target(arguments, target, &|| settle_rechecks(profile))
-                .map_err(|error| attribute_error(planned, error))?;
+            let mut result =
+                compile_target(arguments, target, &|| settle_rechecks(profile), timeline)
+                    .map_err(|error| attribute_error(planned, error))?;
             if let Some(candidate) = result.portable.take() {
                 portable.push(candidate);
             }
@@ -318,7 +378,12 @@ fn compile_targets(
             .identity();
         for profile in &profiles {
             println!("Psi manifest {identity}");
-            writeln!(report, "target: {}\nPsi manifest {identity}", profile.target_name()).unwrap();
+            writeln!(
+                report,
+                "target: {}\nPsi manifest {identity}",
+                profile.target_name()
+            )
+            .unwrap();
         }
     }
     let count = profiles.len();
@@ -329,6 +394,12 @@ fn compile_targets(
             failed_targets.join(", ")
         );
     }
+    timeline.borrow_mut().record("teardown", || {
+        drop(portable);
+        drop(plans);
+        drop(leases);
+        drop(scratch);
+    });
     Ok(failures)
 }
 
@@ -404,6 +475,7 @@ fn compile_target(
     arguments: &CompileArguments,
     target: PreparedTarget<'_>,
     settle_rechecks: &dyn Fn() -> Result<(), NativeValidationError>,
+    timeline: &RefCell<Timeline>,
 ) -> Result<TargetReport, NativeValidationError> {
     let PreparedTarget {
         planned,
@@ -489,7 +561,9 @@ fn compile_target(
             } else {
                 CompileTimings::default()
             };
-            let checked = stage.check(profile, &mut timings);
+            let checked = timeline
+                .borrow_mut()
+                .record("product_check", || stage.check(profile, &mut timings));
             if arguments.timings {
                 print_phases(&format!("Product ({})", profile.target_name()), &timings);
             }
