@@ -454,6 +454,92 @@ impl<'t> Program<'t> {
         })
     }
 
+    /// Takes the next identity for `symbol` and reserves its row in every
+    /// machine table before its signature is read. A signature can read
+    /// machines of its own, such as a mathematical machine one of its clauses
+    /// applies. Each of those must take a later identity: pushed at this one,
+    /// it would become the machine a call of `symbol` names. The row holds
+    /// placeholders until `complete_row` fills it.
+    pub(super) fn reserve_row(&mut self, symbol: SymbolHandle) -> Checked<MachineId> {
+        let id = self.next_identity()?;
+        self.symbols.push(symbol);
+        self.signatures.push(crate::body::Signature::unread());
+        self.names.push(MachineNames::default());
+        self.value_parameters.push(0);
+        self.value_arguments.push(Vec::new());
+        self.scopes.push(Vec::new());
+        self.source_scopes.push(Default::default());
+        self.const_scopes.push(Vec::new());
+        self.unread_rows.push(id);
+        Ok(id)
+    }
+
+    /// Fills the row `reserve_row` reserved once the signature is read.
+    pub(super) fn complete_row(&mut self, id: MachineId, row: MachineRow) -> Checked<()> {
+        let lost = || {
+            refuse(
+                id,
+                Construct::Machine,
+                Unserved::Machine("a read signature lost its reserved row"),
+            )
+        };
+        let position = self
+            .unread_rows
+            .iter()
+            .position(|unread| *unread == id)
+            .ok_or_else(lost)?;
+        *self.signatures.get_mut(id).ok_or_else(lost)? = row.signature;
+        *self.names.get_mut(id).ok_or_else(lost)? = row.names;
+        *self.value_parameters.get_mut(id).ok_or_else(lost)? = row.value_parameters;
+        *self.value_arguments.get_mut(id).ok_or_else(lost)? = row.value_arguments;
+        *self.scopes.get_mut(id).ok_or_else(lost)? = row.scope;
+        *self.source_scopes.get_mut(id).ok_or_else(lost)? = row.source_scope;
+        *self.const_scopes.get_mut(id).ok_or_else(lost)? = row.const_scope;
+        self.unread_rows.remove(position);
+        Ok(())
+    }
+
+    /// A refused signature leaves no row when its row is still the last.
+    /// Otherwise machines its signature read hold later identities, so the
+    /// row stays unread: lookups by symbol and `read_bodies` skip it, and the
+    /// refusal already refuses the compilation.
+    pub(super) fn abandon_row(&mut self, id: MachineId) {
+        if self.symbols.len() as u64 != id.get() {
+            return;
+        }
+        self.symbols.pop();
+        self.signatures.pop();
+        self.names.pop();
+        self.value_parameters.pop();
+        self.value_arguments.pop();
+        self.scopes.pop();
+        self.source_scopes.pop();
+        self.const_scopes.pop();
+        self.unread_rows.retain(|unread| *unread != id);
+    }
+
+    /// Reserves a row for `symbol`, reads it with `read` and fills it, or
+    /// abandons it when `read` refuses.
+    pub(super) fn read_row(
+        &mut self,
+        symbol: SymbolHandle,
+        read: impl FnOnce(&mut Self, MachineId) -> Checked<MachineRow>,
+    ) -> Checked<MachineId> {
+        let id = self.reserve_row(symbol)?;
+        match read(self, id) {
+            Ok(row) => self.complete_row(id, row).map(|()| id),
+            Err(refused) => {
+                self.abandon_row(id);
+                Err(refused)
+            }
+        }
+    }
+
+    /// Whether `id` names a machine whose signature has been read.
+    pub(crate) fn row_is_read(&self, id: MachineId) -> bool {
+        !self.unread_rows.contains(&id)
+    }
+
     /// Checking a declaration does not call its bare name. A boundary
     /// conformer is checked under its declared slot, without publishing a
     /// direct entry that a source call could use.
@@ -527,13 +613,17 @@ impl<'t> Program<'t> {
             ));
         }
         // An already discovered body keeps its existing machine identity.
+        // A row whose signature is not read yet is not one.
         for position in 1..=self.symbols.len() as u64 {
             let id = MachineId::new(position).expect("positions start at 1");
-            if self.implementation_body != Some(id) && self.symbols.get(id) == Some(&symbol) {
+            if self.implementation_body != Some(id)
+                && self.symbols.get(id) == Some(&symbol)
+                && self.row_is_read(id)
+            {
                 return Ok(id);
             }
         }
-        let id = self.next_identity()?;
+        let id = diagnostic;
         let alternative = if self.symbols.is_empty() {
             self.alternative.clone()
         } else {
@@ -580,8 +670,7 @@ impl<'t> Program<'t> {
             }
             _ => Reading::Closed,
         };
-        self.read_machine(id, symbol, reading)?;
-        Ok(id)
+        self.read_machine(id, symbol, reading)
     }
 
     /// The member's body contract is an independent obligation of the
@@ -644,13 +733,15 @@ impl<'t> Program<'t> {
         if bound.is_some() {
             if matches!(reading, Reading::Provider)
                 && let Some((known, _)) = self.symbols.iter().find(|(known, source)| {
-                    Some(*known) != self.implementation_body && **source == symbol
+                    Some(*known) != self.implementation_body
+                        && **source == symbol
+                        && self.row_is_read(*known)
                 })
             {
                 return Ok(known);
             }
             let own_witness = matches!(reading, Reading::Implementation);
-            self.read_machine(id, symbol, reading)?;
+            let id = self.read_machine(id, symbol, reading)?;
             if own_witness {
                 self.implementation_body = Some(id);
             }
@@ -660,18 +751,20 @@ impl<'t> Program<'t> {
         }
     }
 
-    /// Reads the signature of `symbol` as machine `id` and records it. The
-    /// scope of whichever machine was being read is put back afterwards: a
-    /// callee is discovered in the middle of its caller's body.
+    /// Reads the signature of `symbol` as a new machine and records it,
+    /// returning its identity; `diagnostic` locates a refusal made before
+    /// the identity is reserved. The scope of whichever machine was being
+    /// read is put back afterwards: a callee is discovered in the middle of
+    /// its caller's body.
     fn read_machine(
         &mut self,
-        id: MachineId,
+        diagnostic: MachineId,
         symbol: SymbolHandle,
         reading: Reading,
-    ) -> Checked<()> {
+    ) -> Checked<MachineId> {
         if self.type_purpose == super::storage_metadata::TypePurpose::StorageDescription {
             return Err(refuse(
-                id,
+                diagnostic,
                 Construct::Machine,
                 Unserved::Declaration("machine admission after storage metadata"),
             ));
@@ -682,11 +775,48 @@ impl<'t> Program<'t> {
             && !(self.rigid && matches!(reading, Reading::Implementation))
         {
             return Err(refuse(
-                id,
+                diagnostic,
                 Construct::Machine,
                 Unserved::Machine("generic map body needs its complete selected application"),
             ));
         }
+        let id = self.read_row(symbol, |program, id| {
+            program.machine_row(id, symbol, &reading)
+        })?;
+        if matches!(reading, Reading::GenericEntry | Reading::Alternative(_)) {
+            let (machine, _) = self.declaration(id, symbol)?;
+            let parameters = self.typed.machine_type_parameters(machine);
+            if !parameters.is_empty()
+                && parameters.iter().all(|parameter| {
+                    matches!(
+                        parameter.kind,
+                        crate::source_state::data::TypeParameterKind::Type
+                            | crate::source_state::data::TypeParameterKind::Const { .. }
+                            | crate::source_state::data::TypeParameterKind::Value { .. }
+                    )
+                })
+            {
+                // The signature scope holds every type slot in declaration order,
+                // including the map arguments inherited by a private helper.
+                let arguments =
+                    terminal_check_tables::row(&self.scopes, id, id, Construct::Machine)?
+                        .iter()
+                        .map(|(_, value)| *value)
+                        .collect();
+                self.applied.push((id, arguments, None));
+            }
+        }
+        self.closed_callback_requirements(id, symbol)?;
+        Ok(id)
+    }
+
+    /// The rows of machine `id`, `symbol` read as `reading`.
+    fn machine_row(
+        &mut self,
+        id: MachineId,
+        symbol: SymbolHandle,
+        reading: &Reading,
+    ) -> Checked<MachineRow> {
         let outer = std::mem::take(&mut self.scope);
         let outer_source = self.source_scope.clone();
         if matches!(
@@ -695,7 +825,7 @@ impl<'t> Program<'t> {
         ) {
             self.source_scope = Default::default();
         }
-        if let Reading::Alternative(_) = &reading
+        if let Reading::Alternative(_) = reading
             && let Some(alternative) = &self.alternative
         {
             let (machine, _) = self.declaration(id, symbol)?;
@@ -715,7 +845,7 @@ impl<'t> Program<'t> {
         // machine, which each call instantiates (`regions::Elision`).
         let elision = std::mem::replace(&mut self.elision, super::regions::Elision::Inputs(symbol));
         let owner = std::mem::replace(&mut self.lifetime_owner, symbol);
-        let read = self.signature(id, symbol, &reading);
+        let read = self.signature(id, symbol, reading);
         self.lifetime_owner = owner;
         self.elision = elision;
         let scope = std::mem::replace(&mut self.scope, outer);
@@ -760,35 +890,15 @@ impl<'t> Program<'t> {
                 }
             }
         }
-        self.symbols.push(symbol);
-        self.signatures.push(signature);
-        self.names.push(names);
-        self.value_parameters.push(value_parameters);
-        self.value_arguments.push(Vec::new());
-        if matches!(reading, Reading::GenericEntry | Reading::Alternative(_)) {
-            let (machine, _) = self.declaration(id, symbol)?;
-            let parameters = self.typed.machine_type_parameters(machine);
-            if !parameters.is_empty()
-                && parameters.iter().all(|parameter| {
-                    matches!(
-                        parameter.kind,
-                        crate::source_state::data::TypeParameterKind::Type
-                            | crate::source_state::data::TypeParameterKind::Const { .. }
-                            | crate::source_state::data::TypeParameterKind::Value { .. }
-                    )
-                })
-            {
-                // The signature scope holds every type slot in declaration order,
-                // including the map arguments inherited by a private helper.
-                let arguments = scope.iter().map(|(_, value)| *value).collect();
-                self.applied.push((id, arguments, None));
-            }
-        }
-        self.scopes.push(scope);
-        self.source_scopes.push(source_scope);
-        self.const_scopes.push(widths);
-        self.closed_callback_requirements(id, symbol)?;
-        Ok(())
+        Ok(MachineRow {
+            signature,
+            names,
+            value_parameters,
+            value_arguments: Vec::new(),
+            scope,
+            source_scope,
+            const_scope: widths,
+        })
     }
 
     /// Read the generic callee at the actual type tuple. Its body supplies
@@ -894,12 +1004,12 @@ impl<'t> Program<'t> {
                 ));
             }
         }
-        let id = self.next_identity()?;
+        let diagnostic = self.next_identity()?;
         let scope = self.extended_source_scope(bindings);
         let outer = std::mem::replace(&mut self.source_scope, scope);
-        let read = self.read_machine(id, symbol, Reading::Applied(arguments.clone()));
+        let read = self.read_machine(diagnostic, symbol, Reading::Applied(arguments.clone()));
         self.source_scope = outer;
-        read?;
+        let id = read?;
         self.applied.push((id, arguments, Some(caller)));
         // The body is read under its own public input contract. Reading it
         // for effect inference does not let caller facts narrow that boundary.
@@ -1104,7 +1214,18 @@ impl<'t> Program<'t> {
         arguments: &[semantic_vocabulary::ScalarTerm],
         expected: Option<&'t StateSignature>,
     ) -> Checked<MachineId> {
-        let id = self.next_identity()?;
+        self.read_row(declared.symbol, |program, id| {
+            program.witnessed_row(id, declared, arguments, expected)
+        })
+    }
+
+    fn witnessed_row(
+        &mut self,
+        id: MachineId,
+        declared: &StateSignature,
+        arguments: &[semantic_vocabulary::ScalarTerm],
+        expected: Option<&'t StateSignature>,
+    ) -> Checked<MachineRow> {
         let ((signature, names), value_parameters) = if self.rigid && arguments.is_empty() {
             // The witness receives each unspecialized const as a scalar input,
             // just like the declaration whose contract it checks.
@@ -1153,15 +1274,15 @@ impl<'t> Program<'t> {
                 ));
             }
         }
-        self.symbols.push(declared.symbol);
-        self.signatures.push(signature);
-        self.names.push(names);
-        self.value_parameters.push(value_parameters);
-        self.value_arguments.push(arguments.to_vec());
-        self.scopes.push(self.scope.clone());
-        self.source_scopes.push(self.source_scope.clone());
-        self.const_scopes.push(Vec::new());
-        Ok(id)
+        Ok(MachineRow {
+            signature,
+            names,
+            value_parameters,
+            value_arguments: arguments.to_vec(),
+            scope: self.scope.clone(),
+            source_scope: self.source_scope.clone(),
+            const_scope: Vec::new(),
+        })
     }
 
     /// Read the supplied public contract as a distinct logical requirement.
@@ -1176,9 +1297,7 @@ impl<'t> Program<'t> {
                 self.witnessed_signature(signature, &[], None)?
             }
             crate::CallableDeclaration::Machine(symbol) => {
-                let id = self.next_identity()?;
-                self.read_machine(id, symbol, Reading::Closed)?;
-                id
+                self.read_machine(self.next_identity()?, symbol, Reading::Closed)?
             }
         };
         self.requirements.push(id);
@@ -1363,28 +1482,31 @@ impl<'t> Program<'t> {
                 return Ok(id);
             }
         }
-        let id = self.next_identity()?;
-        let (signature, names) = self.applied_requirement_signature(id, declared, values)?;
-        self.retain_requirement_policy(id, declared, declared.symbol)?;
-        if matches!(values, RequirementValues::Rigid) {
-            self.generic_binders.extend(
-                self.typed
-                    .state_signature_type_parameters(declared)
-                    .iter()
-                    .map(|parameter| parameter.symbol),
-            );
-        }
-        // The binder identifies this abstract call target. Its published
-        // checks and declaration selections belong to the requirement.
-        self.admitted_declarations.include(declared.symbol);
-        self.symbols.push(symbol);
-        self.signatures.push(signature);
-        self.names.push(names);
-        self.value_parameters.push(parameters);
-        self.value_arguments.push(arguments.to_vec());
-        self.scopes.push(self.scope.clone());
-        self.source_scopes.push(self.source_scope.clone());
-        self.const_scopes.push(Vec::new());
+        let id = self.read_row(symbol, |program, id| {
+            let (signature, names) = program.applied_requirement_signature(id, declared, values)?;
+            program.retain_requirement_policy(id, declared, declared.symbol)?;
+            if matches!(values, RequirementValues::Rigid) {
+                program.generic_binders.extend(
+                    program
+                        .typed
+                        .state_signature_type_parameters(declared)
+                        .iter()
+                        .map(|parameter| parameter.symbol),
+                );
+            }
+            // The binder identifies this abstract call target. Its published
+            // checks and declaration selections belong to the requirement.
+            program.admitted_declarations.include(declared.symbol);
+            Ok(MachineRow {
+                signature,
+                names,
+                value_parameters: parameters,
+                value_arguments: arguments.to_vec(),
+                scope: program.scope.clone(),
+                source_scope: program.source_scope.clone(),
+                const_scope: Vec::new(),
+            })
+        })?;
         self.requirements.push(id);
         self.requirement_headers.push((origin, id));
         Ok(id)
@@ -5123,6 +5245,18 @@ pub(super) struct ValueBinder {
     pub(super) symbol: SymbolHandle,
     pub(super) name: String,
     pub(super) scalar_type: semantic_vocabulary::ScalarType,
+}
+
+/// One machine's rows in every machine table, from its read signature
+/// (`Program::complete_row`).
+pub(super) struct MachineRow {
+    pub(super) signature: crate::body::Signature,
+    pub(super) names: MachineNames,
+    pub(super) value_parameters: usize,
+    pub(super) value_arguments: Vec<semantic_vocabulary::ScalarTerm>,
+    pub(super) scope: Vec<(SymbolHandle, ValueType)>,
+    pub(super) source_scope: std::sync::Arc<crate::source_state::SourceTypeScope>,
+    pub(super) const_scope: Vec<super::ConstBinding>,
 }
 
 /// How a machine's declaration is read.

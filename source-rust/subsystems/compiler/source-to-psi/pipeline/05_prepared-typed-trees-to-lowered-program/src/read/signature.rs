@@ -25,6 +25,10 @@ a projection, in a body and in a clause alike, and a `let` in a body is the
 term of its value. A clause states a field as the field's declaration applied
 to a value, so the value may be a formal, a call or another field.
 
+A `bool` formal or result is one entry equal to the kernel's `Two`, with
+`false` and `true` its two values. A clause that uses a machine with a `bool`
+result as a proposition states that its result is `true`.
+
 A law's `requires` equalities are its premises. Its statement takes a proof
 of each after its formals, and stage 06 proves each wherever the law is
 cited.
@@ -40,8 +44,8 @@ use mathematical_kernel::{
 };
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, ClauseCarrier, ClauseIdentity, ClauseOperand, ClauseValue,
-    IntegerMathTerm, IntegerValue, MachineId, Proposition, ScalarTerm, StructuralCaseId,
-    StructuralFieldId, StructuralTypeId,
+    IntegerMathTerm, IntegerValue, MachineId, Proposition, ScalarTerm, ScalarType,
+    StructuralCaseId, StructuralFieldId, StructuralTypeId,
 };
 use symbols::SymbolHandle;
 use terminal_check_tables::mathematics::{
@@ -181,6 +185,7 @@ impl Program<'_> {
             satisfactions,
             signature: MathematicalSignature::default(),
             data: Vec::new(),
+            boolean: None,
             machines,
             functions,
             fueled: Vec::new(),
@@ -543,6 +548,8 @@ struct Converter<'p, 't> {
     signature: MathematicalSignature,
     /// Each data record with its entry, in the order they were declared.
     data: Vec<(StructuralTypeId, u32)>,
+    /// The entry of `bool`, once a machine has a Boolean formal or result.
+    boolean: Option<u32>,
     /// Each machine as a law, or as a machine that only cites.
     machines: IdTable<MachineId, Read>,
     /// Each machine with a result as a definition. A machine that returns a
@@ -2099,8 +2106,34 @@ impl<'p> Converter<'p, '_> {
         }
     }
 
-    /// The closed kernel type of a formal or a result.
+    /// The entry of `bool`, declaring it the first time.
+    fn boolean(&mut self, id: MachineId) -> Checked<u32> {
+        if let Some(entry) = self.boolean {
+            return Ok(entry);
+        }
+        index(id, self.signature.declarations.len() + 1)?;
+        let universe = self
+            .signature
+            .arena
+            .insert(Term::Sort(Sort::Type(Level::Constant(0))));
+        let two = self.signature.arena.insert(Term::Two);
+        let entry = self.push(
+            Declaration::definition(0, universe, two),
+            SignatureEntryKind::Boolean,
+            "bool".to_owned(),
+        );
+        self.boolean = Some(entry);
+        Ok(entry)
+    }
+
+    /// The closed kernel type of a formal or a result: data, or a plain
+    /// `bool`, which an admitted total computation may return
+    /// (mathematical_bindings.md). Every other scalar is refused.
     fn ty(&mut self, id: MachineId, value_type: ValueType) -> Checked<(TermHandle, u32)> {
+        if value_type == ValueType::plain(ScalarType::Boolean) {
+            let entry = self.boolean(id)?;
+            return Ok((self.constant(entry), entry));
+        }
         let ValueType::Record(record, ..) = value_type else {
             return Err(unserved(
                 id,
@@ -2757,9 +2790,10 @@ impl<'p> Converter<'p, '_> {
     }
 
     /// A closed value of the type at `entry`: the first case of data that
-    /// has no field, and for a record one such value per field.
+    /// has no field, for a record one such value per field, and `false`.
     fn inhabitant(&mut self, id: MachineId, entry: u32) -> Checked<TermHandle> {
         match &self.signature.entries[entry as usize].kind {
+            SignatureEntryKind::Boolean => Ok(self.signature.arena.insert(Term::TwoZero)),
             SignatureEntryKind::Data { shape, .. } => {
                 let case = (0..shape.cases())
                     .find(|&case| shape.arity(case) == 0)
@@ -3206,6 +3240,11 @@ impl<'p> Converter<'p, '_> {
     ) -> Checked<Bound> {
         let plain = |term| Bound { term, field: None };
         match &expression.kind {
+            ExpressionKind::Boolean(value) => Ok(plain(
+                self.signature
+                    .arena
+                    .insert(if *value { Term::TwoOne } else { Term::TwoZero }),
+            )),
             ExpressionKind::Slot(slot) => scope
                 .slots
                 .get(scope.aliases.get(*slot).copied().unwrap_or(*slot))
@@ -3400,7 +3439,7 @@ impl<'p> Converter<'p, '_> {
             }
             _ => Err(unserved(
                 id,
-                "mathematical term other than a formal, a field, a constructor or a call",
+                "mathematical term other than a Boolean, a formal, a field, a constructor or a call",
             )),
         }
     }
@@ -3793,15 +3832,25 @@ impl<'p> Converter<'p, '_> {
         let mut terms = Vec::<TermHandle>::with_capacity(values.len());
         let mut carriers = Vec::with_capacity(values.len());
         for value in values {
-            let ClauseCarrier::Structural(record) = value.carrier else {
-                return Err(unserved(
-                    id,
-                    "law over a carrier other than mathematical data",
-                ));
-            };
-            carriers.push(self.data(id, record)?);
+            carriers.push(match value.carrier {
+                ClauseCarrier::Structural(record) => self.data(id, record)?,
+                ClauseCarrier::Scalar(ScalarType::Boolean) => self.boolean(id)?,
+                _ => {
+                    return Err(unserved(
+                        id,
+                        "law over a carrier other than mathematical data or `bool`",
+                    ));
+                }
+            });
             let term = match &value.operand {
-                // Every formal is data, so the formal at position `k` is place `k + 1`.
+                ClauseOperand::Scalar(ScalarTerm::Boolean(truth))
+                    if value.carrier == ClauseCarrier::Scalar(ScalarType::Boolean) =>
+                {
+                    self.signature
+                        .arena
+                        .insert(if *truth { Term::TwoOne } else { Term::TwoZero })
+                }
+                // The formal at position `k` is place `k + 1`.
                 // The machine's own result is the place after its formals:
                 // the definition it is read as, applied to those formals.
                 ClauseOperand::Input(subject)

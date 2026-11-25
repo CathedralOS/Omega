@@ -486,6 +486,19 @@ fn read_bodies(
                 Unserved::Machine("identity overflow"),
             )
         })?;
+        // A row whose signature was refused after it reserved the row has
+        // no body to read. Its refusal is already kept.
+        if !program.row_is_read(next) {
+            if program.collected.is_none() {
+                return Err(refuse(
+                    diagnostic,
+                    Construct::Machine,
+                    Unserved::Machine("a body whose signature was not read"),
+                ));
+            }
+            complete = false;
+            continue;
+        }
         // A generic mathematical machine's body was read as terms with its
         // contract (`read::templates`); nothing of it is lowered.
         if program

@@ -9,9 +9,9 @@ use representations/symbol_resolved_trees/symbol_resolved_trees.omg;
 use representations/syntax_trees/syntax_trees.omg;
 
 // Operator homes (wiki/spec/language/expressions.md#operator-families). A
-// qualified token-bound machine `machine <= Nat::less_or_equal(...)`
+// qualified token-bound machine `machine <= Home::compare(...)`
 // establishes its semantic home through its owner: the data declaration
-// `Nat`. Direct families are closed, so only the home's own package may
+// `Home`. Direct families are closed, so only the home's own package may
 // publish its token bindings: an owner naming a builtin carrier, a trait or
 // another package's data rejects at the owner. Two machines binding one
 // token at one home with the same parameters are duplicate participating

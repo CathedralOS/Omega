@@ -215,7 +215,6 @@ impl Program<'_> {
         {
             return Ok(instance.machine);
         }
-        let id = self.next_identity()?;
         // The applied requirement names the binder's type arguments, which
         // belong to the declaration that wrote the binder. Retain the view
         // under that declaration so publication finds `T` in its lexical
@@ -223,21 +222,24 @@ impl Program<'_> {
         let owner = self
             .record_parameter(receiver)
             .map(|binding| binding.account.owner);
-        let outer_view = std::mem::replace(&mut self.signature_view_owner, owner);
-        let outer = self.clause_supplier.replace(receiver);
-        let lowered = self.declared_requirement_signature(id, signature, arguments);
-        self.clause_supplier = outer;
-        self.signature_view_owner = outer_view;
-        let (lowered, names) = lowered?;
-        self.retain_requirement_policy(id, signature, signature.symbol)?;
-        self.symbols.push(signature.symbol);
-        self.signatures.push(lowered);
-        self.names.push(names);
-        self.value_parameters.push(0);
-        self.value_arguments.push(arguments.to_vec());
-        self.scopes.push(Vec::new());
-        self.source_scopes.push(self.source_scope.clone());
-        self.const_scopes.push(Vec::new());
+        let id = self.read_row(signature.symbol, |program, id| {
+            let outer_view = std::mem::replace(&mut program.signature_view_owner, owner);
+            let outer = program.clause_supplier.replace(receiver);
+            let lowered = program.declared_requirement_signature(id, signature, arguments);
+            program.clause_supplier = outer;
+            program.signature_view_owner = outer_view;
+            let (lowered, names) = lowered?;
+            program.retain_requirement_policy(id, signature, signature.symbol)?;
+            Ok(super::machine::MachineRow {
+                signature: lowered,
+                names,
+                value_parameters: 0,
+                value_arguments: arguments.to_vec(),
+                scope: Vec::new(),
+                source_scope: program.source_scope.clone(),
+                const_scope: Vec::new(),
+            })
+        })?;
         self.requirements.push(id);
         let member = self
             .static_contracts

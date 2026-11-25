@@ -110,23 +110,16 @@ fn a_false_law_about_such_a_machine_is_refused() {
     );
 }
 
-/// `nat.omg` in full but for its two operator machines, then each named
-/// library file's text after it.
+/// `nat.omg` from its data declaration on, then each named library file's
+/// text after it.
 fn library(files: &[&str]) -> String {
     let nat = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../../../../../source/library/core/nat.omg"
     ));
     let first = nat.find("public data Nat {").expect("the data declaration");
-    let operators = nat
-        .find("// Natural order and exact subtraction")
-        .expect("the operator machines");
-    let ring = nat
-        .find("// The Peano ring surface")
-        .expect("the operations");
     let mut program = String::from("use omega\\language\\core\\CommutativeSemiring;\n");
-    program.push_str(&nat[first..operators]);
-    program.push_str(&nat[ring..]);
+    program.push_str(&nat[first..]);
     for file in files {
         program.push_str(file);
     }
@@ -270,4 +263,122 @@ fn every_law_of_cauchy_is_judged() {
         eprintln!("{machine}: {} conversion steps", law.conversion_steps);
     }
     eprintln!("{} laws", judgment.laws.len());
+}
+
+/// Natural order over local data, decided as `core/nat.omg` decides it: by
+/// cases on the computed `saturating_sub(left, right)`, answering `bool`.
+const ORDER: &str = "
+data Peano {
+    case Zero;
+    case Succ(prev: Peano);
+}
+
+machine pred(a: Peano) -> Peano
+{
+    transition a {
+        Peano::Zero -> Peano::Zero,
+        Peano::Succ { prev } -> (prev)
+    }
+}
+
+machine saturating_sub(a: Peano, b: Peano) -> Peano
+terminates by b
+{
+    transition b {
+        Peano::Zero -> (a),
+        Peano::Succ { prev } -> (pred(saturating_sub(a, prev)))
+    }
+}
+
+machine less_or_equal(left: Peano, right: Peano) -> RESULT
+{
+    transition (saturating_sub(left, right)) {
+        Peano::Zero -> YES,
+        Peano::Succ { prev } -> NO
+    }
+}
+";
+
+fn order(result: &str, yes: &str, no: &str, law: &str) -> String {
+    format!(
+        "{}\nmachine {law}\n{{\n}}\n",
+        ORDER
+            .replace("RESULT", result)
+            .replace("YES", yes)
+            .replace("NO", no)
+    )
+}
+
+#[test]
+fn a_law_that_a_boolean_definition_is_true_is_judged() {
+    // A `bool` result is the kernel's `Two`, and a clause that uses the
+    // machine as a proposition states that its result is `true`. Zero is at
+    // most one: the kernel computes the definition to `true`.
+    let verdicts = judged(
+        &order(
+            "bool",
+            "true",
+            "false",
+            "zero_is_at_most_one(a: Peano)\n\
+             ensures less_or_equal(Peano::Zero, Peano::Succ { prev: Peano::Zero })",
+        ),
+        &[],
+    );
+    let judgment = signature(&verdicts);
+    let law = judgment
+        .laws
+        .iter()
+        .find(|law| law.machine == "zero_is_at_most_one")
+        .expect("the law");
+    assert!(
+        matches!(law.decision, MathematicalCoreDecision::Judged(_)),
+        "{law:?}"
+    );
+}
+
+#[test]
+fn a_law_that_a_false_boolean_definition_is_true_is_refused() {
+    // The same law with the operands swapped: one is not at most zero, so
+    // the definition computes to `false` and the law has no proof.
+    let verdicts = judged(
+        &order(
+            "bool",
+            "true",
+            "false",
+            "zero_is_at_most_one(a: Peano)\n\
+             ensures less_or_equal(Peano::Succ { prev: Peano::Zero }, Peano::Zero)",
+        ),
+        &[],
+    );
+    let law = unproved(&verdicts);
+    assert_eq!(law.machine, "zero_is_at_most_one");
+    assert_eq!(law.cause, UnprovedCause::NoDerivation);
+}
+
+#[test]
+fn a_mathematical_machine_with_another_scalar_result_is_refused() {
+    // Only `bool` joins mathematical data as a result: a `u8` has no kernel
+    // type here, so the machine is refused where it is read.
+    let verdicts = judged(
+        &order(
+            "u8",
+            "1",
+            "0",
+            "zero_is_at_most_one(a: Peano)\n\
+             ensures core\\Identity::<u8>(less_or_equal(Peano::Zero, Peano::Zero), 1)",
+        ),
+        &[],
+    );
+    let refused: Vec<_> = verdicts
+        .iter()
+        .filter_map(|verdict| match verdict {
+            RouteVerdict::FallBack(refusal) => Some(refusal.detail.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        refused.iter().any(|detail| detail
+            .contains("mathematical declaration over a type other than data that contains itself")),
+        "{verdicts:?}"
+    );
 }

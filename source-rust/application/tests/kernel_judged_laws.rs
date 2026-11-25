@@ -172,6 +172,49 @@ fn a_local_operation_gets_no_license_from_the_library_conformance() {
 }
 
 #[test]
+fn library_subtraction_whose_order_premise_is_in_hand_compiles() {
+    // `difference` requires `b <= a`, which is exactly what core's `-`
+    // requires at `a - b`.
+    let (output, report) = check("nat_order/pass/exact_subtraction");
+    assert_eq!(output.status.code(), Some(0), "{report}");
+}
+
+#[test]
+fn library_subtraction_under_the_swapped_order_is_refused_at_its_declaration() {
+    // The same machine requiring `a <= b` instead: the premise of `-` is
+    // not one it holds, and nothing proves it from `a <= b`. The refusal
+    // names the premise of the call and is placed at `difference`'s
+    // declaration (`main.omg:9:9`), the only position it carries.
+    let (output, report) = check("nat_order/fail/swapped_order");
+    assert_eq!(output.status.code(), Some(1), "{report}");
+    assert!(
+        report.contains(
+            "cannot prove ensures contract for `difference`: the premise of `subtract` at its call"
+        ) && report.contains(UNPROVED)
+            && report.contains("main.omg:9:9"),
+        "{report}"
+    );
+}
+
+#[test]
+fn library_subtraction_without_an_order_premise_is_refused_for_that_premise() {
+    // The same machine with no `requires`. Its `a - b` is the first use of
+    // `subtract`, whose signature is the first to read `less_or_equal`. The
+    // call must still be judged against `subtract`, so the refusal is the
+    // missing premise, not a result type taken from `less_or_equal`.
+    let (output, report) = check("nat_order/fail/missing_premise");
+    assert_eq!(output.status.code(), Some(1), "{report}");
+    assert!(
+        report.contains(
+            "cannot prove ensures contract for `difference`: the premise of `subtract` at its call"
+        ) && report.contains(UNPROVED)
+            && report.contains("main.omg:11:9")
+            && !report.contains("typing arm value type"),
+        "{report}"
+    );
+}
+
+#[test]
 fn laws_with_a_premise_compile() {
     let (output, report) = check("law_premise/pass/peano_cancellation");
     assert_eq!(output.status.code(), Some(0), "{report}");

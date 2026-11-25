@@ -7,9 +7,8 @@ Compile-scope probe. No standard-library dependency.
 - transitivity_lemma: `requires a < b, b < c` `ensures a<c` — kernel
   entailment hop, empty body.
 - nat_import_surface: core::nat imports depend-free and Nat values
-  flow through machines. GAP filed: every Nat operator is private
-  to core::nat's own package (`-`, `<=`, saturating_sub all
-  unreachable from package provenance).
+  flow through machines. Nat's `-` and `<=` are core's public
+  `subtract` and `less_or_equal`, selected after importing both.
 - match_mixed_move: one match arm moves a local, the other
   constructs inline — ownership splits per-arm.
 

@@ -1136,12 +1136,12 @@ kernel, from the library file as it stands.
 - **`mod`, `div` and `gcd`** were not read at this step: their recursion is
   on `saturating_sub(a, b)`, not on a field of the dispatched case. Step 4
   defines them by recursion on fuel (below).
-- **Not done: the two operator machines.** `<=` and `-` are written as
-  machines the `Nat` declaration owns (`machine <= Nat::less_or_equal`).
-  Compiling the file's declarations as a program was rejected there with "a
-  data declaration cannot own a machine; declare an ordinary static
-  machine", before any proof was tried, so that part of the library needs
-  its source migrated first.
+- **The two operator machines** were not read at this step. `<=` and `-`
+  were written as machines the `Nat` declaration owns
+  (`machine <= Nat::less_or_equal`), and compiling the file's declarations
+  as a program was rejected with "a data declaration cannot own a machine;
+  declare an ordinary static machine". Step 4 makes them free operator
+  machines (below).
 - **The library is judged only through a program.** A toolchain file is
   never the subject of a check, and most of these lemmas are private, so no
   program reaches them directly; the test compiles the file's text as a
@@ -1302,6 +1302,21 @@ starts with records.
   state `cauchy_at` under the bounds it requires. With `cauchy.omg` added,
   the five files give 96 judged laws; its four take 1,297 to 4,674
   conversion steps.
+- **The order and subtraction operators (2026-11-25).** `nat.omg` declares
+  `<=` and `-` as free public operator machines,
+  `machine <= less_or_equal(left: Nat, right: Nat) -> bool` and
+  `machine - subtract(left: Nat, right: Nat) -> Nat requires right <= left`.
+  The signature now has one `bool` entry, a definition equal to the
+  kernel's `Two`, declared the first time a formal, a result or a clause
+  needs it; `true` and `false` are `TwoOne` and `TwoZero`. A clause that
+  uses a mathematical machine with a `bool` result as a proposition, such as
+  `requires right <= left`, states that its result equals `true`, as a
+  clause already did for an abstract Boolean operation. Each `a - b` then
+  owes `less_or_equal(b, a) = true`, which the calling machine's own
+  `requires b <= a` supplies. The stage 06 tests read the whole file, so
+  both machines are judged with it; neither states a law of its own. A
+  program outside core imports both machines to select them by their
+  tokens (`nat_order` fixtures).
 - **Not done:**
   - A generic mathematical machine whose body dispatches, a citation of
     one generic machine from another, and a concrete machine passed for a
@@ -1310,8 +1325,6 @@ starts with records.
     `extent.omg:219`) is a clause of a runtime boundary trait over generic
     data. It is read by the carrier clause reader when a program reaches
     it, not into this signature. Step 5 did not move it (below).
-  - The `<=` and `-` machines of `nat.omg` are still left out of every
-    test: the compiler rejects a machine that a data declaration owns.
   - A refused law whose goal names a field inside one case of an induction
     prints `?` for that field.
 

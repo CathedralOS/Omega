@@ -242,6 +242,7 @@ impl Definitions {
                 .map(|entry| match &entry.kind {
                     SignatureEntryKind::Data { .. }
                     | SignatureEntryKind::Record { .. }
+                    | SignatureEntryKind::Boolean
                     | SignatureEntryKind::Encoding { .. }
                     | SignatureEntryKind::Scheme
                     | SignatureEntryKind::Quotient { .. }
