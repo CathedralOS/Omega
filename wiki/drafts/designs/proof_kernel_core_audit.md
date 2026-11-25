@@ -1122,8 +1122,8 @@ kernel, from the library file as it stands.
   to 816, four unary cases 59,242 to 10,463. What remains is the price of
   the encoding itself: under raw trees the associativity law took 1,148, and
   one computation is still hundreds of steps where a built-in inductive
-  type would take about one. Whether to keep W types on that measurement is
-  [recursive data encoding question](../../../OWNER_QUESTIONS.md#recursive-data-as-w-types).
+  type would take about one. The [native inductive ruling](../../spec/proofs/inductive_profile.md#native-inductive-declarations)
+  supersedes the W/IW implementation plan recorded in this audit.
   Each law still re-checks the declarations before it, about 1,000 steps a
   law, which a shared check would remove.
 - **`mod`, `div` and `gcd`** were not read at this step: their recursion is

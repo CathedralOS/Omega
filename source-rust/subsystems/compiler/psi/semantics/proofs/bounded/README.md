@@ -40,7 +40,7 @@ de Bruijn dependent terms, stratified `Type`/`Strict` sorts with closed levels,
 Π/λ/application typing without cumulativity, dependent pairs, and typed
 conversion whose strict collapse depends on the shared type's sort, never on
 term shape. It also owns the first primitive of the selected
-[W-based inductive profile](../../../../../../../wiki/spec/proofs/inductive_profile.md):
+[native inductive profile](../../../../../../../wiki/spec/proofs/inductive_profile.md):
 the `Two` type with `zero`/`one` and dependent `caseTwo` elimination computing
 on each constructor, restricted to motives in relevant `Type`. It is the
 `PROOF-KERNEL-CORE` model; the bounded `Proposition` kernel above is an

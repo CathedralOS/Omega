@@ -100,7 +100,7 @@ public spellings.
   [recasts](spec/layouts/recasts.md), and [codecs](spec/layouts/codecs.md).
 - Mathematical proofs: [foundation and checking judgments](spec/proofs/foundation.md),
   [mathematical bindings and logical hypotheses](spec/proofs/mathematical_bindings.md),
-  [W-based induction and indexed encoding](spec/proofs/inductive_profile.md),
+  [native inductive profile](spec/proofs/inductive_profile.md),
   [contracts, bundles, normalization and trust](spec/proofs/contracts.md),
   [stable index identity and proved compatibility](spec/proofs/contracts.md#licensed-normalization),
   and [relations and quotients](spec/proofs/quotients.md).

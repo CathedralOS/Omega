@@ -963,7 +963,7 @@ Real/approximation library are separate engineering or deferred surface work;
 they are not substitutes for implementing the selected foundation. Promote any
 new semantic or trust choice they expose to the owner queue before relying on it.
 
-The [W-based inductive profile](inductive_profile.md) and
+The [native inductive profile](inductive_profile.md) and
 [set-quotient interface](quotients.md#set-quotient-foundation) are selected.
 Their guarantees require combined metatheory, encoding correctness, kernel
 checking and library proofs. Neither a mechanical rewrite nor a few successful

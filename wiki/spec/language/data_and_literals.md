@@ -355,7 +355,7 @@ case-level `requires`, a wrapper, a new data species, implicit boxing, runtime t
 tests, or general existential packaging. It grants no new layout optimization.
 
 The mathematical interpretation uses the selected
-[W-based inductive profile](../proofs/inductive_profile.md). Case constraints are
+[native inductive profile](../proofs/inductive_profile.md). Case constraints are
 not limited to nonrecursive examples. An equality-payload encoding may handle
 some cases; it is not by itself a justification for arbitrary indexed recursion.
 Checked encodings preserve the case conditions and induction/computation rules
