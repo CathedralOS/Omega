@@ -3909,7 +3909,7 @@ pub(crate) mod product_selections {
                 .iter()
                 .any(|definition| definition.symbol == requirement && definition.is_boundary)
             {
-                return Err(Diagnostic::error("provider readiness requires a pre-known exact boundary requirement; only the backing may be deferred")
+                return Err(Diagnostic::error("provider readiness requires an exact boundary requirement in the supplied Build sources")
                 .with_source_span(span));
             }
             Some(reference)

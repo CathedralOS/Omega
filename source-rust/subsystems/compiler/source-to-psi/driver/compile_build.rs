@@ -86,9 +86,11 @@ impl BuildStageSource {
                 })
                 .collect());
         }
-        Ok(TypedBuildInterval {
-            program: self.typed_source(preparation, host, authority)?,
-        })
+        let program = self.typed_source(preparation, host, authority)?;
+        program
+            .check_build_provider_declarations()
+            .map_err(|error| vec![error])?;
+        Ok(TypedBuildInterval { program })
     }
 
     /// Rejoin the selected Build entry in the assembled Product sources so the

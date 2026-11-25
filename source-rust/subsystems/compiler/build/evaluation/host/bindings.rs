@@ -83,11 +83,9 @@ pub type BuildProviderRequest =
 
 impl BindingState {
     fn provider_is_installed(&self, request: &BuildProviderRequest) -> bool {
-        self.installed_providers.iter().any(|installed| {
-            installed.request.requirement.declaration == request.requirement.declaration
-                && installed.request.requirement.application == request.requirement.application
-                && installed.request.backing.path == request.backing.path
-        })
+        self.installed_providers
+            .iter()
+            .any(|installed| installed.request == *request)
     }
 
     fn awaiting_provider(&self) -> Result<Option<&BuildProviderRequest>, String> {

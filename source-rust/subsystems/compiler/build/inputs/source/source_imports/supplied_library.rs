@@ -96,6 +96,23 @@ impl SuppliedBuildLibrary {
         ))
     }
 
+    /// Select the handoff that supplied a declaration visible from this library's Product.
+    pub fn provider_handoff(
+        &self,
+        owner: semantic_vocabulary::PackageKeyIdentity,
+    ) -> Option<&crate::PackageBuildHandoff> {
+        if self.dependency.inputs.root() == owner {
+            return Some(self.handoff());
+        }
+        self.dependency
+            .inputs
+            .dependency_build_handoff_instances()
+            .find(|(scope, handoff)| {
+                *scope == DependencyPurpose::Product && handoff.package() == owner
+            })
+            .map(|(_, handoff)| handoff)
+    }
+
     pub fn require_execution_profile(&self, profile: target::TargetProfile) -> Result<(), String> {
         let handoff = self.handoff();
         if handoff.target() != profile || handoff.build_execution_profile() != Some(profile) {
