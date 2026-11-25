@@ -317,6 +317,6 @@ impl<'a> RegisteredTests<'a> {
             &mut Default::default(),
         )?;
         let psi = self.source.publish(&checked, &mut Default::default())?;
-        published_target(psi, checked, target, self.source.subject)
+        published_target(psi, &checked, target, self.source.subject)
     }
 }

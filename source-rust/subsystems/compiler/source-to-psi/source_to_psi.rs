@@ -100,7 +100,46 @@ pub fn compile_for_target_with_timings(
         &mut Default::default(),
         timings,
     )?;
-    driver::published_target(artifact, checked, target, subject)
+    driver::published_target(artifact, &checked, target, subject)
+}
+
+/// Check the source once and publish it for each of `targets`, in order.
+///
+/// Lowering and checking do not depend on which deployment is asked for, so
+/// every deployment shares one artifact and receives its own provider supply.
+/// This is how checking for one target still checks the other targets' Build
+/// rows (build/configuration.md, "Multi-target compilation").
+pub fn compile_for_targets_with_timings(
+    source: StageSource<'_>,
+    targets: &[&str],
+    advisories: Option<&mut Vec<Diagnostic>>,
+    timings: &mut CompileTimings,
+) -> Result<Vec<PublishedTargetProgram>, Vec<Diagnostic>> {
+    let Some(&first) = targets.first() else {
+        return Err(vec![Diagnostic::error(
+            "source publication requires at least one deployment target",
+        )]);
+    };
+    if let Some(missing) = targets
+        .iter()
+        .find(|target| !source.product.calling_targets.contains(target))
+    {
+        return Err(vec![Diagnostic::error(format!(
+            "source program did not select deployment target `{missing}`"
+        ))]);
+    }
+    let (artifact, checked, subject) = publish_deployment(
+        source,
+        first,
+        ProductEntry::BuildBindings,
+        advisories,
+        &mut Default::default(),
+        timings,
+    )?;
+    targets
+        .iter()
+        .map(|target| driver::published_target(Arc::clone(&artifact), &checked, target, subject))
+        .collect()
 }
 
 pub fn review_package(
@@ -131,7 +170,7 @@ pub fn review_package(
         root_grants: checked.grants.clone(),
         has_assumed_bindings: !checked.declarations.assumed_bindings.is_empty(),
     };
-    let target = driver::published_target(artifact, checked, target, subject)?;
+    let target = driver::published_target(artifact, &checked, target, subject)?;
     Ok((declarations, target))
 }
 
