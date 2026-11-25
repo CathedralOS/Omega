@@ -122,6 +122,46 @@ fn store(path: Vec<StructuralPathSegment>) -> Operation {
 }
 
 #[test]
+fn inventory_keeps_a_content_domains_predicate_without_proving_a_changed_value() {
+    use semantic_vocabulary::{
+        ContentAlgebra, ContentAlgebraKind, ContentDomainId, ContentProjectionExpression,
+        ContentProjectionIdentity, ContentProjectionScalar,
+    };
+    let types = types(2);
+    let mut machine = machine();
+    let mut owner = domain(types[1].id);
+    owner.predicate.as_mut().unwrap().proposition = Proposition::Truth;
+    let input = &mut machine.structural_parameters[0];
+    input.qualifications.push(owner.id);
+    let algebra = ContentAlgebra {
+        kind: ContentAlgebraKind::CountedQuantity,
+        parameter: "Bytes".into(),
+    };
+    let value =
+        ContentProjectionExpression::CountedQuantity(ContentProjectionScalar::Natural("2".into()));
+    owner.content_projection = Some(terminal_psi::StructuralContentProjection {
+        identity: ContentProjectionIdentity {
+            domain: ContentDomainId::new(owner.semantic_domain.get()).unwrap(),
+            projection_report_fingerprint: value.report_fingerprint(&algebra),
+        },
+        algebra,
+        expression: value,
+    });
+    let domains = [owner];
+    let defaults = DefaultRequirements::new(&types, &domains, &machine).unwrap();
+    let held = defaults.declared().unwrap();
+    assert_eq!(held.len(), 1);
+    assert_eq!(held[0].origin, DefaultClause::Domain(domains[0].id));
+    assert_eq!(defaults.clause(&held[0]).unwrap(), Proposition::Truth);
+    let changed = store(vec![StructuralPathSegment::FixedIndex(0)]);
+    let error = defaults.declared_operation(&changed).unwrap_err();
+    assert_eq!(
+        error.detail,
+        "a named default has no complete storage predicate theory"
+    );
+}
+
+#[test]
 fn named_defaults_are_rerooted_goals_not_membership_truth() {
     let mut types = types(2);
     types[1].requires.push(Proposition::Truth);
