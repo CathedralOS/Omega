@@ -47,7 +47,7 @@ impl Prover<'_> {
         // table or a scan of every fact at each reached endpoint.
         let mut indexed: BTreeMap<ScalarTerm, Vec<usize>> = BTreeMap::new();
         for (index, fact) in self.facts.iter().enumerate() {
-            if let Proposition::FloatMeaningEqual(clause) = &fact.proposition {
+            if let Proposition::FloatMeaningEqual(clause) = fact.proposition() {
                 for source in subjects(clause) {
                     indexed.entry(source.clone()).or_default().push(index);
                 }
@@ -69,7 +69,7 @@ impl Prover<'_> {
                     continue;
                 }
                 equations.push(index);
-                let Proposition::FloatMeaningEqual(clause) = &self.facts[index].proposition else {
+                let Proposition::FloatMeaningEqual(clause) = self.facts[index].proposition() else {
                     unreachable!("indexed meaning equation")
                 };
                 pending.extend(subjects(clause).cloned());
@@ -80,7 +80,7 @@ impl Prover<'_> {
             goal,
             equations
                 .iter()
-                .map(|&index| &self.facts[index].proposition),
+                .map(|&index| self.facts[index].proposition()),
         ) {
             Ok(()) => Ok(node(
                 goal.clone(),

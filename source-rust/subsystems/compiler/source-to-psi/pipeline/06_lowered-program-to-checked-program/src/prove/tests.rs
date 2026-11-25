@@ -192,7 +192,7 @@ mod exact_fact_index {
                 known
                     .facts
                     .iter()
-                    .position(|fact| &fact.proposition == goal)
+                    .position(|fact| fact.proposition() == goal)
             );
         }
         assert_eq!(activity.exact_fact_work.fallback_lookups, 3);
@@ -273,8 +273,8 @@ mod bound_fact_index {
                 unreachable!();
             };
             assert_eq!(
-                prover.facts[derived].proposition,
-                sorted_math_equal(
+                prover.facts[derived].proposition(),
+                &sorted_math_equal(
                     IntegerMathTerm::embed(left.clone()).unwrap(),
                     IntegerMathTerm::embed(right.clone()).unwrap(),
                 )
@@ -1512,12 +1512,12 @@ fn case_search_does_not_materialize_exhausted_or_active_cuts() {
     let mut activity = ProofSearchActivity::default();
     let mut active = Prover::new(&context, &assumptions, &axioms, &values, &mut activity);
     assert!(active.facts.iter().any(|fact| {
-        matches!(fact.proposition, Proposition::Disjunction(_)) && fact.proposition != wrapped
+        matches!(fact.proposition(), Proposition::Disjunction(_)) && fact.proposition() != &wrapped
     }));
     let original = active
         .facts
         .iter()
-        .find(|fact| fact.proposition == wrapped)
+        .find(|fact| fact.proposition() == &wrapped)
         .unwrap();
     active.active_cuts.push(ActiveCut {
         proposition: wrapped,

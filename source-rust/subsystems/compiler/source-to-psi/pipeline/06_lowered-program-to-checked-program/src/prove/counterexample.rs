@@ -42,7 +42,7 @@ impl Prover<'_> {
             // when that input has no defining SSA operation. Use the prepared
             // equality to propose that value, then replay the original path.
             for fact in &self.facts {
-                let Some((left, right)) = fact.proposition.as_equal() else {
+                let Some((left, right)) = fact.proposition().as_equal() else {
                     continue;
                 };
                 for (subject, literal) in [(left, right), (right, left)] {
@@ -56,7 +56,7 @@ impl Prover<'_> {
             }
             for &index in &self.equations {
                 let Some((ScalarTerm::Value { id, .. }, term)) =
-                    self.facts[index].proposition.as_equal()
+                    self.facts[index].proposition().as_equal()
                 else {
                     continue;
                 };

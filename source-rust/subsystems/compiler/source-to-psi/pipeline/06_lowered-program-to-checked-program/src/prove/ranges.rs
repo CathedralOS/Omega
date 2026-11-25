@@ -359,7 +359,7 @@ impl Prover<'_> {
         let (difference, equation) = if let ScalarTerm::Value { id, .. } = value {
             let index = self.equations[(*self.definitions.get(*id)?)?];
             let Proposition::Equal(result, difference @ ScalarTerm::ExactIntegerSubtract { .. }) =
-                &self.facts[index].proposition
+                self.facts[index].proposition()
             else {
                 return None;
             };
@@ -459,7 +459,7 @@ impl Prover<'_> {
             while let Some(index) = self.bound_facts.next(*id, &mut cursor) {
                 let (Proposition::Equal(_, gap)
                 | Proposition::LessThan(_, gap)
-                | Proposition::LessOrEqual(_, gap)) = &self.facts[index].proposition
+                | Proposition::LessOrEqual(_, gap)) = self.facts[index].proposition()
                 else {
                     continue;
                 };
@@ -635,7 +635,7 @@ impl Prover<'_> {
                 // Either orientation: the kernel reads the count's literal
                 // from whichever side it stands on.
                 matches!(
-                    &fact.proposition,
+                    fact.proposition(),
                     Proposition::Equal(left, right)
                         if (left == &count && right.integer_value().is_some())
                             || (right == &count && left.integer_value().is_some())
