@@ -1708,9 +1708,17 @@ pub mod domain {
         use crate::source_state::data::{TypeParameter, TypeParameterKind};
         use symbols::{SymbolKind, SymbolNameRef};
 
-        let mut trees = TypedTrees::default();
-        let carrier = trees.type_reference_table.insert(crate::source_state::types::TypeReferenceNode::Unit);
-        let binder = trees.symbols.insert_root(SymbolKind::TypeParameter, SymbolNameRef::Static("K"));
+        let mut symbols = crate::source_symbols::SymbolTableBuilder::new();
+        let binder = symbols.insert_root(SymbolKind::TypeParameter, SymbolNameRef::Static("K"));
+        let named_type =
+            symbols.insert_root(SymbolKind::BuiltinType, SymbolNameRef::Static("bool"));
+        let mut trees = TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
+        let carrier = trees
+            .type_reference_table
+            .insert(crate::source_state::types::TypeReferenceNode::Unit);
         trees.data_type_parameters.insert(TypeParameter {
             symbol: binder,
             kind: TypeParameterKind::Const { type_reference: carrier },
@@ -1720,8 +1728,10 @@ pub mod domain {
         assert!(closed_domain_argument_identity(&trees, argument, "()", &[]).is_ok());
         let wrong = closed_domain_argument_identity(&trees, argument, "u8", &[]).unwrap_err();
         assert!(wrong.message.contains("has type `()`, expected `u8`"));
-        let named_type = trees.symbols.insert_root(SymbolKind::BuiltinType, SymbolNameRef::Static("bool"));
-        let argument = trees.type_reference_table.insert(Named { symbol: named_type, name: Identifier::from("bool") });
+        let argument = trees.type_reference_table.insert(Named {
+            symbol: named_type,
+            name: Identifier::from("bool"),
+        });
         let wrong = closed_domain_argument_identity(&trees, argument, "u8", &[]).unwrap_err();
         assert!(wrong.message.contains("must name a constant or a const parameter"));
     }

@@ -144,9 +144,7 @@ OtherLayout satisfies Layout<Other> { machine measure(value: Other) -> u64 { 0u6
         let resolved = crate::resolve_fixture(&format!(
             "{source}\ndata Holder {{ storage: Storage<Word, OtherLayout>; }}"
         ));
-        let error = crate::lower_symbol_resolved_trees(&resolved)
-            .err()
-            .expect("wrong layout");
+        let error = crate::lower_symbol_resolved_trees(&resolved).expect_err("wrong layout");
         assert!(
             error.message.contains("OtherLayout")
                 && error.message.contains("Layout")

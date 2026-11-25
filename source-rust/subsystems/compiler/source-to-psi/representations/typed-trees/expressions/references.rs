@@ -1367,6 +1367,12 @@ pub trait TypedReferences: Extend<SymbolHandle> {
     fn derived_declaration_references(&self) -> bool {
         true
     }
+    /// Whether this form reads the symbols the walk passes to `extend`. A
+    /// form that ignores them lets the walk skip name lookups whose only
+    /// result is such a symbol; every other edge is visited as before.
+    fn collects_symbols(&self) -> bool {
+        true
+    }
     /// A semantic data declaration publishes every selected storage layout.
     /// Reading the declaration does not itself use all its representations.
     fn published_data_layouts(&self) -> bool {
@@ -1912,6 +1918,12 @@ impl Extend<SymbolHandle> for TypeOccurrences {
 }
 
 impl TypedReferences for TypeOccurrences {
+    // Occurrences and owners are types, expressions and applications;
+    // `extend` drops every symbol.
+    fn collects_symbols(&self) -> bool {
+        false
+    }
+
     fn static_parameter_type(&mut self, program: &TypedTrees, reference: TypeReferenceHandle) {
         if program.static_record_schema(reference, self.owner).is_some() {
             let occurrence = TypeOccurrence { lexical_owner: self.owner, reference };
@@ -3862,19 +3874,23 @@ fn visit_call_expression(
     {
         visit_callable_symbol(program, retained, call.target_symbol);
     }
-    for operator in crate::source_state::operator::named_expression_call_candidates(program, call) {
-        visit_symbol(retained, operator.symbol);
-    }
-    // Overload selection runs after the walk, so the walk keeps every member
-    // of a named machine family the call may select.
-    if let Some(path) =
-        crate::source_state::operator::named_expression_call_family_path(program, call)
-    {
-        let reference = program.expression_table.source_span(expression);
-        for member in
-            crate::source_state::operator::named_call_family_members(program, &path, reference)
+    if retained.collects_symbols() {
+        for operator in
+            crate::source_state::operator::named_expression_call_candidates(program, call)
         {
-            visit_symbol(retained, member);
+            visit_symbol(retained, operator.symbol);
+        }
+        // Overload selection runs after the walk, so the walk keeps every
+        // member of a named machine family the call may select.
+        if let Some(path) =
+            crate::source_state::operator::named_expression_call_family_path(program, call)
+        {
+            let reference = program.expression_table.source_span(expression);
+            for member in
+                crate::source_state::operator::named_call_family_members(program, &path, reference)
+            {
+                visit_symbol(retained, member);
+            }
         }
     }
     if call.static_machine_parameter.is_valid() {
@@ -3991,20 +4007,22 @@ fn visit_statement(
             if call.runtime_call.is_none() || call.target_symbol.is_valid() {
                 visit_callable_symbol(program, retained, call.target_symbol);
             }
-            for operator in
-                crate::source_state::operator::named_statement_call_candidates(program, call)
-            {
-                visit_symbol(retained, operator.symbol);
-            }
-            if let Some(path) =
-                crate::source_state::operator::named_statement_call_family_path(program, call)
-            {
-                for member in crate::source_state::operator::named_call_family_members(
-                    program,
-                    &path,
-                    call.source_span,
-                ) {
-                    visit_symbol(retained, member);
+            if retained.collects_symbols() {
+                for operator in
+                    crate::source_state::operator::named_statement_call_candidates(program, call)
+                {
+                    visit_symbol(retained, operator.symbol);
+                }
+                if let Some(path) =
+                    crate::source_state::operator::named_statement_call_family_path(program, call)
+                {
+                    for member in crate::source_state::operator::named_call_family_members(
+                        program,
+                        &path,
+                        call.source_span,
+                    ) {
+                        visit_symbol(retained, member);
+                    }
                 }
             }
             if call.static_machine_parameter.is_valid() {
@@ -4085,8 +4103,9 @@ fn visit_statement(
                     }
                     visit_symbol(retained, path.head_symbol);
                 }
-                if let Some((name, reference)) =
-                    crate::source_state::operator::named_transition_family_path(program, target)
+                if retained.collects_symbols()
+                    && let Some((name, reference)) =
+                        crate::source_state::operator::named_transition_family_path(program, target)
                 {
                     for member in crate::source_state::operator::named_call_family_members(
                         program, name, reference,
