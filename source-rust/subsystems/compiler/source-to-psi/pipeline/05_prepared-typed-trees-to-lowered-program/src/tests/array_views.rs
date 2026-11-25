@@ -3,7 +3,7 @@ use crate::body::{Borrowed, BorrowedReferent, Regions};
 use language_core::ReferenceAccess;
 use terminal_psi::{ArrayExtent, ByteSequenceCarrier, ElementViewRegion};
 
-fn array_types(access: StructuralAccess) -> IdTable<StructuralTypeId, RecordType> {
+pub(super) fn array_types(access: StructuralAccess) -> IdTable<StructuralTypeId, RecordType> {
     let mut records = IdTable::default();
     let mut add = |identity: &str, copyable, shape| {
         records.push(RecordType {

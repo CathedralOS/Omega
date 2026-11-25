@@ -2142,7 +2142,7 @@ fn finish_storage(
     // as reading every machine.
     machine_order::plan_then_apply(
         module,
-        |module, machine| storage_plan(module, machine, names, sources),
+        |module, summaries, machine| storage_plan(module, summaries, machine, names, sources),
         |plan| match plan {
             Ok(Ok(plan)) => Some(plan.graphed_machines.as_slice()),
             _ => None,
@@ -2182,11 +2182,14 @@ fn finish_storage(
 /// `Err(_)` when the stores it plans cannot be validated, which ends storage.
 fn storage_plan(
     module: &terminal_psi::TerminalModule,
+    summaries: &terminal_semantics::plain_affine::AffineSummaries<'_>,
     machine: &terminal_psi::TerminalMachine,
     names: &IdTable<MachineId, MachineNames>,
     sources: &IdTable<MachineId, MachineSources>,
 ) -> Checked<Checked<terminal_semantics::plain_affine::Plan>> {
-    let plan = terminal_semantics::plain_affine::plan_in(module, machine.id).map_err(|error| {
+    let walks =
+        terminal_semantics::plain_affine::MachineAffine::new(module, machine.id, Some(summaries));
+    let plan = walks.and_then(|walks| walks.plan()).map_err(|error| {
         let (concerns, operation, origin) = match error.site() {
             Some(terminal_semantics::plain_affine::Site::Operation(at)) => (
                 Construct::Operation(at),
