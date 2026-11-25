@@ -130,7 +130,7 @@ impl<'a> StructuralTypeIndex<'a> {
         path: &[StructuralPathSegment],
         final_field: Option<StructuralFieldId>,
     ) -> Option<DescriptorLocation> {
-        descriptor_location_with(self, root, root_type, path, final_field)
+        descriptor_location_with(&self, root, root_type, path, final_field)
     }
 
     pub(crate) fn descriptor_location_type(
@@ -138,7 +138,7 @@ impl<'a> StructuralTypeIndex<'a> {
         root_type: StructuralTypeId,
         path: &[DescriptorPathSegment],
     ) -> Option<StructuralTypeId> {
-        resolved_tip_with(self, root_type, path, |_, _, _| None)?
+        resolved_tip_with(&self, root_type, path, |_, _, _| None)?
     }
 
     pub(crate) fn resolved_path(
@@ -151,7 +151,7 @@ impl<'a> StructuralTypeIndex<'a> {
             u64,
         ) -> Option<StructuralTypeId>,
     ) -> Option<(Vec<StructuralPathSegment>, Option<StructuralTypeId>)> {
-        resolved_path_with(self, root_type, path, constructor_element)
+        resolved_path_with(&self, root_type, path, constructor_element)
     }
 
     pub(crate) fn resolved_tip(
@@ -164,44 +164,16 @@ impl<'a> StructuralTypeIndex<'a> {
             u64,
         ) -> Option<StructuralTypeId>,
     ) -> Option<Option<StructuralTypeId>> {
-        resolved_tip_with(self, root_type, path, constructor_element)
+        resolved_tip_with(&self, root_type, path, constructor_element)
     }
 }
 
-trait TypeLookup<'a> {
-    fn unique_declaration(&self, id: StructuralTypeId) -> Option<&'a StructuralTypeDeclaration>;
-    fn inline_carrier(
-        &self,
-        field: &StructuralFieldDeclaration,
-    ) -> Option<&'a StructuralTypeDeclaration>;
-    fn leaf_declaration(
-        &self,
-        field_type: &StructuralFieldType,
-    ) -> Option<&'a StructuralTypeDeclaration>;
-    fn representation_view(
-        &self,
-        view: StructuralTypeId,
-        stored: Option<ScalarType>,
-    ) -> Option<&'a StructuralTypeDeclaration>;
-}
-
-impl<'a> TypeLookup<'a> for &'a [StructuralTypeDeclaration] {
-    fn unique_declaration(&self, id: StructuralTypeId) -> Option<&'a StructuralTypeDeclaration> {
-        declaration(self, id)
-    }
-
-    fn inline_carrier(
-        &self,
-        field: &StructuralFieldDeclaration,
-    ) -> Option<&'a StructuralTypeDeclaration> {
-        crate::inline_carrier_declaration(self.iter(), field)
-    }
-
-    fn leaf_declaration(
-        &self,
-        field_type: &StructuralFieldType,
-    ) -> Option<&'a StructuralTypeDeclaration> {
-        field_type.leaf_declaration(self.iter())
+// Each list reader accepts exactly one row with the identity it looks up, so
+// handing it that row alone, found by the index, gives its answer over the
+// whole list. A leaf reader only ever accepts a primitive or byte carrier.
+impl<'a> crate::StructuralDeclarations<'a> for &StructuralTypeIndex<'a> {
+    fn unique(&self, id: StructuralTypeId) -> Option<&'a StructuralTypeDeclaration> {
+        StructuralTypeIndex::unique(self, id)
     }
 
     fn representation_view(
@@ -209,13 +181,8 @@ impl<'a> TypeLookup<'a> for &'a [StructuralTypeDeclaration] {
         view: StructuralTypeId,
         stored: Option<ScalarType>,
     ) -> Option<&'a StructuralTypeDeclaration> {
-        crate::representation_view_declaration(self.iter(), view, stored)
-    }
-}
-
-impl<'a> TypeLookup<'a> for StructuralTypeIndex<'a> {
-    fn unique_declaration(&self, id: StructuralTypeId) -> Option<&'a StructuralTypeDeclaration> {
-        self.unique(id)
+        let declaration = StructuralTypeIndex::unique(self, view)?;
+        crate::representation_view_declaration(std::iter::once(declaration), view, stored)
     }
 
     fn inline_carrier(
@@ -225,7 +192,7 @@ impl<'a> TypeLookup<'a> for StructuralTypeIndex<'a> {
         if field.relevance.is_erased() {
             return None;
         }
-        let carrier = self.unique(field.inline_carrier?)?;
+        let carrier = StructuralTypeIndex::unique(self, field.inline_carrier?)?;
         crate::inline_carrier_declaration(std::iter::once(carrier), field)
     }
 
@@ -234,18 +201,9 @@ impl<'a> TypeLookup<'a> for StructuralTypeIndex<'a> {
         field_type: &StructuralFieldType,
     ) -> Option<&'a StructuralTypeDeclaration> {
         if let StructuralFieldType::Structural(id) = field_type {
-            return self.unique(*id);
+            return StructuralTypeIndex::unique(self, *id);
         }
         field_type.leaf_declaration(self.leaf_indices.iter().map(|&index| &self.types[index]))
-    }
-
-    fn representation_view(
-        &self,
-        view: StructuralTypeId,
-        stored: Option<ScalarType>,
-    ) -> Option<&'a StructuralTypeDeclaration> {
-        let declaration = self.unique(view)?;
-        crate::representation_view_declaration(std::iter::once(declaration), view, stored)
     }
 }
 
@@ -281,10 +239,10 @@ pub fn descriptor_location(
     path: &[StructuralPathSegment],
     final_field: Option<StructuralFieldId>,
 ) -> Option<DescriptorLocation> {
-    descriptor_location_with(&types, root, root_type, path, final_field)
+    descriptor_location_with(&types.iter(), root, root_type, path, final_field)
 }
 
-fn descriptor_location_with<'a, L: TypeLookup<'a>>(
+fn descriptor_location_with<'a, L: crate::StructuralDeclarations<'a>>(
     types: &L,
     root: PlaceId,
     root_type: StructuralTypeId,
@@ -295,7 +253,7 @@ fn descriptor_location_with<'a, L: TypeLookup<'a>>(
     let mut tip = Some(root_type);
     let mut case_fields = None;
     for segment in path {
-        let declaration = types.unique_declaration(tip?)?;
+        let declaration = types.unique(tip?)?;
         let canonical = match segment {
             StructuralPathSegment::RepresentationView {
                 structural_type,
@@ -354,7 +312,7 @@ fn descriptor_location_with<'a, L: TypeLookup<'a>>(
         result.path.push(canonical);
     }
     if let Some(id) = final_field {
-        let declaration = types.unique_declaration(tip?)?;
+        let declaration = types.unique(tip?)?;
         let fields = match case_fields.take() {
             Some(fields) => fields,
             None => fields(declaration)?,
@@ -545,14 +503,14 @@ pub fn descriptor_location_type(
     root_type: StructuralTypeId,
     path: &[DescriptorPathSegment],
 ) -> Option<StructuralTypeId> {
-    resolved_tip_with(&types, root_type, path, |_, _, _| None)?
+    resolved_tip_with(&types.iter(), root_type, path, |_, _, _| None)?
 }
 pub fn descriptor_path(
     types: &[StructuralTypeDeclaration],
     root_type: StructuralTypeId,
     path: &[DescriptorPathSegment],
 ) -> Option<Vec<StructuralPathSegment>> {
-    Some(resolved_path_with(&types, root_type, path, |_, _, _| None)?.0)
+    Some(resolved_path_with(&types.iter(), root_type, path, |_, _, _| None)?.0)
 }
 pub(crate) fn resolved_path(
     types: &[StructuralTypeDeclaration],
@@ -564,10 +522,10 @@ pub(crate) fn resolved_path(
         u64,
     ) -> Option<StructuralTypeId>,
 ) -> Option<(Vec<StructuralPathSegment>, Option<StructuralTypeId>)> {
-    resolved_path_with(&types, root_type, path, constructor_element)
+    resolved_path_with(&types.iter(), root_type, path, constructor_element)
 }
 
-fn resolved_path_with<'a, L: TypeLookup<'a>>(
+fn resolved_path_with<'a, L: crate::StructuralDeclarations<'a>>(
     types: &L,
     root_type: StructuralTypeId,
     path: &[DescriptorPathSegment],
@@ -581,7 +539,7 @@ fn resolved_path_with<'a, L: TypeLookup<'a>>(
     let mut tip = Some(root_type);
     let mut case_fields = None;
     for segment in path {
-        let declaration = types.unique_declaration(tip?)?;
+        let declaration = types.unique(tip?)?;
         result.push(match segment {
             DescriptorPathSegment::RepresentationView {
                 structural_type,
@@ -658,7 +616,7 @@ fn resolved_path_with<'a, L: TypeLookup<'a>>(
     case_fields.is_none().then_some((result, tip))
 }
 
-fn resolved_tip_with<'a, L: TypeLookup<'a>>(
+fn resolved_tip_with<'a, L: crate::StructuralDeclarations<'a>>(
     types: &L,
     root_type: StructuralTypeId,
     path: &[DescriptorPathSegment],
@@ -671,7 +629,7 @@ fn resolved_tip_with<'a, L: TypeLookup<'a>>(
     let mut tip = Some(root_type);
     let mut case_fields = None;
     for (index, segment) in path.iter().enumerate() {
-        let declaration = types.unique_declaration(tip?)?;
+        let declaration = types.unique(tip?)?;
         match segment {
             DescriptorPathSegment::RepresentationView {
                 structural_type,

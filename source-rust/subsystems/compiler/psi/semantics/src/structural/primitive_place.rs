@@ -471,6 +471,11 @@ pub trait StructuralDeclarations<'a>: Clone {
         &self,
         field: &StructuralFieldDeclaration,
     ) -> Option<&'a StructuralTypeDeclaration>;
+    /// `StructuralFieldType::leaf_declaration` over the same list.
+    fn leaf_declaration(
+        &self,
+        field_type: &StructuralFieldType,
+    ) -> Option<&'a StructuralTypeDeclaration>;
 }
 
 impl<'a, I> StructuralDeclarations<'a> for I
@@ -495,37 +500,12 @@ where
     ) -> Option<&'a StructuralTypeDeclaration> {
         crate::inline_carrier_declaration(self.clone(), field)
     }
-}
 
-// Both list readers accept exactly one row with the identity they look up,
-// so handing them that row alone, found by the index, gives their answer.
-impl<'a> StructuralDeclarations<'a> for &crate::descriptor_lifetimes::StructuralTypeIndex<'a> {
-    fn unique(&self, id: StructuralTypeId) -> Option<&'a StructuralTypeDeclaration> {
-        crate::descriptor_lifetimes::StructuralTypeIndex::unique(self, id)
-    }
-
-    fn representation_view(
+    fn leaf_declaration(
         &self,
-        view: StructuralTypeId,
-        stored: Option<ScalarType>,
+        field_type: &StructuralFieldType,
     ) -> Option<&'a StructuralTypeDeclaration> {
-        let declaration = StructuralDeclarations::unique(self, view)?;
-        terminal_psi::types::representation_views::declaration(
-            std::iter::once(declaration),
-            view,
-            stored,
-        )
-    }
-
-    fn inline_carrier(
-        &self,
-        field: &StructuralFieldDeclaration,
-    ) -> Option<&'a StructuralTypeDeclaration> {
-        if field.relevance.is_erased() {
-            return None;
-        }
-        let carrier = StructuralDeclarations::unique(self, field.inline_carrier?)?;
-        crate::inline_carrier_declaration(std::iter::once(carrier), field)
+        field_type.leaf_declaration(self.clone())
     }
 }
 
@@ -559,6 +539,13 @@ where
         field: &StructuralFieldDeclaration,
     ) -> Option<&'a StructuralTypeDeclaration> {
         self.declarations.inline_carrier(field)
+    }
+
+    fn leaf_declaration(
+        &self,
+        field_type: &StructuralFieldType,
+    ) -> Option<&'a StructuralTypeDeclaration> {
+        self.declarations.leaf_declaration(field_type)
     }
 }
 
