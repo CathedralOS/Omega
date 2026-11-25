@@ -74,15 +74,7 @@ pub fn resolve_build_sources(
     let profile = TargetProfile::host_if_supported()
         .ok_or_else(|| "package Build execution requires a supported host".to_owned())?;
     let acquired = acquisitions.retain_root(acquired)?;
-    let mut host = SourceHost {
-        session,
-        acquisitions,
-        profile,
-        timings: false,
-        observed: Vec::new(),
-        active: Vec::new(),
-        settled: Vec::new(),
-    };
+    let mut host = SourceHost::new(session, acquisitions, profile, false);
     let result = host.resolve(&acquired.entry_path(), acquired, snapshot);
     if let Err(error) = &result {
         host.session
@@ -172,6 +164,7 @@ struct SourceHost<'session, 'policy> {
     acquisitions: &'session mut BuildSourceAcquisitions<'policy>,
     profile: TargetProfile,
     timings: bool,
+    preparation: project_build::SourcePreparation,
     // Workspace members are executed to read their names. Retain their actual returns
     // so selection can settle those same invocations without charging for a second run.
     observed: Vec<(AcquiredBuildSource, ExecutedBuild)>,
@@ -179,7 +172,25 @@ struct SourceHost<'session, 'policy> {
     settled: Vec<SettledSource>,
 }
 
-impl SourceHost<'_, '_> {
+impl<'session, 'policy> SourceHost<'session, 'policy> {
+    fn new(
+        session: &'session mut PackageBuildSession,
+        acquisitions: &'session mut BuildSourceAcquisitions<'policy>,
+        profile: TargetProfile,
+        timings: bool,
+    ) -> Self {
+        Self {
+            session,
+            acquisitions,
+            profile,
+            timings,
+            preparation: Default::default(),
+            observed: Vec::new(),
+            active: Vec::new(),
+            settled: Vec::new(),
+        }
+    }
+
     fn execute(
         &mut self,
         entry: &Path,
@@ -212,7 +223,7 @@ impl SourceHost<'_, '_> {
                     execution,
                     artifact_only: false,
                 },
-                Default::default(),
+                self.preparation.clone(),
                 planning_timings(self.timings),
             )?;
             Ok(project_build::interpret(
@@ -650,15 +661,7 @@ fn open_products_with(
         if let Some(started) = step {
             open_timings.add_completed(OPEN_ACQUIRE_ROOT, started.elapsed().as_micros());
         }
-        let mut host = SourceHost {
-            session: &mut session,
-            acquisitions: &mut acquisitions,
-            profile,
-            timings,
-            observed: Vec::new(),
-            active: Vec::new(),
-            settled: Vec::new(),
-        };
+        let mut host = SourceHost::new(&mut session, &mut acquisitions, profile, timings);
         let entry = match input {
             ProjectInput::PackageCheck(path)
                 if path.file_name().is_some_and(|name| name == "main.omg") =>

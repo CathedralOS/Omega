@@ -224,7 +224,7 @@ fn product_file_request(
         .source_id;
     crate::ParsedStageSources::parse(Arc::new(sources), vec![id], Vec::new())
         .unwrap()
-        .into_request("linux_x86_64", purpose, id)
+        .into_request("linux_x86_64", purpose, id, Default::default())
         .unwrap()
 }
 

@@ -52,6 +52,7 @@ fn product<'a>(
             vec![root],
             vec![],
         )?),
+        frontends: Default::default(),
         product: ProductSourceInputs {
             build_accounting: None,
             declaration_scope: None,

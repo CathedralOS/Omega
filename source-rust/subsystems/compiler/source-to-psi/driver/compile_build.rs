@@ -147,8 +147,8 @@ impl BuildStageSource {
             host,
             source_provenance::DependencyScope::Build,
             self.entry.source_id,
+            preparation.frontends.clone(),
         )?;
-        request.frontends = preparation.frontends.clone();
         target_helpers::select_build_helpers(&mut request.syntax.trees, host, &self.build_sources);
         request.selection_authority = authority;
         Ok(request.with_build_entry(entry.as_ref()))

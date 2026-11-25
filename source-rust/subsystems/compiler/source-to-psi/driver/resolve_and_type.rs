@@ -158,6 +158,8 @@ impl ResolveAndTypeRequest {
         let activation = activation::select_retained_source(&self, &context, timings)?;
         if let Some(activation) = &activation {
             activation.remove_retained_syntax(&mut self.syntax.trees, &self.source_items);
+            self.frontends.record_activation();
+            artifacts::compile_timings::counters::record_typed_frontier_reuse();
         }
         // Check the predecessor while its owner can still be borrowed. Report
         // any refusal after checking the successor to preserve diagnostic order.
@@ -523,15 +525,28 @@ impl SourcePreparation {
 #[derive(Clone, Default)]
 pub struct SourceFrontends {
     entries: Arc<std::sync::Mutex<Vec<Arc<SourceCompletionInput>>>>,
+    activations: Arc<std::sync::atomic::AtomicUsize>,
 }
 impl SourceFrontends {
     pub fn retained_count(&self) -> Result<usize, Vec<Diagnostic>> {
         self.snapshots().map(|entries| entries.len())
     }
 
+    pub fn activation_count(&self) -> usize {
+        self.activations.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    fn record_activation(&self) {
+        self.activations
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    }
+
     pub fn fork(&self) -> Result<Self, Vec<Diagnostic>> {
         Ok(Self {
             entries: Arc::new(std::sync::Mutex::new(self.snapshots()?)),
+            activations: Arc::new(std::sync::atomic::AtomicUsize::new(
+                self.activation_count(),
+            )),
         })
     }
 
@@ -542,6 +557,10 @@ impl SourceFrontends {
                 "source frontend retention owner is poisoned",
             )]
         })? = entries;
+        self.activations.store(
+            other.activation_count(),
+            std::sync::atomic::Ordering::Relaxed,
+        );
         Ok(())
     }
     fn snapshots(&self) -> Result<Vec<Arc<SourceCompletionInput>>, Vec<Diagnostic>> {

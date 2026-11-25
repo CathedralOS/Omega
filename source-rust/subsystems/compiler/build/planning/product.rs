@@ -255,6 +255,7 @@ impl ProductStage<'_> {
         let build = &self.product.evaluated().configuration;
         StageSource {
             parsed: Box::new(source.parsed.clone()),
+            frontends: self.product.preparation().frontends.clone(),
             product: ProductSourceInputs {
                 declaration_scope: self.scope.clone(),
                 build_host: self.build_host,

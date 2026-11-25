@@ -85,6 +85,7 @@ impl<'a> StageSource<'a> {
                 self.product.build_host.canonical_name(),
                 source_provenance::DependencyScope::Product,
                 primary,
+                self.frontends,
             )?;
         request.selection_authority = self.product.declaration_scope.clone();
         let continuation = prepare(

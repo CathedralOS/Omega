@@ -60,7 +60,12 @@ fn typed(supplied: &str, program: &str) -> Fixture {
     let parsed = crate::ParsedStageSources::parse(Arc::new(sources), roots, Vec::new())
         .expect("parse the fixture");
     let request = parsed
-        .into_request(TARGETS[0], source_provenance::DependencyScope::Product, primary)
+        .into_request(
+            TARGETS[0],
+            source_provenance::DependencyScope::Product,
+            primary,
+            Default::default(),
+        )
         .expect("request the fixture");
     let typed = crate::test_support::type_authored_source_for_test(
         request,

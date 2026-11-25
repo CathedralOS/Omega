@@ -344,3 +344,43 @@ machine build(builder: @mutable Build) {{
         assert!(!products.settle_rechecks(target).unwrap().is_enabled());
     });
 }
+
+#[test]
+fn popcount_invocation_shares_source_frontends_across_std_and_product() {
+    configure();
+    let temp = TemporaryDirectory::create("popcount-frontends", false).unwrap();
+    let entry = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../samples/cli/arithmetic/popcount/build.omg");
+    let target = TargetProfile::host_if_supported().unwrap();
+    let products = open_products(
+        ProjectInput::File(&entry),
+        &[target],
+        true,
+        false,
+        &temp.path().join("out"),
+        None,
+    )
+    .unwrap();
+    let product = products.select(target).unwrap();
+    let frontends = &product.preparation().frontends;
+    let retained_after_open = frontends.retained_count().unwrap();
+    let activations_after_open = frontends.activation_count();
+    let advisories = product
+        .product_stage(&[target])
+        .unwrap()
+        .check(target, &mut Default::default())
+        .unwrap();
+    let _ = advisories;
+    let retained_after_check = frontends.retained_count().unwrap();
+    let activations_after_check = frontends.activation_count();
+    assert!(retained_after_open >= 3);
+    assert!(retained_after_check > retained_after_open);
+    assert!(
+        activations_after_open >= 1,
+        "expected std/build.omg to reuse core during open_products"
+    );
+    assert!(
+        activations_after_check > activations_after_open,
+        "expected popcount Product to reuse std + core from std build_handoff"
+    );
+}

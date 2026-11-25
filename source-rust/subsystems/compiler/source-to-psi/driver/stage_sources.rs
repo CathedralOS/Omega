@@ -1,9 +1,9 @@
 //! The parser output, capture and import bindings supplied to one Build or Product.
 
+use crate::driver::resolve_and_type::ResolveAndTypeRequest;
 use crate::source_inputs::SourceMap;
 use crate::source_symbols::SourceScopedTopLevelBinding;
-use crate::driver::resolve_and_type::ResolveAndTypeRequest;
-use crate::{SourceInput, SourceSyntax, CompileTimings};
+use crate::{CompileTimings, SourceFrontends, SourceInput, SourceSyntax};
 use diagnostics::Diagnostic;
 use source_files::{LoadedSource, LoadedSources};
 use source_text::SourceId;
@@ -53,6 +53,7 @@ impl ParsedStageSources {
         host: &'static str,
         purpose: source_provenance::DependencyScope,
         primary: SourceId,
+        frontends: SourceFrontends,
     ) -> Result<ResolveAndTypeRequest, Vec<Diagnostic>> {
         if !self.files.source_is_selected(primary)
             || self
@@ -75,7 +76,7 @@ impl ParsedStageSources {
             build_helper_identity: host,
             purpose,
             selection_authority: None,
-            frontends: Default::default(),
+            frontends,
         })
     }
 }

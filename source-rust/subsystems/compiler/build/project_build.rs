@@ -20,6 +20,7 @@ pub use source::{
     OwedBuildRecheck, PendingProduct, PlannedProduct, PlanningRequest, PlanningSources,
     PreparedPlanningStage, prepare, rechecks_outlive_caller, with_build_rechecks,
 };
+pub use source_compiler::SourcePreparation;
 
 use build_declarations::BuildRequest;
 use build_execution::host::bindings::BuildProductQuery;

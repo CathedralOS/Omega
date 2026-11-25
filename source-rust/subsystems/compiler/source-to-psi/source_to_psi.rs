@@ -25,7 +25,7 @@ pub mod test_support;
 
 pub use artifacts::compile_timings::CompileTimings;
 pub use driver::prepare_typed_source::SourcePreparationFailure;
-pub use driver::resolve_and_type::{SourceExtensionRequest, SourcePreparation};
+pub use driver::resolve_and_type::{SourceExtensionRequest, SourceFrontends, SourcePreparation};
 pub use source_declarations::source_selections::RootBinding;
 pub use source_declarations::source_selections::WireCompatibilityDemand;
 
@@ -43,6 +43,7 @@ pub type PublishedPsi = Arc<terminal_codec::CanonicalTerminalArtifact>;
 pub struct StageSource<'a> {
     /// Source requests own the parser tables. Boxing them keeps saved Psi requests small.
     pub parsed: Box<ParsedStageSources>,
+    pub frontends: SourceFrontends,
     pub product: ProductSourceInputs<'a>,
 }
 
