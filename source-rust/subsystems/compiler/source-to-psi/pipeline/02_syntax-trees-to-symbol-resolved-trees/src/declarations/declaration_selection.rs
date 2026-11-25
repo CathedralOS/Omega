@@ -744,6 +744,41 @@ impl<'base> ConstantSelection<'base> {
         (!first.type_parameters.is_empty()).then_some((*first_symbol, *first))
     }
 
+    /// A bare family may share its leaf with a family on another nominal type.
+    /// Its carrier can distinguish those already visible in the reference file.
+    pub(super) fn domain_family_on_type<'syntax>(
+        &self,
+        syntax: &'syntax SyntaxTrees,
+        name: &Identifier,
+        carrier: syntax_trees::types::TypeReferenceHandle,
+    ) -> Option<&'syntax DomainDefinition> {
+        let authored = name.as_str(syntax);
+        let reference = name.source_span();
+        if let Some((_, family)) = self.domain_family(syntax, authored, reference, None) {
+            return Some(family);
+        }
+        if authored.contains("::") {
+            return None;
+        }
+        use syntax_trees::types::TypeReferenceNode;
+        let owner = match syntax_type_references(syntax).type_reference(carrier) {
+            TypeReferenceNode::Named(name)
+            | TypeReferenceNode::Generic {
+                base_name: name, ..
+            } => name,
+            _ => return None,
+        };
+        let qualified = format!("{}::{authored}", owner.as_str(syntax));
+        let (symbol, family) = self.domain_family(syntax, &qualified, reference, None)?;
+        self.domain_symbol_is_reachable(
+            symbol,
+            symbols::SymbolHandle::invalid(),
+            authored,
+            reference,
+        )
+        .then_some(family)
+    }
+
     /*
         Select the nominal carrier in the authored type/constructor's source.
         Header handles remain transient; declaration custody is rejoined after
