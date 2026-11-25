@@ -549,11 +549,61 @@ fn a_description_for_the_same_name_and_span_in_another_package_is_refused() {
     );
 }
 
-fn publish_build(
+#[test]
+fn build_reports_each_unbound_import_at_its_authored_span_before_typing() {
+    let text = "use first;\nuse second;\nmachine build() -> u8 { true }";
+    let package = PackageKeyIdentity::from_digest([0x61; 32]).unwrap();
+    let mut files = SourceMap::default();
+    let root = files
+        .add_checked_instance(
+            "project/build.omg".into(),
+            text,
+            "project".into(),
+            Some(package),
+            SourceOrigin::User,
+            SourceResolutionStratum::Base,
+            DependencyScope::Build,
+        )
+        .source_id;
+    let span = |part: &str| {
+        let start = text.find(part).unwrap();
+        Span::new(start, start + part.len())
+    };
+    let missing = [
+        ("first", span("use first;")),
+        ("second", span("use second;")),
+    ];
+    let stage = source_compiler::BuildStageSource {
+        parsed: source_compiler::ParsedStageSources::parse(Arc::new(files), vec![root], vec![])
+            .unwrap(),
+        build_sources: [root].into(),
+        pending_imports: missing
+            .iter()
+            .map(|(name, span)| source_compiler::PendingBuildImport {
+                source: root,
+                span: *span,
+                target: source_compiler::SourceImportTarget::Namespace(vec![(*name).into()]),
+            })
+            .collect(),
+        entry: SourceSpan::new(root, span("build")),
+    };
+    let Err(errors) = stage.prepare(&Default::default(), "linux_x86_64", None) else {
+        panic!("a Build with unbound imports was prepared");
+    };
+    assert_eq!(errors.len(), missing.len());
+    for (error, (name, span)) in errors.iter().zip(missing) {
+        assert_eq!(
+            error.message,
+            format!("Build import `{name}` has no supplied source")
+        );
+        assert_eq!(error.source_span, Some(SourceSpan::new(root, span)));
+    }
+}
+
+fn typed_build(
     files: SourceMap,
     entry: SourceSpan,
-    package: PackageKeyIdentity,
-) -> Result<(), Vec<diagnostics::Diagnostic>> {
+) -> Result<Arc<typed_trees::TypedTrees>, Vec<diagnostics::Diagnostic>> {
     let stage = source_compiler::BuildStageSource {
         parsed: source_compiler::ParsedStageSources::parse(
             Arc::new(files),
@@ -564,9 +614,79 @@ fn publish_build(
         pending_imports: vec![],
         entry,
     };
-    let typed = stage
-        .prepare(None, &Default::default(), "linux_x86_64", None)?
-        .program;
+    Ok(stage
+        .prepare(&Default::default(), "linux_x86_64", None)?
+        .program)
+}
+
+#[test]
+fn stored_complete_parses_reopen_and_partial_build_parses_are_refused() {
+    let id = SourceId(5);
+    let entry = SourceSpan::new(id, Span::new(8, 13));
+    let limits = record_storage::RecordLimits::default();
+    let old_parse = |entry: Option<SourceSpan>, can_return: bool| {
+        record_storage::encode(
+            &(
+                syntax_trees::SyntaxTrees::new(id),
+                entry,
+                can_return,
+                Vec::<()>::new(),
+            ),
+            limits,
+        )
+        .unwrap()
+    };
+    let clean = old_parse(None, false);
+    let reopened = record_storage::decode::<source_compiler::SourceSyntax>(&clean, limits).unwrap();
+    assert_eq!(reopened, source_compiler::SourceSyntax::new(id));
+    assert_eq!(record_storage::encode(&reopened, limits).unwrap(), clean);
+    for partial in [old_parse(Some(entry), false), old_parse(None, true)] {
+        let error =
+            record_storage::decode::<source_compiler::SourceSyntax>(&partial, limits).unwrap_err();
+        assert!(error.reason.contains("only part of its source"), "{error}");
+    }
+}
+
+#[test]
+fn a_projected_snapshot_cannot_supply_a_complete_build_invocation() {
+    let text = "machine build() {}";
+    let package = PackageKeyIdentity::from_digest([0x61; 32]).unwrap();
+    let mut files = SourceMap::default();
+    let build = files
+        .add_checked_instance(
+            "project/build.omg".into(),
+            text,
+            "project".into(),
+            Some(package),
+            SourceOrigin::User,
+            SourceResolutionStratum::Base,
+            DependencyScope::Build,
+        )
+        .source_id;
+    let start = text.find("build").unwrap();
+    let entry = SourceSpan::new(build, Span::new(start, start + "build".len()));
+    let mut program = Arc::unwrap_or_clone(typed_build(files, entry).unwrap());
+    let machine = program.machines().at(0).symbol;
+    program.roots.partial_build_entry = Some(entry);
+    let Err(failure) =
+        source_compiler::CheckedBuildInvocation::judge(&program, machine, &[Some(package)], None)
+    else {
+        panic!("a partial snapshot supplied a complete Build invocation");
+    };
+    assert_eq!(failure.diagnostics.len(), 1);
+    assert!(
+        failure.diagnostics[0]
+            .message
+            .contains("older Build snapshot")
+    );
+}
+
+fn publish_build(
+    files: SourceMap,
+    entry: SourceSpan,
+    package: PackageKeyIdentity,
+) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    let typed = typed_build(files, entry)?;
     let machine = typed
         .machines()
         .iter()
@@ -580,7 +700,11 @@ fn publish_build(
         None,
     )
     .map_err(|failure| failure.diagnostics)?;
-    judged.invocation.prepare_publication()?.publish().map(|_| ())
+    judged
+        .invocation
+        .prepare_publication()?
+        .publish()
+        .map(|_| ())
 }
 
 #[test]

@@ -306,7 +306,7 @@ impl SourceStorage {
             .map_err(refuse)?;
         let mut filesystem = inputs.source_filesystem().clone();
         self.require_disjoint_contract_packages(inputs)?;
-        // A resumed Build retains the exact core and closed-contract snapshots
+        // The captured Build retains the exact core and closed-contract snapshots
         // it already consumed. Source availability does not grant package edges.
         filesystem
             .join_captures(&self.filesystem)
@@ -332,7 +332,7 @@ impl SourceStorage {
                     .is_some_and(|owner| owner != inputs.root())
             {
                 return Err(refuse(
-                    "resumed Build source has another named owner at Product join".to_owned(),
+                    "Build source has another named owner at Product join".to_owned(),
                 ));
             }
             if inputs.package_for_source(&path) != Some(inputs.root()) {

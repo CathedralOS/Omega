@@ -1049,8 +1049,7 @@ fn statement_homes<'b>(
             }
         }
         Statement::Witness { .. }
-        | Statement::CaptureReference { .. }
-        | Statement::ParkedBuildLocals(..) => {}
+        | Statement::CaptureReference { .. } => {}
         Statement::Dispatch {
             subject,
             arms,
@@ -1579,16 +1578,6 @@ pub(super) struct Located {
     /// The root was produced by this expression's own operation, so no slot
     /// names it and it can be used as the value without a copy.
     fresh: bool,
-}
-
-impl Located {
-    pub(super) fn retain_operands(&self, storage: &mut Vec<PlaceId>, scalars: &mut Vec<ValueId>) {
-        storage.push(self.root);
-        scalars.extend(self.path.iter().filter_map(|step| match step {
-            Step::Index { selector, .. } => Some(*selector),
-            _ => None,
-        }));
-    }
 }
 
 type CaseSelection = (Vec<(BlockId, Chosen)>, Option<(BlockId, Chosen)>);

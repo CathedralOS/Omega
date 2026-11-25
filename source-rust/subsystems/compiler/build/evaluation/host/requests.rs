@@ -72,16 +72,6 @@ struct Registrations {
     issued: Vec<Registration>,
     /// The registration a parked `Build::prepare_dependency` waits for.
     awaiting: Option<usize>,
-    /// A normal return can advance the source scope only after this program
-    /// has completed an authenticated preparation.
-    completed_preparation: bool,
-}
-
-/// Registrations, log lines and source publications survive a dependency wait.
-/// Each live registration still names the marker in the resumed program.
-pub(crate) struct CarriedRequests {
-    registrations: Registrations,
-    output: BuildRequestOutput,
 }
 
 impl Registrations {
@@ -175,53 +165,6 @@ impl TerminalBuildRequestHost {
             .take()
             .ok_or("Build has no dependency preparation pause")?;
         registrations.issued[position].prepared = true;
-        Ok(())
-    }
-
-    /// The source planner can extend this program only after the guest actually
-    /// returned from an authenticated preparation.
-    pub(crate) fn completed_preparation(&self) -> Result<bool, String> {
-        Ok(self
-            .registrations
-            .lock()
-            .map_err(|_| REGISTRATIONS_POISONED)?
-            .completed_preparation)
-    }
-
-    pub(crate) fn carry(&self) -> Result<CarriedRequests, String> {
-        let mut registrations = self
-            .registrations
-            .lock()
-            .map_err(|_| REGISTRATIONS_POISONED)?;
-        if registrations.awaiting.is_some() {
-            return Err("a Build stage ended while it awaited a dependency preparation".into());
-        }
-        let output = self.take_output()?;
-        Ok(CarriedRequests {
-            registrations: std::mem::take(&mut *registrations),
-            output,
-        })
-    }
-
-    pub(crate) fn adopt(
-        &self,
-        mut carried: CarriedRequests,
-        prefix: &terminal_semantics::continuation::CheckedPrefix<'_>,
-    ) -> Result<(), String> {
-        for registration in &mut carried.registrations.issued {
-            super::rebind_issued_marker(prefix, &mut registration.marker)?;
-        }
-        let mut registrations = self
-            .registrations
-            .lock()
-            .map_err(|_| REGISTRATIONS_POISONED)?;
-        let mut output = self.output()?;
-        if !registrations.issued.is_empty() || !output.is_empty() {
-            return Err("a Build stage adopts earlier requests before it runs".into());
-        }
-        *registrations = carried.registrations;
-        registrations.completed_preparation = false;
-        *output = carried.output;
         Ok(())
     }
 
@@ -420,7 +363,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             return Ok(TerminalEffectResult::Unit);
         }
         if call.action == Operation::PrepareDependency {
-            let mut registrations = self
+            let registrations = self
                 .host
                 .registrations
                 .lock()
@@ -431,7 +374,6 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                     "Build dependency preparation requires its completed preparation",
                 ));
             }
-            registrations.completed_preparation = true;
             return Ok(TerminalEffectResult::Unit);
         }
         // A registration returns the marker that names it; every other

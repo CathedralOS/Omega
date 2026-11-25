@@ -64,23 +64,6 @@ pub(crate) fn require_effect_owner(
     Ok(())
 }
 
-/// Rebind the type of a token minted by this host while keeping its exact identity.
-fn rebind_issued_marker(
-    prefix: &terminal_semantics::continuation::CheckedPrefix<'_>,
-    value: &mut terminal_interpreter::TerminalStructuralValue,
-) -> Result<(), String> {
-    if !value.qualifications.is_empty()
-        || !value.projected_qualifications.is_empty()
-        || !value.path.is_empty()
-    {
-        return Err("expected a whole host-issued Build token".into());
-    }
-    value.structural_type = prefix
-        .structural_type(value.structural_type)
-        .ok_or("the successor has no matching type for a host-issued Build token")?;
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::is_call_at;

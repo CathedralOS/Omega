@@ -11,7 +11,6 @@ use symbols::SymbolHandle;
 
 pub struct SelectedBuildMachine {
     receiver: source_compiler::publication::CheckedBuildReceiver,
-    preparation_allows_return: Option<bool>,
     pub symbol: SymbolHandle,
     pub name: String,
     pub normalized_callable_identity: String,
@@ -22,11 +21,6 @@ pub struct SelectedBuildMachine {
 }
 
 impl SelectedBuildMachine {
-    /// An unfinished entry can return only on an independently checked alternative.
-    pub fn preparation_allows_return(&self) -> Option<bool> {
-        self.preparation_allows_return
-    }
-
     pub fn receiver_for<'module>(
         &self,
         module: &'module terminal_psi::TerminalModule,
@@ -77,11 +71,6 @@ pub fn admit_build_machine(
             })?;
     let value_admission = BuildValueAdmission::admit(typed)?;
 
-    let preparation_allows_return = typed
-        .roots
-        .partial_build_entry
-        .map(|_| typed.roots.partial_build_can_return);
-
     let publication = invocation.prepare_publication()?;
     let protocols = publication.build_protocol_use();
     if protocols.reaches_outside {
@@ -103,7 +92,6 @@ pub fn admit_build_machine(
     };
     let machine = SelectedBuildMachine {
         receiver,
-        preparation_allows_return,
         symbol: machine_symbol,
         name: machine_name,
         normalized_callable_identity,

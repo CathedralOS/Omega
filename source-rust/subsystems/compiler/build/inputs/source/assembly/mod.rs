@@ -4,7 +4,7 @@ mod build_entry;
 mod checkpoint;
 mod generated;
 mod imports;
-mod resumed;
+mod scoped_sources;
 #[cfg(test)]
 mod tests;
 mod toolchain;
@@ -25,7 +25,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use toolchain::{append_build_prelude, seed_core_vocabulary, sources_mention_floats};
 
-/// The immutable acquisition and source map a resumed Build stage was assembled from.
+/// The root capture, selected Build libraries and source map used to check this Build.
 #[derive(Clone)]
 pub struct BuildStageAcquisition {
     capture: crate::CapturedLocalSource,
@@ -44,7 +44,7 @@ impl BuildStageAcquisition {
             .then(|| Arc::clone(&self.supplied_libraries))
     }
 
-    pub fn retains(
+    fn retains(
         &self,
         capture: &crate::CapturedLocalSource,
         typed: &source_compiler::representations::source_state::TypedTrees,
@@ -72,31 +72,6 @@ pub struct AssembledSyntax {
 }
 
 impl AssembledSyntax {
-    /// Resolve a diagnostic against the root's pending Build imports. A dependency
-    /// package can use the same alias in its own, independent source scope.
-    pub fn unresolved_build_import_alias(
-        &self,
-        typed: &source_compiler::representations::source_state::TypedTrees,
-        span: source_text::SourceSpan,
-    ) -> Option<&str> {
-        let root = self
-            .parsed
-            .files
-            .get(self.build_source?.entry().source_id)?;
-        let importer = self.parsed.files.get(span.source_id)?;
-        if importer.dependency_scope != source_provenance::DependencyScope::Build
-            || importer.package_identity != root.package_identity
-            || importer.package_root != root.package_root
-        {
-            return None;
-        }
-        source_compiler::PendingBuildImport::alias_at_refused_call(
-            &self.pending_build_imports,
-            typed,
-            span,
-        )
-    }
-
     /// The Build stage the whole-file check reads before Build runs, with the
     /// root's own files under a check-only owner. `None` when a package graph
     /// already supplies the root's owner.

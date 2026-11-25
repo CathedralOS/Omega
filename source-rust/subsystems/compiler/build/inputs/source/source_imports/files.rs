@@ -1,6 +1,6 @@
 //! Resolve an authored filename in its package or a directly granted dependency.
-//! A missing rooted Build import can wait for preparation. A missing local file
-//! cannot acquire meaning from an unrelated package or another file in its directory.
+//! Keep a missing Build binding at its import for admission. Local files resolve
+//! within the package that owns the importing source.
 
 mod admitted;
 mod product_operand;
@@ -26,10 +26,9 @@ pub(super) struct FileImport<'a> {
     source: &'a ParsedSourceSummary,
 }
 
-pub(super) enum FileSelection {
-    Selected(ResolvedSourceImport),
+pub(super) enum FileSelection {    Selected(ResolvedSourceImport),
     Package(PendingPackageImport),
-    Unprepared,
+    Unbound,
 }
 
 impl<'a> FileImport<'a> {
@@ -97,7 +96,7 @@ impl<'a> FileImport<'a> {
             .root
             .expect("only a rooted import waits for a dependency");
         if purpose == DependencyPurpose::Build {
-            return Ok(FileSelection::Unprepared);
+            return Ok(FileSelection::Unbound);
         }
         Err(self.error(format!(
             "no direct {} dependency named `{root}` supplies `{}`",
@@ -136,7 +135,7 @@ impl<'a> FileImport<'a> {
         filesystem: &SourceFileSystem,
     ) -> Result<FileSelection, Vec<Diagnostic>> {
         if self.source.scope == DependencyScope::Build && self.import.only_product_operands {
-            return Ok(FileSelection::Unprepared);
+            return Ok(FileSelection::Unbound);
         }
         match self.root {
             Some("omega") => self.core(filesystem),
@@ -158,7 +157,7 @@ impl<'a> FileImport<'a> {
         filesystem: &SourceFileSystem,
     ) -> Result<FileSelection, Vec<Diagnostic>> {
         if self.source.scope == DependencyScope::Build && self.import.only_product_operands {
-            return Ok(FileSelection::Unprepared);
+            return Ok(FileSelection::Unbound);
         }
         if self.root == Some("omega") {
             return self.core(filesystem);
@@ -177,7 +176,7 @@ impl<'a> FileImport<'a> {
         };
         match self.package_owner(inputs, requester, purpose)? {
             Some(owner) => self.package(inputs, owner, self.root.is_some()),
-            None => Ok(FileSelection::Unprepared),
+            None => Ok(FileSelection::Unbound),
         }
     }
 

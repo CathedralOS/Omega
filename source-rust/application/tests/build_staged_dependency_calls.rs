@@ -1520,9 +1520,8 @@ machine wrong() crashes Trap { crash Trap; }
     let report = String::from_utf8_lossy(&output.stderr);
     assert!(
         !output.status.success()
-            && report.contains("Alias `kit` was prepared as a Product dependency")
-            && report.contains("the invoker must supply `kit` as a Build library before entry")
-            && report.contains("build.omg:6:"),
+            && report.contains("Build import `kit` has no supplied source")
+            && report.contains("build.omg:1:5"),
         "{report}"
     );
     let unknown = leaked
@@ -1532,9 +1531,8 @@ machine wrong() crashes Trap { crash Trap; }
     let report = String::from_utf8_lossy(&output.stderr);
     assert!(
         !output.status.success()
-            && report.contains("no visible declaration")
-            && report.contains("build.omg:6:")
-            && !report.contains("was prepared as a Product dependency"),
+            && report.contains("Build import `kitchen` has no supplied source")
+            && report.contains("build.omg:1:5"),
         "{report}"
     );
 }
@@ -1558,46 +1556,50 @@ fn an_unused_unbound_import_is_refused_at_the_authored_name() {
 }
 
 #[test]
-fn a_build_resolves_its_file_alias_after_preparing_the_named_dependency() {
+fn a_wait_cannot_add_a_library_to_the_checked_build() {
+    let Some(host) = target::TargetProfile::host_if_supported() else {
+        return;
+    };
     let build = r#"use {kit}/main.omg as chosen;
 machine build(builder: @mutable Build) suspends {
-    Build::application(builder, "staged_file");
-    let mutable description: DependencyDescription = dependency\from_source(Source::Path { location: "dep" });
-    dependency\with_alias(@mutable description, "kit");
-    let registered: DependencyRegistration = Build::build_dependency(builder, description);
+    Build::application(builder, "fixed_imports");
+    let mutable request: DependencyDescription = dependency\from_source(Source::Path { location: "dep" });
+    dependency\with_alias(@mutable request, "kit");
+    let registered: DependencyRegistration = Build::dependency(builder, request);
     suspend Build::prepare_dependency(builder, registered);
     let value: i32 = |chosen|::v();
-    transition value == 7 {
-        true -> bind(builder),
-        false -> wrong(builder)
-    }
-    machine bind(builder: @mutable Build) {
-        Build::bind(builder, HOST\ProgramEntry, main);
-    }
-    machine wrong(builder: @mutable Build) {
-        Build::application(builder, "another_application");
-    }
-}"#.replace("HOST", target::TargetProfile::host_if_supported().unwrap().target_name());
-    let check =
-        |case: &str, source: &str| check_project(case, source, 7, "", &["--check", "main.omg"]);
-    let (ok, report) = check("exact-file-ready", &build);
+    Build::bind(builder, HOST\ProgramEntry, main);
+}"#.replace("HOST", host.target_name());
+    let call = |name, source: &str| {
+        check_project_with_support(
+            name,
+            source,
+            7,
+            "",
+            Some("public machine v() -> i32 { 7 }"),
+            &["--check", "main.omg"],
+        )
+    };
+    let (ok, report) = call(
+        "local-helper",
+        &build.replace("{kit}/main.omg", "support/support.omg"),
+    );
     assert!(ok, "{report}");
-    let (ok, report) = check(
-        "private-machine-in-file",
-        &build.replace("|chosen|::v()", "|chosen|::hidden()"),
-    );
-    assert!(
-        !ok,
-        "the Build called a private machine in another package: {report}"
-    );
-    let (ok, report) = check(
-        "exact-file-missing",
-        &build.replace("{kit}/main.omg", "{kit}/other.omg"),
-    );
-    assert!(
-        !ok && report.contains("no admitted logical file `{kit}/other.omg`"),
-        "{report}"
-    );
+    for (name, source) in [
+        ("product-only", build.clone()),
+        (
+            "self-registration",
+            build.replace("Build::dependency(", "Build::build_dependency("),
+        ),
+    ] {
+        let (ok, report) = call(name, &source);
+        assert!(
+            !ok && report
+                .contains("Build import `{kit}/main.omg as chosen` has no supplied source")
+                && report.contains("build.omg:1:5"),
+            "{report}"
+        );
+    }
 }
 
 #[test]
@@ -1664,7 +1666,8 @@ machine build(builder: @mutable Build) suspends {
     );
     let (ok, report) = invoke(&called, &["--check", "build.omg"]);
     assert!(
-        !ok && report.contains("Alias `kit` was prepared as a Product dependency"),
+        !ok && report.contains("Build import `{kit}/entry.omg as selected` has no supplied source")
+            && report.contains("build.omg:1:5"),
         "{report}"
     );
 }
