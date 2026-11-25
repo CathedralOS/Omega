@@ -275,11 +275,15 @@ pub(crate) mod domain_constraints {
                 })?;
             }
 
-            let semantic_id = program.retain_domain_application(
+            // A parameter publishes its entry contract before the cohort admits
+            // constants in their authored occurrences. Both need the same identity.
+            let indices = super::canonical_domain_indices(
+                program,
                 domain.symbol,
                 carrier,
-                &domain_constraint.arguments,
+                domain_constraint.arguments.as_slice().into(),
             )?;
+            let semantic_id = program.retain_domain_application(domain.symbol, carrier, &indices)?;
             if domain.alias.is_none() {
                 normalized.push(TypeConstraintNode::Domain(DomainConstraint {
                     product_input: domain_constraint.product_input,
@@ -1393,9 +1397,9 @@ pub(crate) mod const_arguments {
             Ok(ConstArgument::Unchanged)
         }
 
-        /// Compare an authored application under a possible declaration's binders.
-        /// Its final selection owns any deferred obligations and the source occurrences.
-        pub(crate) fn domain_lookup_indices<'a>(
+        /// Read index identities under this declaration's binders. The authored
+        /// occurrences retain their own admission and any deferred obligations.
+        pub(crate) fn canonical_domain_indices<'a>(
             program: &mut TypedTrees,
             declaration: SymbolHandle,
             carrier: TypeReferenceHandle,
@@ -2598,7 +2602,7 @@ pub(crate) mod const_arguments {
     }
 
     pub(crate) use closed_applications::normalize as normalize_const_argument_carriers;
-    pub(crate) use closed_applications::{domain_lookup_indices, selected_domain_application};
+    pub(crate) use closed_applications::{canonical_domain_indices, selected_domain_application};
 }
 pub(crate) mod constraints {
     use crate::declaration_selection::AuthoredDeclarationSelectionExposure;
@@ -4094,7 +4098,7 @@ pub(crate) fn retain_supplied_operand_owner(
 pub(crate) use arithmetic_results::retain_arithmetic_result_type;
 pub(crate) use computed_results::retain_computed_result_types;
 pub(crate) use const_arguments::{
-    domain_lookup_indices, normalize_const_argument_carriers, selected_domain_application,
+    canonical_domain_indices, normalize_const_argument_carriers, selected_domain_application,
 };
 pub(crate) use generic_origins::validate_computed_arguments;
 

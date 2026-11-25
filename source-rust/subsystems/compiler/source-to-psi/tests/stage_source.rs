@@ -1414,6 +1414,43 @@ fn transparent_aliases_check_their_const_arguments_even_when_expansion_erases_th
 }
 
 #[test]
+fn an_indexed_parameter_and_its_entry_contract_use_the_same_constant() {
+    let package = PackageKeyIdentity::from_digest([0x63; 32]).unwrap();
+    for domain in [
+        "domain<const N: u8> Word::Slot<N>;",
+        "domain<T, const N: u8> T::Slot<N>;",
+    ] {
+        let declarations = format!(
+            "data Word {{ bits: u32; }} {domain} data Slotted<const N: u8> = Word in Slot<N>;"
+        );
+        for (body, refusal) in [
+            (
+                "machine f(v: Slotted<1 + 1>) -> Word in Slot<2> { v }",
+                None,
+            ),
+            ("machine f(v: Word in Slot<2>) -> Slotted<2> { v }", None),
+            ("machine f(v: @Slotted<2>) -> u32 { v.bits }", None),
+            (
+                "machine f(v: Slotted<2>) -> Word in Slot<3> { v }",
+                Some("machine's result declares"),
+            ),
+        ] {
+            let (files, root) = captured(package, &format!("{declarations} {body}"));
+            let result = compile(product(files, root, package, &[]).unwrap(), None);
+            if let Some(refusal) = refusal {
+                let errors = result.expect_err(body);
+                assert!(
+                    errors.iter().any(|error| error.message.contains(refusal)),
+                    "{errors:?}"
+                );
+            } else {
+                result.expect(body);
+            }
+        }
+    }
+}
+
+#[test]
 fn competing_domain_families_use_the_qualifications_on_each_side() {
     let package = PackageKeyIdentity::from_digest([0x63; 32]).unwrap();
     let declarations = "data Word { bits: u32; }
