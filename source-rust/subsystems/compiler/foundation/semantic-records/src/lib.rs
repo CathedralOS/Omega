@@ -976,3 +976,12 @@ pub struct ScalarAddressModel {
     pub semantics_version: u32,
     pub commitment: [u8; 32],
 }
+
+impl ScalarAddressModel {
+    /// Whether the model fixes an address carrier, a semantics version and a
+    /// commitment, so that an address input of the target has a mathematical
+    /// meaning a proof can use.
+    pub fn is_mathematical(&self) -> bool {
+        self.carrier.is_address() && self.semantics_version != 0 && self.commitment != [0; 32]
+    }
+}

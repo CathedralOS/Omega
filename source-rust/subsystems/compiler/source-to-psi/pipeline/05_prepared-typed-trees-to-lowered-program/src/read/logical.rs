@@ -157,11 +157,7 @@ impl<'a> MathematicalAddressContext<'a> {
                 Ok(semantic_vocabulary::ClosedIntegerType::supported_address_representation())
             }
             Self::Binding(model) => model
-                .filter(|model| {
-                    model.carrier.is_address()
-                        && model.semantics_version != 0
-                        && model.commitment != [0; 32]
-                })
+                .filter(|model| model.is_mathematical())
                 .map(|model| model.carrier)
                 .ok_or_else(|| {
                     refuse(

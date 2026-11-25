@@ -6,8 +6,19 @@ use crate::source_state::product_operand::core_arrival_requirement;
 use crate::RootBinding;
 use diagnostics::Diagnostic;
 
-/// Resolve every bound slot's owner and name. Only deployed entries project
-/// their calling shape and address model onto the semantic arrival requirement.
+/// Resolve every bound slot's owner and name, and project each bound entry's
+/// calling shape and address model onto the semantic arrival requirement, so
+/// that the checker proves every row's arrival requirement, not only the
+/// requested target's. build/configuration.md, "Multi-target compilation":
+/// "an explicit `--target` selection narrows realization only and never
+/// narrows checking", and "A row for a target outside the realization set is
+/// checked and retained, not realized."
+///
+/// A row whose target has no mathematical address model cannot be checked,
+/// because its address inputs have no meaning a proof can use. Such a row is
+/// checked only when its target is requested, which then refuses it; outside
+/// the requested targets it is left unchecked (`TASKS.md`,
+/// **BUILD-OWNED-TARGET-SELECTION**). Today that is the Alpha bootstrap target.
 pub fn bound_program_entry_shapes(
     typed: &TypedTrees,
     bindings: &[RootBinding],
@@ -30,7 +41,12 @@ pub fn bound_program_entry_shapes(
                     binding.slot
                 )));
             }
-            if !calling_targets.contains(&profile.name) {
+            if !calling_targets.contains(&profile.name)
+                && !profile
+                    .address_model
+                    .as_ref()
+                    .is_some_and(semantic_vocabulary::ScalarAddressModel::is_mathematical)
+            {
                 return Ok(None);
             }
             let (requirement_owner, requirement) =
