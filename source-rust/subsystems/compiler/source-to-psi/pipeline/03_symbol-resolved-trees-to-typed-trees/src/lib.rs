@@ -98,6 +98,9 @@ mod ranking_defaults_tests;
 mod qualified_operator_home_tests;
 
 #[cfg(test)]
+mod operand_owner_tests;
+
+#[cfg(test)]
 mod undeclared_type_name_tests;
 
 #[cfg(test)]

@@ -1396,6 +1396,104 @@ pub mod types {
                 assert_eq!(actual, expected);
             }
         }
+
+        /// The rows a full scan of the arena finds for `instance`, in slot
+        /// order: what `type_alias_applications` answered before its index.
+        fn scanned(
+            table: &TypeReferenceTable,
+            instance: TypeReferenceHandle,
+        ) -> Vec<TypeAliasApplication> {
+            table
+                .type_alias_applications
+                .iter()
+                .filter(|(_, row)| row.instance == instance)
+                .map(|(_, row)| row.clone())
+                .collect()
+        }
+
+        fn assert_index_matches_scan(
+            table: &TypeReferenceTable,
+            instances: &[TypeReferenceHandle],
+        ) {
+            for instance in instances {
+                assert_eq!(
+                    table
+                        .type_alias_applications(*instance)
+                        .cloned()
+                        .collect::<Vec<_>>(),
+                    scanned(table, *instance)
+                );
+            }
+        }
+
+        #[test]
+        fn indexed_alias_applications_answer_like_a_full_scan_through_every_mutation() {
+            let parameter = SymbolHandle::from_parts(1, 3);
+            let aliases = [
+                SymbolHandle::from_parts(11, 2),
+                SymbolHandle::from_parts(12, 4),
+            ];
+            let mut table = TypeReferenceTable::new();
+            let input = table.insert(TypeReferenceNode::Named {
+                symbol: parameter,
+                name: Identifier::generated("T"),
+            });
+            let instances = (0..6)
+                .map(|_| table.fresh_occurrence(input))
+                .collect::<Vec<_>>();
+            // Interleave instances so one instance's rows are not adjacent in
+            // slot order, and ask between retains so the index is current
+            // when each new row arrives.
+            for round in 0..3 {
+                for (position, instance) in instances.iter().enumerate().rev() {
+                    let declaration = aliases[(round + position) % aliases.len()];
+                    let applied = application(&mut table, declaration, input);
+                    retain(&mut table, *instance, applied, declaration);
+                    assert_index_matches_scan(&table, &instances);
+                }
+            }
+            // An equal row is not retained twice.
+            let first = table
+                .type_alias_applications(instances[0])
+                .next()
+                .unwrap()
+                .clone();
+            let before = scanned(&table, instances[0]).len();
+            table.retain_type_alias_application(first);
+            assert_eq!(scanned(&table, instances[0]).len(), before);
+            assert_index_matches_scan(&table, &instances);
+
+            // A fresh occurrence copies its source's rows onto itself.
+            let copied = table.fresh_occurrence(instances[1]);
+            let mut all = instances.clone();
+            all.push(copied);
+            assert_eq!(
+                scanned(&table, copied).len(),
+                scanned(&table, instances[1]).len()
+            );
+            assert_index_matches_scan(&table, &all);
+
+            // Complete applied views rewrite and free rows in place.
+            table
+                .substitute_applied_from(instances[2], instances[3])
+                .unwrap();
+            assert_index_matches_scan(&table, &all);
+            let unit = table.insert(TypeReferenceNode::Unit);
+            table.substitute_applied_from(instances[4], unit).unwrap();
+            assert!(scanned(&table, instances[4]).is_empty());
+            assert_index_matches_scan(&table, &all);
+
+            // A clone answers alike, and so does a table whose index was
+            // dropped, as after reading it back from record storage.
+            let cloned = table.clone();
+            assert_index_matches_scan(&cloned, &all);
+            let mut reread = table.clone();
+            reread.alias_applications_by_instance = AliasApplicationIndex::default();
+            assert_index_matches_scan(&reread, &all);
+            let applied = application(&mut reread, aliases[0], input);
+            retain(&mut reread, instances[5], applied, aliases[0]);
+            assert_index_matches_scan(&reread, &all);
+        }
     }
     pub(crate) mod display {
         use diagnostics::comma_join_display;
@@ -1790,6 +1888,7 @@ pub mod types {
                 for handle in previous {
                     self.type_alias_applications.free(handle);
                 }
+                self.alias_applications_by_instance.0.take();
                 Ok(())
             }
 
@@ -2127,6 +2226,7 @@ pub mod types {
         slice_views: SliceViewIndex,
         policy_shells: PolicyShellIndex,
         type_alias_applications: Arena<crate::source_state::type_aliases::TypeAliasApplication>,
+        alias_applications_by_instance: AliasApplicationIndex,
     }
 
     impl std::fmt::Debug for TypeReferenceTable {
@@ -2193,6 +2293,59 @@ pub mod types {
 
     impl Eq for SliceViewIndex {}
 
+    type AliasApplicationHandle = Handle<crate::source_state::type_aliases::TypeAliasApplication>;
+
+    /// Alias applications ordered by the exact instance they describe, then by
+    /// slot. Every visited type asks for its own applications, so scanning the
+    /// whole arena for each question made every program walk quadratic. The
+    /// index answers only for the arena revision it was built from; any other
+    /// revision falls back to that scan, so a missed invalidation can cost
+    /// time but never change an answer.
+    #[derive(Clone, Default)]
+    struct AliasApplicationIndex(std::sync::OnceLock<AliasApplicationRows>);
+
+    #[derive(Clone)]
+    struct AliasApplicationRows {
+        revision: u64,
+        rows: Vec<(u64, AliasApplicationHandle)>,
+    }
+
+    fn alias_instance_key(instance: TypeReferenceHandle) -> u64 {
+        (u64::from(instance.arena_index()) << 32) | u64::from(instance.generation())
+    }
+
+    impl AliasApplicationRows {
+        fn build(
+            applications: &Arena<crate::source_state::type_aliases::TypeAliasApplication>,
+        ) -> Self {
+            let revision = applications.revision();
+            let mut rows = applications
+                .iter()
+                .map(|(handle, application)| (alias_instance_key(application.instance), handle))
+                .collect::<Vec<_>>();
+            // Arena iteration is in ascending slot order; the stable sort keeps
+            // that order among the applications of one instance.
+            rows.sort_by_key(|(key, _)| *key);
+            Self { revision, rows }
+        }
+
+        fn for_instance(&self, instance: TypeReferenceHandle) -> &[(u64, AliasApplicationHandle)] {
+            let key = alias_instance_key(instance);
+            let start = self.rows.partition_point(|(candidate, _)| *candidate < key);
+            let end =
+                start + self.rows[start..].partition_point(|(candidate, _)| *candidate <= key);
+            &self.rows[start..end]
+        }
+    }
+
+    impl PartialEq for AliasApplicationIndex {
+        fn eq(&self, _: &Self) -> bool {
+            true
+        }
+    }
+
+    impl Eq for AliasApplicationIndex {}
+
     #[derive(Default)]
     struct PolicyShellIndex(std::sync::Mutex<PolicyShells>);
 
@@ -2235,6 +2388,7 @@ pub mod types {
                 slice_views: SliceViewIndex::default(),
                 policy_shells: PolicyShellIndex::default(),
                 type_alias_applications: Arena::new(),
+                alias_applications_by_instance: AliasApplicationIndex::default(),
             }
         }
 
@@ -2270,11 +2424,27 @@ pub mod types {
             reference: TypeReferenceHandle,
         ) -> impl Iterator<Item = &crate::source_state::type_aliases::TypeAliasApplication>
         {
-            self.type_alias_applications
+            let index = self
+                .alias_applications_by_instance
+                .0
+                .get_or_init(|| AliasApplicationRows::build(&self.type_alias_applications));
+            let current = index.revision == self.type_alias_applications.revision();
+            let indexed = if current {
+                index.for_instance(reference)
+            } else {
+                &[]
+            };
+            let scanned = (!current).then(|| {
+                self.type_alias_applications
+                    .iter()
+                    .filter_map(move |(_, application)| {
+                        (application.instance == reference).then_some(application)
+                    })
+            });
+            indexed
                 .iter()
-                .filter_map(move |(_, application)| {
-                    (application.instance == reference).then_some(application)
-                })
+                .map(|(_, handle)| self.type_alias_applications.get(*handle))
+                .chain(scanned.into_iter().flatten())
         }
 
         /// Applications created while typing a source suffix. Older occurrences
@@ -2282,7 +2452,8 @@ pub mod types {
         pub fn type_alias_applications_after(
             &self,
             completed_references: usize,
-        ) -> impl Iterator<Item = &crate::source_state::type_aliases::TypeAliasApplication> {
+        ) -> impl Iterator<Item = &crate::source_state::type_aliases::TypeAliasApplication>
+        {
             self.type_alias_applications
                 .iter()
                 .filter_map(move |(_, application)| {
@@ -2295,12 +2466,34 @@ pub mod types {
             &mut self,
             application: crate::source_state::type_aliases::TypeAliasApplication,
         ) {
-            if !self
-                .type_alias_applications
-                .iter()
-                .any(|(_, row)| row == &application)
+            // Equal rows describe the same instance, so that instance's own
+            // applications are the only possible duplicates.
+            if self
+                .type_alias_applications(application.instance)
+                .any(|row| row == &application)
             {
-                self.type_alias_applications.insert(application);
+                return;
+            }
+            let key = alias_instance_key(application.instance);
+            let current = self
+                .alias_applications_by_instance
+                .0
+                .get()
+                .is_some_and(|index| index.revision == self.type_alias_applications.revision());
+            let handle = self.type_alias_applications.insert(application);
+            match self.alias_applications_by_instance.0.get_mut() {
+                // Retained arenas append and never reuse a slot, so the new row
+                // is the last application of its instance.
+                Some(index) if current => {
+                    let position = index
+                        .rows
+                        .partition_point(|(candidate, _)| *candidate <= key);
+                    index.rows.insert(position, (key, handle));
+                    index.revision = self.type_alias_applications.revision();
+                }
+                _ => {
+                    self.alias_applications_by_instance.0.take();
+                }
             }
         }
 
@@ -3452,6 +3645,20 @@ pub mod types {
     }
 
     impl record_storage::Record for SliceViewIndex {
+        fn write(
+            &self,
+            _: &mut record_storage::RecordWriter,
+        ) -> Result<(), record_storage::RecordError> {
+            Ok(())
+        }
+        fn read<Context>(
+            _: &mut record_storage::RecordReader<'_, Context>,
+        ) -> Result<Self, record_storage::RecordError> {
+            Ok(Self::default())
+        }
+    }
+
+    impl record_storage::Record for AliasApplicationIndex {
         fn write(
             &self,
             _: &mut record_storage::RecordWriter,
