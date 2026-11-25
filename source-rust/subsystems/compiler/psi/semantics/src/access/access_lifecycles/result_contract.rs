@@ -105,10 +105,7 @@ pub fn access_result_contract<'module>(
             if !matches!(access, terminal_psi::reading_borrow_pair_pattern!())
                 || *access != storage.access
                 || !module.access.access_view_plans.iter().any(|view| {
-                    view.carrier == *referent
-                        && view.schema == plan.schema
-                        && view.policy_identity == plan.policy_identity
-                        && view.placement == plan.placement
+                    view.carrier == *referent && crate::access_view_matches_lifecycle(view, plan)
                 })
             {
                 return Err(

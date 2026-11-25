@@ -99,10 +99,7 @@ pub fn borrowed_view_formation(
         .access_views()
         .iter()
         .find(|placed| placed.carrier == carrier)?;
-    if placed.schema != plan.schema
-        || placed.policy_identity != plan.policy_identity
-        || placed.placement != plan.placement
-    {
+    if !terminal_semantics::access_view_matches_lifecycle(placed, plan) {
         return None;
     }
     Some((

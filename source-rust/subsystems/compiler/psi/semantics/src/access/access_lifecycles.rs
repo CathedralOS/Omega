@@ -247,10 +247,7 @@ pub fn validate_access_lifecycle_plans(module: &TerminalModule) -> Result<(), &'
             view.policy_identity == plan.policy_identity
                 && view.schema_identity == plan.schema_identity
         }) {
-            if view.schema != plan.schema
-                || view.policy_plan_machine_identity != plan.policy_plan_machine_identity
-                || view.placement != plan.placement
-            {
+            if !crate::access_view_matches_lifecycle(view, plan) {
                 return Err("access lifecycle and field view disagree on normalized policy");
             }
             for field in &view.fields {

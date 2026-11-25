@@ -1407,12 +1407,7 @@ pub(crate) mod field_access {
                 ProviderFieldContent::Resident => {
                     let (initialized, custody, compatibility) =
                         self.live_resident_custody(binding.resident)?;
-                    if initialized.placement != plan.placement
-                        || initialized.schema != plan.schema
-                        || initialized.policy_identity != plan.policy_identity
-                        || initialized.policy_plan_machine_identity
-                            != plan.policy_plan_machine_identity
-                        || initialized.schema_identity != plan.schema_identity
+                    if !terminal_semantics::access_view_matches_lifecycle(plan, initialized)
                         || custody.value.structural_type != plan.schema
                     {
                         return Err(TerminalInterpretError::ContentTransformationMismatch(

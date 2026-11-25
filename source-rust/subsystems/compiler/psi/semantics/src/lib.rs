@@ -58,8 +58,8 @@ pub use access::access_ram_correspondence::{
     access_ram_plan_correspondence, access_reference_correspondence,
 };
 pub use access::access_view_plans::{
-    AccessViewPlanError, contains_access_carrier, contains_access_carrier_in_catalog,
-    validate_access_view_catalog, validate_access_view_plans,
+    AccessViewPlanError, access_view_matches_lifecycle, contains_access_carrier,
+    contains_access_carrier_in_catalog, validate_access_view_catalog, validate_access_view_plans,
 };
 pub use access::accessor_scalar_boundaries::{
     AccessorScalarBoundaryDemand, access_region_projection, accessor_scalar_boundary_demand,

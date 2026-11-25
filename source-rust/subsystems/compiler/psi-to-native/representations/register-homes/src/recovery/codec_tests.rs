@@ -2082,6 +2082,27 @@ fn recovery_preserves_complete_placement_catalog_and_its_identity() {
 }
 
 #[test]
+fn recovered_views_must_name_the_lifecycle_schema_and_policy_member() {
+    let catalog = catalog();
+    let lifecycle = &catalog.access_lifecycles()[0];
+    let view = &catalog.access_views()[0];
+    let mut other_schema = view.clone();
+    other_schema.schema_identity = TerminalIdentityIndex(31);
+    let mut other_member = view.clone();
+    other_member.policy_plan_machine_identity = TerminalIdentityIndex(32);
+
+    for (candidate, expected) in [(view, true), (&other_schema, false), (&other_member, false)] {
+        let encoded =
+            terminal_wire::encode_access_view_catalog(std::slice::from_ref(candidate)).unwrap();
+        let recovered = terminal_wire::decode_access_view_catalog(&encoded).unwrap();
+        assert_eq!(
+            terminal_semantics::access_view_matches_lifecycle(&recovered[0], lifecycle),
+            expected
+        );
+    }
+}
+
+#[test]
 fn standalone_catalogs_reject_truncation_and_trailing_bytes() {
     let catalog = catalog();
     let lifecycle =

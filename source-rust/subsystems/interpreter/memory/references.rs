@@ -1630,12 +1630,8 @@ pub(crate) mod placed {
                 || initialized.storage.resident != Some(roles.resident)
                 || initialized.storage.base != roles.base
                 || initialized.storage.length != roles.length
-                || initialized.schema != plan.schema
+                || !terminal_semantics::access_view_matches_lifecycle(plan, initialized)
                 || custody.value.structural_type != plan.schema
-                || initialized.policy_identity != plan.policy_identity
-                || initialized.policy_plan_machine_identity != plan.policy_plan_machine_identity
-                || initialized.schema_identity != plan.schema_identity
-                || initialized.placement != plan.placement
                 || plan.placement.layout().size != Some(compatibility.byte_length())
             {
                 return Err(TerminalInterpretError::ContentTransformationMismatch(
