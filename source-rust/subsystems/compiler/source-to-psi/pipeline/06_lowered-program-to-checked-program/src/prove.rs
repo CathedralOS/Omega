@@ -40,8 +40,13 @@ assumptions (entry `requires`, callee `ensures`) and semantic axioms
 */
 
 use std::cmp::Ordering;
-use std::collections::hash_map::RandomState;
 use std::hash::BuildHasher;
+
+/// The prover's indexes hash propositions and terms only to choose
+/// candidates; exact equality still decides every match. They need no
+/// protection against chosen collisions, so they use the workspace's
+/// multiply-rotate hasher rather than SipHash.
+type CandidateHash = arena::BuildIndexHasher;
 
 use proof_admission::{
     IntegerAffineWitness, PrimitiveJudgment, ProofNode, ProofRule, check_integer_affine_witness,
@@ -436,14 +441,14 @@ fn exact_fact_hash_eligible(proposition: &Proposition) -> bool {
 /// a bucket with predicates of the same kind. Exact matching still decides
 /// which rows to try, in the order the premises supplied them.
 struct ImplicationConclusions {
-    hash_builder: RandomState,
+    hash_builder: CandidateHash,
     positions: Vec<(u64, usize)>,
 }
 
 impl ImplicationConclusions {
     fn new(facts: &[Fact]) -> Self {
         let mut index = Self {
-            hash_builder: RandomState::new(),
+            hash_builder: CandidateHash::default(),
             positions: Vec::new(),
         };
         for (ordinal, fact) in facts.iter().enumerate() {
@@ -493,14 +498,14 @@ impl ImplicationConclusions {
 /// Hashes only choose candidates: existing equality decides them, in original
 /// ordinal order even when hashes collide. Store no cloned propositions or
 /// answers that could cross a branch's premise context.
-struct ExactFacts<S = RandomState> {
+struct ExactFacts<S = CandidateHash> {
     hash_builder: S,
     positions: Vec<(Option<u64>, usize)>,
 }
 
 impl ExactFacts {
     fn new(facts: &[Fact]) -> Self {
-        Self::with_hasher(facts, RandomState::new())
+        Self::with_hasher(facts, CandidateHash::default())
     }
 }
 
@@ -5227,8 +5232,8 @@ impl<'a> Prover<'a> {
         let mut fallback = None;
         let mut transport = None;
         for target in std::iter::once(target).chain(exchanged.as_ref()) {
-            let mut checked_roots: std::collections::HashMap<&ScalarTerm, Option<_>> =
-                std::collections::HashMap::new();
+            let mut checked_roots: std::collections::HashMap<&ScalarTerm, Option<_>, _> =
+                std::collections::HashMap::with_hasher(CandidateHash::default());
             for fact in &self.facts {
                 let (left, right, strict) = match fact.proposition() {
                     Proposition::LessOrEqual(left, right) => (left, right, false),

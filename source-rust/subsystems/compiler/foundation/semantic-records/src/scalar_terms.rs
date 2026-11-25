@@ -19,13 +19,20 @@ mod validation {
 
     impl ScalarTerm {
         pub fn validate(&self) -> Result<(), PropositionError> {
-            let mut pending = vec![Step::Visit(self)];
+            // A term without operands is finalized as soon as it is visited,
+            // so a value or literal validates without allocating a stack.
+            let mut pending = Vec::new();
             let mut operands = Vec::new();
-            while let Some(step) = pending.pop() {
+            let mut next = Some(Step::Visit(self));
+            while let Some(step) = next.take().or_else(|| pending.pop()) {
                 match step {
                     Step::Visit(term) => {
-                        pending.push(Step::Finalize(term));
                         term.append_operands(&mut operands);
+                        if operands.is_empty() {
+                            term.validate_after_operands()?;
+                            continue;
+                        }
+                        pending.push(Step::Finalize(term));
                         pending.extend(operands.drain(..).rev().map(Step::Visit));
                     }
                     Step::Finalize(term) => term.validate_after_operands()?,
@@ -387,9 +394,13 @@ mod value_queries {
         }
 
         pub fn integer_value(&self) -> Option<(IntegerType, IntegerValue)> {
-            let mut pending = vec![Step::Visit(self)];
+            // A leaf is finalized straight from `next`, and the root's result
+            // is returned without a push, so a literal or value allocates
+            // nothing. The root's step is the last one left on the stack.
+            let mut pending = Vec::new();
             let mut values = Vec::new();
-            while let Some(step) = pending.pop() {
+            let mut next = Some(Step::Visit(self));
+            while let Some(step) = next.take().or_else(|| pending.pop()) {
                 match step {
                     Step::Visit(term) => match term {
                         Self::IntegerBitwiseNot { operand, .. }
@@ -428,16 +439,19 @@ mod value_queries {
                             pending.push(Step::Visit(right));
                             pending.push(Step::Visit(left));
                         }
-                        _ => pending.push(Step::Finalize(term)),
+                        _ => next = Some(Step::Finalize(term)),
                     },
                     Step::Finalize(term) => {
                         let value = term.integer_value_after_operands(&mut values);
+                        if pending.is_empty() {
+                            debug_assert!(values.is_empty());
+                            return value;
+                        }
                         values.push(value);
                     }
                 }
             }
-            debug_assert_eq!(values.len(), 1);
-            values.pop().flatten()
+            unreachable!("the root's step returns its value")
         }
 
         fn integer_value_after_operands(
@@ -632,9 +646,11 @@ mod value_queries {
         }
 
         pub fn boolean_value(&self) -> Option<bool> {
-            let mut pending = vec![Step::Visit(self)];
+            // As in `integer_value`: leaves and the root allocate nothing.
+            let mut pending = Vec::new();
             let mut values = Vec::new();
-            while let Some(step) = pending.pop() {
+            let mut next = Some(Step::Visit(self));
+            while let Some(step) = next.take().or_else(|| pending.pop()) {
                 match step {
                     Step::Visit(term) => match term {
                         Self::BooleanNot { operand } => {
@@ -646,16 +662,19 @@ mod value_queries {
                             pending.push(Step::Visit(right));
                             pending.push(Step::Visit(left));
                         }
-                        _ => pending.push(Step::Finalize(term)),
+                        _ => next = Some(Step::Finalize(term)),
                     },
                     Step::Finalize(term) => {
                         let value = term.boolean_value_after_operands(&mut values);
+                        if pending.is_empty() {
+                            debug_assert!(values.is_empty());
+                            return value;
+                        }
                         values.push(value);
                     }
                 }
             }
-            debug_assert_eq!(values.len(), 1);
-            values.pop().flatten()
+            unreachable!("the root's step returns its value")
         }
 
         fn boolean_value_after_operands(&self, operands: &mut Vec<Option<bool>>) -> Option<bool> {
@@ -1683,8 +1702,10 @@ impl ScalarTerm {
     }
 
     pub fn visit_value_ids(&self, mut visit: impl FnMut(ValueId) -> bool) -> bool {
-        let mut pending = vec![self];
-        while let Some(term) = pending.pop() {
+        // A value or literal root never touches the stack.
+        let mut pending = Vec::new();
+        let mut next = Some(self);
+        while let Some(term) = next.take().or_else(|| pending.pop()) {
             match term {
                 Self::Value { id, .. } => {
                     if !visit(*id) {
