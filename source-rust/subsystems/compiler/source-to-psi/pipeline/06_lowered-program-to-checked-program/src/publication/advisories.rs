@@ -68,27 +68,47 @@ impl AcceptedAdvisories {
             // Retain the parts if a diagnostic search panics, just as each
             // accepted closure retains its own deferred warning inputs.
             let first = match (&pending.original, &pending.root) {
-                (Some(original), _) => original.advisories(),
-                (None, Some((program, discharge))) => AcceptedProgram {
+                (Some(original), _) => Some(AcceptedProgram {
+                    elaboration: &original.elaboration,
+                    discharge: &original.discharge,
+                }),
+                (None, Some((program, discharge))) => Some(AcceptedProgram {
                     elaboration: program.elaboration(),
                     discharge,
-                }
-                .advisories(),
-                (None, None) => Vec::new(),
+                }),
+                (None, None) => None,
             };
-            let result = aggregate(std::iter::once(first).chain(pending.additional.iter().map(
-                |(elaboration, discharge)| {
+            let parts: Vec<_> = first
+                .into_iter()
+                .chain(pending.additional.iter().map(|(elaboration, discharge)| {
                     AcceptedProgram {
                         elaboration,
                         discharge,
                     }
-                    .advisories()
-                },
-            )));
+                }))
+                .collect();
+            let result = aggregate(part_advisories(&parts).into_iter());
             *pending = AdvisoryParts::default();
             result
         })
     }
+}
+
+/// The advisories of each part, in the order the parts were judged. A large
+/// program has about a hundred generic check forms, each with its own
+/// branch searches, so the parts run on the invocation's workers. Outside
+/// a budget they stay on this thread: Rayon's global pool has small stacks.
+fn part_advisories(parts: &[AcceptedProgram<'_>]) -> Vec<Vec<Diagnostic>> {
+    if worker_budget::current_workers() == 1 || parts.len() < 2 {
+        return parts.iter().map(AcceptedProgram::advisories).collect();
+    }
+    use rayon::prelude::*;
+    // Indexed collection keeps part order, which `aggregate` relies on.
+    parts
+        .par_iter()
+        .with_max_len(1)
+        .map(AcceptedProgram::advisories)
+        .collect()
 }
 
 /// One authored machine may be judged in more than one part, and its advisory
@@ -202,6 +222,21 @@ mod tests {
             advisories.get().as_ptr()
         ));
         assert_eq!(advisories.get(), diagnostics);
+    }
+
+    #[test]
+    fn parallel_reads_list_the_same_advisories_in_the_same_order() {
+        // Parts and machines search on the budget's workers; the warnings
+        // and their order must match a read on one thread.
+        let name = "generic_branch_contract_contradiction_exit";
+        let serial = judged(name).get().to_vec();
+        assert!(!serial.is_empty());
+        let budget = worker_budget::ExecutionBudget::with_workers(4).unwrap();
+        let parallel = budget.run(|| {
+            assert_eq!(worker_budget::current_workers(), 4);
+            judged(name).get().to_vec()
+        });
+        assert_eq!(parallel, serial);
     }
 
     #[test]
