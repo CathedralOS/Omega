@@ -104,3 +104,35 @@ fn an_implementation_of_another_service_application_is_refused() {
         "{text}"
     );
 }
+
+// A selected implementation is checked in its conformance witness, where its
+// nested `machine ok() -> i32 { 0i32 }` is an exact checked call in the same
+// unit. Its body-derived `result == 0i32` proves the implementation's
+// `ensures result == 0i32` (`wiki/spec/language/state_contracts.md`, "Local
+// call summaries"); the twin's `ok()` returns 1 and the `ensures` fails.
+#[test]
+fn a_selected_implementation_uses_its_nested_machines_results() {
+    let positive = "source-rust/application/tests/fixtures/providers/run/nested_result_summary";
+    let negative = "source-rust/application/tests/fixtures/providers/fail/nested_result_summary";
+    let source =
+        |directory: &str| std::fs::read_to_string(fixture(directory).join("main.omg")).unwrap();
+    let body = |text: &str| text[text.find("boundary trait").unwrap()..].to_owned();
+    assert_eq!(
+        body(&source(positive)).replace("            0i32\n", "            1i32\n"),
+        body(&source(negative))
+    );
+    let output = omega_run(&fixture(positive), &["--both"]);
+    let text = printed(&output);
+    assert!(output.status.success(), "{text}");
+    assert!(text.contains("native exit 0"), "{text}");
+    assert!(text.contains("interp exit: 0"), "{text}");
+    let output = omega_run(&fixture(negative), &["--both"]);
+    let text = printed(&output);
+    assert!(!output.status.success(), "{text}");
+    assert!(
+        text.contains(
+            "cannot prove ensures contract for exit from Evaluator::evaluate at statement 1: result == 0"
+        ),
+        "{text}"
+    );
+}

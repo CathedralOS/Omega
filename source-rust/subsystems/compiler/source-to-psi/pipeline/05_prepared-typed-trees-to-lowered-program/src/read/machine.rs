@@ -424,11 +424,18 @@ impl<'t> Program<'t> {
                     )
                     .is_none()
             {
-                let outcome_subject = complete
+                // A conformance witness reads the implementation's private
+                // helpers as subjects of its own unit: the implementation's
+                // nested `machine ok() -> i32 { 0i32 }` is an exact checked
+                // call there (`wiki/spec/language/state_contracts.md`, "Local
+                // call summaries"). The implementation itself keeps its
+                // requirement's contract, excluded above.
+                let witness_subject = complete
                     || matches!(
                         self.local_summary_scope,
                         Some(super::LocalSummaryScope::Witness(_))
                     );
+                let outcome_subject = witness_subject;
                 if !outcome_boundary && outcome_subject && template.is_none() {
                     local.outcomes.push(id);
                 }
@@ -437,7 +444,7 @@ impl<'t> Program<'t> {
                 if !result_boundary
                     && !machine.is_public
                     && !declaration.is_public
-                    && (complete
+                    && (witness_subject
                         || (application
                             && machine.body_is_present
                             && machine.body_status == MachineBodyStatus::Complete))

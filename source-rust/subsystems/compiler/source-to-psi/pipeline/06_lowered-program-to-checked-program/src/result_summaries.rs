@@ -35,7 +35,9 @@ that has no canonical condition is not proposed at all.
 Which machines get one is elaboration's decision (`Elaboration::local_results`):
 private machines of the subject package, which no other verification unit can
 call. A public machine, a dependency, a requirement, a selected implementation
-and a Build selection keep their written contract.
+and a Build selection keep their written contract. The private machines nested
+in a selected implementation are summarized in its conformance witness, where
+the implementation's calls to them are exact checked calls.
 
 Helpers are summarized callees first, so a helper's summary can use those of
 the helpers it calls. Nothing is assumed around a call cycle: a summary enters
