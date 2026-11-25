@@ -187,7 +187,7 @@ impl CarrierQualifications {
                 continue;
             };
             for (mut symbol, indices) in members {
-                let Ok(indices) = super::domain_lookup_indices(program, symbol, carrier, indices.into())
+                let Ok(indices) = super::canonical_domain_indices(program, symbol, carrier, indices.into())
                 else {
                     continue;
                 };
@@ -225,7 +225,7 @@ impl CarrierQualifications {
     ) {
         candidates.retain(|candidate| {
             let Ok(indices) =
-                super::domain_lookup_indices(program, candidate.symbol, carrier, indices.into())
+                super::canonical_domain_indices(program, candidate.symbol, carrier, indices.into())
             else {
                 return false;
             };
