@@ -673,8 +673,8 @@ let positive: i32 in Positive = small as =Positive -Positive::Small;
 let again: i32 in Positive::Small = positive as +Positive::Small;
 
 // Rejected: keeping or adding the child conflicts with removing its parent.
-let orphan = small as -Positive =Positive::Small;
-let conflict = positive as -Positive +Positive::Small;
+let orphan: i32 in Positive::Small = small as -Positive =Positive::Small;
+let conflict: i32 in Positive::Small = positive as -Positive +Positive::Small;
 ```
 
 Naming an alias names its expansion: for `Socket::Usable` below, `-Usable`
@@ -705,9 +705,9 @@ let near: i32 in Metres = 5 as +Metres;
 let far: i64 in Metres = near as -Metres as i64 +Metres;
 
 // Rejected: each of these changes the carrier of a qualified value.
-let a = near as i64;
-let b = near as i64 =Metres;
-let c = near as i64 -Metres +Metres;
+let a: i64 = near as i64;
+let b: i64 in Metres = near as i64 =Metres;
+let c: i64 in Metres = near as i64 -Metres +Metres;
 ```
 
 Membership is [carrier-exact](#carrier-exact-membership), so a domain in the

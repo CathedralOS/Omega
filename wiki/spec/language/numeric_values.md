@@ -413,13 +413,13 @@ land at the selected explicit parameter; an implicit receiver does not shift tha
 pairing. Anonymous calculations retain exact rational intermediates until their
 destination checks the completed value.
 
-A binding or named constant shows its numeric type in its own declaration.
-`let count: u8 = 5;` lands the literal at the annotation, and `let count = 5u8;`
-keeps the suffix's carrier; writing both is allowed but unnecessary. An
-unannotated binding whose initializer is wholly anonymous, such as
-`let count = 5;` or `const limit = 2 + 3;`, is refused at the initializer, even
-when a later use such as `send(count)` would supply a destination. Later uses
-never choose a binding's type, so the declaration alone says what it holds.
+A [local annotation](ownership.md#local-type-annotations) gives a numeric
+initializer its destination. Both `let count: u8 = 5;` and
+`let count: u8 = 5u8;` are valid. `let count = 5u8;` is missing its type.
+A named constant may take its carrier from a typed initializer such as
+`const limit = 5u8;`. A wholly anonymous constant initializer such as
+`const limit = 2 + 3;` requires an annotated destination. Later uses never
+choose the declaration's type.
 
 Landing selects a carrier and never a domain. A literal bound for a qualified
 destination is cast like any other value, as in `5 as +Km`, under

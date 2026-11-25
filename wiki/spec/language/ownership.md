@@ -111,6 +111,29 @@ equal bytes or matching result types are not transfer evidence. Terminal
 [claim paths and residuals](../terminal-psi/ownership.md) specify independent
 reconstruction and publication.
 
+## Local type annotations
+
+A named local declares its type at the binding, including when its initializer
+is another local, a suffixed literal or a machine with a known result. Write
+`let name: T = value;` or `let mutable name: T = value;`. The initializer
+is checked against that type. A local declared before initialization likewise
+names its type. [Data-decomposition patterns](patterns.md#irrefutable-data-bindings)
+bind fields according to the subject's declaration.
+
+```omega
+machine keep(x: i32 in Positive) -> i32 in Positive {
+    let y: i32 in Positive = x;
+    y
+}
+```
+
+Here `x` already carries `Positive`. With a plain `i32` input the same
+initializer fails, even if the checker can prove that `x > 0`. Establishing
+membership requires an authorized route such as `x as +Positive` with its
+premises proved. `let y = x;` fails for either input. Ordinary
+[generic argument inference](generics.md#structural-type-equations-and-inference)
+still applies inside the initializer.
+
 ## Owned local mutability
 
 Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established

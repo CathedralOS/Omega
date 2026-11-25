@@ -17,9 +17,10 @@ and an explicit `u64` element count. Its protected `Live<P, T>` qualification me
 each occupied cell holds an established `T` and the run owns that value's complete
 obligations, including non-runtime fields and contained loans.
 
-As in [resident custody](access.md), `P` identifies the domain access policy;
-the independently selected validated layout and its correspondence remain in
-occurrence evidence. A policy contains no layout. The cell footprint comes from
+As in [resident custody](access.md#establishment-and-retirement), `P` is the
+exact domain-qualified type. A singleton transfer keeps the same `P` across
+`Extent::Resident<P, T>`, `Run<P, T>` and `Live<P, T>`. The independently
+selected validated layout and its correspondence remain in occurrence evidence. A policy contains no layout. The cell footprint comes from
 that established placement, not an unconditional `size_of::<T>()` calculation.
 Ordinary placement uses the native array stride for `T`. Checked mathematical
 arithmetic establishes that count times footprint equals the run's occupied byte

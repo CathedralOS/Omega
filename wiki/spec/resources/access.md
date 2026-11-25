@@ -267,9 +267,19 @@ view with no stronger authority than their source. Existing resident backing
 retains its exact `Extent in Granted & Resident<P, T>` custody. These routes keep
 their distinct source polarity, establishment evidence and custody contracts;
 removing the source wrapper does not collapse them into a permission-granting cast.
-Here and below `P` in custody/evidence families identifies the exact normalized
-domain policy; the independently selected layout is retained in occurrence
-evidence rather than embedded in that policy.
+In `Extent::Resident<P, T>`, `Run<P, T>` and their custody and evidence
+families, `P` is the canonical domain-qualified type. For
+`domain Word::Placed access WordAccess;`, use `Word in Word::Placed`.
+A transparent alias such as `data WordPlacement = Word in Word::Placed;`
+names the same index. A second domain on `Word` has a distinct index even if
+it selects the very same `WordAccess` implementation, access plan and layout.
+Forwarding, viewing and extraction preserve that distinction.
+
+Ordinary [structural matching](../language/generics.md#canonical-domain-index-matching)
+may recover `P` from a typed argument or expected result. A policy implementation
+or evaluated plan cannot select a domain in reverse. Matching a type index
+establishes no live backing, field permission or loan. The independently
+selected layout and the evidence for this access stay with the occurrence.
 
 Ordinary Stable field projection remains ordinary projection subject to policy.
 An External/Atomic interpretation uses restricted accessors where ordinary field
@@ -381,7 +391,7 @@ reflection or a source-free artifact.
 ## Occurrences and views
 
 Terminal Psi does not serialize a concrete address as authority or re-resolve
-source fields, access policy `P`, or resident type `T`. An `AccessOccurrenceId`
+source fields, qualified type `P`, or resident type `T`. An `AccessOccurrenceId`
 binds the qualified root occurrence, normalized domain access plan, independently
 validated layout and semantic-to-physical correspondence, provider/profile
 receipt, mapping/revision, range, lifetime, and boundary reach without an address.

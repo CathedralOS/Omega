@@ -32,7 +32,7 @@ data CounterOps {
 machine clear(counter: @mutable Counter) terminates { counter.value = 0; }
 machine value(counter: @Counter) -> u64 terminates { counter.value }
 
-let operations = CounterOps { clear: clear, value: value };
+let operations: CounterOps = CounterOps { clear: clear, value: value };
 let current: u64 = operations.value(@counter);
 ```
 
