@@ -548,6 +548,15 @@ fn assign_contract_call_symbols(
         }
         ExpressionNode::Membership(membership) => {
             assign_calls!(membership.value);
+            for handle in membership.domain_arguments.handles() {
+                crate::resolution::names::type_references::reassign_type_reference_symbols(
+                    symbols,
+                    child_type_references,
+                    machine.type_constraints,
+                    machine.type_parameters,
+                    handle,
+                );
+            }
             assign_membership_symbol(symbols, expression_table, membership.domain, expression);
         }
         ExpressionNode::Borrow(inner) => assign_calls!(inner.target),

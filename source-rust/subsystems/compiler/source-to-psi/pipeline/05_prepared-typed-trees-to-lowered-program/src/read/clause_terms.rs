@@ -178,13 +178,23 @@ impl Program<'_> {
         }
 
         for test in table.executable_domain_tests(expression) {
-            let Some(alias) = typed
-                .domain_definition(test.domain)
-                .filter(|domain| domain.alias.is_some() && domain.type_parameters.is_empty())
-            else {
+            let definition = if test.application.is_valid() {
+                Some(self.domain_theory(
+                    id,
+                    crate::body::DomainInstance {
+                        declaration: test.domain,
+                        identity: test.application,
+                    },
+                )?)
+            } else {
+                typed
+                    .domain_definition(test.domain)
+                    .filter(|domain| domain.alias.is_some() && domain.type_parameters.is_empty())
+            };
+            let Some(definition) = definition else {
                 continue;
             };
-            let carrier = self.value_type(id, alias.target_type)?;
+            let carrier = self.value_type(id, definition.target_type)?;
             let actual = if let Some((_, _, actual)) = self.projected(id, scope, test.subject)? {
                 actual
             } else {
@@ -192,13 +202,20 @@ impl Program<'_> {
                     .scalar(id)?
                     .1
             };
-            self.checked_membership_carrier(
-                id,
-                alias,
-                carrier,
-                Some(actual),
-                SourceOrigin::of(table.source_span(test.subject)),
-            )?;
+            let at = SourceOrigin::of(table.source_span(test.subject));
+            self.checked_membership_carrier(id, definition, carrier, Some(actual), at)?;
+            if test.application.is_valid() {
+                self.declared_domain(
+                    id,
+                    crate::body::DomainInstance {
+                        declaration: test.domain,
+                        identity: test.application,
+                    },
+                    actual,
+                    definition.target_type,
+                    at,
+                )?;
+            }
         }
 
         // A mathematical integer: `embed` of a carrier value, an anonymous

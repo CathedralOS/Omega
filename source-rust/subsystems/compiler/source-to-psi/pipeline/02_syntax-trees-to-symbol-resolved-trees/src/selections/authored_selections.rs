@@ -372,6 +372,7 @@ pub(super) fn normalize_case_membership_facts(
                 is_pattern: false,
                 value: membership.value,
                 domain,
+                domain_arguments: membership.domain_arguments,
                 domain_symbol: SymbolHandle::invalid(),
                 case_type_symbol,
                 case_symbol,

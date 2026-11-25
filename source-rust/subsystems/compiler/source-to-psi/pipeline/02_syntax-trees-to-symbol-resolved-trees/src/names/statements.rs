@@ -565,6 +565,7 @@ mod routing {
                                 is_pattern: true,
                                 value: retained.subject,
                                 domain: head.members,
+                                domain_arguments: arena::HandleSpan::empty(),
                                 domain_symbol: if is_case {
                                     SymbolHandle::invalid()
                                 } else {

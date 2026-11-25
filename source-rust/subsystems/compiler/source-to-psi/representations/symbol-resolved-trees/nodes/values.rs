@@ -1154,6 +1154,7 @@ pub mod expression {
                 is_pattern: false,
                 value: nan,
                 domain,
+                domain_arguments: HandleSpan::empty(),
                 domain_symbol: SymbolHandle::from_arena_index(14),
                 case_type_symbol: SymbolHandle::invalid(),
                 case_symbol: SymbolHandle::invalid(),
@@ -1236,7 +1237,7 @@ expression #48 = Borrow(TableBorrowExpression { target: #47, access: Mutable }) 
 expression #49 = Name(TableNamePath { members: #15+1, member_symbols: #8+1, head_symbol: #4, symbol: #4, static_application: #0@0, reserved_result_of: #0@0 }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #50 = Atomic(TableAtomicExpression { value: #48, result: #49, ordering: Load(GlobalOrder), result_custody: Scalar }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #51 = UndeterminedNaN(F32) at 0:0..0 exposure None partition None occurrences #0@0+0
-expression #52 = Membership(TableMembershipExpression { is_pattern: false, value: #51, domain: #16+1, domain_symbol: #14, case_type_symbol: #0@0, case_symbol: #0@0 }) at 0:0..0 exposure None partition None occurrences #0@0+0
+expression #52 = Membership(TableMembershipExpression { is_pattern: false, value: #51, domain: #16+1, domain_arguments: #0@0+0, domain_symbol: #14, case_type_symbol: #0@0, case_symbol: #0@0 }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #53 = ZeroValue(#13) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #54 = Match(TableMatchExpression { subject: #35, capture: #0@0, arms: #4+3 }) at 7:20..25 exposure None partition Some(CompilerDerivedSelectionPartition(4)) occurrences #8+1
 occurrence #5 = AuthoredDeclarationSelectionOccurrenceId(0)
@@ -2263,6 +2264,7 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
         pub is_pattern: bool,
         pub value: ExpressionHandle,
         pub domain: HandleSpan<DiagnosticName>,
+        pub domain_arguments: HandleSpan<crate::source_resolved::types::TypeReference>,
         pub domain_symbol: SymbolHandle,
         pub case_type_symbol: SymbolHandle,
         pub case_symbol: SymbolHandle,

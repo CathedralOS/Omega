@@ -233,6 +233,7 @@ pub enum ExpressionSnapshot {
     Membership {
         value: Box<ExpressionSnapshot>,
         domain: Vec<IdentifierSnapshot>,
+        domain_arguments: Vec<TypeReferenceSnapshot>,
     },
     Member {
         receiver: Box<ExpressionSnapshot>,
@@ -535,6 +536,7 @@ pub(crate) fn snapshot_expression_handle(
                     .expressions
                     .identifier_path_members(membership.domain),
             ),
+            domain_arguments: snapshot_type_references(syntax_trees, membership.domain_arguments),
         },
         ExpressionNode::Member(member) => ExpressionSnapshot::Member {
             receiver: Box::new(snapshot_expression_handle(syntax_trees, member.receiver)),

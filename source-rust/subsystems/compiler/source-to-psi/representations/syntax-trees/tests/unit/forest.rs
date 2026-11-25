@@ -37,6 +37,7 @@ fn shared_case_subject_syntax() -> (SyntaxTrees, ExpressionHandle, ExpressionHan
             .insert(ExpressionNode::Membership(TableMembershipExpression {
                 value: subject,
                 domain: HandleSpan::from_parts(classifier, 1),
+                domain_arguments: HandleSpan::empty(),
             }));
     let payload = source
         .expressions

@@ -864,8 +864,13 @@ impl<'t> Program<'t> {
                         test.subject != handle
                             && matches!(table.expression(test.subject),
                                 ExpressionNode::SavedSubject(operand) if operand.capture == saved.capture)
-                            && typed.domain_definition(test.domain)
-                                .is_some_and(|domain| domain.target_type == carrier)
+                            && (if test.application.is_valid() {
+                                typed.domain_definition_for_instance(test.domain, test.application)
+                            } else {
+                                typed.domain_definition(test.domain)
+                            }).is_some_and(|domain| domain.target_type == carrier
+                                || (typed.normalized_type_identity(carrier).is_valid()
+                                    && typed.normalized_type_identity(carrier) == typed.normalized_type_identity(domain.target_type)))
                     })
                 {
                     let logical = self.value_type(id, carrier)?;
@@ -2481,7 +2486,18 @@ impl Program<'_> {
         slots: &[Slot],
         test: crate::source_state::expression::ExecutableDomainTest,
     ) -> Checked<()> {
-        let Some(definition) = self.typed.domain_definition(test.domain) else {
+        let definition = if test.application.is_valid() {
+            Some(self.domain_theory(
+                id,
+                crate::body::DomainInstance {
+                    declaration: test.domain,
+                    identity: test.application,
+                },
+            )?)
+        } else {
+            self.typed.domain_definition(test.domain)
+        };
+        let Some(definition) = definition else {
             return Err(refuse(
                 id,
                 Construct::Machine,
@@ -2499,7 +2515,27 @@ impl Program<'_> {
             .wholly_anonymous(test.subject)
             .then_some(carrier.erased());
         let subject = self.expression(id, slots, test.subject, landing)?;
-        self.checked_membership_carrier(id, definition, carrier, subject.result, subject.source)
+        self.checked_membership_carrier(id, definition, carrier, subject.result, subject.source)?;
+        if test.application.is_valid() {
+            let actual = subject.result.ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Expression("domain membership without a value"),
+                )
+            })?;
+            self.declared_domain(
+                id,
+                crate::body::DomainInstance {
+                    declaration: test.domain,
+                    identity: test.application,
+                },
+                actual,
+                target_type,
+                subject.source,
+            )?;
+        }
+        Ok(())
     }
 
     pub(super) fn checked_membership_carrier(

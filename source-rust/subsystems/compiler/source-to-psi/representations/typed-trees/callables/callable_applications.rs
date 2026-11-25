@@ -1390,7 +1390,7 @@ pub(crate) mod domain_scopes {
             self.retain_domain_arguments(declaration, &complete)
         }
 
-        fn retain_domain_arguments(
+        pub(super) fn retain_domain_arguments(
             &mut self,
             declaration: SymbolHandle,
             arguments: &[types::TypeReferenceHandle],
@@ -3052,7 +3052,7 @@ pub(crate) mod payloads {
                 .insert_type_reference_handles(applied))
         }
 
-        pub(crate) fn expression(
+        pub fn expression(
             &mut self,
             program: &mut TypedTrees,
             original: expression::ExpressionHandle,
@@ -3146,6 +3146,26 @@ pub(crate) mod payloads {
             call_targets: Vec<Option<super::call_targets::AppliedCallTarget>>,
         ) -> Result<(), &'static str> {
             for (&handle, call_target) in rows.iter().zip(call_targets) {
+                let tests = program.expression_table.executable_domain_tests(handle);
+                if tests.iter().any(|test| test.application.is_valid()) {
+                    let mut tests = tests.to_vec();
+                    for test in tests.iter_mut().filter(|test| test.application.is_valid()) {
+                        let original = program
+                            .domain_arguments_for_instance(test.domain, test.application)
+                            .ok_or("copied membership lost its applied domain")?
+                            .to_vec();
+                        let arguments = original
+                            .into_iter()
+                            .map(|argument| self.type_reference(program, argument))
+                            .collect::<Result<Vec<_>, _>>()?;
+                        test.application = program
+                            .retain_domain_arguments(test.domain, &arguments)
+                            .map_err(|_| "copied membership lost its substituted application")?;
+                    }
+                    program
+                        .expression_table
+                        .replace_executable_domain_tests(handle, tests);
+                }
                 let carrier = program
                     .expression_table
                     .constructed_value_type_reference(handle);

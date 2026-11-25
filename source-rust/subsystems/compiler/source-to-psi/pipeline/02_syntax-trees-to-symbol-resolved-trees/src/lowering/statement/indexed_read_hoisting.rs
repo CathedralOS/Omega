@@ -128,6 +128,7 @@ fn rewrite_children(
                     is_pattern: membership.is_pattern,
                     value,
                     domain: membership.domain,
+                    domain_arguments: membership.domain_arguments,
                     domain_symbol: membership.domain_symbol,
                     case_type_symbol: membership.case_type_symbol,
                     case_symbol: membership.case_symbol,

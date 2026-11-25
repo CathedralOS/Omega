@@ -18,18 +18,7 @@ pub(crate) fn extend_membership<'tokens, 'source>(
     while context.allows_membership() && input.at_contextual("in") {
         input = input.take_contextual("in")?;
         let subject = expression;
-        let (domain, rest) = parse_path_handle_span(input, |member| {
-            syntax_trees
-                .expressions
-                .append_identifier_path_member(member)
-        })?;
-        input = rest;
-        expression = syntax_trees.expressions.insert(ExpressionNode::Membership(
-            TableMembershipExpression {
-                value: expression,
-                domain,
-            },
-        ));
+        (expression, input) = parse_test(syntax_trees, subject, input)?;
 
         while input.at_punctuation(PunctuationKind::Ampersand)
             || input.at_punctuation(PunctuationKind::Pipe)
@@ -45,18 +34,8 @@ pub(crate) fn extend_membership<'tokens, 'source>(
                     input.take_punctuation(PunctuationKind::Pipe, "|")?,
                 )
             };
-            let (domain, rest) = parse_path_handle_span(after_operator, |member| {
-                syntax_trees
-                    .expressions
-                    .append_identifier_path_member(member)
-            })?;
+            let (right, rest) = parse_test(syntax_trees, subject, after_operator)?;
             input = rest;
-            let right = syntax_trees.expressions.insert(ExpressionNode::Membership(
-                TableMembershipExpression {
-                    value: subject,
-                    domain,
-                },
-            ));
             expression =
                 syntax_trees
                     .expressions
@@ -71,4 +50,36 @@ pub(crate) fn extend_membership<'tokens, 'source>(
     }
 
     Ok((expression, input))
+}
+
+fn parse_test<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    value: ExpressionHandle,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, ExpressionHandle> {
+    let (domain, rest) = parse_path_handle_span(input, |member| {
+        syntax_trees
+            .expressions
+            .append_identifier_path_member(member)
+    })?;
+    let (domain_arguments, rest) = if rest.at_expression_arguments() {
+        crate::types::references::parse_domain_argument_handles(
+            syntax_trees,
+            rest.take_punctuation(PunctuationKind::ColonColon, "::")?,
+        )?
+    } else {
+        (arena::HandleSpan::empty(), rest)
+    };
+    let test =
+        syntax_trees
+            .expressions
+            .insert(ExpressionNode::Membership(TableMembershipExpression {
+                value,
+                domain,
+                domain_arguments,
+            }));
+    syntax_trees
+        .expressions
+        .set_source_span(test, input.source_span_until(rest));
+    Ok((test, rest))
 }

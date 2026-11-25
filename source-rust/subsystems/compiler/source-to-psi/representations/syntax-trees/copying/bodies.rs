@@ -1019,6 +1019,8 @@ impl SyntaxCopy<'_> {
                 ExpressionNode::Membership(TableMembershipExpression {
                     value: self.copy_expression_handle(other, membership.value),
                     domain: self.copy_expression_identifier_span(other, membership.domain),
+                    domain_arguments: self
+                        .copy_type_reference_handle_span(other, membership.domain_arguments),
                 })
             }
             ExpressionNode::Member(member) => ExpressionNode::Member(TableMemberExpression {

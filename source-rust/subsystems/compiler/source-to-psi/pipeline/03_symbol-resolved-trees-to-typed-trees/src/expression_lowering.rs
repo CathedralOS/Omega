@@ -206,12 +206,19 @@ pub(crate) mod expression {
             target: &mut typed::TypedTrees,
             value: typed::expression::ExpressionHandle,
             domain_symbol: SymbolHandle,
+            carrier: Option<typed::types::TypeReferenceHandle>,
+            arguments: &[typed::types::TypeReferenceHandle],
         ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
             let domain_definition = domain_definition(program, domain_symbol)?;
             if is_pending_data_subject(program, target, value) {
                 return Err(Diagnostic::error(
             "cannot form named-domain membership: the logical data subject's own default domain is still pending admission",
         ).with_source_span(target.expression_table.source_span(value)));
+            }
+            if domain_definition.alias.is_some() && !arguments.is_empty() {
+                return Err(Diagnostic::error(
+                    "a fixed domain alias takes no index arguments",
+                ));
             }
             let expanded = expand_domain_reference(
                 program,
@@ -225,6 +232,11 @@ pub(crate) mod expression {
                     target,
                     value,
                     atom.symbol,
+                    atom.applying_alias
+                        .and_then(|alias| target.domain_definition(alias))
+                        .map(|alias| alias.target_type)
+                        .or(carrier),
+                    arguments,
                 )?);
             }
             let predicate = combine_conjunction(target, lowered)?;
@@ -236,6 +248,7 @@ pub(crate) mod expression {
                     typed::expression::ExecutableDomainTest {
                         subject: value,
                         domain: domain_symbol,
+                        application: Default::default(),
                     },
                 );
             }
@@ -247,11 +260,52 @@ pub(crate) mod expression {
             target: &mut typed::TypedTrees,
             value: typed::expression::ExpressionHandle,
             domain_symbol: SymbolHandle,
+            carrier: Option<typed::types::TypeReferenceHandle>,
+            arguments: &[typed::types::TypeReferenceHandle],
         ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
             let domain_definition = domain_definition(program, domain_symbol)?;
+            let family = target.domain_definition(domain_symbol);
+            let mut instance = semantic_vocabulary::SemanticDomainId::default();
+            let mut substitution = None;
+            if family.is_some_and(|family| !family.type_parameters.is_empty())
+                || !arguments.is_empty()
+            {
+                let family = family.ok_or_else(|| {
+                    Diagnostic::error("indexed membership lost its domain declaration")
+                })?;
+                let carrier = carrier
+                    .or_else(|| {
+                        (!typed::domain::has_generic_carrier(target, family))
+                            .then_some(family.target_type)
+                    })
+                    .ok_or_else(|| {
+                        Diagnostic::error("indexed membership needs the operand's resolved carrier")
+                    })?;
+                instance = target.retain_domain_application(domain_symbol, carrier, arguments)?;
+                let family = target
+                    .domain_definition(domain_symbol)
+                    .expect("retained domain declaration");
+                let complete = target
+                    .domain_arguments_for_instance(domain_symbol, instance)
+                    .ok_or_else(|| {
+                        Diagnostic::error("indexed membership lost its complete application")
+                    })?;
+                let parameters = target.domain_type_parameters(family);
+                substitution = Some(typed::CallableApplication::for_type_parameters(
+                    domain_symbol,
+                    parameters.iter().zip(complete.iter().copied()),
+                    None,
+                ));
+            }
             let source = &program.tables.bodies.expressions;
             let operand = value;
-            let value = predicate_subject(target, value, domain_symbol);
+            let value = predicate_subject(
+                target,
+                value,
+                domain_symbol,
+                instance,
+                substitution.as_mut(),
+            )?;
             let mut lowered_facts = Vec::new();
 
             for fact in program.proof_facts(domain_definition.facts) {
@@ -323,11 +377,16 @@ pub(crate) mod expression {
                         ) {
                             case_membership
                         } else {
+                            let arguments = program.child_type_references(membership.domain_arguments)
+                                .iter().map(|argument| crate::type_reference::lower_type_reference_into_trees_with_exposure(program, target, argument, None))
+                                .collect::<Result<Vec<_>, _>>()?;
                             lower_domain_membership_expression(
                                 program,
                                 target,
                                 nested_value,
                                 membership.domain_symbol,
+                                None,
+                                &arguments,
                             )?
                         }
                     }
@@ -336,6 +395,12 @@ pub(crate) mod expression {
             }
 
             let predicate = combine_conjunction(target, lowered_facts)?;
+            let predicate = match substitution {
+                Some(mut application) => application
+                    .expression(target, predicate)
+                    .map_err(Diagnostic::error)?,
+                None => predicate,
+            };
             // A predicate consisting only of `self` would otherwise ask the
             // reader to check the subject of the test by reading the test itself.
             let predicate = if predicate == value {
@@ -348,6 +413,7 @@ pub(crate) mod expression {
                 typed::expression::ExecutableDomainTest {
                     subject: operand,
                     domain: domain_symbol,
+                    application: instance,
                 },
             );
             Ok(predicate)
@@ -359,16 +425,26 @@ pub(crate) mod expression {
             program: &mut typed::TypedTrees,
             value: typed::expression::ExpressionHandle,
             domain: SymbolHandle,
-        ) -> typed::expression::ExpressionHandle {
+            application: semantic_vocabulary::SemanticDomainId,
+            substitution: Option<&mut typed::CallableApplication>,
+        ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
             use typed::expression::ExpressionNode;
             let Some(definition) = program.domain_definition(domain) else {
-                return value;
+                return Ok(value);
             };
-            let carrier = definition.target_type;
-            if definition.facts.is_empty()
-                || !definition.type_parameters.is_empty()
-                || !definition.index_arguments.is_empty()
-                || !program.type_reference_table.contains_type_reference(carrier)
+            if definition.facts.is_empty() {
+                return Ok(value);
+            }
+            let declared = definition.target_type;
+            let carrier = match substitution {
+                Some(substitution) => substitution
+                    .type_reference(program, declared)
+                    .map_err(Diagnostic::error)?,
+                None => declared,
+            };
+            if !program
+                .type_reference_table
+                .contains_type_reference(carrier)
                 || program
                     .type_reference_table
                     .primitive_type(carrier, &program.symbols)
@@ -378,7 +454,7 @@ pub(crate) mod expression {
                     ExpressionNode::SavedSubject(_)
                 )
             {
-                return value;
+                return Ok(value);
             }
             let subject = program.expression_table.insert_copy(value);
             program
@@ -386,9 +462,13 @@ pub(crate) mod expression {
                 .set_constructed_value_type_reference(subject, carrier);
             program.expression_table.retain_executable_domain_test(
                 subject,
-                typed::expression::ExecutableDomainTest { subject: value, domain },
+                typed::expression::ExecutableDomainTest {
+                    subject: value,
+                    domain,
+                    application,
+                },
             );
-            subject
+            Ok(subject)
         }
 
         fn case_symbols_for_domain_fact(
@@ -2718,41 +2798,38 @@ pub(crate) mod expression {
                         ));
                     };
                     let value = self.lower_value(membership.value)?;
-                    if membership.domain_symbol.is_valid() {
-                        return self.domain_test(program, value, membership.domain_symbol);
-                    }
-
-                    if let Some(lowered) = lower_case_membership_expression(
-                        program,
-                        self.source,
-                        self.target_trees,
-                        value,
-                        membership.domain,
-                        membership.case_type_symbol,
-                        membership.case_symbol,
-                    ) {
+                    if !membership.domain_symbol.is_valid()
+                        && let Some(lowered) = lower_case_membership_expression(
+                            program,
+                            self.source,
+                            self.target_trees,
+                            value,
+                            membership.domain,
+                            membership.case_type_symbol,
+                            membership.case_symbol,
+                        )
+                    {
+                        if !membership.domain_arguments.is_empty() {
+                            return Err(Diagnostic::error(
+                                "a sum case membership test takes no domain index arguments",
+                            )
+                            .with_source_span(self.source.source_span(expression)));
+                        }
                         return Ok(lowered);
                     }
 
-                    let domain_name =
-                        display_name_path(self.source.name_path_members(membership.domain), "::");
-                    use crate::declaration_selection::{
-                        AuthoredDeclarationSelectionKind as Kind,
-                        AuthoredDeclarationSelectionLateBinding as Binding,
-                    };
-                    let (occurrence, at) = self
-                        .source
-                        .authored_selection_occurrences(expression)
-                        .find_map(|id| {
-                            let use_site = program.authored_declaration_selections().get(id)?;
-                            (use_site.kind() == Kind::DomainMembership)
-                                .then_some((id, use_site.source_span()))
+                    let arguments = program
+                        .child_type_references(membership.domain_arguments)
+                        .iter()
+                        .map(|argument| {
+                            lower_type_reference_into_trees_with_exposure(
+                                program,
+                                self.target_trees,
+                                argument,
+                                self.source.authored_expression_exposure(expression),
+                            )
                         })
-                        .ok_or_else(|| {
-                            Diagnostic::error(format!(
-                            "unknown domain `{domain_name}` in executable membership expression",
-                        )).with_source_span(self.source.source_span(expression))
-                        })?;
+                        .collect::<Result<Vec<_>, _>>()?;
                     let lowered = &self.lowered_expressions;
                     let source = self.source;
                     let carrier = crate::domain_cast_accounting::type_for_domain_selection(
@@ -2775,9 +2852,41 @@ pub(crate) mod expression {
                                 .transpose()
                         },
                     )?;
+                    if membership.domain_symbol.is_valid() {
+                        return self
+                            .domain_test(
+                                program,
+                                value,
+                                membership.domain_symbol,
+                                carrier,
+                                &arguments,
+                            )
+                            .map_err(|error| {
+                                error.with_source_span(self.source.source_span(expression))
+                            });
+                    }
+                    let domain_name =
+                        display_name_path(self.source.name_path_members(membership.domain), "::");
+                    use crate::declaration_selection::{
+                        AuthoredDeclarationSelectionKind as Kind,
+                        AuthoredDeclarationSelectionLateBinding as Binding,
+                    };
+                    let (occurrence, at) = self
+                        .source
+                        .authored_selection_occurrences(expression)
+                        .find_map(|id| {
+                            let use_site = program.authored_declaration_selections().get(id)?;
+                            (use_site.kind() == Kind::DomainMembership)
+                                .then_some((id, use_site.source_span()))
+                        })
+                        .ok_or_else(|| {
+                            Diagnostic::error(format!(
+                            "unknown domain `{domain_name}` in executable membership expression",
+                        )).with_source_span(self.source.source_span(expression))
+                        })?;
                     let written = crate::type_reference::carrier_qualifications::DomainUse {
                         name: &domain_name,
-                        arguments: &[],
+                        arguments: &arguments,
                         reference: Some(at),
                         retained: membership.domain_symbol,
                     };
@@ -2807,14 +2916,15 @@ pub(crate) mod expression {
                             ))
                             .with_source_span(at)
                         })?;
-                    self.domain_test(program, value, symbol)
+                    self.domain_test(program, value, symbol, carrier, &arguments)
                 }
-
                 fn domain_test(
                     &mut self,
                     program: &resolved::SymbolResolvedTrees,
                     value: typed::expression::ExpressionHandle,
                     domain: symbols::SymbolHandle,
+                    carrier: Option<typed::types::TypeReferenceHandle>,
+                    arguments: &[typed::types::TypeReferenceHandle],
                 ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
                     use typed::expression::{
                         ExpressionNode, MatchPattern, TableMatchArm, TableMatchExpression,
@@ -2831,7 +2941,12 @@ pub(crate) mod expression {
                         )
                     {
                         return lower_domain_membership_expression(
-                            program, self.target_trees, value, domain,
+                            program,
+                            self.target_trees,
+                            value,
+                            domain,
+                            carrier,
+                            arguments,
                         );
                     }
                     // Expanding a domain predicate can read its subject zero or many times.
@@ -2845,7 +2960,12 @@ pub(crate) mod expression {
                     }));
                     self.target().set_source_span(saved, source_span);
                     let predicate = lower_domain_membership_expression(
-                        program, self.target_trees, saved, domain,
+                        program,
+                        self.target_trees,
+                        saved,
+                        domain,
+                        carrier,
+                        arguments,
                     )?;
                     let arms = self.target().insert_match_arms([TableMatchArm {
                         pattern: MatchPattern::Wildcard,

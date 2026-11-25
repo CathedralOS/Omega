@@ -909,6 +909,33 @@ mod traversal {
             );
         }
 
+        fn reassign_domain_arguments(
+            &mut self,
+            domain: HandleSpan<crate::source_resolved::name::DiagnosticName>,
+            arguments: HandleSpan<TypeReference>,
+        ) {
+            for handle in arguments.handles() {
+                self.reassign_type_reference(handle);
+            }
+            if !arguments.is_empty() {
+                let path = self.expression_table.name_path_members(domain);
+                if let Some(name) = path.last() {
+                    crate::resolution::names::type_references::assign_domain_index_values(
+                        self.symbols,
+                        self.machine,
+                        self.parameters,
+                        &crate::source_resolved::name::DiagnosticName::from_str(
+                            &path.joined_path(),
+                            name.source_span(),
+                        ),
+                        arguments,
+                        self.child_type_references,
+                        self.declaration_references,
+                    );
+                }
+            }
+        }
+
         fn assign_static_argument_type_symbols(&mut self, argument: &StaticMachineArgument) {
             if argument.type_reference.is_valid() {
                 self.reassign_type_reference(argument.type_reference);
@@ -1118,28 +1145,10 @@ mod traversal {
                 ExpressionNode::Cast(cast) => {
                     self.assign_expression_table_symbols(cast.value);
                     self.reassign_type_reference(cast.target_type);
-                    for handle in cast.semantic_domain_arguments.handles() {
-                        self.reassign_type_reference(handle);
-                    }
-                    if !cast.semantic_domain_arguments.is_empty() {
-                        let path = self
-                            .expression_table
-                            .name_path_members(cast.semantic_domain);
-                        if let Some(name) = path.last() {
-                            crate::resolution::names::type_references::assign_domain_index_values(
-                                self.symbols,
-                                self.machine,
-                                self.parameters,
-                                &crate::source_resolved::name::DiagnosticName::from_str(
-                                    &path.joined_path(),
-                                    name.source_span(),
-                                ),
-                                cast.semantic_domain_arguments,
-                                self.child_type_references,
-                                self.declaration_references,
-                            );
-                        }
-                    }
+                    self.reassign_domain_arguments(
+                        cast.semantic_domain,
+                        cast.semantic_domain_arguments,
+                    );
                 }
                 ExpressionNode::Call(call) => {
                     if call.callee.is_valid() {
@@ -1195,6 +1204,7 @@ mod traversal {
                 }
                 ExpressionNode::Membership(membership) => {
                     self.assign_expression_table_symbols(membership.value);
+                    self.reassign_domain_arguments(membership.domain, membership.domain_arguments);
                     assign_membership_symbol(
                         self.symbols,
                         self.expression_table,
@@ -1406,6 +1416,7 @@ mod traversal {
                     is_pattern: false,
                     value: saved,
                     domain: path.members,
+                    domain_arguments: arena::HandleSpan::empty(),
                     domain_symbol: domain,
                     case_type_symbol: SymbolHandle::invalid(),
                     case_symbol: SymbolHandle::invalid(),

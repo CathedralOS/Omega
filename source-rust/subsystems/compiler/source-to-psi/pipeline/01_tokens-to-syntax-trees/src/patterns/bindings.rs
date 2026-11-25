@@ -214,6 +214,7 @@ fn rewrite_expression(
                     captures,
                 ),
                 domain: membership.domain,
+                domain_arguments: membership.domain_arguments,
             })
         }
         ExpressionNode::Member(member) => ExpressionNode::Member(TableMemberExpression {

@@ -1014,6 +1014,13 @@ mod expressions {
                     }
                 }
             }
+            ExpressionNode::Membership(membership) => {
+                for &argument in syntax_type_references(syntax)
+                    .type_reference_handles(membership.domain_arguments)
+                {
+                    visit(argument);
+                }
+            }
             ExpressionNode::Cast(cast) => {
                 visit(cast.target_type);
                 for &argument in syntax_type_references(syntax)
@@ -1510,6 +1517,9 @@ mod patterns {
                     let ExpressionNode::Membership(membership) = expression else {
                         return None;
                     };
+                    if !membership.domain_arguments.is_empty() {
+                        return None;
+                    }
                     let closed = match syntax.expressions.expression(membership.value) {
                         ExpressionNode::Name {
                             members: subject_path,
@@ -1551,7 +1561,11 @@ mod patterns {
                 let domain = closed_sum_path(syntax, closed, carrier_span, case);
                 syntax.expressions.replace_expression(
                     handle,
-                    ExpressionNode::Membership(TableMembershipExpression { value, domain }),
+                    ExpressionNode::Membership(TableMembershipExpression {
+                        value,
+                        domain,
+                        domain_arguments: arena::HandleSpan::empty(),
+                    }),
                 );
             }
         }

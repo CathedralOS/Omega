@@ -1632,21 +1632,28 @@ fn proof_fact_membership_carries_indexed_domain_application_by_argument() {
 }
 
 #[test]
-fn proof_fact_pipe_alternative_rejects_indexed_domain_application() {
-    let tokens = Lexer::new(
-        r#"
-        domain Extent::Access
-        requires
-            self in Granted | Resident<SlotPlacement, Slot>
-        "#,
-    )
-    .tokenize()
-    .expect("tokenize should succeed");
-    let error = parse_syntax_trees(&tokens).expect_err("a `|` alternative has no argument slot");
-    crate::tests::expect_error(
-        &error,
-        "indexed domain applications are not carried by `|` proof-fact alternatives",
+fn proof_fact_alternatives_keep_their_domain_indices() {
+    let (parsed, facts) = parse_domain_facts(
+        "domain Extent::Access requires self in Granted::<First> | Resident<Second, Third>",
     );
+    let [ProofFact::Expression(expression)] = facts.as_slice() else {
+        panic!("expected an alternative");
+    };
+    let ExpressionNode::Binary(alternatives) = parsed.expressions.expression(*expression) else {
+        panic!("expected a disjunction");
+    };
+    for (operand, arity) in [(alternatives.left, 1), (alternatives.right, 2)] {
+        let ExpressionNode::Membership(test) = parsed.expressions.expression(operand) else {
+            panic!("expected a membership test");
+        };
+        assert_eq!(
+            parsed
+                .type_references
+                .type_reference_handles(test.domain_arguments)
+                .len(),
+            arity
+        );
+    }
 }
 
 #[test]

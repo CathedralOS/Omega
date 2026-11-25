@@ -1232,7 +1232,10 @@ impl<'program, 'selection> Collector<'program, 'selection> {
             ExpressionNode::Indexed(indexed) => {
                 self.queue_expressions([indexed.index, indexed.collection])
             }
-            ExpressionNode::Membership(membership) => self.queue_expression(membership.value),
+            ExpressionNode::Membership(membership) => {
+                self.type_arguments(membership.domain_arguments)?;
+                self.queue_expression(membership.value);
+            }
             ExpressionNode::Atomic(atomic) => self.queue_expressions([atomic.result, atomic.value]),
             ExpressionNode::Range(range) => self.queue_expressions(
                 [range.end, range.start]
