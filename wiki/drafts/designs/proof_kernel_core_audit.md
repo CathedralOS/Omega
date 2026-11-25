@@ -1422,9 +1422,12 @@ type), and the clause's `ClauseScope` says what each name denotes there.
     (2026-11-25). The call `maybe_zero(items, selected)` after its value
     `match` is covered, since the join keeps `items[index] == 7` stated
     over the input. Its private nested `finish` calls
-    `read_seven(items, 0, false)` and owes `items[0] == 7`, which only
+    `read_seven(items, 0, false)` and owes `items[0] == 7`, which
     [private entry inference](../../spec/language/state_contracts.md#private-entry-inference)
-    for `finish` could supply. A route
+    now supplies: an element of a fixed-length shared input crosses into a
+    private helper like a record field, named by the read `items[0]` the
+    helper's call states for that cell (`field_crossings`, 2026-11-25), so
+    `match_join` is accepted. A route
     over an actual that lends a field (`@pair.items`) names that field
     path at the call (2026-11-25). Two limits fail closed: a route over an
     actual with no static path (`@rows[row]`) is refused by name, and a

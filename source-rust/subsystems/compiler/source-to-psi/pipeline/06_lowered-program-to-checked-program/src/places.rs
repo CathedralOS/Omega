@@ -7897,56 +7897,96 @@ impl<'a> CallObservations<'_, 'a> {
         held
     }
 
-    /// Callee names of the scalar fields of each readable record input, with
-    /// the caller value each field holds at this arrival.
+    /// Callee names of the scalar fields and fixed array elements of each
+    /// readable structural input, with the caller value each holds at this
+    /// arrival.
     ///
     /// A value is named in the callee by the field it was read from. After
     /// `main.sp = main.k`, the value of `main.k` is also what `main.sp` holds,
     /// so a guard `main.sp < 8` before the call states its bound under the
     /// callee's `main.k` and the callee learns nothing of `main.sp`. Crossing
     /// each held field like a scalar formal lets the description state
-    /// `main.sp == main.k` as well. This is inference only: every arrival
-    /// still proves the resulting condition. Only plain record fields are
-    /// walked (no case payloads or array elements), up to a fixed number of
-    /// leaves per arrival.
+    /// `main.sp == main.k` as well. An element of a fixed-length array
+    /// crosses the same way, named by the read `items[0]` a call states for
+    /// that cell, so a caller's guard `items[0] == 7` reaches a private
+    /// helper that receives `@items`. This is inference only: every arrival
+    /// still proves the resulting condition. Case payloads, elements of an
+    /// input that is not a shared loan and elements of arrays whose length
+    /// is not a literal are not walked, and at most a fixed number of leaves
+    /// cross per arrival.
     pub(crate) fn field_crossings(&mut self) -> Vec<(ScalarTerm, ValueId)> {
         const MAXIMUM_FIELD_CROSSINGS: usize = 256;
         let mut crossings = Vec::new();
         let types = self.storage.types;
         let formals = self.callee_formals;
+        let leaf_type =
+            |structural_type| match terminal_psi::find_structural_type(types, structural_type)
+                .map(|declaration| &declaration.shape)
+            {
+                Some(StructuralTypeShape::PrimitiveScalar(
+                    scalar_type @ (ScalarType::Integer(_) | ScalarType::Boolean),
+                )) => Some(*scalar_type),
+                _ => None,
+            };
         for declaration in formals {
             let Ok(actual) = self.readable_actual(declaration).cloned() else {
                 continue;
             };
             let mut pending = vec![(declaration.structural_type, Vec::new())];
             while let Some((structural_type, path)) = pending.pop() {
-                let Some(StructuralTypeShape::Record { fields, .. }) =
-                    terminal_psi::find_structural_type(types, structural_type)
-                        .map(|declaration| &declaration.shape)
-                else {
-                    continue;
-                };
-                for field in fields {
-                    let mut field_path: Vec<CanonicalStructuralPathSegment> = path.clone();
-                    field_path.push(CanonicalStructuralPathSegment::Field(field.id));
-                    let scalar_type = match field.field_type {
-                        StructuralFieldType::Scalar(scalar_type @ ScalarType::Integer(_))
-                        | StructuralFieldType::Scalar(scalar_type @ ScalarType::Boolean) => {
-                            scalar_type
+                // Each scalar leaf directly below this storage, with its path.
+                let mut leaves = Vec::new();
+                match terminal_psi::find_structural_type(types, structural_type)
+                    .map(|declaration| &declaration.shape)
+                {
+                    Some(StructuralTypeShape::Record { fields, .. }) => {
+                        for field in fields {
+                            let mut field_path: Vec<CanonicalStructuralPathSegment> =
+                                path.clone();
+                            field_path.push(CanonicalStructuralPathSegment::Field(field.id));
+                            match field.field_type {
+                                StructuralFieldType::Scalar(
+                                    scalar_type @ (ScalarType::Integer(_) | ScalarType::Boolean),
+                                ) => leaves.push((field_path, scalar_type)),
+                                StructuralFieldType::Structural(nested) => {
+                                    pending.push((nested, field_path));
+                                }
+                                _ => {}
+                            }
                         }
-                        StructuralFieldType::Structural(nested) => {
-                            pending.push((nested, field_path));
+                    }
+                    // An element's name is the read a call or entry clause
+                    // states for that cell, which exists only for a shared
+                    // input (`Storage::shared_entry_read`). Elements of other
+                    // inputs would only add names nothing can match.
+                    Some(StructuralTypeShape::FixedArray { element, length })
+                        if declaration.access == StructuralAccess::SharedBorrow =>
+                    {
+                        let Some(length) = length.literal() else {
                             continue;
+                        };
+                        for position in 0..length {
+                            if crossings.len() + leaves.len() >= MAXIMUM_FIELD_CROSSINGS {
+                                break;
+                            }
+                            let mut element_path = path.clone();
+                            element_path.push(CanonicalStructuralPathSegment::FixedIndex(position));
+                            match leaf_type(*element) {
+                                Some(scalar_type) => leaves.push((element_path, scalar_type)),
+                                None => pending.push((*element, element_path)),
+                            }
                         }
-                        _ => continue,
-                    };
+                    }
+                    _ => continue,
+                }
+                for (leaf_path, scalar_type) in leaves {
                     if crossings.len() == MAXIMUM_FIELD_CROSSINGS {
                         return crossings;
                     }
                     let Ok(leaf) = self.storage.actual_projection(
                         &actual,
                         declaration.structural_type,
-                        &field_path,
+                        &leaf_path,
                         self.concerns,
                     ) else {
                         continue;
@@ -7955,22 +7995,9 @@ impl<'a> CallObservations<'_, 'a> {
                     else {
                         continue;
                     };
-                    let version = semantic_vocabulary::ContentPlaceVersion::Entry;
-                    let root = declaration.place;
-                    let name = match scalar_type {
-                        ScalarType::Integer(scalar_type) => ScalarTerm::IntegerField {
-                            version,
-                            root,
-                            path: field_path,
-                            scalar_type,
-                        },
-                        _ => ScalarTerm::BooleanField {
-                            version,
-                            root,
-                            path: field_path,
-                        },
-                    };
-                    crossings.push((name, id));
+                    if let Some(name) = crossing_name(declaration.place, leaf_path, scalar_type) {
+                        crossings.push((name, id));
+                    }
                 }
             }
         }
@@ -8211,6 +8238,54 @@ fn formal_observation_path(
         .map(segment)
         .collect::<Option<Vec<_>>>()?;
     Some((formal, path))
+}
+
+/// The callee's name for one scalar leaf of a structural input. A path of
+/// record fields names the field at entry; a path through an array element
+/// names the read of that cell, with each position as a `u64` index, which
+/// is the form `AtCall::structural_read` and `Storage::shared_entry_read`
+/// give the same cell at a call.
+fn crossing_name(
+    root: PlaceId,
+    path: Vec<CanonicalStructuralPathSegment>,
+    scalar_type: ScalarType,
+) -> Option<ScalarTerm> {
+    use semantic_vocabulary::ScalarReadProjection as Projection;
+    let version = semantic_vocabulary::ContentPlaceVersion::Entry;
+    if path
+        .iter()
+        .any(|segment| matches!(segment, CanonicalStructuralPathSegment::FixedIndex(_)))
+    {
+        let index =
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                .ok()?;
+        let read = path
+            .into_iter()
+            .map(|segment| match segment {
+                CanonicalStructuralPathSegment::FixedIndex(position) => ScalarTerm::integer(
+                    index,
+                    semantic_vocabulary::IntegerValue::Unsigned(u128::from(position)),
+                )
+                .ok()
+                .map(|position| Projection::Index(Box::new(position))),
+                segment => Some(Projection::from(segment)),
+            })
+            .collect::<Option<Vec<_>>>()?;
+        return ScalarTerm::structural_read(root, read, scalar_type).ok();
+    }
+    Some(match scalar_type {
+        ScalarType::Integer(scalar_type) => ScalarTerm::IntegerField {
+            version,
+            root,
+            path,
+            scalar_type,
+        },
+        _ => ScalarTerm::BooleanField {
+            version,
+            root,
+            path,
+        },
+    })
 }
 
 impl crate::Bindings for AtCall<'_, '_> {
