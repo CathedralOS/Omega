@@ -186,6 +186,9 @@ pub fn validate_row(
         | SelectedInstructionKind::HostedWriteByteI32 { .. }
         | SelectedInstructionKind::HostedReadByte { .. }
         | SelectedInstructionKind::Load8Indexed
+        | SelectedInstructionKind::Load16Indexed
+        | SelectedInstructionKind::Load32Indexed
+        | SelectedInstructionKind::Load64Indexed
         | SelectedInstructionKind::SaveFloatingControl { .. }
         | SelectedInstructionKind::RestoreFloatingControl { .. }
         | SelectedInstructionKind::Store64 { .. }
@@ -411,6 +414,30 @@ fn admits_address_operation(
             | (Kind::Load16 { .. }, Operation::Load16 { .. })
             | (Kind::Load32 { .. }, Operation::Load32 { .. })
             | (Kind::Load8Indexed, Operation::Load8Indexed { .. })
+            | (
+                Kind::Load16Indexed,
+                Operation::LoadScaledIndex {
+                    base_operand: 0,
+                    index_operand: 1,
+                    element_bytes: 2
+                }
+            )
+            | (
+                Kind::Load32Indexed,
+                Operation::LoadScaledIndex {
+                    base_operand: 0,
+                    index_operand: 1,
+                    element_bytes: 4
+                }
+            )
+            | (
+                Kind::Load64Indexed,
+                Operation::LoadScaledIndex {
+                    base_operand: 0,
+                    index_operand: 1,
+                    element_bytes: 8
+                }
+            )
             | (
                 Kind::HostedReadByte { .. },
                 Operation::HostedReadByte { .. }

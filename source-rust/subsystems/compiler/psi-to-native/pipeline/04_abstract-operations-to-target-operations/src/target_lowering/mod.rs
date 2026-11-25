@@ -350,7 +350,7 @@ pub(crate) mod optimized {
             settlements,
             installation,
         } = request;
-        require_lowering_context(&optimized, &lowering_facts, target)?;
+        let target_rules = require_lowering_context(&optimized, &lowering_facts, target)?;
         let bindings =
             super::provider_evidence::bind_provider_executions(optimized.plan(), settlements)
                 .map_err(|error| error.with_boundary_context(optimized.plan()))?;
@@ -372,6 +372,7 @@ pub(crate) mod optimized {
             optimization: optimized.identity_bundle().identity(),
             projection: optimized.projection(),
             manifest: optimized.pre_physical_manifest().identity,
+            target_rules,
             selections: optimized.selections().clone(),
             budget_per_pass: optimized.budget_per_pass(),
         };
@@ -465,10 +466,24 @@ pub(crate) mod optimized {
         optimized: &OptimizedAbstractProgram,
         lowering_facts: &AdmittedLoweringFacts,
         target: NativeTarget,
-    ) -> Result<(), LoweringError> {
+    ) -> Result<optimization_core::OptimizationPhaseSelections, LoweringError> {
+        use optimization_core::Optimization;
         let phase = OptimizationExecutionPhase::TargetOperations;
-        if !optimized.selections().for_phase(phase).is_empty() {
-            return Err(LoweringError::UnconsumedOptimizationPhase(phase));
+        let rules = optimized.selections().project_phase(phase);
+        for rule in rules.selections().as_slice() {
+            match *rule {
+                Optimization::UnsignedPowerOfTwoRemainderMask => {}
+                Optimization::X86ScaledIndexedLoad
+                    if target.architecture == target::Architecture::X86_64 => {}
+                Optimization::X86ScaledIndexedLoad => {
+                    return Err(LoweringError::TargetOptimizationArchitecture {
+                        rule: *rule,
+                        required: target::Architecture::X86_64,
+                        actual: target.architecture,
+                    });
+                }
+                _ => return Err(LoweringError::UnconsumedOptimizationPhase(phase)),
+            }
         }
         let plan = optimized.plan();
         lowering_facts
@@ -486,7 +501,7 @@ pub(crate) mod optimized {
         if lowering_facts.installed_interrupts().psi() != plan.psi {
             return Err(LoweringError::ForeignInstalledInterruptCohort);
         }
-        Ok(())
+        Ok(rules)
     }
 }
 

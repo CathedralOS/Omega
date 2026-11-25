@@ -57,6 +57,8 @@ There is no debug/release bundle and no `O1`, `O2`, or `O3` alias.
 | `SelectedEquivalentCompareRemovalV1` | PreAllocation | Target-independent | Experimental | `--disable-optimization SelectedEquivalentCompareRemovalV1` | Required |
 | `SelectedCopiedCallOperandFoldV1` | PreAllocation | Target-independent | Experimental | `--disable-optimization SelectedCopiedCallOperandFoldV1` | Required |
 | `SelectedStoredLoadForwardingV1` | PreAllocation | Target-independent | Experimental | `--disable-optimization SelectedStoredLoadForwardingV1` | Required |
+| `UnsignedPowerOfTwoRemainderMask` | TargetOperations | Target-independent | Experimental | `--disable-optimization UnsignedPowerOfTwoRemainderMask` | Required |
+| `X86ScaledIndexedLoad` | TargetOperations | x86-64 | Experimental | `--disable-optimization X86ScaledIndexedLoad` | Required |
 <!-- exact-rule-inventory:end -->
 
 Names and phases come from the source vocabulary; applicability comes from the

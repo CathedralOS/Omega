@@ -308,6 +308,14 @@ fn decode_instruction(
             contract: array(cursor)?,
         }),
         0 => None,
+        17 => Some(crate::PhysicalAddressOperation::LoadScaledIndex {
+            base_operand: u16_field(cursor)?,
+            index_operand: u16_field(cursor)?,
+            element_bytes: match u16_field(cursor)? {
+                size @ (2 | 4 | 8) => size,
+                _ => return Err(PostAllocationMachineDecodeError::InvalidField),
+            },
+        }),
         4 => Some(crate::PhysicalAddressOperation::Load8Indexed {
             base_operand: u16_field(cursor)?,
             index_operand: u16_field(cursor)?,

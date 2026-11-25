@@ -178,6 +178,7 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
         load16: None,
         load32: None,
         load8_indexed: None,
+        scaled_indexed_load: None,
         copy_bytes: None,
         scan_byte_sequence: None,
         load_encoded_scalar: None,

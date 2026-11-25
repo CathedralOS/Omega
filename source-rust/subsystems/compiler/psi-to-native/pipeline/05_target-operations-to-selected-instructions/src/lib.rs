@@ -36,8 +36,16 @@ pub fn select_instructions(
     let register_environment =
         register_environment::baseline_target_register_environment(target.target)
             .map_err(OptimizedSelectionPipelineError::RegisterEnvironment)?;
-    let bound = BoundExecutionPlan::bind(&program.plan, installations.facts())
+    let mut bound = BoundExecutionPlan::bind(&program.plan, installations.facts())
         .map_err(OptimizedSelectionPipelineError::Binding)?;
+    bound.remainder_mask = program
+        .target_rules
+        .selections()
+        .contains(optimization_core::Optimization::UnsignedPowerOfTwoRemainderMask);
+    bound.scaled_loads = program
+        .target_rules
+        .selections()
+        .contains(optimization_core::Optimization::X86ScaledIndexedLoad);
     let selected = instruction_selection::select_bound_instructions(&bound, &register_environment)
         .map_err(OptimizedSelectionPipelineError::Selection)?;
     let custody =

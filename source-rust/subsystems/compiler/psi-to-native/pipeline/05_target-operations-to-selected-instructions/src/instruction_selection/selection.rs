@@ -729,7 +729,7 @@ pub(crate) mod construction {
                     constraints,
                     environment,
                     &backings,
-                    legalized.installations(),
+                    legalized,
                 )
             })
             .collect::<Result<Vec<_>, _>>()?;

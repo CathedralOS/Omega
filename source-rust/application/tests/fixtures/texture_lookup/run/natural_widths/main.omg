@@ -1,0 +1,42 @@
+data Palette {
+    padding: u64;
+    halves: [u16; 4];
+    words: [u32; 4];
+    wide: [u64; 4];
+    signed_words: [i32; 4];
+}
+
+machine probe(t: @Palette, index: u64) -> bool {
+    let slot: u64 = index % 4;
+    let h: u16 = t.halves[slot];
+    let w: u32 = t.words[slot];
+    let x: u64 = t.wide[slot];
+    let s: i32 = t.signed_words[slot];
+    transition h == 65535 && w == 4294967295 && x == 18446744073709551615 && s == -17 { true -> true, false -> false }
+}
+
+machine signed_mod(x: i64) -> i64 { x % 4 }
+machine general_mod(x: u64, divisor: u64) -> u64 requires divisor > 0 { x % divisor }
+machine one(x: u64) -> u64 { x % 1 }
+machine high(x: u64) -> u64 { x % 9223372036854775808u64 }
+
+machine entry_start() crashes Trap {
+    let table: Palette = Palette {
+        padding: 91,
+        halves: [0u16, 1u16, 2u16, 65535u16],
+        words: [100u32, 101u32, 102u32, 4294967295u32],
+        wide: [200u64, 201u64, 202u64, 18446744073709551615u64],
+        signed_words: [3i32, 7i32, 11i32, -17i32]
+    };
+    let a: bool = probe(@table, 18446744073709551615u64);
+    let b: bool = probe(@table, 6);
+    let s: i64 = signed_mod(-7);
+    let v: u64 = general_mod(9, 5);
+    let z: u64 = one(18446744073709551615u64);
+    let t: u64 = high(18446744073709551615u64);
+    transition a && b == false && s == -3 && v == 4 && z == 0 && t == 9223372036854775807u64 {
+        true -> done(), false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

@@ -145,6 +145,7 @@ impl SelectedFormEncodedRowDraft {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[rustfmt::skip]
 enum AddressOperationFamily {
     AccessorScalarAccess,
     Store,
@@ -156,6 +157,7 @@ enum AddressOperationFamily {
     Load16,
     Load32,
     Load8Indexed,
+    LoadScaledIndex,
     HostedReadByte,
     HostedWriteByteI32,
     Store64,
@@ -181,6 +183,7 @@ impl AddressOperationFamily {
                 | (Self::Load16, Operation::Load16 { .. })
                 | (Self::Load32, Operation::Load32 { .. })
                 | (Self::Load8Indexed, Operation::Load8Indexed { .. })
+                | (Self::LoadScaledIndex, Operation::LoadScaledIndex { .. })
                 | (Self::HostedReadByte, Operation::HostedReadByte { .. })
                 | (
                     Self::HostedWriteByteI32,
@@ -241,6 +244,9 @@ fn route_of(kind: SelectedInstructionKind) -> RowRoute {
         Kind::Load8 { .. } => addressed(AddressOperationFamily::Load8),
         Kind::Load16 { .. } => addressed(AddressOperationFamily::Load16),
         Kind::Load32 { .. } => addressed(AddressOperationFamily::Load32),
+        Kind::Load16Indexed | Kind::Load32Indexed | Kind::Load64Indexed => {
+            addressed(AddressOperationFamily::LoadScaledIndex)
+        }
         Kind::Load8Indexed => addressed(AddressOperationFamily::Load8Indexed),
         Kind::SaveFloatingControl { .. } => addressed(AddressOperationFamily::SaveFloatingControl),
         Kind::RestoreFloatingControl { .. } => {

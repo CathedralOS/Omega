@@ -923,6 +923,26 @@ fn validate_non_return_effects(
                     }
         }
         (
+            kind @ (SelectedInstructionKind::Load16Indexed
+            | SelectedInstructionKind::Load32Indexed
+            | SelectedInstructionKind::Load64Indexed),
+            MachineEncodedMemoryEffect::ReadScaledIndexV1 {
+                pointer_operand: 0,
+                index_operand: 1,
+                element_bytes,
+            },
+            Some(address),
+        ) => {
+            kind.indexed_load_bytes() == Some(element_bytes)
+                && address.displacement == 0
+                && address.symbolic
+                    == post_allocation_machine::PhysicalAddressOperation::LoadScaledIndex {
+                        base_operand: 0,
+                        index_operand: 1,
+                        element_bytes,
+                    }
+        }
+        (
             SelectedInstructionKind::Load8Indexed,
             MachineEncodedMemoryEffect::ReadIndexedPointerV1 {
                 pointer_operand: 0,

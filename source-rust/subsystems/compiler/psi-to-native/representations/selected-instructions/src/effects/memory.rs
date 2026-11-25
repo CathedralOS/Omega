@@ -140,4 +140,5 @@ memory_effects! {
         scratch_pointer_operand: u16,
     },
     28 => CatalogFenceV1,
+    29 => ReadScaledIndexV1 { pointer_operand: u16, index_operand: u16, element_bytes: u16 },
 }

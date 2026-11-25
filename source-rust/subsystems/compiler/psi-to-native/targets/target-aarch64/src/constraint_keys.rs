@@ -104,6 +104,7 @@ pub fn aarch64_selected_constraint_keys(target: NativeTarget) -> Option<Selected
             load16: Some(crate::AARCH64_LOAD16),
             load32: Some(crate::AARCH64_LOAD32),
             load8_indexed: Some(crate::AARCH64_LOAD8_INDEXED),
+            scaled_indexed_load: None,
             store: Some(crate::AARCH64_STORE),
             address_offset: Some(crate::AARCH64_ADDRESS_OFFSET),
             store64: Some(crate::AARCH64_STORE64),

@@ -617,6 +617,9 @@ mod facts {
                 SelectedInstructionKind::Load16 { .. } => MachineSemanticKind::Load16,
                 SelectedInstructionKind::Load32 { .. } => MachineSemanticKind::Load32,
                 SelectedInstructionKind::Load8Indexed => MachineSemanticKind::Load8Indexed,
+                SelectedInstructionKind::Load16Indexed => MachineSemanticKind::Load16Indexed,
+                SelectedInstructionKind::Load32Indexed => MachineSemanticKind::Load32Indexed,
+                SelectedInstructionKind::Load64Indexed => MachineSemanticKind::Load64Indexed,
                 SelectedInstructionKind::CopyBytes => MachineSemanticKind::CopyBytes,
                 SelectedInstructionKind::LoadEncodedScalar => {
                     MachineSemanticKind::LoadEncodedScalar

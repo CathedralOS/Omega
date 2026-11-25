@@ -71,6 +71,7 @@ pub fn machine_effect_catalog_identity(
         catalog.selected_keys.load16,
         catalog.selected_keys.load32,
         catalog.selected_keys.load8_indexed,
+        catalog.selected_keys.scaled_indexed_load,
         catalog.selected_keys.store64,
         catalog.selected_keys.frame_address,
         catalog.selected_keys.byte_literal_image_address,
@@ -349,6 +350,7 @@ fn encode_units<Sink: MachineIdentityBytes + ?Sized>(bytes: &mut Sink, units: &[
     }
 }
 
+#[rustfmt::skip]
 macro_rules! effect_tag_arms {
     ($enum:ident, $value:expr) => {
         match $value {
@@ -396,6 +398,9 @@ macro_rules! effect_tag_arms {
             $enum::AddressOffset => 25,
             $enum::ByteViewAddress => 22,
             $enum::Load8Indexed => 21,
+            $enum::Load16Indexed => 270,
+            $enum::Load32Indexed => 271,
+            $enum::Load64Indexed => 272,
             $enum::Store64 => 17,
             $enum::FrameAddress => 18,
             $enum::ImageAddress => 232,
@@ -672,6 +677,7 @@ mod tests {
                 load16: Some(instruction(35)),
                 load32: Some(instruction(27)),
                 load8_indexed: Some(instruction(23)),
+                scaled_indexed_load: Some(instruction(960)),
                 store: Some(instruction(25)),
                 address_offset: Some(instruction(26)),
                 store64: Some(instruction(21)),
@@ -1324,7 +1330,7 @@ mod tests {
         };
     }
 
-    const PINNED_ALTERNATIVE_FAMILY_TAGS: [(MachineAlternativeFamily, u16); 148] = [
+    const PINNED_ALTERNATIVE_FAMILY_TAGS: [(MachineAlternativeFamily, u16); 151] = [
         (MachineAlternativeFamily::InterruptControl, 256),
         (MachineAlternativeFamily::MemoryFence, 257),
         (MachineAlternativeFamily::InvokeNoNormal, 258),
@@ -1373,6 +1379,9 @@ mod tests {
         (MachineAlternativeFamily::BitsToFloat32, 28),
         (MachineAlternativeFamily::BitsToFloat64, 29),
         (MachineAlternativeFamily::Load8Indexed, 21),
+        (MachineAlternativeFamily::Load16Indexed, 270),
+        (MachineAlternativeFamily::Load32Indexed, 271),
+        (MachineAlternativeFamily::Load64Indexed, 272),
         (MachineAlternativeFamily::CompareI64Zero, 0),
         (MachineAlternativeFamily::MaterializeI64, 1),
         (MachineAlternativeFamily::CopyI64, 2),

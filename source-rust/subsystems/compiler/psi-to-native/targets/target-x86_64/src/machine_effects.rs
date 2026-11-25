@@ -31,6 +31,7 @@ mod memory {
         MachineTrapBehavior,
     };
 
+    #[rustfmt::skip]
     macro_rules! declared_semantics {
         () => {
             Semantic::AccessorScalarAccess(_)
@@ -48,6 +49,9 @@ mod memory {
                 | Semantic::Store
                 | Semantic::AddressOffset
                 | Semantic::Load8Indexed
+                | Semantic::Load16Indexed
+                | Semantic::Load32Indexed
+                | Semantic::Load64Indexed
                 | Semantic::Load8
                 | Semantic::Load16
                 | Semantic::Load32
@@ -211,6 +215,22 @@ mod memory {
                 MachineEncodedMemoryEffect::NoneV1,
                 crate::encoder_resolved(7, Some(8)),
             ),
+            Semantic::Load16Indexed | Semantic::Load32Indexed | Semantic::Load64Indexed => {
+                let element_bytes = semantic.indexed_load_bytes().expect("indexed load width");
+                let minimum_bytes = 4 + u16::from(element_bytes == 2);
+                (
+                    MachineMemoryEffect::ReadPointerV1,
+                    MachineTrapBehavior::MayArchitecturalFaultV1,
+                    vec![0, 1],
+                    vec![2],
+                    MachineEncodedMemoryEffect::ReadScaledIndexV1 {
+                        pointer_operand: 0,
+                        index_operand: 1,
+                        element_bytes,
+                    },
+                    crate::encoder_resolved(minimum_bytes, Some(minimum_bytes + 1)),
+                )
+            }
             Semantic::Load8Indexed => (
                 MachineMemoryEffect::ReadPointerV1,
                 MachineTrapBehavior::MayArchitecturalFaultV1,

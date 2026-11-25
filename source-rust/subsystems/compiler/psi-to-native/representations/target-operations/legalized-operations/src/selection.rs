@@ -11,6 +11,7 @@ pub struct PreparedInstructionSelection {
     pub optimization: OptimizationIdentityBundleIdentity,
     pub projection: OptimizedAbstractPlanProjectionIdentity,
     pub manifest: PrePhysicalOptimizationManifestIdentity,
+    pub target_rules: optimization_core::OptimizationPhaseSelections,
     pub selections: OptimizationSelections,
     pub budget_per_pass: OptimizationWorkBudget,
 }

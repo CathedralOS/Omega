@@ -4016,6 +4016,19 @@ pub(crate) mod integer_arithmetic {
                     operation.kind,
                     LegalizedScalarInstructionKind::WrappingDivide { .. }
                 );
+                if !divides
+                    && let Some(output) = power_of_two_remainder(
+                        builder,
+                        operation,
+                        result,
+                        *left,
+                        left_register,
+                        *right,
+                        *obligation,
+                    )?
+                {
+                    return Ok(output);
+                }
                 let selection = WrappingDivision::of(divides, integer);
                 let (kind, key) =
                     selection.kind_and_key(*obligation, *accepted_fact, &constraints.keys);
@@ -4294,6 +4307,19 @@ pub(crate) mod integer_arithmetic {
                             semantic_vocabulary::ClosedIntegerType::new(IntegerSign::Unsigned, 64)
                                 .map_err(|_| invalid())?,
                         );
+                if *operator == legalized_operations::LegalizedExactIntegerOperator::Remainder
+                    && let Some(output) = power_of_two_remainder(
+                        builder,
+                        operation,
+                        result,
+                        *left,
+                        left_register,
+                        *right,
+                        *obligation,
+                    )?
+                {
+                    return Ok(output);
+                }
                 let (kind, key) = match operator {
                     legalized_operations::LegalizedExactIntegerOperator::Divide => {
                         if unsigned_divide {
@@ -4394,6 +4420,45 @@ pub(crate) mod integer_arithmetic {
             }
             _ => return Err(invalid()),
         })
+    }
+
+    fn power_of_two_remainder(
+        builder: &mut Builder<'_>,
+        operation: &legalized_operations::LegalizedScalarInstruction,
+        result: legalized_operations::LegalizedValueDefinition,
+        left: semantic_vocabulary::ValueId,
+        left_register: VirtualRegisterId,
+        right: semantic_vocabulary::ValueId,
+        obligation: semantic_vocabulary::ObligationId,
+    ) -> Result<Option<VirtualRegisterId>, SelectedInstructionError> {
+        if !matches!(result.scalar_type, semantic_vocabulary::ClosedScalarType::Integer(integer)
+            if integer.sign() == IntegerSign::Unsigned && integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed)
+        {
+            return Ok(None);
+        }
+        let Ok(slot) = builder
+            .remainder_masks
+            .binary_search_by_key(&right, |(value, _)| *value)
+        else {
+            return Ok(None);
+        };
+        let mask = builder.remainder_masks[slot].1;
+        let mask_register = instruction_scratch(builder, 0, IntegerSign::Unsigned)?;
+        let provenance =
+            obligated_binary_provenance(operation, left, right, result.value, obligation);
+        builder.emit_materialize_i64(
+            IntegerValue::Unsigned(u128::from(mask)),
+            mask_register,
+            provenance.clone(),
+        )?;
+        let output = builder.register(result.value, result.definition_site, result.scalar_type)?;
+        builder.emit_integer(
+            SelectedInstructionKind::BitwiseAndI64,
+            builder.constraints.keys.subtract_i64,
+            &[left_register, mask_register, output],
+            provenance,
+        )?;
+        Ok(Some(output))
     }
 
     fn binary_operands(
@@ -7212,7 +7277,7 @@ pub(crate) fn build_with_environment(
     constraints: &SelectedSelectionConstraints,
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
     backings: &crate::instruction_selection::selection::foreign_scalar_backings::ForeignScalarBackings<'_>,
-    installations: &bound_installations::BoundInstallations,
+    input: &crate::input::BoundExecutionPlan<'_>,
 ) -> Result<SelectedFunction, SelectedInstructionError> {
     let source = crate::instruction_selection::native_geometry::NativeInput::new(source, geometry);
     let mut current_operation = None;
@@ -7223,7 +7288,7 @@ pub(crate) fn build_with_environment(
         environment,
         &mut current_operation,
         backings,
-        installations,
+        input,
     )
     .map_err(|error| error.attributed(source.machine, current_operation))
 }
@@ -7235,7 +7300,7 @@ pub(crate) fn select_function(
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
     current_operation: &mut Option<semantic_vocabulary::OperationId>,
     backings: &crate::instruction_selection::selection::foreign_scalar_backings::ForeignScalarBackings<'_>,
-    installations: &bound_installations::BoundInstallations,
+    input: &crate::input::BoundExecutionPlan<'_>,
 ) -> Result<SelectedFunction, SelectedInstructionError> {
     let invalid = || SelectedInstructionError::unsupported_shape(function);
     let order = control::block_order(source)?;
@@ -7248,7 +7313,29 @@ pub(crate) fn select_function(
     let mut builder = Builder {
         environment,
         backings,
-        installations,
+        installations: input.installations(),
+        scaled_loads: input.scaled_loads,
+        remainder_masks: if input.remainder_mask {
+            let mut masks: Vec<_> = source
+                .instructions()
+                .filter_map(|row| {
+                    let LegalizedScalarInstructionKind::Constant(IntegerValue::Unsigned(divisor)) =
+                        row.kind
+                    else {
+                        return None;
+                    };
+                    let divisor = u64::try_from(divisor).ok()?;
+                    let result = row.result?;
+                    divisor
+                        .is_power_of_two()
+                        .then(|| (result.value, divisor - 1))
+                })
+                .collect();
+            masks.sort_unstable_by_key(|(value, _)| *value);
+            masks
+        } else {
+            Vec::new()
+        },
         pending_provenance: SelectedInstructionProvenance::default(),
         required_values: crate::instruction_selection::selection::value_transport::required_values(
             source,
@@ -7830,6 +7917,8 @@ pub(crate) struct Builder<'a> {
             'a,
         >,
     pub(crate) environment: &'a register_environment::ValidatedTargetRegisterEnvironment,
+    pub(crate) scaled_loads: bool,
+    pub(crate) remainder_masks: Vec<(ValueId, u64)>,
     pub(crate) pending_provenance: SelectedInstructionProvenance,
     pub(crate) required_values: std::collections::BTreeSet<ValueId>,
     pub(crate) transport: structural::Transport,

@@ -32,6 +32,7 @@ impl PostAllocationMachineInstruction {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[rustfmt::skip]
 pub enum PhysicalAddressOperation {
     AccessorScalarAccess {
         base_operand: u16,
@@ -69,6 +70,11 @@ pub enum PhysicalAddressOperation {
     AddressOffset {
         base_operand: u16,
         byte_offset: u32,
+    },
+    LoadScaledIndex {
+        base_operand: u16,
+        index_operand: u16,
+        element_bytes: u16,
     },
     Load8Indexed {
         base_operand: u16,

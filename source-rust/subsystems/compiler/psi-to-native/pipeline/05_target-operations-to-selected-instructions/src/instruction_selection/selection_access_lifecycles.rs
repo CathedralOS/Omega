@@ -4721,6 +4721,8 @@ pub(crate) mod tests {
         let installations = bound_installations::BoundInstallations::empty(program.psi);
         let mut builder = Builder {
             installations: &installations,
+            remainder_masks: Vec::new(),
+            scaled_loads: false,
             backings: &backings,
             environment: &environment,
             pending_provenance: SelectedInstructionProvenance::default(),

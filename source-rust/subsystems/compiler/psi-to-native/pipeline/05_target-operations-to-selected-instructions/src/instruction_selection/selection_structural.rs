@@ -2480,8 +2480,8 @@ pub(crate) mod primitive_locals {
         let (pointer, leaf_index) =
             cross_references(builder, row, place, pointer, indices, pointer_slots)?;
         let indices = &indices[leaf_index..];
-        let pointer = scale(builder, row, place, byte_offset, pointer, indices)?;
         if let Some(fragments) = read_storage_fragments(source, row) {
+            let pointer = scale(builder, row, place, byte_offset, pointer, indices)?;
             return super::fragmented_scalar::read(
                 builder,
                 row,
@@ -2497,6 +2497,7 @@ pub(crate) mod primitive_locals {
             runtime_abi::ScalarStorageCodec::from_scalar(definition.scalar_type.as_checking())
                 .ok_or_else(|| invalid())?;
         if codec != canonical || matches!(codec.byte_size(), 3 | 5 | 6 | 7) {
+            let pointer = scale(builder, row, place, byte_offset, pointer, indices)?;
             let address =
                 super::encoded_scalar::backing_address(builder, row, place, pointer, byte_offset)?;
             let codec = super::encoded_scalar::constant_codec(builder, row, place, codec)?;
@@ -2506,6 +2507,64 @@ pub(crate) mod primitive_locals {
             definition.scalar_type,
         )
         .ok_or_else(|| invalid())?;
+        if builder.scaled_loads
+            && let Some((last, outer)) = indices.split_last()
+            && last.stride == shape.byte_size
+            && let Some(kind) = match shape.byte_size {
+                1 => Some(SelectedInstructionKind::Load8Indexed),
+                2 => Some(SelectedInstructionKind::Load16Indexed),
+                4 => Some(SelectedInstructionKind::Load32Indexed),
+                8 => Some(SelectedInstructionKind::Load64Indexed),
+                _ => None,
+            }
+        {
+            let base = scale(builder, row, place, byte_offset, pointer, outer)?;
+            let base =
+                super::encoded_scalar::backing_address(builder, row, place, base, byte_offset)?;
+            let mut provenance = operation_provenance(
+                row,
+                indices
+                    .iter()
+                    .map(|index| index.operand.value)
+                    .chain([definition.value])
+                    .collect(),
+            );
+            provenance.obligations.push(last.obligation);
+            let index = super::runtime_address::index_register(
+                builder,
+                place,
+                byte_offset,
+                last,
+                &provenance,
+            )?;
+            let output = builder.register(
+                definition.value,
+                definition.definition_site,
+                definition.scalar_type,
+            )?;
+            footprint(
+                builder,
+                row,
+                place,
+                byte_offset,
+                shape.byte_size,
+                indices,
+                super::runtime_address::Written::None,
+            )?;
+            let key = if shape.byte_size == 1 {
+                builder.constraints.keys.load8_indexed
+            } else {
+                builder.constraints.keys.scaled_indexed_load
+            };
+            builder.emit(
+                kind,
+                key.ok_or_else(invalid)?,
+                &[base, index, output],
+                provenance,
+            )?;
+            return normalize_signed_load(builder, definition, output);
+        }
+        let pointer = scale(builder, row, place, byte_offset, pointer, indices)?;
         let (pointer, displacement) =
             super::memory_pointer(builder, row, place, pointer, byte_offset, shape.byte_size)?;
         let output = builder.register(
@@ -4664,6 +4723,50 @@ pub(crate) mod runtime_address {
         )
     }
 
+    pub(crate) fn index_register(
+        builder: &mut Builder<'_>,
+        place: PlaceId,
+        byte_offset: u32,
+        index: &LegalizedRuntimeIndexOperand,
+        provenance: &SelectedInstructionProvenance,
+    ) -> Result<VirtualRegisterId, SelectedInstructionError> {
+        let (_, index_register, _, index_type) = builder
+            .resolve(index.operand.value)
+            .ok_or_else(|| invalid())?;
+        // The index value's closed type is the plan's; the operand row must agree with it.
+        let semantic_vocabulary::ClosedScalarType::Integer(integer) = index_type else {
+            return Err(invalid());
+        };
+        if integer.bits() > 64 || index_type.as_checking() != index.operand.scalar_type {
+            return Err(invalid());
+        }
+        Ok(match integer.bits() {
+            64 => index_register,
+            bits => {
+                let kind = match (integer.sign(), bits) {
+                    (IntegerSign::Unsigned, 8) => SelectedInstructionKind::ZeroExtendU8,
+                    (IntegerSign::Unsigned, 16) => SelectedInstructionKind::ZeroExtendU16,
+                    (IntegerSign::Unsigned, 32) => SelectedInstructionKind::ZeroExtendU32,
+                    (IntegerSign::Signed, 8) => SelectedInstructionKind::SignExtendI8,
+                    (IntegerSign::Signed, 16) => SelectedInstructionKind::SignExtendI16,
+                    (IntegerSign::Signed, 32) => SelectedInstructionKind::SignExtendI32,
+                    _ => return Err(invalid()),
+                };
+                let extended = transport_register(builder, place, byte_offset)?;
+                builder.emit(
+                    kind,
+                    builder.constraints.keys.copy_i64,
+                    &[index_register, extended],
+                    SelectedInstructionProvenance {
+                        values: vec![index.operand.value],
+                        ..provenance.clone()
+                    },
+                )?;
+                extended
+            }
+        })
+    }
+
     pub(crate) fn scale_at_site(
         builder: &mut Builder<'_>,
         provenance: SelectedInstructionProvenance,
@@ -4673,41 +4776,7 @@ pub(crate) mod runtime_address {
         indices: &[LegalizedRuntimeIndexOperand],
     ) -> Result<VirtualRegisterId, SelectedInstructionError> {
         for index in indices {
-            let (_, index_register, _, index_type) = builder
-                .resolve(index.operand.value)
-                .ok_or_else(|| invalid())?;
-            // The index value's closed type is the plan's; the operand row must agree with it.
-            let semantic_vocabulary::ClosedScalarType::Integer(integer) = index_type else {
-                return Err(invalid());
-            };
-            if integer.bits() > 64 || index_type.as_checking() != index.operand.scalar_type {
-                return Err(invalid());
-            }
-            let index_register = match integer.bits() {
-                64 => index_register,
-                bits => {
-                    let kind = match (integer.sign(), bits) {
-                        (IntegerSign::Unsigned, 8) => SelectedInstructionKind::ZeroExtendU8,
-                        (IntegerSign::Unsigned, 16) => SelectedInstructionKind::ZeroExtendU16,
-                        (IntegerSign::Unsigned, 32) => SelectedInstructionKind::ZeroExtendU32,
-                        (IntegerSign::Signed, 8) => SelectedInstructionKind::SignExtendI8,
-                        (IntegerSign::Signed, 16) => SelectedInstructionKind::SignExtendI16,
-                        (IntegerSign::Signed, 32) => SelectedInstructionKind::SignExtendI32,
-                        _ => return Err(invalid()),
-                    };
-                    let extended = transport_register(builder, place, byte_offset)?;
-                    builder.emit(
-                        kind,
-                        builder.constraints.keys.copy_i64,
-                        &[index_register, extended],
-                        SelectedInstructionProvenance {
-                            values: vec![index.operand.value],
-                            ..provenance.clone()
-                        },
-                    )?;
-                    extended
-                }
-            };
+            let index_register = index_register(builder, place, byte_offset, index, &provenance)?;
             let stride = transport_register(builder, place, byte_offset)?;
             builder.emit_materialize_i64(
                 IntegerValue::Unsigned(u128::from(index.stride)),

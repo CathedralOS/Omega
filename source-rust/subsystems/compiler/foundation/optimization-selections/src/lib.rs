@@ -119,7 +119,7 @@ macro_rules! optimization_vocabulary {
 }
 
 optimization_vocabulary! {
-    54;
+    56;
     ControlFlowCleanup = 1 => {
         case: "ControlFlowCleanup",
         phase: Psi
@@ -335,6 +335,14 @@ optimization_vocabulary! {
     SelectedStoredLoadForwardingV1 = 54 => {
         case: "SelectedStoredLoadForwardingV1",
         phase: PreAllocation
+    },
+    UnsignedPowerOfTwoRemainderMask = 55 => {
+        case: "UnsignedPowerOfTwoRemainderMask",
+        phase: TargetOperations
+    },
+    X86ScaledIndexedLoad = 56 => {
+        case: "X86ScaledIndexedLoad",
+        phase: TargetOperations
     },
 }
 

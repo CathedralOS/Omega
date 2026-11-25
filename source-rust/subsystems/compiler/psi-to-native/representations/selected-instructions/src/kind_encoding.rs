@@ -162,6 +162,9 @@ pub fn encode_kind(bytes: &mut Vec<u8>, tag: u8, kind: SelectedInstructionKind) 
             bytes.extend_from_slice(&contract);
             bytes.extend_from_slice(&byte_offset.to_le_bytes());
         }
+        SelectedInstructionKind::Load16Indexed => bytes.push(2),
+        SelectedInstructionKind::Load32Indexed => bytes.push(4),
+        SelectedInstructionKind::Load64Indexed => bytes.push(8),
         SelectedInstructionKind::FloatResultPolicy { form } => bytes.push(form.machine_payload()),
         SelectedInstructionKind::AtomicAccess { form } => {
             if let Some(payload) = form.machine_payload() {

@@ -105,6 +105,7 @@ pub fn x86_64_selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             load16: Some(crate::X86_64_LOAD16),
             load32: Some(crate::X86_64_LOAD32),
             load8_indexed: Some(crate::X86_64_LOAD8_INDEXED),
+            scaled_indexed_load: Some(crate::X86_64_SCALED_INDEXED_LOAD),
             copy_bytes: Some(crate::X86_64_COPY_BYTES),
             zero_bytes: Some(crate::X86_64_ZERO_BYTES),
             scan_byte_sequence: Some(crate::X86_64_SCAN_BYTE_SEQUENCE),

@@ -13117,63 +13117,83 @@ mod memory {
             ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError,
             X86_64SelectedFormFootprint, modrm, resolve_registers, rex,
         };
+        use selected_instructions::SelectedInstructionKind;
+
         pub(super) fn encode(
             physical: &ValidatedPhysicalRegisterModel,
+            kind: SelectedInstructionKind,
             alternative: MachineAlternativeKey,
             operands: &[RegisterViewId],
             displacement: i64,
         ) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
             let [base, index, destination] =
-                request(physical, alternative, operands, displacement)?;
-            let bytes = [
-                rex(destination, index, base),
-                0x0f,
-                0xb6,
-                modrm(2, destination, 4),
-                ((index & 7) << 3) | (base & 7),
-                0,
-                0,
-                0,
-                0,
-            ];
-            validate(physical, alternative, operands, displacement, &bytes)
+                request(physical, kind, alternative, operands, displacement)?;
+            let width = kind
+                .indexed_load_bytes()
+                .ok_or(X86_64SelectedFormEncodingError::MalformedEncoding)?;
+            let mut bytes = vec![rex(destination, index, base)];
+            match width {
+                1 => bytes.extend([0x0f, 0xb6]),
+                2 => bytes.extend([0x0f, 0xb7]),
+                4 => {
+                    bytes[0] &= !8;
+                    bytes.push(0x8b);
+                }
+                8 => bytes.push(0x8b),
+                _ => return Err(X86_64SelectedFormEncodingError::MalformedEncoding),
+            }
+            // A base of rbp or r13 needs an explicit zero displacement in SIB addressing.
+            // Keep the established byte-load form stable for existing installations.
+            let mode = if width == 1 {
+                2
+            } else {
+                u8::from(base & 7 == 5)
+            };
+            bytes.push(modrm(mode, destination, 4));
+            bytes.push(((width.trailing_zeros() as u8) << 6) | ((index & 7) << 3) | (base & 7));
+            match mode {
+                1 => bytes.push(0),
+                2 => bytes.extend([0; 4]),
+                _ => {}
+            }
+            validate(physical, kind, alternative, operands, displacement, &bytes)
         }
 
         pub(super) fn validate(
             physical: &ValidatedPhysicalRegisterModel,
+            kind: SelectedInstructionKind,
             alternative: MachineAlternativeKey,
             operands: &[RegisterViewId],
             displacement: i64,
             bytes: &[u8],
         ) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
             let [base, index, destination] =
-                request(physical, alternative, operands, displacement)?;
-            let [
-                prefix,
-                escape,
-                opcode,
-                mode,
-                sib,
-                offset0,
-                offset1,
-                offset2,
-                offset3,
-            ] = bytes
-            else {
+                request(physical, kind, alternative, operands, displacement)?;
+            let (&prefix, tail) = bytes
+                .split_first()
+                .ok_or(X86_64SelectedFormEncodingError::MalformedEncoding)?;
+            let (width, address) = match tail {
+                [0x0f, 0xb6, rest @ ..] if prefix & 0xf8 == 0x48 => (1u16, rest),
+                [0x0f, 0xb7, rest @ ..] if prefix & 0xf8 == 0x48 => (2u16, rest),
+                [0x8b, rest @ ..] if prefix & 0xf8 == 0x40 => (4u16, rest),
+                [0x8b, rest @ ..] if prefix & 0xf8 == 0x48 => (8u16, rest),
+                _ => return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch),
+            };
+            let [mode, sib, offset @ ..] = address else {
                 return Err(X86_64SelectedFormEncodingError::MalformedEncoding);
             };
             let decoded_destination = ((mode >> 3) & 7) | ((prefix & 4) << 1);
             let decoded_base = (sib & 7) | ((prefix & 1) << 3);
             let decoded_index = ((sib >> 3) & 7) | ((prefix & 2) << 2);
-            if prefix & 0xf8 != 0x48
-                || *escape != 0x0f
-                || *opcode != 0xb6
-                || mode & 0xc7 != 0x84
-                || sib >> 6 != 0
+            if kind.indexed_load_bytes() != Some(width)
+                || mode & 7 != 4
+                || !matches!((mode >> 6, offset), (2, [0, 0, 0, 0]) if width == 1)
+                    && !matches!((mode >> 6, offset), (1, [0]) if width > 1 && decoded_base & 7 == 5)
+                    && !matches!((mode >> 6, offset), (0, []) if width > 1 && decoded_base & 7 != 5)
+                || (1u16 << (sib >> 6)) != width
                 || decoded_destination != destination
                 || decoded_base != base
                 || decoded_index != index
-                || [*offset0, *offset1, *offset2, *offset3] != [0; 4]
             {
                 return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
             }
@@ -13189,10 +13209,18 @@ mod memory {
                         implicit_unit_uses: Vec::new(),
                         implicit_unit_defs: Vec::new(),
                         implicit_unit_clobbers: Vec::new(),
-                        memory: MachineEncodedMemoryEffect::ReadIndexedPointerV1 {
-                            pointer_operand: 0,
-                            index_operand: 1,
-                            byte_count: 1,
+                        memory: if width == 1 {
+                            MachineEncodedMemoryEffect::ReadIndexedPointerV1 {
+                                pointer_operand: 0,
+                                index_operand: 1,
+                                byte_count: 1,
+                            }
+                        } else {
+                            MachineEncodedMemoryEffect::ReadScaledIndexV1 {
+                                pointer_operand: 0,
+                                index_operand: 1,
+                                element_bytes: width,
+                            }
                         },
                         stack: MachineEncodedStackEffect::UnchangedV1,
                         trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
@@ -13204,6 +13232,7 @@ mod memory {
 
         fn request(
             physical: &ValidatedPhysicalRegisterModel,
+            kind: SelectedInstructionKind,
             alternative: MachineAlternativeKey,
             operands: &[RegisterViewId],
             displacement: i64,
@@ -13212,15 +13241,33 @@ mod memory {
             if displacement != 0
                 || alternative
                     != (MachineAlternativeKey {
-                        family: MachineAlternativeFamily::Load8Indexed,
+                        family: match kind {
+                            SelectedInstructionKind::Load8Indexed => {
+                                MachineAlternativeFamily::Load8Indexed
+                            }
+                            SelectedInstructionKind::Load16Indexed => {
+                                MachineAlternativeFamily::Load16Indexed
+                            }
+                            SelectedInstructionKind::Load32Indexed => {
+                                MachineAlternativeFamily::Load32Indexed
+                            }
+                            SelectedInstructionKind::Load64Indexed => {
+                                MachineAlternativeFamily::Load64Indexed
+                            }
+                            _ => return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch),
+                        },
                         variant: 0,
                     })
             {
                 return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
             }
-            resolve_registers(physical, operands)?
+            let registers: [u8; 3] = resolve_registers(physical, operands)?
                 .try_into()
-                .map_err(|_| X86_64SelectedFormEncodingError::EncodedFormMismatch)
+                .map_err(|_| X86_64SelectedFormEncodingError::EncodedFormMismatch)?;
+            if registers[1] == 4 {
+                return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
+            }
+            Ok(registers)
         }
 
         #[cfg(test)]
@@ -13232,6 +13279,72 @@ mod memory {
             use super::{
                 MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedMemoryEffect,
             };
+
+            #[test]
+            fn scaled_index_loads_encode_and_validate_width_and_scale_independently() {
+                let physical = register_model::validate_physical_register_model(
+                    crate::x86_64_physical_register_model(),
+                )
+                .unwrap();
+                let operands =
+                    ["r13", "r12", "r15"].map(|name| physical.model().view_named(name).unwrap().id);
+                for (kind, family, width, expected) in [
+                    (
+                        SelectedInstructionKind::Load16Indexed,
+                        MachineAlternativeFamily::Load16Indexed,
+                        2,
+                        &[0x4f, 0x0f, 0xb7, 0x7c, 0x65, 0][..],
+                    ),
+                    (
+                        SelectedInstructionKind::Load32Indexed,
+                        MachineAlternativeFamily::Load32Indexed,
+                        4,
+                        &[0x47, 0x8b, 0x7c, 0xa5, 0][..],
+                    ),
+                    (
+                        SelectedInstructionKind::Load64Indexed,
+                        MachineAlternativeFamily::Load64Indexed,
+                        8,
+                        &[0x4f, 0x8b, 0x7c, 0xe5, 0][..],
+                    ),
+                ] {
+                    let alternative = MachineAlternativeKey { family, variant: 0 };
+                    let encoded = encode_x86_64_selected_memory_form(
+                        &physical,
+                        kind,
+                        alternative,
+                        &operands,
+                        0,
+                    )
+                    .unwrap();
+                    assert_eq!(encoded.bytes(), expected);
+                    assert_eq!(
+                        encoded.footprint().encoded.memory,
+                        MachineEncodedMemoryEffect::ReadScaledIndexV1 {
+                            pointer_operand: 0,
+                            index_operand: 1,
+                            element_bytes: width,
+                        }
+                    );
+                    for byte in 0..expected.len() {
+                        for bit in 0..8 {
+                            let mut altered = expected.to_vec();
+                            altered[byte] ^= 1 << bit;
+                            assert!(
+                                validate_x86_64_selected_memory_form(
+                                    &physical,
+                                    kind,
+                                    alternative,
+                                    &operands,
+                                    0,
+                                    &altered
+                                )
+                                .is_err()
+                            );
+                        }
+                    }
+                }
+            }
 
             #[test]
             fn indexed_byte_load_decodes_every_bit_and_operand_role() {
@@ -14707,8 +14820,8 @@ mod memory {
         ) {
             return packed::encode(physical, kind, alternative, operands, displacement);
         }
-        if kind == SelectedInstructionKind::Load8Indexed {
-            return indexed::encode(physical, alternative, operands, displacement);
+        if kind.indexed_load_bytes().is_some() {
+            return indexed::encode(physical, kind, alternative, operands, displacement);
         }
         let (opcode, register, base, _) = request(physical, kind, alternative, operands)?;
         let displacement = i32::try_from(displacement)
@@ -14800,8 +14913,8 @@ mod memory {
         ) {
             return packed::validate(physical, kind, alternative, operands, displacement, bytes);
         }
-        if kind == SelectedInstructionKind::Load8Indexed {
-            return indexed::validate(physical, alternative, operands, displacement, bytes);
+        if kind.indexed_load_bytes().is_some() {
+            return indexed::validate(physical, kind, alternative, operands, displacement, bytes);
         }
         let (opcode, register, base, footprint) = request(physical, kind, alternative, operands)?;
         let width = store_width(kind)?;

@@ -116,6 +116,9 @@ pub(super) fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::HostedExitProcessI32 => 31,
         SelectedInstructionKind::ByteViewAddress => 22,
         SelectedInstructionKind::Load8Indexed => 21,
+        SelectedInstructionKind::Load16Indexed
+        | SelectedInstructionKind::Load32Indexed
+        | SelectedInstructionKind::Load64Indexed => 253,
         SelectedInstructionKind::CopyBytes => 59,
         SelectedInstructionKind::Store64 { .. } => 17,
         SelectedInstructionKind::FrameAddress { .. } => 18,
@@ -496,6 +499,8 @@ pub(super) fn decode_kind(
         },
         22 => SelectedInstructionKind::ByteViewAddress,
         21 => SelectedInstructionKind::Load8Indexed,
+        253 => SelectedInstructionKind::from_wide_indexed_load_bytes(cursor.byte()?)
+            .ok_or(FixedViewCopyDecodeError::UnknownInstructionKind(253))?,
         59 => SelectedInstructionKind::CopyBytes,
         5 => SelectedInstructionKind::ExactAddI64 {
             obligation: decode_id(cursor, ObligationId::new)?,

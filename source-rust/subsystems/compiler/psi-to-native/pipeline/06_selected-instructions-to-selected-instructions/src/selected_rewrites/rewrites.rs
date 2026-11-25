@@ -1212,6 +1212,9 @@ pub(crate) mod pre_allocation {
                 SelectedInstructionKind::Load64 { .. }
                     | selected_instructions::load_width_triple_pattern!(..)
                     | SelectedInstructionKind::Load8Indexed
+                    | SelectedInstructionKind::Load16Indexed
+                    | SelectedInstructionKind::Load32Indexed
+                    | SelectedInstructionKind::Load64Indexed
             )
         }
 
@@ -2658,6 +2661,9 @@ pub(crate) mod window_hazards {
             | Load32 { .. }
             | Load64 { .. }
             | Load8Indexed
+            | Load16Indexed
+            | Load32Indexed
+            | Load64Indexed
             | LoadPacked { .. }
             | FrameAddress { .. }
             | AddressOffset { .. }

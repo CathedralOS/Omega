@@ -494,6 +494,8 @@ mod v6 {
                 },
                 22 => SelectedInstructionKind::ByteViewAddress,
                 21 => SelectedInstructionKind::Load8Indexed,
+                253 => SelectedInstructionKind::from_wide_indexed_load_bytes(cursor.byte()?)
+                    .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
                 16 => SelectedInstructionKind::Load64 {
                     byte_offset: cursor.u32()?,
                 },
@@ -907,6 +909,9 @@ mod v6 {
                 23 => MachineAlternativeFamily::HostedWriteByteI32,
                 22 => MachineAlternativeFamily::ByteViewAddress,
                 21 => MachineAlternativeFamily::Load8Indexed,
+                270 => MachineAlternativeFamily::Load16Indexed,
+                271 => MachineAlternativeFamily::Load32Indexed,
+                272 => MachineAlternativeFamily::Load64Indexed,
                 16 => MachineAlternativeFamily::Load64,
                 46 => MachineAlternativeFamily::LoadPacked3,
                 47 => MachineAlternativeFamily::LoadPacked5,
@@ -1377,7 +1382,7 @@ mod v6 {
                 let mut cursor = Cursor::new(&encoded);
                 assert_eq!(decode_alternative(&mut cursor).unwrap(), alternative);
                 assert_eq!(cursor.remaining(), 0);
-                for tag in [270_u16, u16::MAX] {
+                for tag in [273_u16, u16::MAX] {
                     encoded[..2].copy_from_slice(&tag.to_le_bytes());
                     assert!(decode_alternative(&mut Cursor::new(&encoded)).is_err());
                 }
