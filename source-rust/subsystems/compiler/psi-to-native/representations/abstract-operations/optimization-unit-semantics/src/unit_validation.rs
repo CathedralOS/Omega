@@ -10795,10 +10795,6 @@ pub(crate) mod operation_contracts {
                     Proposition::StructuralCaseMembership { subject, .. } => {
                         roots.insert(subject.root());
                     }
-                    Proposition::StructuralIdentity { left, right } => {
-                        roots.insert(left.root());
-                        roots.insert(right.root());
-                    }
                     Proposition::FloatIntegerConversion(clause) => {
                         scalar_term_roots(&clause.source, roots);
                         scalar_term_roots(&clause.result, roots);

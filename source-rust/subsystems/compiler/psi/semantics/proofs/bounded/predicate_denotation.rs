@@ -128,7 +128,6 @@ mod value_equalities {
                 }
                 Proposition::IeeeFloatComparison { .. }
                 | Proposition::ByteSequenceEqual { .. }
-                | Proposition::StructuralIdentity { .. }
                 | Proposition::StructuralCaseMembership { .. }
                 | Proposition::ContentConservation(_)
                 | Proposition::Truth
@@ -503,7 +502,14 @@ fn normalize(
         return Ok(denotation);
     }
     match proposition {
-        Proposition::StructuralIdentity { left, right } if left == right => Ok(Proposition::Truth),
+        // An input is identical to itself.
+        Proposition::DeclarationIdentity(clause)
+            if clause.is_portable()
+                && clause.values.get(clause.left as usize)
+                    == clause.values.get(clause.right as usize) =>
+        {
+            Ok(Proposition::Truth)
+        }
         Proposition::Equal(left, right) if left.scalar_type() == ScalarType::Boolean => {
             boolean_equality(left, right, true, budget, depth + 1)
         }

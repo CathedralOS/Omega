@@ -585,7 +585,8 @@ What the code shows:
   variants. Equality alone has five: `Equal` (scalars), `IntegerMathEqual`,
   `ByteSequenceEqual`, `StructuralIdentity` and `FloatMeaningEqual`. None
   takes a type, so each type Identity serves needs its own variant, reader
-  and prover rule. `identity_clause` (`read/contracts.rs:906`) serves two.
+  and prover rule. (Marker 294 retired `StructuralIdentity`: Psi now
+  publishes the general Identity of inputs, which takes a type.) `identity_clause` (`read/contracts.rs:906`) serves two.
 - **A call in a clause is unfolded or refused.** `read/clause_calls.rs`
   serves a call only to a closed machine with no contract, scalar parameters
   and a scalar result, in a clause of the entry state, by reading the

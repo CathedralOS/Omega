@@ -1704,6 +1704,21 @@ impl Program<'_> {
                         arguments: vec![value],
                     }
                 }
+                // A field of data that has storage is the input's value at
+                // that field path; the checker projects it from the record.
+                (ExpressionNode::Member(_), Some(expected)) if !self.mathematical => {
+                    let (root, path, ty) = self
+                        .projected(id, scope, expression)?
+                        .ok_or_else(|| unavailable("Identity operand has no term at its written carrier"))?;
+                    if ty != expected {
+                        return Err(unavailable(
+                            "Identity operand differs from the written carrier",
+                        ));
+                    }
+                    ClauseOperand::Input(semantic_vocabulary::StructuralCaseSubject::new(
+                        root, path,
+                    ))
+                }
                 // A field of a value is the field's declaration applied to
                 // that value, whatever the value is: a formal, a call or
                 // another field.

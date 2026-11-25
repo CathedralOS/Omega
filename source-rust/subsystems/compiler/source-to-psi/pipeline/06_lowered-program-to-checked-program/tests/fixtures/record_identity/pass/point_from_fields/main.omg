@@ -1,0 +1,16 @@
+// Two records are identical when every corresponding field is: the checker
+// rebuilds each `Point` from its two fields.
+data Point {
+    x: i32;
+    y: i32;
+}
+
+machine same_point(a: Point, b: Point)
+requires
+    core\Identity::<i32>(a.x, b.x)
+requires
+    core\Identity::<i32>(a.y, b.y)
+ensures
+    core\Identity::<Point>(a, b)
+{
+}

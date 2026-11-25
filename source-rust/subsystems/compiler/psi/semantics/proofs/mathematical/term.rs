@@ -749,6 +749,53 @@ impl TermArena {
         spine
     }
 
+    /// The type of a tuple of `components`, nested to the right:
+    /// `Σ c0 (Σ c1 c2)`. No component depends on another, so each is shifted
+    /// past the binders of the components before it. One component is its
+    /// own type. None when empty.
+    pub fn product_type(&mut self, components: &[TermHandle]) -> Option<TermHandle> {
+        let (&last, before) = components.split_last()?;
+        let mut ty = last;
+        for &domain in before.iter().rev() {
+            let codomain = crate::substitution::shift(self, ty, 0, 1);
+            ty = self.insert(Term::Sigma { domain, codomain });
+        }
+        Some(ty)
+    }
+
+    /// A tuple of `components` in the shape [`Self::product_type`] gives
+    /// its type. None when empty.
+    pub fn tuple(&mut self, components: &[TermHandle]) -> Option<TermHandle> {
+        let (&last, before) = components.split_last()?;
+        let mut tuple = last;
+        for &first in before.iter().rev() {
+            tuple = self.insert(Term::Pair {
+                first,
+                second: tuple,
+            });
+        }
+        Some(tuple)
+    }
+
+    /// Component `position` of a tuple of `count` components in the shape
+    /// [`Self::product_type`] gives: `position` second projections, then a
+    /// first projection unless the component is the last.
+    pub fn tuple_component(
+        &mut self,
+        tuple: TermHandle,
+        position: usize,
+        count: usize,
+    ) -> TermHandle {
+        let mut term = tuple;
+        for _ in 0..position {
+            term = self.insert(Term::Snd { pair: term });
+        }
+        if position + 1 < count {
+            term = self.insert(Term::Fst { pair: term });
+        }
+        term
+    }
+
     pub fn apply_binary(
         &mut self,
         relation: TermHandle,

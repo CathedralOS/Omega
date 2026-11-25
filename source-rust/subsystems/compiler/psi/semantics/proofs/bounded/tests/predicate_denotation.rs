@@ -14,7 +14,10 @@ fn boolean(identity: u64) -> ScalarTerm {
 
 #[test]
 fn data_identity_is_reflexive_but_distinct_subjects_need_a_premise() {
-    use semantic_vocabulary::{StructuralIdentitySubject, StructuralTypeId};
+    use semantic_vocabulary::{
+        ClauseCarrier, ClauseIdentity, ClauseOperand, ClauseValue, StructuralCaseSubject,
+        StructuralTypeId,
+    };
     let left_root = PlaceId::new(1).unwrap();
     let right_root = PlaceId::new(2).unwrap();
     let context = PropositionContext::from_value_types_and_places(
@@ -25,13 +28,19 @@ fn data_identity_is_reflexive_but_distinct_subjects_need_a_premise() {
         ],
     )
     .unwrap();
-    let carrier = StructuralTypeId::new(1).unwrap();
-    let left = StructuralIdentitySubject::new(left_root, Vec::new(), carrier);
-    let right = StructuralIdentitySubject::new(right_root, Vec::new(), carrier);
-    let reflexive = Proposition::StructuralIdentity {
-        left: left.clone(),
-        right: left.clone(),
+    let carrier = ClauseCarrier::Structural(StructuralTypeId::new(1).unwrap());
+    let input = |root| ClauseValue {
+        carrier,
+        operand: ClauseOperand::Input(StructuralCaseSubject::new(root, Vec::new())),
     };
+    let identity = |values: Vec<ClauseValue>, right| {
+        Proposition::DeclarationIdentity(ClauseIdentity {
+            values,
+            left: 0,
+            right,
+        })
+    };
+    let reflexive = identity(vec![input(left_root)], 0);
     let checked = check_predicate_denotations(&context, &reflexive, &[], &[]).unwrap();
     assert_eq!(checked.goal(), &Proposition::Truth);
     checked
@@ -44,7 +53,7 @@ fn data_identity_is_reflexive_but_distinct_subjects_need_a_premise() {
         )
         .unwrap();
 
-    let distinct = Proposition::StructuralIdentity { left, right };
+    let distinct = identity(vec![input(left_root), input(right_root)], 1);
     let checked = check_predicate_denotations(&context, &distinct, &[], &[]).unwrap();
     assert_eq!(checked.goal(), &distinct);
     assert!(

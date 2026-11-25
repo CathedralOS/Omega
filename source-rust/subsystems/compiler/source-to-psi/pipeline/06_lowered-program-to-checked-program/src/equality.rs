@@ -2231,14 +2231,15 @@ use proof_admission::{
     MathematicalJudgmentReceipt, Sort, check_signature,
 };
 use semantic_vocabulary::{
-    ClauseCarrier, ClauseDeclaration, ClauseIdentity, ClauseOperand, MachineId, ObligationId,
-    PlaceId, Proposition, ScalarTerm, TargetMachineCallable,
+    CanonicalStructuralPathSegment, ClauseCarrier, ClauseDeclaration, ClauseIdentity,
+    ClauseOperand, MachineId, ObligationId, PlaceId, Proposition, ScalarTerm, StructuralFieldId,
+    StructuralTypeId, TargetMachineCallable,
 };
 use terminal_check_tables::{
     Checked, Construct, KnowledgeId, MachineTables, ProgramPoint, RefusalReason, UnprovedCause,
 };
 use terminal_check_tables::{edges::Callee, values::Justification};
-use terminal_psi::{TerminalMachine, TerminalModule};
+use terminal_psi::{TerminalIdentityIndex, TerminalMachine, TerminalModule};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Judgment {
@@ -2248,10 +2249,14 @@ pub struct Judgment {
     pub certificate: Vec<u8>,
 }
 
+/// What one declaration of an obligation's kernel signature stands for.
 #[derive(PartialEq, Eq)]
-enum Entry {
+enum Named {
     Carrier(ClauseCarrier),
     Input(PlaceId),
+    /// A field of an input whose entry value no clause observed: one opaque
+    /// value of its carrier.
+    Field(PlaceId, Vec<CanonicalStructuralPathSegment>),
     Scalar(ScalarTerm),
     Operation(ClauseDeclaration),
     Law(MachineId, u32),
@@ -2263,37 +2268,302 @@ enum LawInput {
     Scalar(semantic_vocabulary::ValueId),
 }
 
-#[derive(Default)]
-struct Declarations {
-    arena: TermArena,
-    entries: Vec<(Entry, TermHandle)>,
-    signature: Vec<Declaration>,
+/// One field of a record denoted as the product of its fields.
+#[derive(Clone, Copy)]
+struct Field {
+    id: StructuralFieldId,
+    identity: TerminalIdentityIndex,
+    carrier: ClauseCarrier,
 }
 
-impl Declarations {
-    fn entry(&mut self, key: Entry, ty: TermHandle) -> Result<TermHandle, &'static str> {
-        if let Some(index) = self.entries.iter().position(|(known, _)| *known == key) {
+/// A record whose value is the tuple of its fields, in declaration order.
+struct Product {
+    record: StructuralTypeId,
+    fields: Vec<Field>,
+}
+
+/// Why no proof was found: the search failed, and for an Identity of two
+/// records, the first field whose identity nothing proves, outermost first.
+struct Unproved {
+    error: SearchError,
+    field: Vec<TerminalIdentityIndex>,
+}
+
+impl From<SearchError> for Unproved {
+    fn from(error: SearchError) -> Self {
+        Self {
+            error,
+            field: Vec::new(),
+        }
+    }
+}
+
+struct Declarations<'a> {
+    module: &'a TerminalModule,
+    machine: &'a TerminalMachine,
+    /// What each field of an input held at entry.
+    entry: &'a mut dyn super::Bindings<Error = super::Unbound>,
+    /// The values the inputs' fields held at entry, as their terms state
+    /// them. An equality of one of them can rebuild an input.
+    contents: Vec<ScalarTerm>,
+    arena: TermArena,
+    entries: Vec<(Named, TermHandle)>,
+    signature: Vec<Declaration>,
+    products: Vec<Product>,
+    /// Records whose carrier is being declared, so a record that contained
+    /// itself would be refused rather than declared forever.
+    declaring: Vec<StructuralTypeId>,
+}
+
+impl<'a> Declarations<'a> {
+    fn new(
+        module: &'a TerminalModule,
+        machine: &'a TerminalMachine,
+        entry: &'a mut dyn super::Bindings<Error = super::Unbound>,
+    ) -> Self {
+        Self {
+            module,
+            machine,
+            entry,
+            contents: Vec::new(),
+            arena: TermArena::default(),
+            entries: Vec::new(),
+            signature: Vec::new(),
+            products: Vec::new(),
+            declaring: Vec::new(),
+        }
+    }
+
+    fn known(&self, key: &Named) -> Option<usize> {
+        self.entries.iter().position(|(known, _)| known == key)
+    }
+
+    fn entry(&mut self, key: Named, ty: TermHandle) -> Result<TermHandle, &'static str> {
+        if let Some(index) = self.known(&key) {
             if !self.arena.structurally_equal(self.signature[index].ty, ty) {
                 return Err("the same signature entry has two different types");
             }
             return Ok(self.entries[index].1);
         }
-        let declaration =
+        self.declare(key, Declaration::assumption(0, ty))
+    }
+
+    fn declare(
+        &mut self,
+        key: Named,
+        declaration: Declaration,
+    ) -> Result<TermHandle, &'static str> {
+        let index =
             u32::try_from(self.signature.len()).map_err(|_| "signature exceeds its index width")?;
         let term = self.arena.insert(Term::Constant {
-            declaration,
+            declaration: index,
             levels: vec![],
         });
-        self.signature.push(Declaration::assumption(0, ty));
+        self.signature.push(declaration);
         self.entries.push((key, term));
         Ok(term)
     }
 
+    /// The fields of a record whose value is exactly the tuple of its
+    /// fields, each at a carrier the kernel can state an Identity at. A
+    /// quotient's representative, a restricted scalar, a field the program
+    /// cannot observe and a descriptor of other storage do not determine the
+    /// value this way, so such a record stays one opaque type
+    /// ([record identity](wiki/spec/proofs/contracts.md#record-identity-from-field-identities)).
+    fn product_fields(&self, record: StructuralTypeId) -> Option<Vec<Field>> {
+        use terminal_psi::{StructuralFieldType, StructuralTypeShape};
+        let declaration = self.module.structural_type(record)?;
+        if declaration.quotient_carrier.is_some() || declaration.scalar_restriction.is_some() {
+            return None;
+        }
+        let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
+            return None;
+        };
+        if fields.is_empty() {
+            return None;
+        }
+        fields
+            .iter()
+            .map(|field| {
+                let carrier = match field.field_type {
+                    StructuralFieldType::Scalar(scalar) => ClauseCarrier::Scalar(scalar),
+                    StructuralFieldType::IeeeFloat(format) => {
+                        ClauseCarrier::Scalar(semantic_vocabulary::ScalarType::IeeeFloat(format))
+                    }
+                    StructuralFieldType::Structural(inner) => {
+                        match self.module.structural_type(inner)?.shape {
+                            StructuralTypeShape::Reference { .. }
+                            | StructuralTypeShape::ElementView { .. }
+                            | StructuralTypeShape::ByteSequence(_) => return None,
+                            _ => ClauseCarrier::Structural(inner),
+                        }
+                    }
+                    _ => return None,
+                };
+                Some(Field {
+                    id: field.id,
+                    identity: field.identity,
+                    carrier,
+                })
+            })
+            .collect()
+    }
+
+    /// A record of fields the kernel can state is the product of their
+    /// carriers; every other carrier is an opaque type.
     fn carrier(&mut self, carrier: ClauseCarrier) -> Result<TermHandle, &'static str> {
+        let key = Named::Carrier(carrier);
+        if let Some(index) = self.known(&key) {
+            return Ok(self.entries[index].1);
+        }
         let universe = self
             .arena
             .insert(Term::Sort(Sort::Type(Level::Constant(0))));
-        self.entry(Entry::Carrier(carrier), universe)
+        let ClauseCarrier::Structural(record) = carrier else {
+            return self.entry(key, universe);
+        };
+        let Some(fields) = self.product_fields(record) else {
+            return self.entry(key, universe);
+        };
+        if self.declaring.contains(&record) {
+            return Err("a record that contains itself");
+        }
+        self.declaring.push(record);
+        let mut components = Vec::with_capacity(fields.len());
+        for field in &fields {
+            components.push(self.carrier(field.carrier)?);
+        }
+        self.declaring.pop();
+        let body = self
+            .arena
+            .product_type(&components)
+            .ok_or("a product of no fields")?;
+        self.products.push(Product { record, fields });
+        self.declare(key, Declaration::definition(0, universe, body))
+    }
+
+    fn product(&mut self, carrier: ClauseCarrier) -> Result<Option<&Product>, &'static str> {
+        let ClauseCarrier::Structural(record) = carrier else {
+            return Ok(None);
+        };
+        self.carrier(carrier)?;
+        Ok(self
+            .products
+            .iter()
+            .find(|product| product.record == record))
+    }
+
+    /// The value at a field path of a record: a projection of the term of
+    /// the whole record for each field on the path. A path through anything
+    /// that is not a record of fields has no such term.
+    fn field_path(
+        &mut self,
+        mut term: TermHandle,
+        mut carrier: ClauseCarrier,
+        path: &[CanonicalStructuralPathSegment],
+    ) -> Result<(TermHandle, ClauseCarrier), &'static str> {
+        for segment in path {
+            let CanonicalStructuralPathSegment::Field(field) = segment else {
+                return Err("a path step other than a field has no kernel term");
+            };
+            let product = self
+                .product(carrier)?
+                .ok_or("a field of a value that is not the product of its fields")?;
+            let count = product.fields.len();
+            let position = product
+                .fields
+                .iter()
+                .position(|known| known.id == *field)
+                .ok_or("a field outside its record")?;
+            carrier = product.fields[position].carrier;
+            term = self.arena.tuple_component(term, position, count);
+        }
+        Ok((term, carrier))
+    }
+
+    /// An input an Identity names at `written`. An immutable input of a
+    /// record of fields is the tuple of what its fields held at entry, the
+    /// values the entry requirements were stated over; any other input is
+    /// one opaque value. A law's formal is its binder. A field path projects
+    /// the root, whose carrier is its declared record.
+    fn input(
+        &mut self,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        written: ClauseCarrier,
+        binders: &[LawInput],
+    ) -> Result<TermHandle, &'static str> {
+        let carrier = if path.is_empty() {
+            written
+        } else {
+            ClauseCarrier::Structural(
+                self.machine
+                    .structural_place_type(root)
+                    .ok_or("an input whose root has no declared record")?,
+            )
+        };
+        let ty = self.carrier(carrier)?;
+        let whole = if let Some(position) = binders
+            .iter()
+            .position(|known| *known == LawInput::Structural(root))
+        {
+            self.arena.insert(Term::Variable(
+                u32::try_from(binders.len() - position - 1).map_err(|_| "too many law formals")?,
+            ))
+        } else if !binders.is_empty() {
+            return Err("law names storage outside its telescope");
+        } else if self.product(carrier)?.is_some()
+            && let Some(contents) = self.contents_of(root, &mut Vec::new(), carrier)?
+        {
+            contents
+        } else {
+            self.entry(Named::Input(root), ty)?
+        };
+        let (term, carrier) = self.field_path(whole, carrier, path)?;
+        if carrier != written {
+            return Err("an Identity operand differs from its written carrier");
+        }
+        Ok(term)
+    }
+
+    /// What the field at `path` beneath `root` held at entry, at `carrier`:
+    /// the observed value of a scalar field, the tuple of a record of
+    /// fields, and otherwise one opaque value of the field.
+    fn contents_of(
+        &mut self,
+        root: PlaceId,
+        path: &mut Vec<CanonicalStructuralPathSegment>,
+        carrier: ClauseCarrier,
+    ) -> Result<Option<TermHandle>, &'static str> {
+        if let ClauseCarrier::Scalar(scalar) = carrier {
+            let Ok(held) = self.entry.field(
+                semantic_vocabulary::ContentPlaceVersion::Current,
+                root,
+                path,
+                scalar,
+            ) else {
+                let ty = self.carrier(carrier)?;
+                return self.entry(Named::Field(root, path.clone()), ty).map(Some);
+            };
+            let term = self.scalar(&held, &[])?;
+            self.contents.push(held);
+            return Ok(Some(term));
+        }
+        let Some(fields) = self.product(carrier)?.map(|product| product.fields.clone()) else {
+            let ty = self.carrier(carrier)?;
+            return self.entry(Named::Field(root, path.clone()), ty).map(Some);
+        };
+        let mut components = Vec::with_capacity(fields.len());
+        for field in fields {
+            path.push(CanonicalStructuralPathSegment::Field(field.id));
+            let component = self.contents_of(root, path, field.carrier)?;
+            path.pop();
+            let Some(component) = component else {
+                return Ok(None);
+            };
+            components.push(component);
+        }
+        Ok(self.arena.tuple(&components))
     }
 
     fn application(
@@ -2311,7 +2581,7 @@ impl Declarations {
                 codomain: function_type,
             });
         }
-        let operation = self.entry(Entry::Operation(declaration), function_type)?;
+        let operation = self.entry(Named::Operation(declaration), function_type)?;
         Ok(self.arena.apply_arguments(operation, arguments))
     }
 
@@ -2347,10 +2617,26 @@ impl Declarations {
             }
             ScalarTerm::Boolean(_)
             | ScalarTerm::Integer { .. }
-            | ScalarTerm::IeeeFloatLiteral(_) => self.entry(Entry::Scalar(term.clone()), ty),
-            _ if binders.is_empty() => self.entry(Entry::Scalar(term.clone()), ty),
+            | ScalarTerm::IeeeFloatLiteral(_) => self.entry(Named::Scalar(term.clone()), ty),
+            _ if binders.is_empty() => self.entry(Named::Scalar(term.clone()), ty),
             _ => Err("no whole-value mathematical input for this scalar operand"),
         }
+    }
+
+    /// `left = right` between two scalar terms, as a kernel Identity at
+    /// their scalar carrier.
+    fn scalar_identity(
+        &mut self,
+        left: &ScalarTerm,
+        right: &ScalarTerm,
+    ) -> Result<TermHandle, &'static str> {
+        if left.scalar_type() != right.scalar_type() {
+            return Err("an equality between two scalar types");
+        }
+        let ty = self.carrier(ClauseCarrier::Scalar(left.scalar_type()))?;
+        let left = self.scalar(left, &[])?;
+        let right = self.scalar(right, &[])?;
+        Ok(self.arena.insert(Term::Id { ty, left, right }))
     }
 
     /// A closed law quantifies over its formals. An instantiated clause
@@ -2367,20 +2653,8 @@ impl Declarations {
         for value in &clause.values {
             let ty = self.carrier(value.carrier)?;
             let term = match &value.operand {
-                ClauseOperand::Input(input) if input.path().is_empty() => {
-                    if let Some(position) = binders
-                        .iter()
-                        .position(|known| *known == LawInput::Structural(input.root()))
-                    {
-                        self.arena.insert(Term::Variable(
-                            u32::try_from(binders.len() - position - 1)
-                                .map_err(|_| "too many law formals")?,
-                        ))
-                    } else if binders.is_empty() {
-                        self.entry(Entry::Input(input.root()), ty)?
-                    } else {
-                        return Err("law names storage outside its telescope");
-                    }
+                ClauseOperand::Input(input) => {
+                    self.input(input.root(), input.path(), value.carrier, binders)?
                 }
                 ClauseOperand::Scalar(term) => self.scalar(term, binders)?,
                 ClauseOperand::Application {
@@ -2397,7 +2671,9 @@ impl Declarations {
                         .collect::<Vec<_>>();
                     self.application(*declaration, ty, &domains, &operands)?
                 }
-                _ => return Err("no whole-value mathematical input for this clause operand"),
+                ClauseOperand::Formal(_) => {
+                    return Err("no whole-value mathematical input for this clause operand");
+                }
             };
             terms.push(term);
         }
@@ -2437,19 +2713,20 @@ impl Declarations {
             if formal.carrier != supplied.carrier {
                 return Err("citation changed a carrier");
             }
+            // The supplied value has the same term it has anywhere else in
+            // this obligation, so a cited field is the projection the goal
+            // names.
             let (binder, operand) = match (&formal.operand, &supplied.operand) {
                 (ClauseOperand::Input(input), ClauseOperand::Input(actual))
-                    if input.path().is_empty() && actual.path().is_empty() =>
+                    if input.path().is_empty() =>
                 {
-                    (
-                        LawInput::Structural(input.root()),
-                        Entry::Input(actual.root()),
-                    )
+                    let term = self.input(actual.root(), actual.path(), supplied.carrier, &[])?;
+                    (LawInput::Structural(input.root()), term)
                 }
                 (
                     ClauseOperand::Scalar(ScalarTerm::Value { id, .. }),
                     ClauseOperand::Scalar(actual),
-                ) => (LawInput::Scalar(*id), Entry::Scalar(actual.clone())),
+                ) => (LawInput::Scalar(*id), self.scalar(actual, &[])?),
                 (left, right) if left == right => continue,
                 _ => return Err("citation changed the selected law operation"),
             };
@@ -2458,7 +2735,6 @@ impl Declarations {
                 .position(|&known| known == binder)
                 .ok_or("law has a foreign formal")?;
             let ty = self.carrier(formal.carrier)?;
-            let operand = self.entry(operand, ty)?;
             if actuals[position]
                 .replace((ty, operand))
                 .is_some_and(|previous| previous != (ty, operand))
@@ -2477,11 +2753,93 @@ impl Declarations {
                 codomain: statement,
             });
         }
-        let law = self.entry(Entry::Law(machine, ordinal), statement)?;
+        let law = self.entry(Named::Law(machine, ordinal), statement)?;
         Ok(self.arena.apply_arguments(
             law,
             &actuals.iter().map(|&(_, term)| term).collect::<Vec<_>>(),
         ))
+    }
+
+    /// `left = right` at `carrier`. Two records of fields are identical when
+    /// every corresponding field is: when no available equality proves the
+    /// whole values, each side is rebuilt from its fields and the field
+    /// identities are carried into the rebuilt tuple one at a time. The
+    /// kernel converts a tuple of a value's projections back into the value.
+    fn prove_identity(
+        &mut self,
+        context: &Context,
+        carrier: ClauseCarrier,
+        left: TermHandle,
+        right: TermHandle,
+        citations: &[TermHandle],
+        budget: &mut Budget,
+    ) -> Result<TermHandle, Unproved> {
+        let ty = self.carrier(carrier).map_err(|_| SearchError::NoProof)?;
+        let goal = self.arena.insert(Term::Id { ty, left, right });
+        let whole = prove(&mut self.arena, context, goal, citations, 65_536, budget);
+        let Err(SearchError::NoProof) = whole else {
+            return whole.map_err(Unproved::from);
+        };
+        let Some(product) = self.product(carrier).map_err(|_| SearchError::NoProof)? else {
+            return Err(SearchError::NoProof.into());
+        };
+        let fields = product.fields.clone();
+        let count = fields.len();
+        let mut lefts = Vec::with_capacity(count);
+        let mut rights = Vec::with_capacity(count);
+        for position in 0..count {
+            lefts.push(self.arena.tuple_component(left, position, count));
+            rights.push(self.arena.tuple_component(right, position, count));
+        }
+        let rebuilt = self.arena.tuple(&lefts).ok_or(SearchError::NoProof)?;
+        // `rebuilt = rebuilt`, then one field at a time from its left
+        // projection to its right one.
+        let mut proof = self.arena.insert(Term::Refl { ty, value: rebuilt });
+        let mut reached = lefts.clone();
+        for (position, field) in fields.iter().enumerate() {
+            let component = self
+                .prove_identity(
+                    context,
+                    field.carrier,
+                    lefts[position],
+                    rights[position],
+                    citations,
+                    budget,
+                )
+                .map_err(|mut unproved| {
+                    unproved.field.insert(0, field.identity);
+                    unproved
+                })?;
+            let component_type = self
+                .carrier(field.carrier)
+                .map_err(|_| SearchError::NoProof)?;
+            // `rebuilt = (.., z, ..)` under `z` and its proof: the fields
+            // before this one already at their right projections.
+            let mut at = Vec::with_capacity(count);
+            for (other, &term) in reached.iter().enumerate() {
+                at.push(if other == position {
+                    self.arena.insert(Term::Variable(1))
+                } else {
+                    shift(&mut self.arena, term, 0, 2)
+                });
+            }
+            let target = self.arena.tuple(&at).ok_or(SearchError::NoProof)?;
+            let conclusion = Term::Id {
+                ty: shift(&mut self.arena, ty, 0, 2),
+                left: shift(&mut self.arena, rebuilt, 0, 2),
+                right: target,
+            };
+            let conclusion = self.arena.insert(conclusion);
+            proof = Equality {
+                carrier: component_type,
+                from: lefts[position],
+                to: rights[position],
+                proof: component,
+            }
+            .eliminate(&mut self.arena, conclusion, proof);
+            reached[position] = rights[position];
+        }
+        Ok(proof)
     }
 }
 
@@ -2495,6 +2853,7 @@ pub(super) fn discharge(
     obligation: ObligationId,
     goal: &ClauseIdentity,
     law_instances: &[MachineId],
+    entry: &mut dyn super::Bindings<Error = super::Unbound>,
 ) -> Checked<Judgment> {
     let known = hypotheses(graph, tables, machine.id, obligation, point)?;
     let unavailable = |why: &str| {
@@ -2505,17 +2864,16 @@ pub(super) fn discharge(
             why,
         )
     };
-    let mut declarations = Declarations::default();
+    let mut declarations = Declarations::new(module, machine, entry);
     let expected = declarations.identity(goal, &[]).map_err(unavailable)?;
     let mut proofs = Vec::new();
     let mut citations = Vec::new();
     let mut premises = Vec::new();
     for (&row, premise) in known.assumption_rows.iter().zip(&known.assumptions) {
-        let Proposition::DeclarationIdentity(actual) = premise else {
-            continue;
-        };
         let justification = tables.knowledge.get(row).map(|row| &row.justification);
-        if let Some(Justification::EntryRequirement { clause }) = justification {
+        if let Some(Justification::EntryRequirement { clause }) = justification
+            && let Proposition::DeclarationIdentity(actual) = premise
+        {
             // Only the caller owes this hypothesis. Rejoin the row to this
             // machine's published input clause before binding its proof.
             if machine.requires.get(*clause as usize) != Some(premise) {
@@ -2527,6 +2885,9 @@ pub(super) fn discharge(
             citations.push(row);
             continue;
         }
+        let Proposition::DeclarationIdentity(actual) = premise else {
+            continue;
+        };
         let Some(Justification::CalleeGuarantee { invocation, clause }) = justification else {
             continue;
         };
@@ -2556,7 +2917,36 @@ pub(super) fn discharge(
         );
         citations.push(row);
     }
+    // An equality of a value an input's field held at entry, such as the
+    // instantiated requirement `a.x == b.x`, is a field identity the goal
+    // may rebuild a record from. Other scalar equalities stay with the
+    // arithmetic prover.
+    for (&row, premise) in known.assumption_rows.iter().zip(&known.assumptions) {
+        let Proposition::Equal(left, right) = premise else {
+            continue;
+        };
+        if !declarations
+            .contents
+            .iter()
+            .any(|held| held == left || held == right)
+        {
+            continue;
+        }
+        premises.push(
+            declarations
+                .scalar_identity(left, right)
+                .map_err(unavailable)?,
+        );
+        citations.push(row);
+    }
     let mut budget = Budget::default();
+    let field_name = |identity: TerminalIdentityIndex| {
+        let text = module.identities.text(identity).unwrap_or("?");
+        text.rsplit(['.', ':', '\\'])
+            .next()
+            .unwrap_or(text)
+            .to_owned()
+    };
     let kernel_error = |error| match error {
         SearchError::Budget => super::unproved(
             machine.id,
@@ -2577,6 +2967,24 @@ pub(super) fn discharge(
             format!("mathematical kernel: {error:?}"),
         ),
     };
+    // A record Identity that no equality proves names the first field
+    // whose identity is missing.
+    let refused = |unproved: Unproved| {
+        if unproved.error != SearchError::NoProof || unproved.field.is_empty() {
+            return kernel_error(unproved.error);
+        }
+        let path: Vec<_> = unproved.field.iter().map(|&f| field_name(f)).collect();
+        super::unproved(
+            machine.id,
+            obligation,
+            UnprovedCause::NoDerivation,
+            format!(
+                "no available equality proves the stated Identity: \
+                 nothing proves the identity of field `{}`",
+                path.join(".")
+            ),
+        )
+    };
     let signature = check_signature(
         &mut declarations.arena,
         &declarations.signature,
@@ -2592,15 +3000,19 @@ pub(super) fn discharge(
     for &premise in &premises {
         context = context.extend(premise);
     }
-    let proof = prove(
-        &mut declarations.arena,
-        &context,
-        expected,
-        &proofs,
-        65_536,
-        &mut budget,
-    )
-    .map_err(kernel_error)?;
+    let Term::Id { left, right, .. } = declarations.arena.get(expected) else {
+        unreachable!("an Identity denotes kernel Id")
+    };
+    let proof = declarations
+        .prove_identity(
+            &context,
+            goal.values[goal.left as usize].carrier,
+            left,
+            right,
+            &proofs,
+            &mut budget,
+        )
+        .map_err(refused)?;
     let certificate =
         MathematicalCertificate::with_signature(declarations.signature, premises, proof, expected);
     let receipt =

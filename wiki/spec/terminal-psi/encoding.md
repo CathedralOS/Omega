@@ -42,7 +42,14 @@ table spelling. An entry count larger than the remaining bytes rejects as
 truncation before any entry is read. Encoding and decoding walk a table with an
 explicit stack; nesting depth never consumes host stack.
 
-Current marker 293 lets a theorem application name the implication it applies
+Current marker 294 publishes `core\Identity` between inputs and scalar terms
+as [proposition](#propositions) tag 23, the general Identity row, and retires
+tag 18, the structural identity row it replaces: nothing wrote tag 18, and an
+Identity of two inputs at their data type is a tag 23 row. Readers reject
+earlier markers before reading the payload, so a saved program from marker 293
+or earlier must be rebuilt.
+
+Marker 293 lets a theorem application name the implication it applies
 by its proof source: an erased proof formal of the owner, as before, or a named
 machine that does no work, whose contract is the implication. A citation of
 such a machine is then a fact-only invocation that emits no call. Readers reject
@@ -829,21 +836,27 @@ integer math and content operands are their own encodings inside the row.
 | 15 | IntegerMathLessThan | integer math term + integer math term |
 | 16 | IntegerMathLessOrEqual | integer math term + integer math term |
 | 17 | ScalarIeeeFloatComparison | IEEE float comparison kind + IEEE float format + scalar term + scalar term |
-| 18 | StructuralIdentity | structural type id + canonical structural field + structural type id + canonical structural field |
 | 19 | FloatMeaningEqual | counted float-meaning clause rows + `u32` left slot + `u32` right slot |
 | 20 | FloatIntegerConversion | scalar source + scalar integer result + projection contract + semantic application contract |
 | 21 | IeeeFloatIntegerExact | scalar source + integer type |
 | 22 | IntegerIeeeFloatExact | scalar integer source + IEEE target format |
+| 23 | Identity | counted Identity values + `u32` left value position + `u32` right value position |
 
-Tag 23 is not a portable proposition and is absent from the table on purpose:
-a decoder rejects it. A `DeclarationIdentity`, the typed `core\Identity` of a
-source clause, has no portable row until its mathematical signature is
-published with it. The encoder refuses one in a module, and module validation
-refuses one in a portable proposition. Only the source checker writes tag 23,
-into the byte key it uses to put a machine's clauses in canonical order; that
-key never leaves the compiler. Its layout is a counted list of clause values,
-then the `u32` positions of the left and right value. Each value is a carrier
-followed by an operand:
+Tag 18 is retired; a decoder rejects it.
+
+Tag 23 is `core\Identity` at a type: two values of one carrier are the same
+value. Its layout is a counted list of values, then the `u32` positions of the
+left and right value. Each value is a carrier followed by an operand. A module
+publishes only an Identity whose every value is an input, or a field of one,
+at its data type (carrier 2, operand 0), or a scalar term at its scalar type
+(carrier 1, operand 1). The input's canonical structural field must end at a
+record, sum, mixed or fixed-array declaration equal to the carrier, and module
+validation checks each scalar term as it checks any other. The other carriers
+and operands name what only the source checker's signature defines: a type
+parameter, a schema formal or an applied declaration. The encoder refuses them
+in a module and a decoder rejects their tags; the source checker writes them
+only into the byte key it uses to put a machine's clauses in canonical order,
+which never leaves the compiler.
 
 | Carrier tag | Form | Fields |
 | --- | --- | --- |
@@ -896,11 +909,10 @@ It requires a finite integral value within the exact integer bounds and
 preserves the positive-zero meaning; negative zero is not silently erased.
 Neither relation is a meaning-valued catalog application or raw identity.
 
-Each `StructuralIdentity` subject denotes the complete value at its path in
-the enclosing predicate's invocation frame. The two endpoint types must match
-exactly; operands use canonical subject order. This encoding retains explicit
-typed data identity without enumerating fields or array elements and does not
-encode an executable equality operation. A source `==` fact cannot populate it
+Each input of an Identity row denotes the complete value at its path in the
+enclosing predicate's invocation frame, and both endpoints have one carrier.
+This encoding retains explicit typed data identity without enumerating fields
+or array elements and does not encode an executable equality operation. A source `==` fact cannot populate it
 without checked evidence connecting the selected comparison to identity.
 
 The ratified [float identity rule](mathematical_values.md#float-equality-and-source-identity)

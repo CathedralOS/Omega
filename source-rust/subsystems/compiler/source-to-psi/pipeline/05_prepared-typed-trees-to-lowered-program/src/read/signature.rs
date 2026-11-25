@@ -1537,17 +1537,7 @@ impl<'p> Converter<'p, '_> {
 
     /// The propositions as one type: each paired with the rest.
     fn conjunction(&mut self, components: &[TermHandle]) -> Option<TermHandle> {
-        let (&last, rest) = components.split_last()?;
-        let arena = &mut self.signature.arena;
-        let mut all = last;
-        for &component in rest.iter().rev() {
-            let codomain = shift(arena, all, 0, 1);
-            all = arena.insert(Term::Sigma {
-                domain: component,
-                codomain,
-            });
-        }
-        Some(all)
+        self.signature.arena.product_type(components)
     }
 
     /// Declares data indexed by values as the kernel's indexed family: its
@@ -1798,17 +1788,10 @@ impl<'p> Converter<'p, '_> {
 
     /// The index with these components: each paired with the rest.
     fn index_tuple(&mut self, components: &[TermHandle]) -> TermHandle {
-        let (&last, rest) = components
-            .split_last()
-            .expect("indexed data has at least one index");
-        let mut tuple = last;
-        for &component in rest.iter().rev() {
-            tuple = self.signature.arena.insert(Term::Pair {
-                first: component,
-                second: tuple,
-            });
-        }
-        tuple
+        self.signature
+            .arena
+            .tuple(components)
+            .expect("indexed data has at least one index")
     }
 
     /// `body` as a function of `count` values of `domain`.
@@ -1938,17 +1921,10 @@ impl<'p> Converter<'p, '_> {
             // The goal as a function of the index: each index is a
             // projection of the tuple.
             let tuple = self.variable(0);
-            let mut projections = Vec::with_capacity(indices as usize);
-            let mut rest = tuple;
-            for index in 0..indices {
-                let arena = &mut self.signature.arena;
-                if index + 1 == indices {
-                    projections.push(rest);
-                } else {
-                    projections.push(arena.insert(Term::Fst { pair: rest }));
-                    rest = arena.insert(Term::Snd { pair: rest });
-                }
-            }
+            let count = indices as usize;
+            let projections: Vec<_> = (0..count)
+                .map(|index| self.signature.arena.tuple_component(tuple, index, count))
+                .collect();
             let body = instantiate(&mut self.signature.arena, goal, &projections);
             let invariant = self.signature.arena.insert(Term::Lambda {
                 domain: instance.index_type,
@@ -2065,15 +2041,12 @@ impl<'p> Converter<'p, '_> {
             };
             fields.push(self.data(id, inner)?);
         }
-        let (&last, before) = fields.split_last().expect("checked not empty");
-        let mut ty = self.constant(last);
-        for &field in before.iter().rev() {
-            let domain = self.constant(field);
-            ty = self.signature.arena.insert(Term::Sigma {
-                domain,
-                codomain: ty,
-            });
-        }
+        let components: Vec<_> = fields.iter().map(|&field| self.constant(field)).collect();
+        let ty = self
+            .signature
+            .arena
+            .product_type(&components)
+            .expect("checked not empty");
         index(id, self.signature.declarations.len() + 1)?;
         let universe = self
             .signature
@@ -2113,17 +2086,10 @@ impl<'p> Converter<'p, '_> {
         let ty = *fields
             .get(field)
             .ok_or_else(|| unserved(id, "field position outside its record"))?;
-        if count == 1 {
-            return Ok((value, ty));
-        }
-        let mut term = value;
-        for _ in 0..field {
-            term = self.signature.arena.insert(Term::Snd { pair: term });
-        }
-        if field + 1 < count {
-            term = self.signature.arena.insert(Term::Fst { pair: term });
-        }
-        Ok((term, ty))
+        Ok((
+            self.signature.arena.tuple_component(value, field, count),
+            ty,
+        ))
     }
 
     fn shape(&self, data: u32) -> PlainData {

@@ -41,6 +41,21 @@ pub struct ClauseIdentity {
 }
 
 impl ClauseIdentity {
+    /// Whether a Psi module may publish this Identity: a whole input, or a
+    /// field of one, at its data type, and a scalar term at its scalar type.
+    /// A type parameter, a schema formal and an applied declaration name
+    /// something only the source checker's signature defines, so they stay
+    /// inside the compiler.
+    pub fn is_portable(&self) -> bool {
+        self.values.iter().all(|value| {
+            matches!(
+                (value.carrier, &value.operand),
+                (ClauseCarrier::Structural(_), ClauseOperand::Input(_))
+                    | (ClauseCarrier::Scalar(_), ClauseOperand::Scalar(_))
+            )
+        })
+    }
+
     pub fn validate(&self) -> Result<(), crate::PropositionError> {
         let invalid = || crate::PropositionError::InvalidClauseIdentity;
         let left = self.values.get(self.left as usize).ok_or_else(invalid)?;

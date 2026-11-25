@@ -78,17 +78,14 @@ impl PredicateBudget {
             Proposition::StructuralCaseMembership { subject, .. } => {
                 self.count(subject.path().len())?
             }
-            Proposition::StructuralIdentity { left, right } => {
-                self.count(left.path().len())?;
-                self.count(right.path().len())?;
-            }
             Proposition::DeclarationIdentity(clause) => {
                 self.count(clause.values.len())?;
                 for value in &clause.values {
                     match &value.operand {
                         semantic_vocabulary::ClauseOperand::Scalar(term) => self.scalar(term, depth + 1)?,
                         semantic_vocabulary::ClauseOperand::Application { arguments, .. } => self.count(arguments.len())?,
-                        _ => {}
+                        semantic_vocabulary::ClauseOperand::Input(subject) => self.count(subject.path().len())?,
+                        semantic_vocabulary::ClauseOperand::Formal(_) => {}
                     }
                 }
             }

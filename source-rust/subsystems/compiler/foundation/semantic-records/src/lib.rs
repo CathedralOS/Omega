@@ -930,8 +930,7 @@ pub use proposition::{
     IeeeFloatFormat, IeeeFloatStructuralField, IeeeFloatValue, IntegerCarrier, IntegerMathLiteral,
     IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, IntegerWidth, MathematicalArgument,
     ProofFormalScope, ProofTerm, ProofTermField, Proposition, PropositionContext, PropositionError,
-    ScalarReadProjection, ScalarTerm, ScalarType, StructuralCaseSubject, StructuralIdentitySubject,
-    WidthParameter,
+    ScalarReadProjection, ScalarTerm, ScalarType, StructuralCaseSubject, WidthParameter,
 };
 pub use scalars::bounded_integer_type::BoundedIntegerType;
 pub use storage::authored_storage::{

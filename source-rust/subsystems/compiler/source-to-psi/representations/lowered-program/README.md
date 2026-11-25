@@ -307,7 +307,7 @@ A lane met each, reported it, and read the fact from the lowered form instead.
   them. The lane that adds content knowledge first replaces them with typed
   identities; this crate does not wrap or copy them.
 - **A second place form inside propositions: decided, values only.**
-  `Proposition`'s structural variants (`StructuralIdentity`,
+  `Proposition`'s structural variants (an Identity input,
   `StructuralCaseMembership`, IEEE and byte-sequence fields) name storage as
   `PlaceId` plus `Vec<CanonicalStructuralPathSegment>`, beside this crate's
   `ExactPlaceId`. The places foundation lane chose one form

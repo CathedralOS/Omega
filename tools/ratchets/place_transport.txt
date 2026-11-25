@@ -7,7 +7,7 @@
 1 source-rust/subsystems/compiler/foundation/declaration-identity/src/symbol.rs
 3 source-rust/subsystems/compiler/foundation/language-core/src/sealed_intrinsics.rs
 3 source-rust/subsystems/compiler/foundation/numerics/src/lib.rs
-4 source-rust/subsystems/compiler/foundation/semantic-records/src/scalar_terms.rs
+3 source-rust/subsystems/compiler/foundation/semantic-records/src/scalar_terms.rs
 7 source-rust/subsystems/compiler/foundation/semantic-records/src/storage.rs
 1 source-rust/subsystems/compiler/psi/artifact/declaration-encoding/src/results.rs
 1 source-rust/subsystems/compiler/psi/artifact/declaration-encoding/src/structural_fields.rs
