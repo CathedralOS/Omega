@@ -602,7 +602,7 @@ pub(crate) fn normal(
         };
         let recursor = arena.insert(Term::Constant {
             declaration: *induction,
-            levels: Vec::new(),
+            levels: vec![proof_admission::Level::Constant(0)],
         });
         let mut recursor = arena.insert(Term::Apply {
             function: recursor,

@@ -204,6 +204,13 @@ pub enum CoreError {
         expected: TermHandle,
         actual: TermHandle,
     },
+    InvalidInductiveDeclaration,
+    InductiveSortNotRelevant,
+    InductiveParameterMismatch,
+    InductiveUniverseViolation,
+    NonStrictlyPositiveOccurrence,
+    InvalidConstructorReturnType,
+    InvalidRecursorType,
     StepCeiling,
 }
 
@@ -566,9 +573,7 @@ mod judgments {
         use super::JudgmentValue;
         use crate::conversion::{Budget, weak_head_normalize_retaining};
         use crate::substitution::{shift, substitute};
-        use crate::term::{
-            Level, Sort, Term, TermArena, TermHandle, levels_equal, sorts_equal,
-        };
+        use crate::term::{Level, Sort, Term, TermArena, TermHandle, levels_equal, sorts_equal};
 
         type Retention<'a> = &'a dyn Fn(u32) -> bool;
 
@@ -1438,7 +1443,7 @@ mod judgments {
                         let sort =
                             inferred_sort(arena, context, query.shared_type, inferred, budget)?;
                         if sort.is_strict()
-                            || arena.structurally_equal(query.terms.left, query.terms.right)
+                            || arena.structurally_equal_dag(query.terms.left, query.terms.right)
                         {
                             Step::Complete(true)
                         } else {
@@ -1446,7 +1451,7 @@ mod judgments {
                                 head(arena, context, query.terms.left, budget, query.retained)?;
                             let right =
                                 head(arena, context, query.terms.right, budget, query.retained)?;
-                            if arena.structurally_equal(left, right) {
+                            if arena.structurally_equal_dag(left, right) {
                                 Step::Complete(true)
                             } else {
                                 return enter_heads(
@@ -2392,7 +2397,11 @@ mod judgments {
         loop {
             if let Operation::Infer(term) = &current {
                 let term = *term;
-                let scope = inferred_types.scope(&context);
+                let scope = if arena.required_bindings(term) == Some(0) {
+                    InferenceScope(0)
+                } else {
+                    inferred_types.scope(&context)
+                };
                 if let Some(&ty) = inferred_types.types.get(&(scope, term)) {
                     current = Operation::ReusedInference(ty);
                 } else {

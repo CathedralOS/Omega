@@ -364,6 +364,7 @@ pub fn abstract_certificate_assumptions(
                     .body
                     .map(|body| rewrite.term(body, empty))
                     .transpose()?,
+                kind: declaration.kind.clone(),
             });
         }
     }

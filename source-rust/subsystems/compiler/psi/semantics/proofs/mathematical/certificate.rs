@@ -36,8 +36,8 @@ mod batch {
                     signatures.push((certificate.signature.clone(), signature.clone()));
                     signature
                 };
-                let mut context = Context::with_level_arity(certificate.level_arity)
-                    .with_signature(signature);
+                let mut context =
+                    Context::with_level_arity(certificate.level_arity).with_signature(signature);
                 for binding in certificate.context {
                     infer_sort(imported.arena, &context, binding, budget)?;
                     context = context.extend(binding);
@@ -129,6 +129,7 @@ mod batch {
                                 .body
                                 .map(|body| self.term(source, body, &mut local))
                                 .transpose()?,
+                            kind: declaration.kind.clone(),
                         })
                     })
                     .collect::<Result<_, CoreError>>()?,
@@ -535,11 +536,7 @@ mod batch {
             for invalid in [future, stale] {
                 let certificate = MathematicalCertificate::closed(vec![lower], invalid, higher);
                 assert!(matches!(
-                    verify_mathematical_certificate(
-                        &mut arena,
-                        &certificate,
-                        &mut Budget::new(0)
-                    ),
+                    verify_mathematical_certificate(&mut arena, &certificate, &mut Budget::new(0)),
                     Err(CoreError::DummyTerm)
                 ));
             }
@@ -658,8 +655,7 @@ pub fn verify_mathematical_certificate(
     // Keep shared syntax and inferred error terms in the caller's arena.
     let certificate = batch::share_certificate_in_place(arena, certificate)?;
     let signature = check_signature(arena, &certificate.signature, budget)?;
-    let mut context =
-        Context::with_level_arity(certificate.level_arity).with_signature(signature);
+    let mut context = Context::with_level_arity(certificate.level_arity).with_signature(signature);
     for &binding in &certificate.context {
         infer_sort(arena, &context, binding, budget)?;
         context = context.extend(binding);
@@ -717,6 +713,17 @@ pub fn certificate_type_signature_prefix(
                     signature_len: certificate.signature.len(),
                 })?;
             required = required.max(index + 1);
+            if let crate::DeclarationKind::Inductive {
+                num_mutual,
+                mutual_index,
+                num_constructors,
+                ..
+            } = row.kind
+            {
+                let block_base = index.saturating_sub(mutual_index as usize);
+                required =
+                    required.max(block_base + 2 * num_mutual as usize + num_constructors as usize);
+            }
             pending.push(row.ty);
             pending.extend(row.body);
         }
@@ -809,8 +816,7 @@ mod tests {
     fn nested_pair_proofs_fit_the_default_checking_budget() {
         let mut arena = TermArena::new();
         let certificate = nested_pair_certificate(&mut arena, 384);
-        verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget())
-            .unwrap();
+        verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget()).unwrap();
     }
 
     #[test]
@@ -890,8 +896,7 @@ mod tests {
                 assert!(
                     matches!(
                         checked,
-                        Err(CoreError::TypeMismatch { .. }
-                            | CoreError::ArgumentTypeMismatch { .. })
+                        Err(CoreError::TypeMismatch { .. } | CoreError::ArgumentTypeMismatch { .. })
                     ),
                     "the annotation must type-check before conversion: {checked:?}"
                 );
@@ -904,8 +909,7 @@ mod tests {
         let mut arena = TermArena::new();
         let (identity, expected) = polymorphic_identity(&mut arena);
         let certificate = MathematicalCertificate::closed(Vec::new(), identity, expected);
-        verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget())
-            .unwrap();
+        verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget()).unwrap();
     }
 
     #[test]
@@ -914,8 +918,7 @@ mod tests {
         let type_zero = type_sort(&mut arena, 0);
         let bound = variable(&mut arena, 0);
         let certificate = MathematicalCertificate::closed(vec![type_zero], bound, type_zero);
-        verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget())
-            .unwrap();
+        verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget()).unwrap();
 
         let mut arena = TermArena::new();
         let type_zero = type_sort(&mut arena, 0);
@@ -936,10 +939,8 @@ mod tests {
         let type_zero = type_sort(&mut arena, 0);
         let bound = variable(&mut arena, 0);
         let shifted = variable(&mut arena, 1);
-        let certificate =
-            MathematicalCertificate::closed(vec![type_zero, bound], bound, shifted);
-        verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget())
-            .unwrap();
+        let certificate = MathematicalCertificate::closed(vec![type_zero, bound], bound, shifted);
+        verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget()).unwrap();
 
         let mut arena = TermArena::new();
         let type_zero = type_sort(&mut arena, 0);
@@ -1011,8 +1012,7 @@ mod tests {
             term,
             expected,
         );
-        verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget())
-            .unwrap();
+        verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget()).unwrap();
 
         let zero = arena.insert(Term::TwoZero);
         let wrong_expected = arena.insert(term!(Apply => family => zero));
@@ -1116,8 +1116,7 @@ mod tests {
             term,
             expected,
         );
-        verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget())
-            .unwrap();
+        verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget()).unwrap();
 
         let wrong_expected = {
             let predicate = variable(&mut arena, 3);
@@ -1243,8 +1242,7 @@ mod tests {
             term,
             expected,
         );
-        verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget())
-            .unwrap();
+        verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget()).unwrap();
 
         let wrong_expected = {
             let p = variable(&mut arena, 2);
@@ -1270,10 +1268,8 @@ mod tests {
         let strict_zero = strict_sort(&mut arena, 0);
         let bound = variable(&mut arena, 0);
         let shifted = variable(&mut arena, 1);
-        let certificate =
-            MathematicalCertificate::closed(vec![strict_zero, bound], bound, shifted);
-        verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget())
-            .unwrap();
+        let certificate = MathematicalCertificate::closed(vec![strict_zero, bound], bound, shifted);
+        verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget()).unwrap();
 
         let mut arena = TermArena::new();
         let type_zero = type_sort(&mut arena, 0);
@@ -1304,8 +1300,7 @@ mod tests {
             term: identity,
             expected,
         };
-        verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget())
-            .unwrap();
+        verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget()).unwrap();
 
         let certificate = MathematicalCertificate::closed(Vec::new(), identity, expected);
         assert_eq!(
@@ -1349,8 +1344,7 @@ mod tests {
             evidence,
             expected,
         );
-        verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget())
-            .unwrap();
+        verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget()).unwrap();
     }
 
     #[test]
@@ -1413,8 +1407,7 @@ mod tests {
             evidence,
             type_zero,
         );
-        verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget())
-            .unwrap();
+        verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget()).unwrap();
         assert_eq!(
             certificate_assumption_closure(&arena, &certificate),
             [0].into_iter().collect()

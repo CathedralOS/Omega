@@ -50,9 +50,7 @@ mod levels {
 
         pub fn maximum(self, other: Level) -> Level {
             match (self, other) {
-                (Level::Constant(left), Level::Constant(right)) => {
-                    Level::Constant(left.max(right))
-                }
+                (Level::Constant(left), Level::Constant(right)) => Level::Constant(left.max(right)),
                 (left, right) => Level::Maximum(Box::new(left), Box::new(right)),
             }
         }
@@ -332,6 +330,22 @@ mod levels {
         normal_form(left) == normal_form(right)
     }
 
+    pub(crate) fn level_leq(left: &Level, right: &Level) -> bool {
+        let left = normal_form(left);
+        let right = normal_form(right);
+        let floor = |form: &NormalLevel| {
+            form.constant
+                .max(form.offsets.values().copied().max().unwrap_or(0))
+        };
+        floor(&left) <= floor(&right)
+            && left.offsets.iter().all(|(param, &left_offset)| {
+                right
+                    .offsets
+                    .get(param)
+                    .is_some_and(|&right_offset| left_offset <= right_offset)
+            })
+    }
+
     pub(crate) fn instantiate_level(level: &Level, arguments: &[Level]) -> Result<Level, u32> {
         map_parameters(level, &mut |index| {
             arguments
@@ -341,7 +355,7 @@ mod levels {
         })
     }
 }
-pub(crate) use levels::{instantiate_level, levels_equal};
+pub(crate) use levels::{instantiate_level, level_leq, levels_equal};
 
 pub fn sorts_equal(left: &Sort, right: &Sort) -> bool {
     match (left, right) {
@@ -520,7 +534,11 @@ impl Subterms {
 impl Term {
     /// Visit the immediate subterms in their constructor's order.
     pub fn children(&self) -> impl Iterator<Item = TermHandle> {
-        self.subterms().slots.into_iter().flatten().map(|(handle, _)| handle)
+        self.subterms()
+            .slots
+            .into_iter()
+            .flatten()
+            .map(|(handle, _)| handle)
     }
 
     /// Each immediate subterm with the number of binders this term puts
@@ -622,10 +640,10 @@ term_layout! {
 #[derive(Clone, record_storage::Record)]
 pub struct TermArena {
     terms: Arena<Term>,
-    /// Constructor-derived syntax only. Missing summaries after decoding,
-    /// or from unresolved children, retain ordinary remapping traversal.
+    /// Constructor-derived syntax only: `(generation, required_bindings, has_level_params)`.
+    /// Missing summaries after decoding, or from unresolved children, retain ordinary remapping traversal.
     #[record(skip)]
-    binding_requirements: Vec<Option<(u32, u32)>>,
+    binding_requirements: Vec<Option<(u32, u32, bool)>>,
 }
 
 impl std::fmt::Debug for TermArena {
@@ -663,25 +681,48 @@ impl TermArena {
                     Some(required.max(self.required_bindings(child)?.saturating_sub(binders)))
                 }),
         };
+        let has_level_params = match &term {
+            Term::Sort(sort) => Some(sort.level().parameter_arity() > 0),
+            Term::Constant { levels, .. } => {
+                Some(levels.iter().any(|level| level.parameter_arity() > 0))
+            }
+            _ => term.subterms().iter().try_fold(false, |has, (child, _)| {
+                Some(has || self.has_level_params(child)?)
+            }),
+        };
         let handle = self.terms.insert(term);
         let slot = handle.arena_index() as usize;
         if slot >= self.binding_requirements.len() {
             self.binding_requirements.resize(slot + 1, None);
         }
-        self.binding_requirements[slot] =
-            required.map(|required| (handle.generation(), required));
+        self.binding_requirements[slot] = match (required, has_level_params) {
+            (Some(required), Some(has_level_params)) => {
+                Some((handle.generation(), required, has_level_params))
+            }
+            _ => None,
+        };
         handle
     }
 
     pub(super) fn required_bindings(&self, term: TermHandle) -> Option<u32> {
         // Authenticate the complete handle before consulting its arena slot.
         self.terms.try_get(term)?;
-        let (generation, required) = self
+        let (generation, required, _) = self
             .binding_requirements
             .get(term.arena_index() as usize)
             .copied()
             .flatten()?;
         (generation == term.generation()).then_some(required)
+    }
+
+    pub(super) fn has_level_params(&self, term: TermHandle) -> Option<bool> {
+        self.terms.try_get(term)?;
+        let (generation, _, has_level_params) = self
+            .binding_requirements
+            .get(term.arena_index() as usize)
+            .copied()
+            .flatten()?;
+        (generation == term.generation()).then_some(has_level_params)
     }
 
     /// Skip the tree walk when the constructor's recorded bound rules out this
@@ -757,6 +798,37 @@ impl TermArena {
 
     pub fn structurally_equal(&self, left: TermHandle, right: TermHandle) -> bool {
         self.structurally_equal_shifted(left, right, 0)
+    }
+
+    /// Structural equality for well-formed acyclic DAG terms (checked by the kernel),
+    /// short-circuiting identical handles in O(1) to avoid re-traversing shared subtrees.
+    pub(crate) fn structurally_equal_dag(&self, left: TermHandle, right: TermHandle) -> bool {
+        if left == right {
+            return true;
+        }
+        let mut pending = vec![(left, right)];
+        let mut complete = HashSet::new();
+        while let Some((l, r)) = pending.pop() {
+            if l == r || !complete.insert((l, r)) {
+                continue;
+            }
+            let left_node = self.node(l);
+            let right_node = self.node(r);
+            if !left_node.payloads_equal(right_node) {
+                return false;
+            }
+            for ((lc, _), (rc, _)) in left_node
+                .subterms()
+                .iter()
+                .zip(right_node.subterms().iter())
+                .rev()
+            {
+                if lc != rc {
+                    pending.push((lc, rc));
+                }
+            }
+        }
+        true
     }
 
     /// Compare a term with the same value carried under additional binders.

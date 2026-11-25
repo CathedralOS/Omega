@@ -41,19 +41,11 @@ pub(crate) fn define(
     )
 }
 
-pub(crate) fn assume(
-    arena: &mut TermArena,
-    level_arity: u32,
-    statement: &Syntax,
-) -> Declaration {
+pub(crate) fn assume(arena: &mut TermArena, level_arity: u32, statement: &Syntax) -> Declaration {
     Declaration::assumption(level_arity, build(arena, &mut Vec::new(), statement))
 }
 
-pub fn build(
-    arena: &mut TermArena,
-    scope: &mut Vec<&'static str>,
-    syntax: &Syntax,
-) -> TermHandle {
+pub fn build(arena: &mut TermArena, scope: &mut Vec<&'static str>, syntax: &Syntax) -> TermHandle {
     match syntax {
         Syntax::Variable(name) => {
             let position = scope
@@ -221,10 +213,7 @@ pub fn pi(name: &'static str, domain: Syntax, codomain: Syntax) -> Syntax {
     Syntax::Pi(name, Box::new(domain), Box::new(codomain))
 }
 
-pub fn pis(
-    binders: impl IntoIterator<Item = (&'static str, Syntax)>,
-    body: Syntax,
-) -> Syntax {
+pub fn pis(binders: impl IntoIterator<Item = (&'static str, Syntax)>, body: Syntax) -> Syntax {
     binders
         .into_iter()
         .collect::<Vec<_>>()
@@ -265,12 +254,7 @@ pub(crate) fn w(carrier: Syntax, children: Syntax) -> Syntax {
     Syntax::W(Box::new(carrier), Box::new(children))
 }
 
-pub(crate) fn sup(
-    carrier: Syntax,
-    children: Syntax,
-    label: Syntax,
-    function: Syntax,
-) -> Syntax {
+pub(crate) fn sup(carrier: Syntax, children: Syntax, label: Syntax, function: Syntax) -> Syntax {
     Syntax::Sup(
         Box::new(carrier),
         Box::new(children),

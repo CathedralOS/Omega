@@ -90,8 +90,23 @@ fn carriers(
             continue;
         };
         let ty = constant(arena, position as u32);
+        let prefix_end = match declarations
+            .get(position)
+            .map(|declaration| &declaration.kind)
+        {
+            Some(proof_admission::DeclarationKind::Inductive {
+                num_mutual,
+                mutual_index,
+                num_constructors,
+                ..
+            }) => {
+                let base = position - *mutual_index as usize;
+                base + 2 * (*num_mutual as usize) + (*num_constructors as usize)
+            }
+            _ => position + 1,
+        };
         let certificate = MathematicalCertificate::with_signature(
-            declarations[..=position].to_vec(),
+            declarations[..prefix_end].to_vec(),
             Vec::new(),
             ty,
             ty,
@@ -245,24 +260,29 @@ fn judge_laws(
         families: &families,
     };
     let steps = DEFAULT_CONVERSION_STEPS.saturating_mul(declarations.len() as u32 + 1);
-    if let Err(refused) =
-        check_signature_with_attribution(&mut arena, &declarations, &mut Budget::new(steps))
-    {
-        let name = entries
-            .get(refused.declaration)
-            .map_or("?", |entry| entry.name.as_str());
-        let Failure { cause, detail, .. } = kernel(refused.error);
-        return Err((
-            vec![UnprovedLaw {
-                machine: name.to_owned(),
-                site: None,
-                cause,
-                statement: format!("the mathematical declaration `{name}` is not well formed"),
-                detail,
-            }],
-            Vec::new(),
-        ));
-    }
+    let checked_signature = match check_signature_with_attribution(
+        &mut arena,
+        &declarations,
+        &mut Budget::new(steps),
+    ) {
+        Ok(checked) => checked,
+        Err(refused) => {
+            let name = entries
+                .get(refused.declaration)
+                .map_or("?", |entry| entry.name.as_str());
+            let Failure { cause, detail, .. } = kernel(refused.error);
+            return Err((
+                vec![UnprovedLaw {
+                    machine: name.to_owned(),
+                    site: None,
+                    cause,
+                    statement: format!("the mathematical declaration `{name}` is not well formed"),
+                    detail,
+                }],
+                Vec::new(),
+            ));
+        }
+    };
     let carriers = carriers(&mut arena, &declarations, &entries).map_err(|_| {
         (
             vec![UnprovedLaw {
@@ -293,7 +313,15 @@ fn judge_laws(
                 cases,
             ),
             LawProof::Integers => prove_integers(&mut arena, &declarations, &extras, law),
-            _ => prove_law(&mut arena, &declarations, &entries, &laws, &licenses, law),
+            _ => prove_law(
+                &mut arena,
+                &checked_signature,
+                &declarations,
+                &entries,
+                &laws,
+                &licenses,
+                law,
+            ),
         };
         match proved {
             Ok(judgment) => judged.push(judgment),
@@ -1341,6 +1369,7 @@ struct Extras<'s> {
 
 fn prove_law(
     arena: &mut TermArena,
+    checked_signature: &Signature,
     declarations: &[Declaration],
     entries: &[SignatureEntry],
     laws: &[Law],
@@ -1354,7 +1383,7 @@ fn prove_law(
     };
     let definitions = Definitions::of_signature(&entries[..law.statement as usize]);
     let prefix = declarations[..law.statement as usize].to_vec();
-    let closed = Context::empty().with_signature(Signature::from_declarations(prefix.clone()));
+    let closed = Context::empty().with_signature(checked_signature.prefix(law.statement as usize));
     let statement = declarations[law.statement as usize].ty;
     let count = law.formals.len();
     // A proof of each premise is bound after the formals, innermost last.

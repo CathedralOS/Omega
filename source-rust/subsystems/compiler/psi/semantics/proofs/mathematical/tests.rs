@@ -118,8 +118,7 @@ mod conversion_judgments {
                 ("right application", two, application, false),
                 ("same application", application, application, true),
             ] {
-                let ordinary =
-                    convertible(&mut arena, &context, left, right, shared, &mut budget);
+                let ordinary = convertible(&mut arena, &context, left, right, shared, &mut budget);
                 let retained = convertible_retaining(
                     &mut arena,
                     &context,
@@ -240,9 +239,8 @@ mod conversion_judgments {
 mod assumption_closure {
     use super::{constant, default_budget, pi, two, type_sort};
     use crate::{
-        Declaration, MathematicalCertificate, Term, TermArena,
-        certificate_assumption_closure, check_signature, judgment_assumption_closure,
-        verify_mathematical_certificate,
+        Declaration, MathematicalCertificate, Term, TermArena, certificate_assumption_closure,
+        check_signature, judgment_assumption_closure, verify_mathematical_certificate,
     };
     use std::collections::BTreeSet;
 
@@ -297,9 +295,8 @@ mod assumption_closure {
                     Declaration::assumption(0, universe),
                     Declaration::definition(0, universe, body),
                 ];
-                let signature =
-                    check_signature(&mut arena, &declarations, &mut default_budget())
-                        .expect("each independent signature is well formed");
+                let signature = check_signature(&mut arena, &declarations, &mut default_budget())
+                    .expect("each independent signature is well formed");
                 assert_eq!(
                     judgment_assumption_closure(&arena, &signature, &[graph, alias, graph]),
                     BTreeSet::from([expected]),
@@ -313,9 +310,8 @@ mod assumption_closure {
 }
 mod identity_and_w_types {
     use super::{
-        apply, concrete_step, default_budget, id, id_elim, ind_w, lambda, pi, refl,
-        strict_sort, sup, symmetry_motive, two, two_one, two_zero, type_sort, variable,
-        w_context, w_type,
+        apply, concrete_step, default_budget, id, id_elim, ind_w, lambda, pi, refl, strict_sort,
+        sup, symmetry_motive, two, two_one, two_zero, type_sort, variable, w_context, w_type,
     };
     use crate::{
         Budget, Context, CoreError, Signature, TermArena, check_type, convertible, infer_type,
@@ -393,8 +389,7 @@ mod identity_and_w_types {
         let strict_carrier = variable(&mut arena, 1);
         let p = variable(&mut arena, 0);
         let strict_refl = refl(&mut arena, strict_carrier, p);
-        let error =
-            infer_type(&mut arena, &strict_context, strict_refl, &mut budget).unwrap_err();
+        let error = infer_type(&mut arena, &strict_context, strict_refl, &mut budget).unwrap_err();
         assert!(matches!(error, CoreError::StrictIdentityDomain { .. }));
 
         let a = variable(&mut arena, 1);
@@ -449,8 +444,7 @@ mod identity_and_w_types {
         check_type(&mut arena, &context, elimination, expected, &mut budget).unwrap();
 
         let normalized =
-            weak_head_normalize(&mut arena, &Signature::new(), elimination, &mut budget)
-                .unwrap();
+            weak_head_normalize(&mut arena, &Signature::new(), elimination, &mut budget).unwrap();
         assert_eq!(normalized, base);
 
         let mut empty_budget = Budget::new(0);
@@ -478,8 +472,8 @@ mod identity_and_w_types {
             refl(&mut arena, ty, x)
         };
         assert!(
-    conv!(&mut arena => &context => elimination => same_refl => result_type => &mut budget)
-        .unwrap()
+            conv!(&mut arena => &context => elimination => same_refl => result_type => &mut budget)
+                .unwrap()
         );
     }
 
@@ -984,9 +978,7 @@ mod identity_and_w_types {
         let left = ind_w(&mut arena, motive, step, t);
         let left_again = ind_w(&mut arena, motive, step, t);
         let right = ind_w(&mut arena, motive, step, u);
-        assert!(
-            convertible(&mut arena, &context, left, left_again, shared, &mut budget).unwrap()
-        );
+        assert!(convertible(&mut arena, &context, left, left_again, shared, &mut budget).unwrap());
         assert!(!convertible(&mut arena, &context, left, right, shared, &mut budget).unwrap());
 
         let a_domain = variable(&mut arena, 7);
@@ -1069,9 +1061,7 @@ mod identity_and_w_types {
 }
 mod level_worklists {
     use super::default_budget;
-    use crate::{
-        Context, CoreError, Level, Sort, Term, TermArena, infer_type,
-    };
+    use crate::{Context, CoreError, Level, Sort, Term, TermArena, infer_type};
 
     const DEEP: usize = 131_072;
 
@@ -1202,8 +1192,7 @@ mod level_worklists {
                 matches!(closed, Level::Successor(_)),
                 "instantiation preserves explicit syntax for wire-depth admission"
             );
-            let missing =
-                Level::Maximum(Box::new(level.clone()), Box::new(Level::Parameter(1)));
+            let missing = Level::Maximum(Box::new(level.clone()), Box::new(Level::Parameter(1)));
             assert_eq!(instantiate_level(&missing, &[Level::Constant(0)]), Err(1));
             assert_eq!(
                 instantiate_level(&missing, &[]),
@@ -1401,20 +1390,11 @@ mod levels_and_declarations {
         let mut budget = default_budget();
         let universe = type_sort(&mut arena, 0);
         let carrier = arena.insert(Term::Two);
-        let narrow = Declaration {
-            level_arity: 0,
-            ty: universe,
-            body: Some(carrier),
-        };
-        let wide = Declaration {
-            level_arity: 0,
-            ty: universe,
-            body: Some(carrier),
-        };
+        let narrow = Declaration::definition(0, universe, carrier);
+        let wide = Declaration::definition(0, universe, carrier);
         let family_type = pi(&mut arena, universe, universe);
         let family = Declaration::assumption(0, family_type);
-        let signature =
-            check_signature(&mut arena, &[narrow, wide, family], &mut budget).unwrap();
+        let signature = check_signature(&mut arena, &[narrow, wide, family], &mut budget).unwrap();
         let context = Context::empty().with_signature(signature);
         let narrow = constant(&mut arena, 0, vec![]);
         let wide = constant(&mut arena, 1, vec![]);
@@ -1637,11 +1617,7 @@ mod normalization_worklists {
                 "invalid placeholders are never equality evidence"
             );
             let parameter = crate::Level::Parameter(0);
-            let levels_a = vec![
-                parameter
-                    .clone()
-                    .maximum(crate::Level::Constant(0)),
-            ];
+            let levels_a = vec![parameter.clone().maximum(crate::Level::Constant(0))];
             let levels_b = vec![parameter];
             let a = constant(&mut arena, 0, levels_a);
             let b = constant(&mut arena, 0, levels_b);
@@ -1657,8 +1633,8 @@ mod normalization_worklists {
 mod schemes_and_quotients {
     mod indexed_schemes {
         use crate::tests::{
-            apply, constant, default_budget, indexed_context, lambda, pair, pi, refl,
-            strict_sort, sup, two, two_indexed_family, two_zero, variable, w_type,
+            apply, constant, default_budget, indexed_context, lambda, pair, pi, refl, strict_sort,
+            sup, two, two_indexed_family, two_zero, variable, w_type,
         };
         use crate::{
             CoreError, INDEXED_IND, INDEXED_W, Level, TermArena, check_signature, check_type,
@@ -1828,8 +1804,8 @@ mod schemes_and_quotients {
                 let q_zero = apply(&mut arena, q, zero);
                 apply(&mut arena, q_zero, constructor)
             };
-            let error = check_type(&mut arena, &context, elimination, expected, &mut budget)
-                .unwrap_err();
+            let error =
+                check_type(&mut arena, &context, elimination, expected, &mut budget).unwrap_err();
             assert!(matches!(error, crate::argument_error_pair_pattern!()));
 
             let mut bad_family = family.clone();
@@ -1847,8 +1823,7 @@ mod schemes_and_quotients {
             assert!(matches!(error, crate::argument_error_pair_pattern!()));
 
             let bad_constant = constant(&mut arena, INDEXED_W, vec![Level::Constant(0)]);
-            let error =
-                infer_type(&mut arena, &context, bad_constant, &mut budget).unwrap_err();
+            let error = infer_type(&mut arena, &context, bad_constant, &mut budget).unwrap_err();
             assert_eq!(
                 error,
                 CoreError::DeclarationArityMismatch {
@@ -1876,12 +1851,10 @@ mod schemes_and_quotients {
     }
     mod quotient_derived {
         use crate::tests::{
-            apply, boxed, default_budget, id, is_set_zero, lambda, pi, quotient_signature,
-            refl, squash, squash_intro, two, two_identity, two_quotient, variable,
+            apply, boxed, default_budget, id, is_set_zero, lambda, pi, quotient_signature, refl,
+            squash, squash_intro, two, two_identity, two_quotient, variable,
         };
-        use crate::{
-            Context, CoreError, Level, TermArena, check_type, convertible, infer_type,
-        };
+        use crate::{Context, CoreError, Level, TermArena, check_type, convertible, infer_type};
 
         #[test]
         fn quotient_identity_lemmas_check_at_two() {
@@ -2178,9 +2151,8 @@ mod schemes_and_quotients {
                 let s2 = variable(&mut arena, 2);
                 id(&mut arena, ty, s1, s2)
             };
-            let error =
-                check_type(&mut arena, &context, unique, function_identity, &mut budget)
-                    .unwrap_err();
+            let error = check_type(&mut arena, &context, unique, function_identity, &mut budget)
+                .unwrap_err();
             assert!(
                 matches!(error, CoreError::TypeMismatch { .. }),
                 "pointwise uniqueness is not function extensionality: {error:?}"
@@ -2191,10 +2163,10 @@ mod schemes_and_quotients {
         use std::collections::BTreeSet;
 
         use crate::tests::{
-            apply, box_elim, box_intro, boxed, constant, default_budget,
-            equivalence_hypotheses, equivalence_proofs, id, lambda, quotient_signature, refl,
-            sigma, squash, squash_elim, squash_intro, two, two_identity, two_one, two_quotient,
-            two_quotient_over, two_zero, variable,
+            apply, box_elim, box_intro, boxed, constant, default_budget, equivalence_hypotheses,
+            equivalence_proofs, id, lambda, quotient_signature, refl, sigma, squash, squash_elim,
+            squash_intro, two, two_identity, two_one, two_quotient, two_quotient_over, two_zero,
+            variable,
         };
         use crate::{
             Context, CoreError, Level, MathematicalCertificate, QUOTIENT, QUOTIENT_BETA,
@@ -2342,8 +2314,7 @@ mod schemes_and_quotients {
                 let q = variable(&mut arena, 2);
                 family.sound(&mut arena, a, b, q)
             };
-            let error =
-                infer_type(&mut arena, &context, raw_congruence, &mut budget).unwrap_err();
+            let error = infer_type(&mut arena, &context, raw_congruence, &mut budget).unwrap_err();
             assert!(
                 matches!(error, CoreError::ArgumentTypeMismatch { .. }),
                 "a relevant identity witness is not evidence of the squashed relation: {error:?}"
@@ -2411,10 +2382,9 @@ mod schemes_and_quotients {
             };
             verify_mathematical_certificate(&mut arena, &certificate, &mut budget).unwrap();
             let closure = certificate_assumption_closure(&arena, &certificate);
-            let expected_closure: BTreeSet<u32> =
-                [QUOTIENT, QUOTIENT_PROJECT, QUOTIENT_EFFECTIVE]
-                    .into_iter()
-                    .collect();
+            let expected_closure: BTreeSet<u32> = [QUOTIENT, QUOTIENT_PROJECT, QUOTIENT_EFFECTIVE]
+                .into_iter()
+                .collect();
             assert_eq!(
                 closure, expected_closure,
                 "the squashed effectivity judgment commits to exactly the interface it cites"
@@ -2470,9 +2440,8 @@ mod schemes_and_quotients {
                     expected: absurd,
                 }
             };
-            let error =
-                verify_mathematical_certificate(&mut arena, &unhypothesized, &mut budget)
-                    .unwrap_err();
+            let error = verify_mathematical_certificate(&mut arena, &unhypothesized, &mut budget)
+                .unwrap_err();
             assert!(
                 matches!(error, CoreError::ArgumentTypeMismatch { .. }),
                 "effectivity without equivalence proofs proves nothing: {error:?}"
@@ -2550,32 +2519,22 @@ mod schemes_and_quotients {
                 symmetrized,
                 symmetrized_type,
             );
-            verify_mathematical_certificate(
-                &mut arena,
-                &representative_certificate,
-                &mut budget,
-            )
-            .unwrap();
+            verify_mathematical_certificate(&mut arena, &representative_certificate, &mut budget)
+                .unwrap();
 
-            let forged = MathematicalCertificate::with_signature(
-                declarations,
-                vec![element],
-                covered,
-                {
+            let forged =
+                MathematicalCertificate::with_signature(declarations, vec![element], covered, {
                     let carrier = two(&mut arena);
                     squash(&mut arena, carrier)
-                },
-            );
-            let error =
-                verify_mathematical_certificate(&mut arena, &forged, &mut default_budget())
-                    .unwrap_err();
+                });
+            let error = verify_mathematical_certificate(&mut arena, &forged, &mut default_budget())
+                .unwrap_err();
             assert!(
                 matches!(error, CoreError::TypeMismatch { .. }),
                 "a forged certificate is refused before any policy runs: {error:?}"
             );
 
-            let quotient_closure =
-                certificate_assumption_closure(&arena, &quotient_certificate);
+            let quotient_closure = certificate_assumption_closure(&arena, &quotient_certificate);
             let expected_quotient_closure: BTreeSet<u32> =
                 [QUOTIENT, QUOTIENT_PROJECT, QUOTIENT_SOUND, QUOTIENT_ELIM]
                     .into_iter()
@@ -2605,8 +2564,7 @@ mod schemes_and_quotients {
             assert!(representative_closure.is_subset(&quotient_admitting));
             assert!(quotient_closure.is_subset(&quotient_admitting));
 
-            let effectivity_closure =
-                assumption_closure(&arena, &signature, &[QUOTIENT_EFFECTIVE]);
+            let effectivity_closure = assumption_closure(&arena, &signature, &[QUOTIENT_EFFECTIVE]);
             let expected_effectivity_closure: BTreeSet<u32> =
                 [QUOTIENT, QUOTIENT_PROJECT, QUOTIENT_EFFECTIVE]
                     .into_iter()
@@ -2621,14 +2579,14 @@ mod schemes_and_quotients {
     }
     mod quotient_schemes {
         use crate::tests::{
-            apply, constant, default_budget, id, is_set_zero, lambda, pi, quotient_signature,
-            two, two_identity, two_quotient, type_sort, variable,
+            apply, constant, default_budget, id, is_set_zero, lambda, pi, quotient_signature, two,
+            two_identity, two_quotient, type_sort, variable,
         };
         use crate::{
-            Context, CoreError, Declaration, Level, QUOTIENT, QUOTIENT_BETA,
-            QUOTIENT_EFFECTIVE, QUOTIENT_ELIM, QUOTIENT_IS_SET, QUOTIENT_LIFT,
-            QUOTIENT_PROJECT, QUOTIENT_SET, QUOTIENT_SOUND, QUOTIENT_UNIQUE, TermArena,
-            check_signature, check_type, infer_type, quotient_scheme,
+            Context, CoreError, Declaration, Level, QUOTIENT, QUOTIENT_BETA, QUOTIENT_EFFECTIVE,
+            QUOTIENT_ELIM, QUOTIENT_IS_SET, QUOTIENT_LIFT, QUOTIENT_PROJECT, QUOTIENT_SET,
+            QUOTIENT_SOUND, QUOTIENT_UNIQUE, TermArena, check_signature, check_type, infer_type,
+            quotient_scheme,
         };
         use std::collections::BTreeSet;
 
@@ -2651,8 +2609,7 @@ mod schemes_and_quotients {
                 let family_ref = variable(&mut arena, 1);
                 let applied = apply(&mut arena, family_ref, bound);
                 let codomain = {
-                    let is_set =
-                        constant(&mut arena, QUOTIENT_IS_SET, vec![Level::Constant(0)]);
+                    let is_set = constant(&mut arena, QUOTIENT_IS_SET, vec![Level::Constant(0)]);
                     apply(&mut arena, is_set, applied)
                 };
                 pi(&mut arena, domain, codomain)
@@ -2797,8 +2754,7 @@ mod schemes_and_quotients {
             let applied = apply(&mut arena, applied, operation);
             let element = variable(&mut arena, 0);
             let missing_theorem = apply(&mut arena, applied, element);
-            let error =
-                infer_type(&mut arena, &context, missing_theorem, &mut budget).unwrap_err();
+            let error = infer_type(&mut arena, &context, missing_theorem, &mut budget).unwrap_err();
             assert!(
                 matches!(error, CoreError::ArgumentTypeMismatch { .. }),
                 "the section value is not the congruence theorem: {error:?}"
@@ -2908,9 +2864,7 @@ mod schemes_and_quotients {
 }
 mod spine_chains {
     use super::{apply, default_budget, lambda, pair, pi, sigma, snd, two, two_zero, variable};
-    use crate::{
-        Context, CoreError, Term, TermArena, TermHandle, check_type, infer_type,
-    };
+    use crate::{Context, CoreError, Term, TermArena, TermHandle, check_type, infer_type};
 
     const DEEP: usize = 131_072;
     const SHALLOW: usize = 4_096;
@@ -3160,8 +3114,7 @@ mod spine_chains {
         let expected = sigma(&mut arena, polymorphic_type, two);
         let context = Context::empty().extend(two);
         let witness = pair(&mut arena, polymorphic, bound);
-        let inferred =
-            infer_type(&mut arena, &context, witness, &mut default_budget()).unwrap();
+        let inferred = infer_type(&mut arena, &context, witness, &mut default_budget()).unwrap();
         assert!(arena.structurally_equal(inferred, expected));
 
         let invalid_domain = pi(&mut arena, bound, two);
@@ -3242,16 +3195,13 @@ mod spine_chains {
                         result.expect("the complete dependent application tree is well typed");
                     assert!(arena.structurally_equal(inferred, two));
                 } else {
-                    let CoreError::TypeMismatch { expected, actual } = result.unwrap_err()
-                    else {
+                    let CoreError::TypeMismatch { expected, actual } = result.unwrap_err() else {
                         panic!("the wrong inner payload must fail its Two obligation");
                     };
                     assert_eq!(arena.get(expected), Term::Two);
                     assert_eq!(
                         arena.get(actual),
-                        Term::Sort(crate::Sort::Type(
-                            crate::Level::Constant(0)
-                        ))
+                        Term::Sort(crate::Sort::Type(crate::Level::Constant(0)))
                     );
                 }
                 assert_eq!(budget.remaining(), 0);
@@ -3313,9 +3263,7 @@ mod spine_chains {
             assert_eq!(arena.get(argument), Term::TwoOne);
             assert_eq!(
                 arena.get(actual),
-                Term::Sort(crate::Sort::Type(
-                    crate::Level::Constant(0)
-                ))
+                Term::Sort(crate::Sort::Type(crate::Level::Constant(0)))
             );
         })
         .join()
@@ -3405,14 +3353,11 @@ mod spine_chains {
             for _ in 0..DEEP {
                 term = pi(&mut arena, term, two);
             }
-            let inferred =
-                infer_type(&mut arena, &Context::empty(), term, &mut default_budget())
-                    .expect("the complete left-nested binder tree is a valid relevant type");
+            let inferred = infer_type(&mut arena, &Context::empty(), term, &mut default_budget())
+                .expect("the complete left-nested binder tree is a valid relevant type");
             assert_eq!(
                 arena.get(inferred),
-                Term::Sort(crate::Sort::Type(
-                    crate::Level::Constant(0)
-                ))
+                Term::Sort(crate::Sort::Type(crate::Level::Constant(0)))
             );
         })
         .join()
@@ -3431,9 +3376,7 @@ mod spine_chains {
             infer_type(&mut arena, &Context::empty(), term, &mut default_budget()).unwrap();
         assert_eq!(
             arena.get(inferred),
-            Term::Sort(crate::Sort::Type(
-                crate::Level::Constant(1)
-            ))
+            Term::Sort(crate::Sort::Type(crate::Level::Constant(1)))
         );
         let proposition = arena.insert(Term::Squash { ty: a });
         let boxed = arena.insert(Term::Box { ty: proposition });
@@ -3448,9 +3391,7 @@ mod spine_chains {
         .unwrap();
         assert_eq!(
             arena.get(inferred),
-            Term::Sort(crate::Sort::Type(
-                crate::Level::Constant(1)
-            ))
+            Term::Sort(crate::Sort::Type(crate::Level::Constant(1)))
         );
         let invalid = pi(&mut arena, a, universe);
         assert_eq!(
@@ -3495,9 +3436,7 @@ mod spine_chains {
                 infer_type(&mut arena, &Context::empty(), term, &mut default_budget()).unwrap();
             assert_eq!(
                 arena.get(inferred),
-                Term::Sort(crate::Sort::Type(
-                    crate::Level::Constant(0)
-                ))
+                Term::Sort(crate::Sort::Type(crate::Level::Constant(0)))
             );
             let invalid = arena.insert(Term::Box { ty: two });
             let mut nested_invalid = invalid;
@@ -3532,8 +3471,8 @@ mod spine_chains {
 }
 mod strict_layer {
     use super::{
-        apply, box_elim, box_intro, boxed, default_budget, empty, empty_elim, lambda, pi,
-        sigma, squash, squash_elim, squash_intro, strict_sort, two, type_sort, variable,
+        apply, box_elim, box_intro, boxed, default_budget, empty, empty_elim, lambda, pi, sigma,
+        squash, squash_elim, squash_intro, strict_sort, two, type_sort, variable,
     };
     use crate::{
         Budget, Context, CoreError, Signature, TermArena, check_type, convertible, infer_type,
@@ -3583,8 +3522,8 @@ mod strict_layer {
         let scrutinee = variable(&mut arena, 1);
         let elimination = empty_elim(&mut arena, target, scrutinee);
         let wrong_claim = variable(&mut arena, 3);
-        let error = check_type(&mut arena, &context, elimination, wrong_claim, &mut budget)
-            .unwrap_err();
+        let error =
+            check_type(&mut arena, &context, elimination, wrong_claim, &mut budget).unwrap_err();
         assert!(matches!(error, CoreError::TypeMismatch { .. }));
     }
 
@@ -3715,8 +3654,8 @@ mod strict_layer {
         let neutral_left = variable(&mut arena, 4);
         let neutral_right = variable(&mut arena, 3);
         assert!(
-    conv!(&mut arena => &context => neutral_left => neutral_right => shared => &mut budget)
-        .unwrap()
+            conv!(&mut arena => &context => neutral_left => neutral_right => shared => &mut budget)
+                .unwrap()
         );
         assert!(
             conv!(&mut arena => &context => neutral_left => right => shared => &mut budget)
@@ -3726,9 +3665,7 @@ mod strict_layer {
         let a = variable(&mut arena, 6);
         let b = variable(&mut arena, 5);
         let relevant_shared = variable(&mut arena, 7);
-        assert!(
-            !convertible(&mut arena, &context, a, b, relevant_shared, &mut budget).unwrap()
-        );
+        assert!(!convertible(&mut arena, &context, a, b, relevant_shared, &mut budget).unwrap());
 
         let proposition = variable(&mut arena, 2);
         let function = variable(&mut arena, 1);
@@ -3799,8 +3736,7 @@ mod strict_layer {
         check_type(&mut arena, &context, elimination, expected, &mut budget).unwrap();
 
         let normalized =
-            weak_head_normalize(&mut arena, &Signature::new(), elimination, &mut budget)
-                .unwrap();
+            weak_head_normalize(&mut arena, &Signature::new(), elimination, &mut budget).unwrap();
         let function = variable(&mut arena, 0);
         let value = variable(&mut arena, 2);
         let expected = apply(&mut arena, function, value);
@@ -3917,8 +3853,7 @@ mod strict_layer {
         check_type(&mut arena, &context, elimination, expected, &mut budget).unwrap();
 
         let normalized =
-            weak_head_normalize(&mut arena, &Signature::new(), elimination, &mut budget)
-                .unwrap();
+            weak_head_normalize(&mut arena, &Signature::new(), elimination, &mut budget).unwrap();
         let function = variable(&mut arena, 1);
         let value = variable(&mut arena, 4);
         let expected = apply(&mut arena, function, value);
@@ -4073,9 +4008,7 @@ mod strict_layer {
         let body = variable(&mut arena, 3);
         let scrutinee = variable(&mut arena, 1);
         let other_body = box_elim(&mut arena, motive, body, scrutinee);
-        assert!(
-            !convertible(&mut arena, &context, left, other_body, shared, &mut budget).unwrap()
-        );
+        assert!(!convertible(&mut arena, &context, left, other_body, shared, &mut budget).unwrap());
 
         let motive = variable(&mut arena, 6);
         let body = variable(&mut arena, 4);
@@ -4146,9 +4079,7 @@ mod strict_layer {
 mod substitution_worklists {
     use super::{default_budget, pi, two, type_sort, variable};
     use crate::substitution::{instantiate_levels, shift, substitute};
-    use crate::{
-        Context, Level, Sort, Term, TermArena, TermHandle, check_type,
-    };
+    use crate::{Context, Level, Sort, Term, TermArena, TermHandle, check_type};
 
     #[test]
     fn binding_summaries_authenticate_handles_and_preserve_open_scopes() {
@@ -4580,8 +4511,7 @@ mod type_checking {
         let function_witness = lambda(&mut arena, function_domain, function_body);
         let one_witness = two_zero(&mut arena);
         let scrutinee = variable(&mut arena, 0);
-        let elimination =
-            case_two(&mut arena, family, function_witness, one_witness, scrutinee);
+        let elimination = case_two(&mut arena, family, function_witness, one_witness, scrutinee);
 
         let expected = apply(&mut arena, family, scrutinee);
         check_type(&mut arena, &context, elimination, expected, &mut budget).unwrap();
@@ -4624,16 +4554,14 @@ mod type_checking {
 
         let result_type = infer_type(&mut arena, &context, on_zero, &mut budget).unwrap();
         let normalized_type =
-            weak_head_normalize(&mut arena, &Signature::new(), result_type, &mut budget)
-                .unwrap();
+            weak_head_normalize(&mut arena, &Signature::new(), result_type, &mut budget).unwrap();
         let function_domain = two(&mut arena);
         let function_codomain = two(&mut arena);
         let expected_type = pi(&mut arena, function_domain, function_codomain);
         assert!(arena.structurally_equal(normalized_type, expected_type));
         let result_type = infer_type(&mut arena, &context, on_one, &mut budget).unwrap();
         let normalized_type =
-            weak_head_normalize(&mut arena, &Signature::new(), result_type, &mut budget)
-                .unwrap();
+            weak_head_normalize(&mut arena, &Signature::new(), result_type, &mut budget).unwrap();
         let expected_type = two(&mut arena);
         assert!(arena.structurally_equal(normalized_type, expected_type));
 
@@ -4652,17 +4580,13 @@ mod type_checking {
         let left_again = case_two(&mut arena, constant, zero, one, t);
         let right = case_two(&mut arena, constant, zero, one, u);
         assert!(
-            conv!(&mut arena => &context => left => left_again => two_type => &mut budget)
-                .unwrap()
+            conv!(&mut arena => &context => left => left_again => two_type => &mut budget).unwrap()
         );
-        assert!(
-            !convertible(&mut arena, &context, left, right, two_type, &mut budget).unwrap()
-        );
+        assert!(!convertible(&mut arena, &context, left, right, two_type, &mut budget).unwrap());
 
         let mut empty_budget = Budget::new(0);
-        let error =
-            weak_head_normalize(&mut arena, &Signature::new(), on_zero, &mut empty_budget)
-                .unwrap_err();
+        let error = weak_head_normalize(&mut arena, &Signature::new(), on_zero, &mut empty_budget)
+            .unwrap_err();
         assert_eq!(error, CoreError::StepCeiling);
     }
 
@@ -4738,19 +4662,11 @@ pub(crate) fn variable(arena: &mut TermArena, index: u32) -> TermHandle {
     arena.insert(Term::Variable(index))
 }
 
-pub(crate) fn pi(
-    arena: &mut TermArena,
-    domain: TermHandle,
-    codomain: TermHandle,
-) -> TermHandle {
+pub(crate) fn pi(arena: &mut TermArena, domain: TermHandle, codomain: TermHandle) -> TermHandle {
     arena.insert(Term::Pi { domain, codomain })
 }
 
-pub(crate) fn lambda(
-    arena: &mut TermArena,
-    domain: TermHandle,
-    body: TermHandle,
-) -> TermHandle {
+pub(crate) fn lambda(arena: &mut TermArena, domain: TermHandle, body: TermHandle) -> TermHandle {
     arena.insert(Term::Lambda { domain, body })
 }
 
@@ -4758,11 +4674,7 @@ fn apply(arena: &mut TermArena, function: TermHandle, argument: TermHandle) -> T
     arena.insert(Term::Apply { function, argument })
 }
 
-pub(crate) fn sigma(
-    arena: &mut TermArena,
-    domain: TermHandle,
-    codomain: TermHandle,
-) -> TermHandle {
+pub(crate) fn sigma(arena: &mut TermArena, domain: TermHandle, codomain: TermHandle) -> TermHandle {
     arena.insert(Term::Sigma { domain, codomain })
 }
 
@@ -4812,12 +4724,7 @@ fn case_two(
     })
 }
 
-fn id(
-    arena: &mut TermArena,
-    ty: TermHandle,
-    left: TermHandle,
-    right: TermHandle,
-) -> TermHandle {
+fn id(arena: &mut TermArena, ty: TermHandle, left: TermHandle, right: TermHandle) -> TermHandle {
     arena.insert(Term::Id { ty, left, right })
 }
 

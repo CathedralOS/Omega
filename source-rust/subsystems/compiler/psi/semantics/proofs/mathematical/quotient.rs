@@ -1,6 +1,6 @@
 use super::scheme_dsl::{
-    Syntax, app, apps, assume, box_elim, box_intro, boxed, define, id, jelim, lam, pair, pi,
-    pis, refl, scheme_at, sigma, sort, squash, squash_intro, strict, ty, v,
+    Syntax, app, apps, assume, box_elim, box_intro, boxed, define, id, jelim, lam, pair, pi, pis,
+    refl, scheme_at, sigma, sort, squash, squash_intro, strict, ty, v,
 };
 use super::signature::Declaration;
 use super::term::{Level, Term, TermArena, TermHandle};
@@ -279,8 +279,7 @@ mod declarations {
     }
 
     fn transport_const_declaration(arena: &mut TermArena) -> Declaration {
-        let constant_motive =
-            || lam("y2", v("A"), lam("_", id(v("A"), v("x"), v("y2")), v("B")));
+        let constant_motive = || lam("y2", v("A"), lam("_", id(v("A"), v("x"), v("y2")), v("B")));
         let inner = jelim(constant_motive(), v("b"), v("y"), v("p"));
         let statement = pi(
             "A",
@@ -577,9 +576,8 @@ mod declarations {
                 ),
             ],
         );
-        let path = |proof: &'static str| {
-            jelim(path_motive.clone(), path_base.clone(), v("y"), v(proof))
-        };
+        let path =
+            |proof: &'static str| jelim(path_motive.clone(), path_base.clone(), v("y"), v(proof));
         let is_prop = pi("x2", v("X"), pi("y2", v("X"), id(v("X"), v("x2"), v("y2"))));
         let statement = pi(
             "X",
@@ -615,12 +613,7 @@ mod declarations {
                                         path("p"),
                                         apps(
                                             scheme_at(QUOTIENT_ID_SYM, level()),
-                                            [
-                                                identity_xy.clone(),
-                                                v("q"),
-                                                normal("y"),
-                                                path("q"),
-                                            ],
+                                            [identity_xy.clone(), v("q"), normal("y"), path("q")],
                                         ),
                                     ],
                                 ),

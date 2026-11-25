@@ -110,10 +110,13 @@ enum Remapping<'a> {
 
 impl Remapping<'_> {
     fn preserves(self, arena: &TermArena, term: TermHandle, scope: u32) -> bool {
-        !matches!(self, Self::Levels { .. } | Self::Constants { .. })
-            && arena
+        match self {
+            Self::Shift { .. } | Self::Substitute { .. } => arena
                 .required_bindings(term)
-                .is_some_and(|required| required <= scope)
+                .is_some_and(|required| required <= scope),
+            Self::Levels { .. } => arena.has_level_params(term) == Some(false),
+            Self::Constants { .. } => false,
+        }
     }
 
     fn child_scope(self, scope: u32, binders: u32) -> u32 {
@@ -140,7 +143,11 @@ impl Remapping<'_> {
                 std::cmp::Ordering::Less => Ok(term),
             },
             (Self::Levels { arguments }, Term::Sort(sort)) => {
-                let level = instantiate_level(&sort.level(), arguments)?;
+                let old_level = sort.level();
+                if old_level.parameter_arity() == 0 {
+                    return Ok(term);
+                }
+                let level = instantiate_level(&old_level, arguments)?;
                 let sort = match sort {
                     Sort::Type(_) => Sort::Type(level),
                     Sort::Strict(_) => Sort::Strict(level),
@@ -154,6 +161,9 @@ impl Remapping<'_> {
                     levels,
                 },
             ) => {
+                if levels.iter().all(|level| level.parameter_arity() == 0) {
+                    return Ok(term);
+                }
                 let declaration = *declaration;
                 let levels = levels
                     .iter()

@@ -149,26 +149,18 @@ fn the_kernel_judges_peano_addition_associative_by_induction() {
     else {
         panic!("the carrier is the declared data")
     };
-    let Some(Term::Sigma { domain: trees, .. }) = checked
-        .certificate
-        .signature
-        .get(data as usize)
-        .and_then(|declaration| declaration.body)
-        .map(|body| arena.get(body))
-    else {
-        panic!("the data pairs a raw tree with the evidence that it is canonical")
-    };
-    let Term::Constant {
-        declaration: trees, ..
-    } = arena.get(trees)
-    else {
-        panic!("the raw trees are a declared constant")
-    };
     assert!(matches!(
-        checked.certificate.signature[trees as usize]
-            .body
-            .map(|body| arena.get(body)),
-        Some(Term::W { .. })
+        checked
+            .certificate
+            .signature
+            .get(data as usize)
+            .map(|declaration| &declaration.kind),
+        Some(proof_admission::DeclarationKind::Inductive {
+            num_mutual: 1,
+            mutual_index: 0,
+            num_params: 0,
+            num_constructors: 2,
+        })
     ));
     let applied = |term| {
         let Term::Apply {
@@ -230,9 +222,8 @@ fn the_kernel_judges_peano_addition_associative_by_induction() {
     else {
         panic!("the proof must be an induction")
     };
-    // Zero and Succ follow the data, then the induction's step over raw
-    // trees, then the induction principle.
-    assert_eq!(induction, data + 4);
+    // Zero and Succ follow the data, then the native recursor.
+    assert_eq!(induction, data + 3);
     let [_motive, _zero, _successor, subject, b, c] = arguments.as_slice() else {
         panic!("a motive, two branches, the subject and two formals: {arguments:?}")
     };

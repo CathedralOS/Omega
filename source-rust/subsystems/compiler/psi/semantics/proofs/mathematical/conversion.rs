@@ -77,16 +77,84 @@ pub fn weak_head_normalize_retaining(
                     if retained(index) {
                         break;
                     }
-                    let Some(body) = declaration.body else {
-                        break;
-                    };
-                    budget.consume()?;
-                    current = instantiate_levels(arena, body, &levels).map_err(|index| {
-                        CoreError::UnboundLevelParameter {
-                            index,
-                            arity: declaration.level_arity,
+                    if let Some(body) = declaration.body {
+                        budget.consume()?;
+                        current = instantiate_levels(arena, body, &levels).map_err(|index| {
+                            CoreError::UnboundLevelParameter {
+                                index,
+                                arity: declaration.level_arity,
+                            }
+                        })?;
+                    } else if let Some(recursor) = signature.get_recursor(index) {
+                        let needed = recursor.total_args();
+                        if frames.len() >= needed
+                            && levels.len() == recursor.inductive_level_arity as usize + 1
+                            && frames[frames.len() - needed..]
+                                .iter()
+                                .all(|&(parent, slot)| {
+                                    slot == 0 && matches!(arena.node(parent), Term::Apply { .. })
+                                })
+                        {
+                            let Term::Apply {
+                                argument: major, ..
+                            } = arena.get(frames[frames.len() - needed].0)
+                            else {
+                                unreachable!()
+                            };
+                            let major_whnf = weak_head_normalize_retaining(
+                                arena, signature, major, budget, retained,
+                            )?;
+                            if let Some((ctor_index, ctor_fields)) =
+                                super::inductive::match_constructor(
+                                    arena, signature, recursor, major_whnf,
+                                )
+                            {
+                                budget.consume()?;
+                                let prefix_len =
+                                    recursor.num_params + recursor.num_mutual + recursor.num_minors;
+                                let rec_prefix = if prefix_len == 0 {
+                                    Some(current)
+                                } else {
+                                    let start = frames.len() - prefix_len;
+                                    let mut expected_fn = current;
+                                    let mut chain_ok = true;
+                                    for i in (start..frames.len()).rev() {
+                                        if let Term::Apply { function, .. } = arena.get(frames[i].0)
+                                            && function == expected_fn
+                                        {
+                                            expected_fn = frames[i].0;
+                                        } else {
+                                            chain_ok = false;
+                                            break;
+                                        }
+                                    }
+                                    chain_ok.then_some(frames[start].0)
+                                };
+                                let mut rec_args = Vec::with_capacity(needed);
+                                for _ in 0..needed {
+                                    let (parent, _) = frames.pop().unwrap();
+                                    let Term::Apply { argument, .. } = arena.get(parent) else {
+                                        unreachable!()
+                                    };
+                                    rec_args.push(argument);
+                                }
+                                current = super::inductive::reduce_recursor(
+                                    arena,
+                                    index,
+                                    &levels,
+                                    recursor,
+                                    rec_prefix,
+                                    &rec_args,
+                                    ctor_index,
+                                    &ctor_fields,
+                                )?;
+                                continue 'normalize;
+                            }
                         }
-                    })?;
+                        break;
+                    } else {
+                        break;
+                    }
                 }
                 _ => match weak_head_focus(arena.node(current)) {
                     Some((child, slot)) => {

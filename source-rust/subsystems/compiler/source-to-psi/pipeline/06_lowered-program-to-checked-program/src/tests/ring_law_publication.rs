@@ -102,7 +102,7 @@ fn the_root_module_publishes_the_carrier_of_the_data_its_law_is_about() {
     assert_eq!(unpublished.types, before.types);
 
     // The key is the encoding's carrier form: a closed certificate whose term
-    // and expected type are the same, here Peano's canonical trees.
+    // and expected type are the same, here Peano's native inductive block.
     let key = terminal_codec::decode_mathematical_certificate(&carrier.carrier_key).unwrap();
     let (term, expected) = (key.certificate.term, key.certificate.expected);
     assert!(key.arena.structurally_equal(term, expected));
@@ -110,28 +110,19 @@ fn the_root_module_publishes_the_carrier_of_the_data_its_law_is_about() {
     let Term::Constant { declaration, .. } = key.arena.get(expected) else {
         panic!("the carrier is a declared constant")
     };
-    assert_eq!(declaration as usize + 1, key.certificate.signature.len());
-    let Some(Term::Sigma { domain: trees, .. }) = key
-        .certificate
-        .signature
-        .get(declaration as usize)
-        .and_then(|declaration| declaration.body)
-        .map(|body| key.arena.get(body))
-    else {
-        panic!("the data pairs a raw tree with the evidence that it is canonical")
-    };
-    let Term::Constant {
-        declaration: trees, ..
-    } = key.arena.get(trees)
-    else {
-        panic!("the raw trees are a declared constant")
-    };
     assert!(matches!(
-        key.certificate.signature[trees as usize]
-            .body
-            .map(|body| key.arena.get(body)),
-        Some(Term::W { .. })
+        key.certificate
+            .signature
+            .get(declaration as usize)
+            .map(|declaration| &declaration.kind),
+        Some(proof_admission::DeclarationKind::Inductive {
+            num_mutual: 1,
+            mutual_index: 0,
+            num_params: 0,
+            num_constructors: 2,
+        })
     ));
+    assert_eq!(declaration as usize + 4, key.certificate.signature.len());
     let mut checked = key.arena.clone();
     proof_admission::check_signature(
         &mut checked,

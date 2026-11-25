@@ -450,6 +450,7 @@ pub fn indexed_scheme_at(arena: &mut TermArena, base: u32) -> Vec<Declaration> {
             body: declaration
                 .body
                 .map(|body| relocate_constants(arena, body, base)),
+            kind: declaration.kind,
         })
         .collect()
 }

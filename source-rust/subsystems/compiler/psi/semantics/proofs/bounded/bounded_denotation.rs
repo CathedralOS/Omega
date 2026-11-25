@@ -1431,6 +1431,7 @@ mod binary_numerals {
                     level_arity,
                     ty,
                     body,
+                    ..
                 } = self.declarations[index].clone();
                 let Some(body) = body else {
                     continue;

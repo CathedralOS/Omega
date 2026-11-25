@@ -8,6 +8,7 @@ mod certificate_strict;
 mod conversion;
 mod indexed;
 mod indexed_data;
+mod inductive;
 mod plain_data;
 mod quotient;
 pub mod scheme_dsl;
@@ -43,6 +44,7 @@ pub use indexed_data::{
     ConstructorArguments, DeclaredIndexedData, IndexedCase, IndexedData, IndexedDataError,
     IndexedField, IndexedInduction, IndexedInstance, IndexedValue,
 };
+pub use inductive::{declare_inductive_family, declare_mutual_inductive_family};
 pub use plain_data::PlainData;
 pub use quotient::{
     EquivalenceProofs, QUOTIENT, QUOTIENT_BETA, QUOTIENT_BOX_PROP, QUOTIENT_COVERAGE,
@@ -52,8 +54,8 @@ pub use quotient::{
     QuotientFamily, quotient_scheme,
 };
 pub use signature::{
-    Declaration, Signature, SignatureCheckError, assumption_closure, check_signature,
-    check_signature_with_attribution, judgment_assumption_closure,
+    Declaration, DeclarationKind, Signature, SignatureCheckError, assumption_closure,
+    check_signature, check_signature_with_attribution, judgment_assumption_closure,
 };
 pub use substitution::{
     instantiate, instantiate_levels, relocate_constants, shift, substitute,
