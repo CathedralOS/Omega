@@ -151,6 +151,13 @@ pub struct Plan {
     /// on this edge. The loan checker still accounts for their resources.
     pub borrowed_header_ends: Vec<(EdgeId, PlaceId)>,
     pub claims: Option<ClaimsPlan>,
+    /// The other machines whose blocks the walk read: the members of the
+    /// descriptor graph built from this machine
+    /// (`terminal_borrowed_storage_graph_from`), sorted. Empty when the walk
+    /// needed no graph. Of any other machine the walk reads only its
+    /// parameters, result and contract (a call's callee, an owned cleanup's
+    /// target), never its blocks.
+    pub graphed_machines: Vec<semantic_vocabulary::MachineId>,
 }
 
 #[derive(Debug)]
@@ -1970,6 +1977,12 @@ fn analyze(
     } else {
         Vec::new()
     };
+    let mut graphed_machines = reference_graph
+        .iter()
+        .map(|graph| graph.id)
+        .filter(|id| *id != machine.id)
+        .collect::<Vec<_>>();
+    graphed_machines.sort_unstable();
     let mut references = needs_storage_flow.then(|| {
         crate::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
             types,
@@ -2105,6 +2118,7 @@ fn analyze(
             .claim_flow
             .map(|flow| flow.finish(machine))
             .transpose()?,
+        graphed_machines,
     })
 }
 

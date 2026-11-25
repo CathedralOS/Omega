@@ -71,13 +71,19 @@ pub(crate) fn publish(diagnostic: MachineId, module: &mut TerminalModule) -> Che
             detail: detail.into(),
         })?;
     }
-    for ordinal in 0..module.machines.len() {
-        let identity = module.machines[ordinal].id;
-        let plan = terminal_semantics::plain_affine::plan_claims_in(module, identity)
-            .map_err(|error| preparation_error(identity, error))?;
-        plan.install(&mut module.machines[ordinal])
-            .map_err(|error| preparation_error(identity, error))?;
-    }
+    // Each machine's claim rows come from its own ownership walk over the
+    // module; the walks run on the invocation's workers (`plan_then_apply`).
+    // Installing claim rows also changes a machine's contract, which another
+    // walk may read, so a claim plan counts as reading every machine.
+    crate::machine_order::plan_then_apply(
+        module,
+        |module, machine| terminal_semantics::plain_affine::plan_claims_in(module, machine.id),
+        |_| None,
+        |machine, plan| {
+            plan.and_then(|plan| plan.install(machine))
+                .map_err(|error| preparation_error(machine.id, error))
+        },
+    )?;
     if !terminal_semantics::content_transformations::boundary_calls::has_declared_conservation(
         module,
     ) {
