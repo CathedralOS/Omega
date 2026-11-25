@@ -14,6 +14,9 @@ use optimization_unit::{
 };
 use semantic_vocabulary::MachineId;
 
+#[cfg(test)]
+mod content_entry_claim_tests;
+
 mod activation_storage {
     use crate::OptimizationUnitValidationError;
     use abstract_operations::{AbstractCallTarget, AbstractOperation as A, StructuralCopyPath};
@@ -17540,62 +17543,49 @@ pub(crate) mod structural_catalog {
             }
             if function
                 .content_entry_claims
-                .iter()
-                .enumerate()
-                .any(|(index, claim)| {
-                    let expected = u64::try_from(index)
-                        .ok()
-                        .and_then(|index| index.checked_add(1))
-                        .and_then(ClaimId::new);
-                    let structural_binding_matches = function
-                        .entry_claim_declarations
-                        .iter()
-                        .find(|entry| entry.claim == claim.claim)
-                        .is_none_or(|entry| {
-                            entry.input == claim.input.root
-                                && Some(&claim.input.segments)
-                                    == entry
-                                        .path
-                                        .iter()
-                                        .map(|segment| {
-                                            match segment {
-                                    terminal_psi::StructuralPathSegment::Field(identity) => {
-                                        Some(semantic_vocabulary::ContentPlaceSegment::Field(
-                                            identities
-                                                .text(*identity)
-                                                .unwrap_or_default()
-                                                .to_string(),
-                                        ))
-                                    }
-                                    terminal_psi::StructuralPathSegment::FixedIndex(index) => {
-                                        Some(semantic_vocabulary::ContentPlaceSegment::FixedIndex(
-                                            *index,
-                                        ))
-                                    }
-                                    terminal_psi::StructuralPathSegment::AllElements
-                                    | terminal_psi::StructuralPathSegment::Case(_)
-                                    | terminal_psi::StructuralPathSegment::RepresentationView {
-                                        ..
-                                    }
-                                    | terminal_psi::StructuralPathSegment::Referent
-                                    | terminal_psi::StructuralPathSegment::FixedRange { .. }
-                                    | terminal_psi::StructuralPathSegment::RuntimeIndex {
-                                        ..
-                                    } => None,
-                                }
-                                        })
-                                        .collect::<Option<Vec<_>>>()
-                                        .as_ref()
-                        });
-                    expected != Some(claim.claim)
-                        || claim.input.version != semantic_vocabulary::ContentPlaceVersion::Entry
-                        || !parameter_places.contains(&claim.input.root)
-                        || claim.projections.is_empty()
-                        || claim.projections.windows(2).any(|pair| pair[0] >= pair[1])
-                        || !structural_binding_matches
-                })
+                .windows(2)
+                .any(|pair| pair[0].claim >= pair[1].claim)
             {
                 return Err(mismatch());
+            }
+            // Content can bind any existing structural claim. Content-only entries
+            // continue the same dense machine-entry claim namespace.
+            let mut entry_claim_count = function.entry_claim_declarations.len();
+            for claim in &function.content_entry_claims {
+                let index = usize::try_from(claim.claim.get() - 1).map_err(|_| mismatch())?;
+                if index > entry_claim_count
+                    || claim.input.version != semantic_vocabulary::ContentPlaceVersion::Entry
+                    || !parameter_places.contains(&claim.input.root)
+                    || claim.projections.is_empty()
+                    || claim.projections.windows(2).any(|pair| pair[0] >= pair[1])
+                {
+                    return Err(mismatch());
+                }
+                if index == entry_claim_count {
+                    entry_claim_count = entry_claim_count.checked_add(1).ok_or_else(mismatch)?;
+                }
+                if let Some(entry) = function.entry_claim_declarations.get(index) {
+                    use semantic_vocabulary::ContentPlaceSegment;
+                    use terminal_psi::StructuralPathSegment;
+                    if entry.input != claim.input.root
+                        || entry.path.len() != claim.input.segments.len()
+                        || !entry.path.iter().zip(&claim.input.segments).all(
+                            |(structural, content)| match (structural, content) {
+                                (
+                                    StructuralPathSegment::Field(id),
+                                    ContentPlaceSegment::Field(name),
+                                ) => identities.text(*id) == Some(name.as_str()),
+                                (
+                                    StructuralPathSegment::FixedIndex(a),
+                                    ContentPlaceSegment::FixedIndex(b),
+                                ) => a == b,
+                                _ => false,
+                            },
+                        )
+                    {
+                        return Err(mismatch());
+                    }
+                }
             }
             for projection in function
                 .content_entry_claims
