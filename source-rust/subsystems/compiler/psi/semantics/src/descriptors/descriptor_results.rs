@@ -872,23 +872,81 @@ pub struct DescriptorCasePredicate {
     pub case: semantic_vocabulary::StructuralCaseId,
 }
 
+pub(crate) struct ZeroedCaseTable<'a> {
+    index: descriptor_lifetimes::locations::StructuralTypeIndex<'a>,
+    by_position: Vec<
+        Option<
+            Vec<(
+                Vec<descriptor_lifetimes::DescriptorPathSegment>,
+                semantic_vocabulary::StructuralCaseId,
+            )>,
+        >,
+    >,
+}
+
+impl<'a> ZeroedCaseTable<'a> {
+    pub(crate) fn new(types: &'a [StructuralTypeDeclaration]) -> Self {
+        let index = descriptor_lifetimes::locations::StructuralTypeIndex::new(types);
+        let by_position = vec![None; index.len()];
+        Self { index, by_position }
+    }
+
+    pub(crate) fn predicates_for(
+        &mut self,
+        root: PlaceId,
+        structural_type: StructuralTypeId,
+    ) -> Vec<DescriptorCasePredicate> {
+        let Some(position) = self.index.position(structural_type) else {
+            return Vec::new();
+        };
+        let rows = self.by_position[position].get_or_insert_with(|| {
+            let Some(selections) =
+                crate::structural::zeroed_structural::zeroed_sum_selections_indexed(
+                    &self.index,
+                    structural_type,
+                )
+            else {
+                return Vec::new();
+            };
+            let mut resolved = Vec::with_capacity(selections.len());
+            for (path, case) in selections {
+                let Some(location) =
+                    self.index
+                        .descriptor_location(root, structural_type, &path, None)
+                else {
+                    return Vec::new();
+                };
+                resolved.push((location.path, case));
+            }
+            resolved
+        });
+        rows.iter()
+            .map(|(path, case)| DescriptorCasePredicate {
+                subject: DescriptorLocation {
+                    root,
+                    path: path.clone(),
+                }
+                .into(),
+                case: *case,
+            })
+            .collect()
+    }
+}
+
 pub fn zeroed_case_predicates(
     types: &[StructuralTypeDeclaration],
     root: PlaceId,
     structural_type: StructuralTypeId,
 ) -> Vec<DescriptorCasePredicate> {
-    let Some(leaves) = crate::zeroed_structural_leaves(types.iter(), structural_type) else {
+    let index = descriptor_lifetimes::locations::StructuralTypeIndex::new(types);
+    let Some(selections) = crate::structural::zeroed_structural::zeroed_sum_selections_indexed(
+        &index,
+        structural_type,
+    ) else {
         return Vec::new();
     };
-    // The index answers each declaration lookup as the full list does
-    // (`StructuralTypeIndex`), without rescanning the list for every step
-    // of every selected path.
-    let index = descriptor_lifetimes::locations::StructuralTypeIndex::new(types);
-    let mut predicates = Vec::new();
-    for leaf in leaves {
-        let crate::ZeroedStructuralLeaf::SumSelection { path, case, .. } = leaf else {
-            continue;
-        };
+    let mut predicates = Vec::with_capacity(selections.len());
+    for (path, case) in selections {
         let Some(subject) = index.descriptor_location(root, structural_type, &path, None) else {
             return Vec::new();
         };
@@ -1629,6 +1687,7 @@ fn terminal_graph_rows_with_nominal_calls(
         Ok(machines) => machines,
         Err(error) => return vec![Err(error)],
     };
+    let mut zeroed_cases = ZeroedCaseTable::new(&module.types.structural_types);
     let mut pending: Vec<_> = roots.into_iter().collect();
     let mut reached = BTreeMap::new();
     while let Some(identity) = pending.pop() {
@@ -1650,6 +1709,7 @@ fn terminal_graph_rows_with_nominal_calls(
             selected_calls,
             None,
             nominal_calls,
+            &mut zeroed_cases,
         ) {
             Ok(graph) => graph,
             Err(error) => {
@@ -1719,6 +1779,7 @@ fn terminal_graph_rows_with_nominal_calls(
             selected_calls,
             Some(&initial),
             nominal_calls,
+            &mut zeroed_cases,
         ));
     }
     rows.extend(failures);
@@ -1760,12 +1821,22 @@ pub(crate) fn terminal_graph_for(
     selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
 ) -> Option<Vec<DescriptorMachine>> {
     let machines = terminal_machine_roster(module).ok()?;
+    let mut zeroed_cases = ZeroedCaseTable::new(&module.types.structural_types);
     let initial = module
         .machines
         .iter()
         .map(|machine| {
-            terminal_flow::adapt(module, &machines, machine, kind, selected_calls, None, &[])
-                .ok()
+            terminal_flow::adapt(
+                module,
+                &machines,
+                machine,
+                kind,
+                selected_calls,
+                None,
+                &[],
+                &mut zeroed_cases,
+            )
+            .ok()
         })
         .collect::<Option<Vec<_>>>()?;
     if !module.machines.iter().any(|machine| {
@@ -1787,6 +1858,7 @@ pub(crate) fn terminal_graph_for(
                 selected_calls,
                 Some(&initial),
                 &[],
+                &mut zeroed_cases,
             )
             .ok()
         })

@@ -156,3 +156,19 @@ fn a_duplicated_declaration_selects_no_case() {
     assert!(walked(&types, root, id(HOLDERS)).is_empty());
     assert!(zeroed_case_predicates(&types, root, id(HOLDERS)).is_empty());
 }
+
+#[test]
+fn zeroed_case_table_reuses_paths_for_different_roots() {
+    let types = types();
+    let mut table = ZeroedCaseTable::new(&types);
+    for root_id in [7, 19, 42] {
+        let root = PlaceId::new(root_id).unwrap();
+        for structural_type in [SCALAR, CHOICE, HOLDER, HOLDERS, PLAIN, PLAINS] {
+            assert_eq!(
+                table.predicates_for(root, id(structural_type)),
+                walked(&types, root, id(structural_type)),
+                "root {root_id}, type {structural_type}"
+            );
+        }
+    }
+}
