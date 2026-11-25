@@ -75,4 +75,12 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+<a id="stage-03-rebuilds-the-whole-program-operand-owner-table-in-each-pass"></a>
+### Stage 03 rebuilds the whole-program operand-owner table in each pass
+- Category: 4. Re-deriving
+- Where: `collect_program_operand_owners` callers in `source-rust/subsystems/compiler/source-to-psi/pipeline/03_symbol-resolved-trees-to-typed-trees/src/` (`constructor_applications.rs:25`, `:254`, `:446`; `call_and_product_selections.rs:1788`, `:1964`; `equality_preparation.rs:160`; `expression_meanings.rs:115`)
+- Saw: each pass of `close_typed_cohort` (`lowerer.rs`) visits the whole typed program again for expression and type-reference owners. On popcount (259 std files) one table costs about 58 ms, and `construction_destinations::prepare` alone builds one four times per Product pass through `CallResultSelections::new`, whether or not a call is then selected. The passes in between allocate fresh type occurrences, so one table cannot simply be shared.
+- Cost: roughly 0.8 s of each std-sized stage 03 Product pass. A repair needs the passes to state which ownership they change, or a table that extends from an append frontier.
+- Reported: 2026-11-25, Claude Code, while profiling stages 02–04 on popcount
+
 <a id="a-build-wide-flag-admits-machine-control-for-every-output"></a>
