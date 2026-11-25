@@ -1511,11 +1511,11 @@ impl Program<'_> {
                 None => self.value_type(id, definition.target_type)?,
             };
         let mut required = subject.qualification();
-        if let Some(parent) = parent {
-            let instance = crate::body::DomainInstance {
-                declaration: parent.domain_symbol,
-                identity: parent.semantic_domain,
-            };
+        let parent = parent.map(|parent| crate::body::DomainInstance {
+            declaration: parent.domain_symbol,
+            identity: parent.semantic_domain,
+        });
+        if let Some(instance) = parent {
             if !required.domains.contains(instance) {
                 required.domains = required.domains.with(instance).ok_or_else(|| {
                     refuse(id, Construct::Machine, Unserved::Type("more than four declared domains"))
@@ -1584,6 +1584,11 @@ impl Program<'_> {
                 declared.instance == domain && declared.carrier.erased() == plain.erased()
             })
         {
+            // An unused child can be the only occurrence of this parent application.
+            // The published prerequisite must have an identity before the child uses it.
+            if let Some(parent) = parent {
+                self.declared_domain(id, parent, carrier, carrier_type, at)?;
+            }
             let schema_scope = typed
                 .domain_application(domain.declaration, domain.identity)
                 .filter(|application| !application.is_closed)
