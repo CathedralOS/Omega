@@ -369,6 +369,13 @@ fn elaborate_source_for<'source>(
     publication: terminal_codec::TerminalPublication,
     captures: SharedReading,
 ) -> Result<PreparedProgram<'source>, Vec<Refusal>> {
+    if typed.is_legacy_build_prefix() {
+        return Err(vec![Refusal::at(
+            RefusalReason::ForeignIdentity,
+            terminal_check_tables::RefusalSite::Program,
+            "an incomplete Build snapshot reached source lowering",
+        )]);
+    }
     let mut program = read::Program::with_captures(typed, false, compilation.purpose, captures);
     program.local_summary_scope = Some(read::LocalSummaryScope::Compilation(
         compilation.subjects.to_vec(),

@@ -20,7 +20,7 @@ pub use source::{
     PlannedProduct, PlanningRequest, PlanningSources, PreparedPlanningStage, prepare,
 };
 
-use build_declarations::{BuildRequest, DependencyPurpose};
+use build_declarations::BuildRequest;
 use build_execution::host::bindings::{BuildProductQuery, BuildProviderRequest};
 use build_execution::host::requests::BuildDependencyPreparation;
 use build_execution::{
@@ -209,42 +209,13 @@ pub fn interpret(
     let result = (|| {
         let host = evaluation.execution().host()?;
         let mut activation = host.start().map_err(refusal)?;
-        let mut build_dependencies = source
-            .supplied_libraries
-            .iter()
-            .map(|library| library.dependency().clone())
-            .collect();
-        loop {
-            if !source.stage.outgoing_preparation_paths().is_empty() {
-                evaluation
-                    .execution()
-                    .arm_preparations(&mut activation, &source.stage)?;
-            }
-            let ran = run(
-                &mut activation,
-                &mut source,
-                services,
-                &mut build_dependencies,
-                &mut context,
-            );
-            let spent = activation.helper_evaluation_accounting().clone();
-            let stop =
-                ran.map_err(|failure| failure.with_source_completion_accounting(spent.clone()))?;
-            let StageStop::AtPreparation(index) = stop else {
-                return activation
-                    .complete()
-                    .map_err(refusal)
-                    .map_err(|failure| failure.with_source_completion_accounting(spent));
-            };
-            source
-                .stage
-                .commit_preparation(index)
-                .map_err(|error| refusal(error.into()))?;
-            context = Some(BuildDiagnosticContext::ResumingBuild);
-            activation = source
-                .resume(&mut evaluation, activation, &build_dependencies, services)
-                .map_err(|failure| failure.with_source_completion_accounting(spent))?;
-        }
+        let ran = run(&mut activation, &mut source, services, &mut context);
+        let spent = activation.helper_evaluation_accounting().clone();
+        ran.map_err(|failure| failure.with_source_completion_accounting(spent.clone()))?;
+        activation
+            .complete()
+            .map_err(refusal)
+            .map_err(|failure| failure.with_source_completion_accounting(spent))
     })();
     let returned = result.map_err(|failure| {
         let failure = match context {
@@ -261,29 +232,22 @@ pub fn interpret(
     })
 }
 
-enum StageStop {
-    Returned,
-    AtPreparation(usize),
-}
-
 fn run(
     activation: &mut TerminalBuildActivation,
     source: &mut source::PlanningSource,
     services: &mut impl PlanningServices,
-    build_dependencies: &mut Vec<ProductQueryDependency>,
     context: &mut Option<BuildDiagnosticContext>,
-) -> Result<StageStop, CompileFailure> {
+) -> Result<(), CompileFailure> {
     loop {
         match activation.advance_diagnostic(1024).map_err(|mut diagnostic| {
             diagnostic.message = format!("Build activation failed: {}", diagnostic.message);
             vec![*diagnostic]
         })? {
-            TerminalBuildStep::Returned => return Ok(StageStop::Returned),
-            TerminalBuildStep::AtPreparation(index) => return Ok(StageStop::AtPreparation(index)),
+            TerminalBuildStep::Returned => return Ok(()),
             TerminalBuildStep::NeedsWork => continue,
             TerminalBuildStep::Query(query) => {
                 let (description, selections) =
-                    source.describe_product(activation, &query, build_dependencies, services)?;
+                    source.describe_product(activation, &query, services)?;
                 activation
                     .answer_query(&query, description, &selections)
                     .map_err(refusal)?;
@@ -334,19 +298,9 @@ fn run(
                     .generated
                     .as_ref()
                     .map(package_compilation::PackageBuildHandoff::identity_digest);
-                let prepared_product_alias = match request.purpose {
-                    DependencyPurpose::Build => {
-                        mount_build_dependency(build_dependencies, dependency)?;
-                        None
-                    }
-                    DependencyPurpose::Product => Some(dependency.alias),
-                };
                 activation
                     .dependency_prepared(selected, inputs, child_build_source, handoff)
                     .map_err(refusal)?;
-                if let Some(alias) = prepared_product_alias {
-                    source.prepared_product_alias(alias);
-                }
                 *context = Some(BuildDiagnosticContext::ResumingBuild);
             }
         }
@@ -358,25 +312,4 @@ fn refusal(reason: String) -> CompileFailure {
         "Build activation failed: {reason}"
     ))]
     .into()
-}
-
-// The dependency service settles both purposes. Only Build-purpose source is visible
-// to the resumed Build. Product source stays with the package's ordinary Product graph.
-fn mount_build_dependency(
-    mounted: &mut Vec<ProductQueryDependency>,
-    dependency: ProductQueryDependency,
-) -> Result<(), CompileFailure> {
-    if let Some(previous) = mounted
-        .iter()
-        .find(|mounted| mounted.alias == dependency.alias)
-    {
-        if previous != &dependency {
-            return Err(refusal(
-                "the Build dependency alias was already prepared from different sources".into(),
-            ));
-        }
-    } else {
-        mounted.push(dependency);
-    }
-    Ok(())
 }

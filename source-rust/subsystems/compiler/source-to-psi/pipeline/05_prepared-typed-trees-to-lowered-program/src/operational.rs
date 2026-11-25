@@ -135,8 +135,7 @@ fn statements(machine: MachineId, statements: &[Statement]) -> Checked<()> {
                 target(machine, arm)?;
             }
             Statement::Declare { .. }
-            | Statement::CaptureReference { .. }
-            | Statement::ParkedBuildLocals(..) => {}
+            | Statement::CaptureReference { .. } => {}
         }
     }
     Ok(())

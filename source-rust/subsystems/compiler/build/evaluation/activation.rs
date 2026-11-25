@@ -28,15 +28,10 @@ than a callback loop:
    (`project::declaration`), and return `ReturnedBuild` with its complete
    request and demanded-source ledgers attached for coordinator source-join
    settlement.
-5. A dependency preparation can expose a new package to the remaining Build.
-   Stop at the completed call, check the successor against the executed code,
-   and give the interpreter its original storage and work meter. Only the final
-   normal return settles the requests, source joins and filesystem effects.
 */
 
 pub(crate) mod preparation;
 mod project;
-mod protocol;
 mod provider_installation;
 mod source_join;
 mod source_result;
@@ -229,7 +224,6 @@ impl TerminalBuildHost {
         default_source: bool,
         default_sources: Option<Arc<package_compilation::PackageCompilationSourceInputs>>,
         original_sources: Option<Arc<OriginalBuildSources>>,
-        carried_filesystem: Option<crate::host::filesystem::CarriedFilesystem>,
     ) -> Result<Arc<Self>, String> {
         let artifact = produced.view();
         let parameter = machine.receiver_for(artifact.module())?;
@@ -285,7 +279,6 @@ impl TerminalBuildHost {
             account,
             filesystem_scope,
             &machine.name,
-            carried_filesystem,
         )?;
         Ok(Arc::new(Self {
             original_sources,
@@ -312,7 +305,7 @@ impl TerminalBuildHost {
             return Err("Build host has already started its activation".into());
         }
         artifacts::compile_timings::counters::record_build_execution(self.execution_purpose);
-        let instance = self.instantiate(true)?;
+        let instance = self.instantiate()?;
         let work = evaluation_work::sponsored_meter(self.account.clone(), Some(0)).map_err(describe)?;
         Ok(TerminalBuildActivation {
             history: Default::default(),
@@ -320,101 +313,13 @@ impl TerminalBuildHost {
             host: Arc::clone(self),
             work,
             state: ActivationState::Running,
-            cut: None,
             requests: Vec::new(),
             demanded_sources: Vec::new(),
             helper_accounting: Default::default(),
         })
     }
 
-    /// Attach the newly admitted code to the activation parked at its preparation.
-    pub(crate) fn resume(
-        self: &Arc<Self>,
-        carried: CarriedStage,
-        previous_source: &source_compiler::publication::AcceptedTerminalSource,
-    ) -> Result<TerminalBuildActivation, String> {
-        if self.started.swap(true, std::sync::atomic::Ordering::AcqRel) {
-            return Err("Build host has already started its activation".into());
-        }
-        let CarriedStage {
-            mut history, instance, host, old_call, new_call, work, requests, demanded_sources,
-            mut helper_accounting, request_host, mut binding_host, filesystem: _,
-        } = carried;
-        let old_program = instance.program().clone();
-        let mut successor = self.instantiate(false)?;
-        let new_program = successor.program().clone();
-        let stack = instance.completed_call_stack()?;
-        if stack.last().map(|site| (site.machine, site.operation)) != Some(old_call) {
-            return Err("the stopped call differs from the selected preparation".into());
-        }
-        let prefix = source_compiler::checked_build_stack(
-            previous_source,
-            old_program.module(),
-            &stack,
-            &self.accepted,
-            new_program.module(),
-            new_call,
-        )?;
-        let providers = protocol::check(
-            &prefix,
-            &host,
-            self,
-            &binding_host,
-            previous_source,
-            &self.accepted,
-        )?;
-        for (installation, request) in binding_host.installed_providers.iter_mut().zip(providers) {
-            provider_installation::admit_request(
-                self.produced.view(),
-                &request,
-                &installation.provider,
-            )?;
-            let profile = self
-                .execution_profile
-                .ok_or("resuming an installed provider requires its execution profile")?;
-            for binding in provider_installation::prepare(
-                self.produced.view(),
-                &request,
-                &installation.provider,
-                profile,
-                &self.account,
-                &mut helper_accounting,
-            )? {
-                successor.bind_component(binding)?;
-            }
-            installation.request = request;
-        }
-        self.requests.adopt(request_host, &prefix)?;
-        self.bindings.adopt(binding_host, &prefix)?;
-        self.filesystem.resume_markers(&prefix)?;
-        let instance = TerminalInstance::continue_checked_entry(instance, successor, &prefix)?;
-        history.resumed(
-            host.produced.view().custody_identity().semantic(),
-            self.produced.view().custody_identity().semantic(),
-            prefix
-                .stack()
-                .iter()
-                .map(|(old, new)| ((old.machine, old.operation), (new.machine, new.operation))),
-        )?;
-        Ok(TerminalBuildActivation {
-            history,
-            instance,
-            host: Arc::clone(self),
-            work,
-            state: ActivationState::Running,
-            cut: None,
-            requests,
-            demanded_sources,
-            helper_accounting,
-        })
-    }
-
-    /// Only the first guest receives a fresh Output. A resumed guest retains
-    /// the original payload in whichever checked storage currently owns it.
-    fn instantiate(
-        self: &Arc<Self>,
-        issue_output: bool,
-    ) -> Result<TerminalInstance<'static, 'static>, String> {
+    fn instantiate(self: &Arc<Self>) -> Result<TerminalInstance<'static, 'static>, String> {
         let artifact = self.produced.view();
         let program = TerminalProgram::retain(self.produced.retain_code());
         let request_calls = self
@@ -478,14 +383,14 @@ impl TerminalBuildHost {
                 .defer_component(supplies, *boundary)
                 .map_err(describe)?;
         }
-        let output = issue_output.then(|| self.output.binding());
+        let output = self.output.binding();
         let mut instance = program
             .instantiate(TerminalInstantiation {
                 float_evaluation:
                     terminal_interpreter::float_result_policy::FloatEvaluation::CompileTime,
                 structural_inputs: TerminalStructuralInputs {
                     arguments: std::slice::from_ref(&self.original),
-                    projected_host_atoms: output.as_slice(),
+                    projected_host_atoms: std::slice::from_ref(&output),
                     zero_initialized_arguments: &[0],
                     ..Default::default()
                 },
@@ -545,36 +450,8 @@ impl TerminalBuildHost {
     }
 }
 
-/// What a checked program that completed its preparation leaves for the
-/// next stage of the same activation.
-type EntryCall = (
-    semantic_vocabulary::MachineId,
-    semantic_vocabulary::OperationId,
-);
-
-pub(crate) struct CarriedStage {
-    history: evaluation_receipts::BuildExecutionHistory,
-    instance: TerminalInstance<'static, 'static>,
-    host: Arc<TerminalBuildHost>,
-    old_call: EntryCall,
-    new_call: EntryCall,
-    work: EvaluationWorkMeter,
-    requests: Vec<IssuedBuildRequest>,
-    demanded_sources: Vec<BuildDependencySelection>,
-    helper_accounting: source_compiler::compile_time_invocations::SourceCompletionAccounting,
-    request_host: crate::host::requests::CarriedRequests,
-    binding_host: crate::host::bindings::CarriedBindings,
-    pub(crate) filesystem: Option<crate::host::filesystem::CarriedFilesystem>,
-}
-
-struct ArmedPreparations {
-    can_return: bool,
-    paths: Vec<Vec<source_compiler::BuildPreparationSite>>,
-    calls: terminal_interpreter::TerminalEntryCalls,
-}
-
-enum ActivationState {    Running,
-    AtPreparation(usize),
+enum ActivationState {
+    Running,
     Returned,
     Refused,
 }
@@ -585,15 +462,14 @@ pub struct TerminalBuildActivation {
     host: Arc<TerminalBuildHost>,
     work: EvaluationWorkMeter,
     state: ActivationState,
-    cut: Option<ArmedPreparations>,
     requests: Vec<IssuedBuildRequest>,
     demanded_sources: Vec<BuildDependencySelection>,
     helper_accounting: source_compiler::compile_time_invocations::SourceCompletionAccounting,
 }
 
 /// The single reason the interpreter returned control to the planner.
-pub enum TerminalBuildStep {    Returned,
-    AtPreparation(usize),
+pub enum TerminalBuildStep {
+    Returned,
     NeedsWork,
     Provide(crate::host::bindings::BuildProviderRequest),
     Prepare(crate::host::requests::BuildDependencyPreparation),
@@ -601,7 +477,7 @@ pub enum TerminalBuildStep {    Returned,
 }
 
 impl TerminalBuildActivation {
-    /// Check the owner before a live declaration names a subsequent Build stage.
+    /// Check the source capture that owns this activation.
     pub fn require_source_acquisition(
         &self,
         source: &package_compilation::CapturedLocalSource,
@@ -787,49 +663,12 @@ impl TerminalBuildActivation {
         Ok(())
     }
 
-    /// An authenticated return from the selected call is the only place to switch code.
-    pub(crate) fn carry(
-        mut self,
-        path: &[source_compiler::BuildPreparationSite],
-        new_call: EntryCall,
-    ) -> Result<CarriedStage, String> {
-        let Some(cut) = self.cut.take() else {
-            return Err("the Build has no armed preparation".into());
-        };
-        let ActivationState::AtPreparation(index) = self.state else {
-            return Err("the interpreter has not reached a checked preparation".into());
-        };
-        if cut.paths.get(index).map(Vec::as_slice) != Some(path)
-            || !self.host.requests.completed_preparation()?
-        {
-            return Err("the successor does not continue the completed Build preparation".into());
-        }
-        let stack = self.instance.completed_call_stack()?;
-        let old = stack
-            .last()
-            .ok_or("the parked Build lost its stopped call")?;
-        Ok(CarriedStage {
-            history: self.history,
-            host: Arc::clone(&self.host),
-            old_call: (old.machine, old.operation),
-            new_call,
-            instance: self.instance,
-            work: self.work,
-            requests: self.requests,
-            demanded_sources: self.demanded_sources,
-            helper_accounting: self.helper_accounting,
-            request_host: self.host.requests.carry()?,
-            binding_host: self.host.bindings.carry()?,
-            filesystem: self.host.filesystem.carry()?,
-        })
-    }
-
     pub fn advance(&mut self, additional_work: u64) -> Result<TerminalBuildStep, String> {
         self.advance_diagnostic(additional_work)
             .map_err(|error| error.message)
     }
 
-    /// Preserve a host refusal's authored call in the currently executing Build stage.
+    /// Preserve a host refusal's authored call in the executing Build.
     pub fn advance_diagnostic(
         &mut self,
         additional_work: u64,
@@ -840,41 +679,21 @@ impl TerminalBuildActivation {
 
         match self.state {
             ActivationState::Returned => return Err(refusal("Build activation has already returned")),
-            ActivationState::AtPreparation(_) => return Err(refusal("a parked Build needs its checked successor")),
             ActivationState::Refused => return Err(refusal("Build activation has already failed")),
             ActivationState::Running => {}
         }
         self.state = ActivationState::Refused;
-        if self.host.machine.preparation_allows_return().is_some() && self.cut.is_none() {
-            return Err(refusal("an unfinished Build requires its checked preparation paths"));
-        }
         self.work
             .replenish(additional_work)
             .map_err(|error| refusal(describe(error)))?;
-        let status = match &self.cut {
-            Some(cut) => self
-                .instance
-                .invoke_until_entry_calls(&cut.calls, &mut self.work),
-            None => self.instance.invoke(&mut self.work).map(Some),
-        }
-        .map_err(|error| Box::new(self.guest_diagnostic(error)))?;
+        let status = self
+            .instance
+            .invoke(&mut self.work)
+            .map_err(|error| Box::new(self.guest_diagnostic(error)))?;
         self.requests
             .extend(self.host.requests.drain_requests().map_err(refusal)?);
-        let Some(status) = status else {
-            let index = self
-                .instance
-                .completed_call_path_index()
-                .ok_or_else(|| refusal("the stopped interpreter has no completed preparation path"))?;
-            self.state = ActivationState::AtPreparation(index);
-            return Ok(TerminalBuildStep::AtPreparation(index));
-        };
         let step = match status {
-            TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit) => {
-                if self.cut.as_ref().is_some_and(|cut| !cut.can_return) {
-                    return Err(refusal("the Build returned before its checked preparation"));
-                }
-                TerminalBuildStep::Returned
-            }
+            TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit) => TerminalBuildStep::Returned,
             TerminalExecutionStatus::SponsorExhausted(_) => TerminalBuildStep::NeedsWork,
             TerminalExecutionStatus::AwaitingEffect(_) => match (
                 self.host.bindings.awaiting_provider().map_err(refusal)?,
@@ -978,7 +797,7 @@ impl TerminalBuildActivation {
                 }
             }
         }
-        let declared_product_selections = self.host.bindings.declared()?;
+        let declared_product_selections = self.host.bindings.declared();
         Ok(ReturnedBuild {
             history: self.history,
             helper_accounting: self.helper_accounting,
@@ -994,7 +813,7 @@ impl TerminalBuildActivation {
             root_bindings,
             product_selections,
             native_bindings,
-            native_formations: self.host.bindings.native_formations()?,
+            native_formations: self.host.bindings.native_formations(),
             exclusions,
             declared_product_selections,
             output: self.host.requests.take_output()?,

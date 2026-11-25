@@ -515,8 +515,7 @@ impl<'b> Walk<'b> {
                 // These bindings evaluate no value and reach no call.
                 Statement::Declare { .. }
                 | Statement::Witness { .. }
-                | Statement::CaptureReference { .. }
-                | Statement::ParkedBuildLocals(..) => {}
+                | Statement::CaptureReference { .. } => {}
                 // Exactly one arm runs and each completes the machine, so
                 // the dispatch completes normally when some arm does and
                 // nothing follows it.
