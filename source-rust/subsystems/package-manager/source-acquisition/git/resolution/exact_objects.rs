@@ -2,7 +2,7 @@
 
 use crate::error::SourceResolveError;
 use crate::git::cache::repository::VerifiedGitRepository;
-use crate::git::executable::executor::GitExecutor;
+use crate::git::executable::GitExecutor;
 use crate::git::objects::authentication::authenticate_git_commit;
 use crate::git::objects::{ExactGitObjectAvailability, ExactGitObjectKind, probe_exact_git_object};
 use crate::identity::GitObjectIdAlgorithm;

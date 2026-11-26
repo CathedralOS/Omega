@@ -14,7 +14,7 @@ use crate::SourceResolver;
 use crate::error::SourceResolveError;
 use crate::git::cache::identity::git_cache_identity;
 use crate::git::cache::repository::VerifiedGitRepository;
-use crate::git::executable::executor::test_system_git_executor;
+use crate::git::executable::test_system_git_executor;
 use crate::git::request::GitSourceRequest;
 use crate::git::resolution::resolve_git_source;
 use crate::limits::LocalSourceLimits;

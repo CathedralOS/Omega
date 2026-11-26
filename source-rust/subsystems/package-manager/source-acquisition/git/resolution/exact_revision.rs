@@ -10,7 +10,7 @@ use crate::observations::resolved::ResolvedGitSource;
 use crate::storage::RetainedStorageLane;
 
 use super::acquisition::resolve_whole_git_source_from_retained_lanes;
-use super::selection::{GitRevisionSelection, ExactGitRevision};
+use super::selection::{ExactGitRevision, GitRevisionSelection};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GitExactRevisionAcquisition {
