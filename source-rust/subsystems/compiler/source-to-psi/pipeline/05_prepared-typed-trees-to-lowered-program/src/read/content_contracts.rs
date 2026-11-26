@@ -117,8 +117,7 @@ impl Program<'_> {
         let [subject] = arguments else {
             return Err(unavailable(id, "an owner projection requires one subject"));
         };
-        let (domain, reference, algebra) =
-            self.contract_projection(id, call.target_symbol, expected)?;
+        let (domain, algebra) = self.contract_projection(id, call.target_symbol, expected)?;
         let (version, borrow) = match table.expression(*subject) {
             ExpressionNode::Call(old)
                 if self.builtin_call(old, symbols::BuiltinFunction::ContentOld) =>
@@ -168,7 +167,6 @@ impl Program<'_> {
             id,
             domain,
             actual,
-            reference,
             SourceOrigin::of(table.source_span(expression)),
         )?;
         let base = match scope.result {

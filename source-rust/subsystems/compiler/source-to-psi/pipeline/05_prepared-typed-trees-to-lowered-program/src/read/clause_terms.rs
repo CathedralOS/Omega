@@ -211,7 +211,6 @@ impl Program<'_> {
                         identity: test.application,
                     },
                     actual,
-                    definition.target_type,
                     at,
                     super::types::DomainUse::test(definition.requires_result_membership()),
                 )?;

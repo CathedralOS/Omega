@@ -878,7 +878,6 @@ impl Program<'_> {
                     machine,
                     source,
                     ValueType::record(carrier),
-                    definition.target_type,
                     SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent),
                 )?;
                 continue;

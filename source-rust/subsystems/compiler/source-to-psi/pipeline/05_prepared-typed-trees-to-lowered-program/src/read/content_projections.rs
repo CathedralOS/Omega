@@ -66,11 +66,7 @@ impl Program<'_> {
         id: MachineId,
         symbol: symbols::SymbolHandle,
         expected: &str,
-    ) -> Checked<(
-        crate::body::DomainInstance,
-        crate::source_state::types::TypeReferenceHandle,
-        ContentAlgebra,
-    )> {
+    ) -> Checked<(crate::body::DomainInstance, ContentAlgebra)> {
         let typed = self.typed;
         let missing = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
         let symbol = self
@@ -102,7 +98,6 @@ impl Program<'_> {
                 declaration: domain.symbol,
                 identity: domain.semantic_id,
             },
-            domain.target_type,
             selected.algebra,
         ))
     }
