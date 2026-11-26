@@ -1740,7 +1740,6 @@ impl<'a> Lowering<'a> {
         let exact = self.tables.places.push(PlaceRow {
             origin: PlaceOrigin::Root(place),
             children: Vec::new(),
-            writes: Vec::new(),
         });
         if self.tables.roots.push(exact) != place {
             return Err(self.internal("a root place and its table row disagree"));
@@ -1764,7 +1763,7 @@ impl<'a> Lowering<'a> {
     fn write(&mut self, place: ExactPlaceId, at: ProgramPoint, content: Content) -> Checked<()> {
         terminal_check_tables::bindings::record_write(
             self.id,
-            &mut self.tables.places,
+            &self.tables.places,
             &mut self.tables.writes,
             WriteRow { place, at, content },
         )?;

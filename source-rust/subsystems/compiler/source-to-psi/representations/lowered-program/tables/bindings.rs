@@ -16,10 +16,9 @@ The write log records, in program order, what each place holds after each
 write. The binding at a point is the last reaching write to the place or to
 any place that overlaps it, which the checker derives from the log.
 
-Three lookups are derived columns, filled by elaboration as it pushes rows,
-so no lane needs a map: a root by `PlaceId` (`MachineTables::roots`), a
-child by segment (`PlaceRow::children`), and the writes to a place
-(`PlaceRow::writes`).
+Elaboration indexes roots by `PlaceId` (`MachineTables::roots`) and children
+by their projection segment (`PlaceRow::children`). The forward log owns each
+write in program order.
 */
 
 use arena::IdTable;
@@ -36,10 +35,6 @@ pub struct PlaceRow {
     /// The projections of this place, sorted by `Segment`, at most one per
     /// segment: interning a child is a binary search here.
     pub children: Vec<(Segment, ExactPlaceId)>,
-    /// The writes whose `place` is exactly this place, in program order.
-    /// Writes to ancestors and descendants are on their own rows; reach them
-    /// through `PlaceOrigin::Projection::parent` and `children`.
-    pub writes: Vec<WriteId>,
 }
 
 /// Invariant: a projection's `parent` was minted before it, so every parent
@@ -155,7 +150,6 @@ pub fn intern_projection(
             let child = places.push(PlaceRow {
                 origin: PlaceOrigin::Projection { parent, segment },
                 children: Vec::new(),
-                writes: Vec::new(),
             });
             places
                 .get_mut(parent)
@@ -169,17 +163,17 @@ pub fn intern_projection(
 
 pub fn record_write(
     machine: MachineId,
-    places: &mut IdTable<ExactPlaceId, PlaceRow>,
+    places: &IdTable<ExactPlaceId, PlaceRow>,
     writes: &mut IdTable<WriteId, WriteRow>,
     row: WriteRow,
 ) -> crate::Checked<()> {
-    let place = places.get_mut(row.place).ok_or_else(|| crate::Refusal {
+    places.get(row.place).ok_or_else(|| crate::Refusal {
         reason: crate::RefusalReason::ForeignIdentity,
         site: crate::RefusalSite::Machine(machine, crate::Construct::Place(row.place)),
         source_span: None,
         detail: "place is past the end of this machine".to_owned(),
     })?;
-    place.writes.push(writes.push(row));
+    writes.push(row);
     Ok(())
 }
 
@@ -196,7 +190,6 @@ mod tests {
         let root = places.push(PlaceRow {
             origin: PlaceOrigin::Root(PlaceId::new(1).unwrap()),
             children: Vec::new(),
-            writes: Vec::new(),
         });
         for raw in [3, 1, 2] {
             let child = places.push(PlaceRow {
@@ -205,7 +198,6 @@ mod tests {
                     segment: field(raw),
                 },
                 children: Vec::new(),
-                writes: Vec::new(),
             });
             let row = places.get_mut(root).unwrap();
             let at = row

@@ -182,6 +182,13 @@ fn publish_machine_write_frames(
         .collect();
     writes.sort_unstable_by_key(|(operation, _)| *operation);
     for (_, row) in tables.writes.iter() {
+        if tables.places.get(row.place).is_none() {
+            return Err(problem(
+                Construct::Place(row.place),
+                "a storage write has no exact place".to_owned(),
+            ));
+        }
+
         let ProgramPoint::AfterOperation(operation) = row.at else {
             return Err(problem(
                 Construct::Place(row.place),
@@ -299,22 +306,9 @@ fn publish_machine_write_frames(
             });
         }
     }
-    for (_, row) in tables.writes.iter() {
-        tables
-            .places
-            .get_mut(row.place)
-            .ok_or_else(|| {
-                problem(
-                    Construct::Place(row.place),
-                    "a storage write has no exact place".to_owned(),
-                )
-            })?
-            .writes
-            .clear();
-    }
     tables.writes = arena::IdTable::default();
     for row in revised {
-        bindings::record_write(id, &mut tables.places, &mut tables.writes, row)?;
+        bindings::record_write(id, &tables.places, &mut tables.writes, row)?;
     }
     Ok(())
 }
@@ -1458,12 +1452,11 @@ mod tests {
                 let exact = machine_tables.places.push(PlaceRow {
                     origin: PlaceOrigin::Root(id::<PlaceId>(1)),
                     children: Vec::new(),
-                    writes: Vec::new(),
                 });
                 machine_tables.roots.push(exact);
                 bindings::record_write(
                     id::<MachineId>(raw),
-                    &mut machine_tables.places,
+                    &machine_tables.places,
                     &mut machine_tables.writes,
                     WriteRow {
                         place: exact,

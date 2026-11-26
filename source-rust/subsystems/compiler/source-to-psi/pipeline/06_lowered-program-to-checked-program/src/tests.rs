@@ -2540,7 +2540,6 @@ fn sibling_fields_are_disjoint_and_ancestors_overlap() {
     let row = |origin| PlaceRow {
         origin,
         children: Vec::new(),
-        writes: Vec::new(),
     };
     let root = places.push(row(PlaceOrigin::Root(id(1))));
     let mut child = |segment| {
@@ -2652,12 +2651,11 @@ fn store_by_hand(
         Operation::unsuspended(store, OperationResult::Unit, kind),
     );
     let tables = elaboration.tables.machines.get_mut(id(1)).unwrap();
-    let write = tables.writes.push(WriteRow {
+    tables.writes.push(WriteRow {
         place,
         at: ProgramPoint::AfterOperation(store),
         content: Content::Value(value),
     });
-    tables.places.get_mut(place).unwrap().writes.push(write);
 }
 
 /// `root.field = value`, for `store_by_hand`.
@@ -3667,7 +3665,6 @@ fn payloads_of_two_cases_under_one_sum_overlap() {
     let row = |origin| PlaceRow {
         origin,
         children: Vec::new(),
-        writes: Vec::new(),
     };
     let root = places.push(row(PlaceOrigin::Root(id(1))));
     let mut child = |parent, segment| places.push(row(PlaceOrigin::Projection { parent, segment }));
