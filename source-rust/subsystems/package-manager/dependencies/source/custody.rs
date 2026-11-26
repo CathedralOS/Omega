@@ -25,6 +25,7 @@ pub(crate) struct PackageSourceCustody {
     materialization: PackageSourceMaterialization,
     pub(crate) snapshot_root: PathBuf,
     captured_source: Option<Arc<source_capture::CapturedSourceTree>>,
+    pub(crate) build_entries: package_compilation::PackageBuildEntries,
     navigation: PackageSourceNavigation,
     selection_evidence: PackageSourceSelectionEvidence,
     source_limits: LocalSourceLimits,
@@ -39,6 +40,7 @@ impl PartialEq for PackageSourceCustody {
             && self.materialization == other.materialization
             && self.snapshot_root == other.snapshot_root
             && self.captured_source == other.captured_source
+            && self.build_entries == other.build_entries
             && self.navigation == other.navigation
             && self.selection_evidence == other.selection_evidence
             && self.dependency_projections == other.dependency_projections
@@ -70,6 +72,7 @@ impl PackageSourceCustody {
             materialization,
             snapshot_root,
             captured_source: None,
+            build_entries: Default::default(),
             navigation,
             selection_evidence,
             source_limits,

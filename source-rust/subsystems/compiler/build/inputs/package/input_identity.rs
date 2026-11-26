@@ -26,6 +26,7 @@ impl PackageCompilationInputs {
         digest.byte(self.root_role().canonical_tag());
         for (identity, _root) in self.packages() {
             digest.raw(&identity.digest());
+            self.hash_build_entries(identity, &mut digest);
             digest.bytes(self.package_name(identity).unwrap_or_default().as_bytes());
             match self.canonical_source_metadata(identity) {
                 Some(index) => {

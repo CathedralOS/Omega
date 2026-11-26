@@ -280,6 +280,11 @@ pub fn prepare(
         };
     let evaluation = prepare_build_evaluation(
         BuildEvaluationRequest {
+            preceding_entries: preparations.stages.iter().map(|(_, stage)| {
+                stage.configuration.executed_entry.as_ref().map(|entry| &entry.declaration).ok_or_else(|| {
+                    refusal("a preparing Build lost its entered declaration".to_owned())
+                })
+            }).collect::<Result<_, _>>()?,
             execution_purpose: BuildExecutionPurpose::Source,
             root_path: request.root,
             interval: &interval,

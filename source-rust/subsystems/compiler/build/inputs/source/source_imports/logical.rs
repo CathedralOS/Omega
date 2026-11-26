@@ -212,8 +212,7 @@ impl LogicalSourceInventory {
                 matches!(
                     path.extension().and_then(|extension| extension.to_str()),
                     Some("omg")
-                ) && !path.file_name().is_some_and(|name| name == "build.omg")
-                    && !excluded_roots
+                ) && !excluded_roots
                         .iter()
                         .any(|package| path.starts_with(package))
             })

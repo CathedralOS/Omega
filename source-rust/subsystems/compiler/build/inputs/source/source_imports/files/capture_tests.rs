@@ -138,10 +138,30 @@ fn a_captured_file_link_selects_its_source_with_the_same_package_permissions() {
             (PathBuf::from("types.omg"), file()),
             (PathBuf::from("public.omg"), link("types.omg")),
             (PathBuf::from("build.omg"), file()),
-            (PathBuf::from("setup.omg"), link("build.omg")),
+            (PathBuf::from("configure.omg"), CapturedSourceNode::File {
+                bytes: Arc::from(b"machine build() {}".as_slice()),
+                executable: false,
+            }),
+            (PathBuf::from("setup.omg"), link("configure.omg")),
         ])
         .unwrap(),
     );
+    let selected = source_admission::RetainedDeclaration::from_source_occurrence(
+        source_admission::SourceFile {
+            path: vendor.join("configure.omg"),
+            package_root: vendor.clone(),
+            source_id: source_text::SourceId(0),
+            package_identity: None,
+            source: "machine build() {}".into(),
+            origin: source_admission::SourceOrigin::User,
+            dependency_scope: source_provenance::DependencyScope::Build,
+            resolution_stratum: source_admission::SourceResolutionStratum::Base,
+        },
+        source_text::Span::new(8, 13),
+        symbols::SymbolKind::Machine,
+    );
+    let entries =
+        crate::PackageBuildEntries::from_selected(&vendor, &dependency, [&selected]).unwrap();
     let mut members = vec![
         (PathBuf::from("vendor"), CapturedSourceNode::Directory),
         (PathBuf::from("borrowed.omg"), link("vendor/types.omg")),
@@ -160,16 +180,33 @@ fn a_captured_file_link_selects_its_source_with_the_same_package_permissions() {
                 .unwrap(),
             PackageSourceBinding::new(inner, "inner", vendor.clone())
                 .with_captured_source(dependency)
+                .unwrap()
+                .with_build_entries(entries)
                 .unwrap(),
         ],
         vec![PackageDependencyBinding::new(outer, "kit", inner)],
     )
     .unwrap();
+    let query = crate::source_imports::ProductQueryInputs::new(Some(packages.clone()), vec![]).unwrap();
+    let storage = crate::source_imports::SourceStorage::for_package_compilation(
+        root.clone(), outer, crate::source_imports::bundled_core_root().unwrap(), packages.source_filesystem().clone()
+    );
+    let query_file = |name: &str| query.validate_frontier(
+        vec![(vendor.join(name), source_provenance::DependencyScope::Product)],
+        &storage,
+    );
+    assert!(query_file("build.omg").is_ok());
+    assert!(query_file("setup.omg").unwrap_err()[0].message.contains("dependency Build entry"));
     let importer = root.join("main.omg");
     let select = |owner, base: &Path, name, foreign| {
         ReconciledPackageImportRequest::file(owner, base, name, &importer, foreign)
             .exact_file(&packages)
     };
+    assert_eq!(
+        select(inner, &vendor, "build.omg", true).unwrap(),
+        Some(vendor.join("build.omg"))
+    );
+    assert!(select(inner, &vendor, "configure.omg", true).is_err());
     assert_eq!(
         select(inner, &vendor, "public.omg", true).unwrap(),
         Some(vendor.join("types.omg"))

@@ -65,18 +65,21 @@ pub(crate) fn measurement() -> evaluation_contracts::EvaluationMeasurementIdenti
     }
 }
 
-fn require_source_acquisition(
-    issued: Option<&package_compilation::CapturedLocalSource>,
+fn require_source_acquisition<'a>(
+    issued: Option<&'a OriginalBuildSources>,
     expected: &package_compilation::CapturedLocalSource,
-) -> Result<(), String> {
-    if issued != Some(expected) {
-        return Err("Build declaration does not belong to this original source acquisition".into());
-    }
-    Ok(())
+) -> Result<&'a package_compilation::PackageBuildEntries, String> {
+    issued
+        .filter(|source| &source.capture == expected)
+        .map(|source| &source.build_entries)
+        .ok_or_else(|| {
+            "Build declaration does not belong to this original source acquisition".into()
+        })
 }
 
 /// The receiving source and the libraries selected before its Build was admitted.
 pub(crate) struct OriginalBuildSources {
+    pub(crate) build_entries: package_compilation::PackageBuildEntries,
     pub(crate) capture: package_compilation::CapturedLocalSource,
     pub(crate) libraries: Arc<[package_compilation::source_imports::SuppliedBuildLibrary]>,
 }
@@ -115,8 +118,8 @@ impl ReturnedBuild {
     pub fn require_source_acquisition(
         &self,
         source: &package_compilation::CapturedLocalSource,
-    ) -> Result<(), String> {
-        require_source_acquisition(self.original_acquisition(), source)
+    ) -> Result<&package_compilation::PackageBuildEntries, String> {
+        require_source_acquisition(self.original_sources.as_deref(), source)
     }
 
     pub fn source_result(&mut self) -> BuildSourceResult<'_> {
@@ -498,14 +501,8 @@ impl TerminalBuildActivation {
     pub fn require_source_acquisition(
         &self,
         source: &package_compilation::CapturedLocalSource,
-    ) -> Result<(), String> {
-        require_source_acquisition(
-            self.host
-                .original_sources
-                .as_ref()
-                .map(|sources| &sources.capture),
-            source,
-        )
+    ) -> Result<&package_compilation::PackageBuildEntries, String> {
+        require_source_acquisition(self.host.original_sources.as_deref(), source)
     }
 
     pub fn helper_evaluation_accounting(

@@ -710,11 +710,10 @@ impl ProductQueryInputs {
                     "Product query source escapes its admitted source frontier",
                 )]);
             }
-            if !local
-                && package
-                && canonical
-                    .file_name()
-                    .is_some_and(|name| name == "build.omg")
+            if self.graphs().any(|inputs| inputs.package_for_source(&canonical).is_some_and(|owner| {
+                inputs.package_root(owner) != Some(storage.default_package_root())
+                    && inputs.dependency_build_file(owner, &canonical)
+            }))
             {
                 return Err(vec![Diagnostic::error(
                     "Product query cannot import a dependency Build entry",

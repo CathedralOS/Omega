@@ -628,9 +628,10 @@ impl AcquiredBuildSource {
         &self,
         activation: &build_execution::TerminalBuildActivation,
     ) -> Result<package_compilation::PackageCompilationInputs, String> {
-        activation.require_source_acquisition(self.source_capture())?;
+        let entries = activation.require_source_acquisition(self.source_capture())?;
         let declaration = activation.project_declaration()?;
-        let source = self.declare_requests(Some(&declaration), std::iter::empty())?;
+        let mut source = self.declare_requests(Some(&declaration), std::iter::empty())?;
+        source.custody.build_entries = entries.clone();
         package_compilation::PackageCompilationInputs::new(
             source.identity(),
             declaration.kind(),
@@ -644,10 +645,11 @@ impl AcquiredBuildSource {
         &self,
         returned: &build_execution::ReturnedBuild,
     ) -> Result<DeclaredBuildSource, String> {
-        returned.require_source_acquisition(self.source_capture())?;
+        let entries = returned.require_source_acquisition(self.source_capture())?;
         let mut source =
             self.declare_requests(returned.declaration(), returned.source_requests())?;
         source.frozen = returned.frozen_dependencies();
+        source.custody.build_entries = entries.clone();
         Ok(source)
     }
 
@@ -655,9 +657,10 @@ impl AcquiredBuildSource {
         &self,
         result: &build_execution::BuildSourceResult<'_>,
     ) -> Result<DeclaredBuildSource, String> {
-        result.require_source_acquisition(self.source_capture())?;
+        let entries = result.require_source_acquisition(self.source_capture())?;
         let mut source = self.declare_requests(result.declaration(), result.source_requests())?;
         source.frozen = result.frozen_dependencies();
+        source.custody.build_entries = entries.clone();
         Ok(source)
     }
 
