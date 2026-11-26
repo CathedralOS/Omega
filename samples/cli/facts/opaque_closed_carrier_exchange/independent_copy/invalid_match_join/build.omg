@@ -1,7 +1,7 @@
 use {omega}/build/dependency.omg;
 
-machine build(builder: @mutable Build) {
- Build::application(builder, "independent_copy_opaque_match_join");
+machine build(builder: @mutable BuildPlan) {
+ builder.product = BuildProduct::Application { name: "independent_copy_opaque_match_join" };
  let mutable producer_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "../producer_invalid" });
  |dependency|::with_alias(@mutable producer_dependency, "producer");
  let producer_registration: DependencyRegistration = Build::dependency(builder, producer_dependency);

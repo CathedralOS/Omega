@@ -1,4 +1,4 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "assembly_proposition_labels");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "assembly_proposition_labels" };
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
 }

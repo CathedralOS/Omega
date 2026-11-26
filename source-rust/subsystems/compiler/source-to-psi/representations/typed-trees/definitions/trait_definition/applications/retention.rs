@@ -215,7 +215,11 @@ impl RetainedTraitScope {
     ) {
         retained.formation_owner(self.argument_owner);
         for frame in program.trait_application_frames.span_or_empty(self.frames) {
+            // The supplier selected this application. An imported parent may
+            // expose the resulting signature without ever naming its client.
+            retained.enter_lexical_scope(frame.argument_owner);
             retained.declaration_description_dependency(frame.declaration);
+            retained.leave_lexical_scope();
             if frame.argument_owner != self.argument_owner
                 && (!frame.arguments.is_empty() || !frame.lifetimes.is_empty())
             {
@@ -509,8 +513,13 @@ mod retained_reference_tests {
         };
         scope.visit_references(&program, &mut references);
         assert!(references.descriptions.contains(&(observed, supplier)));
-        assert!(references.descriptions.contains(&(observed, formal_owner)));
-        assert!(references.descriptions.contains(&(observed, nested_owner)));
+        assert!(references.descriptions.contains(&(supplier, formal_owner)));
+        assert!(
+            references
+                .descriptions
+                .contains(&(formal_owner, nested_owner))
+        );
+        assert!(!references.descriptions.contains(&(observed, nested_owner)));
         assert!(references.descriptions.contains(&(formal_owner, formal)));
         assert!(
             references

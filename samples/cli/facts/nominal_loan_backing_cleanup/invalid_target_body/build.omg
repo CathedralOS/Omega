@@ -1,12 +1,12 @@
 use omega\language\core\DllImport;
 use omega\language\core\ForeignBinding;
-machine build(builder: @mutable Build) {
+machine build(builder: @mutable BuildPlan) {
     Build::select_provider::<SelectedScope, CheckedScope>(builder, linux_x86_64);
     Build::select_provider::<SelectedScope, CheckedScope>(builder, linux_arm64);
     Build::select_provider::<SelectedScope, CheckedScope>(builder, macos_arm64);
     Build::select_provider::<SelectedScope, CheckedScope>(builder, windows_x86_64);
 
- Build::application(builder, "nominal_loan_target_body");
+ builder.product = BuildProduct::Application { name: "nominal_loan_target_body" };
  Build::select_provider::<Console, PosixConsoleWrite>(builder, linux_arm64);
  Build::select_provider::<Console, PosixConsoleWrite>(builder, linux_x86_64);
  Build::select_provider::<Console, PosixConsoleWrite>(builder, macos_arm64);

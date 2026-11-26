@@ -130,7 +130,7 @@ fn requirement_identity<'schema>(
     schema: &'schema provider_plans::ServiceSchema,
     nominated: &str,
 ) -> Result<&'schema str, String> {
-    let method = selected_method(&schema.declaration, nominated)?;
+    let method = schema.declaration.entry_requirement(nominated)?;
     let identity = schema.identity_text(method.requirement_identity);
     if identity.is_empty() {
         return Err(format!(
@@ -138,25 +138,6 @@ fn requirement_identity<'schema>(
         ));
     }
     Ok(identity)
-}
-
-pub(super) fn selected_method<'schema>(
-    surface: &'schema provider_plans::ServiceSurface,
-    nominated: &str,
-) -> Result<&'schema provider_plans::ServiceMethod, String> {
-    let (owner, name) = nominated.rsplit_once("::").ok_or_else(|| {
-        format!("installed entry requirement `{nominated}` has no declaring owner")
-    })?;
-    let mut methods = surface
-        .methods
-        .iter()
-        .filter(|method| method.requirement_owner == owner && method.name == name);
-    let (Some(method), None) = (methods.next(), methods.next()) else {
-        return Err(format!(
-            "selected entry schema does not declare exactly one `{nominated}` arrival",
-        ));
-    };
-    Ok(method)
 }
 
 fn admit_entry_schema(

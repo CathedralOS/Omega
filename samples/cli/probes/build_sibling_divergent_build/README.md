@@ -1,6 +1,6 @@
 # build_sibling_divergent_build
 
-Five product siblings pooled on one `Build::application` request:
+Five product siblings pooled on one returned `BuildProduct::Application`:
 
 - `a`, `c`, `e` converge: each build edge-pools on `../shared` and its
   build calls `shared::seed()` returning 3.

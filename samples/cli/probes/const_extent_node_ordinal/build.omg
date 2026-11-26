@@ -1,7 +1,7 @@
 use {omega}/build/dependency.omg;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "const_extent_node_ordinal");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "const_extent_node_ordinal" };
     let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {
         location: "../../../../source/library/system"
     }));

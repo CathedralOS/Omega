@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "atomic_operand_carrier_once_target_body");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "atomic_operand_carrier_once_target_body" };
     Build::select_provider::<HostedExchange, HostedExchangeBody>(builder, windows_x86_64);
     Build::select_provider::<HostedExchange, HostedExchangeBody>(builder, linux_x86_64);
     Build::select_provider::<HostedExchange, HostedExchangeBody>(builder, macos_arm64);

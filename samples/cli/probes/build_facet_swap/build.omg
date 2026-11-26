@@ -2,8 +2,8 @@
 // fabricated value over a compiler-issued facet compiles, and the
 // FIRST operation on the replacement rejects — the evaluator knows
 // the activation facet, not the field contents.
-machine build(builder: @mutable Build) {
-    Build::application(builder, "build_facet_swap");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "build_facet_swap" };
     builder.source = BuildSource {};
     builder.inputs = BuildInputs {};
     builder.log = BuildLog {};

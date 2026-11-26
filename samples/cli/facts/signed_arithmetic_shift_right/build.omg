@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "signed_arithmetic_shift_right");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "signed_arithmetic_shift_right" };
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);

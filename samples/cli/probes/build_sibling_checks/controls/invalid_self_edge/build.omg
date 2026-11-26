@@ -4,8 +4,8 @@
 
 use {omega}/build/dependency.omg;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "invalid_self_edge");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "invalid_self_edge" };
     let mutable self_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "." });
     |dependency|::with_alias(@mutable self_dependency, "self");
     let self_registration: DependencyRegistration = Build::dependency(builder, self_dependency);

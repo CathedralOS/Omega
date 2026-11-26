@@ -3,6 +3,6 @@
 // authored in reverse order. Without ProgramEntry binds the check still
 // derives per-target admission receipts for both opaque types.
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "build_opaque_receipts");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "build_opaque_receipts" };
 }

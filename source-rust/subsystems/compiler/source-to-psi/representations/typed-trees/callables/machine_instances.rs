@@ -194,44 +194,9 @@ impl TypedTrees {
             {
                 return Err("specialization prefix changed its exact binder identity or bounds");
             }
-            let same = match (&original.kind, &retained.kind) {
-                (
-                    TypeParameterKind::Const {
-                        type_reference: left,
-                    },
-                    TypeParameterKind::Const {
-                        type_reference: right,
-                    },
-                )
-                | (
-                    TypeParameterKind::Value {
-                        type_reference: left,
-                    },
-                    TypeParameterKind::Value {
-                        type_reference: right,
-                    },
-                ) => self.specialization_carriers_match(
-                    *left,
-                    declaration,
-                    *right,
-                    receipt.template,
-                )?,
-                // Copying a callback binder re-inserts its trait arguments and
-                // signature, so `ElementStep<Element>::apply` keeps its meaning
-                // under new handles. Compare the normalized contracts, like the
-                // carriers above.
-                (
-                    TypeParameterKind::Machine { contract: left },
-                    TypeParameterKind::Machine { contract: right },
-                ) => left == right
-                    || self.specialization_contracts_match(
-                        left,
-                        declaration,
-                        right,
-                        receipt.template,
-                    )?,
-                (left, right) => left == right,
-            };
+            let same = self.copied_parameter_kinds_match(
+                &original.kind, declaration, &retained.kind, receipt.template
+            )?;
             if !same {
                 return Err(
                     "specialization prefix changed a binder kind, carrier or complete contract",
@@ -277,6 +242,48 @@ impl TypedTrees {
         Ok(declaration)
     }
 
+    /// A copied binder keeps its carrier or its complete callback contract
+    /// even when preparation allocates new handles for those source types.
+    pub fn copied_parameter_kinds_match(
+        &self,
+        left: &crate::source_state::data::TypeParameterKind,
+        left_owner: SymbolHandle,
+        right: &crate::source_state::data::TypeParameterKind,
+        right_owner: SymbolHandle,
+    ) -> Result<bool, &'static str> {
+        use crate::source_state::data::TypeParameterKind;
+        Ok(match (left, right) {
+            (
+                TypeParameterKind::Const {
+                    type_reference: left,
+                },
+                TypeParameterKind::Const {
+                    type_reference: right,
+                },
+            )
+            | (
+                TypeParameterKind::Value {
+                    type_reference: left,
+                },
+                TypeParameterKind::Value {
+                    type_reference: right,
+                },
+            ) => self.specialization_carriers_match(*left, left_owner, *right, right_owner)?,
+            // Copying a callback binder re-inserts its trait arguments and
+            // signature, so `ElementStep<Element>::apply` keeps its meaning
+            // under new handles. Compare the normalized contracts, like the
+            // carriers above.
+            (
+                TypeParameterKind::Machine { contract: left },
+                TypeParameterKind::Machine { contract: right },
+            ) => {
+                left == right
+                    || self.specialization_contracts_match(left, left_owner, right, right_owner)?
+            }
+            (left, right) => left == right,
+        })
+    }
+
     fn specialization_contracts_match(
         &self,
         left: &crate::source_state::data::MachineParameterContract,
@@ -290,7 +297,7 @@ impl TypedTrees {
         use std::cell::Cell;
         let identity = |contract, owner| {
             if !self.symbols.symbols().nodes().is_valid(owner) {
-                return Err("specialization prefix contract lost its supplying declaration");
+                return Err("callable parameter contract lost its supplying declaration");
             }
             let invalid = Cell::new(false);
             let identity = crate::source_state::runtime_callable_identity::machine_contract(
@@ -305,9 +312,9 @@ impl TypedTrees {
                     ..Default::default()
                 },
             )
-            .map_err(|_| "specialization prefix contract has no normalized identity")?;
+            .map_err(|_| "callable parameter contract has no normalized identity")?;
             if invalid.get() {
-                return Err("specialization prefix contract has an incomplete scoped identity");
+                return Err("callable parameter contract has an incomplete scoped identity");
             }
             Ok(identity)
         };

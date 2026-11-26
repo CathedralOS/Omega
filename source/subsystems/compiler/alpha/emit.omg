@@ -1,16 +1,5 @@
-use psi\representations\lowered_program\ScalarLayout;
-use psi\representations\lowered_program\ScalarLayoutKind;
-use psi\representations\lowered_program\ScalarMachine;
-use psi\representations\lowered_program\ScalarOperation;
-use psi\representations\lowered_program\ScalarOperationKind;
-use psi\representations\lowered_program\ScalarParameter;
-use psi\representations\lowered_program\ScalarProgram;
-use psi\representations\lowered_program\ScalarStatus;
-use psi\representations\lowered_program\scalar_argument_at;
-use psi\representations\lowered_program\scalar_layout_at;
-use psi\representations\lowered_program\scalar_machine_at;
-use psi\representations\lowered_program\scalar_operation;
-use psi\representations\lowered_program\scalar_parameter_at;
+use {psi}/representations/lowered_program/layouts.omg;
+use {psi}/representations/lowered_program/scalar.omg;
 
 // Realize the checked scalar lowering slice on Alpha. Each call owns a frame
 // of value slots; physical registers never carry values across a call. Layout
@@ -216,7 +205,7 @@ crashes Trap
     alpha_mark_target(emitter, mark);
 }
 
-machine alpha_owned_address(emitter: @mutable AlphaEmitter, body: ScalarMachine, offset: u64 in Trapping, register: u8)
+machine alpha_owned_address(emitter: @mutable AlphaEmitter, body: |scalar|::ScalarMachine, offset: u64 in Trapping, register: u8)
 crashes Trap
 {
     alpha_immediate(emitter, register, body.count * 8 + offset);
@@ -379,17 +368,17 @@ crashes Trap
     alpha_bind_mark(emitter, done);
 }
 
-public machine alpha_emit(emitter: @mutable AlphaEmitter, program: @ScalarProgram)
+public machine alpha_emit(emitter: @mutable AlphaEmitter, program: @|scalar|::ScalarProgram)
 crashes Trap
 {
     emitter.complete = false;
     emitter.length = 0;
     emitter.trap = 0;
     transition program.status {
-        ScalarStatus::Complete -> begin(emitter, program),
+        |scalar|::ScalarStatus::Complete -> begin(emitter, program),
         _ -> done()
     }
-    machine begin(emitter: @mutable AlphaEmitter, program: @ScalarProgram) {
+    machine begin(emitter: @mutable AlphaEmitter, program: @|scalar|::ScalarProgram) {
         emitter.complete = true;
         emitter.layout = true;
         alpha_pass(emitter, program);
@@ -398,7 +387,7 @@ crashes Trap
             _ -> done()
         }
     }
-    machine write(emitter: @mutable AlphaEmitter, program: @ScalarProgram) {
+    machine write(emitter: @mutable AlphaEmitter, program: @|scalar|::ScalarProgram) {
         emitter.layout = false;
         emitter.length = 0;
         alpha_pass(emitter, program);
@@ -406,7 +395,7 @@ crashes Trap
     machine done() {}
 }
 
-machine alpha_pass(emitter: @mutable AlphaEmitter, program: @ScalarProgram)
+machine alpha_pass(emitter: @mutable AlphaEmitter, program: @|scalar|::ScalarProgram)
 crashes Trap
 {
     // Tape occupies at most 2 MiB; activation frames occupy [32,64) MiB.
@@ -423,14 +412,14 @@ crashes Trap
     alpha_byte(emitter, 0);
     alpha_byte(emitter, 0);
     transition { _ -> next(emitter, program, 0 as u64 +Trapping) }
-    machine next(emitter: @mutable AlphaEmitter, program: @ScalarProgram, index: u64 in Trapping) {
+    machine next(emitter: @mutable AlphaEmitter, program: @|scalar|::ScalarProgram, index: u64 in Trapping) {
         transition index < program.machine_count && index < 10240 && emitter.complete {
             true -> body(emitter, program, index),
             _ -> trap(emitter)
         }
     }
-    machine body(emitter: @mutable AlphaEmitter, program: @ScalarProgram, index: u64 in Trapping) {
-        let body: ScalarMachine = scalar_machine_at(program, index);
+    machine body(emitter: @mutable AlphaEmitter, program: @|scalar|::ScalarProgram, index: u64 in Trapping) {
+        let body: |scalar|::ScalarMachine = |scalar|::scalar_machine_at(program, index);
         emitter.labels[index as -Trapping] = emitter.length;
         // Preflight slots, owned bytes and argument scratch together before
         // the first frame write. The maximum components are all bounded by
@@ -450,22 +439,22 @@ crashes Trap
         alpha_parameters(emitter, program, body);
         transition { _ -> operations(emitter, program, index, body, 0 as u64 +Trapping) }
     }
-    machine operations(emitter: @mutable AlphaEmitter, program: @ScalarProgram, index: u64 in Trapping, body: ScalarMachine, offset: u64 in Trapping) {
+    machine operations(emitter: @mutable AlphaEmitter, program: @|scalar|::ScalarProgram, index: u64 in Trapping, body: |scalar|::ScalarMachine, offset: u64 in Trapping) {
         transition offset < body.count && emitter.complete {
             true -> operation(emitter, program, index, body, offset),
             _ -> ended(emitter, program, index)
         }
     }
-    machine operation(emitter: @mutable AlphaEmitter, program: @ScalarProgram, index: u64 in Trapping, body: ScalarMachine, offset: u64 in Trapping) {
+    machine operation(emitter: @mutable AlphaEmitter, program: @|scalar|::ScalarProgram, index: u64 in Trapping, body: |scalar|::ScalarMachine, offset: u64 in Trapping) {
         let handle: u64 in Trapping = body.first + offset;
         transition handle < 16384 {
             true -> instruction(emitter, program, index, body, offset, handle),
             _ -> full(emitter)
         }
     }
-    machine instruction(emitter: @mutable AlphaEmitter, program: @ScalarProgram, index: u64 in Trapping, body: ScalarMachine, offset: u64 in Trapping, handle: u64 in Trapping) {
+    machine instruction(emitter: @mutable AlphaEmitter, program: @|scalar|::ScalarProgram, index: u64 in Trapping, body: |scalar|::ScalarMachine, offset: u64 in Trapping, handle: u64 in Trapping) {
         emitter.operation_labels[handle as -Trapping] = emitter.length;
-        let operation: ScalarOperation = scalar_operation(program, handle);
+        let operation: |scalar|::ScalarOperation = |scalar|::scalar_operation(program, handle);
         alpha_operation(emitter, program, operation, body);
         let value: bool = alpha_keeps_value(operation.kind);
         transition value {
@@ -473,11 +462,11 @@ crashes Trap
             _ -> operations(emitter, program, index, body, offset + 1)
         }
     }
-    machine stored(emitter: @mutable AlphaEmitter, program: @ScalarProgram, index: u64 in Trapping, body: ScalarMachine, offset: u64 in Trapping) {
+    machine stored(emitter: @mutable AlphaEmitter, program: @|scalar|::ScalarProgram, index: u64 in Trapping, body: |scalar|::ScalarMachine, offset: u64 in Trapping) {
         alpha_slot(emitter, offset, 0, true);
         transition { _ -> operations(emitter, program, index, body, offset + 1) }
     }
-    machine ended(emitter: @mutable AlphaEmitter, program: @ScalarProgram, index: u64 in Trapping) {
+    machine ended(emitter: @mutable AlphaEmitter, program: @|scalar|::ScalarProgram, index: u64 in Trapping) {
         // No complete control path falls through into the following machine.
         alpha_byte(emitter, 255);
         transition { _ -> next(emitter, program, index + 1) }
@@ -489,42 +478,42 @@ crashes Trap
     machine full(emitter: @mutable AlphaEmitter) { emitter.complete = false; }
 }
 
-machine alpha_parameters(emitter: @mutable AlphaEmitter, program: @ScalarProgram, body: ScalarMachine)
+machine alpha_parameters(emitter: @mutable AlphaEmitter, program: @|scalar|::ScalarProgram, body: |scalar|::ScalarMachine)
 crashes Trap
 {
     transition { _ -> next(emitter, program, body, 0 as u64 +Trapping) }
-    machine next(emitter: @mutable AlphaEmitter, program: @ScalarProgram, body: ScalarMachine, offset: u64 in Trapping) {
+    machine next(emitter: @mutable AlphaEmitter, program: @|scalar|::ScalarProgram, body: |scalar|::ScalarMachine, offset: u64 in Trapping) {
         transition offset < body.parameter_count && emitter.complete {
             true -> parameter(emitter, program, body, offset),
             _ -> done()
         }
     }
-    machine parameter(emitter: @mutable AlphaEmitter, program: @ScalarProgram, body: ScalarMachine, offset: u64 in Trapping) {
-        let parameter: ScalarParameter = scalar_parameter_at(program, body.first_parameter + offset);
-        let layout: ScalarLayout = scalar_layout_at(program, parameter.type_handle);
+    machine parameter(emitter: @mutable AlphaEmitter, program: @|scalar|::ScalarProgram, body: |scalar|::ScalarMachine, offset: u64 in Trapping) {
+        let parameter: |scalar|::ScalarParameter = |scalar|::scalar_parameter_at(program, body.first_parameter + offset);
+        let layout: |layouts|::ScalarLayout = |layouts|::scalar_layout_at(program, parameter.type_handle);
         alpha_immediate(emitter, 0, offset * 8);
         alpha_registers(emitter, 3, 0, 249);
         alpha_registers(emitter, 10, 0, 0);
         alpha_owned_address(emitter, body, parameter.offset, 1);
         transition layout.kind {
-            ScalarLayoutKind::Record -> copied(emitter, program, body, offset, layout.size),
-            ScalarLayoutKind::Array -> copied(emitter, program, body, offset, layout.size),
-            ScalarLayoutKind::Unit -> next(emitter, program, body, offset + 1),
+            |layouts|::ScalarLayoutKind::Record -> copied(emitter, program, body, offset, layout.size),
+            |layouts|::ScalarLayoutKind::Array -> copied(emitter, program, body, offset, layout.size),
+            |layouts|::ScalarLayoutKind::Unit -> next(emitter, program, body, offset + 1),
             _ -> stored(emitter, program, body, offset, layout.size)
         }
     }
-    machine copied(emitter: @mutable AlphaEmitter, program: @ScalarProgram, body: ScalarMachine, offset: u64 in Trapping, size: u64 in Trapping) {
+    machine copied(emitter: @mutable AlphaEmitter, program: @|scalar|::ScalarProgram, body: |scalar|::ScalarMachine, offset: u64 in Trapping, size: u64 in Trapping) {
         alpha_copy_bytes(emitter, size);
         transition { _ -> next(emitter, program, body, offset + 1) }
     }
-    machine stored(emitter: @mutable AlphaEmitter, program: @ScalarProgram, body: ScalarMachine, offset: u64 in Trapping, size: u64 in Trapping) {
+    machine stored(emitter: @mutable AlphaEmitter, program: @|scalar|::ScalarProgram, body: |scalar|::ScalarMachine, offset: u64 in Trapping, size: u64 in Trapping) {
         alpha_store_width(emitter, size);
         transition { _ -> next(emitter, program, body, offset + 1) }
     }
     machine done() {}
 }
 
-machine alpha_call_arguments(emitter: @mutable AlphaEmitter, program: @ScalarProgram, body: ScalarMachine, operation: ScalarOperation)
+machine alpha_call_arguments(emitter: @mutable AlphaEmitter, program: @|scalar|::ScalarProgram, body: |scalar|::ScalarMachine, operation: |scalar|::ScalarOperation)
 crashes Trap
 {
     // Argument expressions have already produced stable slots or fresh
@@ -533,14 +522,14 @@ crashes Trap
     // frame and cannot overwrite these retained operand identities.
     alpha_owned_address(emitter, body, body.storage_size, 249);
     transition { _ -> next(emitter, program, body, operation, 0 as u64 +Trapping) }
-    machine next(emitter: @mutable AlphaEmitter, program: @ScalarProgram, body: ScalarMachine, operation: ScalarOperation, offset: u64 in Trapping) {
+    machine next(emitter: @mutable AlphaEmitter, program: @|scalar|::ScalarProgram, body: |scalar|::ScalarMachine, operation: |scalar|::ScalarOperation, offset: u64 in Trapping) {
         transition offset < operation.extra {
             true -> argument(emitter, program, body, operation, offset),
             _ -> call(emitter, operation.left)
         }
     }
-    machine argument(emitter: @mutable AlphaEmitter, program: @ScalarProgram, body: ScalarMachine, operation: ScalarOperation, offset: u64 in Trapping) {
-        let value: u64 in Trapping = scalar_argument_at(program, operation.right + offset);
+    machine argument(emitter: @mutable AlphaEmitter, program: @|scalar|::ScalarProgram, body: |scalar|::ScalarMachine, operation: |scalar|::ScalarOperation, offset: u64 in Trapping) {
+        let value: u64 in Trapping = |scalar|::scalar_argument_at(program, operation.right + offset);
         alpha_slot(emitter, value - body.first, 0, false);
         alpha_immediate(emitter, 1, offset * 8);
         alpha_registers(emitter, 3, 1, 249);
@@ -560,97 +549,97 @@ crashes Trap
     alpha_byte(emitter, 20);
 }
 
-machine alpha_keeps_value(kind: ScalarOperationKind) -> bool {
+machine alpha_keeps_value(kind: |scalar|::ScalarOperationKind) -> bool {
     transition kind {
-        ScalarOperationKind::IntegerConstant -> yes(),
-        ScalarOperationKind::LowBytes -> yes(),
-        ScalarOperationKind::ExactIntegerAdd -> yes(),
-        ScalarOperationKind::ExactIntegerSubtract -> yes(),
-        ScalarOperationKind::ExactIntegerMultiply -> yes(),
-        ScalarOperationKind::ExactIntegerDivide -> yes(),
-        ScalarOperationKind::ExactIntegerRemainder -> yes(),
-        ScalarOperationKind::Call -> yes(),
-        ScalarOperationKind::FrameAddress -> yes(),
-        ScalarOperationKind::AddressOffset -> yes(),
-        ScalarOperationKind::AddressIndex -> yes(),
-        ScalarOperationKind::Load -> yes(),
-        ScalarOperationKind::IntegerEqual -> yes(),
-        ScalarOperationKind::UnsignedLess -> yes(),
-        ScalarOperationKind::BooleanNot -> yes(),
+        |scalar|::ScalarOperationKind::IntegerConstant -> yes(),
+        |scalar|::ScalarOperationKind::LowBytes -> yes(),
+        |scalar|::ScalarOperationKind::ExactIntegerAdd -> yes(),
+        |scalar|::ScalarOperationKind::ExactIntegerSubtract -> yes(),
+        |scalar|::ScalarOperationKind::ExactIntegerMultiply -> yes(),
+        |scalar|::ScalarOperationKind::ExactIntegerDivide -> yes(),
+        |scalar|::ScalarOperationKind::ExactIntegerRemainder -> yes(),
+        |scalar|::ScalarOperationKind::Call -> yes(),
+        |scalar|::ScalarOperationKind::FrameAddress -> yes(),
+        |scalar|::ScalarOperationKind::AddressOffset -> yes(),
+        |scalar|::ScalarOperationKind::AddressIndex -> yes(),
+        |scalar|::ScalarOperationKind::Load -> yes(),
+        |scalar|::ScalarOperationKind::IntegerEqual -> yes(),
+        |scalar|::ScalarOperationKind::UnsignedLess -> yes(),
+        |scalar|::ScalarOperationKind::BooleanNot -> yes(),
         _ -> no()
     }
     machine yes() -> bool { true }
     machine no() -> bool { false }
 }
 
-machine alpha_operation(emitter: @mutable AlphaEmitter, program: @ScalarProgram, operation: ScalarOperation, body: ScalarMachine)
+machine alpha_operation(emitter: @mutable AlphaEmitter, program: @|scalar|::ScalarProgram, operation: |scalar|::ScalarOperation, body: |scalar|::ScalarMachine)
 crashes Trap
 {
     transition operation.kind {
-        ScalarOperationKind::IntegerConstant -> constant(emitter, operation.left),
-        ScalarOperationKind::LowBytes -> low_bytes(emitter, body, operation),
-        ScalarOperationKind::Call -> call(emitter, program, body, operation),
-        ScalarOperationKind::FrameAddress -> address(emitter, body, operation.left),
-        ScalarOperationKind::AddressOffset -> offset(emitter, body, operation),
-        ScalarOperationKind::AddressIndex -> index(emitter, body, operation),
-        ScalarOperationKind::Load -> load(emitter, body, operation),
-        ScalarOperationKind::Store -> store(emitter, body, operation),
-        ScalarOperationKind::Copy -> copy(emitter, body, operation),
-        ScalarOperationKind::Zero -> zero(emitter, body, operation),
-        ScalarOperationKind::BooleanNot -> not(emitter, body, operation),
-        ScalarOperationKind::BranchZero -> branch(emitter, body, operation, 13),
-        ScalarOperationKind::BranchNonzero -> branch(emitter, body, operation, 14),
-        ScalarOperationKind::ReturnValue -> result(emitter, body, operation.left),
-        ScalarOperationKind::ReturnUnit -> unit(emitter),
-        ScalarOperationKind::Label -> done(),
-        ScalarOperationKind::Trap -> trap(emitter),
+        |scalar|::ScalarOperationKind::IntegerConstant -> constant(emitter, operation.left),
+        |scalar|::ScalarOperationKind::LowBytes -> low_bytes(emitter, body, operation),
+        |scalar|::ScalarOperationKind::Call -> call(emitter, program, body, operation),
+        |scalar|::ScalarOperationKind::FrameAddress -> address(emitter, body, operation.left),
+        |scalar|::ScalarOperationKind::AddressOffset -> offset(emitter, body, operation),
+        |scalar|::ScalarOperationKind::AddressIndex -> index(emitter, body, operation),
+        |scalar|::ScalarOperationKind::Load -> load(emitter, body, operation),
+        |scalar|::ScalarOperationKind::Store -> store(emitter, body, operation),
+        |scalar|::ScalarOperationKind::Copy -> copy(emitter, body, operation),
+        |scalar|::ScalarOperationKind::Zero -> zero(emitter, body, operation),
+        |scalar|::ScalarOperationKind::BooleanNot -> not(emitter, body, operation),
+        |scalar|::ScalarOperationKind::BranchZero -> branch(emitter, body, operation, 13),
+        |scalar|::ScalarOperationKind::BranchNonzero -> branch(emitter, body, operation, 14),
+        |scalar|::ScalarOperationKind::ReturnValue -> result(emitter, body, operation.left),
+        |scalar|::ScalarOperationKind::ReturnUnit -> unit(emitter),
+        |scalar|::ScalarOperationKind::Label -> done(),
+        |scalar|::ScalarOperationKind::Trap -> trap(emitter),
         _ -> operands(emitter, body, operation)
     }
     machine constant(emitter: @mutable AlphaEmitter, value: u64 in Trapping) { alpha_immediate(emitter, 0, value); }
-    machine call(emitter: @mutable AlphaEmitter, program: @ScalarProgram, body: ScalarMachine, operation: ScalarOperation) { alpha_call_arguments(emitter, program, body, operation); }
-    machine address(emitter: @mutable AlphaEmitter, body: ScalarMachine, offset: u64 in Trapping) { alpha_owned_address(emitter, body, offset, 0); }
-    machine offset(emitter: @mutable AlphaEmitter, body: ScalarMachine, operation: ScalarOperation) {
+    machine call(emitter: @mutable AlphaEmitter, program: @|scalar|::ScalarProgram, body: |scalar|::ScalarMachine, operation: |scalar|::ScalarOperation) { alpha_call_arguments(emitter, program, body, operation); }
+    machine address(emitter: @mutable AlphaEmitter, body: |scalar|::ScalarMachine, offset: u64 in Trapping) { alpha_owned_address(emitter, body, offset, 0); }
+    machine offset(emitter: @mutable AlphaEmitter, body: |scalar|::ScalarMachine, operation: |scalar|::ScalarOperation) {
         alpha_slot(emitter, operation.left - body.first, 0, false);
         alpha_immediate(emitter, 1, operation.right);
         alpha_registers(emitter, 3, 0, 1);
     }
-    machine index(emitter: @mutable AlphaEmitter, body: ScalarMachine, operation: ScalarOperation) {
+    machine index(emitter: @mutable AlphaEmitter, body: |scalar|::ScalarMachine, operation: |scalar|::ScalarOperation) {
         alpha_slot(emitter, operation.left - body.first, 0, false);
         alpha_slot(emitter, operation.right - body.first, 1, false);
         alpha_immediate(emitter, 2, operation.extra);
         alpha_registers(emitter, 5, 1, 2);
         alpha_registers(emitter, 3, 0, 1);
     }
-    machine low_bytes(emitter: @mutable AlphaEmitter, body: ScalarMachine, operation: ScalarOperation) {
+    machine low_bytes(emitter: @mutable AlphaEmitter, body: |scalar|::ScalarMachine, operation: |scalar|::ScalarOperation) {
         // Alpha words are little endian. The first bytes of the source slot
         // have exactly the masked value, including when its high bit is set.
         alpha_slot_address(emitter, operation.left - body.first, 0);
         alpha_load_width(emitter, operation.extra);
     }
-    machine load(emitter: @mutable AlphaEmitter, body: ScalarMachine, operation: ScalarOperation) {
+    machine load(emitter: @mutable AlphaEmitter, body: |scalar|::ScalarMachine, operation: |scalar|::ScalarOperation) {
         alpha_slot(emitter, operation.left - body.first, 0, false);
         alpha_load_width(emitter, operation.right);
     }
-    machine store(emitter: @mutable AlphaEmitter, body: ScalarMachine, operation: ScalarOperation) {
+    machine store(emitter: @mutable AlphaEmitter, body: |scalar|::ScalarMachine, operation: |scalar|::ScalarOperation) {
         alpha_slot(emitter, operation.left - body.first, 1, false);
         alpha_slot(emitter, operation.right - body.first, 0, false);
         alpha_store_width(emitter, operation.extra);
     }
-    machine copy(emitter: @mutable AlphaEmitter, body: ScalarMachine, operation: ScalarOperation) {
+    machine copy(emitter: @mutable AlphaEmitter, body: |scalar|::ScalarMachine, operation: |scalar|::ScalarOperation) {
         alpha_slot(emitter, operation.left - body.first, 1, false);
         alpha_slot(emitter, operation.right - body.first, 0, false);
         alpha_copy_bytes(emitter, operation.extra);
     }
-    machine zero(emitter: @mutable AlphaEmitter, body: ScalarMachine, operation: ScalarOperation) {
+    machine zero(emitter: @mutable AlphaEmitter, body: |scalar|::ScalarMachine, operation: |scalar|::ScalarOperation) {
         alpha_slot(emitter, operation.left - body.first, 0, false);
         alpha_zero_bytes(emitter, operation.right);
     }
-    machine not(emitter: @mutable AlphaEmitter, body: ScalarMachine, operation: ScalarOperation) {
+    machine not(emitter: @mutable AlphaEmitter, body: |scalar|::ScalarMachine, operation: |scalar|::ScalarOperation) {
         alpha_slot(emitter, operation.left - body.first, 0, false);
         alpha_immediate(emitter, 1, 0 as u64 +Trapping);
         alpha_equal(emitter);
     }
-    machine branch(emitter: @mutable AlphaEmitter, body: ScalarMachine, operation: ScalarOperation, opcode: u8) {
+    machine branch(emitter: @mutable AlphaEmitter, body: |scalar|::ScalarMachine, operation: |scalar|::ScalarOperation, opcode: u8) {
         alpha_slot(emitter, operation.left - body.first, 0, false);
         alpha_byte(emitter, opcode);
         alpha_byte(emitter, 0);
@@ -670,7 +659,7 @@ crashes Trap
         let position: u64 = emitter.operation_labels[target as -Trapping];
         alpha_word(emitter, position);
     }
-    machine result(emitter: @mutable AlphaEmitter, body: ScalarMachine, value: u64 in Trapping) {
+    machine result(emitter: @mutable AlphaEmitter, body: |scalar|::ScalarMachine, value: u64 in Trapping) {
         alpha_slot(emitter, value - body.first, 0, false);
         alpha_return(emitter);
     }
@@ -678,17 +667,17 @@ crashes Trap
         alpha_immediate(emitter, 0, 0 as u64 +Trapping);
         alpha_return(emitter);
     }
-    machine operands(emitter: @mutable AlphaEmitter, body: ScalarMachine, operation: ScalarOperation) {
+    machine operands(emitter: @mutable AlphaEmitter, body: |scalar|::ScalarMachine, operation: |scalar|::ScalarOperation) {
         alpha_slot(emitter, operation.left - body.first, 0, false);
         alpha_slot(emitter, operation.right - body.first, 1, false);
         transition operation.kind {
-            ScalarOperationKind::ExactIntegerAdd -> binary(emitter, 3),
-            ScalarOperationKind::ExactIntegerSubtract -> binary(emitter, 4),
-            ScalarOperationKind::ExactIntegerMultiply -> binary(emitter, 5),
-            ScalarOperationKind::ExactIntegerDivide -> binary(emitter, 6),
-            ScalarOperationKind::ExactIntegerRemainder -> binary(emitter, 7),
-            ScalarOperationKind::IntegerEqual -> equal(emitter),
-            ScalarOperationKind::UnsignedLess -> less(emitter),
+            |scalar|::ScalarOperationKind::ExactIntegerAdd -> binary(emitter, 3),
+            |scalar|::ScalarOperationKind::ExactIntegerSubtract -> binary(emitter, 4),
+            |scalar|::ScalarOperationKind::ExactIntegerMultiply -> binary(emitter, 5),
+            |scalar|::ScalarOperationKind::ExactIntegerDivide -> binary(emitter, 6),
+            |scalar|::ScalarOperationKind::ExactIntegerRemainder -> binary(emitter, 7),
+            |scalar|::ScalarOperationKind::IntegerEqual -> equal(emitter),
+            |scalar|::ScalarOperationKind::UnsignedLess -> less(emitter),
             _ -> invalid()
         }
     }

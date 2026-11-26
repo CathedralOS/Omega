@@ -1,4 +1,4 @@
-use representations\source_files\SourceSpan;
+use representations/source_files/source.omg;
 
 // What checking concludes about a typed source set: its rejections, the
 // number of definedness obligations it discharged, and each machine's crash
@@ -76,7 +76,7 @@ public data CheckDiagnosticCode [copy] {
 
 public data CheckDiagnostic [copy] {
     code: CheckDiagnosticCode;
-    source_span: SourceSpan;
+    source_span: |source|::SourceSpan;
 }
 
 // A machine's crash causes. `declared` causes come from its `crashes`
@@ -142,13 +142,13 @@ public machine open_machine(checks: @mutable Checks) {
     checks.machine_accepted = true;
 }
 
-public machine checks_reject(checks: @mutable Checks, code: CheckDiagnosticCode, source_span: SourceSpan) {
+public machine checks_reject(checks: @mutable Checks, code: CheckDiagnosticCode, source_span: |source|::SourceSpan) {
     transition checks.machine_accepted {
         true -> first(checks, code, source_span),
         _ -> done()
     }
 
-    machine first(checks: @mutable Checks, code: CheckDiagnosticCode, source_span: SourceSpan) {
+    machine first(checks: @mutable Checks, code: CheckDiagnosticCode, source_span: |source|::SourceSpan) {
         checks.accepted = false;
         checks.machine_accepted = false;
         let index: u64 = checks.diagnostic_count;
@@ -158,7 +158,7 @@ public machine checks_reject(checks: @mutable Checks, code: CheckDiagnosticCode,
         }
     }
 
-    machine recorded(checks: @mutable Checks, code: CheckDiagnosticCode, source_span: SourceSpan, index: u64)
+    machine recorded(checks: @mutable Checks, code: CheckDiagnosticCode, source_span: |source|::SourceSpan, index: u64)
     requires index < 64
     {
         checks.diagnostics[index] = CheckDiagnostic { code: code, source_span: source_span };

@@ -2,8 +2,8 @@
 // evaluation retires its own required-output obligation with an authored
 // sticky failure. The check must name `sibling_bad1`, not the requester.
 
-machine build(builder: @mutable Build) {
-    Build::package(builder, "sibling_bad1");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: "sibling_bad1" };
     let obligation: RequiredOutput = BuildOutput::require(@mutable builder.output, "ghost.txt");
     BuildOutput::fail(@mutable builder.output, obligation, "bad1 staged nothing");
 }

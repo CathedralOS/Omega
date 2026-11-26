@@ -1,4 +1,4 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "native_foreign_records");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "native_foreign_records" };
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
 }

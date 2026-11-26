@@ -4,8 +4,8 @@ machine rebind<'activation>(builder: @'activation Build) {
     configuration.builder = builder;
     let observed: bool = configuration.builder.tests.disabled;
 }
-machine build(builder: @mutable Build) {
-    Build::application(builder, "builder_rebind_scope");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "builder_rebind_scope" };
     rebind(builder);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);

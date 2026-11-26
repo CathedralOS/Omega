@@ -2,8 +2,8 @@ use {omega}/build/dependency.omg;
 use {omega}/language/core/program_image.omg as image;
 use {backing}/main.omg as backing;
 
-machine build(builder: @mutable Build) suspends {
-    Build::application(builder, "provider_readiness_product_dependency");
+machine build(builder: @mutable BuildPlan) suspends {
+    builder.product = BuildProduct::Application { name: "provider_readiness_product_dependency" };
     let mutable backing_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "../provider_readiness/backing" });
     |dependency|::with_alias(@mutable backing_dependency, "backing");
     _ = Build::dependency(builder, backing_dependency);

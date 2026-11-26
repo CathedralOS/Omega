@@ -7,8 +7,8 @@
 // verdict.
 use {omega}/build/dependency.omg;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "crash_exclusion");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "crash_exclusion" };
     let assert_kit_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "assert-kit" }));
     Build::select_provider::<assert_kit\main\Assert, assert_kit\main\NoOpAssert>(builder, linux_arm64);
     Build::select_provider::<assert_kit\main\Assert, assert_kit\main\NoOpAssert>(builder, linux_x86_64);

@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "nested_record_field_borrow_bound_through_target_body_invalid");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "nested_record_field_borrow_bound_through_target_body_invalid" };
     Build::bind(builder, windows_x86_64::ProgramEntry, x86_entry);
     Build::bind(builder, linux_x86_64::ProgramEntry, x86_entry);
     Build::bind(builder, linux_arm64::ProgramEntry, arm_entry);

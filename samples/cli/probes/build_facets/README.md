@@ -11,8 +11,4 @@ Controls:
   was moved out of borrowed storage, and the place does not hold a value
   again where the machine returns the borrow". Compiler
   facets are borrow-only.
-- `invalid_workspace_root`: a root `build.omg` declaring
-  `Build::member` — "a workspace declaration does not name a Product
-  source owner". A workspace cannot be the
-  `--check` root, matching the dependency-side rejection in
-  `build_edge_cases/controls/invalid_member_in_dep`.
+- `invalid_workspace_member_catalog` returns a workspace whose member also returns a workspace. Each selected member must return a named package or application.

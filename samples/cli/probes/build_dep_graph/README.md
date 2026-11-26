@@ -13,8 +13,5 @@ Dependency-closure validation at resolution time:
   "dependency alias `kit` conflicts between occurrences 0 and 1"
   (distinct aliases on one source are legal; see
   `build_dup_product_edge`).
-- `invalid_double_application`: one build declaring `application`
-  twice rejects — "application build declares its application name 2
-  times".
 - `invalid_file_source`: a `Source::Path` naming a file rejects —
   "source root `.../main.omg` is not a directory".

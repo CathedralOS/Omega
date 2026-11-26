@@ -7,10 +7,10 @@
 use {omega}/build/dependency.omg;
 use generator;
 
-machine build(builder: @mutable Build)
+machine build(builder: @mutable BuildPlan)
 suspends
 {
-    Build::package(builder, "custody_kernel");
+    builder.product = BuildProduct::Package { name: "custody_kernel" };
     let mutable generator_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "../generator" });
     |dependency|::with_alias(@mutable generator_dependency, "generator");
     let generator_registration: DependencyRegistration = Build::build_dependency(builder, generator_dependency);
@@ -20,7 +20,7 @@ suspends
         true -> generate(builder),
         _ -> wrong()
     }
-    machine generate(builder: @mutable Build) {
+    machine generate(builder: @mutable BuildPlan) {
         let template: BuildPath = BuildSource::resolve(@builder.source, "template.txt");
         let reader: i32 = BuildSource::open(@builder.source, template, 0);
         let mutable bytes: [u8; 79];
@@ -39,14 +39,14 @@ suspends
     }
 }
 
-machine settle(builder: @mutable Build, completion: OutputCompletion) {
+machine settle(builder: @mutable BuildPlan, completion: OutputCompletion) {
     transition completion {
         OutputCompletion::Sealed { receipt } -> sealed(builder),
         OutputCompletion::Retry { obligation, file } -> failed(builder, obligation)
     }
-    machine sealed(builder: @mutable Build) {
+    machine sealed(builder: @mutable BuildPlan) {
     }
-    machine failed(builder: @mutable Build, obligation: RequiredOutput) {
+    machine failed(builder: @mutable BuildPlan, obligation: RequiredOutput) {
         BuildOutput::fail(@mutable builder.output, obligation, "generated source did not seal");
     }
 }

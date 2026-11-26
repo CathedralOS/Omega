@@ -12,7 +12,7 @@ machine configure_parameter(configuration: Configuration) {
     let mutable owned: Configuration = configuration;
     bind_configuration(@mutable owned);
 }
-machine build(builder: @mutable Build) {
-    Build::application(builder, "build_activation_borrow_parameter");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "build_activation_borrow_parameter" };
     configure_parameter(wrap(builder));
 }

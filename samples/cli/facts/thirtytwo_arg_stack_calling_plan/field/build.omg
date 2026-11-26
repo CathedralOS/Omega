@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "thirtytwo_arg_stack_calling_plan_field");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "thirtytwo_arg_stack_calling_plan_field" };
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);
     Build::bind(builder, macos_arm64::ProgramEntry, main);

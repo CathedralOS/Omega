@@ -1,7 +1,7 @@
 use {omega}/build/dependency.omg;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "transparent_alias_qualified_cases_field");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "transparent_alias_qualified_cases_field" };
     let mutable leaf_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "leaf" });
     |dependency|::with_alias(@mutable leaf_dependency, "leaf");
     let leaf_registration: DependencyRegistration = Build::dependency(builder, leaf_dependency);

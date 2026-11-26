@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "operator_requires_effects");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "operator_requires_effects" };
     Build::select_provider::<Integer::equal, CheckedEquality>(builder, linux_arm64);
     Build::select_provider::<Integer::equal, CheckedEquality>(builder, linux_x86_64);
     Build::select_provider::<Integer::equal, CheckedEquality>(builder, macos_arm64);

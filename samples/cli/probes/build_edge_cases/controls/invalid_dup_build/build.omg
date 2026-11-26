@@ -1,6 +1,6 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "invalid_dup_build");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "invalid_dup_build" };
 }
-machine build(builder: @mutable Build) {
-    Build::application(builder, "invalid_dup_build_second");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "invalid_dup_build_second" };
 }

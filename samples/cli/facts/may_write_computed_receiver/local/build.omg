@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "may_write_computed_receiver_through_local");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "may_write_computed_receiver_through_local" };
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);
     Build::bind(builder, macos_arm64::ProgramEntry, main);

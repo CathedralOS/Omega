@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "checked_asm_countdown_field");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "checked_asm_countdown_field" };
     Build::select_provider::<Countdown, X86Countdown>(builder, linux_x86_64);
     Build::select_provider::<Countdown, X86Countdown>(builder, windows_x86_64);
     Build::select_provider::<Countdown, X86Countdown>(builder, macos_x86_64);

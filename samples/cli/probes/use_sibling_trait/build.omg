@@ -1,3 +1,3 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "use_sibling_trait");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "use_sibling_trait" };
 }

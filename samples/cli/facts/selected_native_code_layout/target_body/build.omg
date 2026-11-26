@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "selected_native_code_layout_target_body");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "selected_native_code_layout_target_body" };
     Build::select_provider::<SelectedLayoutCheck, CheckedLayoutProbe>(builder, linux_x86_64);
     Build::select_provider::<SelectedLayoutCheck, CheckedLayoutProbe>(builder, linux_arm64);
     Build::select_provider::<SelectedLayoutCheck, CheckedLayoutProbe>(builder, macos_arm64);
