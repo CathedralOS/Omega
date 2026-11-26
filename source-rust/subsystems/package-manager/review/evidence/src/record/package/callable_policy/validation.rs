@@ -2,10 +2,12 @@
 
 use crate::record::validation::{ordered, ordered_by};
 use crate::record::{
-    PackagePolicyCallableRole, PackagePolicyCallables, PackageReviewCallableSupply,
-    PackageReviewCheckedServiceReach, PackageReviewNominalOwner,
+    PackagePolicyCallable, PackagePolicyCallableRole, PackagePolicyCallables,
+    PackagePolicyCrashGuard, PackagePolicyInferredCrash, PackagePolicyMachineParameterContract,
+    PackagePolicyTermination, PackagePolicyTypeParameterKind, PackageReviewCallableSupply,
+    PackageReviewCheckedServiceReach, PackageReviewCrashInterface, PackageReviewNominalOwner,
+    PackageReviewProgressSubject, PackageReviewSynchronousInvocation,
 };
-mod behavior;
 pub(in crate::record) mod signature;
 pub(in crate::record) mod signature_contracts;
 pub(in crate::record) mod signature_expressions;
@@ -108,7 +110,7 @@ impl PackagePolicyCallables {
                 return Err("checked requirement realization has no checked callable supply");
             }
             signature::validate(callable)?;
-            behavior::validate(callable)?;
+            validate(callable)?;
         }
         Ok(())
     }
@@ -120,6 +122,180 @@ pub(in crate::record) fn service_set(
     ordered(values)?;
     for value in values {
         value.validate_resolved()?;
+    }
+    Ok(())
+}
+
+// Exact authority sets and entry-rooted operational declarations for callable policy. Inferred crash summaries exist only on callables with checked bodies or portable target-family heads (`Requirement`).
+
+fn validate(callable: &PackagePolicyCallable) -> Result<(), &'static str> {
+    if let Some(ceiling) = &callable.declared_service_reach {
+        service_set(ceiling)?;
+    }
+    let dependency = &callable.service_reach_dependency;
+    service_set(&dependency.concrete)?;
+    ordered(&dependency.parameters)?;
+    for ordinal in &dependency.parameters {
+        if !matches!(
+            callable
+                .type_parameters
+                .get(*ordinal as usize)
+                .map(|parameter| &parameter.kind),
+            Some(PackagePolicyTypeParameterKind::Machine(
+                PackagePolicyMachineParameterContract::Nominal { .. }
+            ))
+        ) {
+            return Err(
+                "callable service-reach dependency does not select a nominal machine binder",
+            );
+        }
+    }
+    if let Some(ceiling) = &callable.declared_service_reach
+        && dependency
+            .concrete
+            .iter()
+            .any(|service| ceiling.binary_search(service).is_err())
+    {
+        return Err("callable service-reach dependency exceeds its conservative bound");
+    }
+    if let PackageReviewCheckedServiceReach::CheckedBody { realized, concrete } =
+        &callable.checked_service_reach
+    {
+        service_set(realized)?;
+        service_set(concrete)?;
+        if concrete
+            .iter()
+            .any(|service| realized.binary_search(service).is_err())
+        {
+            return Err("concrete callable reach lies outside its realized bound");
+        }
+    }
+    ordered(&callable.unresolved_installation_reaches)?;
+    for reach in &callable.unresolved_installation_reaches {
+        reach.requirement.validate_resolved()?;
+        service_set(&reach.upper_bound)?;
+    }
+    if let Some(ceiling) = &callable.declared_synchronous_invocations {
+        invocations(ceiling, callable.parameters.len())?;
+    }
+    invocations(
+        &callable.realized_synchronous_invocations,
+        callable.parameters.len(),
+    )?;
+    for flows in [
+        &callable.capability_flows,
+        &callable.reachable_capability_flows,
+    ] {
+        ordered_by(flows, |a, b| a.compare_canonical(b))?;
+        for flow in flows {
+            flow.capability.validate_resolved()?;
+        }
+    }
+    if callable.capability_flows.iter().any(|flow| {
+        callable
+            .reachable_capability_flows
+            .binary_search_by(|candidate| candidate.compare_canonical(flow))
+            .is_err()
+    }) {
+        return Err("reachable callable flows omit a caller-local checked fact");
+    }
+    ordered(&callable.mutation.paths)?;
+    if callable.mutation.paths.iter().any(String::is_empty) {
+        return Err("callable mutation contains an empty path");
+    }
+    if let Some(declared) = &callable.declared_termination {
+        progress(callable, declared)?;
+    }
+    progress(callable, &callable.checked_termination)?;
+    let crash = &callable.checked_crash;
+    if crash.interface == PackageReviewCrashInterface::InternalInferred
+        && (!crash.published.is_empty()
+            || callable.supply != PackageReviewCallableSupply::CheckedBody
+            || callable.role != PackagePolicyCallableRole::Build)
+    {
+        return Err("internal crash interface has a published or bodyless callable owner");
+    }
+    if let PackagePolicyInferredCrash::Complete { causes } = &crash.inferred {
+        ordered(causes)?;
+        if !matches!(
+            callable.supply,
+            PackageReviewCallableSupply::CheckedBody | PackageReviewCallableSupply::Requirement
+        ) || !crash.published.is_empty()
+        {
+            return Err("inferred callable crash summary has no checked body-only owner");
+        }
+    }
+    ordered_by(&crash.published, |a, b| a.cause.cmp(&b.cause))?;
+    for route in &crash.published {
+        ordered(&route.alternative_guards)?;
+        if route.alternative_guards.is_empty()
+            || (route.alternative_guards.len() != 1
+                && route
+                    .alternative_guards
+                    .contains(&PackagePolicyCrashGuard::Truth))
+        {
+            return Err("callable crash route has empty or redundant alternatives");
+        }
+        for guard in &route.alternative_guards {
+            if let PackagePolicyCrashGuard::Expression(expression) = guard {
+                signature::expression(expression, callable)?;
+            }
+        }
+    }
+    if let Some(requirements) = &crash.structural_runtime_requirements {
+        for requirement in requirements {
+            structural::validate(requirement, callable.parameters.len(), 0)?;
+        }
+    }
+    Ok(())
+}
+
+pub(in crate::record::package::callable_policy::validation) fn invocations(
+    values: &[PackageReviewSynchronousInvocation],
+    count: usize,
+) -> Result<(), &'static str> {
+    ordered(values)?;
+    for value in values {
+        match value {
+            PackageReviewSynchronousInvocation::Service(service) => service.validate_resolved()?,
+            PackageReviewSynchronousInvocation::Parameter(position)
+                if *position as usize >= count =>
+            {
+                return Err("callable invocation lies outside its parameter telescope");
+            }
+            PackageReviewSynchronousInvocation::Parameter(_) => {}
+        }
+    }
+    Ok(())
+}
+
+pub(in crate::record::package::callable_policy::validation) fn progress(
+    callable: &PackagePolicyCallable,
+    guarantee: &PackagePolicyTermination,
+) -> Result<(), &'static str> {
+    let PackagePolicyTermination::Terminates { premises } = guarantee else {
+        return Ok(());
+    };
+    ordered(premises)?;
+    let count = callable.parameters.len();
+    for premise in premises {
+        premise.profile.validate_resolved()?;
+        match &premise.subject {
+            PackageReviewProgressSubject::Declaration(declaration) => {
+                declaration.validate_resolved()?
+            }
+            PackageReviewProgressSubject::Parameter(position) if *position as usize >= count => {
+                return Err("callable progress subject lies outside its telescope");
+            }
+            PackageReviewProgressSubject::Parameter(_) => {}
+        }
+        for projection in &premise.projections {
+            projection.validate_resolved()?;
+        }
+        ordered(&premise.establishment_routes)?;
+        for route in &premise.establishment_routes {
+            signature::owned_pair(&route.requirement_owner, &route.requirement)?;
+        }
     }
     Ok(())
 }
