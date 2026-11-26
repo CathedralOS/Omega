@@ -47,7 +47,6 @@ public data DependencyRegistration [copy] {
 
 // An issued binding names one immutable input of this Build activation.
 public data PackageBinding [copy] {}
-// Service references are values: copying one into an array preserves its identity.
-public domain u64::ReflectedBuildService access BuildSealAccess;
-public data BoundaryServiceRef = u64 in u64::ReflectedBuildService;
+// The host recognizes only service references issued by this Build activation.
+public data BoundaryServiceRef [copy] {}
 public data PackageReach [copy] {}

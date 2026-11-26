@@ -467,7 +467,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             | Operation::BuildEntry => (0, 2),
             Operation::InputBinding => (0, 2),
             Operation::AddBinding => (0, 3),
-            Operation::ExtendReach => (1, 2),
+            Operation::ExtendReach => (0, 3),
             Operation::PathDependency => (2, 4),
             Operation::GitDependency => (3, 6),
             Operation::ConfigureTestFixture
@@ -501,23 +501,12 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             let terminal_psi::BoundaryMachineResult::Structural(result) = result else {
                 return Err(refuse("Build service set requires its opaque result"));
             };
-            let [
-                TerminalScalarValue::Integer {
-                    value: semantic_vocabulary::IntegerValue::Unsigned(id),
-                    ..
-                },
-            ] = arguments.as_slice()
-            else {
-                return Err(refuse("max_reach requires a reflected service reference"));
-            };
-            let id = u32::try_from(*id)
-                .map_err(|_| refuse("reflected service is outside its issuing program"))?;
             return self
                 .host
                 .reach
                 .extend(
                     &structural_arguments[1],
-                    terminal_psi::TerminalIdentityIndex(id),
+                    &structural_arguments[2],
                     result.structural_type,
                     self.host.account.as_ref(),
                 )

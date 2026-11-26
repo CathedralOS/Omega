@@ -512,16 +512,17 @@ fn authored_service_ceiling_uses_exact_applications_and_normalized_parents() {
     write_package(
         &root.join("library"),
         r#"machine build(builder: @mutable Build) { Build::package(builder, "library"); }"#,
-        "public machine free() {}",
+        r#"public boundary trait Telemetry {}
+public boundary trait Sensor<const Channel: u32>: Telemetry {}
+public machine free() {}"#,
     );
     write_package(
         &root,
         r#"use {omega}/build/dependency.omg as dep;
-boundary trait Telemetry {}
-boundary trait Sensor<const Channel: u32>: Telemetry {}
+use {policy}/main.omg as policy;
 machine build(builder: @mutable Build) {
     Build::package(builder, "client");
-    let app: BoundaryServiceRef = Build::service::<Sensor<17u32>>(builder);
+    let app: BoundaryServiceRef = Build::service::<|policy|::Sensor<17u32>>(builder);
     let description: DependencyDescription = |dep|::from_source(Source::Path { location: "library" });
     let services: [BoundaryServiceRef; 2] = [app, app];
     _ = |dep|::add(builder, description, @services[..]);
@@ -532,7 +533,10 @@ machine build(builder: @mutable Build) {
     let products = open_products(
         ProjectInput::WithBuildLibraries {
             file: &root.join("build.omg"),
-            libraries: &[],
+            libraries: &[BuildLibraryRequest {
+                alias: ProjectName::parse("policy").unwrap(),
+                source: BuildDependencySource::Path("library".into()),
+            }],
         },
         &[target],
         true,
@@ -559,15 +563,16 @@ fn forwarding_cannot_widen_an_incoming_empty_ceiling() {
     write_package(
         &root.join("library"),
         r#"machine build(builder: @mutable Build) { Build::package(builder, "library"); }"#,
-        "public machine free() {}",
+        "public boundary trait MotorControl {}
+public machine free() {}",
     );
     write_package(
         &root,
         r#"use {omega}/build/dependency.omg as dep;
-boundary trait MotorControl {}
+use {helper}/main.omg as helper;
 machine build(builder: @mutable Build) {
     Build::package(builder, "client");
-    let app: BoundaryServiceRef = Build::service::<MotorControl>(builder);
+    let app: BoundaryServiceRef = Build::service::<|helper|::MotorControl>(builder);
     let binding: PackageBinding = |dep|::input(builder,"helper");
     let services: [BoundaryServiceRef; 1] = [app];
     _ = |dep|::add(builder,binding,@services[..]);

@@ -16,7 +16,7 @@ public machine add(builder: @mutable Build, binding: PackageBinding) -> Dependen
 }
 
 public machine add(builder: @mutable Build, binding: PackageBinding, max_reach: @[BoundaryServiceRef]) -> DependencyRegistration reaches BuildRequestOperations {
-    BuildRequestOperations::add_binding(builder, binding, dependency::ceiling(builder, max_reach))
+    BuildRequestOperations::add_binding(builder, binding, ceiling(builder, max_reach))
 }
 
 public machine add(builder: @mutable Build, description: DependencyDescription) -> DependencyRegistration reaches BuildRequestOperations {
@@ -24,7 +24,7 @@ public machine add(builder: @mutable Build, description: DependencyDescription) 
 }
 
 public machine add(builder: @mutable Build, description: DependencyDescription, max_reach: @[BoundaryServiceRef]) -> DependencyRegistration reaches BuildRequestOperations {
-    Build::request_dependency(builder, false, description.explicit_alias, description.alias, description.source, dependency::ceiling(builder, max_reach))
+    Build::request_dependency(builder, false, description.explicit_alias, description.alias, description.source, ceiling(builder, max_reach))
 }
 
 machine ceiling(builder: @Build, services: @[BoundaryServiceRef]) -> PackageReach reaches BuildRequestOperations {

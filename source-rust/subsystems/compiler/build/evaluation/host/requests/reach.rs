@@ -6,23 +6,32 @@ use std::sync::{Arc, Mutex};
 use terminal_interpreter::{TerminalEffectRejection, TerminalStructuralValue};
 use terminal_psi::{TerminalIdentityIndex, TerminalModule};
 
+const SERVICE_BASE: u64 = 1 << 60;
 const SET_BASE: u64 = 1 << 61;
 
 /// Only performed, source-designated reflection calls issue references in this activation.
 #[derive(Default)]
 pub(crate) struct ReflectedServices {
-    issued: Mutex<BTreeMap<TerminalIdentityIndex, Option<EvaluationStorageLease>>>,
+    issued: Mutex<
+        BTreeMap<TerminalIdentityIndex, (TerminalStructuralValue, Option<EvaluationStorageLease>)>,
+    >,
 }
 impl ReflectedServices {
     pub(crate) fn issue(
         &self,
         application: TerminalIdentityIndex,
+        ty: StructuralTypeId,
         account: Option<&EvaluationInvocationAccount>,
-    ) -> Result<(), TerminalEffectRejection> {
+    ) -> Result<TerminalStructuralValue, TerminalEffectRejection> {
         let mut issued = self
             .issued
             .lock()
             .map_err(|_| TerminalEffectRejection::new("Build service reflection lock poisoned"))?;
+        let marker = TerminalStructuralValue::minted(
+            SERVICE_BASE + u64::from(application.0),
+            ty,
+            Vec::new(),
+        );
         if let std::collections::btree_map::Entry::Vacant(entry) = issued.entry(application) {
             let lease = account
                 .map(|account| account.reserve_site(0, 1, 0))
@@ -32,9 +41,9 @@ impl ReflectedServices {
                         "Build service reflection storage: {error:?}"
                     ))
                 })?;
-            entry.insert(lease);
+            entry.insert((marker.clone(), lease));
         }
-        Ok(())
+        Ok(marker)
     }
 }
 struct Service {
@@ -95,17 +104,24 @@ impl ReachSets {
     pub fn extend(
         &self,
         prior: &TerminalStructuralValue,
-        service: TerminalIdentityIndex,
+        marker: &TerminalStructuralValue,
         ty: StructuralTypeId,
         account: Option<&EvaluationInvocationAccount>,
     ) -> Result<TerminalStructuralValue, TerminalEffectRejection> {
         let refuse = TerminalEffectRejection::new;
+        let service = marker
+            .opaque_identity
+            .checked_sub(SERVICE_BASE)
+            .and_then(|offset| u32::try_from(offset).ok())
+            .map(TerminalIdentityIndex)
+            .ok_or_else(|| refuse("max_reach requires a service reference this Build issued"))?;
         let issued = self
             .reflections
             .issued
             .lock()
             .map_err(|_| refuse("Build service reflection lock poisoned"))?
-            .contains_key(&service);
+            .get(&service)
+            .is_some_and(|(issued, _)| issued == marker);
         if !issued || !self.services.contains_key(&service) {
             return Err(refuse(
                 "reflected boundary service is absent from this Build",

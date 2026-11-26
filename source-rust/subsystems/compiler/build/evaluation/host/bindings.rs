@@ -603,27 +603,19 @@ impl TerminalBuildBindingAdapter {
         ) = (&call.request, call.action, values)
         {
             let TerminalEffect::BoundaryCall {
-                result: terminal_psi::BoundaryMachineResult::Scalar(result),
+                result: terminal_psi::BoundaryMachineResult::Structural(result),
                 ..
             } = effect
             else {
-                return Err(refuse(
-                    "service reflection requires its issued scalar result",
-                ));
+                return Err(refuse("service reflection requires its opaque result"));
             };
-            let semantic_vocabulary::ScalarType::Integer(scalar_type) = result.scalar_type else {
-                return Err(refuse(
-                    "service reflection requires its exact integer carrier",
-                ));
-            };
-            self.host
-                .reflected_services
-                .issue(requirement.application, self.host.account.as_ref())?;
+            let marker = self.host.reflected_services.issue(
+                requirement.application,
+                result.structural_type,
+                self.host.account.as_ref(),
+            )?;
             state.pending[ticket] = None;
-            return Ok(TerminalEffectResult::Scalar(TerminalScalarValue::Integer {
-                scalar_type,
-                value: IntegerValue::Unsigned(u128::from(requirement.application.0)),
-            }));
+            return Ok(TerminalEffectResult::Structural(marker));
         }
         if let (
             BuildSelectionRequest::ProviderReadiness(request),
