@@ -1,4 +1,5 @@
 //! Calling a boundary keeps the law it declared before the call can use its result.
+use crate::verdict::RouteVerdict;
 use super::build_purpose::{frontier_with_core, package, roster, symbol};
 use semantic_vocabulary::{
     ContentConservation, ContentPlaceVersion, ContentTerm, Proposition, StructuralPlaceKind,
