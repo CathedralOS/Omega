@@ -85,6 +85,16 @@ fn encode_subject_to(
             &dependency.navigation,
             limits.maximum_request_bytes,
         )?;
+        if let Some(stage) = &dependency.preparation {
+            encoder.byte(1);
+            encoder.count(stage.ordinal)?;
+            encoder.bytes_bounded(
+                stage.successor.as_str().as_bytes(),
+                limits.maximum_request_bytes,
+            )?;
+        } else {
+            encoder.byte(0);
+        }
         encoder.count(dependency.ordinal)?;
         encoder.byte(dependency.purpose.canonical_tag());
         encode_dependency_request(encoder, Request::from(&dependency.request), limits)?;

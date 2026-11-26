@@ -20,7 +20,7 @@ use crate::declarations::dependencies::read::{
 use semantic_vocabulary::dependency_reach::DependencyReach;
 use target::TargetProfile;
 
-const TEXT_VERSION: usize = 6;
+const TEXT_VERSION: usize = 7;
 
 impl CanonicalSourceClosureSubject {
     pub fn canonical_text(&self, limits: Limits) -> Result<String, Error> {
@@ -88,6 +88,11 @@ impl CanonicalSourceClosureSubject {
             writer.row("catalog-dependency", &[])?;
             write_source(writer, &dependency.observer)?;
             write_navigation(writer, &dependency.navigation)?;
+            writer.number("preparing", usize::from(dependency.preparation.is_some()))?;
+            if let Some(stage) = &dependency.preparation {
+                writer.number("stage", stage.ordinal)?;
+                writer.row("successor", &[stage.successor.as_str().as_bytes()])?;
+            }
             writer.number("ordinal", dependency.ordinal)?;
             writer.row("purpose", &[dependency.purpose.name().as_bytes()])?;
             write_request(writer, Request::from(&dependency.request))?;
@@ -190,6 +195,19 @@ impl CanonicalSourceClosureSubject {
             reader.expect("catalog-dependency")?;
             let observer = read_source(reader, limits)?;
             let navigation = read_navigation(reader, limits)?;
+            reader.expect("preparing")?;
+            let preparation = if reader.number(1)? == 1 {
+                reader.expect("stage")?;
+                let ordinal = reader.number(u32::MAX as usize)?;
+                reader.expect("successor")?;
+                let successor = build_declarations::BuildEntryPath::parse(
+                    reader.string(limits.maximum_request_bytes)?,
+                )
+                .map_err(Error::new)?;
+                Some(crate::resolution::source::CatalogPreparation { ordinal, successor })
+            } else {
+                None
+            };
             reader.expect("ordinal")?;
             let ordinal = reader.number(u32::MAX as usize)?;
             let purpose = read_purpose(reader)?;
@@ -199,6 +217,7 @@ impl CanonicalSourceClosureSubject {
             catalog_dependencies.push(super::super::CanonicalCatalogDependency {
                 observer,
                 navigation,
+                preparation,
                 purpose,
                 ordinal,
                 request,

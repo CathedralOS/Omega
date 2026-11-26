@@ -1,28 +1,15 @@
 use {omega}/build/dependency.omg;
-use omega\language\core\ProgramImage;
+use {omega}/language/core/program_image.omg as image;
+use {naming}/main.omg as backing;
 
-machine build(builder: @mutable Build) suspends
-requires addr::Bound == 18446744073709551616 {
+machine build(builder: @mutable Build) {
     let mutable naming_dependency: DependencyDescription = |dependency|::from_source(Source::Git {
         repository: "https://omega-source.invalid/catalog-helper.git",
         revision: "executed-build-fixture-v1",
         selection: PackageSelection::Root
     });
     |dependency|::with_alias(@mutable naming_dependency, "naming");
-    let naming_registration: DependencyRegistration = Build::build_dependency(builder, naming_dependency);
-    suspend Build::await_provider::<ProgramImage, naming\CatalogImage>(builder);
-    let observed: addr = ProgramImage::retained_suffix_start();
-    transition observed == 64 {
-        true -> declare_member(builder),
-        _ -> wrong_helper(builder)
-    }
-    machine declare_member(builder: @mutable Build) {
-        Build::package(builder, "workspace_unselected");
-        let mutable missing_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "../never_acquired" });
-        |dependency|::with_alias(@mutable missing_dependency, "missing");
-        let missing_registration: DependencyRegistration = Build::dependency(builder, missing_dependency);
-    }
-    machine wrong_helper(builder: @mutable Build) {
-        Build::package(builder, "workspace_selected");
-    }
+    _ = |dependency|::add(builder, naming_dependency);
+    Build::select_provider::<|image|::ProgramImage, |backing|::CatalogImage>(builder, interpreter);
+    Build::build_entry(builder, "name.omg");
 }
