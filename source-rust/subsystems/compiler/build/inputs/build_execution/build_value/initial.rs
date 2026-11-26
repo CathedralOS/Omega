@@ -127,7 +127,7 @@ pub(super) fn initial_value(
         build_fields.push(("inputs".to_owned(), filesystem_scope.named_input_facet()));
     }
     BuildTimeValue::Struct {
-        type_name: "BuildPlan".to_owned(),
+        type_name: build_declarations::BUILD_TYPE_NAME.to_owned(),
         fields: build_fields,
     }
 }

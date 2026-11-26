@@ -35,7 +35,7 @@ pub(super) fn admit_toolchain_build_activation(
 ) -> Result<&DataDefinition, Vec<Diagnostic>> {
     let refused = |message: String| vec![Diagnostic::error(message)];
     let mut builds = typed.data_definitions().iter().filter(|definition| {
-        is_exact_toolchain_build_prelude_data(typed, definition.symbol, "BuildPlan")
+        is_exact_toolchain_build_prelude_data(typed, definition.symbol, build_declarations::BUILD_TYPE_NAME)
     });
     let Some(build) = builds.next() else {
         return Err(refused(
