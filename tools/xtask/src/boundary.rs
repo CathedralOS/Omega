@@ -61,7 +61,6 @@ const PACKAGE_MANAGER: &str = "source-rust/subsystems/package-manager";
 const PRODUCT_COORDINATOR: &str = "source-rust/subsystems/compiler";
 #[cfg(test)]
 const BUILD_COORDINATOR: &str = "source-rust/subsystems/compiler/build";
-#[cfg(test)]
 const CLI_APPLICATION: &str = "source-rust/application";
 const REVIEW_EVIDENCE: &str = "source-rust/subsystems/package-manager/review/evidence";
 #[cfg(test)]
