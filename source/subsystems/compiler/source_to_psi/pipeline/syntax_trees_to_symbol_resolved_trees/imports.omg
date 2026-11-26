@@ -21,15 +21,14 @@ crashes Trap
 {
     transition { _ -> selectors(resolver, sources, syntax, 0 as +Trapping) }
     machine selectors(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
-        transition index < syntax.file_selector_count && index < 65536 {
+        transition index < syntax.file_selector_count {
             true -> selection(resolver, sources, syntax, index),
             false -> done()
         }
     }
     machine selection(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping)
-    requires index < 65536
     {
-        let selector: |syntax_trees|::FileSelector = syntax.file_selectors[index as -Trapping];
+        let selector: |syntax_trees|::FileSelector = |syntax_trees|::file_selector(syntax, index);
         let item: u64 in Trapping = file_import(sources, syntax, selector.alias.source_span, syntax.use_count as +Trapping);
         transition item > 0 {
             true -> required(resolver, sources, syntax, index, item - 1),
@@ -247,7 +246,7 @@ crashes Trap
         _ -> false
     }
     machine selected(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, declared: |source|::SourceId) -> bool {
-        let row: |syntax_trees|::FileSelector = syntax.file_selectors[index as -Trapping];
+        let row: |syntax_trees|::FileSelector = |syntax_trees|::file_selector(syntax, index);
         let found: u64 in Trapping = file_import(sources, syntax, row.alias.source_span, syntax.use_count as +Trapping);
         transition found > 0 {
             true -> imported(sources, syntax, found - 1, declared),
@@ -272,7 +271,7 @@ crashes Trap
         false -> name
     }
     machine member(syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping, name: |source|::SourceSpan) -> |source|::SourceSpan {
-        let row: |syntax_trees|::FileSelector = syntax.file_selectors[index as -Trapping];
+        let row: |syntax_trees|::FileSelector = |syntax_trees|::file_selector(syntax, index);
         transition row.declaration.source_span.span.end == name.span.end {
             true -> row.declaration.source_span,
             false -> name

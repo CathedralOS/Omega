@@ -24,6 +24,7 @@ use representations/tokens/tokens.omg;
 public data Parser
 requires
     current_index <= 65535,
+    use_alias_token <= 65535,
     expression_operand_depth <= 64,
     expression_operator_depth <= 64,
     expression_frame_depth <= 32,
@@ -824,7 +825,16 @@ crashes Trap
     machine compare_alias(parser: @mutable Parser, input: @|tokens|::TokenStream, item_end: u64 in Trapping, start: u64 in Trapping, end: u64 in Trapping, index: u64 in Trapping)
     requires index < 4096
     {
-        let prior: |tokens|::Token = input.tokens[parser.alias_tokens[index as -Trapping]];
+        let prior: u64 in Trapping = parser.alias_tokens[index as -Trapping] as +Trapping;
+        transition prior < 65536 && start <= end && end <= 131072 {
+            true -> compare_spelling(parser, input, item_end, start, end, index, prior),
+            false -> bad_alias(parser, input)
+        }
+    }
+    machine compare_spelling(parser: @mutable Parser, input: @|tokens|::TokenStream, item_end: u64 in Trapping, start: u64 in Trapping, end: u64 in Trapping, index: u64 in Trapping, prior_index: u64 in Trapping)
+    requires prior_index < 65536, start <= end, end <= 131072
+    {
+        let prior: |tokens|::Token = input.tokens[prior_index as -Trapping];
         let equal: bool = |input|::decoded_spells(input, prior.decoded_start, prior.decoded_length, @input.decoded[start as -Trapping..end as -Trapping]);
         transition equal {
             true -> alias_rejection(parser, |syntax_trees|::ParseDiagnosticCode::DuplicateFileAlias),

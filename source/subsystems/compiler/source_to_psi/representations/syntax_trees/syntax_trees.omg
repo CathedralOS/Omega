@@ -1880,6 +1880,23 @@ crashes Trap
     }
 }
 
+// Read a retained selector after checking the physical table bound. The
+// search midpoint may be computed by a different machine.
+public machine file_selector(trees: @SyntaxTrees, index: u64 in Trapping) -> FileSelector
+crashes Trap
+{
+    transition index < trees.file_selector_count && index < 65536 {
+        true -> read(trees, index),
+        false -> invalid()
+    }
+    machine read(trees: @SyntaxTrees, index: u64 in Trapping) -> FileSelector
+    requires index < 65536
+    {
+        trees.file_selectors[index as -Trapping]
+    }
+    machine invalid() -> FileSelector { crash Trap; }
+}
+
 // Parser visits units and tokens in source order. Return the selector's
 // one-based handle for a path head beginning at this source coordinate.
 public machine file_selector_at(trees: @SyntaxTrees, head: |source|::SourceSpan) -> u64 in Trapping
@@ -1893,7 +1910,7 @@ crashes Trap
         }
     }
     machine candidate(trees: @SyntaxTrees, head: |source|::SourceSpan, first: u64 in Trapping, end: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
-        let row: FileSelector = trees.file_selectors[index as -Trapping];
+        let row: FileSelector = file_selector(trees, index);
         let unit: u32 in Trapping = row.alias.source_span.source.value;
         transition {
             unit == head.source.value && row.start == head.span.start -> (index + 1),
