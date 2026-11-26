@@ -18576,9 +18576,9 @@
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/demand.rs",
       "item": "impl:SourcePublication::implementation#1",
       "kind": "definition",
-      "meaning": "Methods for the SourcePublication contract in 01 source compilation.",
+      "meaning": "Publish provider demand and bindings for the checked source program and selected target. Publication validates each dependency use against its admitted service ceiling.",
       "producer": "01 source compilation",
-      "signature": "359b2223df6b8918c563aa697b5fa123db479cd6bd4c0d0c2fe34057272099c5"
+      "signature": "4a9b66a01ee20d4989afb47d51a8ce63a7cbd3f02804e164b7b06b2b3b0ac773"
     },
     {
       "consumers": [
@@ -18600,9 +18600,9 @@
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/demand.rs",
       "item": "impl:SourcePublication::method:prepare_provider_demand#1",
       "kind": "producer",
-      "meaning": "Close entry and explicitly selected source roots, source provider bodies and native declaration occurrences. Folded scalar and ABI planning consume these choices later.",
+      "meaning": "Close entry and selected provider roots, source provider bodies and native declaration occurrences. Check the reachable service operations against each imported call’s registered dependency ceiling before publishing demand to scalar and ABI planning.",
       "producer": "01 source compilation",
-      "signature": "226195d081bed04f285f2ea0d03be197720dada42f137639429ea99c3a54b120"
+      "signature": "999cae1e0807f48a7d2ef651b6b538d89d3646551ef3d1cd027ec7662543aabc"
     },
     {
       "consumers": [
