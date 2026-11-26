@@ -75,8 +75,6 @@ pub struct ProductSourceInputs<'a> {
     pub build_accounting: Option<&'a crate::compile_time_invocations::SourceCompletionAccounting>,
     pub declaration_scope: Option<Arc<declaration_scope::PackageDeclarationScope>>,
     pub build_host: semantic_vocabulary::source_selections::ProductTarget,
-    /// The generated source admitted after this Build's authored source was captured.
-    pub generated: Option<crate::SourceExtensionRequest>,
     pub targets: &'a [crate::compile_product::source_targets::SourceTarget],
     pub calling_targets: &'a [&'a str],
     pub subject: Option<semantic_vocabulary::PackageKeyIdentity>,
@@ -212,18 +210,20 @@ pub(crate) enum ProductEntry<'a> {
 
 pub(crate) fn prepare_lower_and_check(
     continuation: crate::SourceTypingCheckpoint,
-    mut inputs: ProductSourceInputs<'_>,
+    inputs: ProductSourceInputs<'_>,
     entry: ProductEntry<'_>,
     accounting: &mut crate::compile_time_invocations::SourceCompletionAccounting,
     timings: &mut crate::CompileTimings,
 ) -> Result<CompletedProductSource, Vec<Diagnostic>> {
-    let mut authored = continuation.complete_authored(timings)?;
-    let typed = authored.authored_program_mut();
+    let resolve_and_type::CompletedSource {
+        mut typed,
+        accounting: initial_source_charges,
+    } = continuation.complete(timings)?;
     let test = match entry {
         ProductEntry::RegisteredTest { root, .. } => Some(root),
         _ => None,
     };
-    let (activation, mut admitted) = inputs.policy.admit(typed, inputs.subject, test)?;
+    let (activation, mut admitted) = inputs.policy.admit(&mut typed, inputs.subject, test)?;
     // An interpreter choice has already had its source checked. Only the
     // interpreted successor prepares its body and acquires its dependencies.
     admitted.providers.retain(|choice| {
@@ -231,14 +231,7 @@ pub(crate) fn prepare_lower_and_check(
     });
     let native_supplies = inputs
         .native_bindings
-        .resolve(typed, admitted.native_bindings)?;
-    let resolve_and_type::CompletedTypedSource {
-        mut typed,
-        accounting: initial_source_charges,
-    } = match inputs.generated.take() {
-        Some(extension) => authored.extend(extension, inputs.declaration_scope.clone(), timings)?,
-        None => authored.finish(),
-    };
+        .resolve(&mut typed, admitted.native_bindings)?;
     *accounting = initial_source_charges;
     accounting
         .validate_charges()

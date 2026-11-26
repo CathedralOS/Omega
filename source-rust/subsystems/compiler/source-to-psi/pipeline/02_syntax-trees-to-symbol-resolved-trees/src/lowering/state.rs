@@ -586,14 +586,7 @@ pub(crate) fn lower_machine_signature_contracts(
                     data.name.source_span(),
                 )
         })
-        .min_by_key(|data| {
-            let declaration = data.name.source_span();
-            let reference = result_data_name.source_span();
-            (
-                declaration.source_id != reference.source_id,
-                lowerer.source_resolution_strata_separate(reference, declaration),
-            )
-        })
+        .min_by_key(|data| data.name.source_span().source_id != result_data_name.source_span().source_id)
         .ok_or_else(|| {
             Diagnostic::error(
                 "outcome-specific ensures result does not resolve to a declared data sum",

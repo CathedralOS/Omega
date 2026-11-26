@@ -20,7 +20,7 @@ use crate::source::source_imports::{
 };
 use artifacts::compile_timings::CompileTimings;
 use diagnostics::Diagnostic;
-use generated::append_dependency_build_handoffs_to_storage;
+use generated::admit_generated_files;
 use imports::{SourceRouting, load_imports, parse_admitted};
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -243,15 +243,22 @@ impl ImmutableSourceParseCheckpoint {
         for source in source_storage.sources.selected_files() {
             imports.mark_loaded(&source.path, source.dependency_scope);
         }
+        let own_files = product
+            .as_ref()
+            .map_or(&[][..], |product| product.generated);
         let generated_source_custody = match package_inputs {
-            Some(package_inputs) => append_dependency_build_handoffs_to_storage(
+            Some(package_inputs) => admit_generated_files(
                 &mut source_storage,
                 &mut imports,
                 package_inputs,
+                own_files,
                 source_scope,
                 timings,
                 catalogue,
             )?,
+            None if !own_files.is_empty() => return Err(vec![Diagnostic::error(
+                "generated-source final compilation requires package-aware source custody",
+            )]),
             None => Vec::new(),
         };
         if let Some(product) = product {
@@ -277,7 +284,11 @@ impl ImmutableSourceParseCheckpoint {
         if let Some(package_inputs) = package_inputs {
             for request in self.package_imports.iter() {
                 for resolved in request
-                    .resolve_for_exact_target(package_inputs, &mut source_storage.package_roots)
+                    .resolve_for_exact_target(
+                        package_inputs,
+                        &mut source_storage.package_roots,
+                        &source_storage.sources,
+                    )
                     .map_err(|mut diagnostics| {
                         crate::attribute_diagnostics(
                             &mut diagnostics,
@@ -292,13 +303,13 @@ impl ImmutableSourceParseCheckpoint {
                 }
             }
         }
-        load_phase!(PackageImportPhase::ExactTarget(None))?;
+        load_phase!(PackageImportPhase::FrozenView)?;
         imports::load_provider_sources(
             &mut source_storage,
             &mut imports,
             imports::SourceRouting::Compilation {
                 package_inputs,
-                phase: PackageImportPhase::ExactTarget(None),
+                phase: PackageImportPhase::FrozenView,
             },
             providers,
             timings,
@@ -323,7 +334,7 @@ impl ImmutableSourceParseCheckpoint {
                 if !added {
                     break;
                 }
-                load_phase!(PackageImportPhase::ExactTarget(None))?;
+                load_phase!(PackageImportPhase::FrozenView)?;
             }
         }
         let core_root = crate::source::source_imports::bundled_core_root()?;
@@ -346,7 +357,7 @@ impl ImmutableSourceParseCheckpoint {
                 source_provenance::DependencyScope::Product,
             );
         }
-        load_phase!(PackageImportPhase::ExactTarget(None))?;
+        load_phase!(PackageImportPhase::FrozenView)?;
         if deferred_product.is_none()
             && let Some(loaded) = source_storage.seal_product_owner(catalogue)?
         {
@@ -362,7 +373,7 @@ impl ImmutableSourceParseCheckpoint {
                     discover_package_imports(
                         &parsed,
                         inputs,
-                        PackageImportPhase::ExactTarget(None),
+                        PackageImportPhase::FrozenView,
                         &mut source_storage,
                     )?
                     .0
@@ -371,7 +382,7 @@ impl ImmutableSourceParseCheckpoint {
             };
             source_storage.attach_parsed(parsed);
             imports.enqueue(discovered)?;
-            load_phase!(PackageImportPhase::ExactTarget(None))?;
+            load_phase!(PackageImportPhase::FrozenView)?;
         }
         if let Some(original) = self.build_source {
             let file = source_storage
@@ -410,7 +421,7 @@ impl ImmutableSourceParseCheckpoint {
             &mut imports,
             SourceRouting::Compilation {
                 package_inputs,
-                phase: PackageImportPhase::ExactTarget(None),
+                phase: PackageImportPhase::FrozenView,
             },
             self.build_source,
             timings,

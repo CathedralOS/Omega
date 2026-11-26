@@ -27,7 +27,7 @@ pub mod test_support;
 
 pub use artifacts::compile_timings::CompileTimings;
 pub use driver::prepare_typed_source::SourcePreparationFailure;
-pub use driver::resolve_and_type::{SourceExtensionRequest, SourcePreparation};
+pub use driver::resolve_and_type::SourcePreparation;
 pub use source_declarations::source_selections::RootBinding;
 pub use source_declarations::source_selections::WireCompatibilityDemand;
 
