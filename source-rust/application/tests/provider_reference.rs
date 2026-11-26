@@ -369,7 +369,17 @@ machine build<'selection>(builder: @mutable Build) {
 
     // Erasing the requirement's input qualification permits ordinary records
     // in source. Native publication must still require evidence for the table.
-    let unrestricted = unissued.replace("table: @Protocol in Protocol::Initialized", "table: @Protocol");
+    let (declarations, _) = program.split_once("machine main()").unwrap();
+    let declarations = declarations.replace(
+        "table: @Protocol in Protocol::Initialized",
+        "table: @Protocol",
+    );
+    let ordinary = r"machine main() reaches Operation invokes Operation crashes none {
+    let marker: u64 = 42u64;
+    let fake: Protocol = Protocol { marker: 7u64, apply: address_of(@marker) };
+    _ = Operation::apply(25i32, @fake);
+}";
+    let unrestricted = format!("{declarations}{ordinary}");
     std::fs::write(root.join("main.omg"), unrestricted).unwrap();
     let unchecked = omega_command(&directory, &root)
         .arg("--build-dir")
