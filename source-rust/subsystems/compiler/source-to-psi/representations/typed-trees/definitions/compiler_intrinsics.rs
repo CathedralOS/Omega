@@ -224,12 +224,14 @@ fn packed_integer_header(
     let (input, input_lanes): (_, usize) = match primitive {
         PackedIntegerPrimitive::WrappingAddU8x16 => (u8_atom, 16),
         PackedIntegerPrimitive::WidenU8x8ToI16x8 => (u8_atom, 8),
+        PackedIntegerPrimitive::WidenU8x4ToI16x8 => (u8_atom, 4),
         PackedIntegerPrimitive::LoadI16x4ZeroExtend => (i16_atom, 4),
         _ => (i16_atom, 8),
     };
     let (result, result_lanes): (_, usize) = match primitive {
         PackedIntegerPrimitive::WrappingAddU8x16 => (u8_atom, 16),
         PackedIntegerPrimitive::NarrowI16x8ToU8x8Saturating => (u8_atom, 8),
+        PackedIntegerPrimitive::NarrowI16x8ToU8x4Saturating => (u8_atom, 4),
         _ => (i16_atom, 8),
     };
     if !packed_immediate_contracts(program, machine, entry) {

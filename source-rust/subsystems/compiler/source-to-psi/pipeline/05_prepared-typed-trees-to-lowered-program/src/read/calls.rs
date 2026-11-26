@@ -3135,6 +3135,14 @@ impl<'t> Program<'t> {
                     PackedIntegerUnaryOperation::NarrowI16x8ToU8x8Saturating,
                 )
             }
+            PackedIntegerPrimitive::WidenU8x4ToI16x8 => crate::body::PackedIntegerOperation::Unary(
+                PackedIntegerUnaryOperation::WidenU8x4ToI16x8,
+            ),
+            PackedIntegerPrimitive::NarrowI16x8ToU8x4Saturating => {
+                crate::body::PackedIntegerOperation::Unary(
+                    PackedIntegerUnaryOperation::NarrowI16x8ToU8x4Saturating,
+                )
+            }
             PackedIntegerPrimitive::LoadI16x4ZeroExtend => {
                 crate::body::PackedIntegerOperation::Unary(
                     PackedIntegerUnaryOperation::LoadI16x4ZeroExtend,
