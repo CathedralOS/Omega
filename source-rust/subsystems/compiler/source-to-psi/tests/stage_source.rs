@@ -495,6 +495,38 @@ fn a_generic_call_forwards_the_callers_const_service_argument() {
 }
 
 #[test]
+fn recursion_substitutes_a_forwarded_callbacks_published_reach() {
+    let package = PackageKeyIdentity::from_digest([0x7a; 32]).unwrap();
+    let source = "boundary trait Feed { machine load() -> u32 reaches Feed crashes none terminates; }
+        trait Number { machine answer() -> u32 terminates; }
+        machine seven() -> u32 satisfies Number::answer reaches none { 7u32 }
+        machine repeat<const F: Number::answer>(count: u32) -> u32 {
+            transition count > 0u32 {
+                true -> repeat::<F>(count - 1u32),
+                false -> F()
+            }
+        }
+        public machine main() -> u32 reaches none { repeat::<seven>(3u32) }";
+    let (files, root) = captured(package, source);
+    let pure = compile(product(files, root, package, &[]).unwrap(), None).unwrap();
+    let bytes = pure.to_bytes();
+    let reopened = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes).unwrap();
+    assert_eq!(reopened.to_bytes(), bytes);
+
+    let effectful = source.replace("reaches none { 7u32 }", "reaches Feed { Feed::load() }");
+    let (files, root) = captured(package, &effectful);
+    let errors = compile(product(files, root, package, &[]).unwrap(), None).unwrap_err();
+    assert!(
+        errors.iter().any(|error| {
+            error.message.contains("machine `main` reaches `none`")
+                && error.message.contains("call of `repeat`")
+                && error.message.contains("Feed")
+        }),
+        "{errors:?}"
+    );
+}
+
+#[test]
 fn a_forwarded_static_callback_keeps_its_declared_requirement() {
     let package = PackageKeyIdentity::from_digest([0x73; 32]).unwrap();
     let source = "trait Number { machine number() -> i32 terminates; }
