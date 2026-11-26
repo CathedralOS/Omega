@@ -22,6 +22,62 @@ fn write_package(root: &Path, build: &str, main: &str) {
 }
 
 #[test]
+fn workspace_members_resolve_sibling_dependencies_from_the_catalog_capture() {
+    configure();
+    let temp = TemporaryDirectory::create("workspace-sibling-custody", false).unwrap();
+    let catalog = temp.path().join("catalog");
+    let consumer = catalog.join("consumer");
+    let provider = catalog.join("provider");
+    write_package(
+        &consumer,
+        r#"use {omega}/build/dependency.omg;
+machine build(b: @mutable Build) {
+    Build::package(b, "consumer");
+    _ = Build::dependency(b, |dependency|::from_source(Source::Path { location: "../provider" }));
+}"#,
+        "public machine consume() {}",
+    );
+    write_package(
+        &provider,
+        r#"machine build(b: @mutable Build) { Build::package(b, "original"); }"#,
+        "public machine serve() {}",
+    );
+    let entry = catalog.join("build.omg");
+    fs::write(
+        &entry,
+        r#"machine build(b: @mutable Build) { Build::member(b, "consumer"); Build::member(b, "provider"); }"#,
+    )
+    .unwrap();
+    let targets = [TargetProfile::LinuxX64];
+    let out = temp.path().join("out");
+    let mut subjects =
+        package_manager::project::open_check_subjects(&entry, &targets, true, false, &out, None)
+            .unwrap();
+    // Both the provider's own subject and the consumer's authored request must keep
+    // the declaration captured before either member Build runs.
+    fs::write(provider.join("build.omg"), "invalid replacement").unwrap();
+    let first = subjects.next().unwrap();
+    assert_eq!(first.entry, consumer.join("build.omg"));
+    let products = first.products.unwrap();
+    let selected = products.select(targets[0]).unwrap();
+    let inputs = selected.package_inputs().unwrap();
+    let dependency = inputs
+        .dependency_target_for_purpose(inputs.root(), DependencyPurpose::Product, "original")
+        .unwrap();
+    assert_eq!(inputs.package_name(dependency), Some("original"));
+    products.settle_rechecks(targets[0]).unwrap();
+
+    let second = subjects.next().unwrap();
+    assert_eq!(second.entry, provider.join("build.omg"));
+    let products = second.products.unwrap();
+    let selected = products.select(targets[0]).unwrap();
+    let inputs = selected.package_inputs().unwrap();
+    assert_eq!(inputs.package_name(inputs.root()), Some("original"));
+    products.settle_rechecks(targets[0]).unwrap();
+    assert!(subjects.next().is_none());
+}
+
+#[test]
 fn build_dependencies_use_the_host_and_product_dependencies_use_the_requested_target() {
     configure();
     let temp = TemporaryDirectory::create("project-targets", false).unwrap();
@@ -162,6 +218,38 @@ public TestImage satisfies |image|::ProgramImage {
     );
 }
 
+fn open_recheck_case(
+    entry: &Path,
+    target: TargetProfile,
+    directory: &Path,
+    alongside: bool,
+) -> package_manager::project::ProjectProducts {
+    let targets = [target];
+    if alongside {
+        let mut subjects = package_manager::project::open_check_subjects(
+            entry, &targets, true, true, directory, None,
+        )
+        .unwrap();
+        let product = subjects
+            .next()
+            .expect("the named check subject")
+            .products
+            .unwrap();
+        assert!(subjects.next().is_none());
+        product
+    } else {
+        open_products(
+            ProjectInput::File(entry),
+            &targets,
+            true,
+            true,
+            directory,
+            None,
+        )
+        .unwrap()
+    }
+}
+
 /// A dependency whose Build read a constant is checked again on its Product's
 /// sources. Opened alongside that check, the consuming Product is the same one
 /// `open_products` returns once every check has finished, and the check is
@@ -221,22 +309,7 @@ machine build(builder: @mutable Build) {
             })
             .collect::<Vec<_>>()
     };
-    let open = |alongside| {
-        let open = if alongside {
-            package_manager::project::open_products_alongside_rechecks
-        } else {
-            open_products
-        };
-        open(
-            ProjectInput::File(&entry),
-            &[target],
-            true,
-            true,
-            &temp.path().join("out"),
-            None,
-        )
-        .unwrap()
-    };
+    let open = |alongside| open_recheck_case(&entry, target, &temp.path().join("out"), alongside);
     let settled = open(false);
     // `open_products` finished every recheck, so none is left to settle.
     assert!(!settled.settle_rechecks(target).unwrap().is_enabled());
@@ -304,22 +377,7 @@ machine build(builder: @mutable Build) {{
     );
     let target = TargetProfile::host_if_supported().unwrap();
     let entry = client.join("build.omg");
-    let open = |alongside| {
-        let open = if alongside {
-            package_manager::project::open_products_alongside_rechecks
-        } else {
-            open_products
-        };
-        open(
-            ProjectInput::File(&entry),
-            &[target],
-            true,
-            true,
-            &temp.path().join("out"),
-            None,
-        )
-        .unwrap()
-    };
+    let open = |alongside| open_recheck_case(&entry, target, &temp.path().join("out"), alongside);
     let validation = |products: &package_manager::project::ProjectProducts| {
         products
             .select(target)
