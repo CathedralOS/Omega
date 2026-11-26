@@ -15,8 +15,8 @@ remain open.
 The [interpreted Product CLI](../../spec/build/command_line.md#runtime-directory-mappings)
 accepts live disk mappings. [Memory backing for interpreted runs](run_memory_filesystem.md)
 is a proposal. The [Build invocation CLI](../../../OWNER_QUESTIONS.md#interpreted-cli-filesystem-inputs)
-and [virtual filesystem handoff](../../../OWNER_QUESTIONS.md#build-product-source-view-selection)
-remain open. Filesystem examples below illustrate custody requirements for a
+remains open. The [successor package and directories](../../spec/build/declarations.md#successor-package-and-directories)
+contract defines stage handoff. Filesystem examples below illustrate custody requirements for a
 future Build interface.
 
 ## A library for whom?

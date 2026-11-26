@@ -20,5 +20,4 @@ live disk continues to observe changes made by other authorized writers.
 Before adopting a memory-backed mode, decide how a caller supplies initial
 contents, bounds storage, and retains or discards writes at exit. An embedding
 caller can motivate this capability without a CLI encoding. No flag spelling
-or default is proposed here. Build-stage source selection and child backing
-remain [separate questions](../../../OWNER_QUESTIONS.md#build-product-source-view-selection).
+or default is proposed here. Build-stage handoff follows the [successor package and directories](../../spec/build/declarations.md#successor-package-and-directories) contract.

@@ -75,20 +75,8 @@ inputs and defaults should apply to the Build activation? The
 cover source capture, and the [default filesystem contract](wiki/spec/build/scoped_execution.md#inputs-and-default-filesystem)
 covers the executing Build's view. Product runtime mappings grant no Build access.
 
-<a id="build-product-source-view-selection"></a>
-### 2. How can a parent supply a virtual filesystem to a dependency or successor?
-
-A parser generator creates a private memory directory containing a Build entry,
-its imports and a data file the entry reads. How can the parent construct and
-hand off that view for source capture or for the child's runtime filesystem?
-Can it transfer the directory directly, or must it use a mount installed by
-its caller? The [generated-source contract](wiki/spec/build/execution.md#generated-source-boundary)
-defines when the compiler freezes its input. The [child filesystem contract](wiki/spec/build/scoped_execution.md#supplying-a-filesystem-to-a-child-build)
-defines backing custody and borrow duration. The public virtual-backing and
-handoff API remains open.
-
 <a id="unnamed-workspace-check-discovery"></a>
-### 3. How does an unnamed check identify its workspace among enclosing Build entries?
+### 2. How does an unnamed check identify its workspace among enclosing Build entries?
 
 `omega --check` inside a workspace selects every declared member. A member and
 its enclosing workspace can each have a `build.omg`. The workspace can compute
@@ -108,7 +96,7 @@ members. A single enclosing entry remains discoverable from a subdirectory.
 [Validation subjects](wiki/spec/build/validation_subjects.md#subjects)
 
 <a id="validation-of-incoming-build-libraries"></a>
-### 4. Can a Build request a full check of a library it received from its caller?
+### 3. Can a Build request a full check of a library it received from its caller?
 
 The board's configuration imports an already admitted layout generator. It can
 use that generator without adding it to the firmware. If the board wants every
@@ -129,7 +117,7 @@ is to give the supplying caller sole responsibility for requesting the full
 check. That choice would narrow the eligibility rule for the receiving Build.
 
 <a id="staged-restricted-request-approval"></a>
-### 5. How does a source Build receive project approval for a restricted action?
+### 4. How does a source Build receive project approval for a restricted action?
 
 A developer binds a packer with `--allow ProgramLaunch --program Packer ./packer`.
 A dependency that invokes it still needs the consuming project's approval for
