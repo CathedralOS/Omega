@@ -233,7 +233,8 @@ pub(crate) fn declare(
                         terminal_check_tables::contracts::StaticImplementation::Machine(
                             machine,
                         ) => Some((provider.boundary, machine)),
-                        terminal_check_tables::contracts::StaticImplementation::Native {
+                        terminal_check_tables::contracts::StaticImplementation::Parameter(_)
+                        | terminal_check_tables::contracts::StaticImplementation::Native {
                             ..
                         } => None,
                     }

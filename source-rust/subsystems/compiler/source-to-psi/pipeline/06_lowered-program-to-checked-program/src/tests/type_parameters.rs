@@ -1629,6 +1629,37 @@ fn an_unselected_callback_cannot_prove_an_empty_reach_ceiling() {
 }
 
 #[test]
+fn forwarding_an_open_callback_keeps_the_callers_exact_projection() {
+    use terminal_check_tables::contracts::StaticImplementation;
+    let source = "data Read = machine() -> i32 terminates;
+        machine inner<const G: Read>() -> i32 terminates { G() }
+        machine entry<const F: Read>() -> i32 terminates { inner::<F>() }";
+    let form = callback_form(source).expect("the uninstantiated wrapper must lower");
+    let verdict = judge(Ok(form.clone())).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+
+    let mut changed = form;
+    let question = changed
+        .static_conformances
+        .iter_mut()
+        .find_map(|question| {
+            if let StaticImplementation::Parameter(parameter) = &mut question.implementation {
+                Some(parameter)
+            } else {
+                None
+            }
+        })
+        .expect("the wrapper forwards the open parameter supplied by its caller");
+    question.parameter += 1;
+    let refusal = judge(Ok(changed)).unwrap_err();
+    assert_eq!(
+        refusal.reason,
+        RefusalReason::ForeignIdentity,
+        "{refusal:?}"
+    );
+}
+
+#[test]
 fn static_callback_dependencies_cannot_change_their_source_or_selection() {
     for mutation in 0..6 {
         let mut form = callback_form(CALLBACK_REACH).expect("the callback must lower");
