@@ -16,6 +16,10 @@ fn a_psi_product_can_write_only_under_its_writable_guest_directory() {
     let mapped = scratch.path().join("mapped");
     fs::create_dir(&package).unwrap();
     fs::create_dir(&mapped).unwrap();
+    let build_only = scratch.path().join("build-only");
+    let build_marker = build_only.join("work/note.txt");
+    fs::create_dir_all(build_only.join("work")).unwrap();
+    fs::write(&build_marker, b"Build input").unwrap();
     fs::write(
         package.join("build.omg"),
         fs::read_to_string(sample.join("build.omg"))
@@ -41,7 +45,9 @@ fn a_psi_product_can_write_only_under_its_writable_guest_directory() {
     let run = |mode: &str, expected: i32| {
         let output = Command::new(env!("CARGO_BIN_EXE_omega"))
             .current_dir(&package)
-            .args(["run", "--engine", "psi", mode])
+            .args(["run", "--engine", "psi", "--build-directories-readwrite"])
+            .arg(format!("{}::/journal", build_only.display()))
+            .arg(mode)
             .arg(format!("{}::/journal", mapped.display()))
             .arg("build.omg")
             .output()
@@ -57,4 +63,5 @@ fn a_psi_product_can_write_only_under_its_writable_guest_directory() {
     assert_eq!(fs::read(&marker).unwrap(), b"existing");
     run("--run-directories-readwrite", 7);
     assert!(!mapped.join("work").exists());
+    assert_eq!(fs::read(build_marker).unwrap(), b"Build input");
 }
