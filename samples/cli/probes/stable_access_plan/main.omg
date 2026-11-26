@@ -11,7 +11,7 @@ public domain Pair::Restricted access PairAccess;
 PairAccess satisfies |layout|::AccessPolicy {
     machine plan(schema: |reflect|::TypeSchema) -> |layout|::AccessPlan
     reaches none crashes none terminates {
-        let mutable plan = |access|::new_plan(@schema, |layout|::Issuance::Unrestricted);
+        let mutable plan: |layout|::AccessPlan = |access|::new_plan(@schema, |layout|::Issuance::Unrestricted);
         |access|::observe(@mutable plan, |reflect|::field(Pair::readable),
             |layout|::FieldAccess::Stable {
                 read: true, take: false, write: false, swap: false,

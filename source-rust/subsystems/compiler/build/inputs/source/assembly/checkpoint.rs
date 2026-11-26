@@ -80,8 +80,20 @@ impl ProductSourceSelection<'_> {
         storage: &mut SourceStorage,
         imports: &mut ImportQueue,
         packages: Option<&PackageCompilationInputs>,
+        default_build: bool,
     ) -> Result<(), Vec<Diagnostic>> {
         use source_provenance::DependencyScope::Product;
+        let implicit_main = default_build
+            && storage
+                .entry
+                .as_ref()
+                .is_some_and(|named| named.syntax.free_machines("main").next().is_some());
+        crate::source::source_imports::seed_entry_contracts(
+            storage,
+            imports,
+            self.bindings,
+            implicit_main,
+        )?;
         if let Some(named) = &storage.entry
             && named.selected_by(self.bindings)
         {

@@ -1650,18 +1650,7 @@
       "kind": "definition",
       "meaning": "Require the nominated source program and deployment target to match the admitted provider selection before settling entry calls.",
       "producer": "native entry planning",
-      "signature": "719023a3c1807b62c2838b81cc1f99f7a7c909601bb085b507c91450e94ed5c1"
-    },
-    {
-      "consumers": [
-        "native_compiler::prepare_published_application"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/published_application/program_entry.rs",
-      "item": "impl:PublishedNativeEntry < 'a >::method:binding_role#1",
-      "kind": "carried_record",
-      "meaning": "Read the package role of the physical entry schema.",
-      "producer": "native entry planning",
-      "signature": "77746d1b05a98a7cfc2e7d272d41474064d07c830ac439b1ec3e28e0f89c0ab1"
+      "signature": "720af4dedeae27b0be78d9fabbe2ee31f8a62c89ee80f5f609138591794951c4"
     },
     {
       "consumers": [
@@ -1692,20 +1681,9 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/published_application/program_entry.rs",
       "item": "impl:PublishedNativeEntry < 'a >::method:settle_calling_plans#1",
       "kind": "producer",
-      "meaning": "Pass the admitted nomination, executable, provider declarations, requester custody, semantic binding and package permissions to native entry policy planning.",
+      "meaning": "Pass the admitted nomination, executable, provider declarations, requester custody and package permissions to native entry policy planning.",
       "producer": "native entry planning",
-      "signature": "54fdf7bba9b87312a6518dc46bf9f7eefcad8c756ec8429cf0b3c1309e8d7340"
-    },
-    {
-      "consumers": [
-        "native_compiler::prepare_published_application"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/published_application/program_entry.rs",
-      "item": "impl:PublishedNativeEntry < 'a >::method:source_signature#1",
-      "kind": "carried_record",
-      "meaning": "Read the signature of the already checked entry.",
-      "producer": "native entry planning",
-      "signature": "42dbc208e53968d4fc9781abd253ae9d9aa5abc6e2f31f28e3a2fce326e8dc34"
+      "signature": "85a9f2c7347d9b0b0ae658d76b0fdc8faa9729e395580ea0e410aae66b2107b6"
     },
     {
       "consumers": [
@@ -1786,17 +1764,6 @@
       "meaning": "Use the declaration scope granted for this package.",
       "producer": "published native application planning",
       "signature": "b465fa2dd0207034988721c0f1308ab78917f4205ae124ffd9c504e7b6a203fa"
-    },
-    {
-      "consumers": [
-        "native entry settlement"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/published_application/program_entry.rs",
-      "item": "use:provider_acceptance :: { AcceptedSemanticBinding , AcceptedSemanticBindingRole }#1",
-      "kind": "definition",
-      "meaning": "Check the accepted entry binding and its role before settling the entry.",
-      "producer": "published native application planning",
-      "signature": "e89c01ab0696e786893365b55ed72653a2402205f6a71c1439c1607bcca31a54"
     },
     {
       "consumers": [
@@ -4073,9 +4040,9 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/program_entry/published.rs",
       "item": "function:admit_entry_schema#1",
       "kind": "checker",
-      "meaning": "Rejoin declaration custody, package role and normalized service schema.",
+      "meaning": "Require the published schema to have authenticated source custody, the matching nominal package owner and the boundary declaration designated by the target.",
       "producer": "target-bound program planning",
-      "signature": "81a7fa3c1d1443d6bc92cc3da5a12304722e28ce6f09005e92227518aa0a0836"
+      "signature": "d9398060ad67727c98a50ebe56a17ef79dceb3c063ffc9b1674478f69ebe609d"
     },
     {
       "consumers": [
@@ -4087,7 +4054,7 @@
       "kind": "producer",
       "meaning": "Admit the schema, validate both arrival requirements, evaluate the selected calling policy and bind its physical adapter.",
       "producer": "target-bound program planning",
-      "signature": "0fff9545852b8647e27a28578a116a1cb6530db54e7b202e4bd5292bd9d4ebc4"
+      "signature": "cb5836b5a20d7687643ca915b9d111c6810e55e59794aacfbcfd4a1de6962a18"
     },
     {
       "consumers": [
@@ -4255,17 +4222,6 @@
       "meaning": "Check entry selection against the package’s declaration scope and authority.",
       "producer": "published entry planning",
       "signature": "0c9fee8dfa237627b7d769cb472f7b70ab30f169dc55176dc8e6226786014087"
-    },
-    {
-      "consumers": [
-        "target-bound entry calling plans"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/program_entry/published.rs",
-      "item": "use:provider_acceptance :: AcceptedSemanticBinding#1",
-      "kind": "definition",
-      "meaning": "Read the host-accepted semantic binding for the nominated entry.",
-      "producer": "published entry planning",
-      "signature": "04da6b2605bc3cca82895c302660c60f15904c4a4d9df08117d1fc14ebbd718a"
     },
     {
       "consumers": [
@@ -15940,11 +15896,11 @@
         "saved program admission"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/src/lib.rs",
-      "item": "use:provider_acceptance :: { AcceptedSemanticBinding , AcceptedSemanticBindingRole , ServiceTerminalAuthorityPermission , program_entry_semantic_binding_role , }#1",
+      "item": "use:provider_acceptance :: { AcceptedSemanticBinding , AcceptedSemanticBindingRole , ServiceTerminalAuthorityPermission , }#1",
       "kind": "definition",
-      "meaning": "Read the host’s accepted semantic bindings, entry role and service permissions.",
+      "meaning": "Read the host’s accepted service bindings and terminal authority permissions.",
       "producer": "host provider installation",
-      "signature": "585a8fedd71eef8801d5319acb88392279c1c0cf6e0581760fb64d22e37725f0"
+      "signature": "d1d9a3e9b12918229cf21a749000ca4b027b92e769e897cd35116094b7564888"
     },
     {
       "consumers": [

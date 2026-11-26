@@ -17,9 +17,9 @@ machine main() crashes Trap {
         short: [1u32, 2u32, 3u32],
         long: [1u32, 2u32, 3u32, 4u32, 5u32],
     };
-    let total = store(@mutable both.short[..], @mutable both.long[..], 40u32);
-    let short = pick(true, @mutable both.short[..], @mutable both.long[..]);
-    let long = pick(false, @mutable both.short[..], @mutable both.long[..]);
+    let total: u64 = store(@mutable both.short[..], @mutable both.long[..], 40u32);
+    let short: u64 = pick(true, @mutable both.short[..], @mutable both.long[..]);
+    let long: u64 = pick(false, @mutable both.short[..], @mutable both.long[..]);
     transition total == 8u64 && short == 3u64 && long == 5u64
         && both.short[0u64] == 1u32 && both.short[1u64] == 40u32
         && both.short[2u64] == 3u32 && both.long[1u64] == 2u32 {

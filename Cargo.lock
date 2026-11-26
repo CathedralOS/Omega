@@ -2362,10 +2362,8 @@ dependencies = [
 name = "provider-acceptance"
 version = "0.1.0"
 dependencies = [
- "provider-plans",
  "record-storage",
  "semantic-vocabulary",
- "target",
  "terminal-psi",
 ]
 

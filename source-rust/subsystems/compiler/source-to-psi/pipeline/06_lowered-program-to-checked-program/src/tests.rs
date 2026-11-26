@@ -63,7 +63,7 @@ mod hosted_primitives;
 mod indexed_contracts;
 mod indexed_family;
 mod inferred_bounds;
-mod inferred_locals;
+mod typed_locals;
 mod law_premise;
 mod layout_queries;
 mod lifetime_elision;

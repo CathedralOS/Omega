@@ -86,7 +86,7 @@ fn a_module_path_can_end_in_a_static_member_or_generic_call() {
 #[test]
 fn value_casts_require_explicit_domain_entries() {
     for target in ["u64 in Wrapping", "u64 in Marker", "u64 in Family<true>"] {
-        let source = format!("machine m(x: u64) {{ let y = x as {target}; }}");
+        let source = format!("machine m(x: u64) {{ let y: {target} = x as {target}; }}");
         let tokens = Lexer::new(&source).tokenize().unwrap();
         let error = crate::parse_syntax_trees(&tokens).expect_err("retired value cast");
         assert!(error.message.contains("`as T in D` is retired"), "{error:?}");
@@ -94,7 +94,7 @@ fn value_casts_require_explicit_domain_entries() {
     for source in [
         "machine m(x: u64) { let y: u64 in Marker = x as +Marker; }",
         "machine m(x: u8) { let y: u64 in Wrapping = x as u64 +Wrapping; }",
-        "machine m(x: @u64) { let y = x as @u8 in Marker; }",
+        "machine m(x: @u64) { let y: @u8 in Marker = x as @u8 in Marker; }",
     ] {
         let tokens = Lexer::new(source).tokenize().unwrap();
         crate::parse_syntax_trees(&tokens).expect("distinct type, cast, and recast grammar");

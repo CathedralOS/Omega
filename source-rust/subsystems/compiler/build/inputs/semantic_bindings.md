@@ -11,10 +11,9 @@ any nominal type.
 | Console exit | Package, boundary declaration, normalized service schema and complete selected-plan digest. Only the matched declaration is classified as Process. Physical `HostedExitProcessI32` realization is a separate Linux x86-64/AArch64 and macOS AArch64 catalog entry; catalog admission does not imply instruction-selection support. |
 | `ProcessExit` exit | Package, normalized service schema and complete selected-plan digest for the canonical core `ProcessExit` boundary requirement. The toolchain's trait and requirement have no package identity; the binding fixes only the package's provider type and plan. Shares the `HostedExitProcessI32` realization. |
 | `FilesystemHostService` | Package, boundary declaration and complete schema; no plan digest or generated provider. Review may propose a reached same-named declaration and show its checked schema as inert input for writing policy. Final checking uses the exact accepted binding. |
-| Physical program entries | Package, the target's application declaration and its physical-entry schema; one role per contract package: `UefiX64ProgramEntry`, `MacosArm64ProgramEntry`, `MacosX64ProgramEntry`, `LinuxX86_64ProgramEntry`, `LinuxArm64ProgramEntry`, `WindowsX64ProgramEntry`. Each key omits the two target-computed calling-plan fields (`calling_plan_report_fingerprint` and `calling_plan_commitment`) because the target replays the semantic and physical plans itself; there is no second ABI authority. A role binds only its own contract package; other targets reject it. |
 
 The two process-exit roles bind through `new` with a selected provider plan
-digest. `FilesystemHostService`, `TimeHostService` and the six program-entry roles
+digest. `FilesystemHostService` and `TimeHostService`
 bind through `new_service`, with no plan digest or generated provider.
 
 Filesystem permissions are written against the current 50-method schema in
@@ -39,8 +38,9 @@ rejects non-core `omega::language::*` shortcuts with dependency guidance. Only t
 package overlap check; the repository's system directory may be an ordinary
 package. Standalone system/allocation provenance is temporary, until each consumer recognizes
 exact source bytes or has explicit bindings.
-Console and every physical program entry already use narrow byte-exact
-fallbacks: each target's bundled contract source is accepted beside its binding. Relabeling directory authority would not finish this migration.
+The target profile designates the installed physical entry package, exact file
+and boundary declaration. Source admission checks its captured bytes and owner.
+Native planning replays the published target contract and both calling plans.
 
 A repository, alias or bundled-library identity never acts as a binding.
 Stale, foreign, ambiguous and unmatched bindings fail before they affect

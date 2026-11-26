@@ -480,7 +480,7 @@ machine fixed_length(items: @[u8; 4], count: u64 in Trapping) -> bool {
 }
 
 #[test]
-fn inferred_local_initializers_retain_one_read_per_written_expression() {
+fn local_initializers_retain_one_read_per_written_expression() {
     use crate::source_state::expression::{ExpressionNode, MemberSelection};
     use crate::source_state::statement::StatementNode;
 
@@ -489,9 +489,9 @@ fn inferred_local_initializers_retain_one_read_per_written_expression() {
         r#"
 data Row [copy] { length: u16 in Wrapping; }
 machine position() -> u64 { 0 }
-machine field(row: @Row) -> u16 in Wrapping { let value = row.length; value }
-machine measure(items: @[u8]) -> u64 { let value = items.length; value }
-machine element(items: @[u8]) -> u8 { let value = items[position()]; value }
+machine field(row: @Row) -> u16 in Wrapping { let value: u16 in Wrapping = row.length; value }
+machine measure(items: @[u8]) -> u64 { let value: u64 = items.length; value }
+machine element(items: @[u8]) -> u8 { let value: u8 = items[position()]; value }
 "#,
     )]);
     let owners = crate::source_state::references::collect_program_operand_owners(&program);

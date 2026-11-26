@@ -254,7 +254,12 @@ impl ImmutableSourceParseCheckpoint {
             None => Vec::new(),
         };
         if let Some(product) = product {
-            product.seed(&mut source_storage, &mut imports, package_inputs)?;
+            product.seed(
+                &mut source_storage,
+                &mut imports,
+                package_inputs,
+                self.build_source.is_some_and(|build| build.is_default()),
+            )?;
         }
         macro_rules! load_phase {
             ($phase:expr) => {
@@ -290,20 +295,6 @@ impl ImmutableSourceParseCheckpoint {
             timings,
             catalogue,
         )?;
-        let seeds = if deferred_product.is_none() {
-            crate::source::source_imports::entry_contract_seeds(package_inputs, &source_storage)?
-        } else {
-            Vec::new()
-        };
-        if !seeds.is_empty() {
-            for seed in seeds {
-                imports.seed(
-                    seed.register_custody(&mut source_storage)?,
-                    source_provenance::DependencyScope::Product,
-                );
-            }
-            load_phase!(PackageImportPhase::ExactTarget(None))?;
-        }
         if deferred_product.is_none()
             && let Some(inputs) = package_inputs
         {

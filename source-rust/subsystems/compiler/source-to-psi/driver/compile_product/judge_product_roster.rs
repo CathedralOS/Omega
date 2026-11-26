@@ -241,27 +241,17 @@ pub(super) fn prepare_roster(
         nomination
             .require_owner(program)
             .map_err(|diagnostic| vec![diagnostic])?;
-        let sources = program.symbols.source_map().ok_or_else(|| {
-            vec![Diagnostic::error(
-                "selected entry contract has no source inventory",
-            )]
-        })?;
-        let file = sources.get(nomination.source()).ok_or_else(|| {
-            vec![Diagnostic::error(
-                "selected entry contract lost its exact source file",
-            )]
-        })?;
         let contract = profile.entry_contract.as_ref().ok_or_else(|| {
             vec![Diagnostic::error(
                 "selected entry has no physical contract package",
             )]
         })?;
-        let digest = source_provenance::entry_contract_digest(
-            contract.manifest_identity,
-            contract.relative_source,
-            file.source.as_bytes(),
-        );
-        entry_contracts.push((profile.name, nomination, implementation, digest));
+        entry_contracts.push((
+            profile.name,
+            nomination,
+            implementation,
+            contract.source_digest,
+        ));
     }
     let entry_inputs = entry_contracts
         .iter()

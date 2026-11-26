@@ -6,7 +6,6 @@ mod calling_plans;
 mod published;
 mod visible_parameters;
 pub use calling_plans::{ProgramEntryCallingPlanRequest, entry_calling_policy};
-pub use provider_acceptance::program_entry_semantic_binding_role;
 pub use program_entry_contracts::ProgramEntryPhysicalContractPackageSourceDigest;
 pub use published::{PublishedEntryNomination, plan_published_entry_calling_conventions};
 

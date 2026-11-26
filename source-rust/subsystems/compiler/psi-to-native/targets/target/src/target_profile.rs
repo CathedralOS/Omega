@@ -194,11 +194,8 @@ pub struct ProgramEntrySlotDeclaration {
 
 pub struct ProgramEntrySlots;
 
-impl semantic_vocabulary::ProgramEntrySourceCatalog for ProgramEntrySlots {
-    fn source_contract(
-        &self,
-        slot: &str,
-    ) -> Result<semantic_vocabulary::ProgramEntrySourceContract, String> {
+impl ProgramEntrySlots {
+    pub fn resolve(slot: &str) -> Result<ProgramEntrySlotDeclaration, String> {
         let (owner, name) = slot.rsplit_once("::").ok_or_else(|| {
             format!("root slot `{slot}` is not target-qualified; expected `target::ProgramEntry`")
         })?;
@@ -211,10 +208,18 @@ impl semantic_vocabulary::ProgramEntrySourceCatalog for ProgramEntrySlots {
                 profile.target_name()
             )
         })?;
-        let slot = required.program_entry().ok_or_else(|| {
+        required.program_entry().ok_or_else(|| {
             format!("root slot `{slot}` does not have a supported ProgramEntry signature")
-        })?;
-        Ok(slot.source_contract())
+        })
+    }
+}
+
+impl semantic_vocabulary::ProgramEntrySourceCatalog for ProgramEntrySlots {
+    fn source_contract(
+        &self,
+        slot: &str,
+    ) -> Result<semantic_vocabulary::ProgramEntrySourceContract, String> {
+        Ok(Self::resolve(slot)?.source_contract())
     }
 }
 

@@ -52,16 +52,15 @@ file-local exposure. Pulling in a module group does not import all its names.
 An authored `use` never falls back to a filename; direct source inputs the
 compiler issues are tracked separately.
 
-[Entry-contract seeds](source/source_imports/entry_contract_seed.rs) choose
-each target profile's contract source from exact package suppliers or the
-bundled fallback. Ordinary suppliers keep their identity. The fallback
-captures its root once, before source discovery, and reuses that snapshot
-across Product joins and later seeds. It keeps a distinct
-closed-contract source role, also recorded in source identities and stored
-review/provider records, and pulls in its logical Product siblings; it does
-not give core ambient visibility of system declarations. Source assembly schedules
-loading and parsing; package provenance and the choice of accepted supplier
-stay here.
+[Entry-contract seeds](source/source_imports/entry_contract_seed.rs) load each
+bound target profile's exact file from the installed target contract package into
+Product scope. Declaration queries and products with no entry use their own
+source closures. An implicit main keeps every profile available until its
+deployments are chosen. A reconciled package mounted at the installation keeps its
+identity after its complete captured tree matches the installation. Other
+builds retain a closed toolchain capture across Product joins. The installed
+source, its checked schema and its content commitment identify the entry
+through publication and native planning.
 
 [Build prelude preparation](source/source_imports/build_prelude.rs) selects
 the toolchain Build source and its scoped aliases. An authored Build in the

@@ -20,6 +20,36 @@ impl SourceFileSystem {
                 .any(|root| canonical_root.starts_with(root))
     }
 
+    /// Mount an authenticated whole directory. A previously acquired instance of
+    /// this directory must agree, including helpers, with no nested replacements.
+    pub fn mount_exact_capture(
+        &mut self,
+        root: PathBuf,
+        tree: Arc<CapturedSourceTree>,
+    ) -> io::Result<()> {
+        if self
+            .captures
+            .keys()
+            .any(|mount| mount != &root && (mount.starts_with(&root) || root.starts_with(mount)))
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("overlapping source captures at {}", root.display()),
+            ));
+        }
+        if let Some(existing) = self.captures.get(&root) {
+            return if existing == &tree {
+                Ok(())
+            } else {
+                Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!("source captures disagree at {}", root.display()),
+                ))
+            };
+        }
+        self.add_capture(root, tree)
+    }
+
     pub fn join_captures(&mut self, other: &Self) -> io::Result<()> {
         for (root, tree) in &other.captures {
             if self

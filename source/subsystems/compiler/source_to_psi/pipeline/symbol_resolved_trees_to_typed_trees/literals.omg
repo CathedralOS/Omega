@@ -62,13 +62,13 @@ crashes Trap
 public machine quoted_length(sources: @|source|::SourceSet, span: |source|::SourceSpan) -> u64 in Trapping
 crashes Trap
 {
-    let literal = |quoted_literals|::inspect_quoted(sources, span);
+    let literal: |quoted_literals|::QuotedLiteral = |quoted_literals|::inspect_quoted(sources, span);
     literal.length
 }
 
 public machine quoted_roster(sources: @|source|::SourceSet, span: |source|::SourceSpan) -> u64 in Trapping
 crashes Trap
 {
-    let literal = |quoted_literals|::inspect_quoted(sources, span);
+    let literal: |quoted_literals|::QuotedLiteral = |quoted_literals|::inspect_quoted(sources, span);
     literal.roster
 }

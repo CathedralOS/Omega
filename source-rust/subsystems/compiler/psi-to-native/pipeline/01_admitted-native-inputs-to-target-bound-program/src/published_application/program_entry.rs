@@ -6,7 +6,6 @@ use crate::program_entry::{
 use crate::{PublishedSelection, SelectedExecution};
 use declaration_scope::ProductDeclarationScope;
 use diagnostics::Diagnostic;
-use provider_acceptance::{AcceptedSemanticBinding, AcceptedSemanticBindingRole};
 use semantic_vocabulary::compiler_evaluation::DeclarationCustody;
 use std::sync::Arc;
 use terminal_codec::CanonicalTerminalArtifact;
@@ -43,23 +42,12 @@ impl<'a> PublishedNativeEntry<'a> {
         })
     }
 
-    pub fn source_signature(&self) -> &program_entry_contracts::SelectedProgramEntrySignature {
-        self.nomination.source_signature()
-    }
     pub fn schema_declaration(&self) -> terminal_psi::TerminalIdentityIndex {
         self.nomination.schema_declaration()
     }
-    pub fn binding_role(&self) -> Option<AcceptedSemanticBindingRole> {
-        self.source_signature()
-            .target_slot()
-            .physical_contract_package
-            .map(provider_acceptance::program_entry_semantic_binding_role)
-    }
-
     pub fn settle_calling_plans(
         self,
         requester: DeclarationCustody,
-        binding: Option<&AcceptedSemanticBinding>,
         permissions: Option<&ProductDeclarationScope>,
     ) -> Result<SelectedCompilerProgramEntry, Vec<Diagnostic>> {
         plan_published_entry_calling_conventions(
@@ -67,7 +55,6 @@ impl<'a> PublishedNativeEntry<'a> {
             self.artifact,
             self.providers,
             requester,
-            binding,
             permissions,
         )
     }
