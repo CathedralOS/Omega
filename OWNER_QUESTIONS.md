@@ -64,13 +64,4 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-<a id="sealed-mathematical-source-names"></a>
-### 1. How should a file name the five sealed mathematical declarations?
-
-An algebra can state commutativity with `core\Identity::<T>(add(a, b), add(b, a))`, as the proof contract specifies. The module contract rejects backslash-qualified source paths. The same conflict affects `Level`, `Type`, `Strict` and `Squash`. The resolver seeds all five identities directly. There is no declaring source file a caller can import today. The spelling matters for authors of contracts and generic proofs, including the laws in the standard numeric library.
-[File imports](wiki/spec/language/modules.md#import-scope-and-exposure) ·
-[Mathematical bindings](wiki/spec/proofs/mathematical_bindings.md#universes-and-mathematical-function-types) ·
-[Identity in contracts](wiki/spec/proofs/contracts.md#data-identity-in-facts) ·
-[Fixed declarations](source-rust/subsystems/compiler/foundation/declaration-identity/src/builtin.rs)
-
-**Recommend exposing the five fixed identities through one toolchain file.** For example, `use {omega}/language/core/foundation.omg as proof;` would make `|proof|::Identity::<T>(a, b)` and `|proof|::Type<u>` available. The import would use ordinary file-local alias lookup. Each declaration would retain its existing kernel identity and formation rules. Another option is to supply the five names directly through the language prelude and specify their lookup roles and collision rules. Which public spelling should replace the old paths?
+None currently recorded.

@@ -286,7 +286,7 @@ bodies; an inline member still declares a new machine. Evidence identity follows
 its actual type: strict proofs of the same complete proposition are irrelevant,
 relevant mathematical witnesses retain their identities even when erased, and
 callable selections retain their declaration/application and requirement-binding
-identities. Proof-relevant `core\Identity` evidence is not silently made strict;
+identities. Proof-relevant `Identity` evidence is not silently made strict;
 neither does it automatically store the machine that established it. Value
 identity, artifact dependencies and admission provenance remain separate.
 Canonicalizing equal values cannot discard the dependencies of evidence actually

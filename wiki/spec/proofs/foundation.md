@@ -56,7 +56,7 @@ Nonempty A = squash A          existence without ordinary witness extraction
 Id A x y                       proof-relevant mathematical identity
 ```
 
-The sealed core mathematical declaration `core\Identity::<T>(left, right)`
+The sealed core mathematical declaration `|proof|::Identity::<T>(left, right)`
 exposes `Id T left right` explicitly under
 [data identity in facts](contracts.md#data-identity-in-facts). Value `==` retains
 its selected comparison in all contexts. Its relation to identity requires
