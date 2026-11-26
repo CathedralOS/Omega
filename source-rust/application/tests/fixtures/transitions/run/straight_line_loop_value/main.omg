@@ -1,0 +1,25 @@
+// A loop whose body is a chain of sub-expressions, each of which the source
+// compiler gives its own block. Native code folds the chain into one block;
+// both engines must still produce the same value.
+machine mix(reps: u64) -> u64 {
+    transition { _ -> step(reps, 0, 0 as +Wrapping) }
+
+    machine step(reps: u64, k: u64, acc: u64 in Wrapping) -> u64 {
+        transition k < reps {
+            true -> add(reps, k, acc),
+            false -> (acc as -Wrapping)
+        }
+    }
+
+    machine add(reps: u64, k: u64, acc: u64 in Wrapping) -> u64 requires k < reps {
+        let kw: u64 in Wrapping = k as +Wrapping;
+        transition { _ -> step(reps, k + 1, acc + (kw ^ (acc >> 3))) }
+    }
+}
+
+machine main() crashes Trap {
+    let total: u64 = mix(1000);
+    transition total == 8968425615673229001 { true -> done(), _ -> fail() }
+}
+machine done() {}
+machine fail() crashes Trap { crash Trap; }
