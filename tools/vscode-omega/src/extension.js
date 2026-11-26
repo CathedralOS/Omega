@@ -117,31 +117,44 @@ async function importedFiles(target, packageRoot, libraryRoot) {
     return libraryRoot ? existing([vscode.Uri.joinPath(libraryRoot, target.library, target.file)]) : [];
   }
   if (!target.dependency) return existing([vscode.Uri.joinPath(packageRoot, target.file)]);
-  for (const root of await dependencyRoots(packageRoot, target.dependency)) {
+  for (const root of await dependencyRoots(packageRoot, libraryRoot, target.dependency)) {
     const files = await existing([vscode.Uri.joinPath(root, target.file)]);
     if (files.length) return files;
   }
   return [];
 }
 
-// Finds the folders a dependency named `name` may live in: the `location`
-// strings in the package's `build.omg`, the one ending in `name` first, then
-// a sibling folder called `name`.
-async function dependencyRoots(packageRoot, name) {
+// A literal Path or Bundled source lets the editor locate a dependency.
+// Computed registrations require the Build interpreter.
+async function dependencyRoots(packageRoot, libraryRoot, name) {
   if (!packageRoot) return [];
-  const roots = [];
+  let build;
   try {
-    const build = decoder.decode(await vscode.workspace.fs.readFile(vscode.Uri.joinPath(packageRoot, 'build.omg')));
-    const locations = [...build.matchAll(/\blocation\s*:\s*"([^"]+)"/g)].map((match) => match[1]);
-    const named = (location) => location.replace(/[\\/]+$/, '').split(/[\\/]/).pop() === name;
-    for (const location of [...locations.filter(named), ...locations.filter((item) => !named(item))]) {
-      roots.push(vscode.Uri.joinPath(packageRoot, location));
-    }
+    build = decoder.decode(await vscode.workspace.fs.readFile(vscode.Uri.joinPath(packageRoot, 'build.omg')));
   } catch {
-    // A package without a readable build.omg has no declared dependencies.
+    return [];
   }
-  roots.push(vscode.Uri.joinPath(packageRoot, '..', name));
-  return existing(roots);
+
+  const roots = [];
+  for (const match of build.matchAll(/\bSource::Path\s*\{\s*location\s*:\s*"([^"]+)"/g)) {
+    const location = match[1];
+    const root = vscode.Uri.joinPath(packageRoot, location);
+    let packageName = location.replace(/[\\/]+$/, '').split(/[\\/]/).pop();
+    try {
+      const source = decoder.decode(await vscode.workspace.fs.readFile(vscode.Uri.joinPath(root, 'build.omg')));
+      const declaration = /\bBuildProduct::Package\s*\{\s*name\s*:\s*"([^"]+)"/.exec(source);
+      if (declaration) packageName = declaration[1];
+    } catch {
+      // A source tree can use its directory name without an explicit package Build.
+    }
+    if (packageName === name) roots.push(root);
+  }
+  if (libraryRoot) {
+    for (const match of build.matchAll(/\bSource::Bundled\s*\{\s*name\s*:\s*"([^"]+)"/g)) {
+      if (match[1] === name) roots.push(vscode.Uri.joinPath(libraryRoot, name));
+    }
+  }
+  return roots;
 }
 
 async function existing(uris) {
