@@ -339,7 +339,7 @@ impl ProviderPlan {
             );
             rendered.push_str(&format!("\ncompletion:{:?}", method.completion));
             rendered.push_str(&format!(
-                "\nm:{}/{}/{}/{}/services:{}/invokes:{}/suspend:{}/block:{}/terminates:{}",
+                "\nm:{}/{}/{}/{}/services:{}/invokes:{}/suspend:{}/block:{}/same_stack_bytes:{}/terminates:{}",
                 method.name,
                 self.schema.identity_text(method.requirement_identity),
                 method.parameter_count,
@@ -357,6 +357,7 @@ impl ProviderPlan {
                     .join("+"),
                 method.may_suspend,
                 method.may_block,
+                method.admitted_same_stack_bytes,
                 method.terminates_guarantee,
             ));
             let mut premises = method.termination_premises.iter().collect::<Vec<_>>();

@@ -97,6 +97,9 @@ pub(crate) fn parse_structural_machine_contract<'tokens, 'source>(
     let (clauses, rest) =
         parse_signature_clauses(syntax_trees, after_nested_contracts, nested_type_parameters)?;
     validate_machine_parameter_contracts(syntax_trees, nested_type_parameters, rest)?;
+    if clauses.admitted_same_stack_bytes != 0 {
+        return Err(rest.error_here("`stack N bytes` requires a bodyless foreign boundary requirement"));
+    }
     if clauses.service_reach_is_installation_bound {
         return Err(rest.error_here(
                 "`reaches <= Bound` is installation-selected and cannot appear on a structural machine parameter",
@@ -116,6 +119,7 @@ pub(crate) fn parse_structural_machine_contract<'tokens, 'source>(
         blocks_keyword_source_spans: clauses.blocks_keyword_source_spans,
         suspends: clauses.suspends,
         blocks: clauses.blocks,
+        admitted_same_stack_bytes: 0,
         contracts: clauses.contracts,
         terminates_guarantee: clauses.terminates_guarantee,
         declares_no_crash_route: clauses.declares_no_crash_route,

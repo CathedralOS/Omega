@@ -111,6 +111,7 @@ pub(in crate::encoding::encode) fn trait_shape(
                 )?;
             }
             encode_callable_behavior_tail!(encoder, requirement, optional)?;
+            encoder.u64_field("admitted_same_stack_bytes", requirement.admitted_same_stack_bytes)?;
             encoder.field("returned_borrow_origins", |encoder| {
                 encoder.sequence(
                     &requirement.returned_borrow_origins,

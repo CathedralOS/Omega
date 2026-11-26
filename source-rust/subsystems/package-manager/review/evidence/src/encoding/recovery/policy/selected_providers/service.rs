@@ -77,6 +77,7 @@ pub(in crate::encoding::recovery) fn method(
         })?,
         may_suspend: reader.boolean()?,
         may_block: reader.boolean()?,
+        admitted_same_stack_bytes: reader.u64()?,
         terminates_guarantee: reader.boolean()?,
         termination_premises: reader.sequence(25, |reader| {
             Ok(ServiceProgressPremise {
