@@ -118,8 +118,6 @@ def compiler_source_paths(base):
         excluded = {'.git'}
         if parent == base:
             excluded.add('build')
-        if parent == base / 'tests':
-            excluded.add('fixtures')
         children[:] = [name for name in children if name not in excluded]
         paths.extend(parent / name for name in files if name.endswith('.omg'))
     return sorted(paths)
