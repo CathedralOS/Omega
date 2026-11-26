@@ -429,9 +429,9 @@ machine build_entry() { let checked: u64 = check(3); }",
 fn a_translated_endpoint_equality_preserves_the_original_bound() {
     let check = |shared_endpoint: &str| {
         judge_build(&format!(
-            "machine build_entry(a: addr, x: u64, b: addr, y: u64)
-requires embed(b) + embed(y) <= addr::Bound{shared_endpoint}
-ensures embed(a) + (embed(x) + embed(y)) <= addr::Bound
+            "machine build_entry(a: address, x: u64, b: address, y: u64)
+requires embed(b) + embed(y) <= address::Bound{shared_endpoint}
+ensures embed(a) + (embed(x) + embed(y)) <= address::Bound
 {{}}"
         ))
         .unwrap()
@@ -458,7 +458,7 @@ ensures embed(a) + (embed(x) + embed(y)) <= addr::Bound
 fn mathematical_equality_joins_the_two_proved_endpoint_orders() {
     let check = |base| {
         judge_build(&format!(
-            "data Region {{ base: addr; length: u64; }}
+            "data Region {{ base: address; length: u64; }}
 machine build_entry(a: @Region, b: @Region)
 requires a.base == 10, a.length == 16, b.base == {base}
 ensures embed(b.base) == embed(a.base) + embed(a.length)
@@ -484,7 +484,7 @@ ensures embed(b.base) == embed(a.base) + embed(a.length)
 fn a_nonpositive_displacement_preserves_a_shared_upper_endpoint() {
     let check = |guard| {
         judge_build(&format!(
-            "machine build_entry(a: addr, x: u64) -> u64
+            "machine build_entry(a: address, x: u64) -> u64
 ensures embed(a) == embed(a) + embed(result)
 {{ match x == {guard} {{ true -> x, false -> 0, }} }}"
         ))
@@ -506,8 +506,8 @@ ensures embed(a) == embed(a) + embed(result)
 fn an_integer_disjunct_can_establish_a_conditional_address_guarantee() {
     let check = |empty_base| {
         judge_build(&format!(
-            "machine build_entry(base: addr, requested: u64, length: u64) -> addr
-requires requested <= length, embed(base) + embed(length) <= addr::Bound
+            "machine build_entry(base: address, requested: u64, length: u64) -> address
+requires requested <= length, embed(base) + embed(length) <= address::Bound
 ensures requested != 0 || result == base {{
     match requested == 0 || requested == length {{
         true -> {empty_base},

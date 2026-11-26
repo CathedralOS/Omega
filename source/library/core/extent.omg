@@ -122,7 +122,7 @@ ensures
 {
     let { base as left_base, length as left_length } = left;
     let { base as right_base, length as right_length } = right;
-    let base: addr = match left_length == 0 {
+    let base: address = match left_length == 0 {
         true -> right_base,
         false -> left_base,
     };
