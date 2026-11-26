@@ -33,18 +33,22 @@ fn handwritten_product_calls_a_generated_file() {
     };
     let project =
         TemporaryDirectory::create("handwritten-import-of-generated-file", false).unwrap();
-    fs::write(
-        project.path().join("main.omg"),
-        r#"
-        use generated.omg;
-        public machine launch() crashes Trap {
-            transition |generated|::read() == 17u8 { true -> success(), _ -> failure() }
-            machine success() {}
-            machine failure() { crash Trap; }
-        }
-    "#,
-    )
-    .unwrap();
+    let main = r#"use generated.omg;
+public machine launch() crashes Trap {
+    transition |generated|::read() == 17u8 { true -> done(), false -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}"#;
+    let entry = format!(
+        r#"use main.omg as app;
+machine build(plan: @mutable BuildPlan) {{
+    plan.product = BuildProduct::Application {{ name: "frozen" }};
+    Build::bind(plan, {}::ProgramEntry, |app|::launch);
+}}"#,
+        host.target_name()
+    );
+    fs::write(project.path().join("main.omg"), main).unwrap();
+    fs::write(project.path().join("next.template"), &entry).unwrap();
     for (body, valid) in [
         ("public machine read() -> u8 { 17u8 }", true),
         (
@@ -53,27 +57,37 @@ fn handwritten_product_calls_a_generated_file() {
         ),
     ] {
         fs::write(project.path().join("asset.txt"), body).unwrap();
-        let length = body.len();
         let source = format!(
-            r#"use main.omg as app;
-            machine build(builder: @mutable Build) {{
-                Build::application(builder, "frozen");
-                let asset: BuildPath = BuildSource::resolve(@builder.source, "asset.txt");
-                let reader: i32 = BuildSource::open(@builder.source, asset, 0);
-                let mutable bytes: [u8; {length}];
-                _ = BuildSource::read(@builder.source, reader, @mutable bytes[..], {length});
-                _ = BuildSource::close(@builder.source, reader);
-                Build::include_source(builder, "generated.omg", @bytes[..]);
-                Build::bind(builder, {}::ProgramEntry, |app|::launch);
-            }}"#,
-            host.target_name()
+            r#"machine build(plan: @mutable BuildPlan) {{
+    copy::<{main_length}>(plan, "main.omg", "main.omg");
+    copy::<{asset_length}>(plan, "asset.txt", "generated.omg");
+    copy::<{entry_length}>(plan, "next.template", "next.omg");
+    let directory: BuildPath = BuildOutput::resolve(@plan.output, "");
+    plan.package_root = BuildPackageRoot::Directory {{ path: directory }};
+    plan.product = BuildProduct::InterpretedBuild {{ entry: "next.omg" }};
+}}
+
+machine copy<const N: u64>(plan: @mutable BuildPlan, source: @[u8], destination: @[u8]) {{
+    let path: BuildPath = BuildSource::resolve(@plan.source, source);
+    let reader: i32 = BuildSource::open(@plan.source, path, 0);
+    let mutable bytes: [u8; N];
+    _ = BuildSource::read(@plan.source, reader, @mutable bytes[..], N);
+    _ = BuildSource::close(@plan.source, reader);
+    let file: BuildPath = BuildOutput::resolve(@plan.output, destination);
+    let writer: i32 = BuildOutput::create(@mutable plan.output, file, 0);
+    _ = BuildOutput::write(@mutable plan.output, writer, @bytes[..]);
+    _ = BuildOutput::close(@mutable plan.output, writer);
+}}"#,
+            main_length = main.len(),
+            asset_length = body.len(),
+            entry_length = entry.len(),
         );
         fs::write(project.path().join("build.omg"), source).unwrap();
         for engine in ["psi", "native"] {
             let result = run(
                 project.path(),
                 engine,
-                &["build.omg", "main.omg", "asset.txt"],
+                &["build.omg", "main.omg", "next.template", "asset.txt"],
             );
             let report = report(&result);
             assert_eq!(result.status.success(), valid, "{engine}: {report}");
@@ -96,10 +110,13 @@ fn a_build_cannot_import_its_own_future_product_file() {
         project.path().join("build.omg"),
         r#"
         use generated.omg;
-        machine build(builder: @mutable Build) {
+        machine build(plan: @mutable BuildPlan) {
+            let file: BuildPath = BuildOutput::resolve(@plan.output, "generated.omg");
+            let writer: i32 = BuildOutput::create(@mutable plan.output, file, 0);
+            _ = BuildOutput::write(@mutable plan.output, writer, "public machine read() -> u8 { 17u8 }");
+            _ = BuildOutput::close(@mutable plan.output, writer);
             let value: u8 = |generated|::read();
-            Build::application(builder, "future");
-            Build::include_source(builder, "generated.omg", "public machine read() -> u8 { 17u8 }");
+            plan.product = BuildProduct::Package { name: "future" };
         }
     "#,
     )
