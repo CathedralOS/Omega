@@ -115,11 +115,11 @@ The guest sees the right-hand path.
 omega run --engine psi \
   --run-directories-readonly ./documents::/input \
   --run-directories-readwrite ./results::/out \
-  parser.omg -- /input/query.txt
+  parser.omg
 ```
 
-Here the last argument is a path passed to the program. The first mapping lets
-it open `/input/query.txt` and list `/input`. The second also allows creation,
+In this example the parser opens `/input/query.txt` by a path written in its
+source. The first mapping lets it read that file and list `/input`. The second also allows creation,
 modification, renaming and deletion within `/out`, subject to host permissions
 and the program's admitted operations. A run may mix mappings with different
 access modes. Program launch requires its own authority.
