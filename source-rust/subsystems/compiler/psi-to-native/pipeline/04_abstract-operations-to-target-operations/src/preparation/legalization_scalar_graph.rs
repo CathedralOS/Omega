@@ -1040,6 +1040,8 @@ pub(crate) mod aggregate_results {
                     AbstractOperation::StructuralCaseMembership { .. }
                         | abstract_operations::byte_len_or_field_read_pattern!(..)
                         | AbstractOperation::StructuralScalarFieldRead { .. }
+                        | AbstractOperation::PackedIntegerUnary { .. }
+                        | AbstractOperation::PackedIntegerBinary { .. }
                         | AbstractOperation::EstablishStructuralArray { .. }
                         | AbstractOperation::EstablishScalarArray { .. }
                         | AbstractOperation::EstablishByteSequenceConcatenation { .. }
@@ -8369,6 +8371,8 @@ pub(crate) mod nodes {
                     | AbstractOperation::EstablishAccessReference { .. }
                     | AbstractOperation::ReleaseReference { .. }
                     | AbstractOperation::DecomposeStructuralValue { .. }
+                    | AbstractOperation::PackedIntegerUnary { .. }
+                    | AbstractOperation::PackedIntegerBinary { .. }
                     | AbstractOperation::EstablishStructuralArray { .. }
                     | AbstractOperation::EstablishScalarArray { .. }
                     | AbstractOperation::EstablishCase { .. }

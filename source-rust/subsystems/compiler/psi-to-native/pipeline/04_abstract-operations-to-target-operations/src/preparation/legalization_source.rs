@@ -2436,6 +2436,12 @@ pub(crate) mod scalar_graph {
                             shape: home_layout(result, plan)?.shape(),
                         }
                     }
+                    AbstractOperation::PackedIntegerUnary { result, operation, source, .. } => LegalizedScalarInstructionKind::PackedIntegerUnary {
+                        result: result.clone(), operation: *operation, source: source.clone(),
+                    },
+                    AbstractOperation::PackedIntegerBinary { result, operation, left, right, .. } => LegalizedScalarInstructionKind::PackedIntegerBinary {
+                        result: result.clone(), operation: *operation, left: left.clone(), right: right.clone(),
+                    },
                     AbstractOperation::EstablishStructuralArray {
                         result, elements, ..
                     } => LegalizedScalarInstructionKind::EstablishStructuralArray {

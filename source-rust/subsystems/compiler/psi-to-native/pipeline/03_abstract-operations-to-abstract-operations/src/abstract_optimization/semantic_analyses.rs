@@ -358,6 +358,8 @@ pub(crate) mod effect_summaries {
             | O::StructuralScalarFieldStore { .. }
             | abstract_operations::move_or_store_structural_field_pattern!()
             | O::StructuralLeafCopy { .. }
+            | O::PackedIntegerUnary { .. }
+            | O::PackedIntegerBinary { .. }
             | O::MoveStructuralValue { .. }
             | O::DecomposeStructuralValue { .. }
             | O::TransformContent { .. }
@@ -980,6 +982,13 @@ pub(crate) mod place_access_summaries {
                     StructuralCopyPath::Case(path) => canonical_prefix(path),
                 };
                 pending.attribute(context, *source, view, AccessKind::Read);
+            }
+            O::PackedIntegerUnary { source, .. } => {
+                pending.attribute_argument(context, source, true, false);
+            }
+            O::PackedIntegerBinary { left, right, .. } => {
+                pending.attribute_argument(context, left, true, false);
+                pending.attribute_argument(context, right, true, false);
             }
             O::MoveStructuralValue { source, .. } => {
                 pending.attribute_argument(context, source, true, true);

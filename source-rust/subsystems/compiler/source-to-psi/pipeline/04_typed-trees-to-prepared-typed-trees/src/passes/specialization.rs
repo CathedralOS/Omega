@@ -737,6 +737,13 @@ fn specialize_application(
         return Ok(None);
     }
     bind(program, application, &operands);
+    if program
+        .compiler_primitive_schema(callee)
+        .map_err(|_| unserved("compiler primitive has no complete authenticated schema"))?
+        .is_some()
+    {
+        return Ok(None);
+    }
     // An argument that names a parameter of the enclosing generic machine
     // leaves the application open: it is closed in each machine generated
     // from that one, where the parameter is replaced.

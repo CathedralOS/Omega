@@ -608,6 +608,8 @@ pub fn operation_definition(operation: &AbstractOperation) -> Option<(ValueId, S
         | O::MoveStructuralValue { .. }
         | O::DecomposeStructuralValue { .. }
         | O::TransformContent { .. }
+        | O::PackedIntegerUnary { .. }
+        | O::PackedIntegerBinary { .. }
         | O::StructuralLeafCopy { .. }
         | O::StoreStructuralField { .. }
         | O::EstablishCase { .. }
@@ -793,6 +795,8 @@ fn direct_uses(operation: &AbstractOperation) -> Vec<ValueId> {
         | O::MoveStructuralValue { .. }
         | O::DecomposeStructuralValue { .. }
         | O::TransformContent { .. }
+        | O::PackedIntegerUnary { .. }
+        | O::PackedIntegerBinary { .. }
         | O::StructuralLeafCopy { .. }
         | O::StoreStructuralField { .. }
         | O::EstablishByteSequenceLiteral { .. }
@@ -925,6 +929,12 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
             places.insert(result.place);
             places.insert(source.place);
             places.extend(parents.iter().map(|parent| parent.place));
+        }
+        O::PackedIntegerUnary { source, result, .. } => {
+            places.extend([result.place, source.place]);
+        }
+        O::PackedIntegerBinary { left, right, result, .. } => {
+            places.extend([result.place, left.place, right.place]);
         }
         O::StructuralLeafCopy { source, result, .. } => {
             places.insert(*source);
@@ -1104,6 +1114,8 @@ pub fn operation_ownership(operation: &AbstractOperation) -> Vec<OwnershipEvent>
         | O::MoveStructuralValue { .. }
         | O::DecomposeStructuralValue { .. }
         | O::TransformContent { .. }
+        | O::PackedIntegerUnary { .. }
+        | O::PackedIntegerBinary { .. }
         | O::StructuralLeafCopy { .. }
         | O::StoreStructuralField { .. }
         | O::AtomicEvent { .. }

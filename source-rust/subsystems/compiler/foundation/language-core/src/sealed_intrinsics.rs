@@ -74,6 +74,7 @@ pub enum SealedIntrinsic {
 /// and contract, and each execution consumer still checks the supplied operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CompilerPrimitive {
+    PackedInteger(PackedIntegerPrimitive),
     AtomicFence,
     /// An exact pure observation of one borrowed byte sequence.
     ByteObservation(ByteSequencePredicate),
@@ -81,6 +82,48 @@ pub enum CompilerPrimitive {
     FloatSemantics,
     NaturalRanking,
     Collection(CollectionPrimitive),
+}
+
+/// Source declarations that accept shared fixed arrays and produce an owned array.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum PackedIntegerPrimitive {
+    WrappingAddI16x8,
+    WrappingSubI16x8,
+    ShuffleI16x8,
+    ShiftRightI16x8,
+    WidenU8x8ToI16x8,
+    NarrowI16x8ToU8x8Saturating,
+    LoadI16x4ZeroExtend,
+    WidenU8x4ToI16x8,
+    NarrowI16x8ToU8x4Saturating,
+}
+
+impl PackedIntegerPrimitive {
+    pub fn inputs(self) -> usize {
+        match self {
+            Self::WrappingAddI16x8 | Self::WrappingSubI16x8 | Self::ShuffleI16x8 => 2,
+            Self::ShiftRightI16x8
+            | Self::WidenU8x8ToI16x8
+            | Self::NarrowI16x8ToU8x8Saturating
+            | Self::LoadI16x4ZeroExtend
+            | Self::WidenU8x4ToI16x8
+            | Self::NarrowI16x8ToU8x4Saturating => 1,
+        }
+    }
+
+    pub fn immediates(self) -> usize {
+        match self {
+            Self::ShuffleI16x8 => 8,
+            Self::ShiftRightI16x8 => 1,
+            Self::WrappingAddI16x8
+            | Self::WrappingSubI16x8
+            | Self::WidenU8x8ToI16x8
+            | Self::NarrowI16x8ToU8x8Saturating
+            | Self::LoadI16x4ZeroExtend
+            | Self::WidenU8x4ToI16x8
+            | Self::NarrowI16x8ToU8x4Saturating => 0,
+        }
+    }
 }
 
 /// The operation supplied by one exact generic core collection declaration.
@@ -234,6 +277,78 @@ const ROWS: &[SealedIntrinsicRow] = &[
         "fence",
         BundledFile::CoreAtomic,
         SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::AtomicFence),
+    ),
+    row(
+        "packed_integer/packed_integer.omg",
+        "wrapping_add_i16x8",
+        BundledFile::CorePackedInteger,
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::PackedInteger(
+            PackedIntegerPrimitive::WrappingAddI16x8,
+        )),
+    ),
+    row(
+        "packed_integer/packed_integer.omg",
+        "wrapping_sub_i16x8",
+        BundledFile::CorePackedInteger,
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::PackedInteger(
+            PackedIntegerPrimitive::WrappingSubI16x8,
+        )),
+    ),
+    row(
+        "packed_integer/packed_integer.omg",
+        "shuffle_i16x8",
+        BundledFile::CorePackedInteger,
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::PackedInteger(
+            PackedIntegerPrimitive::ShuffleI16x8,
+        )),
+    ),
+    row(
+        "packed_integer/packed_integer.omg",
+        "shift_right_i16x8",
+        BundledFile::CorePackedInteger,
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::PackedInteger(
+            PackedIntegerPrimitive::ShiftRightI16x8,
+        )),
+    ),
+    row(
+        "packed_integer/packed_integer.omg",
+        "widen_u8x8_to_i16x8",
+        BundledFile::CorePackedInteger,
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::PackedInteger(
+            PackedIntegerPrimitive::WidenU8x8ToI16x8,
+        )),
+    ),
+    row(
+        "packed_integer/packed_integer.omg",
+        "narrow_i16x8_to_u8x8_saturating",
+        BundledFile::CorePackedInteger,
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::PackedInteger(
+            PackedIntegerPrimitive::NarrowI16x8ToU8x8Saturating,
+        )),
+    ),
+    row(
+        "packed_integer/packed_integer.omg",
+        "load_i16x4_zero_extend",
+        BundledFile::CorePackedInteger,
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::PackedInteger(
+            PackedIntegerPrimitive::LoadI16x4ZeroExtend,
+        )),
+    ),
+    row(
+        "packed_integer/packed_integer.omg",
+        "widen_u8x4_to_i16x8",
+        BundledFile::CorePackedInteger,
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::PackedInteger(
+            PackedIntegerPrimitive::WidenU8x4ToI16x8,
+        )),
+    ),
+    row(
+        "packed_integer/packed_integer.omg",
+        "narrow_i16x8_to_u8x4_saturating",
+        BundledFile::CorePackedInteger,
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::PackedInteger(
+            PackedIntegerPrimitive::NarrowI16x8ToU8x4Saturating,
+        )),
     ),
     row(
         "byte_observation/byte_observation.omg",

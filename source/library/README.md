@@ -55,6 +55,13 @@ Numeric implementation and qualification stay with the corresponding tasks in
 [TASKS.md](../../TASKS.md). An API declaration is not evidence that every operation
 executes on each host.
 
+## Fixed-width SIMD
+
+The `simd` package provides fixed-width lane values and a four-by-four transpose.
+Its loads and stores take borrows of fixed arrays. The element type and count
+determine exactly how much memory each operation accesses.
+[Fixed-width SIMD values](../../wiki/spec/language/simd.md)
+
 ## Allocation and growing collections
 
 An allocator strategy manages actual backing; a selected allocation service

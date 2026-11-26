@@ -56,6 +56,9 @@ pub(crate) fn require_catalog_signature(
         Some(SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::ByteObservation(predicate))) => {
             Some(CatalogFamily::ByteObservation(predicate))
         }
+        Some(SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::PackedInteger(operation))) => {
+            Some(CatalogFamily::PackedInteger(operation))
+        }
         _ => CatalogFamily::naming(namespace, leaf),
     };
     let sealed_source = family.is_some_and(|family| {
@@ -94,7 +97,7 @@ pub(crate) fn require_catalog_signature(
         // The exact bundled declaration proceeds through the complete
         // generic machine owner. Typed schema normalization retains every
         // binder, lifetime relation and contract before a use is served.
-        CatalogFamily::Collection(_) => {}
+        CatalogFamily::Collection(_) | CatalogFamily::PackedInteger(_) => {}
         CatalogFamily::FloatProjection => {}
         CatalogFamily::ByteObservation(_) => {
             require_exact_byte_observation_row(syntax_trees, machine, entry)?;
@@ -119,7 +122,9 @@ pub(crate) fn require_catalog_signature(
     spelling alone selects nothing.
 */
 #[derive(Clone, Copy)]
-enum CatalogFamily {    Collection(CollectionPrimitive),
+enum CatalogFamily {
+    PackedInteger(language_core::sealed_intrinsics::PackedIntegerPrimitive),
+    Collection(CollectionPrimitive),
     ByteObservation(ByteSequencePredicate),
     /* Place-free portable fence (`atomic.omg`). */
     AtomicFence,
@@ -154,6 +159,7 @@ impl CatalogFamily {
 
     fn primitive(self) -> CompilerPrimitive {
         match self {
+            Self::PackedInteger(operation) => CompilerPrimitive::PackedInteger(operation),
             Self::Collection(operation) => CompilerPrimitive::Collection(operation),
             Self::ByteObservation(predicate) => CompilerPrimitive::ByteObservation(predicate),
             Self::AtomicFence => CompilerPrimitive::AtomicFence,

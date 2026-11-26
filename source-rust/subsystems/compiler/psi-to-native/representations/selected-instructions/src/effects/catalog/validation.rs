@@ -2336,6 +2336,38 @@ pub(super) fn validate_declaration(
                 crate::MachineMemoryEffect::ReadPointerV1
             }
         }
+        MachineSemanticKind::PackedAddI16x8
+        | MachineSemanticKind::PackedSubI16x8
+        | MachineSemanticKind::PackedShuffleI16x8
+        | MachineSemanticKind::PackedShuffleGeneralI16x8 => {
+            crate::MachineMemoryEffect::PackedBinary16BytesV1
+        }
+        MachineSemanticKind::PackedShiftRightArithmeticI16x8 => {
+            crate::MachineMemoryEffect::PackedUnary16To16BytesV1
+        }
+        MachineSemanticKind::PackedWidenU8x8ToI16x8
+        | MachineSemanticKind::PackedLoadI16x4ZeroExtend => {
+            crate::MachineMemoryEffect::PackedUnary8To16BytesV1
+        }
+        MachineSemanticKind::PackedNarrowI16x8ToU8x8Saturating => {
+            crate::MachineMemoryEffect::PackedUnary16To8BytesV1
+        }
+        MachineSemanticKind::PackedWidenU8x4ToI16x8 => {
+            crate::MachineMemoryEffect::PackedUnary4To16BytesV1
+        }
+        MachineSemanticKind::PackedNarrowI16x8ToU8x4Saturating => {
+            crate::MachineMemoryEffect::PackedUnary16To4BytesV1
+        }
+        MachineSemanticKind::PackedLoad128
+        | MachineSemanticKind::PackedLoad64ZeroExtend
+        | MachineSemanticKind::PackedLoad32ZeroExtend => {
+            crate::MachineMemoryEffect::PackedVectorLoadBytesV1
+        }
+        MachineSemanticKind::PackedStore128
+        | MachineSemanticKind::PackedStore64
+        | MachineSemanticKind::PackedStore32 => {
+            crate::MachineMemoryEffect::PackedVectorStoreBytesV1
+        }
         MachineSemanticKind::CopyBytes => crate::MachineMemoryEffect::CopyBytesV1,
         MachineSemanticKind::ZeroBytes => crate::MachineMemoryEffect::ZeroBytesV1,
         MachineSemanticKind::ScanByteSequence => crate::MachineMemoryEffect::ScanByteSequenceV1,
@@ -2401,7 +2433,23 @@ pub(super) fn validate_declaration(
         MachineSemanticKind::HostedExitProcessI32 => HostedExitReturnedV1,
         MachineSemanticKind::HostedReadByte => crate::MachineTrapBehavior::HostedReadFailureV1,
         MachineSemanticKind::HostedWriteByteI32 => crate::MachineTrapBehavior::HostedWriteFailureV1,
-        MachineSemanticKind::CopyBytes
+        MachineSemanticKind::PackedAddI16x8
+        | MachineSemanticKind::PackedSubI16x8
+        | MachineSemanticKind::PackedShuffleI16x8
+        | MachineSemanticKind::PackedShuffleGeneralI16x8
+        | MachineSemanticKind::PackedShiftRightArithmeticI16x8
+        | MachineSemanticKind::PackedWidenU8x8ToI16x8
+        | MachineSemanticKind::PackedNarrowI16x8ToU8x8Saturating
+        | MachineSemanticKind::PackedLoadI16x4ZeroExtend
+        | MachineSemanticKind::PackedWidenU8x4ToI16x8
+        | MachineSemanticKind::PackedNarrowI16x8ToU8x4Saturating
+        | MachineSemanticKind::PackedLoad128
+        | MachineSemanticKind::PackedStore128
+        | MachineSemanticKind::PackedLoad64ZeroExtend
+        | MachineSemanticKind::PackedStore64
+        | MachineSemanticKind::PackedLoad32ZeroExtend
+        | MachineSemanticKind::PackedStore32
+        | MachineSemanticKind::CopyBytes
         | MachineSemanticKind::ZeroBytes
         | MachineSemanticKind::ScanByteSequence
         | MachineSemanticKind::LoadEncodedScalar
@@ -2741,6 +2789,127 @@ fn validate_encoded_effects(
     if !implicit_uses_match {
         return Err(());
     }
+    if matches!(
+        declaration.semantic,
+        MachineSemanticKind::PackedAddI16x8
+            | MachineSemanticKind::PackedSubI16x8
+            | MachineSemanticKind::PackedShuffleI16x8
+            | MachineSemanticKind::PackedShuffleGeneralI16x8
+    ) && (declaration.memory != crate::MachineMemoryEffect::PackedBinary16BytesV1
+        || !matches!(
+            encoded.memory,
+            MachineEncodedMemoryEffect::PackedBinary16BytesV1 { .. }
+        )
+        || declaration.call != crate::MachineCallEffect::NoneV1
+        || !constraint.implicit_uses.is_empty()
+        || !constraint.implicit_defs.is_empty()
+        || constraint.clobbers.is_empty())
+    {
+        return Err(());
+    }
+    let expected_unary_memory = match declaration.semantic {
+        MachineSemanticKind::PackedShiftRightArithmeticI16x8 => {
+            Some(crate::MachineMemoryEffect::PackedUnary16To16BytesV1)
+        }
+        MachineSemanticKind::PackedWidenU8x8ToI16x8
+        | MachineSemanticKind::PackedLoadI16x4ZeroExtend => {
+            Some(crate::MachineMemoryEffect::PackedUnary8To16BytesV1)
+        }
+        MachineSemanticKind::PackedNarrowI16x8ToU8x8Saturating => {
+            Some(crate::MachineMemoryEffect::PackedUnary16To8BytesV1)
+        }
+        MachineSemanticKind::PackedWidenU8x4ToI16x8 => {
+            Some(crate::MachineMemoryEffect::PackedUnary4To16BytesV1)
+        }
+        MachineSemanticKind::PackedNarrowI16x8ToU8x4Saturating => {
+            Some(crate::MachineMemoryEffect::PackedUnary16To4BytesV1)
+        }
+        _ => None,
+    };
+    if let Some(expected_memory) = expected_unary_memory {
+        let encoded_matches = matches!(
+            (declaration.semantic, encoded.memory),
+            (
+                MachineSemanticKind::PackedShiftRightArithmeticI16x8,
+                MachineEncodedMemoryEffect::PackedUnary16To16BytesV1 { .. },
+            ) | (
+                MachineSemanticKind::PackedWidenU8x8ToI16x8
+                    | MachineSemanticKind::PackedLoadI16x4ZeroExtend,
+                MachineEncodedMemoryEffect::PackedUnary8To16BytesV1 { .. },
+            ) | (
+                MachineSemanticKind::PackedNarrowI16x8ToU8x8Saturating,
+                MachineEncodedMemoryEffect::PackedUnary16To8BytesV1 { .. },
+            ) | (
+                MachineSemanticKind::PackedWidenU8x4ToI16x8,
+                MachineEncodedMemoryEffect::PackedUnary4To16BytesV1 { .. },
+            ) | (
+                MachineSemanticKind::PackedNarrowI16x8ToU8x4Saturating,
+                MachineEncodedMemoryEffect::PackedUnary16To4BytesV1 { .. },
+            )
+        );
+        if declaration.memory != expected_memory
+            || !encoded_matches
+            || declaration.call != crate::MachineCallEffect::NoneV1
+            || !constraint.implicit_uses.is_empty()
+            || !constraint.implicit_defs.is_empty()
+            || constraint.clobbers.is_empty()
+        {
+            return Err(());
+        }
+    }
+    let expected_vec_mem = match declaration.semantic {
+        MachineSemanticKind::PackedLoad128 => Some((
+            crate::MachineMemoryEffect::PackedVectorLoadBytesV1,
+            true,
+            16_u16,
+        )),
+        MachineSemanticKind::PackedLoad64ZeroExtend => {
+            Some((crate::MachineMemoryEffect::PackedVectorLoadBytesV1, true, 8))
+        }
+        MachineSemanticKind::PackedLoad32ZeroExtend => {
+            Some((crate::MachineMemoryEffect::PackedVectorLoadBytesV1, true, 4))
+        }
+        MachineSemanticKind::PackedStore128 => Some((
+            crate::MachineMemoryEffect::PackedVectorStoreBytesV1,
+            false,
+            16,
+        )),
+        MachineSemanticKind::PackedStore64 => Some((
+            crate::MachineMemoryEffect::PackedVectorStoreBytesV1,
+            false,
+            8,
+        )),
+        MachineSemanticKind::PackedStore32 => Some((
+            crate::MachineMemoryEffect::PackedVectorStoreBytesV1,
+            false,
+            4,
+        )),
+        _ => None,
+    };
+    if let Some((expected_memory, is_load, expected_bytes)) = expected_vec_mem {
+        let encoded_matches = if is_load {
+            matches!(
+                encoded.memory,
+                MachineEncodedMemoryEffect::PackedVectorLoadBytesV1 { byte_count, .. }
+                    if byte_count == expected_bytes
+            )
+        } else {
+            matches!(
+                encoded.memory,
+                MachineEncodedMemoryEffect::PackedVectorStoreBytesV1 { byte_count, .. }
+                    if byte_count == expected_bytes
+            )
+        };
+        if declaration.memory != expected_memory
+            || !encoded_matches
+            || declaration.call != crate::MachineCallEffect::NoneV1
+            || !constraint.implicit_uses.is_empty()
+            || !constraint.implicit_defs.is_empty()
+            || !constraint.clobbers.is_empty()
+        {
+            return Err(());
+        }
+    }
     if declaration.semantic == MachineSemanticKind::CopyBytes
         && (declaration.memory != crate::MachineMemoryEffect::CopyBytesV1
             || !matches!(
@@ -3072,6 +3241,168 @@ fn validate_encoded_effects(
             && encoded.external_operand_writes.is_empty()
             && constraint.operands.len() == 1
             && constraint.operands[0].access == RegisterOperandAccess::Use
+            && implicit_roster_matches(encoded, constraint) => {}
+        (
+            MachineEncodedMemoryEffect::PackedBinary16BytesV1 {
+                left_pointer_operand: 0,
+                right_pointer_operand: 1,
+                destination_pointer_operand: 2,
+            },
+            MachineEncodedStackEffect::UnchangedV1,
+            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+        ) if matches!(
+            declaration.semantic,
+            MachineSemanticKind::PackedAddI16x8
+                | MachineSemanticKind::PackedSubI16x8
+                | MachineSemanticKind::PackedShuffleI16x8
+        ) && declaration.memory == crate::MachineMemoryEffect::PackedBinary16BytesV1
+            && declaration.trap == MayArchitecturalFaultV1
+            && encoded.control == MachineEncodedControlEffect::FallThroughV1
+            && encoded.external_operand_reads == [0, 1, 2]
+            && encoded.external_operand_writes.is_empty()
+            && positional_roster(constraint, 3, 3)
+            && implicit_roster_matches(encoded, constraint) => {}
+        (
+            MachineEncodedMemoryEffect::PackedBinary16BytesV1 {
+                left_pointer_operand: 0,
+                right_pointer_operand: 1,
+                destination_pointer_operand: 2,
+            },
+            MachineEncodedStackEffect::UnchangedV1,
+            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+        ) if declaration.semantic == MachineSemanticKind::PackedShuffleGeneralI16x8
+            && declaration.memory == crate::MachineMemoryEffect::PackedBinary16BytesV1
+            && declaration.trap == MayArchitecturalFaultV1
+            && encoded.control == MachineEncodedControlEffect::FallThroughV1
+            && encoded.external_operand_reads == [0, 1, 2]
+            && encoded.external_operand_writes == [3]
+            && positional_roster(constraint, 3, 4)
+            && implicit_roster_matches(encoded, constraint) => {}
+        (
+            MachineEncodedMemoryEffect::PackedUnary16To16BytesV1 {
+                source_pointer_operand: 0,
+                destination_pointer_operand: 1,
+            },
+            MachineEncodedStackEffect::UnchangedV1,
+            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+        ) if declaration.semantic == MachineSemanticKind::PackedShiftRightArithmeticI16x8
+            && declaration.memory == crate::MachineMemoryEffect::PackedUnary16To16BytesV1
+            && declaration.trap == MayArchitecturalFaultV1
+            && encoded.control == MachineEncodedControlEffect::FallThroughV1
+            && encoded.external_operand_reads == [0, 1]
+            && encoded.external_operand_writes.is_empty()
+            && positional_roster(constraint, 2, 2)
+            && implicit_roster_matches(encoded, constraint) => {}
+        (
+            MachineEncodedMemoryEffect::PackedUnary8To16BytesV1 {
+                source_pointer_operand: 0,
+                destination_pointer_operand: 1,
+            },
+            MachineEncodedStackEffect::UnchangedV1,
+            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+        ) if matches!(
+            declaration.semantic,
+            MachineSemanticKind::PackedWidenU8x8ToI16x8
+                | MachineSemanticKind::PackedLoadI16x4ZeroExtend
+        ) && declaration.memory == crate::MachineMemoryEffect::PackedUnary8To16BytesV1
+            && declaration.trap == MayArchitecturalFaultV1
+            && encoded.control == MachineEncodedControlEffect::FallThroughV1
+            && encoded.external_operand_reads == [0, 1]
+            && encoded.external_operand_writes.is_empty()
+            && positional_roster(constraint, 2, 2)
+            && implicit_roster_matches(encoded, constraint) => {}
+        (
+            MachineEncodedMemoryEffect::PackedUnary16To8BytesV1 {
+                source_pointer_operand: 0,
+                destination_pointer_operand: 1,
+            },
+            MachineEncodedStackEffect::UnchangedV1,
+            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+        ) if declaration.semantic == MachineSemanticKind::PackedNarrowI16x8ToU8x8Saturating
+            && declaration.memory == crate::MachineMemoryEffect::PackedUnary16To8BytesV1
+            && declaration.trap == MayArchitecturalFaultV1
+            && encoded.control == MachineEncodedControlEffect::FallThroughV1
+            && encoded.external_operand_reads == [0, 1]
+            && encoded.external_operand_writes.is_empty()
+            && positional_roster(constraint, 2, 2)
+            && implicit_roster_matches(encoded, constraint) => {}
+        (
+            MachineEncodedMemoryEffect::PackedUnary4To16BytesV1 {
+                source_pointer_operand: 0,
+                destination_pointer_operand: 1,
+            },
+            MachineEncodedStackEffect::UnchangedV1,
+            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+        ) if declaration.semantic == MachineSemanticKind::PackedWidenU8x4ToI16x8
+            && declaration.memory == crate::MachineMemoryEffect::PackedUnary4To16BytesV1
+            && declaration.trap == MayArchitecturalFaultV1
+            && encoded.control == MachineEncodedControlEffect::FallThroughV1
+            && encoded.external_operand_reads == [0, 1]
+            && encoded.external_operand_writes.is_empty()
+            && positional_roster(constraint, 2, 2)
+            && implicit_roster_matches(encoded, constraint) => {}
+        (
+            MachineEncodedMemoryEffect::PackedUnary16To4BytesV1 {
+                source_pointer_operand: 0,
+                destination_pointer_operand: 1,
+            },
+            MachineEncodedStackEffect::UnchangedV1,
+            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+        ) if declaration.semantic == MachineSemanticKind::PackedNarrowI16x8ToU8x4Saturating
+            && declaration.memory == crate::MachineMemoryEffect::PackedUnary16To4BytesV1
+            && declaration.trap == MayArchitecturalFaultV1
+            && encoded.control == MachineEncodedControlEffect::FallThroughV1
+            && encoded.external_operand_reads == [0, 1]
+            && encoded.external_operand_writes.is_empty()
+            && positional_roster(constraint, 2, 2)
+            && implicit_roster_matches(encoded, constraint) => {}
+        (
+            MachineEncodedMemoryEffect::PackedVectorLoadBytesV1 {
+                pointer_operand: 0,
+                byte_count,
+            },
+            MachineEncodedStackEffect::UnchangedV1,
+            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+        ) if matches!(
+            (declaration.semantic, byte_count),
+            (MachineSemanticKind::PackedLoad128, 16)
+                | (MachineSemanticKind::PackedLoad64ZeroExtend, 8)
+                | (MachineSemanticKind::PackedLoad32ZeroExtend, 4)
+        ) && declaration.memory == crate::MachineMemoryEffect::PackedVectorLoadBytesV1
+            && declaration.trap == MayArchitecturalFaultV1
+            && encoded.control == MachineEncodedControlEffect::FallThroughV1
+            && encoded.external_operand_reads == [0]
+            && encoded.external_operand_writes == [1]
+            && constraint.operands.len() == 2
+            && constraint.operands[0].operand == 0
+            && constraint.operands[0].access == register_model::RegisterOperandAccess::Use
+            && constraint.operands[0].fixed_view.is_none()
+            && constraint.operands[0].tied_to.is_none()
+            && !constraint.operands[0].early_clobber
+            && constraint.operands[1].operand == 1
+            && constraint.operands[1].access == register_model::RegisterOperandAccess::Def
+            && constraint.operands[1].fixed_view.is_none()
+            && constraint.operands[1].tied_to.is_none()
+            && !constraint.operands[1].early_clobber
+            && implicit_roster_matches(encoded, constraint) => {}
+        (
+            MachineEncodedMemoryEffect::PackedVectorStoreBytesV1 {
+                pointer_operand: 0,
+                byte_count,
+            },
+            MachineEncodedStackEffect::UnchangedV1,
+            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+        ) if matches!(
+            (declaration.semantic, byte_count),
+            (MachineSemanticKind::PackedStore128, 16)
+                | (MachineSemanticKind::PackedStore64, 8)
+                | (MachineSemanticKind::PackedStore32, 4)
+        ) && declaration.memory == crate::MachineMemoryEffect::PackedVectorStoreBytesV1
+            && declaration.trap == MayArchitecturalFaultV1
+            && encoded.control == MachineEncodedControlEffect::FallThroughV1
+            && encoded.external_operand_reads == [0, 1]
+            && encoded.external_operand_writes.is_empty()
+            && positional_roster(constraint, 2, 2)
             && implicit_roster_matches(encoded, constraint) => {}
         (
             MachineEncodedMemoryEffect::CopyBytesV1 {

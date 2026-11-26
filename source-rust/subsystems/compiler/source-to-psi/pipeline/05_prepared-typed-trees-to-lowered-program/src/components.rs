@@ -694,7 +694,7 @@ fn expression<'body>(value: &'body Expression, terminal: bool, sites: &mut BodyW
             }
             expression(place, false, sites);
         }
-        ExpressionKind::Array { elements } => {
+        ExpressionKind::PackedInteger { operands: elements, .. } | ExpressionKind::Array { elements } => {
             for element in elements {
                 expression(element, false, sites);
             }

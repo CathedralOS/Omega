@@ -1251,6 +1251,12 @@ impl AtomicOperation {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PackedIntegerOperation {
+    Unary(semantic_vocabulary::PackedIntegerUnaryOperation),
+    Binary(semantic_vocabulary::PackedIntegerBinaryOperation),
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum ExpressionKind {
     /// Operand indices refer to the event's source evaluation order.
@@ -1301,6 +1307,10 @@ pub enum ExpressionKind {
     CollectionMeasure {
         base: Box<Expression>,
         measure: crate::source_state::expression::CollectionMeasure,
+    },
+    PackedInteger {
+        operation: PackedIntegerOperation,
+        operands: Vec<Expression>,
     },
     /// Observe the current bytes through the already formed shared loan.
     /// The Boolean result is tied to that exact view, not its whole backing.

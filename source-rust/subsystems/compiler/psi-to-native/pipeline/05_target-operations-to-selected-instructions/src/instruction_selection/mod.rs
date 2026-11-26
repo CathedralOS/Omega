@@ -17,13 +17,15 @@ mod selection;
 mod selection_access_lifecycles;
 mod selection_call_abi;
 mod selection_edge_transfers;
+mod selection_inlining;
 mod selection_inputs;
 mod selection_interrupts;
 mod selection_scalar_graph;
 mod selection_structural;
+mod selection_vector_promotion;
 mod selection_views_and_bytes;
 
 #[cfg(test)]
 use legalized_operations::structural_inputs::structural_reference_input::reference_formation_geometry;
-pub(crate) use selection::{SelectedInstructionError, select_bound_instructions};
 pub use selection::ValidatedSelectedInstructions;
+pub(crate) use selection::{SelectedInstructionError, select_bound_instructions};

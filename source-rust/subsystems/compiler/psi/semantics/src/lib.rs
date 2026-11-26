@@ -220,6 +220,7 @@ pub use scalars::proof_bearing_scalar::{
     trapping_integer_semantics, validate_proof_bearing_scalar_semantic_rows,
 };
 pub use scalars::scalar_array::{
+    PackedArrayRole, packed_integer_array_type, packed_integer_unary_array_type,
     scalar_array_leaf_declaration, scalar_array_leaf_path, scalar_array_leaf_shape,
 };
 pub use scalars::scalar_field_requirements::{

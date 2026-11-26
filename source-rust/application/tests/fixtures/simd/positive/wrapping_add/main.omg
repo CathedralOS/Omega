@@ -1,0 +1,22 @@
+use simd\Lanes;
+use simd\add_i16x8_wrapping;
+use simd\load_i16x8;
+use simd\store_i16x8;
+
+machine main() crashes Trap {
+    let left: [i16; 8] = [32767i16, -32768i16, 1i16, 2i16, -3i16, 4i16, 5i16, -6i16];
+    let right: [i16; 8] = [1i16, -1i16, 10i16, -10i16, 3i16, 0i16, -4i16, 2i16];
+    let a: Lanes<i16, 8> = load_i16x8(@left);
+    let b: Lanes<i16, 8> = load_i16x8(@right);
+    let sum: Lanes<i16, 8> = add_i16x8_wrapping(@a, @b);
+    let second: Lanes<i16, 8> = add_i16x8_wrapping(@sum, @a);
+    let mutable out: [i16; 8];
+    store_i16x8(@mutable out, @second);
+    transition out[0] == -1i16 && out[1] == -1i16 && out[2] == 12i16 && out[3] == -6i16 &&
+               out[4] == -3i16 && out[5] == 8i16 && out[6] == 6i16 && out[7] == -10i16 {
+        true -> done(),
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

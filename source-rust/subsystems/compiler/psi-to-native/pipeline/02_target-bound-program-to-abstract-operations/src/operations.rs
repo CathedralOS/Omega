@@ -1292,6 +1292,37 @@ mod machine {
                             subject: subject.clone(),
                         })
                     }
+                    OperationKind::PackedIntegerUnary { operation: unary, source } => {
+                        let result = operation.result.structural().ok_or(
+                            LoweringError::InvalidOwnedValueTransfer {
+                                machine: machine.id,
+                                operation: operation.id,
+                                reason: "packed integer unary operation requires a structural result",
+                            },
+                        )?;
+                        Ok(AbstractOperation::PackedIntegerUnary {
+                            psi_operation: operation.id,
+                            result: result.clone(),
+                            operation: *unary,
+                            source: source.clone(),
+                        })
+                    }
+                    OperationKind::PackedIntegerBinary { operation: binary, left, right } => {
+                        let result = operation.result.structural().ok_or(
+                            LoweringError::InvalidOwnedValueTransfer {
+                                machine: machine.id,
+                                operation: operation.id,
+                                reason: "packed integer arithmetic requires a structural result",
+                            },
+                        )?;
+                        Ok(AbstractOperation::PackedIntegerBinary {
+                            psi_operation: operation.id,
+                            result: result.clone(),
+                            operation: *binary,
+                            left: left.clone(),
+                            right: right.clone(),
+                        })
+                    }
                     OperationKind::StructuralLeafCopy { source, path } => {
                         structural_leaf_copy::lower(
                             operation,

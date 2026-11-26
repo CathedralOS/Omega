@@ -1471,6 +1471,8 @@ mod compare_byte_sequences {
         }
     }
 }
+mod packed_integer;
+
 mod copy_bytes {
     use super::{
         MachineAlternativeFamily as Family, MachineAlternativeKey, MachineEncodedMemoryEffect,
@@ -22010,6 +22012,36 @@ pub fn encode_x86_64_selected_form(
     if kind == SelectedInstructionKind::CopyBytes {
         return copy_bytes::encode(physical, alternative, operands, 0);
     }
+    if matches!(
+        kind,
+        SelectedInstructionKind::PackedAddI16x8
+            | SelectedInstructionKind::PackedSubI16x8
+            | SelectedInstructionKind::PackedShuffleI16x8 { .. }
+            | SelectedInstructionKind::PackedShuffleGeneralI16x8 { .. }
+            | SelectedInstructionKind::PackedShiftRightArithmeticI16x8 { .. }
+            | SelectedInstructionKind::PackedWidenU8x8ToI16x8
+            | SelectedInstructionKind::PackedNarrowI16x8ToU8x8Saturating
+            | SelectedInstructionKind::PackedLoadI16x4ZeroExtend
+            | SelectedInstructionKind::PackedWidenU8x4ToI16x8
+            | SelectedInstructionKind::PackedNarrowI16x8ToU8x4Saturating
+            | SelectedInstructionKind::PackedLoad128 { .. }
+            | SelectedInstructionKind::PackedStore128 { .. }
+            | SelectedInstructionKind::PackedLoad64ZeroExtend { .. }
+            | SelectedInstructionKind::PackedStore64 { .. }
+            | SelectedInstructionKind::PackedLoad32ZeroExtend { .. }
+            | SelectedInstructionKind::PackedStore32 { .. }
+            | SelectedInstructionKind::PackedMaterializeZero
+            | SelectedInstructionKind::PackedFromGpr64ZeroExtend
+            | SelectedInstructionKind::PackedFromGpr64Pair
+            | SelectedInstructionKind::PackedAddI16x8Reg
+            | SelectedInstructionKind::PackedSubI16x8Reg
+            | SelectedInstructionKind::PackedShiftRightArithmeticI16x8Reg { .. }
+            | SelectedInstructionKind::PackedShuffleI16x8Reg { .. }
+            | SelectedInstructionKind::PackedWidenU8x8ToI16x8Reg
+            | SelectedInstructionKind::PackedNarrowI16x8ToU8x8SaturatingReg
+    ) {
+        return packed_integer::encode(physical, kind, alternative, operands);
+    }
     if kind == SelectedInstructionKind::ZeroBytes {
         return zero_bytes::encode(physical, alternative, operands);
     }
@@ -22060,6 +22092,36 @@ pub fn validate_x86_64_selected_form_encoding(
     }
     if kind == SelectedInstructionKind::CopyBytes {
         return copy_bytes::validate(physical, alternative, operands, 0, bytes);
+    }
+    if matches!(
+        kind,
+        SelectedInstructionKind::PackedAddI16x8
+            | SelectedInstructionKind::PackedSubI16x8
+            | SelectedInstructionKind::PackedShuffleI16x8 { .. }
+            | SelectedInstructionKind::PackedShuffleGeneralI16x8 { .. }
+            | SelectedInstructionKind::PackedShiftRightArithmeticI16x8 { .. }
+            | SelectedInstructionKind::PackedWidenU8x8ToI16x8
+            | SelectedInstructionKind::PackedNarrowI16x8ToU8x8Saturating
+            | SelectedInstructionKind::PackedLoadI16x4ZeroExtend
+            | SelectedInstructionKind::PackedWidenU8x4ToI16x8
+            | SelectedInstructionKind::PackedNarrowI16x8ToU8x4Saturating
+            | SelectedInstructionKind::PackedLoad128 { .. }
+            | SelectedInstructionKind::PackedStore128 { .. }
+            | SelectedInstructionKind::PackedLoad64ZeroExtend { .. }
+            | SelectedInstructionKind::PackedStore64 { .. }
+            | SelectedInstructionKind::PackedLoad32ZeroExtend { .. }
+            | SelectedInstructionKind::PackedStore32 { .. }
+            | SelectedInstructionKind::PackedMaterializeZero
+            | SelectedInstructionKind::PackedFromGpr64ZeroExtend
+            | SelectedInstructionKind::PackedFromGpr64Pair
+            | SelectedInstructionKind::PackedAddI16x8Reg
+            | SelectedInstructionKind::PackedSubI16x8Reg
+            | SelectedInstructionKind::PackedShiftRightArithmeticI16x8Reg { .. }
+            | SelectedInstructionKind::PackedShuffleI16x8Reg { .. }
+            | SelectedInstructionKind::PackedWidenU8x8ToI16x8Reg
+            | SelectedInstructionKind::PackedNarrowI16x8ToU8x8SaturatingReg
+    ) {
+        return packed_integer::validate(physical, kind, alternative, operands, bytes);
     }
     if kind == SelectedInstructionKind::ZeroBytes {
         return zero_bytes::validate(physical, alternative, operands, bytes);

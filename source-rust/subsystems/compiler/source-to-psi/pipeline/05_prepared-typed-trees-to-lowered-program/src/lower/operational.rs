@@ -196,7 +196,7 @@ fn expression(machine: MachineId, value: &Expression) -> Checked<()> {
                 expression(machine, argument)?;
             }
         }
-        ExpressionKind::Array { elements } => {
+        ExpressionKind::PackedInteger { operands: elements, .. } | ExpressionKind::Array { elements } => {
             for element in elements {
                 expression(machine, element)?;
             }

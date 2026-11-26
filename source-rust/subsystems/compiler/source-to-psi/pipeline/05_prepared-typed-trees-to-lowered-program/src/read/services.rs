@@ -777,6 +777,30 @@ impl Program<'_> {
         Ok(())
     }
 
+    pub(super) fn retain_pure_requirement_policy(&mut self, id: MachineId) -> Checked<()> {
+        let policy = Policy {
+            reach: Some(Vec::new()),
+            invokes: Some(Vec::new()),
+            suspends: Some(false),
+            blocks: Some(false),
+            termination: TerminalCallableTermination::Terminates {
+                premises: Vec::new(),
+            },
+        };
+        while self.declared_envelope_policies.len() < id.get() as usize {
+            self.declared_envelope_policies.push(None);
+        }
+        let saved = self
+            .declared_envelope_policies
+            .get_mut(id)
+            .ok_or_else(|| unavailable(id, "requirement policy has no exact callable row"))?;
+        if saved.is_some() {
+            return Err(unavailable(id, "requirement policy was already retained"));
+        }
+        *saved = Some(policy);
+        Ok(())
+    }
+
     pub(crate) fn retain_requirement_schema(&mut self, id: MachineId) -> Checked<()> {
         use crate::callables::static_contracts::{
             SourceSchema, SourceSchemaRequirement, SourceServiceCeiling, StaticSourceEnvelope,
@@ -1273,7 +1297,7 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut CallCollector<
             collect_expression(left, calls);
             collect_expression(right, calls);
         }
-        E::Array { elements } => {
+        E::PackedInteger { operands: elements, .. } | E::Array { elements } => {
             for element in elements {
                 collect_expression(element, calls);
             }

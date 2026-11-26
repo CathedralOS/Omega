@@ -7744,6 +7744,8 @@ pub(crate) fn select_function(
                     | LegalizedScalarInstructionKind::EstablishNativeCodeLayout { .. }
                     | LegalizedScalarInstructionKind::EstablishRecord { .. }
                     | LegalizedScalarInstructionKind::EstablishCase { .. }
+                    | LegalizedScalarInstructionKind::PackedIntegerUnary { .. }
+                    | LegalizedScalarInstructionKind::PackedIntegerBinary { .. }
                     | LegalizedScalarInstructionKind::EstablishStructuralArray { .. }
                     | LegalizedScalarInstructionKind::EstablishScalarArray { .. }
                     | LegalizedScalarInstructionKind::EstablishZeroedStructural { .. }

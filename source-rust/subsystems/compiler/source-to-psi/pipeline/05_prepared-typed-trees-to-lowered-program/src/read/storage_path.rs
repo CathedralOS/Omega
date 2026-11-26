@@ -45,6 +45,7 @@ pub(super) fn walk<'a, E>(
             | ExpressionKind::ByteLiteral(_)
             | ExpressionKind::StorageLocation { .. }
             | ExpressionKind::CollectionMeasure { .. }
+            | ExpressionKind::PackedInteger { .. }
             | ExpressionKind::ByteSequencePredicate { .. }
             | ExpressionKind::CollectionView { .. }
             | ExpressionKind::CollectionSubslice { .. }

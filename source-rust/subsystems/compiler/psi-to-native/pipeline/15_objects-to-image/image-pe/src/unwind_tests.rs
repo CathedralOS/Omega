@@ -251,3 +251,31 @@ fn frameless_functions_get_no_row() {
     assert_eq!(exception_directory(&output.bytes), (0, 0));
     assert_eq!(read_pe_function_frames(&output.bytes).unwrap(), []);
 }
+
+#[test]
+fn x64_rows_encode_and_decode_save_xmm128_and_far() {
+    let frame = FunctionFrameUnwind {
+        prologue: vec![
+            step(4, FrameProtocolEffect::AdjustStack { bytes: 64 }),
+            step(12, saved(MachineRegister::X86Xmm(6), 16)),
+            step(21, saved(MachineRegister::X86Xmm(12), 0x10_0000)),
+        ],
+        epilogue: Vec::new(),
+        epilogue_offsets: vec![40],
+    };
+    let output = emit_pe_executable(image_with(NativeTarget::windows_x64(), 64, frame), 3)
+        .expect("emit image");
+    assert_eq!(
+        read_pe_function_frames(&output.bytes).unwrap(),
+        [PeFunctionFrame {
+            begin_rva: 0x1010,
+            end_rva: 0x1050,
+            frame_bytes: 64,
+            saved: vec![
+                (MachineRegister::X86Xmm(6), 16),
+                (MachineRegister::X86Xmm(12), 0x10_0000),
+            ],
+            epilogue_offsets: Vec::new(),
+        }]
+    );
+}

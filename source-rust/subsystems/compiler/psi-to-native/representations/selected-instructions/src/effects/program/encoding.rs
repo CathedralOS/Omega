@@ -263,6 +263,14 @@ mod v6 {
                 3 => MachineMemoryEffect::HostedWriteByteV1,
                 2 => MachineMemoryEffect::WriteFrameStorageV1,
                 7 => MachineMemoryEffect::ReadFrameStorageV1,
+                23 => MachineMemoryEffect::PackedBinary16BytesV1,
+                24 => MachineMemoryEffect::PackedUnary16To16BytesV1,
+                25 => MachineMemoryEffect::PackedUnary8To16BytesV1,
+                26 => MachineMemoryEffect::PackedUnary16To8BytesV1,
+                27 => MachineMemoryEffect::PackedUnary4To16BytesV1,
+                28 => MachineMemoryEffect::PackedUnary16To4BytesV1,
+                29 => MachineMemoryEffect::PackedVectorLoadBytesV1,
+                30 => MachineMemoryEffect::PackedVectorStoreBytesV1,
                 6 => MachineMemoryEffect::CopyBytesV1,
                 10 => MachineMemoryEffect::ScanByteSequenceV1,
                 13 => MachineMemoryEffect::ReadEncodedScalarV1,
@@ -435,6 +443,79 @@ mod v6 {
                 0 => SelectedInstructionKind::CompareI64Zero,
                 1 => SelectedInstructionKind::MaterializeI64 {
                     value: decode_integer(cursor)?,
+                },
+                254 => SelectedInstructionKind::PackedAddI16x8,
+                241 => match cursor.byte()? {
+                    0 => SelectedInstructionKind::PackedSubI16x8,
+                    sub @ (1 | 2) => {
+                        let mut lanes = [0u8; 8];
+                        for slot in &mut lanes {
+                            *slot = cursor.byte()?;
+                        }
+                        if lanes.iter().any(|&lane| lane >= 16) {
+                            return Err(PreAllocationMachineEffectDecodeError::InvalidField);
+                        }
+                        if sub == 1 {
+                            SelectedInstructionKind::PackedShuffleI16x8 { lanes }
+                        } else {
+                            SelectedInstructionKind::PackedShuffleGeneralI16x8 { lanes }
+                        }
+                    }
+                    3 => {
+                        let count = cursor.byte()?;
+                        if count >= 16 {
+                            return Err(PreAllocationMachineEffectDecodeError::InvalidField);
+                        }
+                        SelectedInstructionKind::PackedShiftRightArithmeticI16x8 { count }
+                    }
+                    4 => SelectedInstructionKind::PackedWidenU8x8ToI16x8,
+                    5 => SelectedInstructionKind::PackedNarrowI16x8ToU8x8Saturating,
+                    6 => SelectedInstructionKind::PackedLoadI16x4ZeroExtend,
+                    7 => SelectedInstructionKind::PackedWidenU8x4ToI16x8,
+                    8 => SelectedInstructionKind::PackedNarrowI16x8ToU8x4Saturating,
+                    9 => SelectedInstructionKind::PackedLoad128 {
+                        byte_offset: cursor.u32()?,
+                    },
+                    10 => SelectedInstructionKind::PackedStore128 {
+                        byte_offset: cursor.u32()?,
+                    },
+                    11 => SelectedInstructionKind::PackedLoad64ZeroExtend {
+                        byte_offset: cursor.u32()?,
+                    },
+                    12 => SelectedInstructionKind::PackedStore64 {
+                        byte_offset: cursor.u32()?,
+                    },
+                    13 => SelectedInstructionKind::PackedLoad32ZeroExtend {
+                        byte_offset: cursor.u32()?,
+                    },
+                    14 => SelectedInstructionKind::PackedStore32 {
+                        byte_offset: cursor.u32()?,
+                    },
+                    15 => SelectedInstructionKind::PackedMaterializeZero,
+                    16 => SelectedInstructionKind::PackedFromGpr64ZeroExtend,
+                    17 => SelectedInstructionKind::PackedFromGpr64Pair,
+                    18 => SelectedInstructionKind::PackedAddI16x8Reg,
+                    19 => SelectedInstructionKind::PackedSubI16x8Reg,
+                    20 => {
+                        let count = cursor.byte()?;
+                        if count >= 16 {
+                            return Err(PreAllocationMachineEffectDecodeError::InvalidField);
+                        }
+                        SelectedInstructionKind::PackedShiftRightArithmeticI16x8Reg { count }
+                    }
+                    21 => {
+                        let mut lanes = [0u8; 8];
+                        for slot in &mut lanes {
+                            *slot = cursor.byte()?;
+                        }
+                        if lanes.iter().any(|&lane| lane >= 16) {
+                            return Err(PreAllocationMachineEffectDecodeError::InvalidField);
+                        }
+                        SelectedInstructionKind::PackedShuffleI16x8Reg { lanes }
+                    }
+                    22 => SelectedInstructionKind::PackedWidenU8x8ToI16x8Reg,
+                    23 => SelectedInstructionKind::PackedNarrowI16x8ToU8x8SaturatingReg,
+                    _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
                 },
                 59 => SelectedInstructionKind::CopyBytes,
                 233 => {
@@ -749,6 +830,12 @@ mod v6 {
                     register: crate::VirtualRegisterId(cursor.u32()?),
                 });
             }
+            if tag == 10 {
+                return Ok(crate::LocalStorageSlotId::Inlined {
+                    call_site: cursor.u32()?,
+                    slot_index: cursor.u32()?,
+                });
+            }
             let operation = OperationId::new(cursor.u64()?)
                 .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?;
             match tag {
@@ -854,6 +941,31 @@ mod v6 {
                 _ if atomic.is_some() => MachineAlternativeFamily::AtomicAccess(atomic.unwrap()),
                 0 => MachineAlternativeFamily::CompareI64Zero,
                 1 => MachineAlternativeFamily::MaterializeI64,
+                273 => MachineAlternativeFamily::PackedAddI16x8,
+                274 => MachineAlternativeFamily::PackedSubI16x8,
+                275 => MachineAlternativeFamily::PackedShuffleI16x8,
+                276 => MachineAlternativeFamily::PackedShuffleGeneralI16x8,
+                277 => MachineAlternativeFamily::PackedShiftRightArithmeticI16x8,
+                278 => MachineAlternativeFamily::PackedWidenU8x8ToI16x8,
+                279 => MachineAlternativeFamily::PackedNarrowI16x8ToU8x8Saturating,
+                280 => MachineAlternativeFamily::PackedLoadI16x4ZeroExtend,
+                281 => MachineAlternativeFamily::PackedWidenU8x4ToI16x8,
+                282 => MachineAlternativeFamily::PackedNarrowI16x8ToU8x4Saturating,
+                283 => MachineAlternativeFamily::PackedLoad128,
+                284 => MachineAlternativeFamily::PackedStore128,
+                285 => MachineAlternativeFamily::PackedLoad64ZeroExtend,
+                286 => MachineAlternativeFamily::PackedStore64,
+                287 => MachineAlternativeFamily::PackedLoad32ZeroExtend,
+                288 => MachineAlternativeFamily::PackedStore32,
+                289 => MachineAlternativeFamily::PackedMaterializeZero,
+                290 => MachineAlternativeFamily::PackedFromGpr64ZeroExtend,
+                291 => MachineAlternativeFamily::PackedFromGpr64Pair,
+                292 => MachineAlternativeFamily::PackedAddI16x8Reg,
+                293 => MachineAlternativeFamily::PackedSubI16x8Reg,
+                294 => MachineAlternativeFamily::PackedShiftRightArithmeticI16x8Reg,
+                295 => MachineAlternativeFamily::PackedShuffleI16x8Reg,
+                296 => MachineAlternativeFamily::PackedWidenU8x8ToI16x8Reg,
+                297 => MachineAlternativeFamily::PackedNarrowI16x8ToU8x8SaturatingReg,
                 59 => MachineAlternativeFamily::CopyBytes,
                 233 => MachineAlternativeFamily::ScanByteSequence,
                 234 => MachineAlternativeFamily::CompareByteSequences,
@@ -1382,7 +1494,7 @@ mod v6 {
                 let mut cursor = Cursor::new(&encoded);
                 assert_eq!(decode_alternative(&mut cursor).unwrap(), alternative);
                 assert_eq!(cursor.remaining(), 0);
-                for tag in [273_u16, u16::MAX] {
+                for tag in [298_u16, u16::MAX] {
                     encoded[..2].copy_from_slice(&tag.to_le_bytes());
                     assert!(decode_alternative(&mut Cursor::new(&encoded)).is_err());
                 }

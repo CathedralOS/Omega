@@ -91,8 +91,10 @@ fn validate_slots(
             .offset_bytes
             .checked_add(slot.size_bytes)
             .ok_or(X86_64FrameProtocolError::OffsetOutOfRange)?;
-        if slot.size_bytes != 8
-            || !slot.offset_bytes.is_multiple_of(8)
+        let valid_size_and_alignment = (slot.size_bytes == 8
+            && slot.offset_bytes.is_multiple_of(8))
+            || (slot.size_bytes == 16 && slot.offset_bytes.is_multiple_of(16));
+        if !valid_size_and_alignment
             || end > frame_size_bytes
             || (index != 0 && slot.offset_bytes < previous_end)
         {

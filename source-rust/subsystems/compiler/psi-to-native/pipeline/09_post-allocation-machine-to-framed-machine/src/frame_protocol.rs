@@ -160,6 +160,12 @@ fn plan_frame_protocol_effects(
                     .iter()
                     .position(|candidate| *candidate == name)
                     .map(|index| values[index])
+                    .or_else(|| {
+                        name.strip_prefix("xmm")
+                            .and_then(|number| number.parse::<u8>().ok())
+                            .filter(|number| *number < 16)
+                            .map(R::X86Xmm)
+                    })
             }
             Architecture::Aarch64 => name
                 .strip_prefix('x')
@@ -188,13 +194,14 @@ fn plan_frame_protocol_effects(
     }
     .effects(architecture);
     for (restore, register) in function.unwind.restores.iter().zip(registers) {
+        let size = u8::try_from(restore.size_bytes).map_err(|_| "frame effect size exceeds u8")?;
         for load in [false, true] {
             effects = effects.compose(
                 &Op::FrameMemory {
                     register,
                     offset: u32::try_from(restore.frame_offset_bytes)
                         .map_err(|_| "frame effect offset exceeds u32")?,
-                    size: 8,
+                    size,
                     load,
                     scratch,
                 }
@@ -203,4 +210,79 @@ fn plan_frame_protocol_effects(
         }
     }
     Ok(effects)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::plan_frame_protocol_effects;
+    use calling_conventions::MachineRegister;
+    use machine_code::{
+        FrameUnwindPlan, FrameUnwindRestore, FunctionTargetFrameLayout, OutgoingAbiFrameArea,
+        ReturnAddressFrameCustody, StackProbePlan,
+    };
+    use semantic_vocabulary::MachineId;
+    use target::NativeTarget;
+
+    #[test]
+    fn plans_frame_effects_for_gpr_and_xmm_callee_saves_on_windows_x64() {
+        let environment =
+            register_environment::baseline_target_register_environment(NativeTarget::windows_x64())
+                .unwrap();
+        let model = environment.physical().model();
+        let rsp = model.view_named("rsp").unwrap().id;
+        let rbx = model.view_named("rbx").unwrap().id;
+        let xmm6 = model.view_named("xmm6").unwrap().id;
+        let function = FunctionTargetFrameLayout {
+            machine: MachineId::new(1).unwrap(),
+            contains_call: false,
+            stack_pointer: rsp,
+            pre_call_stack_alignment: 16,
+            frame_size_bytes: 40,
+            red_zone_resident_bytes: 0,
+            abi_stack_alignment_bytes: 16,
+            outgoing_abi_area: OutgoingAbiFrameArea {
+                byte_size: 0,
+                shadow_bytes: 0,
+            },
+            local_storage_slots: Vec::new(),
+            stable_address_loans: Vec::new(),
+            callee_save_slots: Vec::new(),
+            return_address: ReturnAddressFrameCustody::CallerActivationStack {
+                post_prologue_offset_bytes: 40,
+                size_bytes: 8,
+            },
+            stack_probe: StackProbePlan {
+                interval_bytes: 4_096,
+                touches: 0,
+            },
+            unwind: FrameUnwindPlan {
+                restores: vec![
+                    FrameUnwindRestore {
+                        view: xmm6,
+                        frame_offset_bytes: 16,
+                        size_bytes: 16,
+                    },
+                    FrameUnwindRestore {
+                        view: rbx,
+                        frame_offset_bytes: 0,
+                        size_bytes: 8,
+                    },
+                ],
+                released_bytes: 40,
+                return_address: ReturnAddressFrameCustody::CallerActivationStack {
+                    post_prologue_offset_bytes: 40,
+                    size_bytes: 8,
+                },
+            },
+        };
+        let effects = plan_frame_protocol_effects(&function, &environment, None).unwrap();
+        assert!(effects.registers_read().contains(MachineRegister::X86Rbx));
+        assert!(effects.registers().contains(MachineRegister::X86Rbx));
+        assert!(
+            effects
+                .registers_read()
+                .contains(MachineRegister::X86Xmm(6))
+        );
+        assert!(effects.registers().contains(MachineRegister::X86Xmm(6)));
+    }
 }

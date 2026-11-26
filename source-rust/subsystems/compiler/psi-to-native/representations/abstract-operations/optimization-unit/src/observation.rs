@@ -388,6 +388,8 @@ fn operation_observations(
         | O::ReleaseReference { .. }
         | O::EstablishRecord { .. }
         | abstract_operations::move_or_store_structural_field_pattern!()
+        | O::PackedIntegerUnary { .. }
+        | O::PackedIntegerBinary { .. }
         | O::StructuralLeafCopy { .. }
         | O::MoveStructuralValue { .. }
         | O::DecomposeStructuralValue { .. }

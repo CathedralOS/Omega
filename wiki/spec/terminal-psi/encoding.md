@@ -42,7 +42,13 @@ table spelling. An entry count larger than the remaining bytes rejects as
 truncation before any entry is read. Encoding and decoding walk a table with an
 explicit stack; nesting depth never consumes host stack.
 
-Current marker 296 states FloatMeaning equality as the general Identity row,
+Marker 297 adds the packed integer operations. Each row carries a structural
+result and one or two shared structural arguments. The operation determines
+the element type and extent of each input and the result. Readers check the
+operation selector, immediate bounds, access, and array shape before execution.
+[Fixed-width SIMD values](../language/simd.md)
+
+Marker 296 states FloatMeaning equality as the general Identity row,
 [proposition](#propositions) tag 23 at the FloatMeaning carrier, and retires
 tag 19, the separate float-meaning row. The rows and their receiving checks
 are unchanged; each is now one Identity value. Readers reject earlier markers
@@ -1079,6 +1085,18 @@ crossing id binding the call-side suspension demand; 0 records none).
 | 139 | CallMachine | callee value id + callable contract id + counted scalar argument value ids + erased scalar terms + erased proof terms + structural arguments + claim transfers + requirement obligation ids + crash continuations |
 | 140 | DecomposeStructuralValue | structural argument naming the owned subject; unit result |
 | 141 | StorageAlignment | shared structural argument naming the observed location |
+| 142 | PackedIntegerBinary | selector byte, optional shuffle indices, left and right structural arguments |
+| 143 | PackedIntegerUnary | selector byte, optional shift count, source structural argument |
+
+Tag 142 selects wrapping 16-bit addition (0), wrapping 16-bit subtraction
+(1), or a two-input shuffle (2). A shuffle encodes eight index bytes in
+result order. Indices 0 through 7 select from the left input and indices 8
+through 15 select from the right. Tag 143 selects arithmetic right shift
+(0, followed by a count byte from 0 through 15), 8-byte widening (1),
+8-byte saturating narrowing (2), zero-extended 4-word load (3), 4-byte
+widening (4), or 4-byte saturating narrowing (5). Selectors 0 through 4
+produce eight 16-bit lanes and selector 2 produces eight unsigned bytes;
+selector 5 produces four unsigned bytes.
 
 An element descriptor source in tags 81 and 92 is encoded as the existing
 nonzero place ID when selecting a whole descriptor. A zero `u64` introduces

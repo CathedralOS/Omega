@@ -722,6 +722,64 @@ pub(crate) mod operations {
                     });
                 Ok(())
             }
+            AbstractOperation::PackedIntegerUnary { psi_operation, result, operation, source } => {
+                let (function, types, live, operations, provenance) = site.parts();
+                let invalid = || LoweringError::UnsupportedStructuralArray(result.structural_type);
+                terminal_semantics::packed_integer_unary_array_type(
+                    types.values().copied(),
+                    result.structural_type,
+                    *operation,
+                    terminal_semantics::PackedArrayRole::Result,
+                ).ok_or_else(invalid)?;
+                let root = live.structural_observation_type(function, source.place).ok_or_else(invalid)?;
+                let (_, selected) = terminal_semantics::canonical_static_projection(
+                    types.values().copied(), root, &source.path,
+                ).ok_or_else(invalid)?;
+                if source.access != terminal_psi::StructuralAccess::SharedBorrow
+                    || source.place == result.place
+                    || terminal_semantics::packed_integer_unary_array_type(
+                        types.values().copied(),
+                        selected.id,
+                        *operation,
+                        terminal_semantics::PackedArrayRole::Input,
+                    ).is_none()
+                {
+                    return Err(invalid());
+                }
+                let result_home = super::aggregate_results::established_home(live, *psi_operation, result, types, function.machine)?;
+                operations.push(TargetUnitOperation::PackedIntegerUnary {
+                    psi_operation: *psi_operation, result_home, operation: *operation,
+                    source: source.clone(),
+                });
+                provenance.operations.push(*psi_operation);
+                Ok(())
+            }
+            AbstractOperation::PackedIntegerBinary { psi_operation, result, operation, left, right } => {
+                let (function, types, live, operations, provenance) = site.parts();
+                let invalid = || LoweringError::UnsupportedStructuralArray(result.structural_type);
+                terminal_semantics::packed_integer_array_type(
+                    types.values().copied(),
+                    result.structural_type,
+                    *operation,
+                ).ok_or_else(invalid)?;
+                for source in [left, right] {
+                    let root = live.structural_observation_type(function, source.place).ok_or_else(invalid)?;
+                    let (_, selected) = terminal_semantics::canonical_static_projection(
+                        types.values().copied(), root, &source.path,
+                    ).ok_or_else(invalid)?;
+                    if source.access != terminal_psi::StructuralAccess::SharedBorrow
+                        || source.place == result.place || selected.id != result.structural_type {
+                        return Err(invalid());
+                    }
+                }
+                let result_home = super::aggregate_results::established_home(live, *psi_operation, result, types, function.machine)?;
+                operations.push(TargetUnitOperation::PackedIntegerBinary {
+                    psi_operation: *psi_operation, result_home, operation: *operation,
+                    left: left.clone(), right: right.clone(),
+                });
+                provenance.operations.push(*psi_operation);
+                Ok(())
+            }
             AbstractOperation::EstablishScalarArray { .. } => {
                 super::scalar_arrays::establish(operation, site)
             }

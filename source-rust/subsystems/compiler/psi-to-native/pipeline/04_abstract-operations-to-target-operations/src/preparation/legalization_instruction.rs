@@ -282,6 +282,12 @@ pub(crate) fn project(
             result: result(result_home)?,
             shape: result_home.layout.shape(),
         },
+        Operation::PackedIntegerUnary { result_home, operation, source, .. } => Kind::PackedIntegerUnary {
+            result: result(result_home)?, operation: *operation, source: source.clone(),
+        },
+        Operation::PackedIntegerBinary { result_home, operation, left, right, .. } => Kind::PackedIntegerBinary {
+            result: result(result_home)?, operation: *operation, left: left.clone(), right: right.clone(),
+        },
         Operation::EstablishStructuralArray {
             result_home,
             elements,

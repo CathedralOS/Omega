@@ -161,6 +161,15 @@ mod activation_storage {
                 elements: elements.clone(),
             },
             A::EstablishStructuralLocal { .. } => T::EstablishStructuralLocal {},
+            A::PackedIntegerUnary { operation, source, .. } => T::PackedIntegerUnary {
+                operation: *operation,
+                source: source.clone(),
+            },
+            A::PackedIntegerBinary { operation, left, right, .. } => T::PackedIntegerBinary {
+                operation: *operation,
+                left: left.clone(),
+                right: right.clone(),
+            },
             A::StructuralLeafCopy { source, path, .. } => match path {
                 StructuralCopyPath::Ordinary(path) => T::StructuralLeafCopy {
                     source: *source,
@@ -2923,6 +2932,8 @@ pub(crate) mod derived_metadata {
                     | O::EstablishReference { result, .. }
                     | O::EstablishAccessReference { result, .. }
                     | O::MoveStructuralField { result, .. }
+                    | O::PackedIntegerUnary { result, .. }
+                    | O::PackedIntegerBinary { result, .. }
                     | O::StructuralLeafCopy { result, .. }
                     | O::MoveStructuralValue { result, .. }
                     | O::TransformContent { result, .. }
@@ -3049,6 +3060,13 @@ pub(crate) mod derived_metadata {
                 }
                 O::MoveStructuralField { source, .. } => {
                     require(source.place(), known)?;
+                }
+                O::PackedIntegerUnary { source, .. } => {
+                    require(source.place, known)?;
+                }
+                O::PackedIntegerBinary { left, right, .. } => {
+                    require(left.place, known)?;
+                    require(right.place, known)?;
                 }
                 O::StructuralLeafCopy { source, .. } => {
                     require(*source, known)?;
@@ -7237,6 +7255,8 @@ pub(crate) mod function_structure {
                     O::StoreStructuralField {
                         destination, value, ..
                     } => vec![destination.place(), value.place],
+                    O::PackedIntegerUnary { source, .. } => vec![source.place],
+                    O::PackedIntegerBinary { left, right, .. } => vec![left.place, right.place],
                     O::StructuralLeafCopy { source, .. } => vec![*source],
                     O::ReleaseActivationClaim { source, .. }
                     | O::SplitActivationClaim { source, .. }
@@ -12537,6 +12557,8 @@ pub(crate) mod operation_contracts {
                 | O::EstablishRecord { .. }
                 | abstract_operations::move_or_store_structural_field_pattern!()
                 | O::StructuralByteViewFieldStore { .. }
+                | O::PackedIntegerUnary { .. }
+                | O::PackedIntegerBinary { .. }
                 | O::StructuralLeafCopy { .. }
                 | O::MoveStructuralValue { .. }
                 | O::DecomposeStructuralValue { .. }
