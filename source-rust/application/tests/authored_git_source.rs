@@ -102,7 +102,10 @@ machine main() crashes Trap {
         );
         assert!(output.status.success(), "{report}");
         let executable = destination.join("omega-program");
-        let status = Command::new(executable).current_dir(&project).status().unwrap();
+        let status = Command::new(executable)
+            .current_dir(&project)
+            .status()
+            .unwrap();
         assert!(status.success(), "{status}");
     }
 }

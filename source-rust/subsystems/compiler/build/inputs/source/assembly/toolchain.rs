@@ -137,7 +137,11 @@ pub(super) fn append_build_prelude(
                         modules.len() - 1
                     });
                 file_imports.push((
-                    file.source_id, index, import.ordinal, import.target.to_string(), alias.clone(),
+                    file.source_id,
+                    index,
+                    import.ordinal,
+                    import.target.to_string(),
+                    alias.clone(),
                 ));
             }
         }
@@ -194,9 +198,16 @@ pub(super) fn append_build_prelude(
     }
     for (author, index, ordinal, name, alias) in file_imports {
         let (_, source) = namespaces[index];
-        let declaration = storage.sources.get(source).expect("just-admitted Build library");
+        let declaration = storage
+            .sources
+            .get(source)
+            .expect("just-admitted Build library");
         storage.resolved_imports.push(ResolvedSourceImport::file(
-            author, ordinal, name, &alias, declaration,
+            author,
+            ordinal,
+            name,
+            &alias,
+            declaration,
         ));
     }
     Ok(bindings)
