@@ -345,7 +345,7 @@ machine build<'selection>(builder: @mutable BuildPlan) {
     .unwrap();
     let observation = directory.path().join("observation");
     let output = omega_command(&directory, &root)
-        .args(["run", "--engine", "native", "--outputs"])
+        .args(["run", "--engine", "native", "--keep", "--outputs"])
         .arg(&observation)
         .arg("build.omg")
         .output()
@@ -357,6 +357,71 @@ machine build<'selection>(builder: @mutable BuildPlan) {
     );
     let status = std::fs::read_to_string(observation.join("termination.tsv")).unwrap();
     assert!(status.starts_with("native\texit\t0\t"), "{status}");
+
+    // The checked table supplier and chosen dispatch field must also survive independent
+    // host review and image publication after the source and SDK are unavailable.
+    let report = String::from_utf8(output.stderr).unwrap();
+    let kept = report
+        .lines()
+        .find_map(|line| line.strip_prefix("build dir kept: "))
+        .unwrap();
+    let saved = std::fs::read(std::path::Path::new(kept).join("program.oterm")).unwrap();
+    let manifest = terminal_codec::CanonicalTerminalArtifact::from_bytes(&saved)
+        .unwrap()
+        .manifest()
+        .identity()
+        .to_string();
+    let consumer = directory.path().join("consumer");
+    std::fs::create_dir(&consumer).unwrap();
+    std::fs::write(consumer.join("program.psi"), saved).unwrap();
+    let target = target::TargetProfile::host().target_name();
+    let review = omega_command(&directory, &root)
+        .args([
+            "packages",
+            "update",
+            "--project",
+            ".",
+            "--offline",
+            "--target",
+            target,
+            "--build-input",
+            "build.omg",
+            "--build-input",
+            "main.omg",
+            "--dangerously-accept-all",
+        ])
+        .output()
+        .unwrap();
+    assert!(review.status.success(), "{review:?}");
+    let lock = directory.path().join("approved.lock");
+    std::fs::rename(root.join("omega.lock"), &lock).unwrap();
+    let approval = {
+        use sha2::{Digest, Sha256};
+        format!("{:x}", Sha256::digest(std::fs::read(&lock).unwrap()))
+    };
+    let unavailable = directory.path().join("unavailable-source");
+    std::fs::rename(&root, &unavailable).unwrap();
+    let replay = omega_command(&directory, &consumer)
+        .env("OMEGA_LIBRARY_ROOT", consumer.join("absent-sdk"))
+        .env("OMEGA_HOST_PACKAGE_LOCK", &lock)
+        .env("OMEGA_HOST_PACKAGE_LOCK_SHA256", approval)
+        .args([
+            "--trusted-artifact",
+            &manifest,
+            "--target",
+            target,
+            "--build-dir",
+            "reopened",
+            "program.psi",
+        ])
+        .output()
+        .unwrap();
+    assert!(replay.status.success(), "{replay:?}");
+    let observed = Command::new(consumer.join("reopened/omega-program"))
+        .status()
+        .unwrap();
+    assert!(observed.success(), "{observed}");
+    std::fs::rename(unavailable, &root).unwrap();
 
     let expected = "let left: IssuedTable = TableSource::provide(0u32);";
     let unissued = program

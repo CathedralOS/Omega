@@ -24,6 +24,7 @@ pub enum ForeignStackExtent {
     None,
     Admitted(provider_stack_contribution::AdmittedSameStackContribution),
     Hosted { receipt: Option<[u8; 32]> },
+    NativeBinding { bytes: std::num::NonZeroU64, commitment: provider_stack_contribution::SameStackContributionCommitment },
     CompilerImport(target_vocabulary::CompilerImport),
 }
 
@@ -42,13 +43,27 @@ impl ForeignStackExtent {
             | Mechanism::Table {
                 source: target_vocabulary::TableBindingSource::Provider(same_stack_contribution), ..
             } => Self::Admitted(same_stack_contribution.clone()),
-            Mechanism::Table { source: target_vocabulary::TableBindingSource::HostedBinding { receipt, .. }, .. }
-                => Self::Hosted { receipt:Some(*receipt) },
+            Mechanism::Table { source: target_vocabulary::TableBindingSource::BuildBinding { stack, receipt, .. }, .. }
+            | Mechanism::BuildImport { stack, receipt, .. } => Self::from_native_binding(*stack, *receipt),
             Mechanism::CompilerImport { import, .. } => Self::CompilerImport(*import),
-            Mechanism::HostedImport { receipt, .. } => Self::Hosted {
-                receipt: Some(*receipt),
-            },
             Mechanism::SystemCall(_) => Self::None,
+        }
+    }
+    fn from_native_binding(
+        stack: target_vocabulary::NativeBindingStack,
+        receipt: [u8; 32],
+    ) -> Self {
+        match stack {
+            target_vocabulary::NativeBindingStack::Hosted => Self::Hosted {
+                receipt: Some(receipt),
+            },
+            target_vocabulary::NativeBindingStack::Bounded { bytes, .. } => Self::NativeBinding {
+                bytes,
+                commitment:
+                    provider_stack_contribution::SameStackContributionCommitment::from_digest(
+                        stack.commitment(),
+                    ),
+            },
         }
     }
 }

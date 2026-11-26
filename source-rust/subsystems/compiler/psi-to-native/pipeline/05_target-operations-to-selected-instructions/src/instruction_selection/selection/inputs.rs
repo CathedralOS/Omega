@@ -6473,7 +6473,7 @@ pub(crate) mod storage_origin_input {
                 ),
                 binding: NormalizedForeignCallBinding {
                     boundary_entry_plan: plan,
-                    mechanism: NormalizedForeignCallMechanism::HostedImport {
+                    mechanism: NormalizedForeignCallMechanism::BuildImport {
                         locator,
                         receipt: execution.receipt(),
                         requirement_identity: "Origin::cell".into(),

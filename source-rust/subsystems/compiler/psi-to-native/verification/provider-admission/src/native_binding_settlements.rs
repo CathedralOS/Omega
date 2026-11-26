@@ -81,21 +81,14 @@ pub(crate) fn settle<'execution>(
                 {
                     return Err(refuse("import has another target calling policy".into()));
                 }
-                if request.profile.program_entry_slot().schema
-                    != target::ProgramEntrySchema::HostedApplication
-                {
-                    return Err(refuse(
-                        "foreign import needs admitted demand on a fixed or freestanding stack"
-                            .into(),
-                    ));
-                }
                 let physical = crate::normalized_foreign_terminal_mechanism(
                     import.locator(),
                     &entry,
                 )
                 .map_err(refuse)?;
                 (
-                    NormalizedForeignCallMechanism::HostedImport {
+                    NormalizedForeignCallMechanism::BuildImport {
+                        stack: contract.caller_stack(execution).map_err(refuse)?,
                         locator: import.locator().clone(),
                         receipt,
                         requirement_identity: requirement.to_owned(),
@@ -104,12 +97,10 @@ pub(crate) fn settle<'execution>(
                 )
             }
             EvaluatedNativeBinding::FunctionField(field) => {
-                if request.profile.program_entry_slot().schema != target::ProgramEntrySchema::HostedApplication {
-                    return Err(refuse("foreign table call needs admitted demand on a fixed or freestanding stack".into()));
-                }
                 let dispatch = native_binding_admission::function_field_dispatch(module, contract.boundary(), field, application)
                     .map_err(refuse)?;
-                let source = target_operations::TableBindingSource::HostedBinding {
+                let source = target_operations::TableBindingSource::BuildBinding {
+                    stack: contract.caller_stack(execution).map_err(refuse)?,
                     receipt, requirement_identity: requirement.to_owned(),
                 };
                 (

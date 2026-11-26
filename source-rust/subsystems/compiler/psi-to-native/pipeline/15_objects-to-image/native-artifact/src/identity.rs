@@ -278,13 +278,15 @@ pub(super) fn foreign_call_custody_digest(calls: &[image_emission::ObjectForeign
                 hash_bytes(&mut digest, requirement_identity.as_bytes());
                 continue;
             }
-            target_vocabulary::NormalizedForeignCallMechanism::HostedImport {
+            target_vocabulary::NormalizedForeignCallMechanism::BuildImport {
+                stack,
                 locator,
                 receipt,
                 requirement_identity,
             } => {
                 digest.byte(5);
                 digest.raw(&locator.identity_digest().as_bytes());
+                digest.raw(&stack.commitment());
                 digest.raw(receipt);
                 hash_bytes(&mut digest, requirement_identity.as_bytes());
                 continue;

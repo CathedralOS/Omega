@@ -150,12 +150,14 @@ pub fn encode_call_binding(bytes: &mut Vec<u8>, binding: &NormalizedForeignCallB
             encode_state_plan_identity(bytes, &binding.boundary_entry_plan.state);
             return;
         }
-        crate::NormalizedForeignCallMechanism::HostedImport {
+        crate::NormalizedForeignCallMechanism::BuildImport {
+            stack,
             locator,
             receipt,
             requirement_identity,
         } => {
-            encode_string(bytes, "@hosted");
+            encode_string(bytes, "@build-import");
+            bytes.extend_from_slice(&stack.commitment());
             encode_locator(bytes, locator);
             bytes.extend_from_slice(receipt);
             encode_string(bytes, requirement_identity);
