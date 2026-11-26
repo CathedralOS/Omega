@@ -1612,7 +1612,7 @@ pub(crate) mod sparse_conditional_constants {
         pub valid_in: ValueFactRegion,
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    #[derive(Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub(crate) struct ScalarConstantSupport {
         pub operations: Vec<OperationId>,
         pub edges: Vec<EdgeId>,
@@ -1662,6 +1662,17 @@ pub(crate) mod sparse_conditional_constants {
             value: ValueId,
         ) -> Option<(IntegerValue, ScalarConstantFactIdentity)> {
             self.constant_fact(machine, value, true, |constant| match constant {
+                ScalarConstantValue::Integer(value) => Some(*value),
+                ScalarConstantValue::Boolean(_) => None,
+            })
+        }
+
+        pub(crate) fn integer_constant(
+            &self,
+            machine: MachineId,
+            value: ValueId,
+        ) -> Option<(IntegerValue, ScalarConstantFactIdentity)> {
+            self.constant_fact(machine, value, false, |constant| match constant {
                 ScalarConstantValue::Integer(value) => Some(*value),
                 ScalarConstantValue::Boolean(_) => None,
             })
@@ -1841,10 +1852,7 @@ pub(crate) mod sparse_conditional_constants {
             let mut feasible_edges = BTreeMap::<EdgeId, ScalarConstantSupport>::new();
             let mut reach_support = BTreeMap::from([(
                 function.entry,
-                ScalarConstantSupport {
-                    operations: Vec::new(),
-                    edges: Vec::new(),
-                },
+                ScalarConstantSupport::default(),
             )]);
             loop {
                 let mut changed = false;
@@ -1959,10 +1967,7 @@ pub(crate) mod sparse_conditional_constants {
                     } else if !source_reachable {
                         (
                             ExecutableEdgeKnowledge::KnownInexecutable,
-                            ScalarConstantSupport {
-                                operations: Vec::new(),
-                                edges: Vec::new(),
-                            },
+                            ScalarConstantSupport::default(),
                         )
                     } else if let O::Conditional { condition, .. } = &node.operation {
                         match values.get(condition) {
@@ -1970,30 +1975,19 @@ pub(crate) mod sparse_conditional_constants {
                                 ScalarConstantValue::Boolean(_),
                                 condition,
                             )) => {
-                                let mut support = source_support.cloned().unwrap_or_else(|| {
-                                    ScalarConstantSupport {
-                                        operations: Vec::new(),
-                                        edges: Vec::new(),
-                                    }
-                                });
+                                let mut support = source_support.cloned().unwrap_or_default();
                                 support.union_with(condition);
                                 (ExecutableEdgeKnowledge::KnownInexecutable, support)
                             }
                             _ => (
                                 ExecutableEdgeKnowledge::Unknown,
-                                ScalarConstantSupport {
-                                    operations: Vec::new(),
-                                    edges: Vec::new(),
-                                },
+                                ScalarConstantSupport::default(),
                             ),
                         }
                     } else {
                         (
                             ExecutableEdgeKnowledge::KnownInexecutable,
-                            ScalarConstantSupport {
-                                operations: Vec::new(),
-                                edges: Vec::new(),
-                            },
+                            ScalarConstantSupport::default(),
                         )
                     };
                     edge_facts.push(ExecutableEdgeFact {
@@ -2171,6 +2165,13 @@ pub(crate) mod use_definitions {
     }
 
     impl UseDefinitionAnalysis {
+        /// Whether any node of `machine` reads `value`.
+        pub(crate) fn has_use(&self, machine: MachineId, value: ValueId) -> bool {
+            self.uses
+                .iter()
+                .any(|(owner, use_site)| *owner == machine && use_site.value == value)
+        }
+
         pub(crate) fn replacement_dominates_parameter_uses(
             &self,
             machine: MachineId,
@@ -2328,7 +2329,7 @@ pub(crate) mod value_liveness {
 }
 pub(in crate::abstract_optimization) use crate::abstract_optimization::value_ranges;
 
-pub(crate) use effect_summaries::{EffectClass, EffectKnowledge, EffectSummaryAnalysis};
+pub(crate) use effect_summaries::{EffectKnowledge, EffectSummaryAnalysis};
 
 pub(crate) use ownership_frontiers::OwnershipFrontierAnalysis;
 

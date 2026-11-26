@@ -168,6 +168,6 @@ pub(crate) use control_flow::{
 pub use revision::AnalysisRevision;
 pub(crate) use revision::{AnalysisError, analysis_index};
 pub(crate) use semantic::{
-    EffectClass, EffectKnowledge, EffectSummaryAnalysis, OwnershipFrontierAnalysis,
+    EffectKnowledge, EffectSummaryAnalysis, OwnershipFrontierAnalysis,
     ScalarConstantAnalysis, UseDefinitionAnalysis, ValueRangeAnalysis,
 };

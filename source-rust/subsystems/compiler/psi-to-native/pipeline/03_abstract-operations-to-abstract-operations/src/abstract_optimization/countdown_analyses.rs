@@ -361,7 +361,7 @@ pub(crate) mod countdown_invariant_constants {
             CountdownInvariantIntegerConstant, O, OptimizerUnsignedCountdownRankingCertificate,
             PsiOptimizationFunction, PsiOptimizationUnit, UnsignedCountdownInvariantConstants,
             ValidatedCountedLoopAnalysis, ValidatedOptimizerCycleComponents, expected_constant,
-            invariant_constant_row, validate_analysis_root, validate_locations,
+            invariant_constant_row, unsupported, validate_analysis_root, validate_locations,
         };
         pub(crate) fn propose(
             unit: &PsiOptimizationUnit,
@@ -463,16 +463,6 @@ pub(crate) mod countdown_invariant_constants {
                 return Err(CountdownInvariantConstantAnalysisError::ComponentRosterMismatch);
             }
             Ok(())
-        }
-
-        fn unsupported(
-            machine: semantic_vocabulary::MachineId,
-            operation: semantic_vocabulary::OperationId,
-        ) -> CountdownInvariantConstantAnalysisError {
-            CountdownInvariantConstantAnalysisError::UnsupportedInvariantConstant {
-                machine,
-                operation,
-            }
         }
     }
     pub(crate) mod replay {

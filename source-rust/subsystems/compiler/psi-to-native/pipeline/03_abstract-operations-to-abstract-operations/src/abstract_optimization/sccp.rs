@@ -41,7 +41,7 @@ pub(crate) mod boolean_constants {
     };
 
     use crate::abstract_optimization::rules::sparse_conditional_constant_propagation::{
-        constant_evaluation_contract as contract, integer_constant, integer_value_type,
+        constant_evaluation_contract as contract, integer_value_type,
     };
     use crate::abstract_optimization::{
         AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,
@@ -149,9 +149,9 @@ pub(crate) mod boolean_constants {
                 },
                 BooleanEvaluationKind::IntegerLessOrEqual,
             ) => {
-                let (left_value, left_fact) = integer_constant(constants, function.machine, *left)?;
+                let (left_value, left_fact) = constants.integer_constant(function.machine, *left)?;
                 let (right_value, right_fact) =
-                    integer_constant(constants, function.machine, *right)?;
+                    constants.integer_constant(function.machine, *right)?;
                 let left_type = integer_value_type(function, *left)?;
                 if integer_value_type(function, *right) != Some(left_type) {
                     return None;
@@ -197,9 +197,7 @@ pub(crate) mod integer_binary_constants {
 
     use super::integer_binary_shapes;
     use crate::abstract_optimization::rules::accepted_obligations::accepted_obligation_fact;
-    use crate::abstract_optimization::rules::sparse_conditional_constant_propagation::{
-        constant_evaluation_contract as contract, integer_constant,
-    };
+    use crate::abstract_optimization::rules::sparse_conditional_constant_propagation::constant_evaluation_contract as contract;
     use crate::abstract_optimization::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
     constant_fold_rules! {
@@ -292,12 +290,12 @@ pub(crate) mod integer_binary_constants {
                     return Ok(None);
                 }
                 let Some((left_value, left_fact)) =
-                    integer_constant(constants, machine, shape.left)
+                    constants.integer_constant(machine, shape.left)
                 else {
                     return Ok(None);
                 };
                 let Some((right_value, right_fact)) =
-                    integer_constant(constants, machine, shape.right)
+                    constants.integer_constant(machine, shape.right)
                 else {
                     return Ok(None);
                 };
@@ -472,9 +470,7 @@ pub(crate) mod integer_cast_constants {
     use semantic_vocabulary::{MachineId, OperationId};
 
     use crate::abstract_optimization::rules::accepted_obligations::accepted_obligation_fact;
-    use crate::abstract_optimization::rules::sparse_conditional_constant_propagation::{
-        constant_evaluation_contract, integer_constant,
-    };
+    use crate::abstract_optimization::rules::sparse_conditional_constant_propagation::constant_evaluation_contract;
     use crate::abstract_optimization::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
     psi_rule_contract!(
@@ -508,7 +504,7 @@ pub(crate) mod integer_cast_constants {
                     return Ok(None);
                 };
                 let Some((operand_value, operand_fact)) =
-                    integer_constant(constants, machine, operand)
+                    constants.integer_constant(machine, operand)
                 else {
                     return Ok(None);
                 };
@@ -549,9 +545,7 @@ pub(crate) mod integer_unary_constants {
     use optimization_core::{OptimizationRuleContract, OptimizationSafetyClass};
     use optimization_unit::{IntegerEvaluationWitness, PsiOptimizationUnit, PsiRewriteCandidate};
 
-    use crate::abstract_optimization::rules::sparse_conditional_constant_propagation::{
-        constant_evaluation_contract as contract, integer_constant,
-    };
+    use crate::abstract_optimization::rules::sparse_conditional_constant_propagation::constant_evaluation_contract as contract;
     use crate::abstract_optimization::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
     constant_fold_rules! {
@@ -612,7 +606,7 @@ pub(crate) mod integer_unary_constants {
                         _ => return Ok(None),
                     };
                 let Some((operand_value, operand_fact)) =
-                    integer_constant(constants, machine, operand)
+                    constants.integer_constant(machine, operand)
                 else {
                     return Ok(None);
                 };
@@ -975,7 +969,7 @@ pub use range_against_range::{
 
 use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationRuleContract,
-    OptimizationSafetyClass, ScalarConstantFactIdentity,
+    OptimizationSafetyClass,
 };
 use optimization_unit::{
     BooleanConstantRewrite, IntegerConstantRewrite, IntegerEvaluationWitness, NodeLocation,
@@ -988,7 +982,6 @@ use crate::abstract_optimization::rules::catalog::BuiltInRuleRegistration;
 use crate::abstract_optimization::rules::control_flow_cleanup::node_realized_provenance;
 use crate::abstract_optimization::{
     AnalysisProduct, RuleAnalysisView, RuleProposalError, ScalarConstantAnalysis,
-    ScalarConstantValue,
 };
 
 pub(crate) fn built_in_registrations() -> Vec<BuiltInRuleRegistration> {
@@ -1169,23 +1162,6 @@ pub(crate) fn range_comparison_contract(
         AnalysisInvalidationSet::new([AnalysisKind::UseDefinition]),
         OptimizationSafetyClass::ProofCertified,
     )
-}
-
-pub(crate) fn integer_constant(
-    constants: &ScalarConstantAnalysis,
-    machine: MachineId,
-    value: ValueId,
-) -> Option<(IntegerValue, ScalarConstantFactIdentity)> {
-    constants.facts.iter().find_map(|fact| {
-        (fact.valid_in.machine == machine && fact.value == value)
-            .then_some(fact)
-            .and_then(|fact| match fact.constant {
-                ScalarConstantValue::Integer(value) => {
-                    fact.identity.map(|identity| (value, identity))
-                }
-                ScalarConstantValue::Boolean(_) => None,
-            })
-    })
 }
 
 pub(crate) fn integer_value_type(
