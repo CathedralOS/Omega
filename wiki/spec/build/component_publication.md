@@ -498,7 +498,7 @@ only after those checks; rejection preserves custody. A gateway makes the Omega
 target replaceable, not the opaque library reclaimable or its manifest complete.
 
 Mapping reuse requires proof that no live authority reaches it, from closed
-entry/root/pin/custody ledgers and dispositions, not pointer tracing. Inert `addr`
+entry/root/pin/custody ledgers and dispositions, not pointer tracing. Inert `address`
 and `Ptr<T>` cannot recreate authority. Complete quiescence permits ordinary
 address reuse. Incomplete drain or unknown opaque holders leave an unmapped,
 reserved range until wider-domain retirement. Quarantine detects stale entry

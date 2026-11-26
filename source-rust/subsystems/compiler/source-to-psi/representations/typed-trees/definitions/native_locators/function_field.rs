@@ -117,7 +117,7 @@ pub fn validate_function_field_binding(
     if field.relevance.is_erased()
         || typed.primitive_type_reference(field.type_reference) != Some(PrimitiveType::Addr)
     {
-        return Err("function table binding requires a live, non-atomic addr field".into());
+        return Err("function table binding requires a live, non-atomic address field".into());
     }
     let expected = field_description_for_application(typed, field.symbol, referee, requirement)?;
     if binding.field != expected {

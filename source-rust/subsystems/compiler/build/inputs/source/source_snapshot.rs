@@ -222,34 +222,16 @@ fn require_source_members<Member>(
 }
 
 pub(crate) fn capture(root: &Path) -> Result<CanonicalFilesystemMetadataIndex, String> {
-    let (index, _) = metadata_rows(root)?;
+    let (index, _) = capture_rows(root.to_path_buf(), capture_physical_row::<()>)?;
     Ok(index)
-}
-
-fn metadata_rows(
-    root: &Path,
-) -> Result<(CanonicalFilesystemMetadataIndex, Vec<(Vec<u8>, ())>), String> {
-    capture_rows(
-        root.to_path_buf(),
-        |path, physical, aggregate_content_bytes| {
-            capture_physical_metadata_row(path, physical, aggregate_content_bytes)
-                .map(|row| (row, ()))
-        },
-    )
 }
 
 pub fn capture_package_source_input(
     source_root: &Path,
 ) -> Result<CapturedBuildSourceInput, String> {
     let canonical_root = crate::package::canonical_source_root(source_root)?;
-    let (index, retained) = capture_rows(canonical_root.clone(), capture_physical_source_row)?;
-    CapturedBuildSourceInput::from_capture_rows(index, retained).map_err(|diagnostics| {
-        diagnostics
-            .iter()
-            .map(|diagnostic| diagnostic.to_string())
-            .collect::<Vec<_>>()
-            .join("; ")
-    })
+    let (index, retained) = capture_rows(canonical_root.clone(), capture_physical_row)?;
+    source_input_from_rows(index, retained)
 }
 
 pub(crate) fn capture_scoped_source_input(
@@ -259,7 +241,7 @@ pub(crate) fn capture_scoped_source_input(
 ) -> Result<CapturedBuildSourceInput, String> {
     let canonical_root = crate::package::canonical_source_root(source_root)?;
     let (index, retained) =
-        capture_scoped_rows(canonical_root.clone(), request, capture_physical_source_row)?;
+        capture_scoped_rows(canonical_root.clone(), request, capture_physical_row)?;
     let captured: BTreeSet<&[u8]> = retained.iter().map(|(path, _)| path.as_slice()).collect();
     for member in required_members {
         let relative = match member.canonicalize() {
@@ -278,6 +260,13 @@ pub(crate) fn capture_scoped_source_input(
             ));
         }
     }
+    source_input_from_rows(index, retained)
+}
+
+fn source_input_from_rows(
+    index: CanonicalFilesystemMetadataIndex,
+    retained: Vec<(Vec<u8>, CapturedSourceEntry)>,
+) -> Result<CapturedBuildSourceInput, String> {
     CapturedBuildSourceInput::from_capture_rows(index, retained).map_err(|diagnostics| {
         diagnostics
             .iter()
@@ -497,55 +486,60 @@ fn finish_capture_index(
     .map_err(|error| format!("could not construct canonical Source metadata: {error}"))
 }
 
-fn capture_physical_metadata_row(
-    path: &Path,
-    metadata: &std::fs::Metadata,
-    aggregate_content_bytes: &mut u64,
-) -> Result<CapturedSourceMetadataRow, String> {
-    if metadata.is_dir() {
-        #[cfg(unix)]
-        require_canonical_mode(path, metadata, 0o555)?;
-        return Ok(CapturedSourceMetadataRow {
-            kind: CanonicalFilesystemMetadataRowKind::Directory,
-            content_digest: None,
-        });
-    }
-    if metadata.is_file() {
-        let executable = canonical_file_executable(path, metadata)?;
-        charge_canonical_source_content(aggregate_content_bytes, metadata.len())?;
-        let content_digest = hash_canonical_source_file(path, metadata)?;
-        return Ok(CapturedSourceMetadataRow {
-            kind: CanonicalFilesystemMetadataRowKind::File {
-                executable,
-                logical_byte_length: metadata.len(),
-            },
-            content_digest: Some(content_digest),
-        });
-    }
-    if metadata.file_type().is_symlink() {
-        let (target, target_length) = crate::source::canonical_fs::canonical_symlink_target(
-            path,
-            aggregate_content_bytes,
-            CANONICAL_BUILD_SOURCE_CONTENT_BYTE_LIMIT,
-        )?;
-        return Ok(CapturedSourceMetadataRow {
-            kind: CanonicalFilesystemMetadataRowKind::Symlink {
-                target_spelling_logical_byte_length: target_length,
-            },
-            content_digest: Some(crate::digest_encoder::content_identity(&target)),
-        });
-    }
-    Err(format!(
-        "physical Source path {} has an unsupported filesystem kind",
-        path.display()
-    ))
+/// What a capture keeps beside each metadata row: nothing for a metadata-only
+/// snapshot (files are hashed as they stream), or the entry's bytes for a
+/// retained source input.
+trait CapturedRowPayload: Sized {
+    fn directory() -> Self;
+    fn file(
+        path: &Path,
+        metadata: &std::fs::Metadata,
+        executable: bool,
+    ) -> Result<(Option<[u8; 32]>, Self), String>;
+    fn symlink(target: Vec<u8>) -> (Option<[u8; 32]>, Self);
 }
 
-fn capture_physical_source_row(
+impl CapturedRowPayload for () {
+    fn directory() -> Self {}
+
+    fn file(
+        path: &Path,
+        metadata: &std::fs::Metadata,
+        _executable: bool,
+    ) -> Result<(Option<[u8; 32]>, Self), String> {
+        Ok((Some(hash_canonical_source_file(path, metadata)?), ()))
+    }
+
+    fn symlink(target: Vec<u8>) -> (Option<[u8; 32]>, Self) {
+        (Some(crate::digest_encoder::content_identity(&target)), ())
+    }
+}
+
+impl CapturedRowPayload for CapturedSourceEntry {
+    fn directory() -> Self {
+        Self::Directory
+    }
+
+    fn file(
+        path: &Path,
+        metadata: &std::fs::Metadata,
+        executable: bool,
+    ) -> Result<(Option<[u8; 32]>, Self), String> {
+        let entry = Self::file(read_canonical_source_file(path, metadata)?, executable);
+        Ok((entry.content_digest(), entry))
+    }
+
+    fn symlink(target: Vec<u8>) -> (Option<[u8; 32]>, Self) {
+        let entry = Self::symlink(target);
+        (entry.content_digest(), entry)
+    }
+}
+
+fn capture_physical_row<T: CapturedRowPayload>(
     path: &Path,
     metadata: &std::fs::Metadata,
     aggregate_content_bytes: &mut u64,
-) -> Result<(CapturedSourceMetadataRow, CapturedSourceEntry), String> {
+) -> Result<(CapturedSourceMetadataRow, T), String> {
     if metadata.is_dir() {
         #[cfg(unix)]
         require_canonical_mode(path, metadata, 0o555)?;
@@ -554,23 +548,22 @@ fn capture_physical_source_row(
                 kind: CanonicalFilesystemMetadataRowKind::Directory,
                 content_digest: None,
             },
-            CapturedSourceEntry::Directory,
+            T::directory(),
         ));
     }
     if metadata.is_file() {
         let executable = canonical_file_executable(path, metadata)?;
         charge_canonical_source_content(aggregate_content_bytes, metadata.len())?;
-        let bytes = read_canonical_source_file(path, metadata)?;
-        let entry = CapturedSourceEntry::file(bytes, executable);
+        let (content_digest, payload) = T::file(path, metadata, executable)?;
         return Ok((
             CapturedSourceMetadataRow {
                 kind: CanonicalFilesystemMetadataRowKind::File {
                     executable,
                     logical_byte_length: metadata.len(),
                 },
-                content_digest: entry.content_digest(),
+                content_digest,
             },
-            entry,
+            payload,
         ));
     }
     if metadata.file_type().is_symlink() {
@@ -579,15 +572,15 @@ fn capture_physical_source_row(
             aggregate_content_bytes,
             CANONICAL_BUILD_SOURCE_CONTENT_BYTE_LIMIT,
         )?;
-        let entry = CapturedSourceEntry::symlink(target);
+        let (content_digest, payload) = T::symlink(target);
         return Ok((
             CapturedSourceMetadataRow {
                 kind: CanonicalFilesystemMetadataRowKind::Symlink {
                     target_spelling_logical_byte_length: target_length,
                 },
-                content_digest: entry.content_digest(),
+                content_digest,
             },
-            entry,
+            payload,
         ));
     }
     Err(format!(

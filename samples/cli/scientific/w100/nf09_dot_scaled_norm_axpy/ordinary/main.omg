@@ -1,8 +1,5 @@
 // Expected exit: 0.
-use omega\language\core\linear_algebra\try_dot_f64;
-use omega\language\core\linear_algebra\try_scaled_norm_f64;
-use omega\language\core\linear_algebra\try_axpy_f64;
-use omega\language\core\linear_algebra\try_axpy_self_f64;
+use {omega}/language/core/linear_algebra/linear_algebra.omg;
 
 // Ordinary geometry and disjoint/self axpy. Frozen oracle: dot=11,
 // norm=5, axpy=(7,10), self axpy=(21,30). Empty dot/norm are zero.
@@ -11,18 +8,18 @@ machine main() crashes Trap {
     let mutable output: [f64; 2] = [1.0, 2.0];
     let mutable dot: f64 = -99.0;
     let mutable norm: f64 = -99.0;
-    let dot_ok: bool = try_dot_f64(@input[..], @output[..], @mutable dot);
-    let norm_ok: bool = try_scaled_norm_f64(@input[..], @mutable norm);
-    let axpy_ok: bool = try_axpy_f64(2.0, @input[..], @mutable output[..]);
+    let dot_ok: bool = |linear_algebra|::try_dot_f64(@input[..], @output[..], @mutable dot);
+    let norm_ok: bool = |linear_algebra|::try_scaled_norm_f64(@input[..], @mutable norm);
+    let axpy_ok: bool = |linear_algebra|::try_axpy_f64(2.0, @input[..], @mutable output[..]);
     let ordinary_ok: bool = dot_ok && norm_ok && axpy_ok
         && dot == 11.0 && norm == 5.0 && output[0] == 7.0 && output[1] == 10.0;
-    let self_ok: bool = try_axpy_self_f64(2.0, @mutable output[..]);
+    let self_ok: bool = |linear_algebra|::try_axpy_self_f64(2.0, @mutable output[..]);
     let mutable empty_dot: f64 = -99.0;
     let mutable empty_norm: f64 = -99.0;
-    let empty_dot_ok: bool = try_dot_f64(@input[0..0], @input[0..0], @mutable empty_dot);
-    let empty_norm_ok: bool = try_scaled_norm_f64(@input[0..0], @mutable empty_norm);
+    let empty_dot_ok: bool = |linear_algebra|::try_dot_f64(@input[0..0], @input[0..0], @mutable empty_dot);
+    let empty_norm_ok: bool = |linear_algebra|::try_scaled_norm_f64(@input[0..0], @mutable empty_norm);
     let mutable sentinel: f64 = 77.0;
-    let mismatch: bool = try_dot_f64(@input[..], @input[0..1], @mutable sentinel);
+    let mismatch: bool = |linear_algebra|::try_dot_f64(@input[..], @input[0..1], @mutable sentinel);
     transition ordinary_ok && self_ok && output[0] == 21.0 && output[1] == 30.0
         && input[0] == 3.0 && input[1] == 4.0
         && empty_dot_ok && empty_norm_ok && empty_dot == 0.0 && empty_norm == 0.0

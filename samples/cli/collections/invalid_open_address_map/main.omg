@@ -1,4 +1,4 @@
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_exit.omg;
 // Intended-invalid control for open_address_map: writing slot 16 of a
 // 16-entry slot array must be rejected at compile time.
 
@@ -12,13 +12,13 @@ machine poke<K, V>(table: @mutable Table<K, V>) {
 
 data Main { ints: Table<u64, u64>; }
 
-machine main(main: @mutable Main) reaches ProcessExit {
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit {
     poke(@mutable main.ints);
-    ProcessExit::exit_process(0);
+    |process_exit|::ProcessExit::exit_process(0);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit {
+machine entry_start() reaches |process_exit|::ProcessExit {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }

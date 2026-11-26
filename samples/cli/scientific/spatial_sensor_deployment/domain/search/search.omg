@@ -1,21 +1,18 @@
-use domain\model;
-use domain\model\Problem;
-use domain\model\Search;
-use domain\model\Evaluation;
+use domain/model/model.omg;
 // Exhaust each of 8 deployments and 256 demand assignments. No greedy coverage
 // shortcut: capacities couple demand choices. Assignment digit 0 means unserved.
-machine evaluate(problem: @Problem, work: @mutable Evaluation,
+machine evaluate(problem: @|model|::Problem, work: @mutable |model|::Evaluation,
                  mask: u64 in Wrapping, code: u64 in Wrapping) -> bool {
     work.loads[0] = 0; work.loads[1] = 0; work.loads[2] = 0; work.score = 0;
     transition { _ -> demand(problem, work, mask, code, 0) }
-    machine demand(problem: @Problem, work: @mutable Evaluation, mask: u64 in Wrapping,
+    machine demand(problem: @|model|::Problem, work: @mutable |model|::Evaluation, mask: u64 in Wrapping,
                  remaining: u64 in Wrapping, position: u64 in Wrapping) -> bool {
         transition position < 4 {
             true -> digit(problem, work, mask, remaining, position),
             false -> true
         }
     }
-    machine digit(problem: @Problem, work: @mutable Evaluation, mask: u64 in Wrapping,
+    machine digit(problem: @|model|::Problem, work: @mutable |model|::Evaluation, mask: u64 in Wrapping,
                 remaining: u64 in Wrapping, position: u64 in Wrapping) -> bool {
         let assigned: u64 in Wrapping = remaining % 4;
         transition assigned > 0 && assigned <= 3 {
@@ -23,7 +20,7 @@ machine evaluate(problem: @Problem, work: @mutable Evaluation,
             false -> demand(problem, work, mask, remaining / 4, position + 1)
         }
     }
-    machine bounds(problem: @Problem, work: @mutable Evaluation, mask: u64 in Wrapping,
+    machine bounds(problem: @|model|::Problem, work: @mutable |model|::Evaluation, mask: u64 in Wrapping,
                  remaining: u64 in Wrapping, position: u64 in Wrapping,
                  site: u64 in Wrapping) -> bool {
         transition position < 4 && site < 3 {
@@ -31,7 +28,7 @@ machine evaluate(problem: @Problem, work: @mutable Evaluation,
             false -> false
         }
     }
-    machine geometric(problem: @Problem, work: @mutable Evaluation, mask: u64 in Wrapping,
+    machine geometric(problem: @|model|::Problem, work: @mutable |model|::Evaluation, mask: u64 in Wrapping,
                     remaining: u64 in Wrapping, position: u64 in Wrapping,
                     site: u64 in Wrapping) -> bool {
         let divisor: u64 in Wrapping = problem.powers[site];
@@ -43,7 +40,7 @@ machine evaluate(problem: @Problem, work: @mutable Evaluation,
             false -> false
         }
     }
-    machine selected(problem: @Problem, work: @mutable Evaluation, mask: u64 in Wrapping,
+    machine selected(problem: @|model|::Problem, work: @mutable |model|::Evaluation, mask: u64 in Wrapping,
                    remaining: u64 in Wrapping, position: u64 in Wrapping,
                    site: u64 in Wrapping, divisor: u64 in Wrapping,
                    distance: i32 in Wrapping, radius: i32 in Wrapping) -> bool {
@@ -52,7 +49,7 @@ machine evaluate(problem: @Problem, work: @mutable Evaluation,
             false -> false
         }
     }
-    machine admissible(problem: @Problem, work: @mutable Evaluation, mask: u64 in Wrapping,
+    machine admissible(problem: @|model|::Problem, work: @mutable |model|::Evaluation, mask: u64 in Wrapping,
                      remaining: u64 in Wrapping, position: u64 in Wrapping,
                      site: u64 in Wrapping, divisor: u64 in Wrapping,
                      distance: i32 in Wrapping, radius: i32 in Wrapping) -> bool {
@@ -62,7 +59,7 @@ machine evaluate(problem: @Problem, work: @mutable Evaluation,
             false -> false
         }
     }
-    machine serve(problem: @Problem, work: @mutable Evaluation, mask: u64 in Wrapping,
+    machine serve(problem: @|model|::Problem, work: @mutable |model|::Evaluation, mask: u64 in Wrapping,
                 remaining: u64 in Wrapping, position: u64 in Wrapping,
                 site: u64 in Wrapping) -> bool {
         transition position < 4 && site < 3 {
@@ -70,7 +67,7 @@ machine evaluate(problem: @Problem, work: @mutable Evaluation,
             false -> false
         }
     }
-    machine store(problem: @Problem, work: @mutable Evaluation, mask: u64 in Wrapping,
+    machine store(problem: @|model|::Problem, work: @mutable |model|::Evaluation, mask: u64 in Wrapping,
                 remaining: u64 in Wrapping, position: u64 in Wrapping,
                 site: u64 in Wrapping) -> bool {
         work.loads[site] = work.loads[site] + 1;
@@ -79,23 +76,23 @@ machine evaluate(problem: @Problem, work: @mutable Evaluation,
     }
 }
 
-machine deployment_cost(problem: @Problem, mask: u64 in Wrapping) -> u64 in Wrapping {
+machine deployment_cost(problem: @|model|::Problem, mask: u64 in Wrapping) -> u64 in Wrapping {
     transition { _ -> scan(problem, mask, 0, 0) }
-    machine scan(problem: @Problem, remaining: u64 in Wrapping, site: u64 in Wrapping,
+    machine scan(problem: @|model|::Problem, remaining: u64 in Wrapping, site: u64 in Wrapping,
                cost: u64 in Wrapping) -> u64 in Wrapping {
         transition site < 3 {
             true -> item(problem, remaining, site, cost),
             false -> cost
         }
     }
-    machine item(problem: @Problem, remaining: u64 in Wrapping, site: u64 in Wrapping,
+    machine item(problem: @|model|::Problem, remaining: u64 in Wrapping, site: u64 in Wrapping,
                cost: u64 in Wrapping) -> u64 in Wrapping {
         transition remaining % 2 == 1 {
             true -> add(problem, remaining, site, cost),
             false -> scan(problem, remaining / 2, site + 1, cost)
         }
     }
-    machine add(problem: @Problem, remaining: u64 in Wrapping, site: u64 in Wrapping,
+    machine add(problem: @|model|::Problem, remaining: u64 in Wrapping, site: u64 in Wrapping,
               cost: u64 in Wrapping) -> u64 in Wrapping {
         transition site < 3 {
             true -> scan(problem, remaining / 2, site + 1, cost + problem.sites[site].cost),
@@ -104,16 +101,16 @@ machine deployment_cost(problem: @Problem, mask: u64 in Wrapping) -> u64 in Wrap
     }
 }
 
-public machine solve(search: @mutable Search, problem: @Problem) {
+public machine solve(search: @mutable |model|::Search, problem: @|model|::Problem) {
     search.mask = 0; search.cost = 0; search.score = 0; search.code = 0; search.ties = 0;
     transition { _ -> subset(search, problem, 0) }
-    machine subset(search: @mutable Search, problem: @Problem, mask: u64 in Wrapping) {
+    machine subset(search: @mutable |model|::Search, problem: @|model|::Problem, mask: u64 in Wrapping) {
         transition mask < 8 {
             true -> initialize(search, problem, mask),
             false -> done()
         }
     }
-    machine initialize(search: @mutable Search, problem: @Problem, mask: u64 in Wrapping) {
+    machine initialize(search: @mutable |model|::Search, problem: @|model|::Problem, mask: u64 in Wrapping) {
         let cost: u64 in Wrapping = deployment_cost(problem, mask);
         search.rows[mask].cost = cost; search.rows[mask].score = 0;
         search.rows[mask].feasible = 0; search.rows[mask].code = 0;
@@ -122,30 +119,30 @@ public machine solve(search: @mutable Search, problem: @Problem) {
             false -> subset(search, problem, mask + 1)
         }
     }
-    machine assignment(search: @mutable Search, problem: @Problem, mask: u64 in Wrapping,
+    machine assignment(search: @mutable |model|::Search, problem: @|model|::Problem, mask: u64 in Wrapping,
                      code: u64 in Wrapping) {
         transition code < 256 && mask < 8 {
             true -> test(search, problem, mask, code),
             false -> compare(search, problem, mask)
         }
     }
-    machine test(search: @mutable Search, problem: @Problem, mask: u64 in Wrapping,
+    machine test(search: @mutable |model|::Search, problem: @|model|::Problem, mask: u64 in Wrapping,
                code: u64 in Wrapping) {
-        let mutable work: Evaluation;
+        let mutable work: |model|::Evaluation;
         let valid: bool = evaluate(problem, @mutable work, mask, code);
         transition valid {
             true -> count(search, problem, mask, code, work.score),
             false -> assignment(search, problem, mask, code + 1)
         }
     }
-    machine count(search: @mutable Search, problem: @Problem, mask: u64 in Wrapping,
+    machine count(search: @mutable |model|::Search, problem: @|model|::Problem, mask: u64 in Wrapping,
                 code: u64 in Wrapping, score: u64 in Wrapping) {
         transition mask < 8 {
             true -> tally(search, problem, mask, code, score),
             false -> done()
         }
     }
-    machine tally(search: @mutable Search, problem: @Problem, mask: u64 in Wrapping,
+    machine tally(search: @mutable |model|::Search, problem: @|model|::Problem, mask: u64 in Wrapping,
                 code: u64 in Wrapping, score: u64 in Wrapping) {
         search.rows[mask].feasible = search.rows[mask].feasible + 1;
         transition score > search.rows[mask].score {
@@ -153,25 +150,25 @@ public machine solve(search: @mutable Search, problem: @Problem) {
             false -> assignment(search, problem, mask, code + 1)
         }
     }
-    machine improve(search: @mutable Search, problem: @Problem, mask: u64 in Wrapping,
+    machine improve(search: @mutable |model|::Search, problem: @|model|::Problem, mask: u64 in Wrapping,
                   code: u64 in Wrapping, score: u64 in Wrapping) {
         transition mask < 8 {
             true -> save(search, problem, mask, code, score),
             false -> done()
         }
     }
-    machine save(search: @mutable Search, problem: @Problem, mask: u64 in Wrapping,
+    machine save(search: @mutable |model|::Search, problem: @|model|::Problem, mask: u64 in Wrapping,
                code: u64 in Wrapping, score: u64 in Wrapping) {
         search.rows[mask].score = score; search.rows[mask].code = code;
         transition { _ -> assignment(search, problem, mask, code + 1) }
     }
-    machine compare(search: @mutable Search, problem: @Problem, mask: u64 in Wrapping) {
+    machine compare(search: @mutable |model|::Search, problem: @|model|::Problem, mask: u64 in Wrapping) {
         transition mask < 8 {
             true -> rank(search, problem, mask),
             false -> done()
         }
     }
-    machine rank(search: @mutable Search, problem: @Problem, mask: u64 in Wrapping) {
+    machine rank(search: @mutable |model|::Search, problem: @|model|::Problem, mask: u64 in Wrapping) {
         let score: u64 in Wrapping = search.rows[mask].score;
         let cost: u64 in Wrapping = search.rows[mask].cost;
         transition score > search.score || (score == search.score && cost < search.cost) {
@@ -179,25 +176,25 @@ public machine solve(search: @mutable Search, problem: @Problem) {
             false -> tied(search, problem, mask, score, cost)
         }
     }
-    machine winner(search: @mutable Search, problem: @Problem, mask: u64 in Wrapping) {
+    machine winner(search: @mutable |model|::Search, problem: @|model|::Problem, mask: u64 in Wrapping) {
         transition mask < 8 {
             true -> publish(search, problem, mask),
             false -> done()
         }
     }
-    machine publish(search: @mutable Search, problem: @Problem, mask: u64 in Wrapping) {
+    machine publish(search: @mutable |model|::Search, problem: @|model|::Problem, mask: u64 in Wrapping) {
         search.mask = mask; search.cost = search.rows[mask].cost;
         search.score = search.rows[mask].score; search.code = search.rows[mask].code; search.ties = 1;
         transition { _ -> subset(search, problem, mask + 1) }
     }
-    machine tied(search: @mutable Search, problem: @Problem, mask: u64 in Wrapping,
+    machine tied(search: @mutable |model|::Search, problem: @|model|::Problem, mask: u64 in Wrapping,
                score: u64 in Wrapping, cost: u64 in Wrapping) {
         transition score == search.score && cost == search.cost {
             true -> tie(search, problem, mask),
             false -> subset(search, problem, mask + 1)
         }
     }
-    machine tie(search: @mutable Search, problem: @Problem, mask: u64 in Wrapping) {
+    machine tie(search: @mutable |model|::Search, problem: @|model|::Problem, mask: u64 in Wrapping) {
         search.ties = search.ties + 1;
         transition { _ -> subset(search, problem, mask + 1) }
     }

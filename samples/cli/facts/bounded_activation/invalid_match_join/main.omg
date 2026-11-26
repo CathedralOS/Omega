@@ -1,10 +1,5 @@
 // Fact: Commit three bytes under bound eight, write/read the committed region, release it, and observe checked rejection of a request for nine bytes.
-use omega\language\core\Activation;
-use omega\language\core\Activation::try_claim;
-use omega\language\core\ActivationClaim;
-use omega\language\core\ActivationClaim::bytes;
-use omega\language\core\ActivationClaim::release;
-use omega\language\core\ActivationClaimAttempt;
+use {omega}/language/core/activation.omg;
 
 machine write_read(bytes: @mutable [u8]) -> u8 {
     transition bytes.length >= 3 {
@@ -19,19 +14,19 @@ machine write_read(bytes: @mutable [u8]) -> u8 {
 }
 
 machine main() crashes Trap {
-    let attempt: ActivationClaimAttempt = match true {
-        true -> Activation::try_claim::<8>(3),
-        false -> Activation::try_claim::<8>(3),
+    let attempt: |activation|::ActivationClaimAttempt = match true {
+        true -> |activation|::Activation::try_claim::<8>(3),
+        false -> |activation|::Activation::try_claim::<8>(3),
     };
     transition attempt {
-        ActivationClaimAttempt::Established { claim } -> established(claim),
-        ActivationClaimAttempt::Rejected -> bad()
+        |activation|::ActivationClaimAttempt::Established { claim } -> established(claim),
+        |activation|::ActivationClaimAttempt::Rejected -> bad()
     }
-    machine established(claim: ActivationClaim) {
-        let mutable live: ActivationClaim = claim;
-        let bytes: @mutable [u8] = ActivationClaim::bytes(@mutable live);
+    machine established(claim: |activation|::ActivationClaim) {
+        let mutable live: |activation|::ActivationClaim = claim;
+        let bytes: @mutable [u8] = |activation|::ActivationClaim::bytes(@mutable live);
         let observed: u8 = write_read(bytes);
-        ActivationClaim::release(live);
+        |activation|::ActivationClaim::release(live);
         let length: u64 = bytes.length;
         transition length == 3 && observed == 37u8 {
             true -> over_bound(),
@@ -39,13 +34,13 @@ machine main() crashes Trap {
         }
     }
     machine over_bound() {
-        transition Activation::try_claim::<8>(9) {
-            ActivationClaimAttempt::Rejected -> done(),
-            ActivationClaimAttempt::Established { claim } -> unexpectedly_established(claim)
+        transition |activation|::Activation::try_claim::<8>(9) {
+            |activation|::ActivationClaimAttempt::Rejected -> done(),
+            |activation|::ActivationClaimAttempt::Established { claim } -> unexpectedly_established(claim)
         }
     }
-    machine unexpectedly_established(claim: ActivationClaim) {
-        ActivationClaim::release(claim);
+    machine unexpectedly_established(claim: |activation|::ActivationClaim) {
+        |activation|::ActivationClaim::release(claim);
         crash Trap;
     }
     machine done() {}

@@ -1,5 +1,5 @@
-use chain\left;
+use chain/left.omg;
 
 public data Right {
-    value: Left;
+    value: |left|::Left;
 }

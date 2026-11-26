@@ -1,5 +1,6 @@
-use omega\language\core\StandardInput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Expected exit: 10.
 // An infix calculator over standard input. It reads
 // "- ( 3 - 10 ) * 17 % 50 - 3 ^ 2", skips spaces and tabs, tokenizes
@@ -25,8 +26,6 @@ use omega\language\core\ProcessExit;
 // '0'..'9' 48..57, space 32, tab 9, LF 10.
 // Unary minus is stored as operator 126 so it stays distinct from binary '-'.
 
-use system\ByteRead;
-use system\Console;
 
 data Token [copy] {
     case Number(value: i32 in Wrapping);
@@ -170,7 +169,7 @@ requires main.cursor < main.token_count && main.cursor < 16 {
     main.tokens[main.cursor]
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput {
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput {
     main.token_count = 0;
     main.number = 0i32 as +Wrapping;
     main.in_number = false;
@@ -181,11 +180,11 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput {
 
     // --- tokenize standard input ---
     machine read(main: @mutable Main) {
-        let input: ByteRead = block Console::read_byte();
+        let input: |console|::ByteRead = block |console|::Console::read_byte();
         transition input {
-            ByteRead::Error -> ProcessExit::exit_process(74),
-            ByteRead::Byte { value } -> block classify(main, value),
-            ByteRead::Eof -> end_of_input(main)
+            |console|::ByteRead::Error -> |process_exit|::ProcessExit::exit_process(74),
+            |console|::ByteRead::Byte { value } -> block classify(main, value),
+            |console|::ByteRead::Eof -> end_of_input(main)
         }
     }
 
@@ -669,16 +668,16 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput {
 
     machine report(main: @mutable Main) {
         let result: i32 in Wrapping = value_stack_pop(value_stack(main));
-        ProcessExit::exit_process(result as i32);
+        |process_exit|::ProcessExit::exit_process(result as i32);
     }
 
     machine malformed() {
-        ProcessExit::exit_process(1);
+        |process_exit|::ProcessExit::exit_process(1);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

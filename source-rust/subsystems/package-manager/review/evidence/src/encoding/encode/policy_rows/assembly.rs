@@ -210,7 +210,7 @@ pub(super) fn project(
                 selected_providers::policy,
             )?;
             encoder.field("closed_applications", |encoder| {
-                encoder.sequence(realizations, baseline::boundary::realization)
+                encoder.sequence(realizations, baseline::realization)
             })
         },
     )?;
@@ -219,8 +219,8 @@ pub(super) fn project(
             PackagePolicyRowKind::SymbolicBoundaryDemand,
             false,
             false,
-            |encoder| baseline::boundary::demand(encoder, demand),
-            |encoder| baseline::boundary::demand(encoder, demand),
+            |encoder| baseline::demand(encoder, demand),
+            |encoder| baseline::demand(encoder, demand),
         )?;
     }
     components::terminal(builder, terminal_permissions)?;
@@ -308,12 +308,12 @@ pub(super) fn project(
             true,
             true,
             |encoder| {
-                let (name, tag) = baseline::restricted_build::operation(&request.operation);
+                let (name, tag) = baseline::operation(&request.operation);
                 encoder.tag(name, tag);
                 encoder.u64(ordinal);
                 Ok(())
             },
-            |encoder| baseline::restricted_build::request(encoder, request),
+            |encoder| baseline::request(encoder, request),
         )?;
     }
     Ok(())

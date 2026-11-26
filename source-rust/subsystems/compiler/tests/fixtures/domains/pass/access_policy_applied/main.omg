@@ -2,11 +2,9 @@
 // arguments yet, so the domain holds a deferred refusal instead of stopping
 // the program.
 
-use omega\language\core\AccessPolicy;
-use omega\language\core\AccessPlan;
-use omega\language\core\reflect\TypeSchema;
-use omega\language\core\Issuance;
-use omega\language\core\access;
+use {omega}/language/core/layout.omg;
+use {omega}/language/core/reflect/reflect.omg;
+use {omega}/language/core/access/access.omg;
 
 data Cell {
     value: u64;
@@ -16,14 +14,14 @@ data Other {
     value: u64;
 }
 
-CellAccess satisfies AccessPolicy {
-    machine plan(schema: TypeSchema) -> AccessPlan reaches none crashes none terminates {
-        access\new_plan(@schema, Issuance::Only { routes: [] })
+CellAccess satisfies |layout|::AccessPolicy {
+    machine plan(schema: |reflect|::TypeSchema) -> |layout|::AccessPlan reaches none crashes none terminates {
+        |access|::new_plan(@schema, |layout|::Issuance::Only { routes: [] })
     }
 }
 
-NumericAccess<const Count: u64> satisfies AccessPolicy {
-    AccessPolicy::plan = CellAccess::plan;
+NumericAccess<const Count: u64> satisfies |layout|::AccessPolicy {
+    |layout|::AccessPolicy::plan = CellAccess::plan;
 }
 
 domain Cell::Controlled

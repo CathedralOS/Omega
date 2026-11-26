@@ -1,6 +1,6 @@
-use omega\language\core\StandardOutput;
-use system\Console;
-use omega\language\core\narrow_i32_to_u8_wrapping;
+use {omega}/language/core/numeric_conversion.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 
 data Decimal {
     value: i32 in Wrapping;
@@ -12,8 +12,8 @@ data Decimal {
 // Prepare signed decimal bytes before invoking Console. A nonpositive
 // working value represents i32::MIN exactly; eleven bytes include its sign.
 public machine number(value: i32 in Wrapping)
-reaches StandardOutput
-invokes Console
+reaches |process_authority|::StandardOutput
+invokes |console|::Console
 {
     let mutable decimal: Decimal;
     decimal.divisor = 1;
@@ -66,7 +66,7 @@ invokes Console
     machine digit_ready(decimal: @mutable Decimal)
     requires decimal.divisor >= 1 && decimal.divisor <= 1000000000 && decimal.count < 11
     {
-        decimal.bytes[decimal.count] = narrow_i32_to_u8_wrapping((-(decimal.value / decimal.divisor) + 48) as i32);
+        decimal.bytes[decimal.count] = |numeric_conversion|::narrow_i32_to_u8_wrapping((-(decimal.value / decimal.divisor) + 48) as i32);
         decimal.count = decimal.count + 1;
         transition decimal.divisor >= 10 && decimal.count < 11 {
             true -> next(decimal),
@@ -95,7 +95,7 @@ invokes Console
     machine emit_ready(decimal: @Decimal)
     requires decimal.count <= 11
     {
-        Console::write(decimal.bytes[..decimal.count]);
+        |console|::Console::write(decimal.bytes[..decimal.count]);
     }
     machine done() {}
 }

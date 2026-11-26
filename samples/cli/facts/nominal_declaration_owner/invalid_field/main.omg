@@ -1,9 +1,9 @@
-// A library Token retains its declaring owner when it reaches library\read.
+// A library Token retains its declaring owner when it reaches |shared_library|::read.
 // Expected exit: 0
-use shared\copied\Token;
-use shared\library\read;
-data Holder { token: Token; }
-machine transported() -> u8 { let holder: Holder = Holder { token: Token { value: 7 } }; read(holder.token) }
+use {shared}/copied/copied.omg;
+use {shared}/library/library.omg as shared_library;
+data Holder { token: |copied|::Token; }
+machine transported() -> u8 { let holder: Holder = Holder { token: |copied|::Token { value: 7 } }; |shared_library|::read(holder.token) }
 machine main() crashes Trap {
     transition transported() == 7 { true -> done(), _ -> bad() }
     machine done() {}

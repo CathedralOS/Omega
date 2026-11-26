@@ -332,6 +332,7 @@ fn lower_records(
     bodies.push(body);
     let boundary_signatures = crate::declare::boundaries::BoundaryNamespace::default();
     let signatures = crate::body::Signatures {
+        inferred_inputs: None,
         theorems: &[],
         declarations: &IdTable::default(),
         declaration_aliases: None,
@@ -1985,12 +1986,14 @@ fn outcomes_follow_the_ceiling_or_the_body() {
         let table = outcomes(
             &bodies,
             crate::body::Signatures {
+                inferred_inputs: None,
                 theorems: &[],
                 declarations: &IdTable::default(),
                 declaration_aliases: None,
                 machines: &signatures,
                 boundaries: &crate::declare::boundaries::BoundaryNamespace::default(),
             },
+            &[],
             &[],
             &crate::callables::CallableNamespace::default(),
             None,
@@ -2049,12 +2052,14 @@ fn a_body_that_declares_crashes_none_publishes_no_route() {
         outcomes(
             &bodies,
             crate::body::Signatures {
+                inferred_inputs: None,
                 theorems: &[],
                 declarations: &IdTable::default(),
                 declaration_aliases: None,
                 machines: &signatures,
                 boundaries: &crate::declare::boundaries::BoundaryNamespace::default(),
             },
+            &[],
             &[],
             &crate::callables::CallableNamespace::default(),
             None,
@@ -2127,12 +2132,14 @@ fn a_skipped_operand_cannot_end_the_machine() {
     let table = outcomes(
         &bodies,
         crate::body::Signatures {
+            inferred_inputs: None,
             theorems: &[],
             declarations: &IdTable::default(),
             declaration_aliases: None,
             machines: &signatures,
             boundaries: &crate::declare::boundaries::BoundaryNamespace::default(),
         },
+        &[],
         &[],
         &crate::callables::CallableNamespace::default(),
         None,
@@ -2222,6 +2229,7 @@ fn settle_both(
         });
     }
     let signatures = crate::body::Signatures {
+        inferred_inputs: None,
         theorems: &[],
         declarations: &IdTable::default(),
         declaration_aliases: None,

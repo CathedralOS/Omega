@@ -1,6 +1,5 @@
 // Bounded text report rendering for observational package inspection (`omega packages`), contrasting accepted lock history with fresh compiler findings and build-snapshot settlements.
 
-use package_compilation::build_execution::BuildObservationSummary;
 use crate::Hex;
 use crate::declarations::PackageKey;
 use crate::lock::PackageLockTarget;
@@ -8,6 +7,7 @@ use crate::resolution::graph::CanonicalSourceClosureSubject;
 use crate::review::{
     CompilerIssuedPackageReviewSet, PackagePolicyChangeSet, PackagePolicyDependencyPath,
 };
+use package_compilation::build_execution::BuildObservationSummary;
 use review_evidence::record::{PackageReviewNominalIdentity, PackageReviewNominalOwner};
 use source_acquisition::{GitTransport, ImmutableSourceResolution, SourceLineage};
 use std::fmt::{self, Write};
@@ -196,11 +196,20 @@ fn contents(
                 writeln!(
                     output,
                     "preparing Build {:?} callable {:?} selected {:?}",
-                    stage.file, stage.callable, stage.successor.as_str()
+                    stage.file,
+                    stage.callable,
+                    stage.successor.as_str()
                 )?;
-                writeln!(output, "preparation concrete-reach {:?}", stage.concrete_reach)?;
+                writeln!(
+                    output,
+                    "preparation concrete-reach {:?}",
+                    stage.concrete_reach
+                )?;
                 for (requirement, upper_bound) in &stage.installation_reach {
-                    writeln!(output, "  installed requirement {requirement:?} reach upper-bound {upper_bound:?}")?;
+                    writeln!(
+                        output,
+                        "  installed requirement {requirement:?} reach upper-bound {upper_bound:?}"
+                    )?;
                 }
                 build_snapshot(output, Some(&stage.observation), verbose)?;
             }
@@ -208,7 +217,8 @@ fn contents(
                 writeln!(
                     output,
                     "final Build {:?} callable {:?}",
-                    last.successor.as_str(), review.selected_build_machine_identity()
+                    last.successor.as_str(),
+                    review.selected_build_machine_identity()
                 )?;
             }
             build_snapshot(output, review.build_observation_summary(), verbose)?;
@@ -360,6 +370,12 @@ fn package_key(output: &mut Output, prefix: &str, key: &PackageKey) -> fmt::Resu
                 source.repository_path()
             )
         }
+        SourceLineage::Bundled { library, directory } => writeln!(
+            output,
+            "bundled {:?} library {}",
+            directory.as_str(),
+            library.to_hex()
+        ),
         SourceLineage::Workspace(source) => {
             writeln!(output, "workspace {:?}", source.member_path().as_str())
         }
@@ -382,6 +398,9 @@ fn resolution(output: &mut Output, resolution: &ImmutableSourceResolution) -> fm
             tree.to_hex(),
             content.to_hex()
         ),
+        ImmutableSourceResolution::Bundled { content } => {
+            writeln!(output, "  source bundled content {}", content.to_hex())
+        }
         ImmutableSourceResolution::Workspace { content } => {
             writeln!(output, "  source workspace content {}", content.to_hex())
         }

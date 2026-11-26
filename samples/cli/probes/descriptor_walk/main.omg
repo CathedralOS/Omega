@@ -1,4 +1,5 @@
-use omega\language\core\ProcessExit;
+use {omega}/language/core/numeric_conversion.omg;
+use {omega}/language/core/process_exit.omg;
 // DESCRIPTOR WALK -- the Cathedral M2 memory-map pattern, in-tree: a byte
 // buffer holding firmware-style descriptors is walked at a RUNTIME stride
 // (`off + main.descriptor_size`, never sizeof), each entry re-viewed
@@ -17,8 +18,6 @@ use omega\language\core\ProcessExit;
 // 20 + 30 = 50.
 //
 // Expected exit: 50
-use omega\language\core\narrow_u32_to_i32_trapping;
-use omega\language\core\narrow_u64_to_u32_wrapping;
 data Desc { kind: u32; pages: u64; }
 data Main
 requires self.descriptor_size <= 16
@@ -27,7 +26,7 @@ requires self.descriptor_size <= 16
     descriptor_size: u32;
     total: u32 in Wrapping;
 }
-machine walk_descriptors(main: @mutable Main) reaches ProcessExit crashes Trap {
+machine walk_descriptors(main: @mutable Main) reaches |process_exit|::ProcessExit crashes Trap {
     // Descriptor 0: kind 3, pages 10.
     main.buf[0] = 3;
     main.buf[8] = 10;
@@ -42,7 +41,7 @@ machine walk_descriptors(main: @mutable Main) reaches ProcessExit crashes Trap {
 
     // The view is taken once per entry. Current arrival requirements and the
     // guarded back edge establish its footprint over the original buffer.
-    machine walk(main: @mutable Main, off: u32) requires off <= 32 reaches ProcessExit crashes Trap {
+    machine walk(main: @mutable Main, off: u32) requires off <= 32 reaches |process_exit|::ProcessExit crashes Trap {
         let d: @Desc = @main.buf[off] as @Desc;
         let pages: u64 = d.pages;
         transition d.kind >= 4 {
@@ -50,34 +49,34 @@ machine walk_descriptors(main: @mutable Main) reaches ProcessExit crashes Trap {
             _ -> step(main, off)
         }
     }
-    machine tally(main: @mutable Main, off: u32, pages: u64) requires off <= 32 reaches ProcessExit crashes Trap {
+    machine tally(main: @mutable Main, off: u32, pages: u64) requires off <= 32 reaches |process_exit|::ProcessExit crashes Trap {
         let counted: u32 in Wrapping =
-            narrow_u64_to_u32_wrapping(pages) as u32 +Wrapping;
+            |numeric_conversion|::narrow_u64_to_u32_wrapping(pages) as u32 +Wrapping;
         main.total = main.total + counted;
         transition { _ -> step(main, off) }
     }
-    machine step(main: @mutable Main, off: u32) requires off <= 32 reaches ProcessExit crashes Trap {
+    machine step(main: @mutable Main, off: u32) requires off <= 32 reaches |process_exit|::ProcessExit crashes Trap {
         let stride: u32 = main.descriptor_size;
         transition stride > 0 && stride <= 16 {
             true -> advance(main, off, stride),
             _ -> done(main)
         }
     }
-    machine advance(main: @mutable Main, off: u32, stride: u32) requires off <= 32 requires stride <= 16 reaches ProcessExit crashes Trap {
+    machine advance(main: @mutable Main, off: u32, stride: u32) requires off <= 32 requires stride <= 16 reaches |process_exit|::ProcessExit crashes Trap {
         let next: u32 = off + stride;
         transition next <= 32 {
             true -> walk(main, next),
             _ -> done(main)
         }
     }
-    machine done(main: @mutable Main) reaches ProcessExit crashes Trap {
-        let code: i32 = narrow_u32_to_i32_trapping(main.total as u32);
-        ProcessExit::exit_process(code);
+    machine done(main: @mutable Main) reaches |process_exit|::ProcessExit crashes Trap {
+        let code: i32 = |numeric_conversion|::narrow_u32_to_i32_trapping(main.total as u32);
+        |process_exit|::ProcessExit::exit_process(code);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit crashes Trap {
+machine entry_start() reaches |process_exit|::ProcessExit crashes Trap {
     let mutable entry_storage: Main;
     walk_descriptors(@mutable entry_storage);
 }

@@ -1,6 +1,4 @@
-use domain\sequence;
-use domain\sequence\Sequence;
-use domain\sequence\sequence_append;
+use domain/sequence/sequence.omg;
 // LF-delimited R<contig>:<reference> or V<contig>:<position>:<ref>:<alt>:<source>.
 // Coordinates and source ids are single decimal digits. '-' is an empty allele.
 public data Input {
@@ -8,8 +6,8 @@ public data Input {
     contig: u64 in Wrapping;
     position: u64 in Wrapping;
     source: u64 in Wrapping;
-    removed: Sequence;
-    inserted: Sequence;
+    removed: |sequence|::Sequence;
+    inserted: |sequence|::Sequence;
     valid: bool;
 }
 machine character(line: @[u8; 64], count: u64 in Wrapping, index: u64 in Wrapping) -> u64 in Wrapping {
@@ -82,7 +80,7 @@ public machine parse(line: @[u8; 64], count: u64 in Wrapping, input: @mutable In
     }
     machine removed(line: @[u8; 64], count: u64 in Wrapping, input: @mutable Input,
                   index: u64 in Wrapping, base: u64 in Wrapping) {
-        let accepted: bool = sequence_append(@mutable input.removed, base);
+        let accepted: bool = |sequence|::sequence_append(@mutable input.removed, base);
         transition accepted && input.removed.length <= 8 {
             true -> sequence(line, count, input, index + 1, 0),
             _ -> stop()
@@ -90,7 +88,7 @@ public machine parse(line: @[u8; 64], count: u64 in Wrapping, input: @mutable In
     }
     machine inserted(line: @[u8; 64], count: u64 in Wrapping, input: @mutable Input,
                    index: u64 in Wrapping, base: u64 in Wrapping) {
-        let accepted: bool = sequence_append(@mutable input.inserted, base);
+        let accepted: bool = |sequence|::sequence_append(@mutable input.inserted, base);
         transition accepted && input.inserted.length <= 4 {
             true -> sequence(line, count, input, index + 1, 1),
             _ -> stop()

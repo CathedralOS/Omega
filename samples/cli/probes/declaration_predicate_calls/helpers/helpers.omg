@@ -1,2 +1,3 @@
-public let within_hundred(value: u64): core\Strict<0> = embed(value) <= 100;
-public let small_byte(value: u8): core\Strict<0> = embed(value) <= 100;
+use {omega}/language/core/foundation.omg as proof;
+public let within_hundred(value: u64): |proof|::Strict<0> = embed(value) <= 100;
+public let small_byte(value: u8): |proof|::Strict<0> = embed(value) <= 100;

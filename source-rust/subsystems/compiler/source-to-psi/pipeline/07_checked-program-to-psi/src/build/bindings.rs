@@ -233,7 +233,8 @@ fn validate_sites(
 
 pub(crate) mod build_filesystem {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
-    pub enum TerminalBuildFilesystemOperation {        ResolveSource,
+    pub enum TerminalBuildFilesystemOperation {
+        ResolveSource,
         ResolveOutput,
         NamedInput,
         Open,
@@ -401,6 +402,7 @@ pub(crate) mod build_requests {
             program: source_text::SourceSpan,
         },
         PathDependency,
+        BundledDependency,
         GitDependency,
         InputBinding,
         AddBinding,

@@ -239,7 +239,10 @@ context and derives its [semantic binding](toolchain.md#semantic-bindings-in-a-s
 An unattended build uses the same inputs. A missing required selection, wrong
 owner, incompatible schema or ambiguous resolution fails at the selection.
 
-The invocation and per-child delegation supply restricted Build grants.
+The invocation supplies restricted grants to the root. Explicit delegation
+to a child supplies its grant and constitutes project approval for its use
+within those bounds. The staged CLI and embedding host use the same rule.
+[Restricted Build approval](acceptance.md#restricted-build-acceptance)
 Selecting an output authorizes driver publication of that output. Filesystem
 operations inside a Build use its admitted backing.
 

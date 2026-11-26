@@ -1,22 +1,20 @@
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use domain/mixture/mixture.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Supplemental runtime numeric checks from frozen data/expected.json.
 // The application is main.omg; this entry verifies the same private domain
 // through native and Terminal execution, since CLI --both compares statuses.
 // Expected exit: 0.
 // Expected output contains: VERIFIED: domain_oracles
-use system\Console;
-use domain\mixture;
-use domain\mixture\Mixture;
-use domain\mixture\correct;
 
-data Main { result: Mixture; }
+data Main { result: |mixture|::Mixture; }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardOutput {
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     transition { _ -> case_0(main) }
     machine case_0(main: @mutable Main) {
-        Console::write_line("domain case: nominal");
-        correct(@mutable main.result, 3.0, 5.0, 1.0, 1.0, true);
+        |console|::Console::write_line("domain case: nominal");
+        |mixture|::correct(@mutable main.result, 3.0, 5.0, 1.0, 1.0, true);
         transition main.result.status == 0 {
             true -> case_0_metric_0_lower(main),
             false -> bad(main)
@@ -192,8 +190,8 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardOutput {
         }
     }
     machine case_1(main: @mutable Main) {
-        Console::write_line("domain case: independent_tares");
-        correct(@mutable main.result, 3.0, 5.0, 1.0, 1.0, false);
+        |console|::Console::write_line("domain case: independent_tares");
+        |mixture|::correct(@mutable main.result, 3.0, 5.0, 1.0, 1.0, false);
         transition main.result.status == 1 {
             true -> case_1_metric_0_lower(main),
             false -> bad(main)
@@ -369,8 +367,8 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardOutput {
         }
     }
     machine case_2(main: @mutable Main) {
-        Console::write_line("domain case: equal_shared");
-        correct(@mutable main.result, 3.0, 3.0, 1.0, 1.0, true);
+        |console|::Console::write_line("domain case: equal_shared");
+        |mixture|::correct(@mutable main.result, 3.0, 3.0, 1.0, 1.0, true);
         transition main.result.status == 1 {
             true -> case_2_metric_0_lower(main),
             false -> bad(main)
@@ -546,8 +544,8 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardOutput {
         }
     }
     machine case_3(main: @mutable Main) {
-        Console::write_line("domain case: equal_independent");
-        correct(@mutable main.result, 3.0, 3.0, 1.0, 1.0, false);
+        |console|::Console::write_line("domain case: equal_independent");
+        |mixture|::correct(@mutable main.result, 3.0, 3.0, 1.0, 1.0, false);
         transition main.result.status == 1 {
             true -> case_3_metric_0_lower(main),
             false -> bad(main)
@@ -723,8 +721,8 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardOutput {
         }
     }
     machine case_4(main: @mutable Main) {
-        Console::write_line("domain case: milligrams");
-        correct(@mutable main.result, 300.0, 500.0, 100.0, 0.001, true);
+        |console|::Console::write_line("domain case: milligrams");
+        |mixture|::correct(@mutable main.result, 300.0, 500.0, 100.0, 0.001, true);
         transition main.result.status == 0 {
             true -> case_4_metric_0_lower(main),
             false -> bad(main)
@@ -900,8 +898,8 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardOutput {
         }
     }
     machine case_5(main: @mutable Main) {
-        Console::write_line("domain case: off_target");
-        correct(@mutable main.result, 3.0, 7.0, 1.0, 1.0, true);
+        |console|::Console::write_line("domain case: off_target");
+        |mixture|::correct(@mutable main.result, 3.0, 7.0, 1.0, 1.0, true);
         transition main.result.status == 1 {
             true -> case_5_metric_0_lower(main),
             false -> bad(main)
@@ -1077,8 +1075,8 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardOutput {
         }
     }
     machine case_6(main: @mutable Main) {
-        Console::write_line("domain case: large_batch");
-        correct(@mutable main.result, 21.0, 41.0, 1.0, 1.0, true);
+        |console|::Console::write_line("domain case: large_batch");
+        |mixture|::correct(@mutable main.result, 21.0, 41.0, 1.0, 1.0, true);
         transition main.result.status == 0 {
             true -> case_6_metric_0_lower(main),
             false -> bad(main)
@@ -1254,8 +1252,8 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardOutput {
         }
     }
     machine case_7(main: @mutable Main) {
-        Console::write_line("domain case: zero_component");
-        correct(@mutable main.result, 1.0, 5.0, 1.0, 1.0, true);
+        |console|::Console::write_line("domain case: zero_component");
+        |mixture|::correct(@mutable main.result, 1.0, 5.0, 1.0, 1.0, true);
         transition main.result.status == 1 {
             true -> case_7_metric_0_lower(main),
             false -> bad(main)
@@ -1431,8 +1429,8 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardOutput {
         }
     }
     machine case_8(main: @mutable Main) {
-        Console::write_line("domain case: threshold_exact");
-        correct(@mutable main.result, 5.0, 7.0, 1.0, 0.001, true);
+        |console|::Console::write_line("domain case: threshold_exact");
+        |mixture|::correct(@mutable main.result, 5.0, 7.0, 1.0, 0.001, true);
         transition main.result.status == 1 {
             true -> case_8_metric_0_lower(main),
             false -> bad(main)
@@ -1608,32 +1606,32 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardOutput {
         }
     }
     machine case_9(main: @mutable Main) {
-        Console::write_line("domain case: near_zero");
-        correct(@mutable main.result, 1.0, 2.0, 0.0, 0.001, true);
+        |console|::Console::write_line("domain case: near_zero");
+        |mixture|::correct(@mutable main.result, 1.0, 2.0, 0.0, 0.001, true);
         transition main.result.status == 4 {
             true -> case_10(main),
             false -> bad(main)
         }
     }
     machine case_10(main: @mutable Main) {
-        Console::write_line("domain case: zero_total");
-        correct(@mutable main.result, 1.0, 1.0, 1.0, 1.0, true);
+        |console|::Console::write_line("domain case: zero_total");
+        |mixture|::correct(@mutable main.result, 1.0, 1.0, 1.0, 1.0, true);
         transition main.result.status == 4 {
             true -> case_11(main),
             false -> bad(main)
         }
     }
     machine case_11(main: @mutable Main) {
-        Console::write_line("domain case: negative");
-        correct(@mutable main.result, 0.0, 5.0, 1.0, 1.0, true);
+        |console|::Console::write_line("domain case: negative");
+        |mixture|::correct(@mutable main.result, 0.0, 5.0, 1.0, 1.0, true);
         transition main.result.status == 3 {
             true -> case_12(main),
             false -> bad(main)
         }
     }
     machine case_12(main: @mutable Main) {
-        Console::write_line("domain case: maximum");
-        correct(@mutable main.result, 999.0, 999.0, 0.0, 1.0, true);
+        |console|::Console::write_line("domain case: maximum");
+        |mixture|::correct(@mutable main.result, 999.0, 999.0, 0.0, 1.0, true);
         transition main.result.status == 1 {
             true -> case_12_metric_0_lower(main),
             false -> bad(main)
@@ -1808,12 +1806,12 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardOutput {
             false -> bad(main)
         }
     }
-    machine good(main: @mutable Main) { Console::write_line("VERIFIED: domain_oracles"); ProcessExit::exit_process(0); }
-    machine bad(main: @mutable Main) { Console::write_line("FAIL: domain_oracles"); ProcessExit::exit_process(77); }
+    machine good(main: @mutable Main) { |console|::Console::write_line("VERIFIED: domain_oracles"); |process_exit|::ProcessExit::exit_process(0); }
+    machine bad(main: @mutable Main) { |console|::Console::write_line("FAIL: domain_oracles"); |process_exit|::ProcessExit::exit_process(77); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }

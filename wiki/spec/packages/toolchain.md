@@ -27,9 +27,9 @@ host and target type instances interchangeable. See
 ## Selecting a bundled package
 
 The standard Omega distribution ships the core and Build libraries and the
-ordinary source packages `system`, `allocation`, `blocking_executor` and
-`simd`. A project can build offline against an ordinary package shipped with
-the selected toolchain. Its Build selects the package by its declared name.
+ordinary source packages `system` and `allocation`. A project can build
+offline against an ordinary package shipped with the selected toolchain.
+Its Build selects the package by its declared name.
 
 ```omega
 let system: DependencyDescription =
@@ -38,9 +38,7 @@ _ = |dependency|::add(build, system, @allowed[..]);
 ```
 
 The Build driver looks up that exact name in the selected distribution's
-verified library bundle. The project can live anywhere. For example,
-`blocking_executor` identifies the package regardless of the spelling of
-its installation directory. If the bundle does not supply the requested
+verified library bundle. If the bundle does not supply the requested
 package, report its name and fail the request. Lookup never fetches from
 the network or searches the project's directories.
 

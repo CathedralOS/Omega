@@ -3,10 +3,9 @@
 use crate::declarations::PackageKey;
 use crate::declarations::dependencies::read::{DependencyPurpose, DependencySourceRequest};
 use crate::resolution::graph::{
-    CanonicalDependencySourceRequest as RecordedRequest, CanonicalDependencySourceSelection,
-    CanonicalRootSourceRequest, CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectError,
-    CanonicalSourceClosureSubjectLimits, PackageRootSourceRequest, ResolvedPackageSourceClosure,
-    ResolvedSourceIdentity,
+    CanonicalDependencySourceSelection, CanonicalRootSourceRequest, CanonicalSourceClosureSubject,
+    CanonicalSourceClosureSubjectError, CanonicalSourceClosureSubjectLimits,
+    PackageRootSourceRequest, ResolvedPackageSourceClosure, ResolvedSourceIdentity,
 };
 use crate::resolution::source::PackageSourceCustody;
 
@@ -65,7 +64,7 @@ pub(crate) fn admit_locked_issued_source_request(
             .ok_or("requesting source is absent from locked graph")?;
         if purpose != DependencyPurpose::Build
             || dependency.observer.resolution() != origin.resolution
-            || !request_matches(&dependency.request, request)
+            || &dependency.request != request
         {
             return Err(
                 "catalog execution request differs from its locked source occurrence".into(),
@@ -196,7 +195,7 @@ fn checked_request<'a>(
             )
         })?;
     let edge = &subject.dependency_requests()[index];
-    if !request_matches(edge.request(), request) {
+    if edge.request() != request {
         return Err(AcceptedSourceError::mismatch(
             requester,
             "exact authored dependency request differs",
@@ -246,41 +245,6 @@ pub(crate) fn mutable_local_graph_matches(
             })
         && recorded.dependency_requests() == fresh.dependency_requests()
         && recorded.catalog_dependencies() == fresh.catalog_dependencies())
-}
-
-fn request_matches(recorded: &RecordedRequest, actual: &DependencySourceRequest) -> bool {
-    match (recorded, actual) {
-        (
-            RecordedRequest::Path {
-                explicit_alias,
-                location,
-            },
-            DependencySourceRequest::Path {
-                explicit_alias: alias,
-                location: path,
-            },
-        ) => explicit_alias == alias && location == path,
-        (
-            RecordedRequest::Git {
-                explicit_alias,
-                repository,
-                revision,
-                selection,
-            },
-            DependencySourceRequest::Git {
-                explicit_alias: alias,
-                repository: actual_repository,
-                revision: actual_revision,
-                selection: actual_selection,
-            },
-        ) => {
-            explicit_alias == alias
-                && repository == actual_repository
-                && revision == actual_revision
-                && selection == actual_selection
-        }
-        _ => false,
-    }
 }
 
 #[derive(Debug)]

@@ -1,6 +1,6 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // A counter saturating at a bound. Showcases `[copy]` type
 // properties and saturating arithmetic over a dispatched self-write path
 // driven by scalar arguments. (Historical: case-payload commands threaded into
@@ -8,7 +8,6 @@ use omega\language\core\ProcessExit;
 // vending_machine is the case-payload showcase.)
 // Expected exit: 70.
 
-use system\Console;
 
 data Counter [copy] {
     value: i32 in Saturating;
@@ -20,8 +19,8 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("bounded_counter: saturating counter -- three add(40)s against a bound of 100");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("bounded_counter: saturating counter -- three add(40)s against a bound of 100");
     main.counter.bound = 100 as +Saturating;
 
     add(main, 40 as +Saturating);
@@ -33,7 +32,7 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         _ -> block not_hundred(main)
     }
     machine good_msg(main: @mutable Main) {
-        Console::write_line("PASS: counter saturated at the bound, value == 100 (exit 70)");
+        |console|::Console::write_line("PASS: counter saturated at the bound, value == 100 (exit 70)");
         transition { _ -> block report(main, 70) }
     }
     machine not_hundred(main: @mutable Main) {
@@ -43,17 +42,17 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         }
     }
     machine bad_sat_msg(main: @mutable Main) {
-        Console::write_line("FAIL: counter reached 120 -- saturation did not apply (exit 81)");
+        |console|::Console::write_line("FAIL: counter reached 120 -- saturation did not apply (exit 81)");
         transition { _ -> block report(main, 81) }
     }
     machine bad_other_msg(main: @mutable Main) {
-        Console::write_line("FAIL: counter holds an unexpected value -- neither 100 nor 120 (exit 82)");
+        |console|::Console::write_line("FAIL: counter holds an unexpected value -- neither 100 nor 120 (exit 82)");
         transition { _ -> block report(main, 82) }
     }
     machine report(main: @mutable Main, code: i32) {
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(code);
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(code);
     }
 }
 
@@ -74,7 +73,7 @@ machine add(main: @mutable Main, amount: i32 in Saturating) {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

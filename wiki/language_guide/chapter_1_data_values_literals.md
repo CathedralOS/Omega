@@ -223,9 +223,9 @@ See [integer widths](../spec/language/numeric_values.md#width-indexed-integers).
 
 A variable does not hide a builtin name in a type position. `let i: u32 = 0;`
 declares a variable `i` without touching the type `i`, and a loop index `i1`
-doesn't stop `i1` from meaning the one-bit type in an annotation. A mathematical
-definition can likewise declare `u: core\Level` and refer to that level in
-`core\Type<u>`. A type annotation such as `count: u` still reads the integer type. What you
+doesn't stop `i1` from meaning the one-bit type in an annotation. With the [foundation import](../spec/proofs/mathematical_bindings.md#importing-the-mathematical-foundation),
+a mathematical definition can likewise declare `u: |proof|::Level` and refer to that level in
+`|proof|::Type<u>`. A type annotation such as `count: u` still reads the integer type. What you
 can't do is declare a new type or module with a builtin's name, such as
 `data u7 { ... }`. See
 [builtin type names](../spec/language/modules.md#builtin-type-names).

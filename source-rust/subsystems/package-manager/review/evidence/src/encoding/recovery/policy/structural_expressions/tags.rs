@@ -137,7 +137,7 @@ mod tests {
     #[test]
     fn integer_width_evidence_survives_scalar_and_literal_text_and_binary() {
         use super::super::scalars::scalar_expression;
-        use crate::encoding::recovery::policy::text::framing;
+        use crate::encoding::recovery::policy::text;
 
         for carrier in [FixedInteger::unsigned(13), FixedInteger::signed(257)] {
             let primitive_type = PackageReviewPrimitiveType::Integer(carrier);
@@ -168,7 +168,7 @@ mod tests {
                     .unwrap();
                 let text = encoder.finish_text().expect("named metadata fields");
                 let (text_bytes, _) =
-                    framing::binary(&text, PackagePolicyRecoveryLimits::default()).unwrap();
+                    text::binary(&text, PackagePolicyRecoveryLimits::default()).unwrap();
                 assert_eq!(text_bytes, bytes);
                 assert!(text.contains("tag integer 3"));
                 assert!(text.contains("field signed"));

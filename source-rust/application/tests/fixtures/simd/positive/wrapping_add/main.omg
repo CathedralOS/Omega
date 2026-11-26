@@ -1,5 +1,5 @@
-use {simd}/i16x8.omg;
-use {simd}/simd.omg;
+use {system}/simd/i16x8.omg;
+use {system}/simd/simd.omg;
 
 public machine main() crashes Trap {
     let left: [i16; 8] = [32767i16, -32768i16, 1i16, 2i16, -3i16, 4i16, 5i16, -6i16];

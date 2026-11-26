@@ -22,7 +22,7 @@ pub use filesystem_authority::{
     FilesystemOperationResult as BuildFilesystemOperationResult,
 };
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 84;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 85;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct BuildActivation {
@@ -169,6 +169,7 @@ pub struct BuildObservationSummary {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildRequiredOutputSettlement {
     pub(crate) relative_path: Vec<u8>,
+    pub(super) staged_file: Vec<u8>,
     pub(crate) sealed_attempt_ordinal: u64,
 }
 

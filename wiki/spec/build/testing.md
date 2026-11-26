@@ -109,7 +109,7 @@ contract checking. A test entry is a root for the runner, not a bodyless
 `boundary machine`, a new trusted assumption, or a privileged function.
 No test-only main, call permission, or automatic crash allowance is introduced.
 
-System's optional `testing\Test::run` is an ordinary convenience requirement:
+System's optional `|testing|::Test::run` is an ordinary convenience requirement:
 parameterless, resultless, service-free, permitting `Trap`. It is not core
 vocabulary, a compiler-recognized identity, or a fixed taxonomy of categories.
 Projects may register it, arbitrary project requirements, or both. Templates

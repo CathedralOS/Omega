@@ -6,7 +6,7 @@
 | --- | --- |
 | Count | A nonnegative magnitude. General lengths, sizes, and compiler-facing policy geometry use `u64`. |
 | Index | Any integer operand whose use proves the collection's bounds; no privileged index carrier. |
-| Address | `addr`, interpreted under the selected target's address model. Address data grants no storage or access authority. |
+| Address | `address`, interpreted under the selected target's address model. Address data grants no storage or access authority. |
 
 `usize` and `isize` are not Omega carriers. No global width equality or ordering
 relates counts to addresses. A count can exceed one target's address space;
@@ -15,7 +15,7 @@ count as address geometry requires an occurrence-specific fit proof. Unrelated
 magnitudes require no address interpretation.
 
 Compiler-facing nonnegative schema sizes, lengths, counts, and indices likewise
-use `u64`, not signed integers or `addr`. Signed offsets/addends remain signed.
+use `u64`, not signed integers or `address`. Signed offsets/addends remain signed.
 A future explicitly admitted integer-width family would not change `.length`,
 `Extent.length`, indexing, or conversion contracts through a package alias.
 
@@ -25,8 +25,8 @@ The compiler-known core query `address_of` exposes an ordinary storage
 reference's referent or one selected executable machine application:
 
 ```omega
-let storage_address: addr = address_of(@myVar);
-let machine_address: addr = address_of::<Something::SomeFunc<u32>>();
+let storage_address: address = address_of(@myVar);
+let machine_address: address = address_of::<Something::SomeFunc<u32>>();
 ```
 
 The storage operand identifies the referent, not the temporary reference
@@ -48,7 +48,7 @@ This is a representation query, not a value conversion or size-compatible
 [representation recast](../layouts/recasts.md). `address_of` is a core name,
 not a reserved keyword. Its static machine form does not make a declaration a
 runtime value or retain context arguments. Ordinary machine calls still
-require their complete argument lists. Machine/reference `as addr` is not an
+require their complete argument lists. Machine/reference `as address` is not an
 alternate spelling; neither arbitrary value-to-address conversions nor the
 inverse address-to-borrow/callable conversion follow from these queries.
 Forming a reference from a native address requires a separately admitted
@@ -101,7 +101,7 @@ For interpreted execution, address exposure returns a stable numeric identity
 for the retained machine entry or runtime storage location, not a native host
 pointer. A valid interpreted machine does not return zero merely because it has
 no native body. No native trampoline is created by the query.
-An `addr` a native import returns is not one of these identities; it is an
+An `address` a native import returns is not one of these identities; it is an
 [opaque host-provenance value](../terminal-psi/boundary_calls.md#host-result-validation).
 
 Code-entry and storage-location encodings occupy disjoint namespaces. Reserved
@@ -149,7 +149,7 @@ For `@T` or `@mutable T`, it observes the referent, not the reference descriptor
 For a borrowed slice, it observes the first element's location, not the slice
 descriptor; this form requires a nonempty slice. It does not claim that every
 element shares that alignment: element offsets and stride still matter.
-Querying a numeric `addr` place measures that place, not storage at the numeric
+Querying a numeric `address` place measures that place, not storage at the numeric
 address. An inaccessible or nonaddressable subject does not acquire a location
 through the query.
 
@@ -186,8 +186,8 @@ selected layout's minimum, independent of any particular allocation; see
 `code_layout::<SelectedMachine<Arguments>>()` describes the exact selected native
 realization. Like `address_of`, it is a compiler-known core query, not a keyword
 or an invocation of that machine. Its retained use creates the same executable
-demand. The description contains an entry `addr` and a finite sequence of code
-regions, each with `base: addr` and `length: u64`. It grants no authority or
+demand. The description contains an entry `address` and a finite sequence of code
+regions, each with `base: address` and `length: u64`. It grants no authority or
 storage lifetime extension.
 
 Regions cover the emitted instruction spans attributed to that realization,
@@ -230,7 +230,7 @@ let region: Extent = Extent {
 
 This describes a 2 KiB window, not the machine's actual size and not access
 authority. Establishing valid geometry proves
-`embed(region.base) + embed(region.length) <= addr::Bound` in unbounded proof
+`embed(region.base) + embed(region.length) <= address::Bound` in unbounded proof
 integers. It does not compute a wrapping one-past address. Backing, read/write
 rights, lifetime and custody are separate [extent](../resources/extents.md)
 obligations. Interpreted address identities do not supply this byte geometry.

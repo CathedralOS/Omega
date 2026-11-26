@@ -1,20 +1,19 @@
-use omega\language\core\StandardInput;
-use system\ByteRead;
-use system\Console;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 public data Parsed [copy] { value: i64 in Wrapping; valid: bool; }
 // One signed decimal per LF-delimited field. Ten digits bound accumulation;
 // malformed, empty, missing and overlong fields are rejected before forecasting.
-public machine read_number() -> Parsed reaches StandardInput
-invokes Console
+public machine read_number() -> Parsed reaches |process_authority|::StandardInput
+invokes |console|::Console
 blocks
 crashes Trap
 {
     transition { _ -> scan(0, 0, false, false) }
     machine scan(accumulated: i64 in Wrapping, digits: i32 in Wrapping, negative: bool, sign: bool) -> Parsed {
-        let observed: ByteRead = block Console::read_byte();
+        let observed: |console|::ByteRead = block |console|::Console::read_byte();
         transition observed {
-            ByteRead::Eof -> finish(accumulated, digits, negative),
-            ByteRead::Byte { value } -> classify(accumulated, digits, negative, sign, value),
+            |console|::ByteRead::Eof -> finish(accumulated, digits, negative),
+            |console|::ByteRead::Byte { value } -> classify(accumulated, digits, negative, sign, value),
             _ -> Parsed { value: 0, valid: false }
         }
     }
@@ -47,11 +46,11 @@ crashes Trap
         }
     }
 }
-public machine input_complete() -> bool reaches StandardInput
-invokes Console
+public machine input_complete() -> bool reaches |process_authority|::StandardInput
+invokes |console|::Console
 blocks
 crashes Trap
 {
-    let observed: ByteRead = block Console::read_byte();
-    transition observed { ByteRead::Eof -> true, ByteRead::Byte { value } -> false, _ -> false }
+    let observed: |console|::ByteRead = block |console|::Console::read_byte();
+    transition observed { |console|::ByteRead::Eof -> true, |console|::ByteRead::Byte { value } -> false, _ -> false }
 }

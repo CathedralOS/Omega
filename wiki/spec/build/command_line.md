@@ -18,7 +18,7 @@ owner.
 ```text
 omega [--verify] [--validator <ExactName>]... [--every-validator] <root.omg>
 omega --check [--floor-only] [--verify] [--validator <ExactName>]... [--every-validator] [<root.omg>]
-omega build [--allow Network] [--allow ProgramLaunch] [--program <identity> <executable> [--program-read <path>]... [--program-write <path>]... [--program-timeout <milliseconds>]]... [--compare-tests] <root.omg>
+omega build [--allow Network] [--allow ProgramLaunch] [--program <logical-path> <executable> [--program-read <path>]... [--program-write <path>]... [--program-timeout <milliseconds>]]... [--compare-tests] <root.omg>
 omega run [--engine native|psi] [--target <name>] <root.omg>
 omega source parse [--] <file>
 omega source rewrite <ExactRule>... [--check] <root.omg>
@@ -182,7 +182,7 @@ that before running the Product. See the separate
 
 ## Build-first entry selection
 
-`omega build <file>` and `omega run <file>` start from the file the caller names. Both use the same first-stage rule in `omega\core`.
+`omega build <file>` and `omega run <file>` start from the file the caller names. Both use the same first-stage rule in the core package.
 A build requests the product artifact. A run requests execution under the
 [engine and target rules](embedding.md#standalone-execution-selection).
 Building a package checks its source, runs its registered tests and publishes

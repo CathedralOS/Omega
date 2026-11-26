@@ -175,35 +175,26 @@ impl FunctionObjectSections {
                     crate::ImportRelocationError::Mismatch(reason) => Error::Mismatch(reason),
                     crate::ImportRelocationError::Overflow => Error::Overflow,
                 })?;
-        byte_literals::publish_relocations(
-            byte_literal_pool.as_ref(),
-            &functions,
-            &mut relocations,
-        )?;
-        code_descriptors::publish_relocations(
-            code_descriptor_pool.as_ref(),
-            &functions,
-            &mut relocations,
-        )?;
-        native_code_layouts::publish_relocations(
-            native_code_layout_pool.as_ref(),
-            &functions,
-            &mut relocations,
-        )?;
-        image_residence::publish_relocations(
+        if let Some(pool) = &byte_literal_pool {
+            relocations.extend(byte_literals::records(pool, &functions)?);
+        }
+        if let Some(pool) = &code_descriptor_pool {
+            relocations.extend(code_descriptors::records(pool, &functions)?);
+        }
+        if let Some(pool) = &native_code_layout_pool {
+            relocations.extend(native_code_layouts::records(pool, &functions)?);
+        }
+        relocations.extend(image_residence::records(
             &source.text().unresolved_image_addresses,
             retained_entry_storage,
             &functions,
-            &mut relocations,
-        )?;
-        for record in private_addresses::records(
+        )?);
+        relocations.extend(private_addresses::records(
             &text.unresolved_image_addresses,
             &object,
             &functions,
             text.psi,
-        )? {
-            relocations.push_record(record);
-        }
+        )?);
         let bindings = source.bindings();
         object.check_bindings(bindings).map_err(Error::Mismatch)?;
         check_windows_internet_companion(

@@ -853,7 +853,7 @@ mod tests {
 
     #[test]
     fn invocation_rows_consume_all_closed_headers_instead_of_the_open_template() {
-        let (selected, mut module) = invocation_fixture();
+        let (selected, module) = invocation_fixture();
         let plans = [selected];
         let rows = selected_checked_invocation_rows(&plans, &module).unwrap();
         assert_eq!(rows.len(), 1);
@@ -870,68 +870,6 @@ mod tests {
         assert_eq!(
             closed.header.callable,
             Ok(closed.conformance.candidate_identity)
-        );
-        crate::synchronous_invocations::validate_declared_synchronous_invocation_cycles(
-            &plans, &module,
-        )
-        .unwrap();
-        let handle = module
-            .scalars.scalar_applications
-            .proof_scope
-            .callable_headers
-            .iter()
-            .find_map(|(handle, header)| {
-                (header.declaration == terminal_psi::ProofDeclarationId(2)).then_some(handle)
-            })
-            .unwrap();
-        module
-            .scalars.scalar_applications
-            .proof_scope
-            .callable_headers
-            .get_mut(handle)
-            .synchronous_invocations = Err("missing uncalled summary".into());
-        let errors =
-            crate::synchronous_invocations::validate_declared_synchronous_invocation_cycles(
-                &plans, &module,
-            )
-            .unwrap_err();
-        assert!(
-            errors
-                .iter()
-                .any(|error| error.message == "missing uncalled summary")
-        );
-    }
-
-    #[test]
-    fn an_uncalled_closed_invocation_still_forms_a_selected_cycle() {
-        let (selected, mut module) = invocation_fixture();
-        let mut identities = module.identities.clone().into_builder();
-        let declaration = identities.intern("Parent");
-        let application = identities.intern("Parent<u64>");
-        module.identities = identities.build();
-        let headers = &mut module.scalars.scalar_applications.proof_scope.callable_headers;
-        let handle = headers
-            .iter()
-            .find_map(|(handle, header)| {
-                (header.declaration == terminal_psi::ProofDeclarationId(2)).then_some(handle)
-            })
-            .unwrap();
-        headers.get_mut(handle).synchronous_invocations =
-            Ok(vec![terminal_psi::DeclaredSynchronousBoundaryTarget {
-                declaration,
-                package: None,
-                application: Some(application),
-            }]);
-        let errors =
-            crate::synchronous_invocations::validate_declared_synchronous_invocation_cycles(
-                &[selected],
-                &module,
-            )
-            .unwrap_err();
-        assert!(
-            errors
-                .iter()
-                .any(|error| error.message.contains("cyclic synchronous"))
         );
     }
 

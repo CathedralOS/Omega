@@ -1,4 +1,4 @@
-use crate::tests::{entry_state, parse_source_unwrap, parse_tokenized_error, root_machine_unwrap};
+use crate::tests::{entry_state, parse_error, parse_source, root_machine_unwrap};
 use syntax_trees::expression::ExpressionNode;
 use syntax_trees::statement::{AssemblyOperands, StatementNode};
 
@@ -15,7 +15,7 @@ fn preserves_authored_mnemonics_operands_clobbers_and_facts() {
             machine done() {}
         }
     "#;
-    let tree = parse_source_unwrap(source);
+    let tree = parse_source(source);
     assert_eq!(
         tree.statements.statement_count(),
         1,
@@ -95,7 +95,7 @@ fn rejects_malformed_asm_syntax_at_the_parser_boundary() {
         let source = format!(
             "data Main {{ port: u16; value: u8; }} machine Main::main(main: @mutable Main) {{ {block} }}"
         );
-        let error = parse_tokenized_error(&source, "malformed assembly syntax should reject");
+        let error = parse_error(&source);
         assert!(error.message.contains(expected), "{block}: {error:?}");
     }
 }

@@ -260,8 +260,7 @@ fn a_constant_initializer_rejects_a_nested_policy_suffix() {
         "const SHIFTED: u32 = (BASE >>! 1);",
         "data Buffer { bytes: [u8; SIZE +% 1]; }",
     ] {
-        let tokens = Lexer::new(source).tokenize().expect("tokenize constant");
-        let error = crate::parse_syntax_trees(&tokens).expect_err("constant must reject");
+        let error = crate::tests::parse_error(source);
         assert!(
             error
                 .message
@@ -314,10 +313,7 @@ fn membership_remains_a_separate_operand_grammar() {
         ]
     );
     parse_expression("(a in First) + 1");
-    let tokens = Lexer::new("machine test() { let value: u64 = a in First + 1; }")
-        .tokenize()
-        .expect("tokenize ungrouped membership");
-    assert!(crate::parse_syntax_trees(&tokens).is_err());
+    crate::tests::parse_error("machine test() { let value: u64 = a in First + 1; }");
 }
 
 #[test]
@@ -351,10 +347,7 @@ fn iterative_prefixes_preserve_borrows_literal_folding_and_call_acknowledgements
         ("block 7", "immediately before a call"),
     ] {
         let source = format!("machine test() {{ let value: u64 = {source}; }}");
-        let tokens = Lexer::new(&source)
-            .tokenize()
-            .expect("tokenize invalid prefix");
-        let error = crate::parse_syntax_trees(&tokens).expect_err("reject invalid prefix");
+        let error = crate::tests::parse_error(&source);
         assert!(error.message.contains(expected), "{}", error.message);
     }
     parse_expression("suspend()");

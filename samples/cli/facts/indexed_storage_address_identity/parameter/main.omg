@@ -1,10 +1,10 @@
-// For runtime u64 index < 2 into live [u64; 2], compatible references to items[index] expose the same nonzero addr and differ from the other live element address.
+// For runtime u64 index < 2 into live [u64; 2], compatible references to items[index] expose the same nonzero address and differ from the other live element address.
 // Expected exit: 0.
 machine observe(items: @mutable [u64; 2], index: u64) -> bool requires index < 2 {
-    let selected: addr = address_of(@items[index]);
-    let again: addr = address_of(@items[index]);
-    let first: addr = address_of(@items[0]);
-    let second: addr = address_of(@items[1]);
+    let selected: address = address_of(@items[index]);
+    let again: address = address_of(@items[index]);
+    let first: address = address_of(@items[0]);
+    let second: address = address_of(@items[1]);
     transition index == 0 {
         true -> (selected == again && selected != 0 && selected == first && selected != second),
         false -> (selected == again && selected != 0 && selected == second && selected != first)

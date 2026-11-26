@@ -1,94 +1,87 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use domain/codec/codec.omg;
+use domain/input/input.omg;
+use domain/model/model.omg;
+use domain/report/report.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Expected exit: 10.
 // Expected output contains: error: input bounds or syntax
-use system\Console;
-use domain\model\SensorBlock;
-use domain\model\SensorStream;
-use domain\model\InputBuffer;
-use domain\input\read_input;
-use domain\input\parse_records;
-use domain\input\parse_stream;
-use domain\codec\encode;
-use domain\codec\decode;
-use domain\codec\certify;
-use domain\report\report;
 
 data Main { }
 
 // The entry owns input, private codec storage, decoding and certification.
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    let mutable input: InputBuffer;
-    let success: bool = block read_input(@mutable input);
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    let mutable input: |model|::InputBuffer;
+    let success: bool = block |input|::read_input(@mutable input);
     transition success && input.length > 0 {
         true -> dispatch(main, @input),
         _ -> bad_input(main)
     }
-    machine dispatch(main: @mutable Main, input: @InputBuffer) {
+    machine dispatch(main: @mutable Main, input: @|model|::InputBuffer) {
         transition input.bytes[0] {
             0 -> compress(main, input),
             1 -> decompress(main, input),
             _ -> bad_input(main)
         }
     }
-    machine compress(main: @mutable Main, input: @InputBuffer) {
-        let mutable original: SensorBlock;
-        let parsed: bool = parse_records(input, @mutable original);
+    machine compress(main: @mutable Main, input: @|model|::InputBuffer) {
+        let mutable original: |model|::SensorBlock;
+        let parsed: bool = |input|::parse_records(input, @mutable original);
         transition parsed {
             true -> compression(main, @original),
             _ -> bad_input(main)
         }
     }
-    machine compression(main: @mutable Main, original: @SensorBlock) {
-        let mutable stream: SensorStream;
-        let success: bool = encode(original, @mutable stream);
+    machine compression(main: @mutable Main, original: @|model|::SensorBlock) {
+        let mutable stream: |model|::SensorStream;
+        let success: bool = |codec|::encode(original, @mutable stream);
         transition success {
             true -> verification(main, original, @stream),
             _ -> bad_input(main)
         }
     }
-    machine verification(main: @mutable Main, original: @SensorBlock, stream: @SensorStream) {
-        let mutable decoded: SensorBlock;
-        let success: bool = decode(stream, @mutable decoded);
+    machine verification(main: @mutable Main, original: @|model|::SensorBlock, stream: @|model|::SensorStream) {
+        let mutable decoded: |model|::SensorBlock;
+        let success: bool = |codec|::decode(stream, @mutable decoded);
         transition success {
             true -> certificate(main, original, stream, @decoded),
             _ -> bad_stream(main)
         }
     }
-    machine certificate(main: @mutable Main, original: @SensorBlock, stream: @SensorStream, decoded: @SensorBlock) {
-        let maximum: i32 = certify(original, decoded);
+    machine certificate(main: @mutable Main, original: @|model|::SensorBlock, stream: @|model|::SensorStream, decoded: @|model|::SensorBlock) {
+        let maximum: i32 = |codec|::certify(original, decoded);
         transition maximum >= 0 {
             true -> output(main, stream, decoded, maximum),
             _ -> bad_certificate(main)
         }
     }
-    machine decompress(main: @mutable Main, input: @InputBuffer) {
-        let mutable stream: SensorStream;
-        let parsed: bool = parse_stream(input, @mutable stream);
+    machine decompress(main: @mutable Main, input: @|model|::InputBuffer) {
+        let mutable stream: |model|::SensorStream;
+        let parsed: bool = |input|::parse_stream(input, @mutable stream);
         transition parsed {
             true -> decoding(main, @stream),
             _ -> bad_input(main)
         }
     }
-    machine decoding(main: @mutable Main, stream: @SensorStream) {
-        let mutable decoded: SensorBlock;
-        let success: bool = decode(stream, @mutable decoded);
+    machine decoding(main: @mutable Main, stream: @|model|::SensorStream) {
+        let mutable decoded: |model|::SensorBlock;
+        let success: bool = |codec|::decode(stream, @mutable decoded);
         transition success {
             true -> output(main, stream, @decoded, -1),
             _ -> bad_stream(main)
         }
     }
-    machine output(main: @mutable Main, stream: @SensorStream, decoded: @SensorBlock, maximum: i32) {
-        report(stream, decoded, maximum);
+    machine output(main: @mutable Main, stream: @|model|::SensorStream, decoded: @|model|::SensorBlock, maximum: i32) {
+        |report|::report(stream, decoded, maximum);
     }
-    machine bad_input(main: @mutable Main) { Console::write_line("error: input bounds or syntax"); ProcessExit::exit_process(10); }
-    machine bad_stream(main: @mutable Main) { Console::write_line("error: malformed sensor stream"); ProcessExit::exit_process(12); }
-    machine bad_certificate(main: @mutable Main) { Console::write_line("error: reconstruction certificate"); ProcessExit::exit_process(13); }
+    machine bad_input(main: @mutable Main) { |console|::Console::write_line("error: input bounds or syntax"); |process_exit|::ProcessExit::exit_process(10); }
+    machine bad_stream(main: @mutable Main) { |console|::Console::write_line("error: malformed sensor stream"); |process_exit|::ProcessExit::exit_process(12); }
+    machine bad_certificate(main: @mutable Main) { |console|::Console::write_line("error: reconstruction certificate"); |process_exit|::ProcessExit::exit_process(13); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

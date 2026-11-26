@@ -1097,8 +1097,8 @@ impl BuildFilesystemRuntime {
             .obligations
             .get(obligation)
             .ok_or("unknown Build output obligation")?;
-        if row.relative_path != path || row.state != BuildOutputObligationState::Pending {
-            return Err("Build output obligation is consumed or names another output".into());
+        if row.state != BuildOutputObligationState::Pending {
+            return Err("Build output obligation is consumed".into());
         }
         Ok(self.sealed.iter().any(|(sealed, _)| sealed == path))
     }
@@ -1584,7 +1584,9 @@ mod tests {
             false,
         )
         .unwrap();
-        let scope = scope(temporary.path(), "staging");
+        let scope = scope(temporary.path(), "staging")
+            .with_required_outputs([b"public/generated.omg".to_vec()])
+            .unwrap();
         let mut runtime = scope.begin_filesystem_runtime(account()).unwrap();
         let reader = runtime
             .open(BUILD_SOURCE_ROOT_IDENTITY, b"asset", 0)
@@ -1598,7 +1600,7 @@ mod tests {
         );
         assert_eq!(&bytes, b"hello");
         runtime.close(BUILD_SOURCE_ROOT_IDENTITY, reader).unwrap();
-        let obligation = runtime.require(b"generated.omg").unwrap();
+        let obligation = runtime.require(b"public/generated.omg").unwrap();
         assert!(!runtime.can_complete(obligation, b"generated.omg").unwrap());
         let writer = runtime.create(b"generated.omg", 0).unwrap();
         runtime.write(writer, &bytes).unwrap();
@@ -1621,6 +1623,21 @@ mod tests {
         observations.retain_filesystem_effects(effects).unwrap();
         let summary = observations.settle(true, "build").unwrap();
         assert_eq!(summary.required_output_settlements().len(), 1);
+        let completed = crate::build_execution::RetainedBuildOutputs::from_observation(&summary)
+            .unwrap()
+            .unwrap();
+        assert!(completed.files().sealed_entry(b"generated.omg").is_none());
+        assert!(matches!(
+            completed
+                .files()
+                .sealed_entry(b"public/generated.omg")
+                .unwrap()
+                .kind(),
+            build_output::BuildStagedOutputEntryKind::File {
+                bytes: b"hello",
+                ..
+            }
+        ));
         assert!(summary.generated_sources().is_empty());
         let tree = summary.staged_output_tree().unwrap();
         assert!(matches!(
@@ -1638,6 +1655,30 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    #[test]
+    fn an_invocation_required_name_needs_a_completed_obligation() {
+        let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
+            "required-name-without-completion",
+            false,
+        )
+        .unwrap();
+        let scope = scope(temporary.path(), "staging")
+            .with_required_outputs([b"artifact".to_vec()])
+            .unwrap();
+        let mut runtime = scope.begin_filesystem_runtime(account()).unwrap();
+        runtime
+            .write_private_file(b"artifact", b"staged but unclaimed")
+            .unwrap()
+            .unwrap();
+        let mut observations = crate::CapturedBuildObservations::new(&scope);
+        observations
+            .retain_filesystem_effects(runtime.finish().unwrap())
+            .unwrap();
+        let errors = observations.settle(true, "build").unwrap_err();
+        assert!(errors.iter().any(|error| error.message.contains("artifact")
+            && error.message.contains("no completed obligation")));
     }
 
     #[test]

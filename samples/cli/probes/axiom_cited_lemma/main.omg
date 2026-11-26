@@ -1,20 +1,19 @@
-use omega\language\core\Nat;
-use omega\language\core\mul;
+use {omega}/language/core/nat.omg;
 // An axiom about an unproven shape, cited by a lemma: the citation delivers
 // the accepted fact into the lemma's hypothesis base.
-boundary machine mul_comm_axiom(a: Nat, b: Nat) -> Nat
+boundary machine mul_comm_axiom(a: |nat|::Nat, b: |nat|::Nat) -> |nat|::Nat
 ensures
-    (mul(a, b)) == (mul(b, a));
-machine uses_axiom(a: Nat, b: Nat) -> Nat
+    (|nat|::mul(a, b)) == (|nat|::mul(b, a));
+machine uses_axiom(a: |nat|::Nat, b: |nat|::Nat) -> |nat|::Nat
 ensures
-    (mul(a, b)) == (mul(b, a))
+    (|nat|::mul(a, b)) == (|nat|::mul(b, a))
 {
     transition {
         _ -> body(a, b)
     }
-    machine body(a: Nat, b: Nat) -> Nat {
+    machine body(a: |nat|::Nat, b: |nat|::Nat) -> |nat|::Nat {
         mul_comm_axiom(a, b);
-        transition { _ -> Nat::Zero }
+        transition { _ -> |nat|::Nat::Zero }
     }
 }
 data Main { hits: i32 in Wrapping; }

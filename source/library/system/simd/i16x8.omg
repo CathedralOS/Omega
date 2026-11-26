@@ -1,0 +1,109 @@
+use simd/simd.omg as simd;
+
+// Each operation is one checked x86-64 instruction over the lane arrays. The
+// compiler owns the instruction's meaning in Psi and on native targets; this
+// library owns which instructions compose each operation.
+
+public machine load(source: @[i16; 8]) -> |simd|::Lanes<i16, 8> {
+    |simd|::Lanes { values: $source }
+}
+
+public machine load_low4(source: @[i16; 4]) -> |simd|::Lanes<i16, 8> {
+    let mutable values: [i16; 8];
+    asm { vmovq values, source }
+    |simd|::Lanes { values: values }
+}
+
+public machine store(destination: @mutable [i16; 8], value: @|simd|::Lanes<i16, 8>) {
+    $destination = value.values;
+}
+
+public machine wrapping_add(left: @|simd|::Lanes<i16, 8>, right: @|simd|::Lanes<i16, 8>) -> |simd|::Lanes<i16, 8> {
+    let mutable values: [i16; 8];
+    asm { vpaddw values, left.values, right.values }
+    |simd|::Lanes { values: values }
+}
+
+public machine wrapping_sub(left: @|simd|::Lanes<i16, 8>, right: @|simd|::Lanes<i16, 8>) -> |simd|::Lanes<i16, 8> {
+    let mutable values: [i16; 8];
+    asm { vpsubw values, left.values, right.values }
+    |simd|::Lanes { values: values }
+}
+
+public machine wrapping_abs(input: @|simd|::Lanes<i16, 8>) -> |simd|::Lanes<i16, 8> {
+    let mutable values: [i16; 8];
+    asm { vpabsw values, input.values }
+    |simd|::Lanes { values: values }
+}
+
+public machine min(left: @|simd|::Lanes<i16, 8>, right: @|simd|::Lanes<i16, 8>) -> |simd|::Lanes<i16, 8> {
+    let mutable values: [i16; 8];
+    asm { vpminsw values, left.values, right.values }
+    |simd|::Lanes { values: values }
+}
+
+public machine gt_mask(left: @|simd|::Lanes<i16, 8>, right: @|simd|::Lanes<i16, 8>) -> |simd|::Lanes<i16, 8> {
+    let mutable values: [i16; 8];
+    asm { vpcmpgtw values, left.values, right.values }
+    |simd|::Lanes { values: values }
+}
+
+public machine bit_and(left: @|simd|::Lanes<i16, 8>, right: @|simd|::Lanes<i16, 8>) -> |simd|::Lanes<i16, 8> {
+    let mutable values: [i16; 8];
+    asm { vpand values, left.values, right.values }
+    |simd|::Lanes { values: values }
+}
+
+public machine bit_and_not(mask: @|simd|::Lanes<i16, 8>, value: @|simd|::Lanes<i16, 8>) -> |simd|::Lanes<i16, 8> {
+    let mutable values: [i16; 8];
+    asm { vpandn values, mask.values, value.values }
+    |simd|::Lanes { values: values }
+}
+
+public machine shift_right_arithmetic<const Count: u64>(input: @|simd|::Lanes<i16, 8>) -> |simd|::Lanes<i16, 8>
+requires Count < 16u64 {
+    let mutable values: [i16; 8];
+    asm { vpsraw values, input.values, Count }
+    |simd|::Lanes { values: values }
+}
+
+public machine widen_u8x8(input: @[u8; 8]) -> |simd|::Lanes<i16, 8> {
+    let mutable values: [i16; 8];
+    asm { vpmovzxbw values, input }
+    |simd|::Lanes { values: values }
+}
+
+// The upper four lanes are zero.
+public machine widen_u8x4(input: @[u8; 4]) -> |simd|::Lanes<i16, 8> {
+    let bytes: [u8; 8] = [input[0], input[1], input[2], input[3], 0u8, 0u8, 0u8, 0u8];
+    let mutable values: [i16; 8];
+    asm { vpmovzxbw values, bytes }
+    |simd|::Lanes { values: values }
+}
+
+public machine saturating_narrow_u8x8(input: @|simd|::Lanes<i16, 8>) -> [u8; 8] {
+    let mutable bytes: [u8; 8];
+    asm { vpackuswb bytes, input.values }
+    bytes
+}
+
+// Narrows the lower four lanes.
+public machine saturating_narrow_u8x4(input: @|simd|::Lanes<i16, 8>) -> [u8; 4] {
+    let mutable bytes: [u8; 8];
+    asm { vpackuswb bytes, input.values }
+    [bytes[0], bytes[1], bytes[2], bytes[3]]
+}
+
+// Lanes 0 to 3 of `low`, then lanes 0 to 3 of `high`.
+public machine concat_low4(low: @|simd|::Lanes<i16, 8>, high: @|simd|::Lanes<i16, 8>) -> |simd|::Lanes<i16, 8> {
+    let mutable values: [i16; 8];
+    asm { vpunpcklqdq values, low.values, high.values }
+    |simd|::Lanes { values: values }
+}
+
+// Lanes 4 to 7, repeated in both halves.
+public machine high4(input: @|simd|::Lanes<i16, 8>) -> |simd|::Lanes<i16, 8> {
+    let mutable values: [i16; 8];
+    asm { vpunpckhqdq values, input.values, input.values }
+    |simd|::Lanes { values: values }
+}

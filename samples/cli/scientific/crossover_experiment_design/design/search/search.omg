@@ -1,54 +1,50 @@
-use design\model;
-use design\model\Request;
-use design\model\Allocation;
-use design\model\treatment;
-use design\certificate;
-use design\certificate\certify;
+use design/certificate/certificate.omg;
+use design/model/model.omg;
 
 // Lexicographic multiset successor. Each complete candidate is materialized;
 // admission comes from count-based verification of the actual treatment cells.
-public machine solve(request: @Request, allocation: @mutable Allocation) -> bool {
+public machine solve(request: @|model|::Request, allocation: @mutable |model|::Allocation) -> bool {
     allocation.sequences = [0, 0, 0, 0, 0, 0];
     transition { _ -> candidate(request, allocation) }
-    machine candidate(request: @Request, allocation: @mutable Allocation) -> bool {
+    machine candidate(request: @|model|::Request, allocation: @mutable |model|::Allocation) -> bool {
         transition { _ -> scan_subject(request, allocation, 0) }
     }
-    machine scan_subject(request: @Request, allocation: @mutable Allocation, subject: i32 in Wrapping) -> bool {
+    machine scan_subject(request: @|model|::Request, allocation: @mutable |model|::Allocation, subject: i32 in Wrapping) -> bool {
         transition subject >= 0 && subject < 6 && subject < request.subjects {
             true -> scan_period(request, allocation, subject, 0),
             false -> check(request, allocation)
         }
     }
-    machine scan_period(request: @Request, allocation: @mutable Allocation, subject: i32 in Wrapping, period: i32 in Wrapping) -> bool {
+    machine scan_period(request: @|model|::Request, allocation: @mutable |model|::Allocation, subject: i32 in Wrapping, period: i32 in Wrapping) -> bool {
         transition period >= 0 && period < request.treatments && period < 3 && subject >= 0 && subject < 6 {
             true -> materialize(request, allocation, subject, period, subject * 3 + period),
             false -> scan_subject(request, allocation, subject + 1)
         }
     }
-    machine materialize(request: @Request, allocation: @mutable Allocation, subject: i32 in Wrapping, period: i32 in Wrapping, index: i32 in Wrapping) -> bool {
+    machine materialize(request: @|model|::Request, allocation: @mutable |model|::Allocation, subject: i32 in Wrapping, period: i32 in Wrapping, index: i32 in Wrapping) -> bool {
         transition index >= 0 && index < 18 && subject >= 0 && subject < 6 {
             true -> store(request, allocation, subject, period, index),
             false -> false
         }
     }
-    machine store(request: @Request, allocation: @mutable Allocation, subject: i32 in Wrapping, period: i32 in Wrapping, index: i32 in Wrapping) -> bool {
-        allocation.cells[index] = treatment(request.treatments, allocation.sequences[subject], period);
+    machine store(request: @|model|::Request, allocation: @mutable |model|::Allocation, subject: i32 in Wrapping, period: i32 in Wrapping, index: i32 in Wrapping) -> bool {
+        allocation.cells[index] = |model|::treatment(request.treatments, allocation.sequences[subject], period);
         transition { _ -> scan_period(request, allocation, subject, period + 1) }
     }
-    machine check(request: @Request, allocation: @mutable Allocation) -> bool {
-        let valid: bool = certify(request, allocation);
+    machine check(request: @|model|::Request, allocation: @mutable |model|::Allocation) -> bool {
+        let valid: bool = |certificate|::certify(request, allocation);
         transition valid {
             true -> true,
             false -> successor(request, allocation, request.subjects - 1)
         }
     }
-    machine successor(request: @Request, allocation: @mutable Allocation, cursor: i32 in Wrapping) -> bool {
+    machine successor(request: @|model|::Request, allocation: @mutable |model|::Allocation, cursor: i32 in Wrapping) -> bool {
         transition cursor >= 0 && cursor < 6 {
             true -> inspect(request, allocation, cursor),
             false -> false
         }
     }
-    machine inspect(request: @Request, allocation: @mutable Allocation, cursor: i32 in Wrapping) -> bool {
+    machine inspect(request: @|model|::Request, allocation: @mutable |model|::Allocation, cursor: i32 in Wrapping) -> bool {
         let maximum: i32 in Wrapping = sequence_maximum(request.treatments);
         let next: i32 in Wrapping = allocation.sequences[cursor] + 1;
         transition allocation.sequences[cursor] < maximum {
@@ -56,13 +52,13 @@ public machine solve(request: @Request, allocation: @mutable Allocation) -> bool
             false -> successor(request, allocation, cursor - 1)
         }
     }
-    machine fill(request: @Request, allocation: @mutable Allocation, cursor: i32 in Wrapping, value: i32 in Wrapping) -> bool {
+    machine fill(request: @|model|::Request, allocation: @mutable |model|::Allocation, cursor: i32 in Wrapping, value: i32 in Wrapping) -> bool {
         transition cursor >= 0 && cursor < 6 && cursor < request.subjects {
             true -> write(request, allocation, cursor, value),
             false -> candidate(request, allocation)
         }
     }
-    machine write(request: @Request, allocation: @mutable Allocation, cursor: i32 in Wrapping, value: i32 in Wrapping) -> bool {
+    machine write(request: @|model|::Request, allocation: @mutable |model|::Allocation, cursor: i32 in Wrapping, value: i32 in Wrapping) -> bool {
         allocation.sequences[cursor] = value;
         transition { _ -> fill(request, allocation, cursor + 1, value) }
     }

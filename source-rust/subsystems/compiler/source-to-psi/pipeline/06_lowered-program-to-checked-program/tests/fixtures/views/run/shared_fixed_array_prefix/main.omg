@@ -1,8 +1,8 @@
-use omega\language\core\byte_observation;
+use {omega}/language/core/byte_observation/byte_observation.omg;
 // Expected exit: 0
 
-domain [u8; 4]::Ascii requires byte_observation\ascii_only(@self[..]);
-domain [u8]::Ascii requires byte_observation\ascii_only(@self[..]);
+domain [u8; 4]::Ascii requires |byte_observation|::ascii_only(@self[..]);
+domain [u8]::Ascii requires |byte_observation|::ascii_only(@self[..]);
 
 data Label requires used <= 4 {
     storage: [u8; 4] in Ascii;

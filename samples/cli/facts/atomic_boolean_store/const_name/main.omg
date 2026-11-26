@@ -1,15 +1,14 @@
 // Expected exit: 0.
 // A shared atomic Boolean store preserves its exact cell and ordering, and its load observes the stored Boolean.
-use omega\language\core\Atomic;
-use omega\language\core\Atomic\fence;
-use omega\language\core\FenceOrdering;
+use {omega}/language/core/Atomic/atomic.omg;
+use {omega}/language/core/fence_ordering.omg;
 data Cell { value: AtomicBool; }
 machine publish(cell: @Cell, value: bool) { cell.value.store(value, Publish); }
 const STORED: bool = true;
 machine main() crashes Trap {
     let cell: Cell;
     publish(@cell, STORED);
-    Atomic\fence(FenceOrdering::Receive);
+    |atomic|::fence(|fence_ordering|::FenceOrdering::Receive);
     let observed: bool = cell.value.load(Receive);
     transition observed { true -> done(), _ -> bad() }
     machine done() {}

@@ -2,25 +2,21 @@
 // A feasible word necessarily visits each pickup/drop once: duplicate pickups
 // and drops reject, drops require pickups, and both deliveries must complete.
 // The word code orders routes lexicographically; retain the first tied optimum.
-use routing\model;
-use routing\model\Plan;
-use routing\model\Tour;
-use routing\model\Certificate;
-use routing\visit;
-use routing\visit\visit;
+use routing/model/model.omg;
+use routing/visit/visit.omg;
 
-public machine solve(plan: @Plan, certificate: @mutable Certificate) {
+public machine solve(plan: @|model|::Plan, certificate: @mutable |model|::Certificate) {
     certificate.feasible = 0;
     certificate.ties = 0;
     transition { _ -> enumerate(plan, certificate, 0) }
-    machine enumerate(plan: @Plan, certificate: @mutable Certificate, code: u64) {
+    machine enumerate(plan: @|model|::Plan, certificate: @mutable |model|::Certificate, code: u64) {
         transition code < 256 {
             true -> candidate(plan, certificate, code),
             false -> done()
         }
     }
-    machine candidate(plan: @Plan, certificate: @mutable Certificate, code: u64) {
-        let mutable tour: Tour;
+    machine candidate(plan: @|model|::Plan, certificate: @mutable |model|::Certificate, code: u64) {
+        let mutable tour: |model|::Tour;
         tour.route[0] = code / 64;
         tour.route[1] = (code / 16) % 4;
         tour.route[2] = (code / 4) % 4;
@@ -31,7 +27,7 @@ public machine solve(plan: @Plan, certificate: @mutable Certificate) {
             false -> next(plan, certificate, code)
         }
     }
-    machine feasible(plan: @Plan, certificate: @mutable Certificate, code: u64, tour: @Tour) {
+    machine feasible(plan: @|model|::Plan, certificate: @mutable |model|::Certificate, code: u64, tour: @|model|::Tour) {
         certificate.feasible = certificate.feasible + 1;
         transition certificate.ties == 0 || tour.distance < certificate.best.distance ||
             (tour.distance == certificate.best.distance && tour.time < certificate.best.time) {
@@ -39,23 +35,23 @@ public machine solve(plan: @Plan, certificate: @mutable Certificate) {
             false -> compare(plan, certificate, code, tour)
         }
     }
-    machine better(plan: @Plan, certificate: @mutable Certificate, code: u64, tour: @Tour) {
+    machine better(plan: @|model|::Plan, certificate: @mutable |model|::Certificate, code: u64, tour: @|model|::Tour) {
         certificate.ties = 1;
         certificate.code = code;
         copy_tour(tour, @mutable certificate.best);
         transition { _ -> next(plan, certificate, code) }
     }
-    machine compare(plan: @Plan, certificate: @mutable Certificate, code: u64, tour: @Tour) {
+    machine compare(plan: @|model|::Plan, certificate: @mutable |model|::Certificate, code: u64, tour: @|model|::Tour) {
         transition tour.distance == certificate.best.distance && tour.time == certificate.best.time {
             true -> tied(plan, certificate, code),
             false -> next(plan, certificate, code)
         }
     }
-    machine tied(plan: @Plan, certificate: @mutable Certificate, code: u64) {
+    machine tied(plan: @|model|::Plan, certificate: @mutable |model|::Certificate, code: u64) {
         certificate.ties = certificate.ties + 1;
         transition { _ -> next(plan, certificate, code) }
     }
-    machine next(plan: @Plan, certificate: @mutable Certificate, code: u64) {
+    machine next(plan: @|model|::Plan, certificate: @mutable |model|::Certificate, code: u64) {
         transition code < 256 {
             true -> enumerate(plan, certificate, code + 1),
             false -> done()
@@ -64,23 +60,23 @@ public machine solve(plan: @Plan, certificate: @mutable Certificate) {
     machine done() { }
 }
 
-machine evaluate(plan: @Plan, tour: @mutable Tour) -> bool {
+machine evaluate(plan: @|model|::Plan, tour: @mutable |model|::Tour) -> bool {
     transition { _ -> step(plan, tour, 0) }
-    machine step(plan: @Plan, tour: @mutable Tour, index: u64) -> bool {
+    machine step(plan: @|model|::Plan, tour: @mutable |model|::Tour, index: u64) -> bool {
         transition index < 4 {
             true -> apply(plan, tour, index),
             false -> finish(plan, tour)
         }
     }
-    machine apply(plan: @Plan, tour: @mutable Tour, index: u64) -> bool {
+    machine apply(plan: @|model|::Plan, tour: @mutable |model|::Tour, index: u64) -> bool {
         let event: u64 = tour.route[index];
-        let valid: bool = visit(plan, tour, event);
+        let valid: bool = |visit|::visit(plan, tour, event);
         transition valid {
             true -> service(plan, tour, index),
             false -> false
         }
     }
-    machine service(plan: @Plan, tour: @mutable Tour, index: u64) -> bool {
+    machine service(plan: @|model|::Plan, tour: @mutable |model|::Tour, index: u64) -> bool {
         tour.arrivals[index] = tour.time;
         tour.time = tour.time + 1;
         transition index < 4 {
@@ -88,12 +84,12 @@ machine evaluate(plan: @Plan, tour: @mutable Tour) -> bool {
             false -> false
         }
     }
-    machine finish(plan: @Plan, tour: @mutable Tour) -> bool {
+    machine finish(plan: @|model|::Plan, tour: @mutable |model|::Tour) -> bool {
         tour.dropped_a && tour.dropped_b && tour.load == 0 && tour.position == 0 && tour.time <= plan.horizon
     }
 }
 
-machine copy_tour(source: @Tour, destination: @mutable Tour) {
+machine copy_tour(source: @|model|::Tour, destination: @mutable |model|::Tour) {
     destination.position = source.position;
     destination.time = source.time;
     destination.distance = source.distance;

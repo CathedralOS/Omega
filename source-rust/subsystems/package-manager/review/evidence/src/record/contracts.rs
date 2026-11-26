@@ -1,18 +1,21 @@
 // Stable callable-contract, expression, proposition, and declaration vocabulary.
 
 mod callable_contracts;
-mod declarations;
 mod expressions;
 mod propositions;
 
-pub use callable_contracts::{PackageReviewCallableContract, PackageReviewSynchronousInvocation};
-pub use callable_contracts::{PackageReviewContractFact, PackageReviewResultCaseIdentity};
-pub use declarations::{PackageReviewConstMeaning, PackageReviewConstShape};
-
-pub use expressions::PackageReviewLayoutQueryKind;
+use crate::record::accessors::field_projection_accessors;
+use crate::record::{PackageReviewNominalIdentity, PackageReviewTypeIdentity};
+pub use callable_contracts::{
+    PackageReviewCallableContract, PackageReviewContractFact, PackageReviewResultCaseIdentity,
+    PackageReviewSynchronousInvocation,
+};
 pub use expressions::{
-    PackageReviewArithmeticDomain, PackageReviewCastForm, PackageReviewFloatLiteral,
-    PackageReviewReferenceAccess,
+    PackageReviewArithmeticDomain, PackageReviewByteSequencePredicate, PackageReviewCallableSupply,
+    PackageReviewCastForm, PackageReviewContractBinaryOperator, PackageReviewContractCallTarget,
+    PackageReviewContractExpression, PackageReviewContractKind,
+    PackageReviewContractOperatorMeaning, PackageReviewFloatLiteral, PackageReviewLayoutQueryKind,
+    PackageReviewOperatorCoordinate, PackageReviewReferenceAccess,
 };
 pub(crate) use expressions::{
     PackageReviewAtomicLoadOrdering, PackageReviewConstructorField,
@@ -20,13 +23,6 @@ pub(crate) use expressions::{
     PackageReviewContractStaticArgument, PackageReviewContractUnaryOperator, PackageReviewMatchArm,
     PackageReviewOperatorRealization,
 };
-pub use expressions::{
-    PackageReviewByteSequencePredicate, PackageReviewCallableSupply,
-    PackageReviewContractBinaryOperator, PackageReviewContractCallTarget,
-    PackageReviewContractExpression, PackageReviewContractKind,
-    PackageReviewContractOperatorMeaning, PackageReviewOperatorCoordinate,
-};
-
 pub use propositions::{PackageReviewEvidenceInterface, PackageReviewEvidenceRequirement};
 pub(crate) use propositions::{
     PackageReviewPropositionApplication, PackageReviewPropositionBinder,
@@ -35,3 +31,27 @@ pub(crate) use propositions::{
     PackageReviewPropositionEvidence, PackageReviewPropositionParameterApplication,
     PackageReviewPropositionShape, PackageReviewPublicPropositionBody,
 };
+
+// Stable public constant declaration shapes (`PackageReviewConstShape`).
+//
+// `PackageReviewConstMeaning` distinguishes a completed evaluated value from an
+// admitted target-dependent contract expression so a folded scalar never
+// replaces its target dependency.
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PackageReviewConstShape {
+    pub identity: PackageReviewNominalIdentity,
+    pub declared_type: PackageReviewTypeIdentity,
+    pub meaning: PackageReviewConstMeaning,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PackageReviewConstMeaning {
+    Evaluated(String),
+    TargetDependent(self::expressions::PackageReviewContractExpression),
+}
+
+impl PackageReviewConstShape {
+    field_projection_accessors!(borrowed identity: &PackageReviewNominalIdentity);
+    field_projection_accessors!(borrowed declared_type: &PackageReviewTypeIdentity);
+}

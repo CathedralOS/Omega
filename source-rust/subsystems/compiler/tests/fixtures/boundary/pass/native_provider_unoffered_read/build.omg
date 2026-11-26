@@ -1,3 +1,4 @@
+use main.omg as app;
 use {omega}/language/core/external_binding.omg as native;
 machine build(builder: @mutable Build) {
     Build::application(builder, "native_provider_unoffered_read");
@@ -9,6 +10,6 @@ machine build(builder: @mutable Build) {
         |native|::ForeignBinding::DllImport { import: |native|::DllImport::ElfVersioned {
             object: "libc.so.6", symbol: "read", version: "GLIBC_2.17",
         } });
-    Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
-    Build::bind(builder, linux_arm64::ProgramEntry, entry_start);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::entry_start);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::entry_start);
 }

@@ -80,7 +80,7 @@ pub fn substituted_routes(
 pub(crate) fn substitute(
     proposition: &Proposition,
     actuals: &[ValueId],
-    values: &arena::IdTable<ValueId, terminal_check_tables::values::ValueRow>,
+    values: &terminal_check_tables::MachineValues,
     id: MachineId,
 ) -> Checked<Proposition> {
     substitute_parameters(proposition, actuals, &[], values, id)
@@ -95,7 +95,7 @@ pub(crate) fn substitute_parameters(
     proposition: &Proposition,
     actuals: &[ValueId],
     places: &[Option<FormalStorage>],
-    values: &arena::IdTable<ValueId, terminal_check_tables::values::ValueRow>,
+    values: &terminal_check_tables::MachineValues,
     id: MachineId,
 ) -> Checked<Proposition> {
     terminal_codec::contract_forms::substitute_formals(
@@ -116,7 +116,7 @@ pub(crate) fn canonical_clause(proposition: Proposition, id: MachineId) -> Check
 
 /// The sources a lowered value table traces for a restated clause.
 struct LoweredSources<'a> {
-    values: &'a arena::IdTable<ValueId, terminal_check_tables::values::ValueRow>,
+    values: &'a terminal_check_tables::MachineValues,
 }
 
 impl terminal_codec::contract_forms::RestatedSources for LoweredSources<'_> {
@@ -157,10 +157,8 @@ mod tests {
     use super::*;
     use semantic_vocabulary::{IntegerMathTerm, IntegerSign, IntegerType, ScalarType};
 
-    fn values(
-        scalar_type: ScalarType,
-    ) -> arena::IdTable<ValueId, terminal_check_tables::values::ValueRow> {
-        let mut values = arena::IdTable::default();
+    fn values(scalar_type: ScalarType) -> terminal_check_tables::MachineValues {
+        let mut values = terminal_check_tables::MachineValues::default();
         for position in 0..8 {
             values.push(terminal_check_tables::values::ValueRow {
                 scalar_type,

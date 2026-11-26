@@ -1,33 +1,25 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use domain/input/input.omg;
+use domain/model/model.omg;
+use domain/quality/quality.omg;
+use domain/report/report.omg;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Expected exit: 0.
 // Expected output contains: principal_component_analysis
-use system\Console;
-use omega\language\core\F64::from_u64;
-use omega\language\core\U64::from_f64;
-use domain\input;
-use domain\input\Input;
-use domain\input\read;
-use domain\model;
-use domain\model\Analysis;
-use domain\model\analyze;
-use domain\quality;
-use domain\quality\qualify;
-use domain\report;
-use domain\report\report;
-data Main { input: Input; analysis: Analysis; }
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
- block read(@mutable main.input);
+data Main { input: |input|::Input; analysis: |model|::Analysis; }
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+ block |input|::read(@mutable main.input);
  transition main.input.valid && main.input.count >= 3 { true -> header(main), false -> invalid(main) }
  machine header(main: @mutable Main) {
   transition (main.input.values[0] == 0.0 || main.input.values[0] == 1.0) && main.input.values[1] >= 3.0 && main.input.values[1] <= 16.0 && main.input.values[2] >= 2.0 && main.input.values[2] <= 4.0 { true -> dimensions(main), false -> invalid(main) }
  }
  machine dimensions(main: @mutable Main) {
-  let rows: u64 in Saturating = U64::from_f64(main.input.values[1]);
-  let features: u64 in Saturating = U64::from_f64(main.input.values[2]);
+  let rows: u64 in Saturating = |float_operations|::U64::from_f64(main.input.values[1]);
+  let features: u64 in Saturating = |float_operations|::U64::from_f64(main.input.values[2]);
   main.analysis.rows = rows as -Saturating +Wrapping; main.analysis.features = features as -Saturating +Wrapping;
-  transition F64::from_u64(rows as -Saturating +Wrapping) == main.input.values[1] && F64::from_u64(features as -Saturating +Wrapping) == main.input.values[2] && main.input.count == 3 + (rows as -Saturating +Wrapping) * (features as -Saturating +Wrapping) { true -> mode(main), false -> invalid(main) }
+  transition |float_operations|::F64::from_u64(rows as -Saturating +Wrapping) == main.input.values[1] && |float_operations|::F64::from_u64(features as -Saturating +Wrapping) == main.input.values[2] && main.input.count == 3 + (rows as -Saturating +Wrapping) * (features as -Saturating +Wrapping) { true -> mode(main), false -> invalid(main) }
  }
  machine mode(main: @mutable Main) {
   transition main.input.values[0] == 1.0 { true -> correlation(main), false -> covariance(main) }
@@ -50,21 +42,21 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
  }
  machine padding(main: @mutable Main, index: u64 in Wrapping) { main.analysis.values[index % 64] = 0.0; transition { _ -> copy(main, index + 1) } }
  machine solve(main: @mutable Main) {
-  analyze(@mutable main.analysis);
+  |model|::analyze(@mutable main.analysis);
   transition main.analysis.status { 0 -> quality(main), 65 -> constant(main), _ -> numerical(main) }
  }
  machine quality(main: @mutable Main) {
-  qualify(@mutable main.analysis);
+  |quality|::qualify(@mutable main.analysis);
   transition main.analysis.status == 0 { true -> output(main), false -> numerical(main) }
  }
- machine output(main: @mutable Main) { report(@main.analysis); ProcessExit::exit_process(0); }
- machine invalid(main: @mutable Main) { Console::write_line("error invalid input"); ProcessExit::exit_process(64); }
- machine constant(main: @mutable Main) { Console::write_line("error constant feature in correlation mode"); ProcessExit::exit_process(65); }
- machine numerical(main: @mutable Main) { Console::write_line("error numerical range or convergence"); ProcessExit::exit_process(66); }
+ machine output(main: @mutable Main) { |report|::report(@main.analysis); |process_exit|::ProcessExit::exit_process(0); }
+ machine invalid(main: @mutable Main) { |console|::Console::write_line("error invalid input"); |process_exit|::ProcessExit::exit_process(64); }
+ machine constant(main: @mutable Main) { |console|::Console::write_line("error constant feature in correlation mode"); |process_exit|::ProcessExit::exit_process(65); }
+ machine numerical(main: @mutable Main) { |console|::Console::write_line("error numerical range or convergence"); |process_exit|::ProcessExit::exit_process(66); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

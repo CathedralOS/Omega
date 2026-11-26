@@ -133,7 +133,7 @@ impl std::fmt::Display for PrimitiveType {
             Self::F32 => formatter.write_str("f32"),
             Self::F64 => formatter.write_str("f64"),
             Self::Integer(carrier) => carrier.fmt(formatter),
-            Self::Addr => formatter.write_str("addr"),
+            Self::Addr => formatter.write_str("address"),
             Self::Selector => formatter.write_str("selector"),
         }
     }

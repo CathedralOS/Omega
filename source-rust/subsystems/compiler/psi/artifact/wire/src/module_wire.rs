@@ -79,7 +79,7 @@ pub(crate) mod borrow_wire {
 mod theorem_parameter_wire {
     use crate::obligation_evidence::Certificate;
     use crate::wire_fields::{
-        Field, Id, InvocationSite, List, Proposition, U32, wire_enum, wire_record,
+        Id, InvocationSite, List, Proposition, ScalarTermField, U32, wire_enum, wire_record,
     };
     use psi_callable_encoding::signatures::Declaration;
     use terminal_psi::{
@@ -90,22 +90,6 @@ mod theorem_parameter_wire {
         Source: TheoremSource, "TheoremSource" {
             1 => Named(machine: Id),
             2 => Formal(position: U32),
-        }
-    }
-
-    struct ScalarTerm;
-    impl Field<semantic_vocabulary::ScalarTerm> for ScalarTerm {
-        fn write(
-            writer: &mut crate::wire::Writer,
-            term: &semantic_vocabulary::ScalarTerm,
-        ) -> Result<(), crate::CodecError> {
-            crate::scalar_term_wire::encode_scalar_term(writer, term)
-        }
-
-        fn read(
-            reader: &mut crate::wire::Reader<'_>,
-        ) -> Result<semantic_vocabulary::ScalarTerm, crate::CodecError> {
-            crate::scalar_term_wire::decode_scalar_term(reader)
         }
     }
 
@@ -125,7 +109,7 @@ mod theorem_parameter_wire {
             edge: Id,
             successor: Id,
             source: Source,
-            arguments: List<ScalarTerm>,
+            arguments: List<ScalarTermField>,
             requirements: List<Id>,
         }
         Citation: TheoremCitation {
@@ -138,14 +122,15 @@ mod theorem_parameter_wire {
     }
 }
 pub(crate) mod boundary_application_wire {
-
     use super::super::CodecError;
     use super::super::wire::{Reader, Writer, decode_counted};
-    use super::super::wire_fields::{BoundaryPackage, Field};
-    use terminal_psi::TerminalIdentityIndex;
+    use super::super::wire_fields::{
+        BoundaryPackage, Field, Index, MachineDeclaration, Optional, Text,
+    };
     use terminal_psi::{
-        BoundaryApplication, BoundaryApplicationArgument, BoundaryOperatorRequirement,
-        BoundaryTypeIdentity, NominalDeclarationIdentity, TerminalBoundaryApplicationDemand,
+        BoundaryApplication, BoundaryApplicationArgument, BoundaryApplicationCandidate,
+        BoundaryOperatorRequirement, BoundaryTypeIdentity, NominalDeclarationIdentity,
+        TerminalBoundaryApplicationDemand, TerminalIdentityIndex,
     };
 
     pub(crate) fn encode_demand(
@@ -157,14 +142,35 @@ pub(crate) mod boundary_application_wire {
         encode_application(writer, demand.application())
     }
 
+    pub(crate) fn decode_demand(
+        reader: &mut Reader<'_>,
+    ) -> Result<TerminalBoundaryApplicationDemand, CodecError> {
+        Ok(TerminalBoundaryApplicationDemand::new(
+            reader.id("OperationId")?,
+            decode_requirement(reader)?,
+            decode_application(reader)?,
+        ))
+    }
+
     pub(crate) fn encode_requirement(
         writer: &mut Writer,
         requirement: &BoundaryOperatorRequirement,
     ) -> Result<(), CodecError> {
         writer.u32(requirement.declaration().identity().0);
         writer.string("boundary requirement overload", requirement.overload())?;
-        BoundaryPackage::write(writer, &requirement.package())?;
-        Ok(())
+        BoundaryPackage::write(writer, &requirement.package())
+    }
+
+    pub(crate) fn decode_requirement(
+        reader: &mut Reader<'_>,
+    ) -> Result<BoundaryOperatorRequirement, CodecError> {
+        let declaration = NominalDeclarationIdentity::new(TerminalIdentityIndex(reader.u32()?));
+        BoundaryOperatorRequirement::new(
+            declaration,
+            reader.string("boundary requirement overload")?,
+            BoundaryPackage::read(reader)?,
+        )
+        .map_err(CodecError::MalformedStructuralFoundation)
     }
 
     fn encode_application(
@@ -202,31 +208,6 @@ pub(crate) mod boundary_application_wire {
         Ok(())
     }
 
-    pub(crate) fn decode_demand(
-        reader: &mut Reader<'_>,
-    ) -> Result<TerminalBoundaryApplicationDemand, CodecError> {
-        let operation = reader.id("OperationId")?;
-        let requirement = decode_requirement(reader)?;
-        let application = decode_application(reader)?;
-        Ok(TerminalBoundaryApplicationDemand::new(
-            operation,
-            requirement,
-            application,
-        ))
-    }
-
-    pub(crate) fn decode_requirement(
-        reader: &mut Reader<'_>,
-    ) -> Result<BoundaryOperatorRequirement, CodecError> {
-        let declaration = NominalDeclarationIdentity::new(TerminalIdentityIndex(reader.u32()?));
-        BoundaryOperatorRequirement::new(
-            declaration,
-            reader.string("boundary requirement overload")?,
-            BoundaryPackage::read(reader)?,
-        )
-        .map_err(CodecError::MalformedStructuralFoundation)
-    }
-
     fn decode_application(reader: &mut Reader<'_>) -> Result<BoundaryApplication, CodecError> {
         let arguments = decode_counted(reader, |reader| {
             let tag = reader.u8()?;
@@ -246,50 +227,40 @@ pub(crate) mod boundary_application_wire {
                 tag => Err(CodecError::InvalidTag("BoundaryApplicationArgument", tag)),
             }
         })?;
-        let application = if arguments.is_empty() {
-            BoundaryApplication::Empty
+        if arguments.is_empty() {
+            Ok(BoundaryApplication::Empty)
         } else {
-            BoundaryApplication::exact(arguments)
-                .map_err(CodecError::MalformedStructuralFoundation)?
-        };
-        Ok(application)
+            BoundaryApplication::exact(arguments).map_err(CodecError::MalformedStructuralFoundation)
+        }
     }
 
     pub(crate) fn encode_candidate(
         writer: &mut Writer,
-        candidate: &terminal_psi::BoundaryApplicationCandidate,
+        candidate: &BoundaryApplicationCandidate,
     ) -> Result<(), CodecError> {
         encode_requirement(writer, &candidate.requirement)?;
         encode_application(writer, &candidate.application)?;
-        writer.u32(candidate.selection_identity.0);
+        Index::write(writer, &candidate.selection_identity)?;
         BoundaryPackage::write(writer, &candidate.selection_package)?;
-        writer.boolean(candidate.target.is_some());
-        if let Some(target) = &candidate.target {
-            writer.string("boundary candidate target", target)?;
-        }
-        super::super::machine_declaration_wire::encode(writer, &candidate.body)
+        Optional::<Text>::write(writer, &candidate.target)?;
+        MachineDeclaration::write(writer, &candidate.body)
     }
 
     pub(crate) fn decode_candidate(
         reader: &mut Reader<'_>,
-    ) -> Result<terminal_psi::BoundaryApplicationCandidate, CodecError> {
+    ) -> Result<BoundaryApplicationCandidate, CodecError> {
         let requirement = decode_requirement(reader)?;
         let application = decode_application(reader)?;
-        let selection_identity = TerminalIdentityIndex(reader.u32()?);
+        let selection_identity = Index::read(reader)?;
         let selection_package = BoundaryPackage::read(reader)?;
-        let target = if reader.boolean()? {
-            Some(reader.string("boundary candidate target")?)
-        } else {
-            None
-        };
-        let body = super::super::machine_declaration_wire::decode(reader)?;
-        if selection_identity.is_absent() || target.as_ref().is_some_and(|target| target.is_empty())
-        {
+        let target = Optional::<Text>::read(reader)?;
+        let body = MachineDeclaration::read(reader)?;
+        if selection_identity.is_absent() || target.as_ref().is_some_and(String::is_empty) {
             return Err(CodecError::MalformedStructuralFoundation(
                 "empty boundary candidate identity or commitment",
             ));
         }
-        Ok(terminal_psi::BoundaryApplicationCandidate {
+        Ok(BoundaryApplicationCandidate {
             requirement,
             application,
             selection_identity,
@@ -2139,11 +2110,12 @@ pub(crate) mod proof_output_wire {
     }
 }
 pub(crate) mod proof_scope_wire {
-
     use super::super::CodecError;
-    use super::super::machine_declaration_wire;
     use super::super::wire::{Reader, Writer, bounded_count, decode_counted};
-    use super::super::wire_fields::{Field, ProviderPackage};
+    use super::super::wire_fields::{
+        Custody, Field, Flag, Index, List, MachineDeclaration, Optional, ProviderPackage,
+        ResultField, Strings, Text, U32, wire_record,
+    };
     use super::boundary_application_wire::{decode_requirement, encode_requirement};
     use crate::term_table::{decode_rows, encode_rows};
     use arena::{Arena, HandleSpan};
@@ -2151,10 +2123,105 @@ pub(crate) mod proof_scope_wire {
         ProofApplicationCall, ProofApplicationMachine, ProofApplicationTargetMember,
         ProofCallGraph, ProofCallMachine, ProofDeclarationDependencies, ProofStaticBinding,
     };
-    use terminal_psi::{
-        ProofApplicationScope, ProofCallableAssociation, ProofCallableHeader, ProofDeclarationId,
-        ProofScopeDeclaration, TerminalIdentityIndex,
+    use semantic_vocabulary::compiler_evaluation::{
+        CompilerEvaluationDeclaration, CompilerEvaluationEffects, DeclarationAuthorityRequest,
     };
+    use terminal_psi::{
+        DeclaredSynchronousBoundaryTarget, ProofApplicationScope, ProofCallableAssociation,
+        ProofCallableHeader, ProofCheckedRecursiveCall, ProofCheckedRecursiveComponent,
+        ProofDeclarationId, ProofScopeDeclaration,
+    };
+
+    struct DeclId;
+    impl Field<ProofDeclarationId> for DeclId {
+        fn write(writer: &mut Writer, value: &ProofDeclarationId) -> Result<(), CodecError> {
+            writer.u32(value.0);
+            Ok(())
+        }
+        fn read(reader: &mut Reader<'_>) -> Result<ProofDeclarationId, CodecError> {
+            Ok(ProofDeclarationId(reader.u32()?))
+        }
+    }
+
+    struct UsizeCount;
+    impl Field<usize> for UsizeCount {
+        fn write(writer: &mut Writer, value: &usize) -> Result<(), CodecError> {
+            writer.len("callable type parameters", *value)
+        }
+        fn read(reader: &mut Reader<'_>) -> Result<usize, CodecError> {
+            Ok(reader.count()? as usize)
+        }
+    }
+
+    struct AuthorityRequest;
+    impl Field<DeclarationAuthorityRequest> for AuthorityRequest {
+        fn write(
+            writer: &mut Writer,
+            value: &DeclarationAuthorityRequest,
+        ) -> Result<(), CodecError> {
+            ProviderPackage::write(writer, &Some(value.requester))?;
+            ProviderPackage::write(writer, &Some(value.owner))
+        }
+        fn read(reader: &mut Reader<'_>) -> Result<DeclarationAuthorityRequest, CodecError> {
+            Ok(DeclarationAuthorityRequest {
+                requester: ProviderPackage::read(reader)?.ok_or(
+                    CodecError::MalformedStructuralFoundation(
+                        "compiler-evaluation requester is absent",
+                    ),
+                )?,
+                owner: ProviderPackage::read(reader)?.ok_or(
+                    CodecError::MalformedStructuralFoundation(
+                        "compiler-evaluation owner is absent",
+                    ),
+                )?,
+            })
+        }
+    }
+
+    #[cfg(test)]
+    use terminal_psi::TerminalIdentityIndex;
+
+    type ScopeTargetMember = ProofApplicationTargetMember<ProofDeclarationId>;
+
+    wire_record! {
+        EvalEffects: CompilerEvaluationEffects {
+            services: Strings,
+            may_suspend: Flag,
+            may_block: Flag,
+        }
+        EvalDecl: CompilerEvaluationDeclaration {
+            name: Text,
+            custody: Custody,
+            effects: EvalEffects,
+            local_terminates: Flag,
+            entry_requires: Flag,
+            linear_carrier: Optional<Text>,
+            invocation_refusal: Optional<Text>,
+            selections: ResultField<List<AuthorityRequest>, Text>,
+        }
+        SyncTarget: DeclaredSynchronousBoundaryTarget {
+            declaration: Index,
+            package: ProviderPackage,
+            application: Optional<Index>,
+        }
+        CallableHeader: ProofCallableHeader {
+            declaration: DeclId,
+            callable: ResultField<Index, Text>,
+            package: ProviderPackage,
+            source_target: Optional<Text>,
+            product_eligible: Flag,
+            supplies_checked_body: Flag,
+            type_parameter_count: UsizeCount,
+            compiler_evaluation: ResultField<EvalDecl, Text>,
+            synchronous_invocations: ResultField<List<SyncTarget>, Text>,
+        }
+        TargetMember: ScopeTargetMember { target: Text, machine: DeclId }
+        RecursiveCall: ProofCheckedRecursiveCall {
+            caller: DeclId,
+            call_ordinal: U32,
+            callee: DeclId,
+        }
+    }
 
     fn references(
         writer: &mut Writer,
@@ -2166,35 +2233,14 @@ pub(crate) mod proof_scope_wire {
             .ok_or(CodecError::MalformedStructuralFoundation(
                 "proof scope lost its reference span",
             ))?;
-        writer.len("proof scope references", entries.len())?;
-        for entry in entries {
-            writer.u32(entry.0);
-        }
-        Ok(())
+        writer.counted("proof scope references", entries, DeclId::write)
     }
 
     fn read_references(
         reader: &mut Reader<'_>,
         rows: &mut Arena<ProofDeclarationId>,
     ) -> Result<HandleSpan<ProofDeclarationId>, CodecError> {
-        let entries = decode_counted(reader, |reader| Ok(ProofDeclarationId(reader.u32()?)))?;
-        Ok(rows.insert_many(entries))
-    }
-
-    fn target(writer: &mut Writer, target: &Option<String>) -> Result<(), CodecError> {
-        writer.boolean(target.is_some());
-        if let Some(target) = target {
-            writer.string("proof scope target", target)?;
-        }
-        Ok(())
-    }
-
-    fn read_target(reader: &mut Reader<'_>) -> Result<Option<String>, CodecError> {
-        if reader.boolean()? {
-            Ok(Some(reader.string("proof scope target")?))
-        } else {
-            Ok(None)
-        }
+        Ok(rows.insert_many(List::<DeclId>::read(reader)?))
     }
 
     pub(crate) fn encode(
@@ -2211,11 +2257,11 @@ pub(crate) mod proof_scope_wire {
                 }
                 ProofScopeDeclaration::Nominal(identity) => {
                     writer.u8(1);
-                    writer.u32(identity.0);
+                    Index::write(writer, identity)?;
                 }
                 ProofScopeDeclaration::Callable(declaration) => {
                     writer.u8(2);
-                    machine_declaration_wire::encode(writer, declaration)?;
+                    MachineDeclaration::write(writer, declaration)?;
                 }
                 ProofScopeDeclaration::Unavailable(reason) => {
                     writer.u8(3);
@@ -2229,63 +2275,7 @@ pub(crate) mod proof_scope_wire {
         }
         writer.len("proof scope callable headers", scope.callable_headers.len())?;
         for (_, header) in scope.callable_headers.iter() {
-            writer.u32(header.declaration.0);
-            writer.boolean(header.callable.is_ok());
-            match &header.callable {
-                Ok(callable) => writer.u32(callable.0),
-                Err(reason) => writer.string("unavailable callable header", reason)?,
-            }
-            ProviderPackage::write(writer, &header.package)?;
-            target(writer, &header.source_target)?;
-            writer.boolean(header.product_eligible);
-            writer.boolean(header.supplies_checked_body);
-            writer.len("callable type parameters", header.type_parameter_count)?;
-            writer.boolean(header.compiler_evaluation.is_ok());
-            match &header.compiler_evaluation {
-                Ok(facts) => {
-                    writer.string("compiler-evaluation display name", &facts.name)?;
-                    crate::wire_fields::Custody::write(writer, &facts.custody)?;
-                    writer.len("compiler-evaluation services", facts.effects.services.len())?;
-                    for service in &facts.effects.services {
-                        writer.string("compiler-evaluation service", service)?;
-                    }
-                    writer.boolean(facts.effects.may_suspend);
-                    writer.boolean(facts.effects.may_block);
-                    writer.boolean(facts.local_terminates);
-                    writer.boolean(facts.entry_requires);
-                    target(writer, &facts.linear_carrier)?;
-                    target(writer, &facts.invocation_refusal)?;
-                    writer.boolean(facts.selections.is_ok());
-                    match &facts.selections {
-                        Ok(requests) => {
-                            writer.len("compiler-evaluation authority requests", requests.len())?;
-                            for request in requests {
-                                ProviderPackage::write(writer, &Some(request.requester))?;
-                                ProviderPackage::write(writer, &Some(request.owner))?;
-                            }
-                        }
-                        Err(reason) => {
-                            writer.string("uncovered compiler-evaluation selections", reason)?
-                        }
-                    }
-                }
-                Err(reason) => writer.string("unavailable compiler-evaluation facts", reason)?,
-            }
-            writer.boolean(header.synchronous_invocations.is_ok());
-            match &header.synchronous_invocations {
-                Ok(targets) => {
-                    writer.len("declared synchronous targets", targets.len())?;
-                    for target in targets {
-                        writer.u32(target.declaration.0);
-                        ProviderPackage::write(writer, &target.package)?;
-                        writer.boolean(target.application.is_some());
-                        if let Some(application) = target.application {
-                            writer.u32(application.0);
-                        }
-                    }
-                }
-                Err(reason) => writer.string("unavailable synchronous invocation facts", reason)?,
-            }
+            CallableHeader::write(writer, header)?;
         }
         writer.len("proof scope callables", scope.callables.len())?;
         for (_, row) in scope.callables.iter() {
@@ -2298,7 +2288,7 @@ pub(crate) mod proof_scope_wire {
                     "proof scope callable association is absent",
                 ));
             };
-            writer.u32(declaration.0);
+            DeclId::write(writer, declaration)?;
             super::callable_wire::encode_callable(writer, *callable);
         }
         let plan = &scope.plan;
@@ -2306,12 +2296,12 @@ pub(crate) mod proof_scope_wire {
         writer.boolean(plan.unscoped_recipe);
         writer.len("proof scope machines", plan.machines.len())?;
         for (_, row) in plan.machines.iter() {
-            writer.u32(row.machine.0);
+            DeclId::write(writer, &row.machine)?;
             references(writer, &plan.symbols, row.states)?;
             references(writer, &plan.symbols, row.binders)?;
             references(writer, &plan.symbols, row.dynamic_realizations)?;
-            target(writer, &row.authored_target)?;
-            target(writer, &row.source_target)?;
+            Optional::<Text>::write(writer, &row.authored_target)?;
+            Optional::<Text>::write(writer, &row.source_target)?;
             writer.boolean(row.family_interface);
             writer.boolean(row.product_selected);
             let members = plan.target_members.span(row.family_members).ok_or(
@@ -2319,18 +2309,14 @@ pub(crate) mod proof_scope_wire {
                     "proof scope lost its family member span",
                 ),
             )?;
-            writer.len("proof scope target members", members.len())?;
-            for member in members {
-                writer.string("proof scope target", &member.target)?;
-                writer.u32(member.machine.0);
-            }
+            writer.counted("proof scope target members", members, TargetMember::write)?;
         }
         writer.len(
             "proof scope declaration dependencies",
             plan.declaration_dependencies.len(),
         )?;
         for (_, row) in plan.declaration_dependencies.iter() {
-            writer.u32(row.declaration.0);
+            DeclId::write(writer, &row.declaration)?;
             references(writer, &plan.symbols, row.dependencies)?;
             references(writer, &plan.symbols, row.signatures)?;
         }
@@ -2341,13 +2327,13 @@ pub(crate) mod proof_scope_wire {
             plan.provider_candidates.len(),
         )?;
         for (_, (requirement, realization)) in plan.provider_candidates.iter() {
-            writer.u32(requirement.0);
-            writer.u32(realization.0);
+            DeclId::write(writer, requirement)?;
+            DeclId::write(writer, realization)?;
         }
         let graph = &scope.calls;
         writer.len("proof scope call summaries", graph.machines().len())?;
         for (_, row) in graph.machines().iter() {
-            writer.u32(row.machine.0);
+            DeclId::write(writer, &row.machine)?;
             let calls =
                 graph
                     .calls
@@ -2357,10 +2343,10 @@ pub(crate) mod proof_scope_wire {
                     ))?;
             writer.len("proof scope calls", calls.len())?;
             for call in calls {
-                writer.u32(call.binder.0);
-                writer.u32(call.callee.0);
-                writer.u32(call.state.0);
-                writer.u32(call.operator.0);
+                DeclId::write(writer, &call.binder)?;
+                DeclId::write(writer, &call.callee)?;
+                DeclId::write(writer, &call.state)?;
+                DeclId::write(writer, &call.operator)?;
                 bindings(writer, graph, call.arguments)?;
             }
             references(writer, &graph.cleanup, row.cleanup)?;
@@ -2374,7 +2360,7 @@ pub(crate) mod proof_scope_wire {
             scope.pending_evaluation_conditions.len(),
         )?;
         for (_, owner) in scope.pending_evaluation_conditions.iter() {
-            writer.u32(owner.0);
+            DeclId::write(writer, owner)?;
         }
         for (_, component) in scope.recursive_components.iter() {
             references(writer, &scope.recursive_members, component.members)?;
@@ -2383,12 +2369,7 @@ pub(crate) mod proof_scope_wire {
                     "checked recursive component lost its call span",
                 ),
             )?;
-            writer.len("checked recursive calls", calls.len())?;
-            for call in calls {
-                writer.u32(call.caller.0);
-                writer.u32(call.call_ordinal);
-                writer.u32(call.callee.0);
-            }
+            writer.counted("checked recursive calls", calls, RecursiveCall::write)?;
         }
         Ok(())
     }
@@ -2419,10 +2400,12 @@ pub(crate) mod proof_scope_wire {
                 Ok(())
             },
             |entry, writer| {
-                writer.u32(entry.parameter.0);
-                writer.u32(entry.selected.0);
-                let arguments = span_entries(entry.arguments)?;
-                writer.len("proof scope static bindings", arguments.len())
+                DeclId::write(writer, &entry.parameter)?;
+                DeclId::write(writer, &entry.selected)?;
+                writer.len(
+                    "proof scope static bindings",
+                    span_entries(entry.arguments)?.len(),
+                )
             },
         )
     }
@@ -2436,8 +2419,8 @@ pub(crate) mod proof_scope_wire {
             "proof scope static binding",
             12,
             |reader, children| {
-                let parameter = ProofDeclarationId(reader.u32()?);
-                let selected = ProofDeclarationId(reader.u32()?);
+                let parameter = DeclId::read(reader)?;
+                let selected = DeclId::read(reader)?;
                 let count = bounded_count(reader, 4)?;
                 let arguments = children.take(reader, count)?;
                 Ok(ProofStaticBinding {
@@ -2454,8 +2437,8 @@ pub(crate) mod proof_scope_wire {
         let mut result = ProofApplicationScope::default();
         for _ in 0..reader.count()? {
             let declaration = match reader.u8()? {
-                1 => ProofScopeDeclaration::Nominal(TerminalIdentityIndex(reader.u32()?)),
-                2 => ProofScopeDeclaration::Callable(machine_declaration_wire::decode(reader)?),
+                1 => ProofScopeDeclaration::Nominal(Index::read(reader)?),
+                2 => ProofScopeDeclaration::Callable(MachineDeclaration::read(reader)?),
                 3 => ProofScopeDeclaration::Unavailable(
                     reader.string("unavailable proof declaration")?,
                 ),
@@ -2465,81 +2448,13 @@ pub(crate) mod proof_scope_wire {
             result.declarations.insert(declaration);
         }
         for _ in 0..reader.count()? {
-            let declaration = ProofDeclarationId(reader.u32()?);
-            let callable = if reader.boolean()? {
-                Ok(TerminalIdentityIndex(reader.u32()?))
-            } else {
-                Err(reader.string("unavailable callable header")?)
-            };
-            let package = ProviderPackage::read(reader)?;
-            let source_target = read_target(reader)?;
-            let product_eligible = reader.boolean()?;
-            let supplies_checked_body = reader.boolean()?;
-            let type_parameter_count = reader.count()? as usize;
-            let compiler_evaluation = if reader.boolean()? {
-                let name = reader.string("compiler-evaluation display name")?;
-                let custody = crate::wire_fields::Custody::read(reader)?;
-                Ok(
-                    semantic_vocabulary::compiler_evaluation::CompilerEvaluationDeclaration {
-                        name,
-                        custody,
-                        effects:
-                            semantic_vocabulary::compiler_evaluation::CompilerEvaluationEffects {
-                                services: decode_counted(reader, |reader| {
-                                    reader.string("compiler-evaluation service")
-                                })?,
-                                may_suspend: reader.boolean()?,
-                                may_block: reader.boolean()?,
-                            },
-                        local_terminates: reader.boolean()?,
-                        entry_requires: reader.boolean()?,
-                        linear_carrier: read_target(reader)?,
-                        invocation_refusal: read_target(reader)?,
-                        selections: if reader.boolean()? {
-                            Ok(decode_counted(reader, |reader| {
-                                Ok(semantic_vocabulary::compiler_evaluation::DeclarationAuthorityRequest {
-                            requester: ProviderPackage::read(reader)?.ok_or(CodecError::MalformedStructuralFoundation("compiler-evaluation requester is absent"))?,
-                            owner: ProviderPackage::read(reader)?.ok_or(CodecError::MalformedStructuralFoundation("compiler-evaluation owner is absent"))?,
-                        })
-                            })?)
-                        } else {
-                            Err(reader.string("uncovered compiler-evaluation selections")?)
-                        },
-                    },
-                )
-            } else {
-                Err(reader.string("unavailable compiler-evaluation facts")?)
-            };
-            let synchronous_invocations = if reader.boolean()? {
-                Ok(decode_counted(reader, |reader| {
-                    Ok(terminal_psi::DeclaredSynchronousBoundaryTarget {
-                        declaration: TerminalIdentityIndex(reader.u32()?),
-                        package: ProviderPackage::read(reader)?,
-                        application: if reader.boolean()? {
-                            Some(TerminalIdentityIndex(reader.u32()?))
-                        } else {
-                            None
-                        },
-                    })
-                })?)
-            } else {
-                Err(reader.string("unavailable synchronous invocation facts")?)
-            };
-            result.callable_headers.insert(ProofCallableHeader {
-                declaration,
-                callable,
-                package,
-                source_target,
-                product_eligible,
-                supplies_checked_body,
-                type_parameter_count,
-                compiler_evaluation,
-                synchronous_invocations,
-            });
+            result
+                .callable_headers
+                .insert(CallableHeader::read(reader)?);
         }
         for _ in 0..reader.count()? {
             result.callables.insert(ProofCallableAssociation::Callable {
-                declaration: ProofDeclarationId(reader.u32()?),
+                declaration: DeclId::read(reader)?,
                 callable: super::callable_wire::decode_callable(reader)?,
             });
         }
@@ -2547,21 +2462,17 @@ pub(crate) mod proof_scope_wire {
         plan.has_obligations = reader.boolean()?;
         plan.unscoped_recipe = reader.boolean()?;
         for _ in 0..reader.count()? {
-            let machine = ProofDeclarationId(reader.u32()?);
+            let machine = DeclId::read(reader)?;
             let states = read_references(reader, &mut plan.symbols)?;
             let binders = read_references(reader, &mut plan.symbols)?;
             let dynamic_realizations = read_references(reader, &mut plan.symbols)?;
-            let authored_target = read_target(reader)?;
-            let source_target = read_target(reader)?;
+            let authored_target = Optional::<Text>::read(reader)?;
+            let source_target = Optional::<Text>::read(reader)?;
             let family_interface = reader.boolean()?;
             let product_selected = reader.boolean()?;
-            let members = decode_counted(reader, |reader| {
-                Ok(ProofApplicationTargetMember {
-                    target: reader.string("proof scope target")?,
-                    machine: ProofDeclarationId(reader.u32()?),
-                })
-            })?;
-            let family_members = plan.target_members.insert_many(members);
+            let family_members = plan
+                .target_members
+                .insert_many(List::<TargetMember>::read(reader)?);
             plan.machines.insert(ProofApplicationMachine {
                 machine,
                 states,
@@ -2575,7 +2486,7 @@ pub(crate) mod proof_scope_wire {
             });
         }
         for _ in 0..reader.count()? {
-            let declaration = ProofDeclarationId(reader.u32()?);
+            let declaration = DeclId::read(reader)?;
             let dependencies = read_references(reader, &mut plan.symbols)?;
             let signatures = read_references(reader, &mut plan.symbols)?;
             plan.declaration_dependencies
@@ -2588,20 +2499,18 @@ pub(crate) mod proof_scope_wire {
         plan.declarations = read_references(reader, &mut plan.symbols)?;
         plan.obligation_owners = read_references(reader, &mut plan.symbols)?;
         for _ in 0..reader.count()? {
-            plan.provider_candidates.insert((
-                ProofDeclarationId(reader.u32()?),
-                ProofDeclarationId(reader.u32()?),
-            ));
+            plan.provider_candidates
+                .insert((DeclId::read(reader)?, DeclId::read(reader)?));
         }
         let graph = &mut result.calls;
         for _ in 0..reader.count()? {
-            let machine = ProofDeclarationId(reader.u32()?);
+            let machine = DeclId::read(reader)?;
             let calls = decode_counted(reader, |reader| {
                 Ok(ProofApplicationCall {
-                    binder: ProofDeclarationId(reader.u32()?),
-                    callee: ProofDeclarationId(reader.u32()?),
-                    state: ProofDeclarationId(reader.u32()?),
-                    operator: ProofDeclarationId(reader.u32()?),
+                    binder: DeclId::read(reader)?,
+                    callee: DeclId::read(reader)?,
+                    state: DeclId::read(reader)?,
+                    operator: DeclId::read(reader)?,
                     arguments: read_bindings(reader, graph)?,
                 })
             })?;
@@ -2618,21 +2527,16 @@ pub(crate) mod proof_scope_wire {
         for _ in 0..reader.count()? {
             result
                 .pending_evaluation_conditions
-                .insert(ProofDeclarationId(reader.u32()?));
+                .insert(DeclId::read(reader)?);
         }
         for _ in 0..component_count {
             let members = read_references(reader, &mut result.recursive_members)?;
-            let calls = decode_counted(reader, |reader| {
-                Ok(terminal_psi::ProofCheckedRecursiveCall {
-                    caller: ProofDeclarationId(reader.u32()?),
-                    call_ordinal: reader.u32()?,
-                    callee: ProofDeclarationId(reader.u32()?),
-                })
-            })?;
-            let calls = result.recursive_calls.insert_many(calls);
+            let calls = result
+                .recursive_calls
+                .insert_many(List::<RecursiveCall>::read(reader)?);
             result
                 .recursive_components
-                .insert(terminal_psi::ProofCheckedRecursiveComponent { members, calls });
+                .insert(ProofCheckedRecursiveComponent { members, calls });
         }
         Ok(result)
     }
@@ -2785,12 +2689,18 @@ pub(crate) mod proof_scope_wire {
     }
 }
 pub(crate) mod scalar_application_wire {
-
     use super::super::CodecError;
-    use super::super::scalar_wire::{decode_scalar_type, encode_scalar_type};
     use super::super::wire::{Reader, Writer};
-    use super::callable_wire::{decode_callable, encode_callable};
+    use super::super::wire_fields::{Field, Id, Scalar, U32, wire_enum};
+    use super::callable_wire::Callable;
     use terminal_psi::{LayoutMeasurement, ScalarApplication, ScalarApplications};
+
+    wire_enum! {
+        Measurement: LayoutMeasurement, "LayoutMeasurement" {
+            1 => Size,
+            2 => Alignment,
+        }
+    }
 
     pub(crate) fn encode(
         writer: &mut Writer,
@@ -2811,18 +2721,15 @@ pub(crate) mod scalar_application_wire {
                     scalar_type,
                 } => {
                     writer.u8(1);
-                    writer.id(*subject);
-                    writer.u8(match measurement {
-                        LayoutMeasurement::Size => 1,
-                        LayoutMeasurement::Alignment => 2,
-                    });
-                    writer.u32(*semantics_version);
-                    encode_scalar_type(writer, *scalar_type)?;
+                    Id::write(writer, subject)?;
+                    Measurement::write(writer, measurement)?;
+                    U32::write(writer, semantics_version)?;
+                    Scalar::write(writer, scalar_type)?;
                 }
                 ScalarApplication::Evaluate { entry, scalar_type } => {
                     writer.u8(2);
-                    encode_callable(writer, *entry);
-                    encode_scalar_type(writer, *scalar_type)?;
+                    Callable::write(writer, entry)?;
+                    Scalar::write(writer, scalar_type)?;
                 }
             }
         }
@@ -2831,23 +2738,18 @@ pub(crate) mod scalar_application_wire {
     }
 
     pub(crate) fn decode(reader: &mut Reader<'_>) -> Result<ScalarApplications, CodecError> {
-        let count = reader.count()?;
         let mut applications = ScalarApplications::default();
-        for _ in 0..count {
+        for _ in 0..reader.count()? {
             let declaration = match reader.u8()? {
                 1 => ScalarApplication::LayoutObservation {
-                    subject: reader.id("StructuralTypeId")?,
-                    measurement: match reader.u8()? {
-                        1 => LayoutMeasurement::Size,
-                        2 => LayoutMeasurement::Alignment,
-                        tag => return Err(CodecError::InvalidTag("LayoutMeasurement", tag)),
-                    },
-                    semantics_version: reader.u32()?,
-                    scalar_type: decode_scalar_type(reader)?,
+                    subject: Id::read(reader)?,
+                    measurement: Measurement::read(reader)?,
+                    semantics_version: U32::read(reader)?,
+                    scalar_type: Scalar::read(reader)?,
                 },
                 2 => ScalarApplication::Evaluate {
-                    entry: decode_callable(reader)?,
-                    scalar_type: decode_scalar_type(reader)?,
+                    entry: Callable::read(reader)?,
+                    scalar_type: Scalar::read(reader)?,
                 },
                 tag => return Err(CodecError::InvalidTag("ScalarApplication", tag)),
             };
@@ -2861,7 +2763,6 @@ pub(crate) mod scalar_application_wire {
     }
 }
 pub(crate) mod scalar_block_invariant_wire {
-
     use super::super::wire_fields::{Id, List, Proposition, wire_record};
     use terminal_psi::{ScalarBlockInvariant, ScalarBlockInvariantArrival};
 
@@ -2876,35 +2777,127 @@ pub(crate) mod scalar_block_invariant_wire {
     }
 }
 pub(crate) mod scalar_condition_wire {
-
     use super::super::CodecError;
-    use super::super::scalar_wire::{decode_scalar_type, encode_scalar_type};
     use super::super::wire::{Reader, Writer};
+    use super::super::wire_fields::{Field, Id, List, Scalar, U64, wire_enum};
     use bignum::BigInt;
     use numerics::integer_bounds::IntegerBoundStep;
+    use semantic_vocabulary::ScalarConditionRole;
     use terminal_psi::{
-        ScalarConditionSubject, ScalarConditions, ScalarRangeCondition, ScalarRangeObservation,
-        ScalarRangeRequirement,
+        ProofDeclarationId, ScalarCompletionCondition, ScalarConditionSubject, ScalarConditions,
+        ScalarRangeCondition, ScalarRangeObservation, ScalarRangeRequirement,
     };
 
-    pub(crate) fn encode_integer(writer: &mut Writer, value: &BigInt) -> Result<(), CodecError> {
-        writer.boolean(value.is_negative());
-        writer.len("bound magnitude words", value.magnitude_words().len())?;
-        for word in value.magnitude_words() {
-            writer.u64(*word);
+    struct DeclId;
+    impl Field<ProofDeclarationId> for DeclId {
+        fn write(writer: &mut Writer, value: &ProofDeclarationId) -> Result<(), CodecError> {
+            writer.u32(value.0);
+            Ok(())
         }
-        Ok(())
+        fn read(reader: &mut Reader<'_>) -> Result<ProofDeclarationId, CodecError> {
+            Ok(ProofDeclarationId(reader.u32()?))
+        }
     }
 
-    pub(crate) fn decode_integer(reader: &mut Reader<'_>) -> Result<BigInt, CodecError> {
-        let negative = reader.boolean()?;
-        let count = reader.count()?;
-        let mut words = Vec::new();
-        for _ in 0..count {
-            words.push(reader.u64()?);
+    pub(crate) struct BigIntField;
+    impl Field<BigInt> for BigIntField {
+        fn write(writer: &mut Writer, value: &BigInt) -> Result<(), CodecError> {
+            writer.boolean(value.is_negative());
+            writer.len("bound magnitude words", value.magnitude_words().len())?;
+            for word in value.magnitude_words() {
+                writer.u64(*word);
+            }
+            Ok(())
         }
-        BigInt::from_canonical_words(negative, words)
-            .map_err(CodecError::MalformedStructuralFoundation)
+        fn read(reader: &mut Reader<'_>) -> Result<BigInt, CodecError> {
+            let negative = reader.boolean()?;
+            let words = List::<U64, 8>::read(reader)?;
+            BigInt::from_canonical_words(negative, words)
+                .map_err(CodecError::MalformedStructuralFoundation)
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn encode_integer(writer: &mut Writer, value: &BigInt) -> Result<(), CodecError> {
+        BigIntField::write(writer, value)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn decode_integer(reader: &mut Reader<'_>) -> Result<BigInt, CodecError> {
+        BigIntField::read(reader)
+    }
+
+    wire_enum! {
+        Role: ScalarConditionRole, "ScalarConditionRole" {
+            1 => Prerequisite,
+            2 => Result,
+        }
+        Subject: ScalarConditionSubject, "ScalarConditionSubject" {
+            1 => Module,
+            2 => Declaration(declaration: DeclId),
+            4 => Application(application: Id),
+        }
+        RangeReq: ScalarRangeRequirement, "ScalarRangeRequirement" {
+            1 => Fixed { minimum: BigIntField, maximum: BigIntField },
+            2 => AddressModel,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn encode_role(writer: &mut Writer, role: ScalarConditionRole) {
+        let _ = Role::write(writer, &role);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn encode_subject(writer: &mut Writer, subject: ScalarConditionSubject) {
+        let _ = Subject::write(writer, &subject);
+    }
+
+    pub(crate) fn encode_observation(
+        writer: &mut Writer,
+        observation: &ScalarRangeObservation,
+    ) -> Result<(), CodecError> {
+        match observation {
+            ScalarRangeObservation::Missing => Err(CodecError::MalformedStructuralFoundation(
+                "scalar condition contains an absent observation",
+            )),
+            ScalarRangeObservation::Literal(value) => {
+                writer.u8(1);
+                BigIntField::write(writer, value)
+            }
+            ScalarRangeObservation::Application(application) => {
+                writer.u8(2);
+                Id::write(writer, application)
+            }
+            ScalarRangeObservation::EntryResult {
+                application,
+                machine,
+                result,
+                scalar_type,
+            } => {
+                writer.u8(3);
+                Id::write(writer, application)?;
+                Id::write(writer, machine)?;
+                Id::write(writer, result)?;
+                Scalar::write(writer, scalar_type)
+            }
+        }
+    }
+
+    pub(crate) fn decode_observation(
+        reader: &mut Reader<'_>,
+    ) -> Result<ScalarRangeObservation, CodecError> {
+        Ok(match reader.u8()? {
+            1 => ScalarRangeObservation::Literal(BigIntField::read(reader)?),
+            2 => ScalarRangeObservation::Application(Id::read(reader)?),
+            3 => ScalarRangeObservation::EntryResult {
+                application: Id::read(reader)?,
+                machine: Id::read(reader)?,
+                result: Id::read(reader)?,
+                scalar_type: Scalar::read(reader)?,
+            },
+            tag => return Err(CodecError::InvalidTag("ScalarRangeObservation", tag)),
+        })
     }
 
     pub(crate) fn encode(
@@ -2924,16 +2917,9 @@ pub(crate) mod scalar_condition_wire {
                     "scalar condition is absent",
                 ));
             };
-            encode_subject(writer, *subject);
-            encode_role(writer, *role);
-            match requirement {
-                ScalarRangeRequirement::Fixed { minimum, maximum } => {
-                    writer.u8(1);
-                    encode_integer(writer, minimum)?;
-                    encode_integer(writer, maximum)?;
-                }
-                ScalarRangeRequirement::AddressModel => writer.u8(2),
-            }
+            Subject::write(writer, subject)?;
+            Role::write(writer, role)?;
+            RangeReq::write(writer, requirement)?;
             let steps = conditions
                 .steps(condition)
                 .map_err(CodecError::MalformedStructuralFoundation)?;
@@ -2947,12 +2933,12 @@ pub(crate) mod scalar_condition_wire {
                     }
                     IntegerBoundStep::Bounds { low, high } => {
                         writer.u8(1);
-                        encode_integer(writer, low)?;
-                        encode_integer(writer, high)?;
+                        BigIntField::write(writer, low)?;
+                        BigIntField::write(writer, high)?;
                     }
-                    IntegerBoundStep::Observation(observation) => {
+                    IntegerBoundStep::Observation(obs) => {
                         writer.u8(2);
-                        encode_observation(writer, observation)?;
+                        encode_observation(writer, obs)?;
                     }
                     IntegerBoundStep::Add => writer.u8(3),
                     IntegerBoundStep::Subtract => writer.u8(4),
@@ -2971,7 +2957,7 @@ pub(crate) mod scalar_condition_wire {
             conditions.completions().len(),
         )?;
         for condition in conditions.completions() {
-            let terminal_psi::ScalarCompletionCondition::Complete {
+            let ScalarCompletionCondition::Complete {
                 subject,
                 application,
             } = condition
@@ -2980,33 +2966,24 @@ pub(crate) mod scalar_condition_wire {
                     "scalar completion is absent",
                 ));
             };
-            encode_subject(writer, *subject);
-            writer.id(*application);
+            Subject::write(writer, subject)?;
+            Id::write(writer, application)?;
         }
         Ok(())
     }
 
     pub(crate) fn decode(reader: &mut Reader<'_>) -> Result<ScalarConditions, CodecError> {
-        let count = reader.count()?;
         let mut conditions = ScalarConditions::default();
-        for _ in 0..count {
-            let subject = decode_subject(reader)?;
-            let role = decode_role(reader)?;
-            let requirement = match reader.u8()? {
-                1 => ScalarRangeRequirement::Fixed {
-                    minimum: decode_integer(reader)?,
-                    maximum: decode_integer(reader)?,
-                },
-                2 => ScalarRangeRequirement::AddressModel,
-                tag => return Err(CodecError::InvalidTag("ScalarRangeRequirement", tag)),
-            };
-            let count = reader.count()?;
+        for _ in 0..reader.count()? {
+            let subject = Subject::read(reader)?;
+            let role = Role::read(reader)?;
+            let requirement = RangeReq::read(reader)?;
             let mut steps = Vec::new();
-            for _ in 0..count {
-                let step = match reader.u8()? {
+            for _ in 0..reader.count()? {
+                steps.push(match reader.u8()? {
                     1 => IntegerBoundStep::Bounds {
-                        low: decode_integer(reader)?,
-                        high: decode_integer(reader)?,
+                        low: BigIntField::read(reader)?,
+                        high: BigIntField::read(reader)?,
                     },
                     2 => IntegerBoundStep::Observation(decode_observation(reader)?),
                     3 => IntegerBoundStep::Add,
@@ -3018,115 +2995,19 @@ pub(crate) mod scalar_condition_wire {
                     9 => IntegerBoundStep::Equal,
                     10 => IntegerBoundStep::LessThan,
                     tag => return Err(CodecError::InvalidTag("IntegerBoundStep", tag)),
-                };
-                steps.push(step);
+                });
             }
             conditions
                 .retain_range(subject, role, requirement, steps)
                 .map_err(CodecError::MalformedStructuralFoundation)?;
         }
         super::scalar_predicate_wire::decode(reader, &mut conditions)?;
-        let count = reader.count()?;
-        for _ in 0..count {
-            let subject = decode_subject(reader)?;
-            let application = reader.id("scalar completion application")?;
+        for _ in 0..reader.count()? {
+            let subject = Subject::read(reader)?;
+            let application = Id::read(reader)?;
             conditions.retain_completion(subject, application);
         }
         Ok(conditions)
-    }
-
-    pub(crate) fn encode_role(writer: &mut Writer, role: semantic_vocabulary::ScalarConditionRole) {
-        writer.u8(match role {
-            semantic_vocabulary::ScalarConditionRole::Prerequisite => 1,
-            semantic_vocabulary::ScalarConditionRole::Result => 2,
-        });
-    }
-
-    pub(crate) fn decode_role(
-        reader: &mut Reader<'_>,
-    ) -> Result<semantic_vocabulary::ScalarConditionRole, CodecError> {
-        match reader.u8()? {
-            1 => Ok(semantic_vocabulary::ScalarConditionRole::Prerequisite),
-            2 => Ok(semantic_vocabulary::ScalarConditionRole::Result),
-            tag => Err(CodecError::InvalidTag("ScalarConditionRole", tag)),
-        }
-    }
-
-    pub(crate) fn encode_subject(writer: &mut Writer, subject: ScalarConditionSubject) {
-        match subject {
-            ScalarConditionSubject::Module => writer.u8(1),
-            ScalarConditionSubject::Declaration(declaration) => {
-                writer.u8(2);
-                writer.u32(declaration.0);
-            }
-            ScalarConditionSubject::Application(application) => {
-                writer.u8(4);
-                writer.id(application);
-            }
-        }
-    }
-
-    pub(crate) fn decode_subject(
-        reader: &mut Reader<'_>,
-    ) -> Result<ScalarConditionSubject, CodecError> {
-        Ok(match reader.u8()? {
-            1 => ScalarConditionSubject::Module,
-            2 => {
-                ScalarConditionSubject::Declaration(terminal_psi::ProofDeclarationId(reader.u32()?))
-            }
-            4 => ScalarConditionSubject::Application(reader.id("ScalarApplicationId")?),
-            tag => return Err(CodecError::InvalidTag("ScalarConditionSubject", tag)),
-        })
-    }
-
-    pub(crate) fn encode_observation(
-        writer: &mut Writer,
-        observation: &ScalarRangeObservation,
-    ) -> Result<(), CodecError> {
-        match observation {
-            ScalarRangeObservation::Missing => {
-                return Err(CodecError::MalformedStructuralFoundation(
-                    "scalar condition contains an absent observation",
-                ));
-            }
-            ScalarRangeObservation::Literal(value) => {
-                writer.u8(1);
-                encode_integer(writer, value)?;
-            }
-            ScalarRangeObservation::Application(application) => {
-                writer.u8(2);
-                writer.id(*application);
-            }
-            ScalarRangeObservation::EntryResult {
-                application,
-                machine,
-                result,
-                scalar_type,
-            } => {
-                writer.u8(3);
-                writer.id(*application);
-                writer.id(*machine);
-                writer.id(*result);
-                encode_scalar_type(writer, *scalar_type)?;
-            }
-        }
-        Ok(())
-    }
-
-    pub(crate) fn decode_observation(
-        reader: &mut Reader<'_>,
-    ) -> Result<ScalarRangeObservation, CodecError> {
-        Ok(match reader.u8()? {
-            1 => ScalarRangeObservation::Literal(decode_integer(reader)?),
-            2 => ScalarRangeObservation::Application(reader.id("ScalarApplicationId")?),
-            3 => ScalarRangeObservation::EntryResult {
-                application: reader.id("ScalarApplicationId")?,
-                machine: reader.id("MachineId")?,
-                result: reader.id("ValueId")?,
-                scalar_type: decode_scalar_type(reader)?,
-            },
-            tag => return Err(CodecError::InvalidTag("ScalarRangeObservation", tag)),
-        })
     }
 
     #[cfg(test)]
@@ -3297,18 +3178,26 @@ pub(crate) mod scalar_condition_wire {
     }
 }
 pub(crate) mod scalar_predicate_wire {
-
+    use super::super::wire_fields::{Field, wire_enum};
     use super::super::{
         CodecError,
         wire::{Reader, Writer},
     };
     use super::scalar_condition_wire::{
-        decode_integer, decode_observation, decode_role, decode_subject, encode_integer,
-        encode_observation, encode_role, encode_subject,
+        BigIntField, Role, Subject, decode_observation, encode_observation,
     };
+    #[cfg(test)]
+    use super::scalar_condition_wire::{encode_integer, encode_role, encode_subject};
     use arena::{Arena, Handle};
     use numerics::scalar_predicates::{PredicateNode, PredicateOperator, ScalarValue};
     use terminal_psi::{ScalarConditions, ScalarPredicateNode};
+
+    wire_enum! {
+        Operator: PredicateOperator, "PredicateOperator" {
+            1 => And, 2 => Or, 3 => Equal, 4 => NotEqual,
+            5 => Less, 6 => LessOrEqual, 7 => Greater, 8 => GreaterOrEqual,
+        }
+    }
 
     fn coordinate(
         references: &[Handle<ScalarPredicateNode>],
@@ -3338,8 +3227,8 @@ pub(crate) mod scalar_predicate_wire {
     ) -> Result<(), CodecError> {
         writer.len("scalar predicates", conditions.predicates().len())?;
         for condition in conditions.predicates() {
-            encode_subject(writer, condition.subject);
-            encode_role(writer, condition.role);
+            Subject::write(writer, &condition.subject)?;
+            Role::write(writer, &condition.role)?;
             writer.string("scalar predicate description", &condition.description)?;
             writer.len("scalar predicate nodes", condition.nodes().len())?;
             let mut references = Vec::new();
@@ -3352,7 +3241,7 @@ pub(crate) mod scalar_predicate_wire {
                     }
                     PredicateNode::Value(ScalarValue::Integer(value)) => {
                         writer.u8(1);
-                        encode_integer(writer, value)?;
+                        BigIntField::write(writer, value)?;
                     }
                     PredicateNode::Value(ScalarValue::Boolean(value)) => {
                         writer.u8(2);
@@ -3376,16 +3265,7 @@ pub(crate) mod scalar_predicate_wire {
                         right,
                     } => {
                         writer.u8(6);
-                        writer.u8(match operator {
-                            PredicateOperator::And => 1,
-                            PredicateOperator::Or => 2,
-                            PredicateOperator::Equal => 3,
-                            PredicateOperator::NotEqual => 4,
-                            PredicateOperator::Less => 5,
-                            PredicateOperator::LessOrEqual => 6,
-                            PredicateOperator::Greater => 7,
-                            PredicateOperator::GreaterOrEqual => 8,
-                        });
+                        Operator::write(writer, operator)?;
                         writer.u32(coordinate(&references, *left)?);
                         writer.u32(coordinate(&references, *right)?);
                     }
@@ -3401,39 +3281,24 @@ pub(crate) mod scalar_predicate_wire {
         reader: &mut Reader<'_>,
         conditions: &mut ScalarConditions,
     ) -> Result<(), CodecError> {
-        let count = reader.count()?;
-        for _ in 0..count {
-            let subject = decode_subject(reader)?;
-            let role = decode_role(reader)?;
+        for _ in 0..reader.count()? {
+            let subject = Subject::read(reader)?;
+            let role = Role::read(reader)?;
             let description = reader.string("scalar predicate description")?;
-            let count = reader.count()?;
             let mut nodes = Arena::new();
             let mut references = Vec::new();
-            for _ in 0..count {
+            for _ in 0..reader.count()? {
                 let node = match reader.u8()? {
-                    1 => PredicateNode::Value(ScalarValue::Integer(decode_integer(reader)?)),
+                    1 => PredicateNode::Value(ScalarValue::Integer(BigIntField::read(reader)?)),
                     2 => PredicateNode::Value(ScalarValue::Boolean(reader.boolean()?)),
                     3 => PredicateNode::Leaf(decode_observation(reader)?),
                     4 => PredicateNode::Forward(reference(reader, &references)?),
                     5 => PredicateNode::Not(reference(reader, &references)?),
-                    6 => {
-                        let operator = match reader.u8()? {
-                            1 => PredicateOperator::And,
-                            2 => PredicateOperator::Or,
-                            3 => PredicateOperator::Equal,
-                            4 => PredicateOperator::NotEqual,
-                            5 => PredicateOperator::Less,
-                            6 => PredicateOperator::LessOrEqual,
-                            7 => PredicateOperator::Greater,
-                            8 => PredicateOperator::GreaterOrEqual,
-                            tag => return Err(CodecError::InvalidTag("PredicateOperator", tag)),
-                        };
-                        PredicateNode::Binary {
-                            operator,
-                            left: reference(reader, &references)?,
-                            right: reference(reader, &references)?,
-                        }
-                    }
+                    6 => PredicateNode::Binary {
+                        operator: Operator::read(reader)?,
+                        left: reference(reader, &references)?,
+                        right: reference(reader, &references)?,
+                    },
                     tag => return Err(CodecError::InvalidTag("ScalarPredicateNode", tag)),
                 };
                 references.push(nodes.insert(ScalarPredicateNode(node)));
@@ -3619,43 +3484,26 @@ pub(crate) mod scalar_predicate_wire {
     }
 }
 pub(crate) mod callable_wire {
-
     use super::super::CodecError;
     use super::super::wire::{Reader, Writer};
+    use super::super::wire_fields::{Field, Id, wire_enum};
     use terminal_psi::TargetMachineCallable;
 
-    pub(crate) fn encode_callable(writer: &mut Writer, callable: TargetMachineCallable) {
-        match callable {
-            TargetMachineCallable::Machine(machine) => {
-                writer.u8(1);
-                writer.id(machine);
-            }
-            TargetMachineCallable::Boundary(boundary) => {
-                writer.u8(2);
-                writer.id(boundary);
-            }
+    wire_enum! {
+        Callable: TargetMachineCallable, "TargetMachineCallable" {
+            1 => Machine(machine: Id),
+            2 => Boundary(boundary: Id),
         }
+    }
+
+    pub(crate) fn encode_callable(writer: &mut Writer, callable: TargetMachineCallable) {
+        let _ = Callable::write(writer, &callable);
     }
 
     pub(crate) fn decode_callable(
         reader: &mut Reader<'_>,
     ) -> Result<TargetMachineCallable, CodecError> {
-        Ok(match reader.u8()? {
-            1 => TargetMachineCallable::Machine(reader.id("MachineId")?),
-            2 => TargetMachineCallable::Boundary(reader.id("BoundaryMachineId")?),
-            tag => return Err(CodecError::InvalidTag("TargetMachineCallable", tag)),
-        })
-    }
-
-    pub(crate) struct Callable;
-    impl super::super::wire_fields::Field<TargetMachineCallable> for Callable {
-        fn write(writer: &mut Writer, value: &TargetMachineCallable) -> Result<(), CodecError> {
-            encode_callable(writer, *value);
-            Ok(())
-        }
-        fn read(reader: &mut Reader<'_>) -> Result<TargetMachineCallable, CodecError> {
-            decode_callable(reader)
-        }
+        Callable::read(reader)
     }
 }
 pub(crate) mod target_layout_wire {
@@ -4201,56 +4049,17 @@ impl Field<TerminalMathematicalCarrier> for MathematicalCarrier {
     }
 }
 
-struct IdentityFormation;
-impl Field<TerminalIdentityFormation> for IdentityFormation {
-    fn write(writer: &mut Writer, value: &TerminalIdentityFormation) -> Result<(), CodecError> {
-        writer.u32(value.source_owner.0);
-        writer.u32(value.source_carrier.0);
-        writer.u32(value.declaration);
-        writer.len("Id subject origins", value.subject_origins.len())?;
-        for (start, end) in &value.subject_origins {
-            writer.u32(*start);
-            writer.u32(*end);
-        }
-        let subjects = value
-            .subject_carriers
-            .iter()
-            .map(|identity| identity.0)
-            .collect::<Vec<_>>();
-        List::<U32>::write(writer, &subjects)
+wire_record! {
+    IdentityFormation: TerminalIdentityFormation {
+        source_owner: super::wire_fields::Index,
+        source_carrier: super::wire_fields::Index,
+        declaration: U32,
+        subject_origins: List<(U32, U32)>,
+        subject_carriers: List<super::wire_fields::Index>,
     }
-    fn read(reader: &mut Reader<'_>) -> Result<TerminalIdentityFormation, CodecError> {
-        let source_owner = TerminalIdentityIndex(reader.u32()?);
-        let source_carrier = TerminalIdentityIndex(reader.u32()?);
-        let declaration = reader.u32()?;
-        let subject_origins =
-            super::wire::decode_counted(reader, |reader| Ok((reader.u32()?, reader.u32()?)))?;
-        let subject_carriers = List::<U32>::read(reader)?
-            .into_iter()
-            .map(TerminalIdentityIndex)
-            .collect();
-        Ok(TerminalIdentityFormation {
-            source_owner,
-            source_carrier,
-            subject_carriers,
-            subject_origins,
-            declaration,
-        })
-    }
-}
-
-struct IdentityFormations;
-impl Field<TerminalIdentityFormations> for IdentityFormations {
-    fn write(writer: &mut Writer, value: &TerminalIdentityFormations) -> Result<(), CodecError> {
-        List::<IdentityFormation>::write(writer, &value.rows)?;
-        writer.len("identity formation certificate", value.certificate.len())?;
-        writer.bytes(&value.certificate);
-        Ok(())
-    }
-    fn read(reader: &mut Reader<'_>) -> Result<TerminalIdentityFormations, CodecError> {
-        let rows = List::<IdentityFormation>::read(reader)?;
-        let certificate = decode_bytes(reader)?;
-        Ok(TerminalIdentityFormations { rows, certificate })
+    IdentityFormations: TerminalIdentityFormations {
+        rows: List<IdentityFormation>,
+        certificate: super::wire_fields::Bytes,
     }
 }
 

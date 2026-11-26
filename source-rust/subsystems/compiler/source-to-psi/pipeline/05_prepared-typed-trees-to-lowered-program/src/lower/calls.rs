@@ -1388,7 +1388,7 @@ impl Lowering<'_> {
 
 /// Immutable scalar declarations borrowed separately from the mutable cache.
 struct DraftScalarValues<'a> {
-    values: &'a arena::IdTable<ValueId, terminal_check_tables::values::ValueRow>,
+    values: &'a terminal_check_tables::MachineValues,
 }
 
 impl terminal_semantics::ValueTypes for DraftScalarValues<'_> {

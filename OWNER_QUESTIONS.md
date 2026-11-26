@@ -64,24 +64,34 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-<a id="staged-restricted-request-approval"></a>
-### 1. How does a source Build receive project approval for a restricted action?
+<a id="returning-uefi-firmware-services"></a>
+### 1. How does a returning UEFI application receive its firmware console?
 
-A developer binds a packer with `--allow ProgramLaunch --program Packer ./packer`.
-A dependency that invokes it still needs the consuming project's approval for
-its own request. Today's driver reads a neighboring version 4 `omega.lock`
-before it runs any Build. Even a package that only returns the integer 42
-fails to check beside an unreadable lock. The staged path removes implicit
-lock discovery. Its launch contract still requires both a caller-supplied
-executable and an independently accepted request.
-[Project locks](wiki/spec/packages/locks.md) ·
-[Program grants and delegation](wiki/spec/build/program_launch.md#grant-and-delegation) ·
-[Restricted Build acceptance](wiki/spec/packages/acceptance.md#restricted-build-acceptance)
+The firmware gives the physical adapter a system table. To display text, the
+application needs that invocation’s live `ConOut` protocol. The existing sample
+uses the old physical entry directly. Under the current profile the Build-bound
+application receives exactly two owned extents, for its image and initial
+storage. Neither carries a firmware protocol. The adapter must keep any retained
+bootstrap state outside both ranges.
+[UEFI entry and firmware handoff](wiki/spec/build/uefi_entry.md#physical-arrival-and-semantic-roots) ·
+[Current sample](samples/uefi/uefi_hello/main.omg)
 
-**Recommend letting the caller explicitly supply the project's reviewed
-restricted requests.** Admission would match each request to its actual Build
-and delegated resources before entry. Source, target and provider selections
-would continue to come from the Build. An alternative is to have the caller
-review and accept the exact requests for that invocation, with an equivalent
-way to supply those decisions unattended. Which approval input should the
-source-based CLI and embedding host support?
+The UEFI contract says to install lifecycle-scoped providers. Build can select
+the code for a provider, but a static slot has no hidden receiver. A runtime
+provider also needs an actual value passed to its caller. The ordinary console
+write takes only text. A package cannot save the firmware pointer in a globally
+nameable mutable object. An extent containing the same address bits would still
+lack the firmware’s authority over that table.
+[Provider slots and era entry](wiki/spec/build/component_publication.md#provider-slots-and-era-entry) ·
+[Constants and storage](wiki/spec/language/constants.md) ·
+[Initial-call authority](wiki/spec/resources/authority.md#initial-call-authority) ·
+[Standard streams](wiki/spec/build/platform_services.md#standard-streams)
+
+**Recommend an explicit firmware-services borrow on the returning application’s
+target-owned entry contract.** The adapter would supply only the qualified
+operations it obtained for that boot-services phase. Application code could
+then pass the console handle to a source-authored firmware output operation.
+The OS handoff could retain its existing two-root contract. Another choice is
+to keep the two-root returning entry and specify how the adapter lends an
+actual service instance to calls made by that continuation, including nested
+or concurrent invocations. Which contract should returning applications use?

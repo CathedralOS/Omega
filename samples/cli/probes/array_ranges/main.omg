@@ -5,13 +5,13 @@
 //   * `main.values[1..3]` exclusive + `main.values[3..3]` empty-end.
 //   * `hits` records the reached arm.
 //
-// GAP filed: `use omega\language\core\slice` + `view[1..3]` on an
+// GAP filed: `use {omega}/language/core/slice.omg` + `view[1..3]` on an
 // existing slice (or `@xs[..]` view) selects a private
 // `Slice::range$specialized$` machine — slice-of-slice ranges are
 // unspellable from ordinary packages.
 //   * `hits` records the reached arm.
 //
-// Compile-checked only: `core\slice` is a depend-free core import;
+// Compile-checked only: `{omega}/language/core/slice.omg` is a depend-free core import;
 // no standard-library dependency, no ProcessExit provider.
 
 

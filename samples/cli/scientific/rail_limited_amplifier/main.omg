@@ -1,30 +1,19 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use domain/model/model.omg;
+use io/input/input.omg;
+use io/output/output.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // NEW034: runtime-configured discrete rail-limited feedback amplifier.
 // Only this project owns its model, bounded parser and report implementation.
-use system\Console;
-use system\LineReadResult;
-use domain\model;
-use domain\model\Circuit;
-use domain\model\Equilibrium;
-use domain\model\Observation;
-use domain\model\equilibria;
-use domain\model\advance;
-use io\input;
-use io\input\Inputs;
-use io\input\parse;
-use io\output;
-use io\output\voltage;
-use io\output\integer;
 
 data Main {
     bytes: [u8; 192];
-    input: Inputs;
-    circuit: Circuit;
-    equilibrium: Equilibrium;
+    input: |input|::Inputs;
+    circuit: |model|::Circuit;
+    equilibrium: |model|::Equilibrium;
     previous: f64;
-    observed: Observation;
+    observed: |model|::Observation;
     first_drive: f64;
     final_drive: f64;
     drive: f64;
@@ -35,11 +24,11 @@ data Main {
     overload_count: i32 in Wrapping;
     first_recovered: i32;
 }
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    let read: LineReadResult = block Console::read_line(@mutable main.bytes[..]);
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    let read: |console|::LineReadResult = block |console|::Console::read_line(@mutable main.bytes[..]);
     transition read {
-        LineReadResult::LineComplete { count } -> received(main, count),
-        LineReadResult::EndOfInput { count } -> received(main, count),
+        |console|::LineReadResult::LineComplete { count } -> received(main, count),
+        |console|::LineReadResult::EndOfInput { count } -> received(main, count),
         _ -> syntax(main)
     }
     machine received(main: @mutable Main, count: u64) {
@@ -49,7 +38,7 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         }
     }
     machine parse_line(main: @mutable Main, count: u64) {
-        main.input = parse(main.bytes[..count]);
+        main.input = |input|::parse(main.bytes[..count]);
         transition main.input.valid {
             true -> rails(main),
             false -> syntax(main)
@@ -87,10 +76,10 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         main.last_bad = -1;
         main.first_recovered = -1;
         main.overload_count = 0;
-        main.equilibrium = equilibria(main.circuit, main.first_drive);
-        Console::write_line("rail_limited_amplifier v1; voltage=uv; q=ppm");
+        main.equilibrium = |model|::equilibria(main.circuit, main.first_drive);
+        |console|::Console::write_line("rail_limited_amplifier v1; voltage=uv; q=ppm");
         equilibrium_row(main, 0);
-        main.equilibrium = equilibria(main.circuit, main.final_drive);
+        main.equilibrium = |model|::equilibria(main.circuit, main.final_drive);
         equilibrium_row(main, 1);
         main.drive = main.first_drive;
         main.observed.output = main.previous;
@@ -113,7 +102,7 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
             true -> (main.first_drive),
             false -> (main.final_drive)
         };
-        main.observed = advance(main.circuit, main.drive, main.previous);
+        main.observed = |model|::advance(main.circuit, main.drive, main.previous);
         main.previous = main.observed.output;
         trace_row(main);
         measure(main);
@@ -124,32 +113,32 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
             true -> (main.last_bad + 1),
             false -> (-1)
         };
-        Console::write("M,");
-        integer(settled as i32);
-        Console::write(",");
-        integer(main.overload_count as i32);
-        Console::write(",");
-        integer(main.first_recovered);
-        Console::write_line("");
-        ProcessExit::exit_process(0);
+        |console|::Console::write("M,");
+        |output|::integer(settled as i32);
+        |console|::Console::write(",");
+        |output|::integer(main.overload_count as i32);
+        |console|::Console::write(",");
+        |output|::integer(main.first_recovered);
+        |console|::Console::write_line("");
+        |process_exit|::ProcessExit::exit_process(0);
     }
     machine syntax(main: @mutable Main) {
-        Console::write_line("ERROR syntax: expected ten bounded signed integers");
-        ProcessExit::exit_process(64);
+        |console|::Console::write_line("ERROR syntax: expected ten bounded signed integers");
+        |process_exit|::ProcessExit::exit_process(64);
     }
     machine bad_rails(main: @mutable Main) {
-        Console::write_line("ERROR rails: lower must be less than upper");
-        ProcessExit::exit_process(64);
+        |console|::Console::write_line("ERROR rails: lower must be less than upper");
+        |process_exit|::ProcessExit::exit_process(64);
     }
     machine bad_parameters(main: @mutable Main) {
-        Console::write_line("ERROR parameters: gain, feedback, relaxation, steps or initial output outside bounds");
-        ProcessExit::exit_process(64);
+        |console|::Console::write_line("ERROR parameters: gain, feedback, relaxation, steps or initial output outside bounds");
+        |process_exit|::ProcessExit::exit_process(64);
     }
 }
-machine equilibrium_row(main: @mutable Main, phase: i32) reaches StandardOutput {
-    Console::write("E,");
-    integer(phase);
-    Console::write(",");
+machine equilibrium_row(main: @mutable Main, phase: i32) reaches |process_authority|::StandardOutput {
+    |console|::Console::write("E,");
+    |output|::integer(phase);
+    |console|::Console::write(",");
     let lower_exists: bool = main.equilibrium.lower_exists;
     flag(main, lower_exists);
     let interior_exists: bool = main.equilibrium.interior_exists;
@@ -158,31 +147,31 @@ machine equilibrium_row(main: @mutable Main, phase: i32) reaches StandardOutput 
     flag(main, upper_exists);
     let continuum: bool = main.equilibrium.continuum;
     flag(main, continuum);
-    voltage(main.equilibrium.interior);
-    Console::write(",");
-    voltage(main.equilibrium.multiplier);
-    Console::write(",");
-    integer(match main.equilibrium.stable { true -> (1), false -> (0) });
-    Console::write_line("");
+    |output|::voltage(main.equilibrium.interior);
+    |console|::Console::write(",");
+    |output|::voltage(main.equilibrium.multiplier);
+    |console|::Console::write(",");
+    |output|::integer(match main.equilibrium.stable { true -> (1), false -> (0) });
+    |console|::Console::write_line("");
 }
-machine flag(main: @mutable Main, flag: bool) reaches StandardOutput {
-    integer(match flag { true -> (1), false -> (0) });
-    Console::write(",");
+machine flag(main: @mutable Main, flag: bool) reaches |process_authority|::StandardOutput {
+    |output|::integer(match flag { true -> (1), false -> (0) });
+    |console|::Console::write(",");
 }
-machine trace_row(main: @mutable Main) reaches StandardOutput {
-    Console::write("T,");
-    integer(main.step as i32);
-    Console::write(",");
-    voltage(main.drive);
-    Console::write(",");
-    voltage(main.observed.output);
-    Console::write(",");
-    voltage(main.observed.feedback);
-    Console::write(",");
-    voltage(main.observed.raw);
-    Console::write(",");
-    integer(main.observed.overload);
-    Console::write_line("");
+machine trace_row(main: @mutable Main) reaches |process_authority|::StandardOutput {
+    |console|::Console::write("T,");
+    |output|::integer(main.step as i32);
+    |console|::Console::write(",");
+    |output|::voltage(main.drive);
+    |console|::Console::write(",");
+    |output|::voltage(main.observed.output);
+    |console|::Console::write(",");
+    |output|::voltage(main.observed.feedback);
+    |console|::Console::write(",");
+    |output|::voltage(main.observed.raw);
+    |console|::Console::write(",");
+    |output|::integer(main.observed.overload);
+    |console|::Console::write_line("");
 }
 machine measure(main: @mutable Main) {
     transition main.observed.overload != 0 {
@@ -222,7 +211,7 @@ machine measure(main: @mutable Main) {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

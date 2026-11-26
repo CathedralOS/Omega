@@ -1,8 +1,8 @@
-use kit_a\main;
-use kit_b\main;
+use {kit_a}/main.omg as kit_a;
+use {kit_b}/main.omg as kit_b;
 machine entry() -> i32 {
-    let a: i32 = left();
-    let b: i32 = right();
+    let a: i32 = |kit_a|::left();
+    let b: i32 = |kit_b|::right();
     transition a == b {
         true -> a,
         _ -> 0

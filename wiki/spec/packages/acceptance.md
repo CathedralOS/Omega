@@ -228,7 +228,17 @@ the root's delegated capabilities or replace its virtual filesystem with a real
 one. Changed enablement/provider selections require the applicable fresh review;
 an earlier disabled group is not an execution grant.
 
-Before executing a restricted build action, compare its complete normalized
+In a source-based staged Build, the invocation supplies the root's grants.
+Each parent's explicit delegation at registration is project approval for the
+named child to act within those grants. Omission grants nothing. Apply this
+rule at every dependency hop and in unattended builds. Staged admission
+requires no additional approval record and does not discover a neighboring
+`omega.lock`. Check service reach before entry and enforce the actual
+operation against the activation's grants when used.
+[Program launch](../build/program_launch.md#grant-and-delegation) illustrates
+the rule for computed paths.
+
+In the version 4 lock workflow, before executing a restricted build action, compare its complete normalized
 request against the consuming project's accepted lock policy. New or widened
 requests require explicit acceptance through the ordinary install/update review
 and resume workflow; removals and other changes remain visible under the existing

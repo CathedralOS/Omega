@@ -14,6 +14,7 @@ use diagnostics::Diagnostic;
 pub(crate) struct SelectedOperator {
     pub target: symbols::SymbolHandle,
     pub arguments: Vec<ClosedOperatorApplicationArgument>,
+    collection_borrow: Option<language_core::ReferenceAccess>,
 }
 
 /// One way an occurrence can apply an operator declaration: the fixed token
@@ -223,26 +224,28 @@ pub(crate) fn selection_for_operands(
     let Some(arguments) = application(program, selected.operator, operands) else {
         return Ok(None);
     };
-    // A call passes each operand as written. A collection value that would
-    // need a loan to reach a reference parameter is not lent here; that
-    // occurrence stays unselected and the lowered-form reader refuses it.
-    if form.indexed && needs_collection_view(program, selected.operator, operands) {
+    let collection_borrow = if form.indexed {
+        collection_borrow(program, selected.operator, operands)
+    } else {
+        None
+    };
+    if collection_borrow == Some(language_core::ReferenceAccess::WriteOnly) {
         return Ok(None);
     }
     Ok(Some(SelectedOperator {
         target: machine.symbol,
         arguments,
+        collection_borrow,
     }))
 }
 
-/// Whether a declaration whose collection parameter is a reference was
-/// matched to a written collection that is not one, through indexing's
-/// collection-view adaptation (expressions.md, "Operator families").
-fn needs_collection_view(
+/// Index and range syntax lend an owned collection when operand zero
+/// of the selected declaration requires a reference.
+fn collection_borrow(
     program: &TypedTrees,
     operator: &crate::source_state::operator::OperatorDefinition,
     operands: &[Option<crate::source_state::types::TypeReferenceHandle>],
-) -> bool {
+) -> Option<language_core::ReferenceAccess> {
     use crate::source_state::types::TypeReferenceNode;
     let table = &program.type_reference_table;
     let reference_access = |reference| {
@@ -253,15 +256,12 @@ fn needs_collection_view(
             _ => None,
         }
     };
-    let Some(parameter) = program.operator_parameters(operator).first() else {
-        return false;
-    };
-    reference_access(parameter.type_reference).is_some()
-        && operands
-            .first()
-            .copied()
-            .flatten()
-            .is_some_and(|written| reference_access(written).is_none())
+    let written = operands.first().copied().flatten()?;
+    let parameter = program.operator_parameters(operator).first()?;
+    if reference_access(written).is_some() {
+        return None;
+    }
+    reference_access(parameter.type_reference)
 }
 
 /// A builtin operator takes unqualified operands only, in executable code and
@@ -578,9 +578,20 @@ pub(crate) fn prepare_site(
             );
         }
     }
+    let mut operands = form.operands;
+    if let Some(access) = selected.collection_borrow {
+        let table = &mut program.expression_table;
+        let target = operands[0];
+        let span = table.source_span(target);
+        let borrow = table.insert(ExpressionNode::Borrow(
+            crate::source_state::expression::TableBorrowExpression { target, access },
+        ));
+        table.set_source_span(borrow, span);
+        operands[0] = borrow;
+    }
     let arguments = program
         .expression_table
-        .insert_expression_handles(form.operands().iter().copied());
+        .insert_expression_handles(operands[..form.count].iter().copied());
     let (machine_arguments, application, result_type) =
         retain_application(program, &selected, caller, &label, result_type, span)?;
     *program.expression_table.expression_mut(handle) = ExpressionNode::Call(TableCallExpression {

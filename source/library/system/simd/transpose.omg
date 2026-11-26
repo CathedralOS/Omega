@@ -1,0 +1,61 @@
+use simd/simd.omg as simd;
+
+// The transpose reads four lanes per row. The upper four lanes of each
+// output repeat its lower four lanes.
+public machine transpose4x4(input: @|simd|::Rows4x4) -> |simd|::Rows4x4 {
+    let mutable ab: [i16; 8];
+    let mutable cd: [i16; 8];
+    let mutable low: [i16; 8];
+    let mutable high: [i16; 8];
+    let mutable r0: [i16; 8];
+    let mutable r1: [i16; 8];
+    let mutable r2: [i16; 8];
+    let mutable r3: [i16; 8];
+    asm {
+        vpunpcklwd ab, input.row0.values, input.row1.values;
+        vpunpcklwd cd, input.row2.values, input.row3.values;
+        vpunpckldq low, ab, cd;
+        vpunpckhdq high, ab, cd;
+        vpunpcklqdq r0, low, low;
+        vpunpckhqdq r1, low, low;
+        vpunpcklqdq r2, high, high;
+        vpunpckhqdq r3, high, high
+    }
+    |simd|::Rows4x4 {
+        row0: |simd|::Lanes { values: r0 }, row1: |simd|::Lanes { values: r1 },
+        row2: |simd|::Lanes { values: r2 }, row3: |simd|::Lanes { values: r3 }
+    }
+}
+
+public machine transpose4x4_pair(input: @|simd|::Rows4x4) -> |simd|::Rows4x4 {
+    let mutable a01: [i16; 8];
+    let mutable a23: [i16; 8];
+    let mutable b01: [i16; 8];
+    let mutable b23: [i16; 8];
+    let mutable ac01: [i16; 8];
+    let mutable ac23: [i16; 8];
+    let mutable bc01: [i16; 8];
+    let mutable bc23: [i16; 8];
+    let mutable c0: [i16; 8];
+    let mutable c1: [i16; 8];
+    let mutable c2: [i16; 8];
+    let mutable c3: [i16; 8];
+    asm {
+        vpunpcklwd a01, input.row0.values, input.row1.values;
+        vpunpcklwd a23, input.row2.values, input.row3.values;
+        vpunpckhwd b01, input.row0.values, input.row1.values;
+        vpunpckhwd b23, input.row2.values, input.row3.values;
+        vpunpckldq ac01, a01, a23;
+        vpunpckhdq ac23, a01, a23;
+        vpunpckldq bc01, b01, b23;
+        vpunpckhdq bc23, b01, b23;
+        vpunpcklqdq c0, ac01, bc01;
+        vpunpckhqdq c1, ac01, bc01;
+        vpunpcklqdq c2, ac23, bc23;
+        vpunpckhqdq c3, ac23, bc23
+    }
+    |simd|::Rows4x4 {
+        row0: |simd|::Lanes { values: c0 }, row1: |simd|::Lanes { values: c1 },
+        row2: |simd|::Lanes { values: c2 }, row3: |simd|::Lanes { values: c3 }
+    }
+}

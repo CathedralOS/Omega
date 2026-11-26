@@ -8,6 +8,7 @@ use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 
 use arena::IdTable;
+#[cfg(test)]
 use semantic_vocabulary::ValueId;
 
 use super::{ExactPlaceId, MachineTables, bindings::PlaceRow, values::ValueRow};
@@ -47,7 +48,7 @@ impl<Id: Eq + Hash, T: Eq + Hash> CheckingRows<Id, T> {
 
 #[derive(Default)]
 pub struct LoopCheckingRows {
-    values: HashSet<Arc<IdTable<ValueId, ValueRow>>>,
+    values: HashSet<Arc<Vec<ValueRow>>>,
     places: HashSet<Arc<IdTable<ExactPlaceId, PlaceRow>>>,
 }
 
@@ -140,11 +141,17 @@ mod tests {
         store.retain(&mut same);
         store.retain(&mut different);
         assert!(Arc::ptr_eq(&first.places.0, &same.places.0));
-        assert!(Arc::ptr_eq(&first.values.0, &same.values.0));
-        assert!(Arc::ptr_eq(&first.places.0, &different.places.0));
-        assert!(!Arc::ptr_eq(&first.values.0, &different.values.0));
-
         let id = ValueId::new(1).unwrap();
+        assert!(std::ptr::eq(
+            first.values.get(id).unwrap(),
+            same.values.get(id).unwrap()
+        ));
+        assert!(Arc::ptr_eq(&first.places.0, &different.places.0));
+        assert!(!std::ptr::eq(
+            first.values.get(id).unwrap(),
+            different.values.get(id).unwrap()
+        ));
+
         let replacement = different.values.get(id).unwrap().origin;
         same.values.get_mut(id).unwrap().origin = replacement;
         assert_ne!(same.values.get(id), first.values.get(id));

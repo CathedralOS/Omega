@@ -10,8 +10,8 @@ machine build(builder: @mutable BuildPlan) {
         Build::service::<|streams|::StandardOutput>(builder),
         Build::service::<|process|::ProcessExit>(builder)
     ];
-    let system: DependencyDescription = |dependency|::from_source(Source::Path {
-        location: "../../../../source/library/system"
+    let system: DependencyDescription = |dependency|::from_source(Source::Bundled {
+        name: "system"
     });
     _ = |dependency|::add(builder, system, @allowed[..]);
     Build::bind(builder, windows_x86_64::ProgramEntry, |app|::entry_start);

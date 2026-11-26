@@ -21,7 +21,7 @@ use resolver_execution::ResolverExecutionPhase;
 
 use crate::error::{SourceResolveError, cache_invalid};
 use crate::git::cache::repository::VerifiedGitRepository;
-use crate::git::executable::executor::GitExecutor;
+use crate::git::executable::GitExecutor;
 use crate::git::git_command::reconciliation::reconcile_git_cache_operation_result;
 use crate::git::git_command::{GitCommandCapture, run_git_output};
 use crate::git::objects::GitTreeEntry;
@@ -32,8 +32,8 @@ use crate::tree::filesystem::IoResultAt;
 use bounded_process::BoundedProcessInput;
 
 #[cfg(test)]
-use super::custody::TemporaryFileGuard;
-use super::protocol::git_batch_request_bytes;
+use super::TemporaryFileGuard;
+use super::git_batch_request_bytes;
 use super::{PendingGitBatchRequest, assign_git_batch_output, git_batch_output_limit};
 
 pub(in crate::git::objects) fn read_git_blobs_batch(

@@ -1,13 +1,11 @@
-use omega\language\core\StandardOutput;
-use domain\model;
-use domain\model\Job;
-use domain\report;
-use domain\report\segment;
+use domain/model/model.omg;
+use domain/report/report.omg;
+use {omega}/language/core/process_authority.omg;
 // Scan maximal occupied runs. Gaps end deposition and cause travel to the next run.
 machine magnitude(value: i32 in Wrapping) -> i32 in Wrapping {
     transition value < 0 { true -> (0 - value), _ -> value }
 }
-machine occupied(job: @Job, layer: i32 in Wrapping, lane: i32 in Wrapping,
+machine occupied(job: @|model|::Job, layer: i32 in Wrapping, lane: i32 in Wrapping,
     along: i32 in Wrapping) -> i32 in Wrapping {
     let width: i32 in Wrapping = job.width;
     let plane: i32 in Wrapping = job.width * job.height;
@@ -15,17 +13,17 @@ machine occupied(job: @Job, layer: i32 in Wrapping, lane: i32 in Wrapping,
         true -> index(job, layer * plane + lane * width + along),
         _ -> index(job, layer * plane + along * width + lane)
     }
-    machine index(job: @Job, index: i32 in Wrapping) -> i32 in Wrapping {
+    machine index(job: @|model|::Job, index: i32 in Wrapping) -> i32 in Wrapping {
         transition index >= 0 && index < 256 {
             true -> read(job, index),
             _ -> (0 - 1)
         }
     }
-    machine read(job: @Job, index: i32 in Wrapping) -> i32 in Wrapping {
+    machine read(job: @|model|::Job, index: i32 in Wrapping) -> i32 in Wrapping {
         job.mask[index] as i32 +Wrapping
     }
 }
-machine cover(job: @mutable Job, layer: i32 in Wrapping, lane: i32 in Wrapping,
+machine cover(job: @mutable |model|::Job, layer: i32 in Wrapping, lane: i32 in Wrapping,
     along: i32 in Wrapping) -> bool {
     let width: i32 in Wrapping = job.width;
     let plane: i32 in Wrapping = job.width * job.height;
@@ -33,25 +31,25 @@ machine cover(job: @mutable Job, layer: i32 in Wrapping, lane: i32 in Wrapping,
         true -> index(job, layer * plane + lane * width + along),
         _ -> index(job, layer * plane + along * width + lane)
     }
-    machine index(job: @mutable Job, index: i32 in Wrapping) -> bool {
+    machine index(job: @mutable |model|::Job, index: i32 in Wrapping) -> bool {
         transition index >= 0 && index < 256 {
             true -> write(job, index),
             _ -> false
         }
     }
-    machine write(job: @mutable Job, index: i32 in Wrapping) -> bool {
+    machine write(job: @mutable |model|::Job, index: i32 in Wrapping) -> bool {
         let previous: i32 in Wrapping = job.covered[index] as i32 +Wrapping;
         job.covered[index] = (previous + 1) as i32;
         true
     }
 }
-machine emit_run(job: @mutable Job, layer: i32 in Wrapping, lane: i32 in Wrapping,
-    start: i32 in Wrapping, end: i32 in Wrapping) reaches StandardOutput {
+machine emit_run(job: @mutable |model|::Job, layer: i32 in Wrapping, lane: i32 in Wrapping,
+    start: i32 in Wrapping, end: i32 in Wrapping) reaches |process_authority|::StandardOutput {
     transition job.orientation == 0 {
         true -> move(job, start, lane, layer, end, lane),
         _ -> move(job, lane, start, layer, lane, end)
     }
-    machine move(job: @mutable Job, x: i32 in Wrapping, y: i32 in Wrapping, z: i32 in Wrapping,
+    machine move(job: @mutable |model|::Job, x: i32 in Wrapping, y: i32 in Wrapping, z: i32 in Wrapping,
         end_x: i32 in Wrapping, end_y: i32 in Wrapping) {
         let distance: i32 in Wrapping = magnitude(x - job.previous_x)
             + magnitude(y - job.previous_y) + magnitude(z - job.previous_z);
@@ -60,16 +58,16 @@ machine emit_run(job: @mutable Job, layer: i32 in Wrapping, lane: i32 in Wrappin
             _ -> deposit(job, x, y, z, end_x, end_y)
         }
     }
-    machine travel(job: @mutable Job, x: i32 in Wrapping, y: i32 in Wrapping, z: i32 in Wrapping,
+    machine travel(job: @mutable |model|::Job, x: i32 in Wrapping, y: i32 in Wrapping, z: i32 in Wrapping,
         end_x: i32 in Wrapping, end_y: i32 in Wrapping, distance: i32 in Wrapping) {
-        segment(false, job.previous_x, job.previous_y, job.previous_z, x, y, z);
+        |report|::segment(false, job.previous_x, job.previous_y, job.previous_z, x, y, z);
         job.travel = job.travel + distance;
         job.travel_segments = job.travel_segments + 1;
         transition { _ -> deposit(job, x, y, z, end_x, end_y) }
     }
-    machine deposit(job: @mutable Job, x: i32 in Wrapping, y: i32 in Wrapping, z: i32 in Wrapping,
+    machine deposit(job: @mutable |model|::Job, x: i32 in Wrapping, y: i32 in Wrapping, z: i32 in Wrapping,
         end_x: i32 in Wrapping, end_y: i32 in Wrapping) {
-        segment(true, x, y, z, end_x, end_y, z);
+        |report|::segment(true, x, y, z, end_x, end_y, z);
         job.deposition = job.deposition + end_x - x + end_y - y;
         job.deposition_segments = job.deposition_segments + 1;
         job.previous_x = end_x;
@@ -77,7 +75,7 @@ machine emit_run(job: @mutable Job, layer: i32 in Wrapping, lane: i32 in Wrappin
         job.previous_z = z;
     }
 }
-public machine paths(job: @mutable Job) -> bool reaches StandardOutput {
+public machine paths(job: @mutable |model|::Job) -> bool reaches |process_authority|::StandardOutput {
     job.previous_x = 0; job.previous_y = 0; job.previous_z = 0;
     job.deposition = 0; job.travel = 0;
     job.deposition_segments = 0; job.travel_segments = 0;
@@ -89,21 +87,21 @@ public machine paths(job: @mutable Job) -> bool reaches StandardOutput {
         true -> layer(job, 0, height, width),
         _ -> layer(job, 0, width, height)
     }
-    machine layer(job: @mutable Job, layer_index: i32 in Wrapping,
+    machine layer(job: @mutable |model|::Job, layer_index: i32 in Wrapping,
         lanes: i32 in Wrapping, length: i32 in Wrapping) -> bool {
         transition layer_index < job.layers {
             true -> lane(job, layer_index, 0, lanes, length),
             _ -> audit_cells(job, 0)
         }
     }
-    machine lane(job: @mutable Job, layer_index: i32 in Wrapping, lane_index: i32 in Wrapping,
+    machine lane(job: @mutable |model|::Job, layer_index: i32 in Wrapping, lane_index: i32 in Wrapping,
         lanes: i32 in Wrapping, length: i32 in Wrapping) -> bool {
         transition lane_index < lanes {
             true -> find(job, layer_index, lane_index, lanes, length, 0),
             _ -> layer(job, layer_index + 1, lanes, length)
         }
     }
-    machine find(job: @mutable Job, layer_index: i32 in Wrapping, lane_index: i32 in Wrapping,
+    machine find(job: @mutable |model|::Job, layer_index: i32 in Wrapping, lane_index: i32 in Wrapping,
         lanes: i32 in Wrapping, length: i32 in Wrapping, along: i32 in Wrapping) -> bool {
         let next_lane: i32 in Wrapping = lane_index + job.stride;
         transition along < length {
@@ -111,7 +109,7 @@ public machine paths(job: @mutable Job) -> bool reaches StandardOutput {
             _ -> lane(job, layer_index, next_lane, lanes, length)
         }
     }
-    machine test(job: @mutable Job, layer_index: i32 in Wrapping, lane_index: i32 in Wrapping,
+    machine test(job: @mutable |model|::Job, layer_index: i32 in Wrapping, lane_index: i32 in Wrapping,
         lanes: i32 in Wrapping, length: i32 in Wrapping, along: i32 in Wrapping) -> bool {
         let value: i32 in Wrapping = occupied(job, layer_index, lane_index, along);
         transition value {
@@ -120,7 +118,7 @@ public machine paths(job: @mutable Job) -> bool reaches StandardOutput {
             _ -> false
         }
     }
-    machine extend(job: @mutable Job, layer_index: i32 in Wrapping, lane_index: i32 in Wrapping,
+    machine extend(job: @mutable |model|::Job, layer_index: i32 in Wrapping, lane_index: i32 in Wrapping,
         lanes: i32 in Wrapping, length: i32 in Wrapping, start: i32 in Wrapping,
         end: i32 in Wrapping) -> bool {
         transition end < length {
@@ -128,7 +126,7 @@ public machine paths(job: @mutable Job) -> bool reaches StandardOutput {
             _ -> emit(job, layer_index, lane_index, lanes, length, start, end)
         }
     }
-    machine extend_test(job: @mutable Job, layer_index: i32 in Wrapping, lane_index: i32 in Wrapping,
+    machine extend_test(job: @mutable |model|::Job, layer_index: i32 in Wrapping, lane_index: i32 in Wrapping,
         lanes: i32 in Wrapping, length: i32 in Wrapping, start: i32 in Wrapping,
         end: i32 in Wrapping) -> bool {
         let value: i32 in Wrapping = occupied(job, layer_index, lane_index, end);
@@ -138,7 +136,7 @@ public machine paths(job: @mutable Job) -> bool reaches StandardOutput {
             _ -> false
         }
     }
-    machine mark(job: @mutable Job, layer_index: i32 in Wrapping, lane_index: i32 in Wrapping,
+    machine mark(job: @mutable |model|::Job, layer_index: i32 in Wrapping, lane_index: i32 in Wrapping,
         lanes: i32 in Wrapping, length: i32 in Wrapping, start: i32 in Wrapping,
         end: i32 in Wrapping) -> bool {
         let valid: bool = cover(job, layer_index, lane_index, end);
@@ -147,25 +145,25 @@ public machine paths(job: @mutable Job) -> bool reaches StandardOutput {
             _ -> false
         }
     }
-    machine emit(job: @mutable Job, layer_index: i32 in Wrapping, lane_index: i32 in Wrapping,
+    machine emit(job: @mutable |model|::Job, layer_index: i32 in Wrapping, lane_index: i32 in Wrapping,
         lanes: i32 in Wrapping, length: i32 in Wrapping, start: i32 in Wrapping,
         end: i32 in Wrapping) -> bool {
         emit_run(job, layer_index, lane_index, start, end);
         transition { _ -> find(job, layer_index, lane_index, lanes, length, end) }
     }
-    machine audit_cells(job: @mutable Job, index: i32 in Wrapping) -> bool {
+    machine audit_cells(job: @mutable |model|::Job, index: i32 in Wrapping) -> bool {
         transition index < job.width * job.height * job.layers {
             true -> audit_bounds(job, index),
             _ -> true
         }
     }
-    machine audit_bounds(job: @mutable Job, index: i32 in Wrapping) -> bool {
+    machine audit_bounds(job: @mutable |model|::Job, index: i32 in Wrapping) -> bool {
         transition index >= 0 && index < 256 {
             true -> audit_read(job, index),
             _ -> false
         }
     }
-    machine audit_read(job: @mutable Job, index: i32 in Wrapping) -> bool {
+    machine audit_read(job: @mutable |model|::Job, index: i32 in Wrapping) -> bool {
         let mask: i32 in Wrapping = job.mask[index] as i32 +Wrapping;
         let visits: i32 in Wrapping = job.covered[index] as i32 +Wrapping;
         transition mask == 1 {
@@ -173,23 +171,23 @@ public machine paths(job: @mutable Job) -> bool reaches StandardOutput {
             _ -> outside_cell(job, index, visits)
         }
     }
-    machine region_cell(job: @mutable Job, index: i32 in Wrapping, visits: i32 in Wrapping) -> bool {
+    machine region_cell(job: @mutable |model|::Job, index: i32 in Wrapping, visits: i32 in Wrapping) -> bool {
         job.region = job.region + 1;
         transition visits > 0 {
             true -> covered_cell(job, index, visits),
             _ -> missed_cell(job, index)
         }
     }
-    machine covered_cell(job: @mutable Job, index: i32 in Wrapping, visits: i32 in Wrapping) -> bool {
+    machine covered_cell(job: @mutable |model|::Job, index: i32 in Wrapping, visits: i32 in Wrapping) -> bool {
         job.covered_count = job.covered_count + 1;
         job.duplicate = job.duplicate + visits - 1;
         transition { _ -> audit_cells(job, index + 1) }
     }
-    machine missed_cell(job: @mutable Job, index: i32 in Wrapping) -> bool {
+    machine missed_cell(job: @mutable |model|::Job, index: i32 in Wrapping) -> bool {
         job.missed = job.missed + 1;
         transition { _ -> audit_cells(job, index + 1) }
     }
-    machine outside_cell(job: @mutable Job, index: i32 in Wrapping, visits: i32 in Wrapping) -> bool {
+    machine outside_cell(job: @mutable |model|::Job, index: i32 in Wrapping, visits: i32 in Wrapping) -> bool {
         job.waste = job.waste + visits;
         transition { _ -> audit_cells(job, index + 1) }
     }

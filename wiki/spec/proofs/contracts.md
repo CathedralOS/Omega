@@ -39,7 +39,8 @@ Proof use must satisfy the selected invocation's ordinary totality, termination,
 observation/effect and precondition rules. Type equality and specified primitive
 relations, including cross-carrier integer comparisons, retain their rules.
 
-`core\Identity::<T>(left, right)` explicitly forms the foundation's proof-relevant
+With `use {omega}/language/core/foundation.omg as proof;`,
+`|proof|::Identity::<T>(left, right)` explicitly forms the foundation's proof-relevant
 `Id T left right`. This is a sealed core mathematical declaration, not a new
 keyword, operator, executable Boolean comparison or theorem asserting its own
 conclusion. Its ordinary core declaration identity, typed subjects and universe
@@ -53,7 +54,7 @@ For example, a generic algebra's commutativity requirement is:
 
 ```omega
 machine add_comm(a: T, b: T)
-ensures core\Identity::<T>(add(a, b), add(b, a));
+ensures |proof|::Identity::<T>(add(a, b), add(b, a));
 ```
 
 This law states identity of results, independently of any selected comparison.
@@ -62,7 +63,7 @@ The body of each supplied theorem must prove it.
 ### Record identity from field identities
 
 For two values of the same concrete record type whose identity is determined
-by its fields, the checker must derive `core\Identity::<R>(a, b)` when it
+by its fields, the checker must derive `|proof|::Identity::<R>(a, b)` when it
 has identity evidence for every corresponding field of those exact values.
 The author may leave the proof body empty. A cited theorem that establishes
 a missing field identity supplies the same premise as an entry requirement.
@@ -84,8 +85,8 @@ Independent checked law evidence may establish either direction:
 
 | Law premise | Conclusion | Use |
 | --- | --- | --- |
-| Selected `equal(a, b) == true` | `core\Identity::<T>(a, b)` | Substitute identical subjects under the ordinary identity rules. |
-| `core\Identity::<T>(a, b)` | Selected `equal(a, b) == true` | Establish that comparison from identity. |
+| Selected `equal(a, b) == true` | `\|proof\|::Identity::<T>(a, b)` | Substitute identical subjects under the ordinary identity rules. |
+| `\|proof\|::Identity::<T>(a, b)` | Selected `equal(a, b) == true` | Establish that comparison from identity. |
 
 These are additional trait/conformance evidence, not optional members of
 `Equatable`. Each selected conformance still supplies its complete row set.
@@ -239,10 +240,10 @@ float meaning uses its separate projection.
 All integer/address carriers embed into signed proof `Int`, so subtraction is
 ordinary signed subtraction even for unsigned source values. Exact conversion
 to `Nat` requires nonnegativity. Ordinary `Nat - Nat` requires right <= left;
-explicit `Nat\saturating_sub` instead denotes `max(left - right, 0)`.
+explicit `|nat|::saturating_sub` instead denotes `max(left - right, 0)`.
 `Nat` includes zero: forming exact `n - 1` needs `1 <= n`, not `1 < n`.
 The two operands being natural numbers alone does not establish their order.
-Named `Nat\subtract(left, right)` has the same order premise as `left - right`;
+Named `|nat|::subtract(left, right)` has the same order premise as `left - right`;
 the total saturating operation remains a distinct contract. This choice of
 subtraction meaning is identical in proof and executable uses wherever admitted.
 Target-relative bounds retain the exact observation dependency. An exclusive
@@ -261,9 +262,9 @@ without fractional-history acknowledgment; a typed `Rat` needs explicit exact
 narrowing for an integer-only use. Other mathematical promotions are not implied.
 
 For admitted computational division, the proof correspondence is
-`embed(a / b) == integer\quotient(embed(a), embed(b))`, subject to the source
+`embed(a / b) == |integer|::quotient(embed(a), embed(b))`, subject to the source
 operation's policy and formation conditions. Computational remainder similarly
-corresponds to `integer\remainder`. The signed quotient truncates toward zero;
+corresponds to `|integer|::remainder`. The signed quotient truncates toward zero;
 its remainder is zero or has the dividend's sign. These operations remain
 available for number-theoretic reasoning; neither is mathematical rational `/`.
 For an overflow-policy result, apply that policy to the operation-specific
@@ -522,8 +523,8 @@ may identify `Indexed<N + 0>` with `Indexed<N>`. For a user algebra, the same
 use is automatic proved compatibility when its checked laws establish it.
 
 An abstract right-identity law
-`core\Identity::<T>(add(value, zero()), value)` combines with a checked
-connection `core\Identity::<T>(zero(), 0)`, with the literal formed in the exact
+`|proof|::Identity::<T>(add(value, zero()), value)` combines with a checked
+connection `|proof|::Identity::<T>(zero(), 0)`, with the literal formed in the exact
 carrier `T`. Multiplication uses the corresponding identity and connection to
 `1`. Each proof needs only its own laws, not a full ring or semiring.
 Left and right identities remain separate. These user laws do not rename a

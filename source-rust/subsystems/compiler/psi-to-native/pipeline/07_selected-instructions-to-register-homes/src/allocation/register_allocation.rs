@@ -101,4 +101,4 @@ pub enum RegisterAllocationError {
     Admission(AllocationAdmissionError),
 }
 
-stage_error_display!(RegisterAllocationError, "register allocation failed");
+failed_display!(RegisterAllocationError, "register allocation failed");

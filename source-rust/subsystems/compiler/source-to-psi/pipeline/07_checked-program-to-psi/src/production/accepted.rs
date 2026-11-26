@@ -1004,7 +1004,6 @@ pub fn boundary_requirements_declared_for(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lowering::Compilation;
 
     #[test]
     fn publication_survives_releasing_the_typed_source_and_checker() {
@@ -1071,50 +1070,21 @@ mod tests {
             .join("main.omg");
         let text = std::fs::read_to_string(path).unwrap();
         let package = semantic_vocabulary::PackageKeyIdentity::from_digest([0xa7; 32]).unwrap();
-        let mut sources = crate::source_inputs::SourceMap::default();
-        let id = sources
-            .add_checked_instance(
-                format!("accepted/{name}/main.omg").into(),
-                text.as_str(),
-                "accepted".into(),
-                Some(package),
-                source_admission::SourceOrigin::User,
-                source_admission::SourceResolutionStratum::Base,
-                source_provenance::DependencyScope::Product,
-            )
-            .source_id;
-        let tokens = crate::frontend_fixture::Lexer::new(&text)
-            .tokenize()
-            .unwrap();
-        let syntax = crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
-        let resolved = crate::resolution::resolve(crate::resolution::ResolutionRequest {
-            syntax,
-            sources: Some(Arc::new(sources)),
-            top_level_bindings: Vec::new(),
-            retained_base: None,
-        })
-        .unwrap();
-        let typed = crate::typing::lower_symbol_resolved_trees(&resolved).unwrap();
-        let entry = typed
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == "main")
-            .unwrap()
-            .symbol;
-        let frozen = crate::preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
-        crate::judge_fixture(
-            frozen,
-            Compilation {
-                declaration_metadata: &[],
-                entries: &[entry],
-                subjects: &[Some(package)],
-                purpose: source_provenance::DependencyScope::Product,
-                selected: &[],
-                bindings: &[],
-                calling: None,
-                providers: None,
-                supplies: &[],
-            },
+        let path = format!("accepted/{name}/main.omg");
+        let file = crate::FixtureFile {
+            path: &path,
+            text: &text,
+            root: "accepted",
+            package: Some(package),
+            origin: source_admission::SourceOrigin::User,
+            scope: source_provenance::DependencyScope::Product,
+        };
+        let (typed, _) = crate::fixture_trees(&[file], |_| Vec::new());
+        crate::judge_entry(
+            crate::preparation::prepare_typed_trees(typed, &[], &[]).unwrap(),
+            "main",
+            &[Some(package)],
+            source_provenance::DependencyScope::Product,
             publication,
         )
         .unwrap()

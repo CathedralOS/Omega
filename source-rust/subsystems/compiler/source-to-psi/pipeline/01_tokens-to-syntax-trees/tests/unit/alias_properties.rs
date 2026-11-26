@@ -6,13 +6,11 @@
 //! cannot know the expansion's multiplicity, so the fact it owes typing is the
 //! assertion as written; typing compares it with the expansion.
 
-use crate::frontend_fixture::Lexer;
 use language_core::Multiplicity;
 use syntax_trees::item::Item;
 
 fn asserted(source: &str) -> Option<Multiplicity> {
-    let tokens = Lexer::new(source).tokenize().expect("the source lexes");
-    let syntax = crate::parse_syntax_trees(&tokens).expect("the alias parses");
+    let syntax = crate::tests::parse_source(source);
     syntax
         .root_items()
         .find_map(|item| match item {
@@ -54,8 +52,7 @@ fn an_alias_with_a_carry_list_or_a_cleanup_is_refused() {
             "it may assert only `copy` or `linear`",
         ),
     ] {
-        let tokens = Lexer::new(source).tokenize().expect("the source lexes");
-        let error = crate::parse_syntax_trees(&tokens).expect_err("the alias is refused");
+        let error = crate::tests::parse_error(source);
         assert!(error.message.contains(rule), "{source}: {}", error.message);
     }
 }

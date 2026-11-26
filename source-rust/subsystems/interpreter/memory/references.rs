@@ -1035,16 +1035,11 @@ pub(crate) mod placed {
                 let [source, profile_argument] = structural_arguments.as_slice() else {
                     return Err(malformed());
                 };
-                let result = operation.result.structural().ok_or(malformed())?;
+                let result = self.require_fresh_access_result(operation)?;
                 if !matches!(source.access, terminal_psi::reading_borrow_pair_pattern!())
                     || profile_argument.access != StructuralAccess::SharedBorrow
                     || !completion_receipts.is_empty()
                     || !result.claims.is_empty()
-                    || !result.qualification_establishments.is_empty()
-                    || self.result_place_in_use(result.place)
-                    || !self
-                        .loan_completions_for_operation(operation.id)?
-                        .is_empty()
                 {
                     return Err(malformed());
                 }
@@ -1063,16 +1058,16 @@ pub(crate) mod placed {
                 else {
                     return Err(malformed());
                 };
-                if source.access != access
-                    || result.structural_type != declared.structural_type
-                    || result.multiplicity != declared.multiplicity
-                    || result.qualifications != declared.qualifications
-                    || result.projected_qualifications != declared.projected_qualifications
-                {
+                if source.access != access {
                     return Err(TerminalInterpretError::ContentTransformationMismatch(
                         "borrowed placement changed its declared result contract",
                     ));
                 }
+                crate::storage_providers::validate_access_result_contract(
+                    result,
+                    declared,
+                    Some("borrowed placement changed its declared result contract"),
+                )?;
                 let backing = self
                     .resolve_reference_call_arguments(std::slice::from_ref(source))?
                     .pop()
@@ -1213,7 +1208,8 @@ pub(crate) mod placed {
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]
-    enum AccessRamHome {        Frame {
+    enum AccessRamHome {
+        Frame {
             depth: usize,
             machine: MachineId,
             place: PlaceId,
@@ -1285,13 +1281,11 @@ pub(crate) mod placed {
                     place,
                     allocation,
                 } => {
-                    let (actual_machine, values) = if *depth == self.call_stack.len() {
-                        (self.current_machine, &self.structural_values)
-                    } else {
-                        let frame = self.call_stack.get(*depth).ok_or(malformed())?;
-                        (frame.current_machine, &frame.structural_values)
-                    };
-                    if actual_machine != *machine || values.get(place) != Some(allocation) {
+                    let (actual_machine, values) = crate::storage_primitives::frame_fields!(
+                        self,
+                        *depth => current_machine, structural_values
+                    );
+                    if *actual_machine != *machine || values.get(place) != Some(allocation) {
                         return Err(malformed());
                     }
                 }
@@ -1743,7 +1737,8 @@ pub(crate) mod placed {
                 let plan = self
                     .program
                     .catalogs
-                    .access.access_view_plans
+                    .access
+                    .access_view_plans
                     .iter()
                     .find(|plan| plan.carrier == captured.carrier())
                     .ok_or(malformed())?;
@@ -1797,15 +1792,21 @@ pub(crate) mod placed {
             structural_arguments: &[StructuralArgument],
         ) -> Result<bool, TerminalInterpretError> {
             let program = std::sync::Arc::clone(&self.program);
-            let mut operations = program.catalogs.access.access_view_plans.iter().flat_map(|plan| {
-                plan.fields.iter().flat_map(move |field| {
-                    field
-                        .operations
-                        .iter()
-                        .filter(move |accessor| accessor.boundary == declaration.id)
-                        .map(move |accessor| (plan, field, accessor.kind))
-                })
-            });
+            let mut operations =
+                program
+                    .catalogs
+                    .access
+                    .access_view_plans
+                    .iter()
+                    .flat_map(|plan| {
+                        plan.fields.iter().flat_map(move |field| {
+                            field
+                                .operations
+                                .iter()
+                                .filter(move |accessor| accessor.boundary == declaration.id)
+                                .map(move |accessor| (plan, field, accessor.kind))
+                        })
+                    });
             let Some((plan, field, kind)) = operations.next() else {
                 return Ok(false);
             };
@@ -2228,14 +2229,7 @@ impl TerminalExecution<'_> {
             &types,
             &mut remaining,
             claims.chain(affine).map(|path| (place, path)),
-            &|entry| {
-                crate::boundary::structural_inputs::case_membership::stored_case_at_projection(
-                    &types,
-                    root,
-                    &self.array_initialization.cases(&self.structural_cases),
-                    &entry.path,
-                )
-            },
+            &|entry| self.stored_case_at_value(root, &entry.path),
         )?;
         Ok(remaining.is_empty())
     }
@@ -2763,7 +2757,8 @@ impl TerminalExecution<'_> {
             let observable = |identity| {
                 self.program
                     .catalogs
-                    .types.structural_domains
+                    .types
+                    .structural_domains
                     .iter()
                     .find(|domain| domain.id == identity)
                     .is_some_and(|domain| {
@@ -2884,7 +2879,8 @@ impl TerminalExecution<'_> {
                         && !self
                             .program
                             .catalogs
-                            .types.structural_domains
+                            .types
+                            .structural_domains
                             .iter()
                             .any(|domain| {
                                 domain.id == row.domain

@@ -293,7 +293,7 @@ struct issued provide(uint32_t slot) { return (struct issued){tables[slot & 1]};
 use {omega}/language/core/access/access.omg as policy;
 use {omega}/language/core/layout.omg as layout;
 use {omega}/language/core/reflect/reflect.omg as reflection;
-public data Protocol { marker: u64; apply: addr; }
+public data Protocol { marker: u64; apply: address; }
 public domain Protocol::Initialized access ProtocolIssuance;
 ProtocolIssuance satisfies |layout|::AccessPolicy {
     machine plan(schema: |reflection|::TypeSchema) -> |layout|::AccessPlan reaches none crashes none terminates {
@@ -427,7 +427,7 @@ machine build<'selection>(builder: @mutable BuildPlan) {
     let unissued = program
         .replace(
             expected,
-            "let left: Protocol = Protocol { marker: 7, apply: 0 as addr };",
+            "let left: Protocol = Protocol { marker: 7, apply: 0 as address };",
         )
         .replace("@left.table)", "@left)");
 
@@ -462,7 +462,7 @@ machine build<'selection>(builder: @mutable BuildPlan) {
         )
         .replace(
             "    let first:",
-            "    left.table.apply = 0 as addr;\n    let first:",
+            "    left.table.apply = 0 as address;\n    let first:",
         );
     for (input, reason) in [
         (unissued, "carries no domain"),

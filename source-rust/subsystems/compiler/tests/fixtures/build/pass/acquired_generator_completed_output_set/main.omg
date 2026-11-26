@@ -1,5 +1,5 @@
 // Expected exit: 0
-use {runtime_generator}/main.omg as generator;
+use {generator}/main.omg as generator;
 
 public machine main() crashes Trap {
     let observed: i32 = |generator|::generated_value();

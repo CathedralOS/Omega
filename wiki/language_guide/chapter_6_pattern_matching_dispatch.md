@@ -18,7 +18,7 @@ The subject is evaluated once. Each arm produces the same type. In
 received value. If a parameter or local named `amount` is already visible,
 the compiler rejects the binding. To compare the two values, write
 `received == amount`. To match a package constant, use a qualified pattern
-such as `limits\amount`. Separate arms can reuse a binding name.
+such as `|limits|::amount`. Separate arms can reuse a binding name.
 
 ## Transition
 

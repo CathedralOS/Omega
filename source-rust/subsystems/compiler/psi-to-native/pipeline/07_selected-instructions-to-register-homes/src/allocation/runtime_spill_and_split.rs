@@ -357,7 +357,10 @@ pub(crate) mod runtime_rematerialization {
         use register_model::RegisterOperandAccess;
         use selected_instructions::{SelectedInstruction, SelectedOperand, VirtualRegisterId};
 
-        use super::{RuntimeRematerializationError, ValidatedRuntimeRematerialization, admission};
+        use super::{
+            RuntimeRematerializationError, RuntimeRematerializationReceipt,
+            ValidatedRuntimeRematerialization, admission,
+        };
         use crate::allocation::ValidatedSelectedAnalysis;
         use crate::allocation::rewrites::runtime_spill::control_mut;
         use crate::allocation::rewrites::settlement_gaps::{gap_tables, push_position, remap};
@@ -479,30 +482,13 @@ pub(crate) mod runtime_rematerialization {
                     Ok(())
                 },
             )?;
-            super::validation::seal_runtime_rematerialization(source, transformed)
-        }
-    }
-    pub(crate) mod validation {
-        use selected_instructions::SelectedInstructionPlan;
-
-        use super::{
-            RuntimeRematerializationError, RuntimeRematerializationReceipt,
-            ValidatedRuntimeRematerialization,
-        };
-        use crate::allocation::ValidatedSelectedAnalysis;
-
-        pub(crate) fn seal_runtime_rematerialization(
-            source: &impl ValidatedSelectedAnalysis,
-            proposed: SelectedInstructionPlan,
-        ) -> Result<ValidatedRuntimeRematerialization, RuntimeRematerializationError> {
             Ok(sealed!(
                 ValidatedRuntimeRematerialization,
                 RuntimeRematerializationReceipt,
                 source,
-                proposed
+                transformed
             ))
         }
-        use crate::allocation::rewrites::sealed;
     }
 
     use std::sync::Arc;
@@ -950,7 +936,7 @@ pub(crate) mod runtime_spill {
         };
 
         use super::{
-            RuntimeSpillDerivation, RuntimeSpillError, RuntimeSpillSpanPolicy,
+            RuntimeSpillDerivation, RuntimeSpillError, RuntimeSpillReceipt, RuntimeSpillSpanPolicy,
             ValidatedRuntimeSpill, admission, derive_runtime_spill,
         };
         use crate::allocation::ValidatedSelectedAnalysis;
@@ -1467,8 +1453,12 @@ pub(crate) mod runtime_spill {
                 )?;
                 Ok(transformed)
             })()?;
-            let sealed =
-                super::validation::seal_runtime_spill_with_span_policy(source, transformed)?;
+            let sealed = sealed!(
+                ValidatedRuntimeSpill,
+                RuntimeSpillReceipt,
+                source,
+                transformed
+            );
             Ok((sealed, crossed_unit_write))
         }
     }
@@ -3165,24 +3155,6 @@ pub(crate) mod runtime_spill {
                 }
             }
             Ok(())
-        }
-    }
-    pub(crate) mod validation {
-        use selected_instructions::SelectedInstructionPlan;
-
-        use super::{RuntimeSpillError, RuntimeSpillReceipt, ValidatedRuntimeSpill};
-        use crate::allocation::ValidatedSelectedAnalysis;
-        use crate::allocation::rewrites::sealed;
-        pub(crate) fn seal_runtime_spill_with_span_policy(
-            source: &impl ValidatedSelectedAnalysis,
-            proposed: SelectedInstructionPlan,
-        ) -> Result<ValidatedRuntimeSpill, RuntimeSpillError> {
-            Ok(sealed!(
-                ValidatedRuntimeSpill,
-                RuntimeSpillReceipt,
-                source,
-                proposed
-            ))
         }
     }
 
@@ -5230,7 +5202,7 @@ pub(crate) mod runtime_split {
         }
     }
     pub(crate) mod before_use {
-        use super::{RuntimeSplitError, ValidatedRuntimeSplit, admission};
+        use super::{RuntimeSplitError, RuntimeSplitReceipt, ValidatedRuntimeSplit, admission};
         use crate::allocation::ValidatedSelectedAnalysis;
         use optimization_core::OptimizationWorkBudget;
         use register_environment::ValidatedTargetRegisterEnvironment;
@@ -5344,7 +5316,12 @@ pub(crate) mod runtime_split {
                             .ok_or(RuntimeSplitError::IdentityOverflow)?;
                     }
                 }
-                super::validation::seal_runtime_split(source, transformed)
+                Ok(sealed!(
+                    ValidatedRuntimeSplit,
+                    RuntimeSplitReceipt,
+                    source,
+                    transformed
+                ))
             }
         }
     }
@@ -5353,7 +5330,10 @@ pub(crate) mod runtime_split {
         use register_environment::ValidatedTargetRegisterEnvironment;
         use selected_instructions::{SelectedValueTransport, VirtualRegisterId};
 
-        use super::{RuntimeSplitError, ValidatedRuntimeSplit, admission, shifted_position};
+        use super::{
+            RuntimeSplitError, RuntimeSplitReceipt, ValidatedRuntimeSplit, admission,
+            shifted_position,
+        };
         use crate::allocation::ValidatedSelectedAnalysis;
         use crate::allocation::rewrites::runtime_spill::{control_mut, control_successors_mut};
 
@@ -5429,27 +5409,13 @@ pub(crate) mod runtime_split {
                     Ok(())
                 },
             )?;
-            super::validation::seal_runtime_split(source, transformed)
-        }
-    }
-    pub(crate) mod validation {
-        use selected_instructions::SelectedInstructionPlan;
-
-        use super::{RuntimeSplitError, RuntimeSplitReceipt, ValidatedRuntimeSplit};
-        use crate::allocation::ValidatedSelectedAnalysis;
-
-        pub(crate) fn seal_runtime_split(
-            source: &impl ValidatedSelectedAnalysis,
-            proposed: SelectedInstructionPlan,
-        ) -> Result<ValidatedRuntimeSplit, RuntimeSplitError> {
             Ok(sealed!(
                 ValidatedRuntimeSplit,
                 RuntimeSplitReceipt,
                 source,
-                proposed
+                transformed
             ))
         }
-        use crate::allocation::rewrites::sealed;
     }
 
     use std::sync::Arc;

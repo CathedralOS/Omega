@@ -1,60 +1,57 @@
-use omega\language\core\StandardOutput;
-use terrain\model;
-use terrain\model\Terrain;
-use terrain\model\Contours;
-use terrain\stitch;
-use terrain\stitch\Paths;
-use system\Console;
-use omega\language\core\narrow_u64_to_i32_wrapping;
+use terrain/model/model.omg;
+use terrain/stitch/stitch.omg;
+use {omega}/language/core/numeric_conversion.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 public data Main {
     input: [u8; 16];
-    terrain: Terrain;
-    graph: Contours;
-    paths: Paths;
+    terrain: |model|::Terrain;
+    graph: |model|::Contours;
+    paths: |stitch|::Paths;
 }
 // Four decimal digits are sufficient for coordinates <= 5040 and counts <=16.
-machine number(value: i32 in Wrapping, context: @mutable Main) reaches StandardOutput {
-    Console::write_byte((value / 1000 % 10 + 48) as i32);
-    Console::write_byte((value / 100 % 10 + 48) as i32);
-    Console::write_byte((value / 10 % 10 + 48) as i32);
-    Console::write_byte((value % 10 + 48) as i32);
+machine number(value: i32 in Wrapping, context: @mutable Main) reaches |process_authority|::StandardOutput {
+    |console|::Console::write_byte((value / 1000 % 10 + 48) as i32);
+    |console|::Console::write_byte((value / 100 % 10 + 48) as i32);
+    |console|::Console::write_byte((value / 10 % 10 + 48) as i32);
+    |console|::Console::write_byte((value % 10 + 48) as i32);
 }
-public machine report(context: @mutable Main) reaches StandardOutput {
-    Console::write("TOPO segments=");
-    number(narrow_u64_to_i32_wrapping(context.graph.count) as i32 +Wrapping, context);
-    Console::write(" paths=");
-    number(narrow_u64_to_i32_wrapping(context.paths.count) as i32 +Wrapping, context);
-    Console::write(" loops=");
-    number(narrow_u64_to_i32_wrapping(context.paths.loops as u64) as i32 +Wrapping, context);
-    Console::write(" exits=");
-    number(narrow_u64_to_i32_wrapping(context.paths.boundary as u64) as i32 +Wrapping, context);
-    Console::write(" saddles=");
-    number(narrow_u64_to_i32_wrapping(context.graph.saddles as u64) as i32 +Wrapping, context);
-    Console::write_line("");
+public machine report(context: @mutable Main) reaches |process_authority|::StandardOutput {
+    |console|::Console::write("TOPO segments=");
+    number(|numeric_conversion|::narrow_u64_to_i32_wrapping(context.graph.count) as i32 +Wrapping, context);
+    |console|::Console::write(" paths=");
+    number(|numeric_conversion|::narrow_u64_to_i32_wrapping(context.paths.count) as i32 +Wrapping, context);
+    |console|::Console::write(" loops=");
+    number(|numeric_conversion|::narrow_u64_to_i32_wrapping(context.paths.loops as u64) as i32 +Wrapping, context);
+    |console|::Console::write(" exits=");
+    number(|numeric_conversion|::narrow_u64_to_i32_wrapping(context.paths.boundary as u64) as i32 +Wrapping, context);
+    |console|::Console::write(" saddles=");
+    number(|numeric_conversion|::narrow_u64_to_i32_wrapping(context.graph.saddles as u64) as i32 +Wrapping, context);
+    |console|::Console::write_line("");
     transition { _ -> segment(context, 0) }
     machine segment(context: @mutable Main, segment: u64) {
         transition segment < context.graph.count && segment < 8 { true -> segment_emit(context, segment), false -> path(context, 0) }
     }
     machine segment_emit(context: @mutable Main, segment: u64) requires segment < 8 {
-        Console::write("SEG ");
-        number(narrow_u64_to_i32_wrapping(context.graph.owner[segment]) as i32 +Wrapping, context);
-        Console::write(" ");
-        number(narrow_u64_to_i32_wrapping(context.graph.first[segment]) as i32 +Wrapping, context);
-        Console::write(" ");
-        number(narrow_u64_to_i32_wrapping(context.graph.second[segment]) as i32 +Wrapping, context);
-        Console::write_line("");
+        |console|::Console::write("SEG ");
+        number(|numeric_conversion|::narrow_u64_to_i32_wrapping(context.graph.owner[segment]) as i32 +Wrapping, context);
+        |console|::Console::write(" ");
+        number(|numeric_conversion|::narrow_u64_to_i32_wrapping(context.graph.first[segment]) as i32 +Wrapping, context);
+        |console|::Console::write(" ");
+        number(|numeric_conversion|::narrow_u64_to_i32_wrapping(context.graph.second[segment]) as i32 +Wrapping, context);
+        |console|::Console::write_line("");
         transition { _ -> segment(context, segment + 1) }
     }
     machine path(context: @mutable Main, path: u64) {
         transition path < context.paths.count && path < 8 { true -> header(context, path), false -> done() }
     }
     machine header(context: @mutable Main, path: u64) requires path < 8 {
-        Console::write("PATH ");
-        number(narrow_u64_to_i32_wrapping(path) as i32 +Wrapping, context);
+        |console|::Console::write("PATH ");
+        number(|numeric_conversion|::narrow_u64_to_i32_wrapping(path) as i32 +Wrapping, context);
         transition context.paths.closed[path] { true -> closed(context, path), false -> open(context, path) }
     }
-    machine closed(context: @mutable Main, path: u64) { Console::write(" closed"); transition { _ -> vertex(context, path, 0) } }
-    machine open(context: @mutable Main, path: u64) { Console::write(" open"); transition { _ -> vertex(context, path, 0) } }
+    machine closed(context: @mutable Main, path: u64) { |console|::Console::write(" closed"); transition { _ -> vertex(context, path, 0) } }
+    machine open(context: @mutable Main, path: u64) { |console|::Console::write(" open"); transition { _ -> vertex(context, path, 0) } }
     machine vertex(context: @mutable Main, path: u64, index: u64) {
         transition path < 8 { true -> length(context, path, index), false -> done() }
     }
@@ -73,16 +70,16 @@ public machine report(context: @mutable Main) reaches StandardOutput {
         transition edge < 12 { true -> emit(context, path, index, edge), false -> done() }
     }
     machine emit(context: @mutable Main, path: u64, index: u64, edge: u64) requires edge < 12 {
-        Console::write(" ");
-        number(narrow_u64_to_i32_wrapping(edge) as i32 +Wrapping, context);
-        Console::write(":");
+        |console|::Console::write(" ");
+        number(|numeric_conversion|::narrow_u64_to_i32_wrapping(edge) as i32 +Wrapping, context);
+        |console|::Console::write(":");
         number(context.graph.x[edge], context);
-        Console::write(",");
+        |console|::Console::write(",");
         number(context.graph.y[edge], context);
         transition { _ -> vertex(context, path, index + 1) }
     }
     machine next(context: @mutable Main, path: u64) {
-        Console::write_line("");
+        |console|::Console::write_line("");
         transition { _ -> path(context, path + 1) }
     }
     machine done() { }

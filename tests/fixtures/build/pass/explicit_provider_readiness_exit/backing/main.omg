@@ -1,12 +1,12 @@
 use {omega}/language/core/program_image.omg as image;
 
 public TestImage satisfies |image|::ProgramImage {
-    machine retained_suffix_start() -> addr { 64 }
+    machine retained_suffix_start() -> address { 64 }
 }
 public OtherImage satisfies |image|::ProgramImage {
-    machine retained_suffix_start() -> addr { 128 }
+    machine retained_suffix_start() -> address { 128 }
 }
 
 PrivateImage satisfies |image|::ProgramImage {
-    machine retained_suffix_start() -> addr { 64 }
+    machine retained_suffix_start() -> address { 64 }
 }

@@ -1,19 +1,16 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use fixtures/fixtures.omg;
+use graph/graph.omg;
+use validation/validation.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Expected exit: 0 (input: 2 0\n).
-use system\Console;
-use system\LineReadResult;
-use fixtures;
-use geometry;
-use graph;
-use validation;
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable input: [u8; 8];
-    let result: LineReadResult = block Console::read_line(@mutable input[..]);
+    let result: |console|::LineReadResult = block |console|::Console::read_line(@mutable input[..]);
     transition result {
-        LineReadResult::LineComplete { count } -> length(main, @input, count),
+        |console|::LineReadResult::LineComplete { count } -> length(main, @input, count),
         _ -> invalid(main)
     }
     machine length(main: @mutable Main, input: @[u8; 8], count: u64) {
@@ -31,112 +28,112 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         }
     }
     machine plan(main: @mutable Main, radius: i64 in Wrapping, variant: i32 in Wrapping) {
-        let mutable scene: fixtures\Scene;
-        fixtures\load(@mutable scene, variant);
-        Console::write_line("clearance_route_planner");
-        Console::write("radius="); number(main, radius); Console::write_line("");
-        Console::write("scene="); number(main, variant as -Wrapping as i64 +Wrapping); Console::write_line("");
-        let start: i64 in Wrapping = graph\edge(@scene, 0, 0, radius);
-        let goal: i64 in Wrapping = graph\edge(@scene, 1, 1, radius);
+        let mutable scene: |fixtures|::Scene;
+        |fixtures|::load(@mutable scene, variant);
+        |console|::Console::write_line("clearance_route_planner");
+        |console|::Console::write("radius="); number(main, radius); |console|::Console::write_line("");
+        |console|::Console::write("scene="); number(main, variant as -Wrapping as i64 +Wrapping); |console|::Console::write_line("");
+        let start: i64 in Wrapping = |graph|::edge(@scene, 0, 0, radius);
+        let goal: i64 in Wrapping = |graph|::edge(@scene, 1, 1, radius);
         transition start >= 0 && goal >= 0 {
             true -> search(main, @scene, radius),
             false -> blocked(main, @scene, radius, start)
         }
     }
-    machine blocked(main: @mutable Main, scene: @fixtures\Scene, radius: i64 in Wrapping,
+    machine blocked(main: @mutable Main, scene: @|fixtures|::Scene, radius: i64 in Wrapping,
                   start: i64 in Wrapping) {
         transition start < 0 {
             true -> endpoint(main, scene, 0),
             false -> endpoint(main, scene, 1)
         }
     }
-    machine endpoint(main: @mutable Main, scene: @fixtures\Scene, node: i32 in Wrapping)
+    machine endpoint(main: @mutable Main, scene: @|fixtures|::Scene, node: i32 in Wrapping)
     requires node >= 0 && node < 6
     {
-        Console::write_line("status=endpoint_blocked");
-        Console::write("node="); number(main, node as -Wrapping as i64 +Wrapping); Console::write_line("");
-        Console::write("minimum_clearance_milli=");
-        number(main, graph\edge(scene, node, node, 0)); Console::write_line("");
-        ProcessExit::exit_process(2);
+        |console|::Console::write_line("status=endpoint_blocked");
+        |console|::Console::write("node="); number(main, node as -Wrapping as i64 +Wrapping); |console|::Console::write_line("");
+        |console|::Console::write("minimum_clearance_milli=");
+        number(main, |graph|::edge(scene, node, node, 0)); |console|::Console::write_line("");
+        |process_exit|::ProcessExit::exit_process(2);
     }
-    machine search(main: @mutable Main, scene: @fixtures\Scene, radius: i64 in Wrapping) {
-        let mutable planner: graph\Planner;
-        graph\build(@mutable planner, scene, radius);
-        let found: bool = graph\solve(@mutable planner);
+    machine search(main: @mutable Main, scene: @|fixtures|::Scene, radius: i64 in Wrapping) {
+        let mutable planner: |graph|::Planner;
+        |graph|::build(@mutable planner, scene, radius);
+        let found: bool = |graph|::solve(@mutable planner);
         transition found {
             true -> certify(main, scene, radius, @planner),
             false -> infeasible(main, scene, radius, @planner)
         }
     }
-    machine certify(main: @mutable Main, scene: @fixtures\Scene, radius: i64 in Wrapping,
-                  planner: @graph\Planner) {
-        let valid: bool = validation\route(scene, planner, radius);
+    machine certify(main: @mutable Main, scene: @|fixtures|::Scene, radius: i64 in Wrapping,
+                  planner: @|graph|::Planner) {
+        let valid: bool = |validation|::route(scene, planner, radius);
         transition valid {
             true -> report(main, scene, planner),
             false -> failure(main)
         }
     }
-    machine report(main: @mutable Main, scene: @fixtures\Scene, planner: @graph\Planner) {
-        Console::write_line("status=route");
-        Console::write("cost_milli="); number(main, planner.distances[1]); Console::write_line("");
-        Console::write("minimum_clearance_milli="); number(main, planner.clearance); Console::write_line("");
-        Console::write("coordinates=");
+    machine report(main: @mutable Main, scene: @|fixtures|::Scene, planner: @|graph|::Planner) {
+        |console|::Console::write_line("status=route");
+        |console|::Console::write("cost_milli="); number(main, planner.distances[1]); |console|::Console::write_line("");
+        |console|::Console::write("minimum_clearance_milli="); number(main, planner.clearance); |console|::Console::write_line("");
+        |console|::Console::write("coordinates=");
         transition { _ -> coordinates(main, scene, planner, planner.route_count - 1) }
     }
-    machine coordinates(main: @mutable Main, scene: @fixtures\Scene, planner: @graph\Planner,
+    machine coordinates(main: @mutable Main, scene: @|fixtures|::Scene, planner: @|graph|::Planner,
                       position: i32 in Wrapping) {
         transition position >= 0 && position < 6 {
             true -> coordinate_node(main, scene, planner, position, planner.route[position]),
             false -> finish(main)
         }
     }
-    machine coordinate_node(main: @mutable Main, scene: @fixtures\Scene, planner: @graph\Planner,
+    machine coordinate_node(main: @mutable Main, scene: @|fixtures|::Scene, planner: @|graph|::Planner,
                           position: i32 in Wrapping, node: i32 in Wrapping) {
         transition node >= 0 && node < 6 {
             true -> coordinate_emit(main, scene, planner, position, node),
             false -> failure(main)
         }
     }
-    machine coordinate_emit(main: @mutable Main, scene: @fixtures\Scene, planner: @graph\Planner,
+    machine coordinate_emit(main: @mutable Main, scene: @|fixtures|::Scene, planner: @|graph|::Planner,
                           position: i32 in Wrapping, node: i32 in Wrapping)
     requires node >= 0 && node < 6
     {
-        number(main, scene.x[node]); Console::write(","); number(main, scene.y[node]);
+        number(main, scene.x[node]); |console|::Console::write(","); number(main, scene.y[node]);
         transition position > 0 {
             true -> separator(main, scene, planner, position),
             false -> finish(main)
         }
     }
-    machine separator(main: @mutable Main, scene: @fixtures\Scene, planner: @graph\Planner,
+    machine separator(main: @mutable Main, scene: @|fixtures|::Scene, planner: @|graph|::Planner,
                     position: i32 in Wrapping) {
-        Console::write(";");
+        |console|::Console::write(";");
         transition { _ -> coordinates(main, scene, planner, position - 1) }
     }
     machine finish(main: @mutable Main) {
-        Console::write_line(""); Console::write_line("validated=1"); ProcessExit::exit_process(0);
+        |console|::Console::write_line(""); |console|::Console::write_line("validated=1"); |process_exit|::ProcessExit::exit_process(0);
     }
-    machine infeasible(main: @mutable Main, scene: @fixtures\Scene, radius: i64 in Wrapping,
-                     planner: @graph\Planner) {
-        let valid: bool = validation\cut(scene, planner, radius);
+    machine infeasible(main: @mutable Main, scene: @|fixtures|::Scene, radius: i64 in Wrapping,
+                     planner: @|graph|::Planner) {
+        let valid: bool = |validation|::cut(scene, planner, radius);
         transition valid {
             true -> witness(main, planner),
             false -> failure(main)
         }
     }
-    machine witness(main: @mutable Main, planner: @graph\Planner) {
-        Console::write_line("status=infeasible");
-        Console::write("reachable_mask="); number(main, planner.witness as i64 +Wrapping);
-        Console::write_line(""); Console::write_line("cut_validated=1"); ProcessExit::exit_process(2);
+    machine witness(main: @mutable Main, planner: @|graph|::Planner) {
+        |console|::Console::write_line("status=infeasible");
+        |console|::Console::write("reachable_mask="); number(main, planner.witness as i64 +Wrapping);
+        |console|::Console::write_line(""); |console|::Console::write_line("cut_validated=1"); |process_exit|::ProcessExit::exit_process(2);
     }
     machine invalid(main: @mutable Main) {
-        Console::write_line("invalid_input: expected radius(0..5) space scene(0..1) LF");
-        ProcessExit::exit_process(64);
+        |console|::Console::write_line("invalid_input: expected radius(0..5) space scene(0..1) LF");
+        |process_exit|::ProcessExit::exit_process(64);
     }
     machine failure(main: @mutable Main) {
-        Console::write_line("FAIL: planner certificate"); ProcessExit::exit_process(1);
+        |console|::Console::write_line("FAIL: planner certificate"); |process_exit|::ProcessExit::exit_process(1);
     }
 }
-machine number(main: @mutable Main, value: i64 in Wrapping) reaches ProcessExit + StandardOutput {
+machine number(main: @mutable Main, value: i64 in Wrapping) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     transition value >= 0 && value < 1000000 {
         true -> divisor(main, value, 1),
         false -> bad(main)
@@ -164,18 +161,18 @@ machine number(main: @mutable Main, value: i64 in Wrapping) reaches ProcessExit 
                byte: i64 in Wrapping)
     requires byte >= 48 && byte <= 57 && scale > 0
     {
-        Console::write_byte(byte as i32);
+        |console|::Console::write_byte(byte as i32);
         transition scale > 1 {
             true -> digit(main, value % scale, scale / 10),
             false -> done()
         }
     }
     machine done() { }
-    machine bad(main: @mutable Main) { ProcessExit::exit_process(1); }
+    machine bad(main: @mutable Main) { |process_exit|::ProcessExit::exit_process(1); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

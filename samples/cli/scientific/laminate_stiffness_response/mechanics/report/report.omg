@@ -1,11 +1,11 @@
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Signed fixed-point text: one numeric value per line in micro-units.
-use system\Console;
-use omega\language\core\I32::from_f64;
 public data Reporter { }
-public machine number(reporter: @mutable Reporter,value: f64) reaches ProcessExit + StandardOutput invokes Console crashes Trap {
-    let converted: i32 in Trapping = I32::from_f64(value*1000000.0);
+public machine number(reporter: @mutable Reporter,value: f64) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput invokes |console|::Console crashes Trap {
+    let converted: i32 in Trapping = |float_operations|::I32::from_f64(value*1000000.0);
     let scaled: i32 = converted as i32;
     transition scaled >= -1000000000 && scaled <= 1000000000 {
         true -> sign(reporter,scaled),
@@ -16,11 +16,11 @@ public machine number(reporter: @mutable Reporter,value: f64) reaches ProcessExi
         transition value < 0 { true -> negative(reporter,value), false -> positive(reporter,value) }
     }
     machine out_of_range(reporter: @mutable Reporter) {
-        Console::write_line("REPORT RANGE ERROR"); ProcessExit::exit_process(4);
+        |console|::Console::write_line("REPORT RANGE ERROR"); |process_exit|::ProcessExit::exit_process(4);
     }
     machine negative(reporter: @mutable Reporter,value: i32)
     requires value >= -1000000000 && value < 0 {
-        Console::write_byte(45);
+        |console|::Console::write_byte(45);
         let magnitude: i32 = 0-value;
         transition { _ -> positive(reporter,magnitude) }
     }
@@ -41,16 +41,16 @@ public machine number(reporter: @mutable Reporter,value: f64) reaches ProcessExi
     }
     machine emit(reporter: @mutable Reporter,digits: @[i32;10],position: u64)
     requires position <= 9 {
-        Console::write_byte(digits[position]);
+        |console|::Console::write_byte(digits[position]);
         transition position > 0 { true -> previous(reporter,digits,position), false -> done(reporter) }
     }
     machine previous(reporter: @mutable Reporter,digits: @[i32;10],position: u64)
     requires position > 0 && position <= 9 {
         transition { _ -> emit(reporter,digits,position-1) }
     }
-    machine done(reporter: @mutable Reporter) { Console::write_byte(10); }
+    machine done(reporter: @mutable Reporter) { |console|::Console::write_byte(10); }
 }
-public machine matrix(reporter: @mutable Reporter,values: @[[f64;3];3]) reaches ProcessExit + StandardOutput invokes Console crashes Trap {
+public machine matrix(reporter: @mutable Reporter,values: @[[f64;3];3]) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput invokes |console|::Console crashes Trap {
     transition { _ -> cell(reporter,values,0,0) }
     machine cell(reporter: @mutable Reporter,values: @[[f64;3];3],row: u64,column: u64)
     requires row <= 2 requires column <= 2 {

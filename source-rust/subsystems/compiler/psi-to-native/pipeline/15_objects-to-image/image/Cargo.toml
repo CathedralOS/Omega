@@ -19,6 +19,8 @@ arena = { path = "../../../../../../foundation/arena" }
 diagnostics = { path = "../../../../../../foundation/diagnostics" }
 object-file = { path = "../../14_placed-functions-to-objects" }
 target = { path = "../../../targets/target" }
+target-aarch64 = { path = "../../../targets/target-aarch64" }
+target-x86_64 = { path = "../../../targets/target-x86_64" }
 
 [dev-dependencies]
 image = { path = ".", features = ["test-support"] }

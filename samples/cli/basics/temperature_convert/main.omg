@@ -1,6 +1,7 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Convert a Celsius temperature to Fahrenheit with f64 floating-point arithmetic --
 // the first sample to exercise floats, the backbone of measurement/scientific code.
 // `fahrenheit = celsius * 1.8 + 32.0` evaluates the standard formula (a multiply and
@@ -8,8 +9,6 @@ use omega\language\core\ProcessExit;
 // process exit code. 20 C -> 20*1.8 + 32 = 68 F.
 // Expected exit: 68.
 
-use omega\language\core\I32::from_f64;
-use system\Console;
 
 data Main {
     celsius: f64;
@@ -18,26 +17,26 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("temperature_convert: 20 C to Fahrenheit with f64 arithmetic");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("temperature_convert: 20 C to Fahrenheit with f64 arithmetic");
     main.celsius = 20.0;
     main.fahrenheit = main.celsius * 1.8 + 32.0;
     // A named saturating conversion truncates the float, then the policy erases.
-    let converted: i32 in Saturating = I32::from_f64(main.fahrenheit);
+    let converted: i32 in Saturating = |float_operations|::I32::from_f64(main.fahrenheit);
     main.result = converted as i32;
 
     transition { _ -> block done(main) }
 
     machine done(main: @mutable Main) {
-        Console::write_line("result: the Fahrenheit value truncated, 68 for 20 C (the exit code)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(main.result);
+        |console|::Console::write_line("result: the Fahrenheit value truncated, 68 for 20 C (the exit code)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(main.result);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

@@ -90,7 +90,7 @@ geometry, alignment, endianness and applicable ABI facts. It grants no access
 to host services, private source structure, or compiler storage.
 
 `LayoutPlan` is the core representation-plan type in
-`omega\language\core\layout`. It is ordinary data, not a certificate that its
+`{omega}/language/core/layout.omg`. It is ordinary data, not a certificate that its
 contents are valid. A returned plan must validate before storage, projection,
 recast, or ABI consumers use it. A package-defined implementation has the same
 rights and obligations as one shipped in core or system.
@@ -113,8 +113,8 @@ placements. There is no empty policy data declaration, data-owned machine,
 implicit receiver, or attached-`plan` naming convention. Selection follows
 [named implementation rules](../language/conformances.md#declaration-and-selection).
 
-This target-resolved `layout\Schema` is not the target-neutral
-[`reflect\TypeSchema`](../language/reflection.md#schema-and-layout). Their checked
+This target-resolved `|layout|::Schema` is not the target-neutral
+[`|reflect|::TypeSchema`](../language/reflection.md#schema-and-layout). Their checked
 join retains exact owner, application, member, relevance, and schema revision.
 Semantic graph indices are not physical field keys or byte offsets. Reflection
 descriptions do not inherit the pilot layout carrier's fixed capacities; they
@@ -139,7 +139,7 @@ or bytes. Decode establishes its erased term by checked elaboration; erasure
 never renumbers other members.
 
 Opaque member keys, stable identities, sizes, alignment, offsets, bit widths
-and indices, tags, and counts use `u64`, not `addr`. An absent stable identity
+and indices, tags, and counts use `u64`, not `address`. An absent stable identity
 is `Optional<u64>`, not an integer sentinel. Evaluation preserves all 64 bits;
 host-size conversion is checked only at the consuming allocation or slice
 boundary. Compact schema/layout fingerprints are report coordinates, not
@@ -298,7 +298,7 @@ without inventing a runtime field or discarding its semantic custody.
 An [access plan](../resources/access.md) attaches to a domain and names semantic
 regions through reflection, including whole-object and field rules. It contains
 no `LayoutPlan`; a layout plan carries no access policy. An `AccessPolicy` consumes
-the semantic `reflect\TypeSchema`, while layout policies consume the separately
+the semantic `|reflect|::TypeSchema`, while layout policies consume the separately
 target-resolved schema. Establishment joins their independently checked results
 through exact semantic-member correspondence, then checks actual supply. One
 field may map to several layout fragments without duplicating its authorization

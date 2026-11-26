@@ -1,6 +1,6 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // A tile-map / dungeon renderer -- the tile-based rendering shape a real game or map viewer uses.
 // A flat array of `Cell` enums (Wall / Floor / Door / Water) is scanned row by row and each cell is
 // classified by matching it DIRECTLY at a runtime index -- `transition main.grid[main.k] { Cell::Wall
@@ -19,7 +19,6 @@ use omega\language\core\ProcessExit;
 //
 // Expected exit: 0.
 // Expected output contains: ~
-use system\Console;
 data Cell {
     case Wall;
     case Floor;
@@ -36,8 +35,8 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("dungeon_render: a 6x4 tile map of enum cells rendered as # . + ~ glyphs");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("dungeon_render: a 6x4 tile map of enum cells rendered as # . + ~ glyphs");
     main.grid = [
         Cell::Wall,  Cell::Wall,  Cell::Wall,  Cell::Wall,  Cell::Wall,  Cell::Wall,
         Cell::Wall,  Cell::Floor, Cell::Door,  Cell::Floor, Cell::Floor, Cell::Wall,
@@ -84,20 +83,20 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         transition { _ -> block col_loop(main) }
     }
     machine emit_row(main: @mutable Main) {
-        Console::write_line(@main.line[..]);
+        |console|::Console::write_line(@main.line[..]);
         main.r = main.r + 1;
         transition { _ -> block row_loop(main) }
     }
     machine done(main: @mutable Main) {
-        Console::write_line("done: 4 rows rendered -- walls, floor, door and water all classified (exit 0)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(0);
+        |console|::Console::write_line("done: 4 rows rendered -- walls, floor, door and water all classified (exit 0)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(0);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

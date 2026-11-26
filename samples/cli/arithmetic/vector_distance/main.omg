@@ -1,6 +1,8 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/math.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Euclidean magnitude with ordinary standard-library math: for a classic
 // 3-4-5 right triangle, |(3, 4)| = sqrt(3*3 + 4*4) = sqrt(25) = 5. The legs
 // come from `abs` (distance is direction-agnostic, so a negative delta gives
@@ -10,11 +12,6 @@ use omega\language\core\ProcessExit;
 // Exits with the magnitude as its code.
 // Expected exit: 5.
 
-use omega\language\core\I32::from_f64;
-use system\Console;
-use omega\language\core\abs_f64;
-use omega\language\core\clamp_i32;
-use omega\language\core\sqrt_f64;
 
 data Main {
     dx: f64;
@@ -27,33 +24,33 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("vector_distance: |(-3, 4)| = sqrt(dx*dx + dy*dy) = 5");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("vector_distance: |(-3, 4)| = sqrt(dx*dx + dy*dy) = 5");
 
     // Direction-agnostic legs: |dx|, |dy| (a negative delta has the same length).
     main.dx = 0.0 - 3.0;
     main.dy = 4.0;
-    main.ax = abs_f64(main.dx);
-    main.ay = abs_f64(main.dy);
+    main.ax = |math|::abs_f64(main.dx);
+    main.ay = |math|::abs_f64(main.dy);
 
     // Magnitude = sqrt(ax*ax + ay*ay) = sqrt(9 + 16) = sqrt(25) = 5.
-    main.mag = sqrt_f64(main.ax * main.ax + main.ay * main.ay);
+    main.mag = |math|::sqrt_f64(main.ax * main.ax + main.ay * main.ay);
     // A named saturating conversion truncates the float, then the policy erases.
-    let converted: i32 in Saturating = I32::from_f64(main.mag);
+    let converted: i32 in Saturating = |float_operations|::I32::from_f64(main.mag);
     main.magi = converted as i32;
 
     // A clamped display value (the magnitude pinned to a [0, 255] band, as a
     // colour or coordinate would be): clamp(5, 0, 255) = 5.
-    main.shown = clamp_i32(main.magi, 0, 255);
+    main.shown = |math|::clamp_i32(main.magi, 0, 255);
 
-    Console::write_line("result: the magnitude, 5 for a 3-4-5 triangle (the exit code)");
-    Console::write_line("[press Enter to close]");
-    _ = block Console::read_line(@mutable main.pause[..]);
-    ProcessExit::exit_process(main.shown);
+    |console|::Console::write_line("result: the magnitude, 5 for a 3-4-5 triangle (the exit code)");
+    |console|::Console::write_line("[press Enter to close]");
+    _ = block |console|::Console::read_line(@mutable main.pause[..]);
+    |process_exit|::ProcessExit::exit_process(main.shown);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

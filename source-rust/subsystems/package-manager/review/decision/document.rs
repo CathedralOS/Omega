@@ -521,6 +521,12 @@ fn source_lineage(output: &mut Output, lineage: &SourceLineage) -> fmt::Result {
                 source.repository_path()
             )
         }
+        SourceLineage::Bundled { library, directory } => writeln!(
+            output,
+            "bundled {:?} library {}",
+            directory.as_str(),
+            library.to_hex()
+        ),
         SourceLineage::Workspace(source) => {
             writeln!(output, "workspace {:?}", source.member_path().as_str())
         }
@@ -548,6 +554,9 @@ fn resolution(
             tree.to_hex(),
             content.to_hex()
         ),
+        Some(ImmutableSourceResolution::Bundled { content }) => {
+            writeln!(output, "{prefix} bundled content {}", content.to_hex())
+        }
         Some(ImmutableSourceResolution::Workspace { content }) => {
             writeln!(output, "{prefix} workspace content {}", content.to_hex())
         }

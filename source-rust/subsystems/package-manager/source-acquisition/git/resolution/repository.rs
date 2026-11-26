@@ -9,7 +9,7 @@
 
 use crate::error::SourceResolveError;
 use crate::git::cache::repository::VerifiedGitRepository;
-use crate::git::executable::executor::GitExecutor;
+use crate::git::executable::GitExecutor;
 use crate::git::objects::authentication::{authenticate_git_commit, verify_exact_git_revision};
 use crate::git::objects::identity::is_object_id;
 use crate::git::objects::{ExactGitObjectAvailability, probe_exact_git_object};
@@ -20,7 +20,7 @@ use cap_std::fs::Dir as CapabilityDirectory;
 use std::ffi::OsStr;
 use std::path::Path;
 
-use super::network::bounded_git_fetch_arguments;
+use super::bounded_git_fetch_arguments;
 use super::exact_objects::exact_revision_needs_fetch;
 use super::selection::GitRevisionSelection;
 

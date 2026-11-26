@@ -1,6 +1,6 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Look up an item by name in a small table of records -- a core serious-app shape
 // (name tables, inventories, registries). Each `Item` is a struct with an `id` and
 // a `@[u8] in Utf8` view `name`, stored in a fixed array `items: [Item; 3]`.
@@ -12,7 +12,6 @@ use omega\language\core\ProcessExit;
 domain [u8]::Utf8
 requires
     valid_utf8(self);
-use system\Console;
 
 data Item<'view> {
     id: i32;
@@ -24,8 +23,8 @@ data Main<'view> {
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("inventory_lookup: searching a struct table for the item named Shield");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("inventory_lookup: searching a struct table for the item named Shield");
     main.items[0].id = 10;
     main.items[0].name = "Sword";
     main.items[1].id = 20;
@@ -46,33 +45,33 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
 
     machine found0(main: @mutable Main) {
-        Console::write_line("FAIL: matched the wrong slot 0, Sword (exits its id, 10)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(main.items[0].id);
+        |console|::Console::write_line("FAIL: matched the wrong slot 0, Sword (exits its id, 10)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(main.items[0].id);
     }
     machine found1(main: @mutable Main) {
-        Console::write_line("PASS: found Shield at slot 1, id 20 (exit 20)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(main.items[1].id);
+        |console|::Console::write_line("PASS: found Shield at slot 1, id 20 (exit 20)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(main.items[1].id);
     }
     machine found2(main: @mutable Main) {
-        Console::write_line("FAIL: matched the wrong slot 2, Potion (exits its id, 30)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(main.items[2].id);
+        |console|::Console::write_line("FAIL: matched the wrong slot 2, Potion (exits its id, 30)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(main.items[2].id);
     }
     machine missing(main: @mutable Main) {
-        Console::write_line("FAIL: Shield not found in the table (exit 0)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(0);
+        |console|::Console::write_line("FAIL: Shield not found in the table (exit 0)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(0);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

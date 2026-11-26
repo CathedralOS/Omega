@@ -3,9 +3,7 @@
 // required and invalidated analysis bitsets, and required validation safety
 // class.
 
-use super::{
-    AnalysisInvalidationSet, AnalysisSet, CoreContractDecodeError, OptimizationSafetyClass,
-};
+use super::{AnalysisInvalidationSet, AnalysisSet, OptimizationSafetyClass};
 use crate::{OptimizationPassIdentity, OptimizationRuleIdentity};
 
 const RULE_CONTRACT_MAGIC: &[u8; 8] = b"OMGRUL\0\0";
@@ -66,49 +64,6 @@ impl OptimizationRuleContract {
         encoded.extend_from_slice(&self.invalidated_analyses.encode());
         encoded.extend_from_slice(&self.safety_class.encode());
         encoded
-    }
-
-    pub fn decode(encoded: &[u8]) -> Result<Self, CoreContractDecodeError> {
-        if encoded.len() != 97 {
-            return Err(CoreContractDecodeError::WrongLength {
-                expected: 97,
-                actual: encoded.len(),
-            });
-        }
-        if &encoded[..8] != RULE_CONTRACT_MAGIC {
-            return Err(CoreContractDecodeError::WrongMagic);
-        }
-        let schema = u32::from_le_bytes(encoded[8..12].try_into().expect("fixed schema width"));
-        if schema != RULE_CONTRACT_SCHEMA_VERSION {
-            return Err(CoreContractDecodeError::UnsupportedVersion(schema));
-        }
-        let identity = OptimizationRuleIdentity::from_bytes(
-            encoded[12..44]
-                .try_into()
-                .expect("fixed rule identity width"),
-        );
-        let pass = OptimizationPassIdentity::from_bytes(
-            encoded[44..76]
-                .try_into()
-                .expect("fixed pass identity width"),
-        );
-        let version = u32::from_le_bytes(encoded[76..80].try_into().expect("fixed version width"));
-        let required_analyses = AnalysisSet::decode(&encoded[80..88])?;
-        let invalidated_analyses = AnalysisInvalidationSet::decode(&encoded[88..96])?;
-        let safety_class = OptimizationSafetyClass::decode(&encoded[96..97])?;
-        Self::new(
-            identity,
-            pass,
-            version,
-            required_analyses,
-            invalidated_analyses,
-            safety_class,
-        )
-        .map_err(|error| match error {
-            InvalidOptimizationRuleContract::ZeroVersion => {
-                CoreContractDecodeError::ZeroRuleVersion
-            }
-        })
     }
 }
 

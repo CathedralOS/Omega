@@ -32,8 +32,8 @@ We use the following rules when composing plans and encoding replay data.
 - `object_symbol_handle_by_foreign_locator` and `object_function_symbol` scan
   the entire remaining table after a match and return an invalid handle (or
   `None`) if a duplicate exists, turning ambiguous joins into hard failures.
-- Single-variant enums in `OMGTRO` and `OMGTOM` still write an explicit tag byte
-  (`1`) on the wire so future policy variants can be added without misparsing
+- Single-variant enums in `OMGTRO` and the object-container manifest identity
+  still write an explicit tag byte (`1`) so future policy variants can be added without misparsing
   adjacent fields.
 - Function symbol names never use source names. A placed machine is named
   `omega_terminal_machine_{MachineId}`, or the target's entry symbol for the

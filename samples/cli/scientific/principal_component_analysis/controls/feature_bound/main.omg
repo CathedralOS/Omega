@@ -1,16 +1,16 @@
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Intended invalid: a fifth feature exceeds the four-feature storage contract.
-use system\Console;
 data Invalid { features: [f64; 4]; }
-machine main(main: @mutable Invalid) reaches ProcessExit + StandardOutput {
+machine main(main: @mutable Invalid) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
  main.features[4] = 1.0;
- Console::write_line("UNREACHABLE feature bound");
- ProcessExit::exit_process(0);
+ |console|::Console::write_line("UNREACHABLE feature bound");
+ |process_exit|::ProcessExit::exit_process(0);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     let mutable entry_storage: Invalid;
     main(@mutable entry_storage);
 }

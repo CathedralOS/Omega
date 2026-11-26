@@ -1,6 +1,6 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Caesar cipher: shift each byte of a string by a fixed key and print the result.
 // A real string TRANSFORMATION -- read a carrier, compute a new byte per position,
 // write a new carrier, output it. The shift reads cleanly now that a carrier
@@ -17,7 +17,6 @@ use omega\language\core\ProcessExit;
 // Expected exit: 0.
 // Expected output contains: KHOOR
 
-use system\Console;
 
 domain [u8]::Utf8
 requires
@@ -26,8 +25,8 @@ domain [u8; 5]::Utf8
 requires
     valid_utf8(self);
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("caesar_cipher: shift each byte of HELLO by 3 -- expecting KHOOR");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("caesar_cipher: shift each byte of HELLO by 3 -- expecting KHOOR");
     let text: [u8; 5] in Utf8 = "HELLO";
     let mutable output: [u8; 5] = ".....";
 
@@ -66,7 +65,7 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     machine show_valid(output: @mutable [u8; 5])
     requires valid_utf8(output)
     {
-        Console::write_line(output);
+        |console|::Console::write_line(output);
         transition output[0] == 75 {
             true -> block ok(),
             _ -> block wrong()
@@ -74,24 +73,24 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
 
     machine ok() {
-        Console::write_line("PASS: ciphertext starts with 'K' -- shift applied correctly (exit 0)");
-        Console::write_line("[press Enter to close]");
+        |console|::Console::write_line("PASS: ciphertext starts with 'K' -- shift applied correctly (exit 0)");
+        |console|::Console::write_line("[press Enter to close]");
         let mutable pause: [u8; 256];
-        _ = block Console::read_line(@mutable pause[..]);
-        ProcessExit::exit_process(0);
+        _ = block |console|::Console::read_line(@mutable pause[..]);
+        |process_exit|::ProcessExit::exit_process(0);
     }
 
     machine wrong() {
-        Console::write_line("FAIL: out[0] != 'K' -- byte shift wrong (exit 1)");
-        Console::write_line("[press Enter to close]");
+        |console|::Console::write_line("FAIL: out[0] != 'K' -- byte shift wrong (exit 1)");
+        |console|::Console::write_line("[press Enter to close]");
         let mutable pause: [u8; 256];
-        _ = block Console::read_line(@mutable pause[..]);
-        ProcessExit::exit_process(1);
+        _ = block |console|::Console::read_line(@mutable pause[..]);
+        |process_exit|::ProcessExit::exit_process(1);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

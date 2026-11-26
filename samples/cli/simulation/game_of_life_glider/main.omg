@@ -1,6 +1,7 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/clock.omg;
+use {system}/console.omg;
 // Conway's Game of Life, animated in place: a single GLIDER seeded near the top-left
 // glides diagonally down-right across a 24x12 field as the generations tick. Each cell
 // lives or dies by its eight neighbours -- a live cell with 2-3 survives, a dead cell with
@@ -13,8 +14,6 @@ use omega\language\core\ProcessExit;
 // arguments. The next generation is double-buffered. Pure compute + stdout + Clock.sleep.
 // Expected exit: 0.
 // Expected output contains: #
-use system\Console;
-use system\Clock;
 
 domain [u8]::Utf8
 requires
@@ -29,8 +28,8 @@ data Main {
     grid: [i32; 364]; // 26 x 14, padded; real cells rows 1..12, cols 1..24
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Clock + StandardInput + StandardOutput {
-    Console::write_line("game_of_life_glider: a glider crossing a 24x12 field, animated in place");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |clock|::Clock + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("game_of_life_glider: a glider crossing a 24x12 field, animated in place");
     transition { _ -> block clear_grid(main, 0) }
 
     machine clear_grid(main: @mutable Main, cell_index: i32) {
@@ -66,7 +65,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Clock + StandardInput + 
         }
     }
     machine advance(main: @mutable Main, generation: i32) {
-        block Clock::sleep(90);
+        block |clock|::Clock::sleep(90);
         let advanced: bool = advance_generation(@mutable main.grid);
         transition advanced {
             true -> block next_generation(main, generation),
@@ -83,18 +82,18 @@ machine main(main: @mutable Main) reaches ProcessExit + Clock + StandardInput + 
         transition { _ -> block generation_loop(main, generation + 1) }
     }
     machine finish(main: @mutable Main) {
-        Console::write_line("PASS: 40 generations rendered (exit 0)");
-        Console::write_line("[press Enter to close]");
+        |console|::Console::write_line("PASS: 40 generations rendered (exit 0)");
+        |console|::Console::write_line("[press Enter to close]");
         let mutable pause: [u8; 256];
-        _ = block Console::read_line(@mutable pause[..]);
-        ProcessExit::exit_process(0);
+        _ = block |console|::Console::read_line(@mutable pause[..]);
+        |process_exit|::ProcessExit::exit_process(0);
     }
     machine bad(main: @mutable Main) {
-        Console::write_line("FAIL: internal bounds check failed (exit 1)");
-        Console::write_line("[press Enter to close]");
+        |console|::Console::write_line("FAIL: internal bounds check failed (exit 1)");
+        |console|::Console::write_line("[press Enter to close]");
         let mutable pause: [u8; 256];
-        _ = block Console::read_line(@mutable pause[..]);
-        ProcessExit::exit_process(1);
+        _ = block |console|::Console::read_line(@mutable pause[..]);
+        |process_exit|::ProcessExit::exit_process(1);
     }
 }
 
@@ -208,12 +207,12 @@ requires cell_index >= 0 && cell_index < 364
 
 // Rendering owns its row buffer for one invocation. The grid and bindings stay
 // in Main; row/column positions travel as values on the edges that use them.
-machine main_render(main: @mutable Main) -> bool reaches ProcessExit + StandardOutput {
+machine main_render(main: @mutable Main) -> bool reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     let mutable home: [u8; 3] in Utf8 = "XXX";
     home[0] = 27;
     home[1] = 91;
     home[2] = 72;
-    Console::write(home);
+    |console|::Console::write(home);
     let mutable line: [u8; 24] in Utf8 = "                        ";
     transition { _ -> render_row(main, @mutable line, 1) }
 
@@ -273,7 +272,7 @@ machine main_render(main: @mutable Main) -> bool reaches ProcessExit + StandardO
         transition { _ -> render_column(main, line, row, column + 1) }
     }
     machine emit_row(main: @mutable Main, line: @mutable [u8; 24] in Utf8, row: i32) -> bool {
-        Console::write_line(line);
+        |console|::Console::write_line(line);
         transition row >= 0 && row <= 12 {
             true -> advance_row(main, line, row),
             _ -> done()
@@ -287,7 +286,7 @@ machine main_render(main: @mutable Main) -> bool reaches ProcessExit + StandardO
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Clock + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |clock|::Clock + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

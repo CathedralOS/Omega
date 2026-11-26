@@ -593,28 +593,10 @@ pub(crate) mod normalized_identities {
         }
 
         fn atomic_permissions(&mut self, permissions: AtomicPermissions) {
-            for enabled in atomic_permission_bits(permissions) {
+            for enabled in permissions.bits().map(u8::from) {
                 self.byte(enabled);
             }
         }
-    }
-
-    fn atomic_permission_bits(permissions: AtomicPermissions) -> [u8; 12] {
-        [
-            permissions.load,
-            permissions.store,
-            permissions.fetch_add,
-            permissions.fetch_sub,
-            permissions.fetch_xor,
-            permissions.fetch_or,
-            permissions.fetch_and,
-            permissions.swap,
-            permissions.compare_exchange,
-            permissions.compare_exchange_once,
-            permissions.try_exchange,
-            permissions.try_exchange_once,
-        ]
-        .map(u8::from)
     }
 
     fn canonical_field_access_bytes(access: &FieldAccess) -> Vec<u8> {
@@ -853,7 +835,7 @@ pub(crate) mod normalized_identities {
                     hash.u64(transfers.len() as u64);
                     for rule in transfers {
                         hash_transfer_rule(&mut hash, rule.transfer);
-                        hash.bytes(&atomic_permission_bits(rule.operations));
+                        hash.bytes(&rule.operations.bits().map(u8::from));
                     }
                 }
             }

@@ -1,14 +1,14 @@
-use omega\language\core\StandardOutput;
-use system\Calling;
-use system\LinuxX86ByteViewCalling;
-boundary trait Output: Calling<LinuxX86ByteViewCalling> {
+use {omega}/language/core/process_authority.omg;
+use {system}/calling.omg;
+use {system}/posix_byte_view_calling.omg;
+boundary trait Output: |calling|::Calling<|posix_byte_view_calling|::LinuxX86ByteViewCalling> {
     machine write(descriptor: i32, bytes: @[u8]) -> i64
     requires descriptor == 1
-    reaches StandardOutput crashes none;
+    reaches |process_authority|::StandardOutput crashes none;
 }
-trait Tests { machine capture() reaches StandardOutput; }
+trait Tests { machine capture() reaches |process_authority|::StandardOutput; }
 machine writes_to_capture() satisfies Tests::capture {
     let observed: i64 = Output::write(1i32, "okay");
 }
 machine returns_normally() satisfies Tests::capture { }
-machine main() reaches StandardOutput { writes_to_capture(); }
+machine main() reaches |process_authority|::StandardOutput { writes_to_capture(); }

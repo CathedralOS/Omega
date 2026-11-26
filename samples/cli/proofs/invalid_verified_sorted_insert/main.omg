@@ -1,4 +1,4 @@
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_exit.omg;
 // Intended-invalid control for verified_sorted_insert: `search`'s
 // `requires sorted(values) == true` contract must reject a caller that never
 // established sortedness.
@@ -46,18 +46,18 @@ terminates by width -> Nat::Descending in 0..=16
 
 data Main { values: [i32; 16]; }
 
-machine main(main: @mutable Main) reaches ProcessExit {
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit {
     main.values[0] = 3;
     let p: u64 = search(@main.values, 0, 1, 1, 2);
     transition p == 0 {
         true -> good(main),
         _ -> good(main)
     }
-    machine good(main: @mutable Main) { ProcessExit::exit_process(0); }
+    machine good(main: @mutable Main) { |process_exit|::ProcessExit::exit_process(0); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit {
+machine entry_start() reaches |process_exit|::ProcessExit {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }

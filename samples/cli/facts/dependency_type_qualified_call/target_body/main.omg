@@ -3,7 +3,7 @@
 // for the caller.
 // Place: target_body.
 // Expected exit: 0
-use lib\ops;
+use {lib}/ops/ops.omg;
 
 machine hold(total: u64) -> bool
 requires total == 260
@@ -41,9 +41,9 @@ X86Observe satisfies SelectedObserve {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(17u64);
-        let left: lib\ops\Wrapped = lib\ops\Wrapped { value: 250u16 };
-        let right: lib\ops\Wrapped = lib\ops\Wrapped { value: 10u16 };
-        let total: u64 = lib\ops\Wrapped::describe(@left, @right);
+        let left: |ops|::Wrapped = |ops|::Wrapped { value: 250u16 };
+        let right: |ops|::Wrapped = |ops|::Wrapped { value: 10u16 };
+        let total: u64 = |ops|::Wrapped::describe(@left, @right);
         hold(total) && total == 260
     }
 }
@@ -53,9 +53,9 @@ ArmObserve satisfies SelectedObserve {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(29u64);
-        let left: lib\ops\Wrapped = lib\ops\Wrapped { value: 250u16 };
-        let right: lib\ops\Wrapped = lib\ops\Wrapped { value: 10u16 };
-        let total: u64 = lib\ops\Wrapped::describe(@left, @right);
+        let left: |ops|::Wrapped = |ops|::Wrapped { value: 250u16 };
+        let right: |ops|::Wrapped = |ops|::Wrapped { value: 10u16 };
+        let total: u64 = |ops|::Wrapped::describe(@left, @right);
         hold(total) && total == 260
     }
 }

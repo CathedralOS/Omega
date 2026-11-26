@@ -52,45 +52,8 @@ pub use shared_component::{
 mod code_signature;
 pub use code_signature::code_signature_identifier;
 mod dyld_linking;
-mod entry_symbol {
-    use diagnostics::Diagnostic;
-    use image::FinalImage;
-
-    pub(crate) fn macho_entry_text_offset(image: &FinalImage) -> Result<usize, Diagnostic> {
-        Ok(image::final_image_entry_symbol(image, "Mach-O")?.offset)
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::macho_entry_text_offset;
-        use image::{FinalImage, FinalImageSection, FinalImageSymbol};
-
-        #[test]
-        fn resolves_macho_entry_offset_from_final_image_entry_symbol() {
-            let mut image = crate::test_support::image(
-                FinalImage::default().target,
-                image::FinalImageMemory {
-                    text: vec![0; 16],
-                    ..Default::default()
-                },
-            );
-            let entry_symbol = image.symbol_table.symbols.insert(FinalImageSymbol {
-                name: "_start".into(),
-                section: FinalImageSection::Text,
-                offset: 8,
-                size: 4,
-                ..FinalImageSymbol::default()
-            });
-            image.symbol_table.entry_symbol = entry_symbol;
-
-            assert_eq!(macho_entry_text_offset(&image).unwrap(), 8);
-        }
-    }
-}
-
 mod file_layout;
 mod isa {
-    use calling_conventions::StateFootprintEvidence;
     use diagnostics::Diagnostic;
 
     #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -180,13 +143,6 @@ mod isa {
             match self {
                 Self::Aarch64 => "mach-o-arm64-executable",
                 Self::X86_64 => "mach-o-x86_64-executable",
-            }
-        }
-
-        pub(crate) fn thunk_footprint(self) -> StateFootprintEvidence {
-            match self {
-                Self::Aarch64 => target_aarch64::import_thunk::aarch64_import_thunk_footprint(),
-                Self::X86_64 => target_x86_64::import_thunk::x86_64_import_thunk_footprint(),
             }
         }
     }
@@ -658,7 +614,6 @@ pub use dyld_linking::loader_fixups::{
 };
 pub use dyld_linking::loader_mapping::validate_macho_loader_mapping;
 use dyld_linking::rebases::macho_rebase_info_for_segment;
-use entry_symbol::macho_entry_text_offset;
 use isa::MachoIsa;
 
 const OMEGA_EXECUTABLE_LEAF: &str = "omega-program";
@@ -768,16 +723,16 @@ fn emit_macho_container_contents(
         }
     }
     let entry_offset = if identity.is_none() {
-        Some(plan.text_offset + macho_entry_text_offset(&image)?)
+        Some(plan.text_offset + image::final_image_entry_symbol(&image, "Mach-O")?.offset)
     } else {
         None
     };
     let layout = plan.final_image_layout();
 
-    patch_import_thunks(&mut image, &layout, &import_thunks, isa)?;
+    patch_import_thunks(&mut image, &layout, &import_thunks)?;
     image::apply_relocations(&mut image, &layout, "Mach-O direct executable")?;
     let rebase_pointers = rebase_info.validate_patched_preferred_pointers(&image, &layout)?;
-    validate_import_thunk_footprints(&mut image, &import_thunks, isa)?;
+    validate_import_thunk_footprints(&image, &import_thunks)?;
     let executable_regions = place_executable_regions(&image, layout)?;
     let data_regions = place_data_regions(&image, layout)?;
 

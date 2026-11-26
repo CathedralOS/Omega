@@ -1,9 +1,7 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
-use system\ByteRead;
-use system\Console;
-use omega\language\core\I64::from_f64;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 
 public data Protocol {
     fields: [f64; 7];
@@ -19,7 +17,7 @@ public data Protocol {
 }
 // Fixed decimal notation, bounded to 512 bytes, exactly seven tokens and EOF.
 // Accumulator envelope prevents nonfinite values before any model operation.
-public machine read(protocol: @mutable Protocol) -> bool reaches ProcessExit + StandardInput blocks crashes Trap {
+public machine read(protocol: @mutable Protocol) -> bool reaches |process_exit|::ProcessExit + |process_authority|::StandardInput blocks crashes Trap {
     protocol.position = 0; protocol.length = 0;
     protocol.accumulator = 0.0; protocol.scale = 1.0;
     protocol.fraction = false; protocol.fractional_digits = 0; protocol.negative = false;
@@ -29,12 +27,12 @@ public machine read(protocol: @mutable Protocol) -> bool reaches ProcessExit + S
         transition protocol.length < 512 { true -> observe(protocol), false -> rejected() }
     }
     machine observe(protocol: @mutable Protocol) -> bool {
-        let observed: ByteRead = block Console::read_byte();
+        let observed: |console|::ByteRead = block |console|::Console::read_byte();
         protocol.length = protocol.length + 1;
         transition observed {
-            ByteRead::Error -> rejected(),
-            ByteRead::Eof -> commit(protocol, true),
-            ByteRead::Byte { value } -> character(protocol, value)
+            |console|::ByteRead::Error -> rejected(),
+            |console|::ByteRead::Eof -> commit(protocol, true),
+            |console|::ByteRead::Byte { value } -> character(protocol, value)
         }
     }
     machine character(protocol: @mutable Protocol, value: i32) -> bool {
@@ -125,13 +123,13 @@ public machine read(protocol: @mutable Protocol) -> bool reaches ProcessExit + S
 }
 
 public machine integer(protocol: @mutable Protocol, value: i32 in Wrapping)
-reaches ProcessExit + StandardOutput {
+reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     transition value < 0 {
         true -> negative(protocol, value),
         false -> digits(protocol, value, 1000000000, false)
     }
     machine negative(protocol: @mutable Protocol, value: i32 in Wrapping) {
-        Console::write_byte(45);
+        |console|::Console::write_byte(45);
         transition { _ -> digits(protocol, 0 - value, 1000000000, false) }
     }
     machine digits(protocol: @mutable Protocol, value: i32 in Wrapping,
@@ -149,7 +147,7 @@ reaches ProcessExit + StandardOutput {
         remainder: i32 in Wrapping, divisor: i32 in Wrapping)
     requires divisor >= 1
     {
-        Console::write_byte((digit + 48) as i32);
+        |console|::Console::write_byte((digit + 48) as i32);
         transition { _ -> next(protocol, remainder, divisor, true) }
     }
     machine next(protocol: @mutable Protocol, value: i32 in Wrapping,
@@ -175,13 +173,13 @@ reaches ProcessExit + StandardOutput {
 }
 
 machine wide_integer(protocol: @mutable Protocol, value: i64 in Wrapping)
-reaches ProcessExit + StandardOutput {
+reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     transition value < 0 {
         true -> negative(protocol, value),
         false -> digits(protocol, value, 1000000000000000000, false)
     }
     machine negative(protocol: @mutable Protocol, value: i64 in Wrapping) {
-        Console::write_byte(45);
+        |console|::Console::write_byte(45);
         transition { _ -> digits(protocol, 0 - value, 1000000000000000000, false) }
     }
     machine digits(protocol: @mutable Protocol, value: i64 in Wrapping,
@@ -206,7 +204,7 @@ reaches ProcessExit + StandardOutput {
         remainder: i64 in Wrapping, divisor: i64 in Wrapping)
     requires divisor >= 1 && digit >= 0 && digit <= 9
     {
-        Console::write_byte((digit + 48) as i32);
+        |console|::Console::write_byte((digit + 48) as i32);
         transition { _ -> next(protocol, remainder, divisor, true) }
     }
     machine next(protocol: @mutable Protocol, value: i64 in Wrapping,
@@ -229,8 +227,8 @@ reaches ProcessExit + StandardOutput {
         }
     }
     machine invalid(protocol: @mutable Protocol) {
-        Console::write_line("ERROR numeric: invalid decimal digit");
-        ProcessExit::exit_process(66);
+        |console|::Console::write_line("ERROR numeric: invalid decimal digit");
+        |process_exit|::ProcessExit::exit_process(66);
     }
     machine done() { }
 }
@@ -238,12 +236,12 @@ reaches ProcessExit + StandardOutput {
 // Sixteen significant decimal digits as signed integer mantissa and power of ten.
 // All model outputs are finite, and normalization precedes the trapping cast.
 public machine number(protocol: @mutable Protocol, value: f64)
-reaches ProcessExit + StandardOutput {
+reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     transition value == 0.0 {
         true -> zero(protocol),
         false -> sign(protocol, value)
     }
-    machine zero(protocol: @mutable Protocol) { Console::write("0"); }
+    machine zero(protocol: @mutable Protocol) { |console|::Console::write("0"); }
     machine sign(protocol: @mutable Protocol, value: f64) {
         transition value < 0.0 {
             true -> negative(protocol, value),
@@ -251,7 +249,7 @@ reaches ProcessExit + StandardOutput {
         }
     }
     machine negative(protocol: @mutable Protocol, value: f64) {
-        Console::write_byte(45);
+        |console|::Console::write_byte(45);
         transition { _ -> normalize(protocol, 0.0 - value, 0) }
     }
     machine normalize(protocol: @mutable Protocol, value: f64, exponent: i32 in Wrapping) {
@@ -276,13 +274,13 @@ reaches ProcessExit + StandardOutput {
     machine land(protocol: @mutable Protocol, scaled: f64, exponent: i32 in Wrapping)
     requires scaled == scaled && scaled >= 0.0 && scaled < 10000000000000000.0
     {
-        let mantissa: i64 = I64::from_f64(scaled);
+        let mantissa: i64 = |float_operations|::I64::from_f64(scaled);
         wide_integer(protocol, mantissa as +Wrapping);
-        Console::write("e");
+        |console|::Console::write("e");
         integer(protocol, exponent - 15);
     }
     machine invalid(protocol: @mutable Protocol) {
-        Console::write_line("ERROR numeric: reporting value outside finite model envelope");
-        ProcessExit::exit_process(66);
+        |console|::Console::write_line("ERROR numeric: reporting value outside finite model envelope");
+        |process_exit|::ProcessExit::exit_process(66);
     }
 }

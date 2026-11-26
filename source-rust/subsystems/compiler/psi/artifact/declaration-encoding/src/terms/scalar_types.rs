@@ -96,13 +96,15 @@ pub fn decode_ieee_float_value(reader: &mut Reader<'_>) -> Result<IeeeFloatValue
 pub fn decode_integer_type(reader: &mut Reader<'_>) -> Result<IntegerType, CodecError> {
     let tag = reader.u8()?;
     let bits = reader.u16()?;
-    match tag {
+    let integer = match tag {
         1 => IntegerType::new(IntegerSign::Signed, bits),
         2 => IntegerType::new(IntegerSign::Unsigned, bits),
         3 => IntegerType::address(bits),
         tag => return Err(CodecError::InvalidTag("IntegerSign", tag)),
     }
-    .map_err(CodecError::MalformedProposition)
+    .map_err(CodecError::MalformedProposition)?;
+    reader.record_integer_type(integer)?;
+    Ok(integer)
 }
 
 pub fn decode_integer_value(reader: &mut Reader<'_>) -> Result<IntegerValue, CodecError> {

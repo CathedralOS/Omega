@@ -1,13 +1,14 @@
 use {omega}/build/dependency.omg;
+use {system}/filesystem.omg as files;
+use {system}/filesystem_host.omg as paths;
 use build_support/build_support.omg;
 use main.omg as app;
 use {generator}/main.omg as generator;
 
-machine build(builder: @mutable BuildPlan) {
+machine build(builder: @mutable BuildPlan) blocks {
     builder.product = BuildProduct::Application { name: "acquired_generator_completed_output_set" };
-    let mutable runtime_generator_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "generator" });
-    |dependency|::with_alias(@mutable runtime_generator_dependency, "runtime_generator");
-    _ = |dependency|::add(builder, runtime_generator_dependency);
+    let generator: PackageBinding = |dependency|::input(builder, "generator");
+    _ = |dependency|::add(builder, generator);
     Build::bind(builder, windows_arm64::ProgramEntry, |app|::main);
     Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
     Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
@@ -16,37 +17,44 @@ machine build(builder: @mutable BuildPlan) {
 
     let companion: RequiredOutput = BuildOutput::require(@mutable builder.output, "companion.txt");
     let source: RequiredOutput = BuildOutput::require(@mutable builder.output, "generated.omg");
-    let template_path: BuildPath = BuildSource::resolve(@builder.source, "template.txt");
-    let reader: i32 = BuildSource::open(@builder.source, template_path, 0);
     let mutable template: [u8; 6];
-    let count: i64 = BuildSource::read(@builder.source, reader, @mutable template[..], 6);
-    _ = BuildSource::close(@builder.source, reader);
-    transition count == 6 && |generator|::generated_value() == 7 {
-        true -> generate(builder, companion, source, @template),
-        _ -> failed(builder, companion, source)
+    let read: |files|::IoResult = block |files|::Filesystem::read_all(
+        "template.txt" as + |paths|::Path, @mutable template[..], 6u64);
+    transition read {
+        |files|::IoResult::Ok { count } -> block check(builder, companion, source, @template, count),
+        |files|::IoResult::Error { kind } -> failed(builder, companion, source)
     }
-    machine generate(builder: @mutable BuildPlan, companion: RequiredOutput, source: RequiredOutput, template: @[u8; 6]) {
-        // The local helper receives only these six captured bytes, not the
-        // source capability or the caller's host paths.
+    machine check(builder: @mutable BuildPlan, companion: RequiredOutput, source: RequiredOutput, template: @[u8; 6], count: u64) blocks {
+        transition count == 6u64 && |generator|::generated_value() == 7 {
+            true -> block generate(builder, companion, source, template),
+            false -> failed(builder, companion, source)
+        }
+    }
+    machine generate(builder: @mutable BuildPlan, companion: RequiredOutput, source: RequiredOutput, template: @[u8; 6]) blocks {
         let bytes: [u8; 6] = |build_support|::generate_companion(template);
-        let companion_path: BuildPath = BuildOutput::resolve(@builder.output, "companion.txt");
-        let companion_writer: i32 = BuildOutput::create(@mutable builder.output, companion_path, 0);
-        _ = BuildOutput::write(@mutable builder.output, companion_writer, @bytes[..]);
-        _ = BuildOutput::close(@mutable builder.output, companion_writer);
-        let companion_completion: OutputCompletion = BuildOutput::complete(@mutable builder.output, companion, companion_path);
-        settle(builder, companion_completion);
-
-        let generated: BuildPath = BuildOutput::resolve(@builder.output, "generated.omg");
-        let source_writer: i32 = BuildOutput::create(@mutable builder.output, generated, 0);
         let declaration: [u8; 34] = |build_support|::generate_declaration();
-        _ = BuildOutput::write(@mutable builder.output, source_writer, @declaration[..]);
-        _ = BuildOutput::close(@mutable builder.output, source_writer);
-        let source_completion: OutputCompletion = BuildOutput::complete(@mutable builder.output, source, generated);
-        settle(builder, source_completion);
+        block publish(builder, companion, "companion.stage" as + |paths|::Path, @bytes[..]);
+        block publish(builder, source, "declaration.stage" as + |paths|::Path, @declaration[..]);
     }
     machine failed(builder: @mutable BuildPlan, companion: RequiredOutput, source: RequiredOutput) {
         BuildOutput::fail(@mutable builder.output, companion, "captured template or acquired helper failed");
         BuildOutput::fail(@mutable builder.output, source, "generation did not run");
+    }
+}
+
+machine publish(builder: @mutable BuildPlan, obligation: RequiredOutput, staging_name: @[u8] in |paths|::Path, bytes: @[u8]) blocks {
+    let written: |files|::UnitResult = block |files|::Filesystem::write_all(staging_name, bytes);
+    transition written {
+        |files|::UnitResult::Ok -> complete(builder, obligation, staging_name as - |paths|::Path),
+        |files|::UnitResult::Error { kind } -> failed(builder, obligation)
+    }
+    machine complete(builder: @mutable BuildPlan, obligation: RequiredOutput, staging_name: @[u8]) {
+        let file: BuildPath = BuildOutput::resolve(@builder.output, staging_name);
+        let completion: OutputCompletion = BuildOutput::complete(@mutable builder.output, obligation, file);
+        settle(builder, completion);
+    }
+    machine failed(builder: @mutable BuildPlan, obligation: RequiredOutput) {
+        BuildOutput::fail(@mutable builder.output, obligation, "could not write staged output");
     }
 }
 

@@ -1,5 +1,6 @@
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Disjoint-set union over 64 elements in fixed arrays with union-by-rank and
 // iterative two-pass path compression.
 //
@@ -11,7 +12,6 @@ use omega\language\core\ProcessExit;
 // Expected output contains: PASS
 // Expected exit: 0
 
-use system\Console;
 
 data DisjointSet {
     parent: [u64; 64];
@@ -283,7 +283,7 @@ machine verify_workload(sets: @mutable DisjointSet) -> bool {
     }
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardOutput {
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     init(@mutable main.sets);
     run_waves(@mutable main.sets);
     let ok: bool = verify_workload(@mutable main.sets);
@@ -293,18 +293,18 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardOutput {
     }
 
     machine pass() {
-        Console::write_line("PASS");
-        ProcessExit::exit_process(0);
+        |console|::Console::write_line("PASS");
+        |process_exit|::ProcessExit::exit_process(0);
     }
 
     machine fail() {
-        Console::write_line("FAIL");
-        ProcessExit::exit_process(1);
+        |console|::Console::write_line("FAIL");
+        |process_exit|::ProcessExit::exit_process(1);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }

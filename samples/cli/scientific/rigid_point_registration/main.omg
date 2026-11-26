@@ -1,37 +1,30 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use io/input/input.omg;
+use io/output/output.omg;
+use model/registration/registration.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Expected exit: 64.
 // Expected output contains: error invalid input
-use system\Console;
-use io\input;
-use io\input\Raw;
-use io\input\read;
-use io\input\decode;
-use model\registration;
-use model\registration\Problem;
-use model\registration\solve;
-use io\output;
-use io\output\emit;
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    let mutable raw: Raw;
-    let accepted: bool = block read(@mutable raw);
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    let mutable raw: |input|::Raw;
+    let accepted: bool = block |input|::read(@mutable raw);
     transition accepted { true -> validate(@raw), false -> invalid() }
-    machine validate(raw: @Raw) {
-        let mutable problem: Problem;
-        transition decode(raw, @mutable problem) { true -> fit(@mutable problem), false -> invalid() }
+    machine validate(raw: @|input|::Raw) {
+        let mutable problem: |registration|::Problem;
+        transition |input|::decode(raw, @mutable problem) { true -> fit(@mutable problem), false -> invalid() }
     }
-    machine fit(problem: @mutable Problem) {
-        transition solve(problem) { true -> report(problem), false -> unidentified() }
+    machine fit(problem: @mutable |registration|::Problem) {
+        transition |registration|::solve(problem) { true -> report(problem), false -> unidentified() }
     }
-    machine report(problem: @Problem) { emit(problem); ProcessExit::exit_process(0); }
-    machine unidentified() { Console::write_line("status non-identifiable"); ProcessExit::exit_process(2); }
-    machine invalid() { Console::write_line("error invalid input"); ProcessExit::exit_process(64); }
+    machine report(problem: @|registration|::Problem) { |output|::emit(problem); |process_exit|::ProcessExit::exit_process(0); }
+    machine unidentified() { |console|::Console::write_line("status non-identifiable"); |process_exit|::ProcessExit::exit_process(2); }
+    machine invalid() { |console|::Console::write_line("error invalid input"); |process_exit|::ProcessExit::exit_process(64); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

@@ -1,8 +1,17 @@
 use {omega}/build/dependency.omg;
+use {omega}/language/core/filesystem_authority.omg as authority;
 
 machine build(plan: @mutable BuildPlan) {
     let mutable generator: DependencyDescription = |dependency|::from_source(Source::Path { location: "generator" });
     |dependency|::with_alias(@mutable generator, "generator");
     _ = |dependency|::add(plan, generator);
+    let allowed: [BoundaryServiceReference; 4] = [
+        Build::service::<|authority|::FilesystemContentRead>(plan),
+        Build::service::<|authority|::FilesystemContentWrite>(plan),
+        Build::service::<|authority|::FilesystemMetadataMutation>(plan),
+        Build::service::<|authority|::FilesystemNamespaceMutation>(plan)
+    ];
+    let system: DependencyDescription = |dependency|::from_source(Source::Bundled { name: "system" });
+    _ = |dependency|::add(plan, system, @allowed[..]);
     plan.product = BuildProduct::InterpretedBuild { entry: "outputs.omg" };
 }

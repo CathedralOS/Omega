@@ -102,7 +102,7 @@ pub fn restricted_build_request_acceptance_text(
             ),
             true,
             true,
-            &|encoder| baseline::restricted_build::request(encoder, &request),
+            &|encoder| baseline::request(encoder, &request),
         )
     })
 }
@@ -113,7 +113,7 @@ pub fn restricted_build_request_payload(
     request: &build_consent::RestrictedBuildRequest,
 ) -> Result<String, PackageReviewEncodingError> {
     let request = crate::record::PackagePolicyRestrictedBuildRequest::from(request);
-    canonical_request_text(|encoder| baseline::restricted_build::request(encoder, &request))
+    canonical_request_text(|encoder| baseline::request(encoder, &request))
 }
 
 fn canonical_request_text(

@@ -1,10 +1,9 @@
-use omega\language\core\StandardOutput;
-use system\Console;
-use linkage\model;
-use linkage\model\Linkage;
+use linkage/model/model.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 
-public machine number(value: u64) reaches StandardOutput
-invokes Console
+public machine number(value: u64) reaches |process_authority|::StandardOutput
+invokes |console|::Console
 {
     // Runtime recursion is tail-only. Find the highest decimal place, then
     // emit left to right using state backedges and a positive divisor.
@@ -22,7 +21,7 @@ invokes Console
     }
     machine digit(value: u64, divisor: u64)
     requires divisor > 0 {
-        Console::write_byte((value / divisor % 10 + 48) as i32);
+        |console|::Console::write_byte((value / divisor % 10 + 48) as i32);
         transition divisor >= 10 {
             true -> remaining(value, divisor),
             false -> done()
@@ -35,46 +34,46 @@ invokes Console
     machine done() { }
 }
 
-public machine report(linkage: @Linkage) reaches StandardOutput
-invokes Console
+public machine report(linkage: @|model|::Linkage) reaches |process_authority|::StandardOutput
+invokes |console|::Console
 {
-    Console::write("best=");
+    |console|::Console::write("best=");
     number(linkage.best);
-    Console::write_line("");
-    Console::write("optima=");
+    |console|::Console::write_line("");
+    |console|::Console::write("optima=");
     number(linkage.optima);
-    Console::write_line("");
-    Console::write("edges=");
+    |console|::Console::write_line("");
+    |console|::Console::write("edges=");
     number(linkage.edges);
-    Console::write_line("");
-    Console::write("conflicts=");
+    |console|::Console::write_line("");
+    |console|::Console::write("conflicts=");
     number(linkage.conflicts);
-    Console::write_line("");
-    Console::write("linked=");
+    |console|::Console::write_line("");
+    |console|::Console::write("linked=");
     number(linkage.linked);
-    Console::write_line("");
-    Console::write("ambiguous=");
+    |console|::Console::write_line("");
+    |console|::Console::write("ambiguous=");
     number(linkage.ambiguous);
-    Console::write_line("");
-    Console::write("unmatched=");
+    |console|::Console::write_line("");
+    |console|::Console::write("unmatched=");
     number(linkage.unmatched);
-    Console::write_line("");
-    Console::write("tp=");
+    |console|::Console::write_line("");
+    |console|::Console::write("tp=");
     number(linkage.true_positive);
-    Console::write_line("");
-    Console::write("fp=");
+    |console|::Console::write_line("");
+    |console|::Console::write("fp=");
     number(linkage.false_positive);
-    Console::write_line("");
-    Console::write("fn=");
+    |console|::Console::write_line("");
+    |console|::Console::write("fn=");
     number(linkage.false_negative);
-    Console::write_line("");
-    Console::write("left1=");
+    |console|::Console::write_line("");
+    |console|::Console::write("left1=");
     number(linkage.consensus[0]);
-    Console::write_line("");
-    Console::write("left2=");
+    |console|::Console::write_line("");
+    |console|::Console::write("left2=");
     number(linkage.consensus[1]);
-    Console::write_line("");
-    Console::write("left3=");
+    |console|::Console::write_line("");
+    |console|::Console::write("left3=");
     number(linkage.consensus[2]);
-    Console::write_line("");
+    |console|::Console::write_line("");
 }

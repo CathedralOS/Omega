@@ -42,7 +42,7 @@ pub fn resolve_function_field(
         || !matches!(field.field_type, StructuralFieldType::Scalar(ScalarType::Integer(integer)) if integer.is_address())
         || field.relevance.is_erased()
     {
-        return Err("function field must be one live non-atomic addr".into());
+        return Err("function field must be one live non-atomic address".into());
     }
     let geometry =
         calling_conventions::terminal_layout::NativeGeometry::new(&module.types.structural_types)
@@ -113,7 +113,7 @@ fn selected_table<'module>(
 }
 
 /// Trace the table's protection to an external supplier in this Product. An
-/// arbitrary source record can contain exactly the same `addr` bits.
+/// arbitrary source record can contain exactly the same `address` bits.
 /// A checked helper may preserve an issued domain while forwarding its table.
 pub(super) fn check_table_issuers(
     module: &TerminalModule,

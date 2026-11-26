@@ -1,4 +1,4 @@
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_exit.omg;
 // 3x3 MATRIX MULTIPLY over invocation-local 2D arrays -- the double-indexed
 // access family end to end: both-runtime reads (`a[i][k]`, `b[k][j]`), a
 // both-runtime write (`c[i][j] = acc`), and state-transition loops
@@ -22,7 +22,7 @@ data Matrices {
     b: [[i32 in Wrapping; 3]; 3];
     c: [[i32 in Wrapping; 3]; 3];
 }
-machine main(context: @mutable Main) reaches ProcessExit {
+machine main(context: @mutable Main) reaches |process_exit|::ProcessExit {
     let mutable matrices: Matrices;
     matrices.a = [[1i32 as +Wrapping, 2i32 as +Wrapping, 3i32 as +Wrapping], [4i32 as +Wrapping, 5i32 as +Wrapping, 6i32 as +Wrapping], [7i32 as +Wrapping, 8i32 as +Wrapping, 9i32 as +Wrapping]];
     matrices.b = [[9i32 as +Wrapping, 8i32 as +Wrapping, 7i32 as +Wrapping], [6i32 as +Wrapping, 5i32 as +Wrapping, 4i32 as +Wrapping], [3i32 as +Wrapping, 2i32 as +Wrapping, 1i32 as +Wrapping]];
@@ -62,12 +62,12 @@ machine main(context: @mutable Main) reaches ProcessExit {
     machine checksum(context: @mutable Main, matrices: @Matrices) {
         let total: i32 in Wrapping = matrices.c[0][0] + matrices.c[1][1] + matrices.c[2][2];
         let code: i32 in Wrapping = total % 256;
-        ProcessExit::exit_process(code as i32);
+        |process_exit|::ProcessExit::exit_process(code as i32);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit {
+machine entry_start() reaches |process_exit|::ProcessExit {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }

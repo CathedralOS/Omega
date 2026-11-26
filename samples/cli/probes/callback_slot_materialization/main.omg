@@ -17,12 +17,7 @@
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.
 
-use omega\language\core\FieldEntry;
-use omega\language\core\FieldPlan;
-use omega\language\core\LayoutPlan;
-use omega\language\core\layout_plan_place_private;
-use omega\language\core\PrivateCallbackSlot;
-use omega\language\core\Schema;
+use {omega}/language/core/layout.omg;
 
 public boundary trait WindowProcedure {
     machine call(message: u64) reaches none crashes none;
@@ -30,25 +25,25 @@ public boundary trait WindowProcedure {
 
 data Spread {}
 
-WndClassSlot satisfies PrivateCallbackSlot<Spread, WindowProcedure::call> { }
+WndClassSlot satisfies |layout|::PrivateCallbackSlot<Spread, WindowProcedure::call> { }
 
-SecondarySlot satisfies PrivateCallbackSlot<Spread, WindowProcedure::call> { }
+SecondarySlot satisfies |layout|::PrivateCallbackSlot<Spread, WindowProcedure::call> { }
 
-machine Spread::plan(schema: Schema) -> LayoutPlan {
-    let mutable owned_entries: [FieldEntry; 64];
-    owned_entries[0] = FieldEntry {
+machine Spread::plan(schema: |layout|::Schema) -> |layout|::LayoutPlan {
+    let mutable owned_entries: [|layout|::FieldEntry; 64];
+    owned_entries[0] = |layout|::FieldEntry {
         key: schema.fields[0].key,
-        representation: FieldPlan::At { offset: 0 },
+        representation: |layout|::FieldPlan::At { offset: 0 },
     };
-    let plan: LayoutPlan = LayoutPlan {
+    let plan: |layout|::LayoutPlan = |layout|::LayoutPlan {
         entries: owned_entries,
         entry_count: 1,
         size_fixed: 24,
         size_is_dynamic: false,
         align: 8,
     };
-    let placed: LayoutPlan = layout_plan_place_private::<WndClassSlot>(plan, 8);
-    layout_plan_place_private::<SecondarySlot>(placed, 16)
+    let placed: |layout|::LayoutPlan = |layout|::layout_plan_place_private::<WndClassSlot>(plan, 8);
+    |layout|::layout_plan_place_private::<SecondarySlot>(placed, 16)
 }
 
 data Main { hits: i32 in Wrapping; }

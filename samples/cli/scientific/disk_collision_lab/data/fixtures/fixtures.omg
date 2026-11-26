@@ -1,10 +1,8 @@
-use physics\model;
-use physics\model\Disk;
-use physics\model\Lab;
-public machine fixture(lab:@mutable Lab,choice:i32) {
+use physics/model/model.omg;
+public machine fixture(lab:@mutable |model|::Lab,choice:i32) {
  lab.count=2; lab.budget=8; lab.horizon=3.0; lab.restitution=1.0;
- lab.disks[0]=Disk{x:0.0,y:0.0,vx:1.0,vy:0.0,radius:1.0,mass:1.0};
- lab.disks[1]=Disk{x:4.0,y:0.0,vx:0.0,vy:0.0,radius:1.0,mass:3.0};
+ lab.disks[0]=|model|::Disk{x:0.0,y:0.0,vx:1.0,vy:0.0,radius:1.0,mass:1.0};
+ lab.disks[1]=|model|::Disk{x:4.0,y:0.0,vx:0.0,vy:0.0,radius:1.0,mass:3.0};
  transition choice {
   0 -> done(),
   1 -> grazing(lab),
@@ -18,22 +16,22 @@ public machine fixture(lab:@mutable Lab,choice:i32) {
   9 -> restitution(lab),
   _ -> done()
  }
- machine grazing(lab:@mutable Lab) {lab.disks[1].x=2.0;lab.disks[1].y=2.0;}
- machine simultaneous(lab:@mutable Lab) {
+ machine grazing(lab:@mutable |model|::Lab) {lab.disks[1].x=2.0;lab.disks[1].y=2.0;}
+ machine simultaneous(lab:@mutable |model|::Lab) {
   lab.count=4;lab.disks[1].mass=1.0;
-  lab.disks[2]=Disk{x:0.0,y:10.0,vx:1.0,vy:0.0,radius:1.0,mass:2.0};
-  lab.disks[3]=Disk{x:4.0,y:10.0,vx:0.0,vy:0.0,radius:1.0,mass:2.0};
+  lab.disks[2]=|model|::Disk{x:0.0,y:10.0,vx:1.0,vy:0.0,radius:1.0,mass:2.0};
+  lab.disks[3]=|model|::Disk{x:4.0,y:10.0,vx:0.0,vy:0.0,radius:1.0,mass:2.0};
  }
- machine separating(lab:@mutable Lab) {lab.disks[0].vx=-1.0;}
- machine exhausted(lab:@mutable Lab) {
+ machine separating(lab:@mutable |model|::Lab) {lab.disks[0].vx=-1.0;}
+ machine exhausted(lab:@mutable |model|::Lab) {
   lab.budget=1;lab.count=4;lab.disks[1].mass=1.0;
-  lab.disks[2]=Disk{x:0.0,y:10.0,vx:1.0,vy:0.0,radius:1.0,mass:2.0};
-  lab.disks[3]=Disk{x:4.0,y:10.0,vx:0.0,vy:0.0,radius:1.0,mass:2.0};
+  lab.disks[2]=|model|::Disk{x:0.0,y:10.0,vx:1.0,vy:0.0,radius:1.0,mass:2.0};
+  lab.disks[3]=|model|::Disk{x:4.0,y:10.0,vx:0.0,vy:0.0,radius:1.0,mass:2.0};
  }
- machine inelastic(lab:@mutable Lab) {lab.restitution=0.5;}
- machine oblique(lab:@mutable Lab) {lab.disks[1].x=3.2;lab.disks[1].y=1.6;lab.disks[1].mass=1.0;}
- machine mass(lab:@mutable Lab) {lab.disks[0].mass=0.0;}
- machine overlap(lab:@mutable Lab) {lab.disks[1].x=1.0;}
- machine restitution(lab:@mutable Lab) {lab.restitution=1.5;}
+ machine inelastic(lab:@mutable |model|::Lab) {lab.restitution=0.5;}
+ machine oblique(lab:@mutable |model|::Lab) {lab.disks[1].x=3.2;lab.disks[1].y=1.6;lab.disks[1].mass=1.0;}
+ machine mass(lab:@mutable |model|::Lab) {lab.disks[0].mass=0.0;}
+ machine overlap(lab:@mutable |model|::Lab) {lab.disks[1].x=1.0;}
+ machine restitution(lab:@mutable |model|::Lab) {lab.restitution=1.5;}
  machine done() {}
 }

@@ -1,14 +1,13 @@
 // Discrete far-field model: c/f_s equals one geometry unit; cardinal unit
 // vectors yield exact signed sample delays. Alignment reads sample t + r dot u
 // at t=2..5. Finite observations are never padded or extrapolated.
-use domain\records;
-use domain\records\Beamforming;
+use domain/records/records.omg;
 
-public machine analyze(records: @mutable Beamforming) -> u64 {
+public machine analyze(records: @mutable |records|::Beamforming) -> u64 {
     records.active = 0;
     records.best = 0;
     transition { _ -> decode(records, 0) }
-    machine decode(records: @mutable Beamforming, channel: u64) -> u64
+    machine decode(records: @mutable |records|::Beamforming, channel: u64) -> u64
     requires channel < 3 {
         let base: u64 = channel * 12;
         transition base <= 24 {
@@ -16,7 +15,7 @@ public machine analyze(records: @mutable Beamforming) -> u64 {
             false -> invalid(4)
         }
     }
-    machine header(records: @mutable Beamforming, channel: u64, base: u64) -> u64
+    machine header(records: @mutable |records|::Beamforming, channel: u64, base: u64) -> u64
     requires channel < 3 requires base <= 24 {
         let enabled: u64 = records.raw[base];
         let timestamp: u64 = records.raw[base + 1];
@@ -27,7 +26,7 @@ public machine analyze(records: @mutable Beamforming) -> u64 {
             false -> invalid(1)
         }
     }
-    machine timing(records: @mutable Beamforming, channel: u64, base: u64, enabled: u64,
+    machine timing(records: @mutable |records|::Beamforming, channel: u64, base: u64, enabled: u64,
                  timestamp: u64, horizontal: u64, vertical: u64) -> u64
     requires channel < 3 requires base <= 24 {
         transition enabled == 0 || timestamp == 0 {
@@ -35,7 +34,7 @@ public machine analyze(records: @mutable Beamforming) -> u64 {
             false -> invalid(2)
         }
     }
-    machine save(records: @mutable Beamforming, channel: u64, base: u64,
+    machine save(records: @mutable |records|::Beamforming, channel: u64, base: u64,
                enabled: u64, horizontal: u64, vertical: u64) -> u64
     requires channel < 3 requires base <= 24 {
         records.enabled[channel] = enabled;
@@ -44,7 +43,7 @@ public machine analyze(records: @mutable Beamforming) -> u64 {
         records.active = records.active + enabled as i64 +Wrapping;
         transition { _ -> sample(records, channel, base, 0) }
     }
-    machine sample(records: @mutable Beamforming, channel: u64, base: u64, position: u64) -> u64
+    machine sample(records: @mutable |records|::Beamforming, channel: u64, base: u64, position: u64) -> u64
     requires channel < 3 requires base <= 24 requires position < 8 {
         let index: u64 = base + 4 + position;
         transition index < 36 {
@@ -52,7 +51,7 @@ public machine analyze(records: @mutable Beamforming) -> u64 {
             false -> invalid(4)
         }
     }
-    machine copy(records: @mutable Beamforming, channel: u64, base: u64, position: u64, index: u64) -> u64
+    machine copy(records: @mutable |records|::Beamforming, channel: u64, base: u64, position: u64, index: u64) -> u64
     requires channel < 3 requires base <= 24 requires position < 8 requires index < 36 {
         let amplitude: u64 = records.raw[index];
         transition amplitude <= 8 {
@@ -60,7 +59,7 @@ public machine analyze(records: @mutable Beamforming) -> u64 {
             false -> invalid(1)
         }
     }
-    machine amplitude(records: @mutable Beamforming, channel: u64, base: u64,
+    machine amplitude(records: @mutable |records|::Beamforming, channel: u64, base: u64,
                     position: u64, amplitude: u64) -> u64
     requires channel < 3 requires base <= 24 requires position < 8
     requires amplitude <= 8 {
@@ -71,24 +70,24 @@ public machine analyze(records: @mutable Beamforming) -> u64 {
             false -> next_channel(records, channel + 1)
         }
     }
-    machine next_channel(records: @mutable Beamforming, next: u64) -> u64 {
+    machine next_channel(records: @mutable |records|::Beamforming, next: u64) -> u64 {
         transition next < 3 {
             true -> decode(records, next),
             false -> ready(records)
         }
     }
-    machine ready(records: @mutable Beamforming) -> u64 {
+    machine ready(records: @mutable |records|::Beamforming) -> u64 {
         transition records.active > 0 {
             true -> direction(records, 0),
             false -> invalid(3)
         }
     }
-    machine direction(records: @mutable Beamforming, direction: u64) -> u64
+    machine direction(records: @mutable |records|::Beamforming, direction: u64) -> u64
     requires direction < 4 {
         records.energy[direction] = 0;
         transition { _ -> accumulate(records, direction, 0, 0, 0) }
     }
-    machine accumulate(records: @mutable Beamforming, direction: u64, position: u64,
+    machine accumulate(records: @mutable |records|::Beamforming, direction: u64, position: u64,
                      channel: u64, total: i64 in Wrapping) -> u64
     requires direction < 4 requires position < 4 requires channel < 3 {
         let horizontal: u64 = records.horizontal[channel];
@@ -98,7 +97,7 @@ public machine analyze(records: @mutable Beamforming) -> u64 {
             false -> delay(records, direction, position, channel, total, horizontal, vertical)
         }
     }
-    machine delay(records: @mutable Beamforming, direction: u64, position: u64, channel: u64,
+    machine delay(records: @mutable |records|::Beamforming, direction: u64, position: u64, channel: u64,
                 total: i64 in Wrapping, horizontal: u64, vertical: u64) -> u64
     requires direction < 4 requires position < 4 requires channel < 3 {
         transition horizontal <= 2 && vertical <= 2 {
@@ -106,7 +105,7 @@ public machine analyze(records: @mutable Beamforming) -> u64 {
             false -> invalid(4)
         }
     }
-    machine select(records: @mutable Beamforming, direction: u64, position: u64, channel: u64,
+    machine select(records: @mutable |records|::Beamforming, direction: u64, position: u64, channel: u64,
                  total: i64 in Wrapping, horizontal: u64, vertical: u64) -> u64
     requires direction < 4 requires position < 4 requires channel < 3
     requires horizontal <= 2 requires vertical <= 2 {
@@ -122,13 +121,13 @@ public machine analyze(records: @mutable Beamforming) -> u64 {
             false -> invalid(4)
         }
     }
-    machine add(records: @mutable Beamforming, direction: u64, position: u64, channel: u64,
+    machine add(records: @mutable |records|::Beamforming, direction: u64, position: u64, channel: u64,
               total: i64 in Wrapping, index: u64) -> u64
     requires direction < 4 requires position < 4 requires channel < 3 requires index < 8 {
         let next: i64 in Wrapping = total + records.samples[channel][index];
         transition { _ -> next_sample(records, direction, position, channel + 1, next) }
     }
-    machine next_sample(records: @mutable Beamforming, direction: u64, position: u64,
+    machine next_sample(records: @mutable |records|::Beamforming, direction: u64, position: u64,
                       channel: u64, total: i64 in Wrapping) -> u64
     requires direction < 4 requires position < 4 {
         transition channel < 3 {
@@ -136,7 +135,7 @@ public machine analyze(records: @mutable Beamforming) -> u64 {
             false -> store(records, direction, position, total)
         }
     }
-    machine store(records: @mutable Beamforming, direction: u64, position: u64,
+    machine store(records: @mutable |records|::Beamforming, direction: u64, position: u64,
                 total: i64 in Wrapping) -> u64
     requires direction < 4 requires position < 4 {
         records.waveform[direction][position] = total;
@@ -147,17 +146,17 @@ public machine analyze(records: @mutable Beamforming) -> u64 {
             false -> score(records, direction)
         }
     }
-    machine score(records: @mutable Beamforming, direction: u64) -> u64 requires direction < 4 {
+    machine score(records: @mutable |records|::Beamforming, direction: u64) -> u64 requires direction < 4 {
         transition records.energy[direction] > records.best {
             true -> maximum(records, direction),
             false -> advance(records, direction + 1)
         }
     }
-    machine maximum(records: @mutable Beamforming, direction: u64) -> u64 requires direction < 4 {
+    machine maximum(records: @mutable |records|::Beamforming, direction: u64) -> u64 requires direction < 4 {
         records.best = records.energy[direction];
         transition { _ -> advance(records, direction + 1) }
     }
-    machine advance(records: @mutable Beamforming, next: u64) -> u64 {
+    machine advance(records: @mutable |records|::Beamforming, next: u64) -> u64 {
         transition next < 4 {
             true -> direction(records, next),
             false -> invalid(0)

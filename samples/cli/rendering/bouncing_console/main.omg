@@ -1,6 +1,7 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/clock.omg;
+use {system}/console.omg;
 // A bouncing ball animated in place on one console line -- the first demo of timed
 // animation, paced by the Clock.sleep host op. Each frame clears a 40-wide line,
 // draws the ball 'O' at its position, prints a carriage return (cursor to column 0)
@@ -9,8 +10,6 @@ use omega\language\core\ProcessExit;
 // the just-added Clock.sleep.
 // Expected exit: 0.
 // Expected output contains: O
-use system\Console;
-use system\Clock;
 
 data Main
 requires
@@ -27,8 +26,8 @@ requires
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Clock + StandardInput + StandardOutput {
-    Console::write_line("bouncing_console: a ball 'O' bouncing along one console line for 50 timed frames");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |clock|::Clock + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("bouncing_console: a ball 'O' bouncing along one console line for 50 timed frames");
     main.line = "                                        ";
     main.cr = "X";
     main.cr[0] = 13;
@@ -61,9 +60,9 @@ machine main(main: @mutable Main) reaches ProcessExit + Clock + StandardInput + 
     // branches on `dir` so each direction's re-guard proves its own +1 / -1 --
     // fully Exact, no domain.
     machine emit(main: @mutable Main) {
-        Console::write(@main.cr[..]);
-        Console::write(@main.line[..]);
-        block Clock::sleep(25);
+        |console|::Console::write(@main.cr[..]);
+        |console|::Console::write(@main.line[..]);
+        block |clock|::Clock::sleep(25);
         transition main.frame < 50 { true -> block frame_bump(main), _ -> block finish(main) }
     }
     machine frame_bump(main: @mutable Main) {
@@ -94,21 +93,21 @@ machine main(main: @mutable Main) reaches ProcessExit + Clock + StandardInput + 
     machine flip_up(main: @mutable Main) { main.dir = 1; transition { _ -> block frame_loop(main) } }
 
     machine finish(main: @mutable Main) {
-        Console::write_line("done: 50 frames of line-bounce animation complete (exit 0)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(0);
+        |console|::Console::write_line("done: 50 frames of line-bounce animation complete (exit 0)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(0);
     }
     machine bad(main: @mutable Main) {
-        Console::write_line("FAIL: ball position left the [0,40) range guard (exit 1)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(1);
+        |console|::Console::write_line("FAIL: ball position left the [0,40) range guard (exit 1)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(1);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Clock + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |clock|::Clock + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

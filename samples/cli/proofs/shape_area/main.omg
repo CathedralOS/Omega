@@ -1,6 +1,6 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Area of a shape via a SUM TYPE (enum) with payloads -- the classic case for
 // tagged unions. `Shape` has two payload-carrying variants, `Circle(radius)` and
 // `Rectangle(width, height)`. A value is constructed (`Shape::Rectangle { width: 6,
@@ -10,7 +10,6 @@ use omega\language\core\ProcessExit;
 // on a stored enum field, payload-field extraction, and per-variant computation.
 // Expected exit: 42.
 
-use system\Console;
 
 // FULLY EXACT -- no overflow domain: each match arm passes its payload through a
 // guard hop (`radius < 101` etc.) into a compute state whose `requires` contract
@@ -28,8 +27,8 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("shape_area: matches a Shape enum payload and computes that variant's area");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("shape_area: matches a Shape enum payload and computes that variant's area");
     main.shape = Shape::Rectangle { width: 6, height: 7 };
 
     transition main.shape {
@@ -64,15 +63,15 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         transition { _ -> block emit(main) }
     }
     machine emit(main: @mutable Main) {
-        Console::write_line("result: the matched shape's area, 42 for this 6x7 rectangle (the exit code)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(main.area);
+        |console|::Console::write_line("result: the matched shape's area, 42 for this 6x7 rectangle (the exit code)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(main.area);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

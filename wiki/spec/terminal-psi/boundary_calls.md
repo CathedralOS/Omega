@@ -216,7 +216,7 @@ The host must supply a legitimate owned value. An opaque identity number does
 not establish global allocation freshness against interpreter-created values
 or suspended callers. Shape validation alone is not external ownership proof.
 
-A host-returned `addr` is admitted as an opaque host-provenance value, like a
+A host-returned `address` is admitted as an opaque host-provenance value, like a
 claim ticket: the interpreter may store and copy it, compare it with other
 host-returned addresses, and pass it back to native imports. It never
 dereferences or offsets it, and it refuses any comparison or arithmetic that

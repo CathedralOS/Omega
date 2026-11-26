@@ -2,7 +2,7 @@ use {omega}/build/dependency.omg;
 use {omega}/language/core/external_binding.omg as native;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "darwin_stat_abi_local" };
-    let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../../../../../source/library/system" }));
+    let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Bundled { name: "system" }));
     Build::bind(builder, macos_arm64::ProgramEntry, main);
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);

@@ -1,10 +1,6 @@
 // Expected exit: 0.
-use omega\language\core\F64::maximum;
-use omega\language\core\F64::negate;
-use omega\language\core\F64::square_root;
-use omega\language\core\linear_algebra\try_dot_f64;
-use omega\language\core\linear_algebra\try_scaled_norm_f64;
-use omega\language\core\linear_algebra\try_axpy_f64;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/linear_algebra/linear_algebra.omg;
 
 // Dynamic-range stress. Frozen before execution: relative tolerance 1e-14;
 // norm(3e200,-4e200)=5e200, norm(3e-200,4e-200)=5e-200.
@@ -15,20 +11,20 @@ machine main() crashes Trap {
     let mutable large_norm: f64 = -99.0;
     let mutable small_norm: f64 = -99.0;
     let mutable zero_norm: f64 = -99.0;
-    let large_ok: bool = try_scaled_norm_f64(@large[..], @mutable large_norm);
-    let small_ok: bool = try_scaled_norm_f64(@small[..], @mutable small_norm);
-    let zero_ok: bool = try_scaled_norm_f64(@zero[..], @mutable zero_norm);
+    let large_ok: bool = |linear_algebra|::try_scaled_norm_f64(@large[..], @mutable large_norm);
+    let small_ok: bool = |linear_algebra|::try_scaled_norm_f64(@small[..], @mutable small_norm);
+    let zero_ok: bool = |linear_algebra|::try_scaled_norm_f64(@zero[..], @mutable zero_norm);
     let large_difference: f64 = large_norm / 5.0e200 - 1.0;
     let small_difference: f64 = small_norm / 5.0e-200 - 1.0;
-    let large_error: f64 = F64::maximum(large_difference, F64::negate(large_difference));
-    let small_error: f64 = F64::maximum(small_difference, F64::negate(small_difference));
-    let naive_large: f64 = F64::square_root(large[0] * large[0] + large[1] * large[1]);
-    let naive_small: f64 = F64::square_root(small[0] * small[0] + small[1] * small[1]);
+    let large_error: f64 = |float_operations|::F64::maximum(large_difference, |float_operations|::F64::negate(large_difference));
+    let small_error: f64 = |float_operations|::F64::maximum(small_difference, |float_operations|::F64::negate(small_difference));
+    let naive_large: f64 = |float_operations|::F64::square_root(large[0] * large[0] + large[1] * large[1]);
+    let naive_small: f64 = |float_operations|::F64::square_root(small[0] * small[0] + small[1] * small[1]);
     let mutable untouched: [f64; 2] = [8.0, 9.0];
     let late_overflow: [f64; 2] = [1.0, 4.0e200];
-    let overflow: bool = try_axpy_f64(1.0e200, @late_overflow[..], @mutable untouched[..]);
+    let overflow: bool = |linear_algebra|::try_axpy_f64(1.0e200, @late_overflow[..], @mutable untouched[..]);
     let mutable sentinel: f64 = 77.0;
-    let dot_overflow: bool = try_dot_f64(@large[..], @large[..], @mutable sentinel);
+    let dot_overflow: bool = |linear_algebra|::try_dot_f64(@large[..], @large[..], @mutable sentinel);
     transition large_ok && small_ok && zero_ok && zero_norm == 0.0
         && large_error <= 1.0e-14 && small_error <= 1.0e-14
         && naive_large > 1.0e300 && naive_small == 0.0

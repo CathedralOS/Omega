@@ -1,18 +1,7 @@
-// External optimization decision wire schema v2 (`ExternalDecisionLog`,
+// External optimization decision schema (`ExternalDecisionLog`,
 // `ExternalDecisionPoint`, `ExternalCandidateFeatures`, `ExternalDecisionContext`).
-//
-// `ExternalCandidateFeatures::new` sorts and deduplicates consumed fact
-// references, and `ExternalDecisionPoint::new` sorts and deduplicates legal
-// candidates by `OptimizationCandidateIdentity` while verifying that any
-// `Choose(candidate)` action is in the legal candidate set. `write_point_row`
-// and `ExternalCandidateFeatures::write_row` emit the shared row bytes for both
-// wire (`CountFrame::Wire`) and canonical identity (`CountFrame::Canonical`)
-// encodings.
 
-mod codec;
 mod identity;
-#[cfg(test)]
-mod tests;
 
 use std::collections::BTreeSet;
 
@@ -68,17 +57,6 @@ impl ExternalDecisionPoint {
             legal_candidates,
             action,
         })
-    }
-
-    pub(super) fn write_row(&self, encoded: &mut Vec<u8>, frame: CountFrame) {
-        write_point_row(
-            self.input,
-            self.rule,
-            &self.legal_candidates,
-            self.action,
-            encoded,
-            frame,
-        );
     }
 }
 

@@ -151,8 +151,7 @@ fn callable_binders_distinguish_identity_defaults_from_authored_contracts() {
         let source = format!(
             "{declaration} Carrier<machine Selected> requires machine Selected(value: u64) -> u64; {ending}"
         );
-        let tokens = Lexer::new(&source).tokenize().unwrap();
-        let trees = crate::parse_syntax_trees(&tokens).expect("authored structural contract");
+        let trees = crate::tests::parse_source(&source);
         let parameters = match trees.root_items().next().unwrap() {
             Item::Data(data) => data.type_parameters,
             Item::TypeAlias(alias) => alias.type_parameters,

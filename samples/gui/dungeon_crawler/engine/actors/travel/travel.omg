@@ -1,87 +1,76 @@
-use actors\state\Actor;
-use actors\state\Position;
-use actors\state\Traversal;
-use actors\coordinates\step_x;
-use actors\coordinates\step_y;
-use world\rooms\Dungeon;
-use world\rooms\Exit;
-use world\rooms\exit_for;
-use world\rooms\tile_at;
-use configuration\ROOM_WIDTH;
-use configuration\ROOM_HEIGHT;
-use configuration\TILE_SIZE;
-use configuration\COLLIDER_RADIUS;
-use configuration\MAX_MOVEMENT_STEP;
-use configuration\ARRIVAL_INSET;
+use actors/coordinates/coordinates.omg;
+use actors/state/state.omg as actor_state;
+use configuration/configuration.omg;
+use world/rooms/rooms.omg;
 
-public machine move_actor<const Rooms: u64>(actor: Actor<Rooms>, dungeon: @Dungeon<Rooms>, direction: i32, key: bool) -> Actor<Rooms>
+public machine move_actor<const Rooms: u64>(actor: |actor_state|::Actor<Rooms>, dungeon: @|rooms|::Dungeon<Rooms>, direction: i32, key: bool) -> |actor_state|::Actor<Rooms>
 terminates
 requires Rooms >= 1 && actor.room < Rooms && direction >= -1 && direction < 4 {
     transition direction >= 0 && actor.active && actor.vitality.current > 0 {
         true -> moving(actor, dungeon, direction, key),
         _ -> (actor)
     }
-    machine moving(actor: Actor<Rooms>, dungeon: @Dungeon<Rooms>, direction: i32, key: bool) -> Actor<Rooms>
+    machine moving(actor: |actor_state|::Actor<Rooms>, dungeon: @|rooms|::Dungeon<Rooms>, direction: i32, key: bool) -> |actor_state|::Actor<Rooms>
     requires Rooms >= 1 && actor.room < Rooms && direction >= 0 && direction < 4 {
-        let x: i32 = step_x(actor.position, direction, actor.speed);
-        let y: i32 = step_y(actor.position, direction, actor.speed);
+        let x: i32 = |coordinates|::step_x(actor.position, direction, actor.speed);
+        let y: i32 = |coordinates|::step_y(actor.position, direction, actor.speed);
         resolve_step::<Rooms>(actor, dungeon, direction, key, x, y)
     }
 }
 
-machine resolve_step<const Rooms: u64>(actor: Actor<Rooms>, dungeon: @Dungeon<Rooms>, direction: i32, key: bool, x: i32, y: i32) -> Actor<Rooms>
+machine resolve_step<const Rooms: u64>(actor: |actor_state|::Actor<Rooms>, dungeon: @|rooms|::Dungeon<Rooms>, direction: i32, key: bool, x: i32, y: i32) -> |actor_state|::Actor<Rooms>
 terminates
 requires Rooms >= 1 && actor.room < Rooms && direction >= 0 && direction < 4
-    && x >= -MAX_MOVEMENT_STEP && x < ROOM_WIDTH + MAX_MOVEMENT_STEP
-    && y >= -MAX_MOVEMENT_STEP && y < ROOM_HEIGHT + MAX_MOVEMENT_STEP {
-    let crossing: bool = (direction == 0 && y <= COLLIDER_RADIUS) || (direction == 1 && x >= ROOM_WIDTH - COLLIDER_RADIUS - 1) || (direction == 2 && y >= ROOM_HEIGHT - COLLIDER_RADIUS - 1) || (direction == 3 && x <= COLLIDER_RADIUS);
+    && x >= - |configuration|::MAX_MOVEMENT_STEP && x < |configuration|::ROOM_WIDTH + |configuration|::MAX_MOVEMENT_STEP
+    && y >= - |configuration|::MAX_MOVEMENT_STEP && y < |configuration|::ROOM_HEIGHT + |configuration|::MAX_MOVEMENT_STEP {
+    let crossing: bool = (direction == 0 && y <= |configuration|::COLLIDER_RADIUS) || (direction == 1 && x >= |configuration|::ROOM_WIDTH - |configuration|::COLLIDER_RADIUS - 1) || (direction == 2 && y >= |configuration|::ROOM_HEIGHT - |configuration|::COLLIDER_RADIUS - 1) || (direction == 3 && x <= |configuration|::COLLIDER_RADIUS);
     transition crossing { true -> door(actor, dungeon, direction, key), _ -> inside(actor, dungeon, direction, key, x, y) }
-    machine door(actor: Actor<Rooms>, dungeon: @Dungeon<Rooms>, direction: i32, key: bool) -> Actor<Rooms>
+    machine door(actor: |actor_state|::Actor<Rooms>, dungeon: @|rooms|::Dungeon<Rooms>, direction: i32, key: bool) -> |actor_state|::Actor<Rooms>
     requires Rooms >= 1 && actor.room < Rooms && direction >= 0 && direction < 4 {
         let room: u64 = actor.room;
-        let exit: Exit<Rooms> = exit_for::<Rooms>(@dungeon.rooms[room], direction);
-        let tile: i32 = tile_at::<Rooms>(@dungeon.rooms[room], actor.position.x / TILE_SIZE, actor.position.y / TILE_SIZE, key);
+        let exit: |rooms|::Exit<Rooms> = |rooms|::exit_for::<Rooms>(@dungeon.rooms[room], direction);
+        let tile: i32 = |rooms|::tile_at::<Rooms>(@dungeon.rooms[room], actor.position.x / |configuration|::TILE_SIZE, actor.position.y / |configuration|::TILE_SIZE, key);
         transition tile == 3 && exit.open && (!exit.needs_key || key) {
             true -> (arrive::<Rooms>(actor, direction, exit)),
             _ -> (face::<Rooms>(actor, direction))
         }
     }
-    machine inside(actor: Actor<Rooms>, dungeon: @Dungeon<Rooms>, direction: i32, key: bool, x: i32, y: i32) -> Actor<Rooms>
+    machine inside(actor: |actor_state|::Actor<Rooms>, dungeon: @|rooms|::Dungeon<Rooms>, direction: i32, key: bool, x: i32, y: i32) -> |actor_state|::Actor<Rooms>
     requires Rooms >= 1 && actor.room < Rooms && direction >= 0 && direction < 4 {
-        transition x >= 0 && x < ROOM_WIDTH && y >= 0 && y < ROOM_HEIGHT {
+        transition x >= 0 && x < |configuration|::ROOM_WIDTH && y >= 0 && y < |configuration|::ROOM_HEIGHT {
             true -> terrain(actor, dungeon, direction, key, x, y),
             _ -> (face::<Rooms>(actor, direction))
         }
     }
-    machine terrain(actor: Actor<Rooms>, dungeon: @Dungeon<Rooms>, direction: i32, key: bool, x: i32, y: i32) -> Actor<Rooms>
-    requires Rooms >= 1 && actor.room < Rooms && direction >= 0 && direction < 4 && x >= 0 && x < ROOM_WIDTH && y >= 0 && y < ROOM_HEIGHT {
+    machine terrain(actor: |actor_state|::Actor<Rooms>, dungeon: @|rooms|::Dungeon<Rooms>, direction: i32, key: bool, x: i32, y: i32) -> |actor_state|::Actor<Rooms>
+    requires Rooms >= 1 && actor.room < Rooms && direction >= 0 && direction < 4 && x >= 0 && x < |configuration|::ROOM_WIDTH && y >= 0 && y < |configuration|::ROOM_HEIGHT {
         transition actor.traversal {
-            Traversal::Ground -> collision(actor, dungeon, direction, key, x, y),
-            Traversal::Air -> (locate::<Rooms>(actor, direction, Position { x: x, y: y }))
+            |actor_state|::Traversal::Ground -> collision(actor, dungeon, direction, key, x, y),
+            |actor_state|::Traversal::Air -> (locate::<Rooms>(actor, direction, |actor_state|::Position { x: x, y: y }))
         }
     }
-    machine collision(actor: Actor<Rooms>, dungeon: @Dungeon<Rooms>, direction: i32, key: bool, x: i32, y: i32) -> Actor<Rooms>
-    requires Rooms >= 1 && actor.room < Rooms && direction >= 0 && direction < 4 && x >= 0 && x < ROOM_WIDTH && y >= 0 && y < ROOM_HEIGHT {
+    machine collision(actor: |actor_state|::Actor<Rooms>, dungeon: @|rooms|::Dungeon<Rooms>, direction: i32, key: bool, x: i32, y: i32) -> |actor_state|::Actor<Rooms>
+    requires Rooms >= 1 && actor.room < Rooms && direction >= 0 && direction < 4 && x >= 0 && x < |configuration|::ROOM_WIDTH && y >= 0 && y < |configuration|::ROOM_HEIGHT {
         let room: u64 = actor.room;
-        let left: i32 = tile_at::<Rooms>(@dungeon.rooms[room], (x - COLLIDER_RADIUS) / TILE_SIZE, (y - COLLIDER_RADIUS) / TILE_SIZE, key);
-        let right: i32 = tile_at::<Rooms>(@dungeon.rooms[room], (x + COLLIDER_RADIUS) / TILE_SIZE, (y - COLLIDER_RADIUS) / TILE_SIZE, key);
-        let lower_left: i32 = tile_at::<Rooms>(@dungeon.rooms[room], (x - COLLIDER_RADIUS) / TILE_SIZE, (y + COLLIDER_RADIUS) / TILE_SIZE, key);
-        let lower_right: i32 = tile_at::<Rooms>(@dungeon.rooms[room], (x + COLLIDER_RADIUS) / TILE_SIZE, (y + COLLIDER_RADIUS) / TILE_SIZE, key);
+        let left: i32 = |rooms|::tile_at::<Rooms>(@dungeon.rooms[room], (x - |configuration|::COLLIDER_RADIUS) / |configuration|::TILE_SIZE, (y - |configuration|::COLLIDER_RADIUS) / |configuration|::TILE_SIZE, key);
+        let right: i32 = |rooms|::tile_at::<Rooms>(@dungeon.rooms[room], (x + |configuration|::COLLIDER_RADIUS) / |configuration|::TILE_SIZE, (y - |configuration|::COLLIDER_RADIUS) / |configuration|::TILE_SIZE, key);
+        let lower_left: i32 = |rooms|::tile_at::<Rooms>(@dungeon.rooms[room], (x - |configuration|::COLLIDER_RADIUS) / |configuration|::TILE_SIZE, (y + |configuration|::COLLIDER_RADIUS) / |configuration|::TILE_SIZE, key);
+        let lower_right: i32 = |rooms|::tile_at::<Rooms>(@dungeon.rooms[room], (x + |configuration|::COLLIDER_RADIUS) / |configuration|::TILE_SIZE, (y + |configuration|::COLLIDER_RADIUS) / |configuration|::TILE_SIZE, key);
         transition (left == 0 || left == 3) && (right == 0 || right == 3) && (lower_left == 0 || lower_left == 3) && (lower_right == 0 || lower_right == 3) {
-            true -> (locate::<Rooms>(actor, direction, Position { x: x, y: y })),
+            true -> (locate::<Rooms>(actor, direction, |actor_state|::Position { x: x, y: y })),
             _ -> (face::<Rooms>(actor, direction))
         }
     }
 }
 
-machine face<const Rooms: u64>(mutable actor: Actor<Rooms>, direction: i32) -> Actor<Rooms>
+machine face<const Rooms: u64>(mutable actor: |actor_state|::Actor<Rooms>, direction: i32) -> |actor_state|::Actor<Rooms>
 terminates
 requires Rooms >= 1 && direction >= 0 && direction < 4 {
     actor.facing = direction;
     actor
 }
 
-machine locate<const Rooms: u64>(mutable actor: Actor<Rooms>, direction: i32, position: Position) -> Actor<Rooms>
+machine locate<const Rooms: u64>(mutable actor: |actor_state|::Actor<Rooms>, direction: i32, position: |actor_state|::Position) -> |actor_state|::Actor<Rooms>
 terminates
 requires Rooms >= 1 && direction >= 0 && direction < 4 {
     actor.facing = direction;
@@ -89,21 +78,21 @@ requires Rooms >= 1 && direction >= 0 && direction < 4 {
     actor
 }
 
-machine arrive<const Rooms: u64>(actor: Actor<Rooms>, direction: i32, exit: Exit<Rooms>) -> Actor<Rooms>
+machine arrive<const Rooms: u64>(actor: |actor_state|::Actor<Rooms>, direction: i32, exit: |rooms|::Exit<Rooms>) -> |actor_state|::Actor<Rooms>
 terminates
 requires Rooms >= 1 && direction >= 0 && direction < 4 {
     let destination: u64 = exit.destination;
     transition destination < Rooms { true -> arrival(actor, direction, destination), _ -> (actor) }
-    machine arrival(actor: Actor<Rooms>, direction: i32, destination: u64) -> Actor<Rooms>
+    machine arrival(actor: |actor_state|::Actor<Rooms>, direction: i32, destination: u64) -> |actor_state|::Actor<Rooms>
     requires Rooms >= 1 && direction >= 0 && direction < 4 && destination < Rooms {
     transition direction {
-        0 -> install(actor, direction, destination, Position { x: actor.position.x, y: ROOM_HEIGHT - ARRIVAL_INSET - 2 }),
-        1 -> install(actor, direction, destination, Position { x: ARRIVAL_INSET, y: actor.position.y }),
-        2 -> install(actor, direction, destination, Position { x: actor.position.x, y: ARRIVAL_INSET }),
-        _ -> install(actor, direction, destination, Position { x: ROOM_WIDTH - ARRIVAL_INSET - 2, y: actor.position.y })
+        0 -> install(actor, direction, destination, |actor_state|::Position { x: actor.position.x, y: |configuration|::ROOM_HEIGHT - |configuration|::ARRIVAL_INSET - 2 }),
+        1 -> install(actor, direction, destination, |actor_state|::Position { x: |configuration|::ARRIVAL_INSET, y: actor.position.y }),
+        2 -> install(actor, direction, destination, |actor_state|::Position { x: actor.position.x, y: |configuration|::ARRIVAL_INSET }),
+        _ -> install(actor, direction, destination, |actor_state|::Position { x: |configuration|::ROOM_WIDTH - |configuration|::ARRIVAL_INSET - 2, y: actor.position.y })
     }
     }
-    machine install(mutable actor: Actor<Rooms>, direction: i32, destination: u64, position: Position) -> Actor<Rooms>
+    machine install(mutable actor: |actor_state|::Actor<Rooms>, direction: i32, destination: u64, position: |actor_state|::Position) -> |actor_state|::Actor<Rooms>
     requires Rooms >= 1 && direction >= 0 && direction < 4 && destination < Rooms {
         actor.room = destination;
         actor.facing = direction;

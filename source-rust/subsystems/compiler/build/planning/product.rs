@@ -42,7 +42,9 @@ impl PlannedProduct {
         let packages = self.package_inputs();
         let (defaults, native) = match packages {
             Some(inputs) => (
-                inputs.admitted_package_provider_selections(build_declarations::DependencyPurpose::Product)?,
+                inputs.admitted_package_provider_selections(
+                    build_declarations::DependencyPurpose::Product,
+                )?,
                 inputs.product_native_bindings()?,
             ),
             None => (Vec::new(), Vec::new()),
@@ -81,11 +83,47 @@ impl PlannedProduct {
                     .as_slice(),
             ),
         };
+        let mut bound_profiles = Vec::with_capacity(deployments.len());
+        let mut include_profile = |profile: TargetProfile| {
+            if !bound_profiles.contains(&profile) {
+                bound_profiles.push(profile);
+            }
+        };
+        for &profile in deployments {
+            include_profile(profile);
+        }
+        for binding in entries.iter() {
+            if let Some((owner, _)) = binding.slot.rsplit_once("::")
+                && let Ok(profile) = TargetProfile::from_root_slot_owner(owner)
+            {
+                include_profile(profile);
+            }
+        }
+        let configuration = &self.evaluated().configuration;
+        for selection in &configuration.product_selection_requests {
+            if selection.test_group.is_none()
+                && let Some(target) = selection.target
+                && let Ok(profile) =
+                    TargetProfile::from_canonical_target_name(target.canonical_name())
+            {
+                include_profile(profile);
+            }
+        }
+        for binding in &configuration.native_binding_requests {
+            if let Ok(profile) =
+                TargetProfile::from_canonical_target_name(binding.target.canonical_name())
+            {
+                include_profile(profile);
+            }
+        }
         Ok(ProductStage {
             product: self,
             entries,
             rollback: None,
-            targets: package_compilation::source_imports::source_targets(packages)?,
+            targets: package_compilation::source_imports::source_targets(
+                packages,
+                &bound_profiles,
+            )?,
             deployments: deployments
                 .iter()
                 .map(|target| target.target_name())
@@ -126,7 +164,8 @@ impl ProductStage<'_> {
         profile: TargetProfile,
         declaration_path: &str,
     ) -> Result<source_compiler::publication::ProducedBuildProvider, Vec<Diagnostic>> {
-        self.source().produce_build_provider(profile.target_name(), declaration_path)
+        self.source()
+            .produce_build_provider(profile.target_name(), declaration_path)
     }
 
     pub fn deployment_targets(&self) -> &[&'static str] {
@@ -245,9 +284,9 @@ impl ProductStage<'_> {
     /// Whether the Build binds a program entry for `profile`.
     fn binds_entry(&self, profile: TargetProfile) -> bool {
         let contract = profile.program_entry_slot().source_contract();
-        self.entries.iter().any(|entry| {
-            entry.slot.rsplit_once("::") == Some((contract.owner, contract.slot_name))
-        })
+        self.entries
+            .iter()
+            .any(|entry| entry.slot.rsplit_once("::") == Some((contract.owner, contract.slot_name)))
     }
 
     pub fn source(&self) -> StageSource<'_> {
@@ -313,9 +352,11 @@ impl ProductStage<'_> {
     pub(super) fn runtime_consent(
         &self,
         profile: TargetProfile,
-    ) -> Result<Option<&review_evidence::permission_acceptance::TerminalPermissionAcceptance>, Vec<Diagnostic>> {
-        self
-            .product
+    ) -> Result<
+        Option<&review_evidence::permission_acceptance::TerminalPermissionAcceptance>,
+        Vec<Diagnostic>,
+    > {
+        self.product
             .runtime_consents
             .as_ref()
             .map(|consents| {

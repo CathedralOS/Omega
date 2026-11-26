@@ -55,11 +55,9 @@ fn value_match_retains_subject_once_ordered_duplicate_arms_and_spans() {
 
 #[test]
 fn machine_tail_match_is_a_value_dispatch_not_source_transitions() {
-    let tokens =
-        Lexer::new("machine choose(value: i64) -> i64 { match value { 0 -> 7, _ -> value } }")
-            .tokenize()
-            .expect("tokens");
-    let trees = crate::parse_syntax_trees(&tokens).expect("tail value dispatch");
+    let trees = crate::tests::parse_source(
+        "machine choose(value: i64) -> i64 { match value { 0 -> 7, _ -> value } }",
+    );
     assert_eq!(
         trees
             .expressions
@@ -72,9 +70,9 @@ fn machine_tail_match_is_a_value_dispatch_not_source_transitions() {
 
 #[test]
 fn nested_initializer_match_retains_expression_local_dispatch() {
-    let tokens = Lexer::new("machine choose(value: i64) -> i64 { let result: i64 = match value { 0 -> match value { _ -> 7 }, _ -> value }; result }")
-        .tokenize().expect("tokens");
-    let trees = crate::parse_syntax_trees(&tokens).expect("nested initializer dispatch");
+    let trees = crate::tests::parse_source(
+        "machine choose(value: i64) -> i64 { let result: i64 = match value { 0 -> match value { _ -> 7 }, _ -> value }; result }",
+    );
     let machine = trees
         .root_items()
         .find_map(|item| match item {
@@ -144,7 +142,7 @@ fn dispatch_accepts_single_and_guarded_arms_with_optional_trailing_commas() {
         ] {
             let source =
                 format!("machine choose(value: Flag) -> i64 {{ {keyword} value {{ {arms} }} }}");
-            crate::tests::parse_source(&source, &source);
+            crate::tests::parse_source(&source);
         }
     }
 
@@ -152,7 +150,7 @@ fn dispatch_accepts_single_and_guarded_arms_with_optional_trailing_commas() {
         "machine f() { transition { ready(1, 2) -> {}, _ -> again(1, 2), } }",
         "machine f(a: Flag, b: i64) { transition (a, b) { (Flag { tag }, _) if tag -> again(), (_, _) -> {} } }",
     ] {
-        crate::tests::parse_source(source, source);
+        crate::tests::parse_source(source);
     }
 }
 
@@ -165,7 +163,7 @@ fn dispatch_rejects_missing_or_doubled_arm_commas_at_the_offending_token() {
         ] {
             let source =
                 format!("machine f(x: i64) -> i64 {{ {keyword} x {{ 1 -> 2{separator}_ -> 3 }} }}");
-            let error = crate::tests::parse_tokenized_error(&source, &source);
+            let error = crate::tests::parse_error(&source);
             crate::tests::expect_error(&error, expected_error);
             let following_arm = source.find("_ -> 3").unwrap();
             let offending_token = if separator.ends_with(',') {

@@ -956,10 +956,11 @@ impl<'t> Program<'t> {
                     })?;
             }
         }
-        if call.quotient_operation.is_some()
-            || call.layout_query.is_some()
-            || call.native_code_layout.is_some()
-        {
+        if let Some(request) = &call.quotient_operation {
+            return self
+                .quotient_operation_call(id, slots, handle, call, request, source, expected);
+        }
+        if call.layout_query.is_some() || call.native_code_layout.is_some() {
             return unserved("compiler operation call");
         }
         // Qualification names a declaration without supplying an extra
@@ -2883,7 +2884,11 @@ impl<'t> Program<'t> {
                         .and_then(|owner| self.typed.machine_by_symbol(*owner))
                         .and_then(|owner| self.typed.machine_parameter_contract_in(owner, target));
                     let Some(contract) = contract else {
-                        if self.typed.retained_static_machine_contract(target).is_some() {
+                        if self
+                            .typed
+                            .retained_static_machine_contract(target)
+                            .is_some()
+                        {
                             return Err(unserved(
                                 "static machine parameter outside its declaration scope",
                             ));

@@ -99,6 +99,7 @@ impl BuildObservationSummary {
         );
         for settlement in self.required_output_settlements() {
             digest.bytes(settlement.relative_path());
+            digest.bytes(&settlement.staged_file);
             digest.u64(settlement.sealed_attempt_ordinal());
         }
         for retained in [self.staged_output_tree(), self.product_source_tree()] {

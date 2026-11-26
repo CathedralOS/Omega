@@ -4,7 +4,6 @@ machine build(plan: @mutable BuildPlan) {
     let mutable members: WorkspaceMembers = WorkspaceMembers {};
     members = |workspace|::with_member(plan, members, "source/library/system");
     members = |workspace|::with_member(plan, members, "source/library/allocation");
-    members = |workspace|::with_member(plan, members, "source/library/simd");
     members = |workspace|::with_member(plan, members, "source/foundation/wire");
     members = |workspace|::with_member(plan, members, "source/subsystems/compiler/source_to_psi");
     members = |workspace|::with_member(plan, members, "source/subsystems/compiler/alpha");

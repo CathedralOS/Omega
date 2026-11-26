@@ -1,5 +1,6 @@
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // rotor_byte_rows: a wiring lookup's `ensures result < 26` survives widening
 // into the shift that sets one live wire.
 //
@@ -11,7 +12,6 @@ use omega\language\core\ProcessExit;
 // Expected exit: 0
 // Expected output contains: 16
 
-use system\Console;
 
 data Main {
     wiring: [[u8; 26]; 3];
@@ -31,8 +31,8 @@ machine wiring_at(wiring: @[[u8; 26]; 3], rotor: i32, letter: i32) -> u8
     }
 }
 
-machine Main::main(main: @mutable Main) reaches ProcessExit + StandardOutput {
-    Console::write_line("rotor_byte_rows: ensured wiring byte widens into a live-wire shift");
+machine Main::main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
+    |console|::Console::write_line("rotor_byte_rows: ensured wiring byte widens into a live-wire shift");
     main.wiring = [
         [4, 10, 12, 5, 11, 6, 3, 16, 21, 25, 13, 19, 14, 22, 24, 7, 23, 20, 18, 15, 0, 8, 1, 17, 2, 9],
         [0, 9, 3, 10, 18, 8, 17, 20, 23, 1, 11, 7, 22, 19, 12, 2, 16, 6, 25, 13, 15, 24, 5, 21, 14, 4],
@@ -48,18 +48,18 @@ machine Main::main(main: @mutable Main) reaches ProcessExit + StandardOutput {
     }
 
     machine pass(main: @mutable Main) {
-        Console::write_line("16");
-        ProcessExit::exit_process(0);
+        |console|::Console::write_line("16");
+        |process_exit|::ProcessExit::exit_process(0);
     }
 
     machine fail(main: @mutable Main) {
-        Console::write_line("FAIL");
-        ProcessExit::exit_process(1);
+        |console|::Console::write_line("FAIL");
+        |process_exit|::ProcessExit::exit_process(1);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     Main::main(@mutable entry_storage);
 }
