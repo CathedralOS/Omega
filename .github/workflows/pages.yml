@@ -1,6 +1,6 @@
 name: Pages
 
-# Publish the language book and preserve the existing /atlas/ URLs from the archived static site.
+# Publish the language book at the site root.
 on:
   push:
     branches: [main]
@@ -29,21 +29,14 @@ jobs:
         with:
           sparse-checkout: |
             wiki/learn
-            _recycling/tools/atlas
       - id: pages
         uses: actions/configure-pages@v5
       - name: Stage Pages site
         run: |
-          mkdir -p _site/learn
+          mkdir -p _site
           for item in index.html styles.css book.js fonts assets; do
             cp -r "wiki/learn/$item" "_site/$item"
-            cp -r "wiki/learn/$item" "_site/learn/$item"
           done
-          # The atlas is static already: its landing page, its pages and the
-          # design kit they load (tokens, fonts, component styles).
-          mkdir -p _site/atlas
-          cp _recycling/tools/atlas/index.html _site/atlas/
-          cp -r _recycling/tools/atlas/pages _recycling/tools/atlas/design _site/atlas/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
