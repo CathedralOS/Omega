@@ -460,3 +460,36 @@ machine build_entry() { let t: u64 = encode_ticks(0i64); }
         "{verdict:?}"
     );
 }
+
+#[test]
+fn a_copied_cut_keeps_its_exact_size_when_recombining_returned_lengths() {
+    use super::build_purpose::judge_build;
+
+    let program = |cut, copy, limit| {
+        format!(
+            "machine build_entry(total: u64, cut: u64, tail: u64, rest: u64, \
+         copied: u64, suffix: u64)
+         requires total == 16, {cut}, tail == total - cut, rest == tail - cut,
+             {copy}, embed(suffix) == embed(copied) + embed(rest)
+         ensures embed(cut) + embed(suffix) <= {limit} {{}}"
+        )
+    };
+    for cut in ["cut == 4", "embed(cut) == 4"] {
+        for (copy, limit, expected) in [
+            ("copied == cut", 16, true),
+            ("copied == cut", 15, false),
+            ("copied == 9", 16, false),
+        ] {
+            let result = judge_build(&program(cut, copy, limit)).unwrap();
+            match (result, expected) {
+                (RouteVerdict::Accepted(checked), true) => {
+                    checked.publish_invocation().unwrap();
+                }
+                (RouteVerdict::Rejected { unproved, .. }, false) => {
+                    assert!(!unproved.is_empty());
+                }
+                (verdict, _) => panic!("{cut}, {copy}, {limit}: {verdict:?}"),
+            }
+        }
+    }
+}

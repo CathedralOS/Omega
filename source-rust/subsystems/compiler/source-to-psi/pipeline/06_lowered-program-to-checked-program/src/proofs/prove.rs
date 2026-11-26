@@ -4038,10 +4038,20 @@ impl<'a> Prover<'a> {
                 integer,
                 direction,
                 best.as_ref().map(|bound| bound.literal),
-            ) && best.as_ref().is_none_or(|current| {
-                direction.prefers(integer.compare(next.literal, current.literal))
-            }) {
-                best = Some(next);
+            ) {
+                if best.as_ref().is_none_or(|current| {
+                    direction.prefers(integer.compare(next.literal, current.literal))
+                }) {
+                    best = Some(next);
+                }
+                // A direct equality supplies the exact literal. Following
+                // aliases past it can cache a provisional bound for a caller.
+                if matches!(
+                    self.facts[index].proposition(),
+                    Proposition::Equal(..) | Proposition::IntegerMathEqual(..)
+                ) {
+                    return best;
+                }
             }
         }
         self.bounds.get_mut(value)?[direction.index()] = Slot::InProgress(best.clone());
@@ -4187,9 +4197,17 @@ impl<'a> Prover<'a> {
                     ),
                 })
             }
+            (Proposition::IntegerMathEqual(left, right), _)
+                if matches!(left, IntegerMathTerm::IntegerLiteral(_))
+                    || matches!(right, IntegerMathTerm::IntegerLiteral(_)) =>
+            {
+                // This expression has a closed endpoint, so its bound can be
+                // built before any neighboring value's bounds are inspected.
+                self.bound_from_fact(index, subject, integer, direction, current)
+            }
             (Proposition::Equal(left, right), _)
-                if (left == subject && improves(right, false))
-                    || (right == subject && improves(left, false)) =>
+                if (left == subject && right.integer_value().is_some())
+                    || (right == subject && left.integer_value().is_some()) =>
             {
                 // Orient the equality so the weakened `<=` points the right way.
                 let proof = fact_proof_for_literal_bound(&self.facts, index, self.activity);
