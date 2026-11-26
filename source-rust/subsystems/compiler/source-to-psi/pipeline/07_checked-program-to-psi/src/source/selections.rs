@@ -233,9 +233,7 @@ mod tests {
             let tokens = crate::frontend_fixture::Lexer::new(text)
                 .tokenize()
                 .unwrap();
-            let syntax =
-                crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens)
-                    .unwrap();
+            let syntax = crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
             let mut request = crate::resolution::ResolutionRequest::new(syntax);
             request.sources = Some(Arc::new(sources));
             let resolved = crate::resolution::resolve(request).unwrap();
@@ -347,8 +345,7 @@ mod tests {
         let tokens = crate::frontend_fixture::Lexer::new(text)
             .tokenize()
             .unwrap();
-        let syntax =
-            crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
+        let syntax = crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
         let mut request = crate::resolution::ResolutionRequest::new(syntax);
         request.sources = Some(Arc::clone(&sources));
         let resolved = crate::resolution::resolve(request).unwrap();

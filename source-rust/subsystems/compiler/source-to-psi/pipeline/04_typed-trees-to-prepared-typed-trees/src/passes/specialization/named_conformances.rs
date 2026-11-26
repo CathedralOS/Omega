@@ -235,6 +235,7 @@ fn copy_member(
         }
         operands.push(operand);
     }
+    Operand::require_nominal_callbacks(program, parameters, &operands, supplier)?;
     let copied = copy_declarations(program, declared, &operands)?;
     let mut declarations = Vec::with_capacity(copied.originals.len());
     for (source, state) in &copied.originals {

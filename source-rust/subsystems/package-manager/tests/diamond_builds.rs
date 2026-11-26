@@ -13,13 +13,18 @@ fn package(root: &Path, name: &str, dependencies: &[&str]) {
     let mut body = format!("Build::package(builder, \"{name}\");\n");
     for dependency in dependencies {
         body.push_str(&format!(
-            r#"let {dependency}_request: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path {{ location: "../{dependency}" }}));
+            r#"let {dependency}_request: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {{ location: "../{dependency}" }}));
 "#
         ));
     }
+    let import = if dependencies.is_empty() {
+        ""
+    } else {
+        "use {omega}/build/dependency.omg;\n"
+    };
     fs::write(
         directory.join("build.omg"),
-        format!("machine build(builder: @mutable Build) {{\n{body}}}"),
+        format!("{import}machine build(builder: @mutable Build) {{\n{body}}}"),
     )
     .unwrap();
     fs::write(

@@ -1,8 +1,10 @@
 // dual_accumulator_recursion build file.
 
+use {omega}/build/dependency.omg;
+
 machine build(builder: @mutable Build) {
     Build::application(builder, "dual_accumulator_recursion");
-    let system_registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path {
+    let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {
         location: "../../../../source/library/system"
     }));
     Build::bind(builder, windows_x86_64\ProgramEntry, entry_start);

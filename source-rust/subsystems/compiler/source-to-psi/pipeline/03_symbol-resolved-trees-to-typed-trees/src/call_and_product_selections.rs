@@ -150,6 +150,7 @@ pub(crate) mod build_selections {
             .collect::<Vec<_>>();
         use language_core::build_protocol::SelectionProtocolOperation as Protocol;
         let operation = match (&request, arguments.len()) {
+            (BuildSelectionRequest::Service { .. }, 1) => Protocol::DescribeService,
             (BuildSelectionRequest::ProviderReadiness(_), 1) => Protocol::AwaitProvider,
             (BuildSelectionRequest::Exclusion(_), 2) => Protocol::Exclude,
             (BuildSelectionRequest::Entry(binding), 1)
@@ -3939,7 +3940,10 @@ pub(crate) mod product_selections {
         ))
         .with_source_span(span));
         }
-        let requirement = if operation == BuildOperation::ProviderReadiness {
+        let requirement = if matches!(
+            operation,
+            BuildOperation::ProviderReadiness | BuildOperation::ServiceDescription
+        ) {
             let operand =
                 lower_static_machine_argument(Some(source), typed, exposure, &operands[0])?;
             let reference = typed
@@ -3951,7 +3955,7 @@ pub(crate) mod product_selections {
                 .iter()
                 .any(|definition| definition.symbol == requirement && definition.is_boundary)
             {
-                return Err(Diagnostic::error("provider readiness requires an exact boundary requirement in the supplied Build sources")
+                return Err(Diagnostic::error("Build selection requires an exact boundary service in the supplied Build sources")
                 .with_source_span(span));
             }
             Some(reference)
@@ -4074,7 +4078,14 @@ pub(crate) mod product_selections {
             }
         }
         inputs.dedup();
-        let request = if let Some(requirement) = requirement {
+        let request = if let Some(requirement) = requirement
+            && operation == BuildOperation::ServiceDescription
+        {
+            BuildSelectionRequest::Service {
+                source_span: span,
+                requirement,
+            }
+        } else if let Some(requirement) = requirement {
             BuildSelectionRequest::ProviderReadiness(
                 declaration_selection::ProviderReadinessRequest {
                     source_span: span,

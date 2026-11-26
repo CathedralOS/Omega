@@ -4,9 +4,9 @@
 
 use crate::source_state::FrozenTypedTrees;
 use checked_program::CheckedProgram;
-use terminal_check_tables::program::Elaboration;
 use diagnostics::Diagnostic;
 use std::sync::Arc;
+use terminal_check_tables::program::Elaboration;
 
 #[derive(Debug)]
 pub struct AcceptedTerminalSource {
@@ -16,7 +16,7 @@ pub struct AcceptedTerminalSource {
     requirement_reviews: Vec<lowered_source_publication::RequirementReview>,
     generic_callables: Vec<(symbols::SymbolHandle, Arc<Elaboration>)>,
     publication: terminal_codec::TerminalPublication,
-    pub(crate) package_review_numeric: crate::package_review::NumericReviewInventory,
+    pub(crate) package_review_numeric: crate::source::package_review::NumericReviewInventory,
 }
 
 /// The checked module and the owned declarations, source locations and Build
@@ -24,9 +24,9 @@ pub struct AcceptedTerminalSource {
 pub struct PreparedTerminalPublication {
     kind: terminal_codec::TerminalPublication,
     module: checked_program::CheckedPublicationModule,
-    selections: crate::source_selection_publication::PreparedSelections,
+    selections: crate::source::selection_publication::PreparedSelections,
     provenance: psi_publication_records::TerminalMachineProvenance,
-    companions: crate::build_companions::BuildCompanions,
+    companions: crate::build::companions::BuildCompanions,
     source_records: Vec<crate::source_state::SourceRecordCorrespondence>,
 }
 
@@ -86,7 +86,7 @@ impl PreparedTerminalPublication {
         let applications = applications
             .iter()
             .map(|application| {
-                crate::application::attach(
+                crate::production::application::attach(
                     application,
                     program.view(),
                     program.portable(),
@@ -95,7 +95,7 @@ impl PreparedTerminalPublication {
                 )
             })
             .collect();
-        crate::build_bindings::validate_companions(
+        crate::build::bindings::validate_companions(
             program.view(),
             &companions.bindings,
             &companions.queries,
@@ -110,8 +110,7 @@ impl PreparedTerminalPublication {
             companions.queries,
             companions.native_formations,
         );
-        let build_requests =
-            crate::TerminalBuildRequests::new(program.view(), companions.requests);
+        let build_requests = crate::TerminalBuildRequests::new(program.view(), companions.requests);
         let build_filesystem =
             crate::TerminalBuildFilesystem::new(program.view(), companions.filesystem);
         Ok(crate::ProducedTerminalProgram {
@@ -399,6 +398,68 @@ impl AcceptedTerminalSource {
         &self.correspondence().calls
     }
 
+    /// Join the loader's actual package edge to the lowered call. The same
+    /// declaration may be named through several distinct requester-local aliases.
+    pub(crate) fn dependency_calls(
+        &self,
+    ) -> semantic_vocabulary::dependency_reach::DependencyCallOrigins {
+        use crate::source_state::{
+            SourceNode,
+            expression::ExpressionNode,
+            statement::{StatementNode, TransitionTargetNode},
+        };
+        use semantic_vocabulary::{CallableInvocationSite, dependency_reach::DependencyCallOrigin};
+        let typed = self.source();
+        let mut origins = semantic_vocabulary::dependency_reach::DependencyCallOrigins::new();
+        for call in self.emitted_source_calls() {
+            let (path, span) = match call.source {
+                SourceNode::Expression(expression) => {
+                    let ExpressionNode::Call(node) = typed.expression_table.expression(expression)
+                    else {
+                        continue;
+                    };
+                    (
+                        node.target.as_str(),
+                        typed.expression_table.source_span(expression),
+                    )
+                }
+                SourceNode::Statement(statement) => {
+                    match typed.statement_table.statement(statement) {
+                        StatementNode::Call(node) => (node.target.as_str(), node.source_span),
+                        StatementNode::Transition(transition) => {
+                            let TransitionTargetNode::Named {
+                                path, source_span, ..
+                            } = typed.statement_table.transition_target(transition.target)
+                            else {
+                                continue;
+                            };
+                            let Some(first) = typed
+                                .statement_table
+                                .name_path_members(path.members)
+                                .first()
+                            else {
+                                continue;
+                            };
+                            (first.as_str(), *source_span)
+                        }
+                        _ => continue,
+                    }
+                }
+            };
+            if let Some((alias, package)) = typed.symbols.dependency_file_use(span.source_id, path)
+            {
+                origins
+                    .entry((call.machine, CallableInvocationSite::Invocation(call.site)))
+                    .or_default()
+                    .insert(DependencyCallOrigin {
+                        alias: alias.to_owned(),
+                        package,
+                    });
+            }
+        }
+        origins
+    }
+
     /// Capture the selections and source coordinates while their typed owner is
     /// available. Publishing the resulting module no longer reads that owner.
     pub fn prepare_publication(
@@ -411,7 +472,7 @@ impl AcceptedTerminalSource {
             ))]
         })?;
         let elaboration = self.closure.elaboration();
-        let selections = crate::source_selection_publication::prepare(
+        let selections = crate::source::selection_publication::prepare(
             self,
             module.module(),
             invocation_sources,
@@ -436,7 +497,7 @@ impl AcceptedTerminalSource {
             Some(entry) => provenance.for_root(&elaboration.module, entry, None),
             None => provenance,
         };
-        let companions = crate::build_companions::produce(self, module.module())
+        let companions = crate::build::companions::produce(self, module.module())
             .map_err(|diagnostic| vec![diagnostic])?;
         Ok(PreparedTerminalPublication {
             kind: self.publication,
@@ -953,10 +1014,21 @@ mod tests {
         let reopened =
             terminal_codec::CanonicalTerminalArtifact::from_bytes(&published.to_bytes()).unwrap();
         assert_eq!(reopened.view().identity(), expected);
-        assert!(reopened.publication_metadata().unwrap().has_bound_applications());
-        assert_eq!(reopened.publication_metadata(), published.publication_metadata());
+        assert!(
+            reopened
+                .publication_metadata()
+                .unwrap()
+                .has_bound_applications()
+        );
+        assert_eq!(
+            reopened.publication_metadata(),
+            published.publication_metadata()
+        );
         assert_eq!(reopened.published_evidence().unwrap().module, expected);
-        assert_eq!(reopened.published_evidence(), published.published_evidence());
+        assert_eq!(
+            reopened.published_evidence(),
+            published.published_evidence()
+        );
     }
 
     fn contract_fixture(
@@ -984,8 +1056,7 @@ mod tests {
         let tokens = crate::frontend_fixture::Lexer::new(&text)
             .tokenize()
             .unwrap();
-        let syntax =
-            crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
+        let syntax = crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
         let resolved = crate::resolution::resolve(crate::resolution::ResolutionRequest {
             syntax,
             sources: Some(Arc::new(sources)),

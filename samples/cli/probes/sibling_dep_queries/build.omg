@@ -2,8 +2,10 @@
 // `Build::dependency(builder, dependency\from_source(Source::Path { location: "dependency" }))`
 // composes `query_dependency`; its machines import as
 // `use query_dependency\value`.
+use {omega}/build/dependency.omg;
+
 machine build(builder: @mutable Build) {
     Build::application(builder, "sibling_dep_queries");
-    let dependency_registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "dependency" }));
+    let dependency_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "dependency" }));
     Build::bind(builder, linux_x86_64\ProgramEntry, entry_start);
 }

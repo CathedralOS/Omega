@@ -1,6 +1,8 @@
+use {omega}/build/dependency.omg;
+
 machine build(builder: @mutable Build) {
     Build::application(builder, "registered_process_exit");
-    let exit_adapter: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "exit_adapter" }));
+    let exit_adapter: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "exit_adapter" }));
     Build::bind(builder, linux_x86_64\ProgramEntry, main);
     Build::bind(builder, linux_arm64\ProgramEntry, main);
     Build::bind(builder, macos_arm64\ProgramEntry, main);

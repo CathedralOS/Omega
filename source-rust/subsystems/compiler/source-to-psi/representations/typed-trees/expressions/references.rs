@@ -2152,6 +2152,7 @@ impl TypedReferences for TypeOccurrences {
                 .build_selection_request(call.build_selection)
             {
                 Some(BuildSelectionRequest::ProviderReadiness(request)) => request.requirement,
+                Some(BuildSelectionRequest::Service { requirement, .. }) => *requirement,
                 _ => Default::default(),
             };
             for reference in [call.requirement_application, readiness] {
@@ -4129,11 +4130,17 @@ fn visit_call_expression(
     if call.requirement_application.is_valid() {
         visit_type_reference(program, retained, call.requirement_application);
     }
-    if let Some(BuildSelectionRequest::ProviderReadiness(request)) = program
+    match program
         .expression_table
         .build_selection_request(call.build_selection)
     {
-        visit_type_reference(program, retained, request.requirement);
+        Some(BuildSelectionRequest::ProviderReadiness(request)) => {
+            visit_type_reference(program, retained, request.requirement)
+        }
+        Some(BuildSelectionRequest::Service { requirement, .. }) => {
+            visit_type_reference(program, retained, *requirement)
+        }
+        _ => {}
     }
     if let Some(dispatch) = &call.static_requirement_dispatch {
         visit_static_requirement_dispatch(retained, dispatch);

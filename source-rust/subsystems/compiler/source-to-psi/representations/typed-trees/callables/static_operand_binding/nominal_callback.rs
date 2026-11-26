@@ -2,17 +2,43 @@ use super::{Served, Stop, unserved};
 use crate::{TypedTrees, data::TypeParameterKind, trait_definition::{AppliedTraitScope, TraitApplicationArguments}, types::TypeReferenceHandle};
 use symbols::SymbolHandle;
 
+/// The receiving trait application a nominal callback is judged against.
+pub(super) struct Receiving<'arguments> {
+    pub(super) parameter: SymbolHandle,
+    pub(super) requirement: SymbolHandle,
+    pub(super) receiving_trait: SymbolHandle,
+    pub(super) arguments: &'arguments [TypeReferenceHandle],
+}
+
 /// A nominal parameter selects its requirement on the exact receiving trait
 /// application. A machine with the same signature can satisfy another trait.
+/// The receiving application is read as this call instantiates it, so
+/// `ElementStep<Element>` asks for `ElementStep<Command>` when the same call
+/// binds `Element` to `Command`.
 pub(super) fn require_nominal_selection(
     program: &TypedTrees,
-    parameter: SymbolHandle,
+    receiving: Receiving<'_>,
     chosen: SymbolHandle,
-    requirement: SymbolHandle,
-    receiving: SymbolHandle,
-    arguments: &[TypeReferenceHandle],
+    supplying_owner: SymbolHandle,
+    bindings: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> Served<()> {
-    let required = receiving_scope(program, parameter, receiving, arguments)?;
+    let Receiving {
+        parameter,
+        requirement,
+        receiving_trait: receiving,
+        arguments,
+    } = receiving;
+    let required = receiving_scope(program, parameter, receiving, arguments)?
+        .under_invocation(
+            program,
+            program.symbols.get(parameter).parent,
+            supplying_owner,
+            bindings,
+            &[],
+        )
+        .ok_or(unserved(
+            "a nominal callback binder needs its call's static arguments",
+        ))?;
     let matches = |scope: &AppliedTraitScope<'_>| scope.same_application(program, &required);
     if program.symbols.get(chosen).kind == symbols::SymbolKind::MachineParameter {
         let owner = program.symbols.get(chosen).parent;

@@ -694,6 +694,7 @@ fn specialize_application(
             supplying_owner,
         )?);
     }
+    Operand::require_nominal_callbacks(program, parameters, &operands, supplying_owner)?;
     // Explicit groups keep the original callable's formals and the caller's
     // supplying scope. Authenticate that relation before copying; absent groups
     // still leave ordinary invocation lifetime inference to the call checker.
@@ -1120,6 +1121,7 @@ fn bound_arguments(
         }
         operands.push(operand);
     }
+    Operand::require_nominal_callbacks(program, parameters, &operands, supplying_owner)?;
     Ok(operands)
 }
 

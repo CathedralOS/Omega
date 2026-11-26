@@ -2,15 +2,17 @@
 // the shared dep and call `shared\seed()` in build scope after preparing it.
 // Controls beside this sample interleave divergent siblings into the pool.
 
+use {omega}/build/dependency.omg;
+
 machine build(builder: @mutable Build) {
     Build::application(builder, "build_sibling_divergent_build");
-    let mutable a_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "sibling_a" });
-    dependency\with_alias(@mutable a_dependency, "a");
+    let mutable a_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "sibling_a" });
+    |dependency|::with_alias(@mutable a_dependency, "a");
     let a_registration: DependencyRegistration = Build::dependency(builder, a_dependency);
-    let mutable c_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "sibling_c" });
-    dependency\with_alias(@mutable c_dependency, "c");
+    let mutable c_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "sibling_c" });
+    |dependency|::with_alias(@mutable c_dependency, "c");
     let c_registration: DependencyRegistration = Build::dependency(builder, c_dependency);
-    let mutable e_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "sibling_e" });
-    dependency\with_alias(@mutable e_dependency, "e");
+    let mutable e_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "sibling_e" });
+    |dependency|::with_alias(@mutable e_dependency, "e");
     let e_registration: DependencyRegistration = Build::dependency(builder, e_dependency);
 }

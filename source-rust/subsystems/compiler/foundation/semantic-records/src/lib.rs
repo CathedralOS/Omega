@@ -20,6 +20,7 @@ pub use self::declaration_contracts::{
 };
 mod declaration_descriptions;
 pub use declaration_descriptions::{FieldInfoDescription, ParameterDescription};
+pub mod dependency_reach;
 pub mod provider_identity;
 
 pub mod identity_encoding;

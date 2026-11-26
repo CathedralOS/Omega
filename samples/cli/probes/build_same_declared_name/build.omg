@@ -3,12 +3,14 @@
 // the alias is what selects each occurrence. Both declarations land
 // as distinct dependency occurrences.
 
+use {omega}/build/dependency.omg;
+
 machine build(builder: @mutable Build) {
     Build::application(builder, "build_same_declared_name");
-    let mutable k1_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "dep_one" });
-    dependency\with_alias(@mutable k1_dependency, "k1");
+    let mutable k1_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "dep_one" });
+    |dependency|::with_alias(@mutable k1_dependency, "k1");
     let k1_registration: DependencyRegistration = Build::dependency(builder, k1_dependency);
-    let mutable k2_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "dep_two" });
-    dependency\with_alias(@mutable k2_dependency, "k2");
+    let mutable k2_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "dep_two" });
+    |dependency|::with_alias(@mutable k2_dependency, "k2");
     let k2_registration: DependencyRegistration = Build::dependency(builder, k2_dependency);
 }

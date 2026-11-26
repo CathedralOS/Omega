@@ -267,7 +267,10 @@ machine build(builder: @mutable Build) suspends {
 }
 "#;
     let product_only = r#"use {scores}/value.omg as scores;
+use {omega}/build/dependency.omg as dependencies;
 machine build(builder: @mutable Build) {
+    let kit: DependencyDescription = |dependencies|::from_source(Source::Path { location: "lib" });
+    _ = Build::dependency(builder, kit);
     Build::bind(builder, linux_x86_64\ProgramEntry, |scores|::main);
 }
 "#;

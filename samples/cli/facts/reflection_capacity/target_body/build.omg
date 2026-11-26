@@ -1,5 +1,7 @@
+use {omega}/build/dependency.omg;
+
 machine build(builder: @mutable Build) {
-    let system_registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "../../../../../source/library/system" }));
+    let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../../../../../source/library/system" }));
     Build::application(builder, "reflection_capacity");
     Build::select_provider::<Measure, WindowsMeasure>(builder, windows_x86_64);
     Build::select_provider::<Measure, LinuxX86Measure>(builder, linux_x86_64);

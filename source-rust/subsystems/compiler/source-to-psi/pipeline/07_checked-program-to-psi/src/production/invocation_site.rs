@@ -1,5 +1,5 @@
 //! Authenticate the generated caller, its source call and the emitted site before releasing the trees.
-use super::{AcceptedTerminalSource, ProducedTerminalProgram};
+use crate::{AcceptedTerminalSource, ProducedTerminalProgram};
 use semantic_vocabulary::{InvocationSite, MachineId};
 use std::sync::Arc;
 use symbols::SymbolHandle;

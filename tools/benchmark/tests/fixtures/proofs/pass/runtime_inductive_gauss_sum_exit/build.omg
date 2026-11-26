@@ -1,8 +1,10 @@
 // Deployable native canary: every hosted target selects its exact entry.
 
+use {omega}/build/dependency.omg;
+
 machine build(builder: @mutable Build) {
     Build::application(builder, "runtime_inductive_gauss_sum_exit");
-    let system_registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "../../../../../../../source/library/system" }));
+    let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../../../../../../../source/library/system" }));
     Build::select_provider::<system\Console, system\LinuxArm64Console>(builder, linux_arm64);
     Build::select_provider::<system\Console, system\LinuxX86Console>(builder, linux_x86_64);
     Build::select_provider::<system\Console, system\DarwinArm64Console>(builder, macos_arm64);

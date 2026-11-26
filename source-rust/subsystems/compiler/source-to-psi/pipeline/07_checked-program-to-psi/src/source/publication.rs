@@ -45,7 +45,11 @@ impl SourcePublication {
                 "source publication requires the checked product roster",
             )]
         })?;
-        let optimizations = accepted.closure().optimization().map(|record| record.selections().clone()).unwrap_or_default();
+        let optimizations = accepted
+            .closure()
+            .optimization()
+            .map(|record| record.selections().clone())
+            .unwrap_or_default();
         let mut publication = Self::new(optimizations);
         publication.accepted = Some((Arc::new(accepted), roster));
         Ok(publication)
@@ -115,9 +119,8 @@ impl SourcePublication {
         let accepted = self.accepted()?;
         timings.record_result(artifacts::compile_timings::source::CHECK_SELECTIONS, || {
             let module = accepted.module();
-            let selections =
-                crate::source_selection_publication::prepare(accepted, module, None)
-                    .map_err(|diagnostic| vec![diagnostic])?;
+            let selections = crate::source::selection_publication::prepare(accepted, module, None)
+                .map_err(|diagnostic| vec![diagnostic])?;
             psi_authorization::selection_questions::admit_selection_questions(
                 module,
                 &selections.questions,

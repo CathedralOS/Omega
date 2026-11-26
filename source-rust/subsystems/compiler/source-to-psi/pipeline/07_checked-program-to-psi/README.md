@@ -1,10 +1,10 @@
 # 07 - Checked program to Psi
 
-Public contract: [Terminal Psi product](../../../../wiki/spec/terminal-psi/product.md).
+Public contract: [Terminal Psi product](../../../../../../wiki/spec/terminal-psi/product.md).
 
 The [source driver](../../driver/judge_lowered_source.rs) lowers the frozen
 source, then passes that input to the lowered-form checker. The
-[accepted-source factory](src/accepted.rs) receives the verdicts and source
+[accepted-source factory](src/production/accepted.rs) receives the verdicts and source
 correspondence of that one compilation. It publishes the module and its evidence, then binds the emitted Build request
 rows, source-record correspondence and application roots to that code owner.
 Its structural reading refuses unserved selection, query, native-formation and
@@ -28,13 +28,22 @@ and the Lowered Psi, optimization and publication wrappers. Missing
 capabilities belong on the lowered-form route; no old checker supplies a
 fallback artifact.
 
-[src/lib.rs](src/lib.rs) exposes the production and application contracts.
-[custody.rs](src/custody.rs) keeps code, evidence, companions and source
-correspondence for portable reuse and invocation-local production.
-Companion records are in [build_bindings.rs](src/build_bindings.rs). For native compilation, stage 07 publishes the checked provider demand and completed Build bindings for the exact Psi manifest and deployment target. Native stage 00 verifies both before consuming the record. [Published target providers](../../representations/published-target-providers/publication.rs)
+## Code map
+
+[src/lib.rs](src/lib.rs) remains the public entrance. Its reexports keep callers
+independent of these private implementation groups:
+
+| Group | Responsibility |
+| --- | --- |
+| [Production](src/production/mod.rs) | Receive the checked source judgment, publish its code and evidence, retain custody, and attach application and invocation identities. Start at [accepted.rs](src/production/accepted.rs). |
+| [Build](src/build/mod.rs) | Publish companion rows for accepted Build calls and identify the checked host receiver. [bindings.rs](src/build/bindings.rs) defines the retained records; [companions.rs](src/build/companions.rs) fills them. |
+| [Source](src/source/mod.rs) | Retain source selections, publish one shared source artifact, issue entry metadata, and record the source's numeric review requirements. |
+| [Provider supply](src/provider_supply/mod.rs) | Close and publish the checked demand for a deployment target using the existing [provider choice inputs](src/provider_choice_inputs.rs). |
+
+For native compilation, stage 07 publishes the checked provider demand and completed Build bindings for the exact Psi manifest and deployment target. Native stage 00 verifies both before consuming the record. [Published target providers](../../representations/published-target-providers/publication.rs)
 
 The [entry receipt](../../../psi/artifact/codec/src/entry_receipt.rs) binds the selected
 Unit declaration to the canonical artifact. Both source publication and native
 preparation [attach application roots](../../../psi/artifact/codec/src/entry_receipt/application.rs)
-to the current execution view. [Source publication](src/application.rs) records
+to the current execution view. [Source publication](src/production/application.rs) records
 the receipt check as a separate compilation stage when an entry was requested.

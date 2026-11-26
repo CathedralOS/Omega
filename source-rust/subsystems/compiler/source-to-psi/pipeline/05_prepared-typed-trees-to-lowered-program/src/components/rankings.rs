@@ -137,17 +137,33 @@ fn forwarded_inputs(
 ) -> Vec<(usize, Option<Expression>)> {
     let mut bindings = Vec::with_capacity(arguments.len());
     for (position, argument) in arguments.iter().enumerate() {
-        let ExpressionKind::Slot(slot) = argument.kind else {
-            continue;
+        // Lending a whole formal again, as `head(items)` does with a view
+        // formal, passes the same value under a fresh loan. The component
+        // check still proves each edge preserves or decreases the measure.
+        let slot = match &argument.kind {
+            ExpressionKind::Slot(slot) => *slot,
+            ExpressionKind::Borrow { place, .. } if place.result == argument.result => {
+                let ExpressionKind::Slot(slot) = place.kind else {
+                    continue;
+                };
+                slot
+            }
+            _ => continue,
         };
         let Some(parameter) = source.get(slot) else {
             continue;
         };
-        if Some(*parameter) != argument.result || target.get(position) != Some(parameter) {
+        let Some(received) = target.get(position) else {
+            continue;
+        };
+        if !same_shape(Some(*parameter), argument.result)
+            || !same_shape(Some(*received), Some(*parameter))
+        {
             continue;
         }
         let mut formal = argument.clone();
         formal.kind = ExpressionKind::Slot(position);
+        formal.result = Some(*received);
         bindings.push((slot, formal));
     }
     bindings.sort_unstable_by_key(|(slot, _)| *slot);
@@ -201,7 +217,7 @@ fn substitute(
             let ExpressionKind::Slot(input) = actual.kind else {
                 return None;
             };
-            if actual.result != base.result
+            if !same_shape(actual.result, base.result)
                 || caller.parameters.get(input).copied() != actual.result
                 || !matches!(actual.result, Some(ValueType::Record(..)))
             {
@@ -215,6 +231,18 @@ fn substitute(
         _ => return None,
     };
     Some(result)
+}
+
+/// A measure reads a value's shape, never its loans. A view lent again to a
+/// helper is the same record type applied at the helper's own regions.
+fn same_shape(left: Option<ValueType>, right: Option<ValueType>) -> bool {
+    match (left, right) {
+        (
+            Some(ValueType::Record(left, left_qualification, _)),
+            Some(ValueType::Record(right, right_qualification, _)),
+        ) => left == right && left_qualification == right_qualification,
+        (left, right) => left == right,
+    }
 }
 
 /// A copied rank may observe only the caller's formal values, using the same
@@ -271,5 +299,91 @@ mod tests {
                 .unwrap(),
         ));
         assert!(forwarded_inputs(&[ty], &[different], &[slot(0)]).is_empty());
+    }
+
+    /// `count(items: @[T]) terminates by items -> Slice::Length` hands its
+    /// view to a `head(items)` state: the argument reborrows the formal, and
+    /// the state's view has its own region. The state still observes that
+    /// view's length, at its own formal type.
+    #[test]
+    fn a_reborrowed_view_carries_its_length_to_the_helper() {
+        let view = |regions| {
+            ValueType::Record(
+                semantic_vocabulary::StructuralTypeId::new(3).unwrap(),
+                crate::body::Qualification::NONE,
+                crate::body::Regions(regions),
+            )
+        };
+        let source = crate::SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent);
+        let formal = |slot, ty| Expression {
+            call_context: None,
+            kind: ExpressionKind::Slot(slot),
+            result: Some(ty),
+            source,
+        };
+        let lent = Expression {
+            call_context: None,
+            kind: ExpressionKind::Borrow {
+                access: language_core::ReferenceAccess::Shared,
+                place: Box::new(formal(0, view(1))),
+                home: None,
+            },
+            result: Some(view(1)),
+            source,
+        };
+        let inputs = forwarded_inputs(&[view(1)], &[view(2)], std::slice::from_ref(&lent));
+        let [(0, Some(carried))] = inputs.as_slice() else {
+            panic!("the reborrowed view is the helper's subject: {inputs:?}");
+        };
+        assert!(matches!(carried.kind, ExpressionKind::Slot(0)));
+        assert_eq!(carried.result, Some(view(2)));
+
+        let length = |base| Expression {
+            call_context: None,
+            kind: ExpressionKind::CollectionMeasure {
+                base: Box::new(base),
+                measure: crate::source_state::expression::CollectionMeasure::Length,
+            },
+            result: Some(ValueType::plain(ScalarType::Integer(
+                semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    64,
+                )
+                .unwrap(),
+            ))),
+            source,
+        };
+        let helper = Signature {
+            operational: Default::default(),
+            parameters: vec![view(2)],
+            erased: Vec::new(),
+            borrowed: Vec::new(),
+            result: None,
+            membership_ensures: Vec::new(),
+            content_ensures: Vec::new(),
+            requires: Vec::new(),
+            ensures: Vec::new(),
+            reaches: crate::Ceiling::Inferred,
+            invokes: crate::Ceiling::Inferred,
+            crashes: crate::body::CrashCeiling::Authored(Vec::new()),
+            termination: crate::body::Termination::Silent,
+            ranking: None,
+        };
+        let measure = substitute(&length(formal(0, view(1))), &helper, |_| {
+            Some(carried.clone())
+        })
+        .expect("the helper observes the same length");
+        let ExpressionKind::CollectionMeasure { base, .. } = measure.kind else {
+            panic!("the carried measure is still a length");
+        };
+        assert_eq!(base.result, Some(view(2)));
+
+        // A value of another record type is not the same collection.
+        let other = ValueType::Record(
+            semantic_vocabulary::StructuralTypeId::new(4).unwrap(),
+            crate::body::Qualification::NONE,
+            crate::body::Regions(2),
+        );
+        assert!(forwarded_inputs(&[view(1)], &[other], &[lent]).is_empty());
     }
 }

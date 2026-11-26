@@ -1,8 +1,10 @@
 // shapes_area build sketch. Needs only stdout + process.exit.
 
+use {omega}/build/dependency.omg;
+
 machine build(builder: @mutable Build) {
     Build::application(builder, "shapes_area");
-    let system_registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path {
+    let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {
         location: "../../../../source/library/system"
     }));
     Build::bind(builder, windows_x86_64\ProgramEntry, entry_start);

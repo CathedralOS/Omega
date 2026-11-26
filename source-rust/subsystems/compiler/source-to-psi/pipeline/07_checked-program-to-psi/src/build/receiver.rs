@@ -1,6 +1,6 @@
 //! The checked source entry identifies the one published parameter that may borrow the host’s Build.
 
-use super::AcceptedTerminalSource;
+use crate::AcceptedTerminalSource;
 use crate::source_state::{TypedTrees, machine::Machine, types::TypeReferenceNode};
 use semantic_vocabulary::MachineId;
 use terminal_psi::{

@@ -8,7 +8,9 @@ Start at [source_to_psi.rs](source_to_psi.rs) for the supported requests. A chec
 | 02–03 | [Resolve and type](driver/resolve_and_type.rs) the selected declarations and bodies. A Build can query declarations and generated files can extend the same source identities. | [Name resolution](pipeline/02_syntax-trees-to-symbol-resolved-trees) and [typing](pipeline/03_symbol-resolved-trees-to-typed-trees). |
 | 04 | [Settle demanded source inputs](driver/prepare_typed_source.rs), including constant values and target layouts. | [Prepare typed trees](pipeline/04_typed-trees-to-prepared-typed-trees/src/lib.rs) issues the snapshot accepted by lowering. |
 | 05–06 | [Judge the lowered source](driver/judge_lowered_source.rs) with its exact declarations and supplies. | [Lower](pipeline/05_prepared-typed-trees-to-lowered-program/src/compilation.rs), then [check that lowering](pipeline/06_lowered-program-to-checked-program/src/publication.rs). |
-| 07 | Publish the accepted Product or Build invocation. | [Publication](pipeline/07_checked-program-to-psi/src/source_publication.rs) uses the checked program. |
+| 07 | Publish the accepted Product or Build invocation. | [Publication](pipeline/07_checked-program-to-psi/src/source/publication.rs) uses the checked program. |
+
+[Source syntax](source-syntax/) lets source-editing callers lex and parse one string without running later stages. Stage 01 itself parses tokens, including the statements and nested declarations of a machine body.
 
 Three operations can require more source work during one request.
 

@@ -12,7 +12,7 @@ pub(crate) struct BuildProviderPlans {
     selected: selected_provider_plans::SelectedProviderPlanFacts,
     packages: Option<package_compilation::PackageCompilationInputs>,
     supplied_scope: Option<declaration_scope::PackageDeclarationScope>,
-    supplied_edges: Vec<(semantic_vocabulary::PackageKeyIdentity, String)>,
+    dependency_edges: Vec<semantic_vocabulary::dependency_reach::DependencyServiceEdge>,
 }
 
 pub(crate) struct BuildProviderInstallation {
@@ -25,15 +25,29 @@ impl BuildProviderPlans {
         packages: Option<&package_compilation::PackageCompilationInputs>,
         libraries: &[package_compilation::source_imports::SuppliedBuildLibrary],
     ) -> Self {
+        use build_declarations::DependencyPurpose;
+        let mut dependency_edges = packages
+            .map(|inputs| inputs.execution_service_edges(DependencyPurpose::Build))
+            .unwrap_or_default();
+        for library in libraries {
+            let dependency = library.dependency();
+            dependency_edges.push(
+                semantic_vocabulary::dependency_reach::DependencyServiceEdge {
+                    requester: packages.map(|inputs| inputs.root()),
+                    package: dependency.inputs.root(),
+                    alias: dependency.alias.clone(),
+                    max_reach: library.max_reach().clone(),
+                },
+            );
+            dependency_edges.extend(
+                dependency
+                    .inputs
+                    .execution_service_edges(DependencyPurpose::Product),
+            );
+        }
         Self {
             packages: packages.cloned(),
-            supplied_edges: libraries
-                .iter()
-                .map(|library| {
-                    let dependency = library.dependency();
-                    (dependency.inputs.root(), dependency.alias.clone())
-                })
-                .collect(),
+            dependency_edges,
             supplied_scope:
                 package_compilation::source_imports::SuppliedBuildLibrary::declaration_scope(
                     libraries, None,
@@ -71,7 +85,33 @@ impl BuildProviderPlans {
         let entry = module
             .entry
             .ok_or_else(|| failure("Build declaration admission has no entry"))?;
-        super::library_reach::check(module, entry, &checked, &self.supplied_edges)?;
+        let implementations = checked
+            .providers()
+            .chain(
+                checked
+                    .assumed_bindings()
+                    .iter()
+                    .map(|row| (row.required, row.implementation)),
+            )
+            .map(|(boundary, machine)| {
+                terminal_semantics::callable_values::CallableBoundaryImplementation {
+                    boundary,
+                    machine,
+                }
+            })
+            .collect::<Vec<_>>();
+        let selections = program
+            .source_selections()
+            .and_then(|selections| selections.questions_for(artifact))
+            .ok_or_else(|| failure("Build lost the source choices for its executable"))?;
+        psi_provider_selections::dependency_reach::check(
+            module,
+            entry,
+            &implementations,
+            None,
+            &self.dependency_edges,
+            &selections.dependency_calls,
+        )?;
         let authority = self.selection_scope(build_declarations::DependencyPurpose::Build);
         let pending = evaluation_admission::admit_declaration_selections(
             artifact,

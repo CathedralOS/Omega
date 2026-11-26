@@ -331,6 +331,7 @@ pub enum SelectionJoin {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SelectionQuestions {
+    pub dependency_calls: crate::dependency_reach::DependencyCallOrigins,
     pub declarations: IdTable<SelectionDeclarationId, SelectionDeclaration>,
     pub questions: IdTable<SelectionQuestionId, SelectionQuestion>,
     pub joins: Vec<SelectionJoin>,

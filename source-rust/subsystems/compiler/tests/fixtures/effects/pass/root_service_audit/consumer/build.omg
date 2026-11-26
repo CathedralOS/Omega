@@ -1,6 +1,8 @@
+use {omega}/build/dependency.omg;
+
 machine build(builder: @mutable Build) {
     Build::package(builder, "audit_consumer");
-    let driver_registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "../driver" }));
+    let driver_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../driver" }));
     configure(builder);
     transition false {
         true -> unselected(builder),

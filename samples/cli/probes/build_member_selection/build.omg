@@ -2,12 +2,14 @@
 // names from two deps compose; controls pin ambiguous-name,
 // private-member, and ghost-module rejections.
 
+use {omega}/build/dependency.omg;
+
 machine build(builder: @mutable Build) {
     Build::application(builder, "build_member_selection");
-    let mutable one_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "dep_one" });
-    dependency\with_alias(@mutable one_dependency, "one");
+    let mutable one_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "dep_one" });
+    |dependency|::with_alias(@mutable one_dependency, "one");
     let one_registration: DependencyRegistration = Build::dependency(builder, one_dependency);
-    let mutable two_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "dep_two" });
-    dependency\with_alias(@mutable two_dependency, "two");
+    let mutable two_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "dep_two" });
+    |dependency|::with_alias(@mutable two_dependency, "two");
     let two_registration: DependencyRegistration = Build::dependency(builder, two_dependency);
 }

@@ -51,7 +51,10 @@ pub(in super::super) fn validate_subject(
             })?;
         for purpose in DependencyPurpose::ALL {
             for request in projection.requests(purpose) {
-                validate_dependency_request(Request::from(request), limits.maximum_request_bytes)?;
+                validate_dependency_request(
+                    Request::from(&request.source),
+                    limits.maximum_request_bytes,
+                )?;
             }
         }
     }
@@ -87,7 +90,7 @@ pub(in super::super) fn validate_subject(
             .ok_or_else(|| {
                 Error::new("active dependency selection names an unknown authored occurrence")
             })?;
-        if Request::from(projected) != Request::from(&edge.request) {
+        if Request::from(&projected.source) != Request::from(&edge.request) {
             return Err(Error::new(
                 "active dependency selection disagrees with its complete projection",
             ));
