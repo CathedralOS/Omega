@@ -69,8 +69,6 @@ pub use register_model::X86_64_SATURATING_SUBTRACT_UNSIGNED;
 pub use register_model::X86_64_SHIFT_I64;
 pub use register_model::X86_64_ZERO_BYTES;
 pub use register_model::x86_64_linux_system_call_keys;
-#[cfg(test)]
-pub(crate) use register_model::x86_64_required_register_constraints;
 pub use register_model::{
     X86_64_ATOMIC_BITWISE_UPDATE, X86_64_ATOMIC_COMPARE_EXCHANGE,
     X86_64_ATOMIC_COMPARE_EXCHANGE_ONCE, X86_64_ATOMIC_FENCE, X86_64_ATOMIC_LOAD,
