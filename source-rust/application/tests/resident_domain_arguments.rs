@@ -1,4 +1,6 @@
 //! Resident transport keeps its full type indices, including the selected domains.
+// This binary uses only `invoke` from the shared helpers.
+#[allow(dead_code)]
 #[path = "support/program.rs"]
 mod program;
 

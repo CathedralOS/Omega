@@ -83,6 +83,10 @@ mod product {
     #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
     pub enum BuildSelectionRequest<Requirement> {
         ProviderReadiness(ProviderReadinessRequest<Requirement>),
+        Service {
+            source_span: source_text::SourceSpan,
+            requirement: Requirement,
+        },
         Entry(RootBindingRequest),
         Declaration(std::sync::Arc<ProductDeclarationRequest>),
         Exclusion(EnumExclusionRequest),
@@ -104,6 +108,7 @@ mod product {
                     request.source_span = remap(request.source_span);
                     request.backing.remap_source_spans(remap);
                 }
+                Self::Service { source_span, .. } => *source_span = remap(*source_span),
                 Self::Entry(request) => request.source_span = remap(request.source_span),
                 Self::Declaration(request) => {
                     std::sync::Arc::make_mut(request).remap_source_spans(remap)
@@ -126,12 +131,13 @@ mod product {
                         | BuildOperation::WireCompatibilityRequest
                         | BuildOperation::TestGroupRegistration
                 ),
-                Self::Entry(_) | Self::ProviderReadiness(_) => false,
+                Self::Entry(_) | Self::ProviderReadiness(_) | Self::Service { .. } => false,
             }
         }
 
         pub fn source_span(&self) -> source_text::SourceSpan {
             match self {
+                Self::Service { source_span, .. } => *source_span,
                 Self::ProviderReadiness(request) => request.source_span,
                 Self::Entry(request) => request.source_span,
                 Self::Declaration(request) => request.source_span,
@@ -142,7 +148,10 @@ mod product {
         pub fn entry(&self) -> Option<&RootBindingRequest> {
             match self {
                 Self::Entry(request) => Some(request),
-                Self::ProviderReadiness(_) | Self::Declaration(_) | Self::Exclusion(_) => None,
+                Self::Service { .. }
+                | Self::ProviderReadiness(_)
+                | Self::Declaration(_)
+                | Self::Exclusion(_) => None,
             }
         }
 
@@ -150,7 +159,7 @@ mod product {
             match self {
                 Self::ProviderReadiness(request) => std::slice::from_ref(&request.backing),
                 Self::Declaration(request) => &request.operands,
-                Self::Entry(_) | Self::Exclusion(_) => &[],
+                Self::Entry(_) | Self::Exclusion(_) | Self::Service { .. } => &[],
             }
         }
 
@@ -166,6 +175,13 @@ mod product {
                         backing: request.backing,
                     })
                 }
+                Self::Service {
+                    source_span,
+                    requirement,
+                } => BuildSelectionRequest::Service {
+                    source_span,
+                    requirement: map(requirement)?,
+                },
                 Self::Entry(request) => BuildSelectionRequest::Entry(request),
                 Self::Declaration(request) => BuildSelectionRequest::Declaration(request),
                 Self::Exclusion(request) => BuildSelectionRequest::Exclusion(request),
@@ -1037,6 +1053,7 @@ impl From<BuildOperation> for AuthoredDeclarationSelectionIntrinsic {
                 Self::BuildParameterDescription
             }
             BuildOperation::FieldDescription => Self::BuildFieldDescription,
+            BuildOperation::ServiceDescription => Self::BuildServiceDescription,
             BuildOperation::NativeBinding => Self::BuildNativeBinding,
             BuildOperation::ProviderReadiness => {
                 Self::BuildProviderReadiness
@@ -1079,6 +1096,7 @@ impl From<BuildOperation> for AuthoredDeclarationSelectionIntrinsic {
 pub enum AuthoredDeclarationSelectionIntrinsic {
     BuildNativeBinding,
     BuildProviderReadiness,
+    BuildServiceDescription,
     BuiltinOperator,
     CollectionLength,
     CollectionCapacity,

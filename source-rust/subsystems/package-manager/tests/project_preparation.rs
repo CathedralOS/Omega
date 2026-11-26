@@ -28,10 +28,11 @@ fn build_dependencies_use_the_host_and_product_dependencies_use_the_requested_ta
     let client = temp.path().join("client");
     write_package(
         &client,
-        r#"use main.omg as app;
+        r#"use {omega}/build/dependency.omg;
+use main.omg as app;
 machine build(builder: @mutable Build) {
     Build::application(builder, "client");
-    let product_dep: DependencyDescription = dependency\from_source(Source::Path { location: "library" });
+    let product_dep: DependencyDescription = |dependency|::from_source(Source::Path { location: "library" });
     _ = Build::dependency(builder, product_dep);
     Build::bind(builder, windows_x86_64\ProgramEntry, |app|::main);
     Build::bind(builder, linux_x86_64\ProgramEntry, |app|::main);
@@ -172,10 +173,11 @@ fn a_dependency_recheck_can_finish_after_the_consuming_product_opens() {
     let client = temp.path().join("client");
     write_package(
         &client,
-        r#"use main.omg as app;
+        r#"use {omega}/build/dependency.omg;
+use main.omg as app;
 machine build(builder: @mutable Build) {
     Build::application(builder, "client");
-    _ = Build::dependency(builder, dependency\from_source(Source::Path { location: "library" }));
+    _ = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "library" }));
     Build::bind(builder, windows_x86_64\ProgramEntry, |app|::main);
     Build::bind(builder, linux_x86_64\ProgramEntry, |app|::main);
     Build::bind(builder, macos_arm64\ProgramEntry, |app|::main);
@@ -271,14 +273,19 @@ fn root_recheck_finishes_after_its_own_product_opens(dependency: bool) {
     let temp = TemporaryDirectory::create("project-root-recheck", false).unwrap();
     let client = temp.path().join("client");
     let registration = if dependency {
-        r#"_ = Build::dependency(builder, dependency\from_source(Source::Path { location: "library" }));"#
+        r#"_ = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "library" }));"#
+    } else {
+        ""
+    };
+    let import = if dependency {
+        "use {omega}/build/dependency.omg;\n"
     } else {
         ""
     };
     write_package(
         &client,
         &format!(
-            r#"use main.omg as app;
+            r#"{import}use main.omg as app;
 machine build(builder: @mutable Build) {{
     Build::application(builder, "client");
     {registration}
@@ -390,9 +397,13 @@ machine build(builder: @mutable Build) {{
             let Err(error) = result else {
                 panic!("the reachable charged export exceeded its empty ceiling")
             };
-            let message = error.to_string();
             for expected in ["checking", "charged", "AuditEffect"] {
-                assert!(message.contains(expected), "{message}");
+                assert!(
+                    error
+                        .iter()
+                        .any(|diagnostic| diagnostic.message.contains(expected)),
+                    "{error:#?}"
+                );
             }
         }
     }
@@ -408,7 +419,8 @@ fn dependency_input_forwards_the_frozen_alias_to_the_product() {
         r#"use {omega}/build/dependency.omg as dep;
 machine build(builder: @mutable Build) {
     let input: PackageBinding = |dep|::input(builder, "layout");
-    let registration: DependencyRegistration = |dep|::add(builder, input);
+    let empty: [BoundaryServiceRef; 0] = [];
+    let registration: DependencyRegistration = |dep|::add(builder, input, @empty[..]);
     Build::package(builder, "client");
 }"#,
         r#"use {layout}/main.omg as layout;
@@ -449,7 +461,7 @@ public machine answer() -> i32 { |layout|::answer() }"#,
 }
 
 #[test]
-fn package_bindings_require_an_incoming_alias_and_issued_value() {
+fn package_bindings_and_service_references_require_values_issued_by_the_build() {
     configure();
     let temp = TemporaryDirectory::create("absent-build-input", false).unwrap();
     let root = temp.path().join("project");
@@ -461,6 +473,12 @@ fn package_bindings_require_an_incoming_alias_and_issued_value() {
         (
             r#"let edge: DependencyRegistration = |dep|::add(builder, PackageBinding {});"#,
             "requires a PackageBinding this activation issued",
+        ),
+        (
+            r#"let dependency: DependencyDescription = |dep|::from_source(Source::Path { location: "unread" });
+              let forged: [BoundaryServiceRef; 1] = [BoundaryServiceRef {}];
+              _ = |dep|::add(builder, dependency, @forged[..]);"#,
+            "requires a service reference this Build issued",
         ),
     ] {
         write_package(
@@ -485,6 +503,272 @@ machine build(builder: @mutable Build) {{ Build::package(builder, "project"); {o
         let Err(error) = result else {
             panic!("invalid binding accepted")
         };
-        assert!(error.to_string().contains(diagnostic), "{error}");
+        assert!(
+            error.iter().any(|row| row.message.contains(diagnostic)),
+            "{error:#?}"
+        );
+    }
+}
+
+#[test]
+fn authored_service_ceiling_uses_exact_applications_and_normalized_parents() {
+    configure();
+    let temp = TemporaryDirectory::create("registered-service-applications", false).unwrap();
+    let root = temp.path().join("client");
+    write_package(
+        &root.join("library"),
+        r#"machine build(builder: @mutable Build) { Build::package(builder, "library"); }"#,
+        r#"public boundary trait Telemetry {}
+public boundary trait Sensor<const Channel: u32>: Telemetry {}
+public machine free() {}"#,
+    );
+    write_package(
+        &root,
+        r#"use {omega}/build/dependency.omg as dep;
+use {policy}/main.omg as policy;
+machine build(builder: @mutable Build) {
+    Build::package(builder, "client");
+    let app: BoundaryServiceRef = Build::service::<|policy|::Sensor<17u32>>(builder);
+    let description: DependencyDescription = |dep|::from_source(Source::Path { location: "library" });
+    let services: [BoundaryServiceRef; 2] = [app, app];
+    _ = |dep|::add(builder, description, @services[..]);
+}"#,
+        "public machine free() {}",
+    );
+    let target = TargetProfile::host_if_supported().unwrap();
+    let products = open_products(
+        ProjectInput::WithBuildLibraries {
+            file: &root.join("build.omg"),
+            libraries: &[BuildLibraryRequest {
+                alias: ProjectName::parse("policy").unwrap(),
+                source: BuildDependencySource::Path("library".into()),
+            }],
+        },
+        &[target],
+        true,
+        false,
+        &temp.path().join("out"),
+        None,
+    )
+    .unwrap();
+    let inputs = products.select(target).unwrap().package_inputs().unwrap();
+    let allowed = inputs
+        .dependency_max_reach(inputs.root(), DependencyPurpose::Product, "library")
+        .unwrap();
+    let names = allowed.services().collect::<Vec<_>>();
+    assert_eq!(names.len(), 2, "{names:?}");
+    assert!(names.iter().any(|id| id.contains("Telemetry")), "{names:?}");
+    assert!(names.iter().any(|id| id.contains("Sensor")), "{names:?}");
+}
+
+#[test]
+fn forwarding_cannot_widen_an_incoming_empty_ceiling() {
+    configure();
+    let temp = TemporaryDirectory::create("binding-ceiling", false).unwrap();
+    let root = temp.path().join("client");
+    write_package(
+        &root.join("library"),
+        r#"machine build(builder: @mutable Build) { Build::package(builder, "library"); }"#,
+        "public boundary trait MotorControl {}
+public machine free() {}",
+    );
+    write_package(
+        &root,
+        r#"use {omega}/build/dependency.omg as dep;
+use {helper}/main.omg as helper;
+machine build(builder: @mutable Build) {
+    Build::package(builder, "client");
+    let app: BoundaryServiceRef = Build::service::<|helper|::MotorControl>(builder);
+    let binding: PackageBinding = |dep|::input(builder,"helper");
+    let services: [BoundaryServiceRef; 1] = [app];
+    _ = |dep|::add(builder,binding,@services[..]);
+}"#,
+        "public machine free() {}",
+    );
+    let libraries = [BuildLibraryRequest {
+        alias: ProjectName::parse("helper").unwrap(),
+        source: BuildDependencySource::Path("library".into()),
+    }];
+    let outcome = open_products(
+        ProjectInput::WithBuildLibraries {
+            file: &root.join("build.omg"),
+            libraries: &libraries,
+        },
+        &[TargetProfile::host_if_supported().unwrap()],
+        true,
+        false,
+        &temp.path().join("out"),
+        None,
+    );
+    let Err(error) = outcome else {
+        panic!("a forwarded package widened its incoming ceiling")
+    };
+    assert!(
+        error
+            .iter()
+            .any(|row| row.message.contains("exceeds its incoming max_reach")),
+        "{error:#?}"
+    );
+}
+
+#[test]
+fn product_checks_the_invoked_export_and_exact_service_application_on_its_edge() {
+    configure();
+    let temp = TemporaryDirectory::create("product-service-use", false).unwrap();
+    let root = temp.path().join("client");
+    let target = TargetProfile::host_if_supported().unwrap();
+    let contract = target.program_entry_slot().source_contract();
+    write_package(
+        &root.join("library"),
+        r#"machine build(builder: @mutable Build) { Build::package(builder,"library"); }"#,
+        r#"public boundary trait Sensor<const Channel: u32> {}
+public machine charged() reaches Sensor<17u32> {}
+public machine free() {}"#,
+    );
+    let libraries = [BuildLibraryRequest {
+        alias: ProjectName::parse("policy").unwrap(),
+        source: BuildDependencySource::Path("library".into()),
+    }];
+    for (export, allowed_channel, succeeds) in [
+        ("free", None, true),
+        ("charged", None, false),
+        ("charged", Some(17), true),
+        ("charged", Some(23), false),
+    ] {
+        let registration = match allowed_channel {
+            None => "_ = |dep|::add(builder, dependency);".to_owned(),
+            Some(channel) => format!(
+                "let allowed: [BoundaryServiceRef; 1] = [Build::service::<|policy|::Sensor<{channel}u32>>(builder)];
+    _ = |dep|::add(builder, dependency, @allowed[..]);"
+            ),
+        };
+        write_package(
+            &root,
+            &format!(
+                r#"use {{omega}}/build/dependency.omg as dep;
+use {{policy}}/main.omg as policy;
+use main.omg as app;
+machine build(builder: @mutable Build) {{
+    Build::application(builder, "client");
+    let dependency: DependencyDescription = |dep|::from_source(Source::Path {{ location: "library" }});
+    {registration}
+    Build::bind(builder, {}\{}, |app|::entry);
+}}"#,
+                contract.owner, contract.slot_name
+            ),
+            &format!(
+                "use {{library}}/main.omg as supplier; machine entry() {{ |supplier|::{export}(); }}"
+            ),
+        );
+        let opened = open_products(
+            ProjectInput::WithBuildLibraries {
+                file: &root.join("build.omg"),
+                libraries: &libraries,
+            },
+            &[target],
+            true,
+            false,
+            &temp.path().join("out"),
+            None,
+        )
+        .unwrap();
+        let stage = opened
+            .select(target)
+            .unwrap()
+            .product_stage(&[target])
+            .unwrap();
+        let result = stage.check(target, &mut Default::default());
+        if succeeds {
+            result.unwrap();
+        } else {
+            let errors = result.expect_err("Product admitted the wrong reach on its library edge");
+            assert!(
+                errors.iter().any(|row| row.message.contains("library")
+                    && row.message.contains("Sensor")
+                    && row.message.contains("charged")),
+                "{errors:#?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn repeated_imports_charge_the_selected_alias_at_direct_and_transitive_calls() {
+    configure();
+    let temp = TemporaryDirectory::create("dependency-alias-authority", false).unwrap();
+    let root = temp.path().join("client");
+    let target = TargetProfile::host_if_supported().unwrap();
+    let contract = target.program_entry_slot().source_contract();
+    write_package(
+        &root.join("library"),
+        r#"machine build(builder: @mutable Build) { Build::package(builder, "library"); }"#,
+        r#"public boundary trait Meter {}
+public machine charge() reaches Meter {}
+public machine relay() reaches Meter { charge(); }"#,
+    );
+    let build = format!(
+        r#"use {{omega}}/build/dependency.omg as dep;
+use {{policy}}/main.omg as policy;
+use main.omg as app;
+machine build(builder: @mutable Build) {{
+    Build::application(builder, "client");
+    let mutable limited: DependencyDescription = |dep|::from_source(Source::Path {{ location: "library" }});
+    |dep|::with_alias(@mutable limited, "narrow");
+    _ = |dep|::add(builder, limited);
+    let mutable enabled: DependencyDescription = |dep|::from_source(Source::Path {{ location: "library" }});
+    |dep|::with_alias(@mutable enabled, "wide");
+    let allowed: [BoundaryServiceRef; 1] = [Build::service::<|policy|::Meter>(builder)];
+    _ = |dep|::add(builder, enabled, @allowed[..]);
+    Build::bind(builder, {}\{}, |app|::entry);
+}}"#,
+        contract.owner, contract.slot_name
+    );
+    let libraries = [BuildLibraryRequest {
+        alias: ProjectName::parse("policy").unwrap(),
+        source: BuildDependencySource::Path("library".into()),
+    }];
+    for (alias, export, permit) in [
+        ("wide", "charge", true),
+        ("narrow", "charge", false),
+        ("wide", "relay", true),
+        ("narrow", "relay", false),
+    ] {
+        write_package(
+            &root,
+            &build,
+            &format!(
+                "use {{wide}}/main.omg as open; use {{narrow}}/main.omg as closed; machine entry() {{ |{}|::{export}(); }}",
+                if alias == "wide" { "open" } else { "closed" }
+            ),
+        );
+        let products = open_products(
+            ProjectInput::WithBuildLibraries {
+                file: &root.join("build.omg"),
+                libraries: &libraries,
+            },
+            &[target],
+            true,
+            false,
+            &temp.path().join("out"),
+            None,
+        )
+        .unwrap();
+        let stage = products
+            .select(target)
+            .unwrap()
+            .product_stage(&[target])
+            .unwrap();
+        let result = stage.check(target, &mut Default::default());
+        if permit {
+            result.unwrap();
+        } else {
+            let errors = result.expect_err("the narrow alias inherited the wide alias's ceiling");
+            assert!(
+                errors
+                    .iter()
+                    .any(|row| row.message.contains("narrow") && row.message.contains("Meter")),
+                "{errors:#?}"
+            );
+        }
     }
 }

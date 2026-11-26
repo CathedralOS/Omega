@@ -1,0 +1,25 @@
+// A callback for a generic trait is judged with the call's own type
+// arguments: `Step: Tagged<Tag>::enter` at `Tag = Left` accepts a machine
+// that satisfies `Tagged<Left>::enter`.
+data Left [copy] { unused: u64; }
+data Right [copy] { unused: u64; }
+trait Tagged<Tag> {
+    machine enter(value: u64) -> u64;
+}
+machine left_step(value: u64) -> u64
+satisfies Tagged<Left>::enter {
+    value ^ 1u64
+}
+
+machine apply<Tag, const Step: Tagged<Tag>::enter>(value: u64) -> u64 {
+    Step(value)
+}
+machine main() crashes Trap {
+    let result: u64 = apply::<Left, left_step>(8u64);
+    transition result == 9u64 {
+        true -> done(),
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}

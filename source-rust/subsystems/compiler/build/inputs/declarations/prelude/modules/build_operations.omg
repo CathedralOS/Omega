@@ -1,9 +1,9 @@
 public machine dependency(builder: @mutable Build, description: DependencyDescription) -> DependencyRegistration reaches BuildRequestOperations invokes BuildRequestOperations {
-    Build::request_dependency(builder, false, description.explicit_alias, description.alias, description.source)
+    Build::request_dependency(builder, false, description.explicit_alias, description.alias, description.source, PackageReach {})
 }
 
 public machine build_dependency(builder: @mutable Build, description: DependencyDescription) -> DependencyRegistration reaches BuildRequestOperations invokes BuildRequestOperations {
-    Build::request_dependency(builder, true, description.explicit_alias, description.alias, description.source)
+    Build::request_dependency(builder, true, description.explicit_alias, description.alias, description.source, PackageReach {})
 }
 
 // The readiness boundary for one exact registration: the Build parks here
@@ -13,26 +13,26 @@ public machine prepare_dependency(builder: @mutable Build, registered: Dependenc
     suspend BuildRequestOperations::prepare_dependency(builder, registered);
 }
 
-machine request_dependency(builder: @Build, build_scope: bool, explicit_alias: bool, alias: @[u8], source: Source) -> DependencyRegistration reaches BuildRequestOperations {
+public machine request_dependency(builder: @Build, build_scope: bool, explicit_alias: bool, alias: @[u8], source: Source, max_reach: PackageReach) -> DependencyRegistration reaches BuildRequestOperations {
     transition source {
-        Source::Path { location } -> Build::request_path(builder, build_scope, explicit_alias, alias, location),
-        Source::Git { repository, revision, selection } -> Build::request_git(builder, build_scope, explicit_alias, alias, repository, revision, selection),
+        Source::Path { location } -> Build::request_path(builder, build_scope, explicit_alias, alias, location, max_reach),
+        Source::Git { repository, revision, selection } -> Build::request_git(builder, build_scope, explicit_alias, alias, repository, revision, selection, max_reach),
     }
 }
 
-machine request_path(builder: @Build, build_scope: bool, explicit_alias: bool, alias: @[u8], location: @[u8]) -> DependencyRegistration reaches BuildRequestOperations {
-    BuildRequestOperations::register_path_dependency(builder, build_scope, explicit_alias, alias, location)
+machine request_path(builder: @Build, build_scope: bool, explicit_alias: bool, alias: @[u8], location: @[u8], max_reach: PackageReach) -> DependencyRegistration reaches BuildRequestOperations {
+    BuildRequestOperations::register_path_dependency(builder, build_scope, explicit_alias, alias, location, max_reach)
 }
 
-machine request_git(builder: @Build, build_scope: bool, explicit_alias: bool, alias: @[u8], repository: @[u8], revision: @[u8], selection: PackageSelection) -> DependencyRegistration reaches BuildRequestOperations {
+machine request_git(builder: @Build, build_scope: bool, explicit_alias: bool, alias: @[u8], repository: @[u8], revision: @[u8], selection: PackageSelection, max_reach: PackageReach) -> DependencyRegistration reaches BuildRequestOperations {
     transition selection {
-        PackageSelection::Root -> Build::request_selected_git(builder, build_scope, explicit_alias, alias, repository, revision, false, ""),
-        PackageSelection::Named { package } -> Build::request_selected_git(builder, build_scope, explicit_alias, alias, repository, revision, true, package),
+        PackageSelection::Root -> Build::request_selected_git(builder, build_scope, explicit_alias, alias, repository, revision, false, "", max_reach),
+        PackageSelection::Named { package } -> Build::request_selected_git(builder, build_scope, explicit_alias, alias, repository, revision, true, package, max_reach),
     }
 }
 
-machine request_selected_git(builder: @Build, build_scope: bool, explicit_alias: bool, alias: @[u8], repository: @[u8], revision: @[u8], named_package: bool, package: @[u8]) -> DependencyRegistration reaches BuildRequestOperations {
-    BuildRequestOperations::register_git_dependency(builder, build_scope, explicit_alias, alias, repository, revision, named_package, package)
+machine request_selected_git(builder: @Build, build_scope: bool, explicit_alias: bool, alias: @[u8], repository: @[u8], revision: @[u8], named_package: bool, package: @[u8], max_reach: PackageReach) -> DependencyRegistration reaches BuildRequestOperations {
+    BuildRequestOperations::register_git_dependency(builder, build_scope, explicit_alias, alias, repository, revision, named_package, package, max_reach)
 }
 
 // Publish a snapshot of these bytes under a package-relative source filename.

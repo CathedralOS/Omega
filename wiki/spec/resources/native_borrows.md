@@ -90,8 +90,8 @@ no opt-in on a consumer that cannot reach it. Product policy grants the running
 Build no additional host authority.
 
 For example, Cathedral delegates native loading and execution to an updater.
-The example uses the staged dependency API's schematic array spelling for
-reflected service identities.
+The example uses the core service declarations specified in
+[Native images and foreign calls](../language/effects.md#native-images-and-foreign-calls).
 
 ```omega
 // updater/build.omg
@@ -108,8 +108,11 @@ machine build(build: @mutable Build) {
     Build::enable_unsafe::<ForeignCodeExecution>(build);
     let updater: DependencyDescription =
         |dependency|::from_source(Source::Path { location: "updater" });
-    _ = |dependency|::add(build, updater,
-        max_reach: [NativeImageLoad, ForeignCodeExecution]);
+    let allowed: [BoundaryServiceRef; 2] = [
+        Build::service::<NativeImageLoad>(build),
+        Build::service::<ForeignCodeExecution>(build)
+    ];
+    _ = |dependency|::add(build, updater, @allowed[..]);
 }
 ```
 

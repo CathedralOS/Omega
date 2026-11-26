@@ -51,13 +51,13 @@ pub use native_locator::{
     TerminalBuildValueShape,
 };
 
+use crate::TerminalBuildQueryCall;
 use crate::declaration_selection::BuildSelectionRequest;
 use crate::declaration_selection::NativeBindingFormation;
 use crate::declaration_selection::ProductDeclarationRequest;
 use crate::declaration_selection::product_operands::ProductStaticEnvironment;
-use crate::TerminalBuildQueryCall;
-use semantic_vocabulary::source_selections::BuildCallSite;
 use semantic_vocabulary::BoundaryMachineId;
+use semantic_vocabulary::source_selections::BuildCallSite;
 use std::sync::Arc;
 use terminal_codec::TerminalExecutionView;
 
@@ -73,6 +73,7 @@ pub type TerminalBuildSelectionRequest = BuildSelectionRequest<TerminalBuildProv
 #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
 pub enum TerminalBuildBindingOperation {
     AwaitProvider,
+    DescribeService,
     Prepare,
     PrepareTests, // A group selection prepared on the original tests facet.
     Bind,
@@ -226,7 +227,8 @@ fn validate_sites(
 
 pub(crate) mod build_filesystem {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
-    pub enum TerminalBuildFilesystemOperation {        ResolveSource,
+    pub enum TerminalBuildFilesystemOperation {
+        ResolveSource,
         ResolveOutput,
         NamedInput,
         Open,
@@ -379,7 +381,8 @@ pub(crate) mod build_requests {
     pub use semantic_vocabulary::source_selections::BuildCallSite;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
-    pub enum TerminalBuildRequestOperation {        Package,
+    pub enum TerminalBuildRequestOperation {
+        Package,
         Application,
         Member,
         BuildEntry,
@@ -388,6 +391,7 @@ pub(crate) mod build_requests {
         GitDependency,
         InputBinding,
         AddBinding,
+        ExtendReach,
         PrepareDependency,
         LogLine,
         PublishSource,

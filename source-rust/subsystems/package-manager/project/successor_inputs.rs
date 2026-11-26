@@ -42,6 +42,7 @@ impl SourceHost<'_, '_> {
         for issued in returned.requests() {
             let BuildRequest::Dependency {
                 purpose,
+                max_reach,
                 alias,
                 source,
             } = issued.request()
@@ -65,12 +66,13 @@ impl SourceHost<'_, '_> {
                 .into());
             }
             if let Some(binding) = issued.forwarded() {
-                libraries.push(binding.library().clone());
+                libraries.push(binding.library().attenuated(max_reach)?);
             } else if purpose.is_product() {
                 let input = services.host.library_input(
                     settled,
                     DependencyPurpose::Build,
                     name.to_owned(),
+                    max_reach.clone(),
                 )?;
                 libraries.push(SuppliedBuildLibrary::new(source.clone(), input)?);
             }

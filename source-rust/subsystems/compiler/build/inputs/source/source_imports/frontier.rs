@@ -568,7 +568,7 @@ impl SourceStorage {
             ))]
         };
         let capture = source_acquisition::local::operations::capture_local_source_input(
-            root.to_owned(),
+            root,
             source_acquisition::LocalSourceLimits::default(),
         )
         .map_err(|error| refuse(error.to_string()))?;

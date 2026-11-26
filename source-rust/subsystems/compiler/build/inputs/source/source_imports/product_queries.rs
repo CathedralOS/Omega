@@ -23,6 +23,7 @@ use std::path::PathBuf;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProductQueryDependency {
+    pub max_reach: semantic_vocabulary::dependency_reach::DependencyReach,
     pub alias: String,
     pub inputs: PackageCompilationInputs,
     /// The package graph and sources admitted for the child's original Build, when named.
@@ -77,6 +78,7 @@ mod tests {
 
     fn dependency(alias: &str, inputs: PackageCompilationInputs) -> ProductQueryDependency {
         ProductQueryDependency {
+            max_reach: Default::default(),
             alias: alias.into(),
             inputs,
             child_build_source: None,

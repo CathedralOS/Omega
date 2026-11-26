@@ -282,6 +282,7 @@ impl TerminalBuildHost {
             produced.build_requests(),
             original.clone(),
             Some(account),
+            requests.reflected_services(),
         )?;
         let filesystem = crate::host::filesystem::TerminalBuildFilesystemHost::new(
             &produced,

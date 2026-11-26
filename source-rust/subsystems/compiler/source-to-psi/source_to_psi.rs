@@ -60,6 +60,7 @@ pub fn check(
         &mut Default::default(),
         timings,
     )?;
+    checked.admit_dependency_uses()?;
     checked.terminal_publication.check(
         product.declaration_scope.as_deref().map(|scope| scope as _),
         timings,
@@ -77,7 +78,10 @@ pub fn compile(
         &mut Default::default(),
         &mut CompileTimings::default(),
     )
-    .map(|(artifact, _)| artifact)
+    .and_then(|(artifact, checked)| {
+        checked.admit_dependency_uses()?;
+        Ok(artifact)
+    })
 }
 
 pub fn compile_for_target(
@@ -275,5 +279,8 @@ pub fn inspect(source: StageSource<'_>, machine: &str) -> Result<PublishedPsi, V
         &mut Default::default(),
         &mut CompileTimings::default(),
     )
-    .map(|(artifact, _)| artifact)
+    .and_then(|(artifact, checked)| {
+        checked.admit_dependency_uses()?;
+        Ok(artifact)
+    })
 }

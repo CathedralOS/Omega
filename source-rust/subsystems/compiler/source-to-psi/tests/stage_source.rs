@@ -53,6 +53,7 @@ fn product<'a>(
             vec![],
         )?),
         product: ProductSourceInputs {
+            dependency_edges: Default::default(),
             build_accounting: None,
             declaration_scope: None,
             build_host: ProductTarget::LinuxX86_64,
