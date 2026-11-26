@@ -286,6 +286,16 @@ fn validate_follows_a_copied_registration_and_checks_its_entire_package_once() {
     std::fs::write(root.join("build.omg"), APP_BUILD).unwrap();
     assert_accepted(&root);
 
+    std::fs::remove_file(root.join("../vendor/unused.omg")).unwrap();
+    std::fs::write(
+        root.join("../vendor/build.omg"),
+        format!("{VENDOR_BUILD}machine bad_build_helper(count: u64) -> u64 {{ count + 1u64 }}"),
+    )
+    .unwrap();
+    assert_accepted(&root);
+    std::fs::write(root.join("build.omg"), &validating).unwrap();
+    assert_refused_in(&root, "bad_build_helper");
+
     std::fs::write(
         root.join("build.omg"),
         validating.replace("= vendor_registration;", "= DependencyRegistration {};"),
@@ -300,4 +310,34 @@ fn validate_follows_a_copied_registration_and_checks_its_entire_package_once() {
         "{}",
         forged.stderr
     );
+}
+
+#[test]
+fn validate_distinguishes_identical_aliases_in_build_and_product_scope() {
+    let root = Project::valid().write("registration_purpose");
+    let tools = root.join("../build_tools");
+    std::fs::create_dir(&tools).unwrap();
+    std::fs::write(
+        tools.join("build.omg"),
+        "machine build(b: @mutable Build) { Build::package(b, \"build_tools\"); }",
+    )
+    .unwrap();
+    std::fs::write(
+        tools.join("unused.omg"),
+        "public machine unrelated_build_library_body(count: u64) -> u64 { count + 1u64 }",
+    )
+    .unwrap();
+    let uses_both = APP_BUILD.replace("    Build::bind(", r#"    let mutable tool = |dependency|::from_source(Source::Path { location: "../build_tools" });
+    |dependency|::with_alias(@mutable tool, "vendor");
+    let tool_registration = Build::build_dependency(builder, tool);
+    Build::validate(builder, @vendor_registration);
+    Build::bind("#);
+    std::fs::write(root.join("build.omg"), &uses_both).unwrap();
+    assert_accepted(&root);
+    std::fs::write(
+        root.join("build.omg"),
+        uses_both.replace("@vendor_registration", "@tool_registration"),
+    )
+    .unwrap();
+    assert_refused_in(&root, "unrelated_build_library_body");
 }
