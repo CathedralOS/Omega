@@ -1122,7 +1122,7 @@ pub fn validate_closed_conformances(module: &TerminalModule) -> Result<(), &'sta
                     let method = methods
                         .next()
                         .ok_or("selected public member lost its exact method application")?;
-                    if methods.next().is_some() || method.method_arguments.is_empty() {
+                    if methods.next().is_some() {
                         return Err(
                             "selected public member has no unique complete method tuple",
                         );
