@@ -181,8 +181,11 @@ pub(super) fn prepare(
                 Ok::<_, Vec<Diagnostic>>(identity)
             })
             .transpose()?
-            .or_else(|| source.closed_requirement_application(signature.symbol)
-                .map(|_| canonical.clone()));
+            .or_else(|| {
+                source
+                    .closed_requirement_application(signature.symbol)
+                    .map(|_| canonical.clone())
+            });
         let boundary_callable = boundary
             .declaration
             .as_ref()
@@ -265,7 +268,7 @@ pub(super) fn prepare(
         ]);
     }
     // Source coverage searches declarations by requirement identity. The
-    // retained planner rows are in the original Build's order.
+    // retained rows follow the order of the target's checked bindings.
     declared.sort_by(|(left, left_method, _), (right, right_method, _)| {
         let left = &rows[*left];
         let right = &rows[*right];
@@ -344,9 +347,7 @@ impl PreparedNativeBindings {
         }
         let mut receipts = Vec::with_capacity(reviewed.rows.len());
         for (source, row) in self.rows.iter().zip(&reviewed.rows) {
-            if source.boundary != row.boundary
-                || row.binding.target() != target
-            {
+            if source.boundary != row.boundary || row.binding.target() != target {
                 return Err(unavailable("the complete selected native supply custody"));
             }
             receipts.push((

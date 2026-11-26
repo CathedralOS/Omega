@@ -1385,7 +1385,7 @@ impl PolicySource<'_> {
                 application_lifetime_parameter_count: 0,
                 requirement_lifetime_arguments: Vec::new(),
                 requirement_lifetime_parameter_count: u32::try_from(lifetime_count)
-                .map_err(|_| unavailable("a portable requirement lifetime count"))?,
+                    .map_err(|_| unavailable("a portable requirement lifetime count"))?,
                 static_parameters: callable.type_parameters.clone(),
                 parameters,
                 result,
@@ -1578,8 +1578,12 @@ impl PolicySource<'_> {
         let (parameters, return_type, lifetime_parameter_count) = if scoped {
             let metadata = metadata.map_err(unavailable)?;
             check_requirement_result_lifetimes(
-                declarations.accepted.module(), boundary, &groups, metadata.lifetime_parameter_count,
-                &metadata.parameter_types, metadata.result_type.as_deref(),
+                declarations.accepted.module(),
+                boundary,
+                &groups,
+                metadata.lifetime_parameter_count,
+                &metadata.parameter_types,
+                metadata.result_type.as_deref(),
             )?;
             let parameters = self.scoped_requirement_parameters(
                     signature, &metadata.parameter_types,
