@@ -22343,7 +22343,7 @@
       "kind": "definition",
       "meaning": "Place all sections, declare symbols and resolve each body reference to a relocation before image composition.",
       "producer": "native body object publication",
-      "signature": "c2ccf18610c98aa9772a69f864288d86c16d85ac1d222a0eab9b7a3fd2a01784"
+      "signature": "119213c4c8d131631c31d78047018a6428c44358aaaa3711d2768a368fdc4555"
     },
     {
       "consumers": [
@@ -22355,7 +22355,7 @@
       "kind": "producer",
       "meaning": "Place all sections, declare symbols and resolve each body reference to a relocation before image composition.",
       "producer": "native body object publication",
-      "signature": "eb6de8138510131afd040e1998fb332e6384c99d4488f9448adb263b390eb133"
+      "signature": "b6a68c7f7c4288f21f07e453f1fd510e670e22517de0d1dd7d555b7536c76bf5"
     },
     {
       "consumers": [

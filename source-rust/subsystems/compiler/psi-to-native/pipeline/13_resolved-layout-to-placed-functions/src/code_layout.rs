@@ -7,20 +7,7 @@ use selected_instructions::SelectedImageAddressReference;
 use semantic_vocabulary::MachineId;
 use std::sync::Arc;
 
-use crate::StagedOptimizedFixedFrameTextSection;
-
 use machine_code::code_layout::{NativeCodeLayout, NativeCodeLayoutError, NativeCodeRegion};
-
-pub fn describe_native_code_layout<Contracts>(
-    source: &StagedOptimizedFixedFrameTextSection<Contracts>,
-    machine: MachineId,
-) -> Result<NativeCodeLayout, NativeCodeLayoutError> {
-    describe_native_code_layout_from_records(
-        source.text_section(),
-        &source.placed_body().code().frame_application.functions,
-        machine,
-    )
-}
 
 pub(crate) fn requested_native_code_layouts(
     text: &machine_code::RelocationFreeTextSectionPlacement,

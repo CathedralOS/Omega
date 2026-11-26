@@ -1,8 +1,7 @@
 use super::{Error, ObjectFunctionLocation};
 use crate::{
     ObjectByteLiteralAddress, ObjectByteLiteralPool, ObjectPlan, ObjectPublication,
-    RelocationOrigin, RelocationPlan, RelocationRecord, SectionKind, SymbolKind, SymbolPlan,
-    SymbolSection,
+    RelocationOrigin, RelocationRecord, SectionKind, SymbolKind, SymbolPlan, SymbolSection,
 };
 use machine_code::PlacedImageAddress;
 use std::{borrow::Cow, collections::BTreeMap};
@@ -41,20 +40,6 @@ pub(super) fn place(
         byte_count: pool_bytes.len(),
         addresses,
     }))
-}
-
-pub(super) fn publish_relocations(
-    pool: Option<&ObjectByteLiteralPool>,
-    functions: &[impl AsRef<ObjectFunctionLocation>],
-    relocations: &mut RelocationPlan,
-) -> Result<(), Error> {
-    let Some(pool) = pool else {
-        return Ok(());
-    };
-    for record in records(pool, functions)? {
-        relocations.push_record(record);
-    }
-    Ok(())
 }
 
 pub fn records(

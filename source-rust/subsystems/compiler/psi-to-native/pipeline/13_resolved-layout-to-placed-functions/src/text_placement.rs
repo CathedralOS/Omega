@@ -101,10 +101,7 @@ pub fn validate_optimized_fixed_frame_text_section<Contracts>(
     }
     validate_function_fragment_frame_application(original)
         .map_err(RelocationFreeTextSectionPlacementError::FrameSource)?;
-    validate_fragment_text_section(
-        TextPlacementInput::InternalCalls(original.fragments()),
-        &staged.text_section,
-    )?;
+    check_placed_section(original.fragments(), &staged.text_section)?;
     check_manifest_fields(
         original.source().manifest().record(),
         FunctionFragmentTextSectionStage::ValidatedFixedFrameInternalCallTextSectionPlacementV1,
@@ -193,10 +190,6 @@ impl<Contracts> StagedOptimizedFixedFrameTextSection<Contracts> {
     pub const fn manifest(&self) -> &ValidatedFunctionFragmentTextSectionManifest {
         &self.manifest
     }
-
-    pub const fn custody(&self) -> StagedFixedFrameTextSectionCustodyReceipt {
-        self.custody
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -205,24 +198,6 @@ pub struct StagedFixedFrameTextSectionCustodyReceipt {
     fragments: FunctionFragmentEmissionIdentity, // Source framed fragment-plan identity.
     text_section: TerminalRelocationFreeTextSectionIdentity, // Placed text-section identity.
     manifest: FunctionFragmentTextSectionManifestIdentity, // Sealed text-section manifest identity.
-}
-
-impl StagedFixedFrameTextSectionCustodyReceipt {
-    pub const fn frame_application(self) -> FunctionFragmentFrameApplicationIdentity {
-        self.frame_application
-    }
-
-    pub const fn fragments(self) -> FunctionFragmentEmissionIdentity {
-        self.fragments
-    }
-
-    pub const fn text_section(self) -> TerminalRelocationFreeTextSectionIdentity {
-        self.text_section
-    }
-
-    pub const fn manifest(self) -> FunctionFragmentTextSectionManifestIdentity {
-        self.manifest
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -235,7 +210,6 @@ pub enum RelocationFreeTextSectionPlacementError {
     StatisticsOverflow,
     SourceShapeMismatch,
     MisalignedAarch64Span,
-    UnsupportedRelocationShape,
     UnresolvedInternalMachineFixups,
     MissingInternalMachineTarget(MachineId),
     InternalCallOutOfRange,
@@ -251,27 +225,6 @@ diagnostics::failed_display!(
 
 impl std::error::Error for RelocationFreeTextSectionPlacementError {}
 
-impl From<TextPlacementError> for RelocationFreeTextSectionPlacementError {
-    fn from(error: TextPlacementError) -> Self {
-        use TextPlacementError as Source;
-        match error {
-            Source::OffsetOverflow => Self::OffsetOverflow,
-            Source::StatisticsOverflow => Self::StatisticsOverflow,
-            Source::SourceShapeMismatch => Self::SourceShapeMismatch,
-            Source::MisalignedAarch64Span => Self::MisalignedAarch64Span,
-            Source::UnsupportedRelocationShape => Self::UnsupportedRelocationShape,
-            Source::UnresolvedInternalMachineFixups => Self::UnresolvedInternalMachineFixups,
-            Source::InternalCallOutOfRange => Self::InternalCallOutOfRange,
-            Source::ArtifactMismatch => Self::ArtifactMismatch,
-            Source::DuplicateFunction(machine) => Self::DuplicateFunction(machine),
-            Source::MissingSemanticEntry(machine) => Self::MissingSemanticEntry(machine),
-            Source::MissingInternalMachineTarget(machine) => {
-                Self::MissingInternalMachineTarget(machine)
-            }
-        }
-    }
-}
-
 fn compute_fixed_frame(
     source: &StagedFunctionFragmentFrameApplication,
 ) -> Result<
@@ -283,8 +236,7 @@ fn compute_fixed_frame(
 > {
     let fragments = source.fragments();
     let source_manifest = source.source().manifest().record();
-    let text_section =
-        place_fragment_text_section(TextPlacementInput::InternalCalls(source.fragments()))?;
+    let text_section = place_fixed_frame(source.fragments())?;
     let manifest = seal_manifest(
         source_manifest,
         FunctionFragmentTextSectionStage::ValidatedFixedFrameInternalCallTextSectionPlacementV1,
@@ -396,69 +348,11 @@ fn check_manifest_fields(
     Ok(())
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum TextPlacementError {
-    DuplicateFunction(MachineId),
-    MissingSemanticEntry(MachineId),
-    OffsetOverflow,
-    StatisticsOverflow,
-    SourceShapeMismatch,
-    MisalignedAarch64Span,
-    UnsupportedRelocationShape,
-    UnresolvedInternalMachineFixups,
-    MissingInternalMachineTarget(MachineId),
-    InternalCallOutOfRange,
-    ArtifactMismatch,
-}
-
-diagnostics::failed_display!(
-    TextPlacementError,
-    "optimized relocation-free text-section placement failed"
-);
-
-impl std::error::Error for TextPlacementError {}
-
-#[derive(Clone, Copy)]
-pub(crate) enum TextPlacementInput<'a> {
-    InternalCalls(&'a FunctionFragmentEmissionPlan),
-}
-
-impl<'a> TextPlacementInput<'a> {
-    fn fragments(self) -> &'a FunctionFragmentEmissionPlan {
-        match self {
-            Self::InternalCalls(fragments) => fragments,
-        }
-    }
-}
-
-pub(crate) fn place_fragment_text_section(
-    input: TextPlacementInput<'_>,
-) -> Result<RelocationFreeTextSectionPlacement, TextPlacementError> {
-    validate_placement_source(input)?;
-    match input {
-        TextPlacementInput::InternalCalls(fragments) => place_fixed_frame(fragments),
-    }
-}
-
-pub(crate) fn validate_fragment_text_section(
-    input: TextPlacementInput<'_>,
-    candidate: &RelocationFreeTextSectionPlacement,
-) -> Result<(), TextPlacementError> {
-    validate_placement_source(input)?;
-    check_placed_section(input, candidate)
-}
-
-fn validate_placement_source(input: TextPlacementInput<'_>) -> Result<(), TextPlacementError> {
-    match input {
-        TextPlacementInput::InternalCalls(_) => Ok(()),
-    }
-}
-
 fn validate_invocation_site(
     site: semantic_vocabulary::InvocationSite,
     operations: &[OperationId],
     edges: &[semantic_vocabulary::EdgeId],
-) -> Result<(), TextPlacementError> {
+) -> Result<(), RelocationFreeTextSectionPlacementError> {
     let matches = match site {
         semantic_vocabulary::InvocationSite::Operation(operation) => {
             operations.last() == Some(&operation) && edges.is_empty()
@@ -468,19 +362,19 @@ fn validate_invocation_site(
         | semantic_vocabulary::InvocationSite::Cleanup { edge, .. } => edges == [edge],
     };
     if !matches {
-        return Err(TextPlacementError::SourceShapeMismatch);
+        return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
     }
     Ok(())
 }
 
-fn usize_to_u64(value: usize) -> Result<u64, TextPlacementError> {
-    u64::try_from(value).map_err(|_| TextPlacementError::OffsetOverflow)
+fn usize_to_u64(value: usize) -> Result<u64, RelocationFreeTextSectionPlacementError> {
+    u64::try_from(value).map_err(|_| RelocationFreeTextSectionPlacementError::OffsetOverflow)
 }
 
 pub(crate) fn text_section_statistics(
     section: &RelocationFreeTextSectionPlacement,
     fragments: &FunctionFragmentEmissionPlan,
-) -> Result<FunctionFragmentTextSectionStatistics, TextPlacementError> {
+) -> Result<FunctionFragmentTextSectionStatistics, RelocationFreeTextSectionPlacementError> {
     let mut result = FunctionFragmentTextSectionStatistics {
         functions: usize_to_u64(section.functions.len())?,
         bytes: section.byte_count,
@@ -490,17 +384,17 @@ pub(crate) fn text_section_statistics(
         result.blocks = result
             .blocks
             .checked_add(usize_to_u64(function.blocks.len())?)
-            .ok_or(TextPlacementError::StatisticsOverflow)?;
+            .ok_or(RelocationFreeTextSectionPlacementError::StatisticsOverflow)?;
         for block in &function.blocks {
             result.instruction_spans = result
                 .instruction_spans
                 .checked_add(usize_to_u64(block.instructions.len())?)
-                .ok_or(TextPlacementError::StatisticsOverflow)?;
+                .ok_or(RelocationFreeTextSectionPlacementError::StatisticsOverflow)?;
             for row in &block.instructions {
                 result.zero_byte_instruction_spans = result
                     .zero_byte_instruction_spans
                     .checked_add(u64::from(row.byte_count == 0))
-                    .ok_or(TextPlacementError::StatisticsOverflow)?;
+                    .ok_or(RelocationFreeTextSectionPlacementError::StatisticsOverflow)?;
             }
         }
     }
@@ -509,7 +403,7 @@ pub(crate) fn text_section_statistics(
         .filter(|instruction| instruction.internal_machine_fixup.is_some())
         .count()
         .try_into()
-        .map_err(|_| TextPlacementError::StatisticsOverflow)?;
+        .map_err(|_| RelocationFreeTextSectionPlacementError::StatisticsOverflow)?;
     result.resolved_internal_machine_fixups =
         usize_to_u64(section.resolved_internal_machine_calls.len())?;
     result.relocation_requirements = usize_to_u64(
@@ -517,14 +411,14 @@ pub(crate) fn text_section_statistics(
             .unresolved_normalized_foreign_calls
             .len()
             .checked_add(section.unresolved_image_addresses.len())
-            .ok_or(TextPlacementError::StatisticsOverflow)?,
+            .ok_or(RelocationFreeTextSectionPlacementError::StatisticsOverflow)?,
     )?;
     result.remaining_internal_machine_fixups = result
         .source_internal_machine_fixups
         .checked_sub(result.resolved_internal_machine_fixups)
-        .ok_or(TextPlacementError::UnresolvedInternalMachineFixups)?;
+        .ok_or(RelocationFreeTextSectionPlacementError::UnresolvedInternalMachineFixups)?;
     if result.remaining_internal_machine_fixups != 0 {
-        return Err(TextPlacementError::UnresolvedInternalMachineFixups);
+        return Err(RelocationFreeTextSectionPlacementError::UnresolvedInternalMachineFixups);
     }
     Ok(result)
 }
@@ -533,11 +427,11 @@ fn validate_alignment(
     architecture: Architecture,
     offset: u64,
     byte_count: u64,
-) -> Result<(), TextPlacementError> {
+) -> Result<(), RelocationFreeTextSectionPlacementError> {
     if architecture == Architecture::Aarch64
         && (!offset.is_multiple_of(4) || !byte_count.is_multiple_of(4))
     {
-        return Err(TextPlacementError::MisalignedAarch64Span);
+        return Err(RelocationFreeTextSectionPlacementError::MisalignedAarch64Span);
     }
     Ok(())
 }
@@ -546,19 +440,19 @@ fn place_block_spans(
     architecture: Architecture,
     function: &FunctionFragment,
     function_section_offset: u64,
-) -> Result<Vec<PlacedBlockSpan>, TextPlacementError> {
+) -> Result<Vec<PlacedBlockSpan>, RelocationFreeTextSectionPlacementError> {
     let mut blocks = Vec::with_capacity(function.blocks.len());
     for block in &function.blocks {
         validate_alignment(architecture, block.offset, block.byte_count)?;
         let section_offset = function_section_offset
             .checked_add(block.offset)
-            .ok_or(TextPlacementError::OffsetOverflow)?;
+            .ok_or(RelocationFreeTextSectionPlacementError::OffsetOverflow)?;
         if block
             .offset
             .checked_add(block.byte_count)
             .is_none_or(|end| end > function.byte_count)
         {
-            return Err(TextPlacementError::SourceShapeMismatch);
+            return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
         }
         let mut instructions = Vec::with_capacity(block.instructions.len());
         for row in &block.instructions {
@@ -566,13 +460,13 @@ fn place_block_spans(
             validate_alignment(architecture, row.offset, byte_count)?;
             let row_section_offset = function_section_offset
                 .checked_add(row.offset)
-                .ok_or(TextPlacementError::OffsetOverflow)?;
+                .ok_or(RelocationFreeTextSectionPlacementError::OffsetOverflow)?;
             if row
                 .offset
                 .checked_add(byte_count)
                 .is_none_or(|end| end > function.byte_count)
             {
-                return Err(TextPlacementError::SourceShapeMismatch);
+                return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
             }
             instructions.push(PlacedInstructionSpan {
                 instruction: row.instruction,
@@ -595,7 +489,7 @@ fn place_block_spans(
 
 fn place_fixed_frame(
     fragments: &FunctionFragmentEmissionPlan,
-) -> Result<RelocationFreeTextSectionPlacement, TextPlacementError> {
+) -> Result<RelocationFreeTextSectionPlacement, RelocationFreeTextSectionPlacementError> {
     let section_alignment = match fragments.target.architecture {
         Architecture::Aarch64 => 4,
         Architecture::X86_64 => 1,
@@ -604,7 +498,9 @@ fn place_fixed_frame(
     let mut next_offset = 0_u64;
     for function in &fragments.functions {
         if offsets.insert(function.machine, next_offset).is_some() {
-            return Err(TextPlacementError::DuplicateFunction(function.machine));
+            return Err(RelocationFreeTextSectionPlacementError::DuplicateFunction(
+                function.machine,
+            ));
         }
         validate_alignment(
             fragments.target.architecture,
@@ -612,18 +508,19 @@ fn place_fixed_frame(
             function.byte_count,
         )?;
         if usize_to_u64(function.bytes.len())? != function.byte_count {
-            return Err(TextPlacementError::SourceShapeMismatch);
+            return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
         }
         next_offset = next_offset
             .checked_add(function.byte_count)
-            .ok_or(TextPlacementError::OffsetOverflow)?;
+            .ok_or(RelocationFreeTextSectionPlacementError::OffsetOverflow)?;
     }
 
     let semantic_entry_offset = *offsets
         .get(&fragments.entry)
-        .ok_or(TextPlacementError::MissingSemanticEntry(fragments.entry))?;
+        .ok_or(RelocationFreeTextSectionPlacementError::MissingSemanticEntry(fragments.entry))?;
     let mut bytes = Vec::with_capacity(
-        usize::try_from(next_offset).map_err(|_| TextPlacementError::OffsetOverflow)?,
+        usize::try_from(next_offset)
+            .map_err(|_| RelocationFreeTextSectionPlacementError::OffsetOverflow)?,
     );
     let mut functions = Vec::with_capacity(fragments.functions.len());
     let mut resolved = Vec::new();
@@ -633,7 +530,9 @@ fn place_fixed_frame(
 
     for (source_function_index, function) in fragments.functions.iter().enumerate() {
         if !seen_entry.insert(function.machine) {
-            return Err(TextPlacementError::DuplicateFunction(function.machine));
+            return Err(RelocationFreeTextSectionPlacementError::DuplicateFunction(
+                function.machine,
+            ));
         }
         let section_offset = offsets[&function.machine];
         let mut function_bytes = function.bytes.clone();
@@ -645,10 +544,10 @@ fn place_fixed_frame(
                         owner,
                     } = instruction.control
                     else {
-                        return Err(TextPlacementError::SourceShapeMismatch);
+                        return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
                     };
                     if callee != fixup.callee {
-                        return Err(TextPlacementError::SourceShapeMismatch);
+                        return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
                     }
                     match owner {
                         target_vocabulary::CallSiteOwner::Operation(operation)
@@ -675,11 +574,17 @@ fn place_fixed_frame(
                             if instruction.provenance.operations.is_empty()
                                 && instruction.provenance.edges.as_slice() == [edge]
                                 && instruction.provenance.work.is_empty() => {}
-                        _ => return Err(TextPlacementError::SourceShapeMismatch),
+                        _ => {
+                            return Err(
+                                RelocationFreeTextSectionPlacementError::SourceShapeMismatch,
+                            );
+                        }
                     }
-                    let callee_section_offset = *offsets
-                        .get(&callee)
-                        .ok_or(TextPlacementError::MissingInternalMachineTarget(callee))?;
+                    let callee_section_offset = *offsets.get(&callee).ok_or(
+                        RelocationFreeTextSectionPlacementError::MissingInternalMachineTarget(
+                            callee,
+                        ),
+                    )?;
                     resolved.push(resolve(
                         fragments.target.architecture,
                         function.machine,
@@ -701,10 +606,10 @@ fn place_fixed_frame(
                         ordinal,
                     } = instruction.control
                     else {
-                        return Err(TextPlacementError::SourceShapeMismatch);
+                        return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
                     };
                     if boundary != fixup.boundary || ordinal != fixup.ordinal {
-                        return Err(TextPlacementError::SourceShapeMismatch);
+                        return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
                     }
                     validate_invocation_site(
                         invocation_site,
@@ -764,7 +669,7 @@ fn place_fixed_frame(
         || unresolved_addresses.len() != source_addresses
         || usize_to_u64(bytes.len())? != next_offset
     {
-        return Err(TextPlacementError::UnresolvedInternalMachineFixups);
+        return Err(RelocationFreeTextSectionPlacementError::UnresolvedInternalMachineFixups);
     }
 
     let mut section = RelocationFreeTextSectionPlacement {
@@ -800,11 +705,11 @@ fn check_address_fields(
     instruction: &machine_code::FunctionFragmentInstructionSpan,
     fields: machine_code::ImageAddressFields,
     function_bytes: &[u8],
-) -> Result<(), TextPlacementError> {
+) -> Result<(), RelocationFreeTextSectionPlacementError> {
     let instruction_end = instruction
         .offset
         .checked_add(usize_to_u64(instruction.bytes.len())?)
-        .ok_or(TextPlacementError::OffsetOverflow)?;
+        .ok_or(RelocationFreeTextSectionPlacementError::OffsetOverflow)?;
     let field = |offset: u64| {
         if offset < instruction.offset || offset.checked_add(4)? > instruction_end {
             return None;
@@ -830,7 +735,7 @@ fn check_address_fields(
         }
     };
     if !canonical || instruction.branch.is_some() {
-        return Err(TextPlacementError::SourceShapeMismatch);
+        return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
     }
     Ok(())
 }
@@ -842,7 +747,7 @@ fn place_image_address(
     section_offset: u64,
     fixup: machine_code::FunctionFragmentImageAddressFixup,
     function_bytes: &[u8],
-) -> Result<machine_code::PlacedImageAddress, TextPlacementError> {
+) -> Result<machine_code::PlacedImageAddress, RelocationFreeTextSectionPlacementError> {
     check_address_fields(instruction, fixup.fields, function_bytes)?;
     Ok(machine_code::PlacedImageAddress {
         machine,
@@ -853,25 +758,30 @@ fn place_image_address(
         instruction_function_offset: instruction.offset,
         instruction_section_offset: section_offset
             .checked_add(instruction.offset)
-            .ok_or(TextPlacementError::OffsetOverflow)?,
+            .ok_or(RelocationFreeTextSectionPlacementError::OffsetOverflow)?,
         instruction_byte_count: usize_to_u64(instruction.bytes.len())?,
         fields: fixup
             .fields
             .shifted(section_offset)
-            .ok_or(TextPlacementError::OffsetOverflow)?,
+            .ok_or(RelocationFreeTextSectionPlacementError::OffsetOverflow)?,
     })
 }
 
-fn exact_operation(operations: &[OperationId]) -> Result<OperationId, TextPlacementError> {
+fn exact_operation(
+    operations: &[OperationId],
+) -> Result<OperationId, RelocationFreeTextSectionPlacementError> {
     operations
         .last()
         .copied()
-        .ok_or(TextPlacementError::SourceShapeMismatch)
+        .ok_or(RelocationFreeTextSectionPlacementError::SourceShapeMismatch)
 }
 
-fn section_coordinate(base: u64, offset: u64) -> Result<u64, TextPlacementError> {
+fn section_coordinate(
+    base: u64,
+    offset: u64,
+) -> Result<u64, RelocationFreeTextSectionPlacementError> {
     base.checked_add(offset)
-        .ok_or(TextPlacementError::OffsetOverflow)
+        .ok_or(RelocationFreeTextSectionPlacementError::OffsetOverflow)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -887,12 +797,12 @@ fn resolve(
     callee_section_offset: u64,
     fixup: FunctionFragmentInternalMachineFixup,
     function_bytes: &mut [u8],
-) -> Result<PlacedInternalMachineCallResolution, TextPlacementError> {
+) -> Result<PlacedInternalMachineCallResolution, RelocationFreeTextSectionPlacementError> {
     if fixup.state != FunctionFragmentInternalMachineFixupState::UnresolvedZeroFieldV1
         || fixup.opcode_function_offset != instruction_offset
         || fixup.addend != 0
     {
-        return Err(TextPlacementError::SourceShapeMismatch);
+        return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
     }
     let section_at = |offset| section_coordinate(function_section_offset, offset);
     let call_section_offset = section_at(instruction_offset)?;
@@ -906,14 +816,14 @@ fn resolve(
                 || fixup.reference_function_offset != instruction_offset + 5
                 || fixup.patch_byte_width != 4
             {
-                return Err(TextPlacementError::SourceShapeMismatch);
+                return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
             }
             let reference = function_section_offset
                 .checked_add(fixup.reference_function_offset)
-                .ok_or(TextPlacementError::OffsetOverflow)?;
+                .ok_or(RelocationFreeTextSectionPlacementError::OffsetOverflow)?;
             let displacement =
                 i32::try_from(i128::from(callee_section_offset) - i128::from(reference))
-                    .map_err(|_| TextPlacementError::InternalCallOutOfRange)?;
+                    .map_err(|_| RelocationFreeTextSectionPlacementError::InternalCallOutOfRange)?;
             (
                 InternalMachineCallResolutionKind::X86Relative32FromNextInstructionToInternalMachineV1,
                 displacement,
@@ -929,46 +839,46 @@ fn resolve(
                 || fixup.reference_function_offset != instruction_offset
                 || fixup.patch_byte_width != 4
             {
-                return Err(TextPlacementError::SourceShapeMismatch);
+                return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
             }
             let byte_displacement =
                 i128::from(callee_section_offset) - i128::from(call_section_offset);
             if byte_displacement % 4 != 0 {
-                return Err(TextPlacementError::InternalCallOutOfRange);
+                return Err(RelocationFreeTextSectionPlacementError::InternalCallOutOfRange);
             }
             let word_displacement = byte_displacement / 4;
             if !(-(1_i128 << 25)..(1_i128 << 25)).contains(&word_displacement) {
-                return Err(TextPlacementError::InternalCallOutOfRange);
+                return Err(RelocationFreeTextSectionPlacementError::InternalCallOutOfRange);
             }
             let immediate = u32::try_from(word_displacement.rem_euclid(1_i128 << 26))
-                .map_err(|_| TextPlacementError::InternalCallOutOfRange)?;
+                .map_err(|_| RelocationFreeTextSectionPlacementError::InternalCallOutOfRange)?;
             let encoded = 0x9400_0000_u32 | immediate;
             (
                 InternalMachineCallResolutionKind::Aarch64BranchLinkImmediate26FromInstructionToInternalMachineV1,
                 i32::try_from(byte_displacement)
-                    .map_err(|_| TextPlacementError::InternalCallOutOfRange)?,
+                    .map_err(|_| RelocationFreeTextSectionPlacementError::InternalCallOutOfRange)?,
                 encoded.to_le_bytes(),
             )
         }
-        _ => return Err(TextPlacementError::SourceShapeMismatch),
+        _ => return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch),
     };
 
     let patch_start = usize::try_from(fixup.patch_function_offset)
-        .map_err(|_| TextPlacementError::OffsetOverflow)?;
+        .map_err(|_| RelocationFreeTextSectionPlacementError::OffsetOverflow)?;
     let patch_end = patch_start
         .checked_add(usize::from(fixup.patch_byte_width))
-        .ok_or(TextPlacementError::OffsetOverflow)?;
-    let instruction_start =
-        usize::try_from(instruction_offset).map_err(|_| TextPlacementError::OffsetOverflow)?;
+        .ok_or(RelocationFreeTextSectionPlacementError::OffsetOverflow)?;
+    let instruction_start = usize::try_from(instruction_offset)
+        .map_err(|_| RelocationFreeTextSectionPlacementError::OffsetOverflow)?;
     let instruction_end = instruction_start
         .checked_add(instruction_bytes.len())
-        .ok_or(TextPlacementError::OffsetOverflow)?;
+        .ok_or(RelocationFreeTextSectionPlacementError::OffsetOverflow)?;
     if function_bytes.get(instruction_start..instruction_end) != Some(instruction_bytes) {
-        return Err(TextPlacementError::SourceShapeMismatch);
+        return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
     }
     function_bytes
         .get_mut(patch_start..patch_end)
-        .ok_or(TextPlacementError::SourceShapeMismatch)?
+        .ok_or(RelocationFreeTextSectionPlacementError::SourceShapeMismatch)?
         .copy_from_slice(&patch_bytes);
 
     Ok(PlacedInternalMachineCallResolution {
@@ -1007,32 +917,32 @@ fn resolve_foreign(
     function_section_offset: u64,
     fixup: FunctionFragmentNormalizedForeignCallFixup,
     function_bytes: &[u8],
-) -> Result<PlacedNormalizedForeignCallResolution, TextPlacementError> {
+) -> Result<PlacedNormalizedForeignCallResolution, RelocationFreeTextSectionPlacementError> {
     if (invocation_site.operation().is_none() && !fixup.callbacks.is_empty())
         || fixup.state != FunctionFragmentNormalizedForeignCallFixupState::UnresolvedImportFieldV1
         || fixup.opcode_function_offset < instruction_offset
         || fixup.addend != 0
     {
-        return Err(TextPlacementError::SourceShapeMismatch);
+        return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
     }
     let section_at = |offset| section_coordinate(function_section_offset, offset);
     let mut cursor = 0_u64;
     let mut check_group =
         |callback: &machine_code::FunctionFragmentCallbackMaterialization,
          patch_offsets: &[u64]|
-         -> Result<(), TextPlacementError> {
+         -> Result<(), RelocationFreeTextSectionPlacementError> {
             let group_start = instruction_offset
                 .checked_add(cursor)
-                .ok_or(TextPlacementError::OffsetOverflow)?;
+                .ok_or(RelocationFreeTextSectionPlacementError::OffsetOverflow)?;
             let group_end = cursor
                 .checked_add(callback.code_byte_count)
-                .ok_or(TextPlacementError::OffsetOverflow)?;
+                .ok_or(RelocationFreeTextSectionPlacementError::OffsetOverflow)?;
             let group = usize::try_from(group_end)
                 .ok()
                 .and_then(|end| instruction_bytes.get(cursor as usize..end))
-                .ok_or(TextPlacementError::SourceShapeMismatch)?;
+                .ok_or(RelocationFreeTextSectionPlacementError::SourceShapeMismatch)?;
             if callback.code_function_offset != group_start {
-                return Err(TextPlacementError::SourceShapeMismatch);
+                return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
             }
             let absolute: Vec<u64> = match callback.encoding {
                 machine_code::FunctionFragmentCallbackMaterializationEncoding::X86_64Relative32 {
@@ -1049,7 +959,7 @@ fn resolve_foreign(
                     .zip(patch_offsets)
                     .all(|(absolute, relative)| *absolute == group_start + relative)
             {
-                return Err(TextPlacementError::SourceShapeMismatch);
+                return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
             }
             // The encoded recipe is already carried by the current form.
             // Placement only needs the declared, still-unbound relocation fields.
@@ -1057,19 +967,18 @@ fn resolve_foreign(
                 let field = usize::try_from(*offset)
                     .ok()
                     .and_then(|start| start.checked_add(4).and_then(|end| group.get(start..end)))
-                    .ok_or(TextPlacementError::SourceShapeMismatch)?;
-                let value = u32::from_le_bytes(
-                    field
-                        .try_into()
-                        .map_err(|_| TextPlacementError::SourceShapeMismatch)?,
-                );
+                    .ok_or(RelocationFreeTextSectionPlacementError::SourceShapeMismatch)?;
+                let value =
+                    u32::from_le_bytes(field.try_into().map_err(|_| {
+                        RelocationFreeTextSectionPlacementError::SourceShapeMismatch
+                    })?);
                 let mask = match architecture {
                     Architecture::X86_64 => u32::MAX,
                     Architecture::Aarch64 if index == 0 => 0x60ff_ffe0,
                     Architecture::Aarch64 => 0x003f_fc00,
                 };
                 if value & mask != 0 {
-                    return Err(TextPlacementError::SourceShapeMismatch);
+                    return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
                 }
             }
             cursor = group_end;
@@ -1084,20 +993,20 @@ fn resolve_foreign(
                 let machine_code::FunctionFragmentCallbackMaterializationEncoding::X86_64Relative32 { .. } =
                     callback.encoding
                 else {
-                    return Err(TextPlacementError::SourceShapeMismatch);
+                    return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
                 };
                 check_group(callback, &[3])?;
             }
             let call_offset = instruction_offset
                 .checked_add(cursor)
-                .ok_or(TextPlacementError::OffsetOverflow)?;
+                .ok_or(RelocationFreeTextSectionPlacementError::OffsetOverflow)?;
             if instruction_bytes.get(cursor as usize..) != Some(&[0xe8_u8, 0, 0, 0, 0][..])
                 || fixup.opcode_function_offset != call_offset
                 || fixup.patch_function_offset != call_offset + 1
                 || fixup.reference_function_offset != call_offset + 5
                 || fixup.patch_byte_width != 4
             {
-                return Err(TextPlacementError::SourceShapeMismatch);
+                return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
             }
             NormalizedForeignCallResolutionKind::X86Relative32FromNextInstructionToNormalizedForeignImportV1
         }
@@ -1109,16 +1018,16 @@ fn resolve_foreign(
                 let machine_code::FunctionFragmentCallbackMaterializationEncoding::Aarch64PageAddress { .. } =
                     callback.encoding
                 else {
-                    return Err(TextPlacementError::SourceShapeMismatch);
+                    return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
                 };
                 if matches!(callback.destination, machine_code::CallbackAddressDestination::OutgoingStack { .. }) {
-                    return Err(TextPlacementError::SourceShapeMismatch);
+                    return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
                 }
                 check_group(callback, &[0, 4])?;
             }
             let call_offset = instruction_offset
                 .checked_add(cursor)
-                .ok_or(TextPlacementError::OffsetOverflow)?;
+                .ok_or(RelocationFreeTextSectionPlacementError::OffsetOverflow)?;
             if instruction_bytes.get(cursor as usize..)
                 != Some(&0x9400_0000_u32.to_le_bytes()[..])
                 || fixup.opcode_function_offset != call_offset
@@ -1126,20 +1035,20 @@ fn resolve_foreign(
                 || fixup.reference_function_offset != call_offset
                 || fixup.patch_byte_width != 4
             {
-                return Err(TextPlacementError::SourceShapeMismatch);
+                return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
             }
             NormalizedForeignCallResolutionKind::Aarch64BranchLinkImmediate26FromInstructionToNormalizedForeignImportV1
         }
-        _ => return Err(TextPlacementError::SourceShapeMismatch),
+        _ => return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch),
     };
 
-    let instruction_start =
-        usize::try_from(instruction_offset).map_err(|_| TextPlacementError::OffsetOverflow)?;
+    let instruction_start = usize::try_from(instruction_offset)
+        .map_err(|_| RelocationFreeTextSectionPlacementError::OffsetOverflow)?;
     let instruction_end = instruction_start
         .checked_add(instruction_bytes.len())
-        .ok_or(TextPlacementError::OffsetOverflow)?;
+        .ok_or(RelocationFreeTextSectionPlacementError::OffsetOverflow)?;
     if function_bytes.get(instruction_start..instruction_end) != Some(instruction_bytes) {
-        return Err(TextPlacementError::SourceShapeMismatch);
+        return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
     }
 
     Ok(PlacedNormalizedForeignCallResolution {
@@ -1171,7 +1080,7 @@ fn resolve_foreign(
                     code_function_offset: callback.code_function_offset,
                     code_section_offset: function_section_offset
                         .checked_add(callback.code_function_offset)
-                        .ok_or(TextPlacementError::OffsetOverflow)?,
+                        .ok_or(RelocationFreeTextSectionPlacementError::OffsetOverflow)?,
                     code_byte_count: callback.code_byte_count,
                     encoding: match callback.encoding {
                         machine_code::FunctionFragmentCallbackMaterializationEncoding::X86_64Relative32 {
@@ -1180,7 +1089,7 @@ fn resolve_foreign(
                             relocation_function_offset: patch_function_offset,
                             relocation_section_offset: function_section_offset
                                 .checked_add(patch_function_offset)
-                                .ok_or(TextPlacementError::OffsetOverflow)?,
+                                .ok_or(RelocationFreeTextSectionPlacementError::OffsetOverflow)?,
                         },
                         machine_code::FunctionFragmentCallbackMaterializationEncoding::Aarch64PageAddress {
                             page_patch_function_offset,
@@ -1189,25 +1098,24 @@ fn resolve_foreign(
                             page_relocation_function_offset: page_patch_function_offset,
                             page_relocation_section_offset: function_section_offset
                                 .checked_add(page_patch_function_offset)
-                                .ok_or(TextPlacementError::OffsetOverflow)?,
+                                .ok_or(RelocationFreeTextSectionPlacementError::OffsetOverflow)?,
                             page_offset_relocation_function_offset:
                                 page_offset_patch_function_offset,
                             page_offset_relocation_section_offset: function_section_offset
                                 .checked_add(page_offset_patch_function_offset)
-                                .ok_or(TextPlacementError::OffsetOverflow)?,
+                                .ok_or(RelocationFreeTextSectionPlacementError::OffsetOverflow)?,
                         },
                     },
                 })
             })
-            .collect::<Result<Vec<_>, TextPlacementError>>()?,
+            .collect::<Result<Vec<_>, RelocationFreeTextSectionPlacementError>>()?,
     })
 }
 
 fn check_placed_section(
-    input: TextPlacementInput<'_>,
+    fragments: &FunctionFragmentEmissionPlan,
     section: &RelocationFreeTextSectionPlacement,
-) -> Result<(), TextPlacementError> {
-    let fragments = input.fragments();
+) -> Result<(), RelocationFreeTextSectionPlacementError> {
     let count = fragments.functions.len();
     let alignment = match fragments.target.architecture {
         Architecture::X86_64 => 1,
@@ -1226,7 +1134,7 @@ fn check_placed_section(
         || section.section_alignment != alignment
         || section.byte_count != section.bytes.len() as u64
     {
-        return Err(TextPlacementError::ArtifactMismatch);
+        return Err(RelocationFreeTextSectionPlacementError::ArtifactMismatch);
     }
     let mut offsets = Vec::with_capacity(fragments.functions.len());
     let mut extent = 0;
@@ -1242,11 +1150,11 @@ fn check_placed_section(
     }
 
     let entry = lookup_function_offset(&offsets, fragments.entry)
-        .ok_or(TextPlacementError::MissingSemanticEntry(fragments.entry))?;
+        .ok_or(RelocationFreeTextSectionPlacementError::MissingSemanticEntry(fragments.entry))?;
     if section.semantic_entry_offset != entry || section.byte_count != extent {
-        return Err(TextPlacementError::ArtifactMismatch);
+        return Err(RelocationFreeTextSectionPlacementError::ArtifactMismatch);
     }
-    check_placed_functions(input, section, &offsets, alignment)
+    check_placed_functions(fragments, section, &offsets, alignment)
 }
 
 fn lookup_function_offset(offsets: &[(MachineId, u64)], machine: MachineId) -> Option<u64> {
@@ -1277,28 +1185,29 @@ fn record_source_function(
     count: u64,
     bytes: &[u8],
     alignment: u64,
-) -> Result<(), TextPlacementError> {
+) -> Result<(), RelocationFreeTextSectionPlacementError> {
     if lookup_function_offset(offsets, machine).is_some() {
-        return Err(TextPlacementError::DuplicateFunction(machine));
+        return Err(RelocationFreeTextSectionPlacementError::DuplicateFunction(
+            machine,
+        ));
     }
     offsets.push((machine, *extent));
     if count != bytes.len() as u64 {
-        return Err(TextPlacementError::SourceShapeMismatch);
+        return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
     }
     if !extent.is_multiple_of(alignment) || !count.is_multiple_of(alignment) {
-        return Err(TextPlacementError::MisalignedAarch64Span);
+        return Err(RelocationFreeTextSectionPlacementError::MisalignedAarch64Span);
     }
     *extent = checked_add(*extent, count)?;
     Ok(())
 }
 
 fn check_placed_functions(
-    input: TextPlacementInput<'_>,
+    fragments: &FunctionFragmentEmissionPlan,
     section: &RelocationFreeTextSectionPlacement,
     offsets: &[(MachineId, u64)],
     alignment: u64,
-) -> Result<(), TextPlacementError> {
-    let fragments = input.fragments();
+) -> Result<(), RelocationFreeTextSectionPlacementError> {
     let mut resolutions = section.resolved_internal_machine_calls.iter();
     let mut foreign = section.unresolved_normalized_foreign_calls.iter();
     let mut addresses = section.unresolved_image_addresses.iter();
@@ -1309,10 +1218,10 @@ fn check_placed_functions(
         .enumerate()
     {
         let offset = lookup_function_offset(offsets, source.machine)
-            .ok_or(TextPlacementError::ArtifactMismatch)?;
+            .ok_or(RelocationFreeTextSectionPlacementError::ArtifactMismatch)?;
         check_function_span(placed, index, source.machine, offset, source.byte_count)?;
         if placed.blocks.len() != source.blocks.len() {
-            return Err(TextPlacementError::ArtifactMismatch);
+            return Err(RelocationFreeTextSectionPlacementError::ArtifactMismatch);
         }
         let candidate_bytes = slice_bytes(&section.bytes, offset, source.byte_count)?;
         let mut patches = Vec::new();
@@ -1327,7 +1236,7 @@ fn check_placed_functions(
                 alignment,
             )?;
             if placed_block.instructions.len() != source_block.instructions.len() {
-                return Err(TextPlacementError::ArtifactMismatch);
+                return Err(RelocationFreeTextSectionPlacementError::ArtifactMismatch);
             }
             for (source_row, access_row) in source_block
                 .instructions
@@ -1354,17 +1263,14 @@ fn check_placed_functions(
                         || (fragments.target.architecture == Architecture::X86_64
                             && source_row.bytes != [0xe8, 0, 0, 0, 0])
                     {
-                        return Err(TextPlacementError::SourceShapeMismatch);
-                    }
-                    if !matches!(input, TextPlacementInput::InternalCalls(_)) {
-                        return Err(TextPlacementError::UnsupportedRelocationShape);
+                        return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
                     }
                     let FunctionFragmentControlProvenance::InternalCall {
                         target: selected_instructions::SelectedCallTarget::Machine(callee),
                         owner,
                     } = source_row.control
                     else {
-                        return Err(TextPlacementError::SourceShapeMismatch);
+                        return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
                     };
                     match owner {
                         target_vocabulary::CallSiteOwner::Operation(operation)
@@ -1390,11 +1296,15 @@ fn check_placed_functions(
                             if source_row.provenance.operations.is_empty()
                                 && source_row.provenance.edges.as_slice() == [edge]
                                 && source_row.provenance.work.is_empty() => {}
-                        _ => return Err(TextPlacementError::SourceShapeMismatch),
+                        _ => {
+                            return Err(
+                                RelocationFreeTextSectionPlacementError::SourceShapeMismatch,
+                            );
+                        }
                     }
                     let candidate = resolutions
                         .next()
-                        .ok_or(TextPlacementError::ArtifactMismatch)?;
+                        .ok_or(RelocationFreeTextSectionPlacementError::ArtifactMismatch)?;
                     patches.push(check_internal_call(
                         Call {
                             caller: source.machine,
@@ -1417,23 +1327,25 @@ fn check_placed_functions(
                     let opcode_relative = fixup
                         .opcode_function_offset
                         .checked_sub(source_row.offset)
-                        .ok_or(TextPlacementError::SourceShapeMismatch)?;
+                        .ok_or(RelocationFreeTextSectionPlacementError::SourceShapeMismatch)?;
                     let mut group_cursor = source_row.offset;
                     for callback in &fixup.callbacks {
                         if callback.code_function_offset != group_cursor {
-                            return Err(TextPlacementError::SourceShapeMismatch);
+                            return Err(
+                                RelocationFreeTextSectionPlacementError::SourceShapeMismatch,
+                            );
                         }
                         group_cursor = checked_add(group_cursor, callback.code_byte_count)?;
                     }
                     if group_cursor != fixup.opcode_function_offset {
-                        return Err(TextPlacementError::SourceShapeMismatch);
+                        return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
                     }
                     let call_byte_count = source_row
                         .bytes
                         .len()
                         .checked_sub(opcode_relative as usize)
                         .map(|count| count as u64)
-                        .ok_or(TextPlacementError::SourceShapeMismatch)?;
+                        .ok_or(RelocationFreeTextSectionPlacementError::SourceShapeMismatch)?;
                     if slice_bytes(
                         &source.bytes,
                         source_row.offset,
@@ -1448,10 +1360,7 @@ fn check_placed_functions(
                                 || slice_bytes(&source_row.bytes, opcode_relative, 4)?
                                     != 0x9400_0000_u32.to_le_bytes()))
                     {
-                        return Err(TextPlacementError::SourceShapeMismatch);
-                    }
-                    if !matches!(input, TextPlacementInput::InternalCalls(_)) {
-                        return Err(TextPlacementError::UnsupportedRelocationShape);
+                        return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
                     }
                     let FunctionFragmentControlProvenance::NormalizedForeignCall {
                         invocation_site,
@@ -1459,17 +1368,19 @@ fn check_placed_functions(
                         ordinal,
                     } = source_row.control
                     else {
-                        return Err(TextPlacementError::SourceShapeMismatch);
+                        return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
                     };
                     if boundary != fixup.boundary || ordinal != fixup.ordinal {
-                        return Err(TextPlacementError::SourceShapeMismatch);
+                        return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
                     }
                     validate_invocation_site(
                         invocation_site,
                         &source_row.provenance.operations,
                         &source_row.provenance.edges,
                     )?;
-                    let candidate = foreign.next().ok_or(TextPlacementError::ArtifactMismatch)?;
+                    let candidate = foreign
+                        .next()
+                        .ok_or(RelocationFreeTextSectionPlacementError::ArtifactMismatch)?;
                     check_foreign_call(
                         ForeignCall {
                             caller: source.machine,
@@ -1487,12 +1398,9 @@ fn check_placed_functions(
                     )?;
                 }
                 if let Some(fixup) = source_row.image_address_fixup() {
-                    if !matches!(input, TextPlacementInput::InternalCalls(_)) {
-                        return Err(TextPlacementError::UnsupportedRelocationShape);
-                    }
                     let candidate = addresses
                         .next()
-                        .ok_or(TextPlacementError::ArtifactMismatch)?;
+                        .ok_or(RelocationFreeTextSectionPlacementError::ArtifactMismatch)?;
                     let expected = machine_code::PlacedImageAddress {
                         machine: source.machine,
                         block: source_block.block,
@@ -1502,17 +1410,17 @@ fn check_placed_functions(
                             .provenance
                             .operations
                             .last()
-                            .ok_or(TextPlacementError::ArtifactMismatch)?,
+                            .ok_or(RelocationFreeTextSectionPlacementError::ArtifactMismatch)?,
                         instruction_function_offset: source_row.offset,
                         instruction_section_offset: checked_add(offset, source_row.offset)?,
                         instruction_byte_count: source_row.bytes.len() as u64,
                         fields: fixup
                             .fields
                             .shifted(offset)
-                            .ok_or(TextPlacementError::OffsetOverflow)?,
+                            .ok_or(RelocationFreeTextSectionPlacementError::OffsetOverflow)?,
                     };
                     if *candidate != expected {
-                        return Err(TextPlacementError::ArtifactMismatch);
+                        return Err(RelocationFreeTextSectionPlacementError::ArtifactMismatch);
                     }
                 }
             }
@@ -1521,7 +1429,7 @@ fn check_placed_functions(
     }
 
     if resolutions.next().is_some() || foreign.next().is_some() || addresses.next().is_some() {
-        return Err(TextPlacementError::ArtifactMismatch);
+        return Err(RelocationFreeTextSectionPlacementError::ArtifactMismatch);
     }
     Ok(())
 }
@@ -1544,30 +1452,30 @@ fn check_internal_call(
     offsets: &[(MachineId, u64)],
     candidate_bytes: &[u8],
     row: &PlacedInternalMachineCallResolution,
-) -> Result<(u64, u64), TextPlacementError> {
+) -> Result<(u64, u64), RelocationFreeTextSectionPlacementError> {
     let fixup = call.fixup;
     let callee_offset = lookup_function_offset(offsets, call.callee).ok_or(
-        TextPlacementError::MissingInternalMachineTarget(call.callee),
+        RelocationFreeTextSectionPlacementError::MissingInternalMachineTarget(call.callee),
     )?;
     if fixup.state != FunctionFragmentInternalMachineFixupState::UnresolvedZeroFieldV1
         || fixup.addend != 0
         || fixup.callee != call.callee
         || fixup.patch_byte_width != 4
     {
-        return Err(TextPlacementError::SourceShapeMismatch);
+        return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
     }
     let opcode_relative = fixup
         .opcode_function_offset
         .checked_sub(call.offset)
-        .ok_or(TextPlacementError::SourceShapeMismatch)?;
+        .ok_or(RelocationFreeTextSectionPlacementError::SourceShapeMismatch)?;
     let patch_relative = fixup
         .patch_function_offset
         .checked_sub(call.offset)
-        .ok_or(TextPlacementError::SourceShapeMismatch)?;
+        .ok_or(RelocationFreeTextSectionPlacementError::SourceShapeMismatch)?;
     let field = slice_bytes(candidate_bytes, fixup.patch_function_offset, 4)?;
     let field: [u8; 4] = field
         .try_into()
-        .map_err(|_| TextPlacementError::ArtifactMismatch)?;
+        .map_err(|_| RelocationFreeTextSectionPlacementError::ArtifactMismatch)?;
     let (kind, displacement) = match (architecture, fixup.kind) {
         (
             Architecture::X86_64,
@@ -1578,10 +1486,10 @@ fn check_internal_call(
                 || slice_bytes(call.bytes, opcode_relative, 1)? != [0xe8]
                 || slice_bytes(call.bytes, patch_relative, 4)? != [0, 0, 0, 0]
             {
-                return Err(TextPlacementError::SourceShapeMismatch);
+                return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
             }
             if slice_bytes(candidate_bytes, fixup.opcode_function_offset, 1)? != [0xe8] {
-                return Err(TextPlacementError::ArtifactMismatch);
+                return Err(RelocationFreeTextSectionPlacementError::ArtifactMismatch);
             }
             (
                 InternalMachineCallResolutionKind::X86Relative32FromNextInstructionToInternalMachineV1,
@@ -1597,11 +1505,11 @@ fn check_internal_call(
                 || fixup.reference_function_offset != call.offset
                 || call.bytes != 0x9400_0000_u32.to_le_bytes()
             {
-                return Err(TextPlacementError::SourceShapeMismatch);
+                return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
             }
             let instruction = u32::from_le_bytes(field);
             if instruction & 0xfc00_0000 != 0x9400_0000 {
-                return Err(TextPlacementError::ArtifactMismatch);
+                return Err(RelocationFreeTextSectionPlacementError::ArtifactMismatch);
             }
             let signed_words = ((instruction & 0x03ff_ffff) << 6) as i32 >> 6;
             (
@@ -1609,7 +1517,7 @@ fn check_internal_call(
                 signed_words * 4,
             )
         }
-        _ => return Err(TextPlacementError::SourceShapeMismatch),
+        _ => return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch),
     };
     let reference = checked_add(section_offset, fixup.reference_function_offset)?;
     if i128::from(reference) + i128::from(displacement) != i128::from(callee_offset)
@@ -1634,7 +1542,7 @@ fn check_internal_call(
         || row.addend != 0
         || row.displacement != displacement
     {
-        return Err(TextPlacementError::ArtifactMismatch);
+        return Err(RelocationFreeTextSectionPlacementError::ArtifactMismatch);
     }
     Ok((
         fixup.patch_function_offset,
@@ -1720,23 +1628,23 @@ fn check_foreign_call(
     section_offset: u64,
     candidate_bytes: &[u8],
     row: &PlacedNormalizedForeignCallResolution,
-) -> Result<(), TextPlacementError> {
+) -> Result<(), RelocationFreeTextSectionPlacementError> {
     let fixup = call.fixup;
     if (call.invocation_site.operation().is_none() && !fixup.callbacks.is_empty())
         || fixup.state != FunctionFragmentNormalizedForeignCallFixupState::UnresolvedImportFieldV1
         || fixup.addend != 0
         || fixup.patch_byte_width != 4
     {
-        return Err(TextPlacementError::SourceShapeMismatch);
+        return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
     }
     let opcode_relative = fixup
         .opcode_function_offset
         .checked_sub(call.offset)
-        .ok_or(TextPlacementError::SourceShapeMismatch)?;
+        .ok_or(RelocationFreeTextSectionPlacementError::SourceShapeMismatch)?;
     let patch_relative = fixup
         .patch_function_offset
         .checked_sub(call.offset)
-        .ok_or(TextPlacementError::SourceShapeMismatch)?;
+        .ok_or(RelocationFreeTextSectionPlacementError::SourceShapeMismatch)?;
     let field = slice_bytes(candidate_bytes, fixup.patch_function_offset, 4)?;
     let kind = match (architecture, fixup.kind) {
         (
@@ -1749,12 +1657,12 @@ fn check_foreign_call(
                 || slice_bytes(call.bytes, opcode_relative, 1)? != [0xe8]
                 || slice_bytes(call.bytes, patch_relative, 4)? != [0, 0, 0, 0]
             {
-                return Err(TextPlacementError::SourceShapeMismatch);
+                return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
             }
             if slice_bytes(candidate_bytes, fixup.opcode_function_offset, 1)? != [0xe8]
                 || field != [0, 0, 0, 0]
             {
-                return Err(TextPlacementError::ArtifactMismatch);
+                return Err(RelocationFreeTextSectionPlacementError::ArtifactMismatch);
             }
             NormalizedForeignCallResolutionKind::X86Relative32FromNextInstructionToNormalizedForeignImportV1
         }
@@ -1767,14 +1675,14 @@ fn check_foreign_call(
                 || opcode_relative.checked_add(4) != Some(call.bytes.len() as u64)
                 || slice_bytes(call.bytes, opcode_relative, 4)? != 0x9400_0000_u32.to_le_bytes()
             {
-                return Err(TextPlacementError::SourceShapeMismatch);
+                return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
             }
             if field != 0x9400_0000_u32.to_le_bytes() {
-                return Err(TextPlacementError::ArtifactMismatch);
+                return Err(RelocationFreeTextSectionPlacementError::ArtifactMismatch);
             }
             NormalizedForeignCallResolutionKind::Aarch64BranchLinkImmediate26FromInstructionToNormalizedForeignImportV1
         }
-        _ => return Err(TextPlacementError::SourceShapeMismatch),
+        _ => return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch),
     };
     let reference = checked_add(section_offset, fixup.reference_function_offset)?;
     if row.kind != kind
@@ -1803,7 +1711,7 @@ fn check_foreign_call(
             .zip(&row.callback_materializations)
             .all(|(source, placed)| callback_matches_fragment(source, placed, section_offset))
     {
-        return Err(TextPlacementError::ArtifactMismatch);
+        return Err(RelocationFreeTextSectionPlacementError::ArtifactMismatch);
     }
     Ok(())
 }
@@ -1812,43 +1720,49 @@ fn unchanged_bytes(
     source: &[u8],
     candidate: &[u8],
     mut patches: Vec<(u64, u64)>,
-) -> Result<(), TextPlacementError> {
+) -> Result<(), RelocationFreeTextSectionPlacementError> {
     if source.len() != candidate.len() {
-        return Err(TextPlacementError::ArtifactMismatch);
+        return Err(RelocationFreeTextSectionPlacementError::ArtifactMismatch);
     }
     patches.sort_unstable();
     let mut cursor = 0;
     for (start, end) in patches {
         if start < cursor || end < start || end > source.len() as u64 {
-            return Err(TextPlacementError::ArtifactMismatch);
+            return Err(RelocationFreeTextSectionPlacementError::ArtifactMismatch);
         }
         if slice_bytes(source, cursor, start - cursor)?
             != slice_bytes(candidate, cursor, start - cursor)?
         {
-            return Err(TextPlacementError::ArtifactMismatch);
+            return Err(RelocationFreeTextSectionPlacementError::ArtifactMismatch);
         }
         cursor = end;
     }
     if slice_bytes(source, cursor, source.len() as u64 - cursor)?
         != slice_bytes(candidate, cursor, candidate.len() as u64 - cursor)?
     {
-        return Err(TextPlacementError::ArtifactMismatch);
+        return Err(RelocationFreeTextSectionPlacementError::ArtifactMismatch);
     }
     Ok(())
 }
 
-fn slice_bytes(source: &[u8], start: u64, count: u64) -> Result<&[u8], TextPlacementError> {
+fn slice_bytes(
+    source: &[u8],
+    start: u64,
+    count: u64,
+) -> Result<&[u8], RelocationFreeTextSectionPlacementError> {
     let end = checked_add(start, count)?;
-    let start = usize::try_from(start).map_err(|_| TextPlacementError::OffsetOverflow)?;
-    let end = usize::try_from(end).map_err(|_| TextPlacementError::OffsetOverflow)?;
+    let start = usize::try_from(start)
+        .map_err(|_| RelocationFreeTextSectionPlacementError::OffsetOverflow)?;
+    let end = usize::try_from(end)
+        .map_err(|_| RelocationFreeTextSectionPlacementError::OffsetOverflow)?;
     source
         .get(start..end)
-        .ok_or(TextPlacementError::ArtifactMismatch)
+        .ok_or(RelocationFreeTextSectionPlacementError::ArtifactMismatch)
 }
 
-fn checked_add(left: u64, right: u64) -> Result<u64, TextPlacementError> {
+fn checked_add(left: u64, right: u64) -> Result<u64, RelocationFreeTextSectionPlacementError> {
     left.checked_add(right)
-        .ok_or(TextPlacementError::OffsetOverflow)
+        .ok_or(RelocationFreeTextSectionPlacementError::OffsetOverflow)
 }
 
 fn check_function_span(
@@ -1857,13 +1771,13 @@ fn check_function_span(
     machine: MachineId,
     offset: u64,
     count: u64,
-) -> Result<(), TextPlacementError> {
+) -> Result<(), RelocationFreeTextSectionPlacementError> {
     if candidate.source_function_index != index as u64
         || candidate.machine != machine
         || candidate.section_offset != offset
         || candidate.byte_count != count
     {
-        return Err(TextPlacementError::ArtifactMismatch);
+        return Err(RelocationFreeTextSectionPlacementError::ArtifactMismatch);
     }
     Ok(())
 }
@@ -1877,19 +1791,19 @@ fn check_block_span(
     count: u64,
     extent: u64,
     alignment: u64,
-) -> Result<(), TextPlacementError> {
+) -> Result<(), RelocationFreeTextSectionPlacementError> {
     if !offset.is_multiple_of(alignment) || !count.is_multiple_of(alignment) {
-        return Err(TextPlacementError::MisalignedAarch64Span);
+        return Err(RelocationFreeTextSectionPlacementError::MisalignedAarch64Span);
     }
     if checked_add(offset, count)? > extent {
-        return Err(TextPlacementError::SourceShapeMismatch);
+        return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
     }
     if candidate.block != block
         || candidate.function_offset != offset
         || candidate.section_offset != checked_add(section, offset)?
         || candidate.byte_count != count
     {
-        return Err(TextPlacementError::ArtifactMismatch);
+        return Err(RelocationFreeTextSectionPlacementError::ArtifactMismatch);
     }
     Ok(())
 }
@@ -1904,12 +1818,12 @@ fn check_instruction_span(
     count: u64,
     extent: u64,
     alignment: u64,
-) -> Result<(), TextPlacementError> {
+) -> Result<(), RelocationFreeTextSectionPlacementError> {
     if !offset.is_multiple_of(alignment) || !count.is_multiple_of(alignment) {
-        return Err(TextPlacementError::MisalignedAarch64Span);
+        return Err(RelocationFreeTextSectionPlacementError::MisalignedAarch64Span);
     }
     if checked_add(offset, count)? > extent {
-        return Err(TextPlacementError::SourceShapeMismatch);
+        return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
     }
     if candidate.instruction != instruction
         || candidate.alternative != alternative
@@ -1917,7 +1831,7 @@ fn check_instruction_span(
         || candidate.section_offset != checked_add(section, offset)?
         || candidate.byte_count != count
     {
-        return Err(TextPlacementError::ArtifactMismatch);
+        return Err(RelocationFreeTextSectionPlacementError::ArtifactMismatch);
     }
     Ok(())
 }
@@ -1984,9 +1898,15 @@ mod tests {
         check(&original).unwrap();
         let mut shifted = original.clone();
         shifted.callback_materializations[0].code_section_offset += 1;
-        assert_eq!(check(&shifted), Err(TextPlacementError::ArtifactMismatch));
+        assert_eq!(
+            check(&shifted),
+            Err(RelocationFreeTextSectionPlacementError::ArtifactMismatch)
+        );
         let mut missing = original;
         missing.callback_materializations.clear();
-        assert_eq!(check(&missing), Err(TextPlacementError::ArtifactMismatch));
+        assert_eq!(
+            check(&missing),
+            Err(RelocationFreeTextSectionPlacementError::ArtifactMismatch)
+        );
     }
 }
