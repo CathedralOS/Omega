@@ -4,7 +4,9 @@ use crate::PackageCommandError;
 use crate::resolution::source::{AcquiredBuildSource, AcquiredSourceSelection};
 use build_declarations::{BuildRequest, DependencyPurpose};
 use build_execution::host::bindings::BuildProductQuery;
-use build_execution::host::requests::{BuildDependencyPreparation, IssuedBuildRequest};
+use build_execution::host::requests::{
+    BuildDependencyPreparation, BuildValidationRequest, IssuedBuildRequest,
+};
 use build_execution::{CompileFailure, TerminalBuildActivation};
 use diagnostics::Diagnostic;
 use package_compilation::source_imports::ProductQueryDependency;
@@ -264,13 +266,19 @@ impl PlanningServices for SourceServices<'_, '_, '_> {
     fn validation_subject(
         &mut self,
         issued: &[IssuedBuildRequest],
-        purpose: DependencyPurpose,
-        ordinal: usize,
+        request: &BuildValidationRequest,
     ) -> Result<build_execution::DependencyValidationSubject, CompileFailure> {
-        let index = self.dependency(issued, purpose, ordinal)?;
+        let index = match request {
+            BuildValidationRequest::Registered { purpose, ordinal } => {
+                self.dependency(issued, *purpose, *ordinal)?
+            }
+            BuildValidationRequest::Incoming(binding) => {
+                self.host.frozen_library(binding.library())?
+            }
+        };
         let build = &self.host.settled[index].build;
         Ok(build_execution::DependencyValidationSubject {
-            purpose,
+            purpose: request.purpose(),
             inputs: build.inputs().clone(),
             configuration: std::sync::Arc::clone(&build.evaluated().configuration),
         })

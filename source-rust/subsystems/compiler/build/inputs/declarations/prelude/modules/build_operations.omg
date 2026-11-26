@@ -19,6 +19,10 @@ public machine validate(builder: @mutable BuildPlan, registered: @DependencyRegi
     BuildRequestOperations::validate_dependency(builder, $registered);
 }
 
+public machine validate(builder: @mutable BuildPlan, binding: @PackageBinding) reaches BuildRequestOperations invokes BuildRequestOperations {
+    BuildRequestOperations::validate_binding(builder, $binding);
+}
+
 // The readiness boundary for one exact registration: the Build parks here
 // until the evaluator has acquired that dependency, run its Build and
 // prepared it, then resumes. Earlier statements never run again.

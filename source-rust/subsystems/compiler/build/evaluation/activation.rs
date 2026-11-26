@@ -56,7 +56,7 @@ use terminal_interpreter::{
 };
 
 use crate::host::bindings::TerminalBuildBindingHost;
-use crate::host::requests::{IssuedBuildRequest, TerminalBuildRequestHost};
+use crate::host::requests::{BuildValidationRequest, IssuedBuildRequest, TerminalBuildRequestHost};
 
 pub(crate) fn measurement() -> evaluation_contracts::EvaluationMeasurementIdentity {
     evaluation_contracts::EvaluationMeasurementIdentity::TerminalPsi {
@@ -94,7 +94,7 @@ pub struct ReturnedBuild {
     destination: Option<project::Destination>,
     pub(crate) source_join: Option<Arc<package_compilation::PackageCompilationSourceInputs>>,
     pub(crate) requests: Vec<IssuedBuildRequest>,
-    pub(crate) validation_requests: Vec<(build_declarations::DependencyPurpose, usize)>,
+    pub(crate) validation_requests: Vec<BuildValidationRequest>,
     pub(crate) validation_subjects: Vec<crate::DependencyValidationSubject>,
     pub(crate) demanded_sources: Vec<BuildDependencySelection>,
     pub(crate) settings: EvaluatedBuildSettings,
@@ -117,15 +117,14 @@ impl ReturnedBuild {
         &mut self,
         mut resolve: impl FnMut(
             &[IssuedBuildRequest],
-            build_declarations::DependencyPurpose,
-            usize,
+            &BuildValidationRequest,
         )
             -> Result<crate::DependencyValidationSubject, crate::CompileFailure>,
     ) -> Result<(), crate::CompileFailure> {
         let prepares_build = self.successor_entry().is_some();
-        for &(purpose, ordinal) in &self.validation_requests {
-            let mut subject = resolve(&self.requests, purpose, ordinal)?;
-            if subject.purpose != purpose {
+        for request in &self.validation_requests {
+            let mut subject = resolve(&self.requests, request)?;
+            if subject.purpose != request.purpose() {
                 return Err(vec![diagnostics::Diagnostic::error(
                     "validation subject changed its registration purpose",
                 )]
