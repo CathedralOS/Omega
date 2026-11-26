@@ -1378,21 +1378,34 @@ fn prove_family(
         MathematicalCertificate::with_signature(local, Vec::new(), induction.theorem, statement);
     let receipt =
         MathematicalJudgmentReceipt::verify(arena, &certificate, &mut check).map_err(kernel)?;
-    let bytes =
-        terminal_codec::encode_mathematical_certificate(arena, &certificate).map_err(|_| {
-            Failure {
-                case: None,
-                cause: UnprovedCause::KernelRefused,
-                detail: "could not encode the judged mathematical term".to_owned(),
-            }
-        })?;
+    judged(arena, law, &certificate, receipt, &check, Some(law.machine))
+}
+
+/// The judgment for `law` once the kernel accepted `certificate`: its
+/// encoded bytes and the conversion steps `check` spent finding and checking
+/// it.
+fn judged(
+    arena: &TermArena,
+    law: &Law,
+    certificate: &MathematicalCertificate,
+    receipt: MathematicalJudgmentReceipt,
+    check: &Budget,
+    theorem: Option<symbols::SymbolHandle>,
+) -> Result<LawJudgment, Failure> {
+    let bytes = terminal_codec::encode_mathematical_certificate(arena, certificate).map_err(|_| {
+        Failure {
+            case: None,
+            cause: UnprovedCause::KernelRefused,
+            detail: "could not encode the judged mathematical term".to_owned(),
+        }
+    })?;
     Ok(LawJudgment {
         machine: law.machine_name.clone(),
         clause: law.clause,
         decision: MathematicalCoreDecision::Judged(receipt),
         certificate: bytes,
         conversion_steps: DEFAULT_CONVERSION_STEPS - check.remaining(),
-        theorem: Some(law.machine),
+        theorem,
     })
 }
 
@@ -1472,22 +1485,7 @@ fn prove_integers(
     );
     let receipt =
         MathematicalJudgmentReceipt::verify(arena, &certificate, &mut check).map_err(kernel)?;
-    let bytes =
-        terminal_codec::encode_mathematical_certificate(arena, &certificate).map_err(|_| {
-            Failure {
-                case: None,
-                cause: UnprovedCause::KernelRefused,
-                detail: "could not encode the judged mathematical term".to_owned(),
-            }
-        })?;
-    Ok(LawJudgment {
-        machine: law.machine_name.clone(),
-        clause: law.clause,
-        decision: MathematicalCoreDecision::Judged(receipt),
-        certificate: bytes,
-        conversion_steps: DEFAULT_CONVERSION_STEPS - check.remaining(),
-        theorem: None,
-    })
+    judged(arena, law, &certificate, receipt, &check, None)
 }
 
 fn source_positions(positions: IntegerPositions) -> proof_admission::SourceIntegerPositions {
@@ -1690,22 +1688,7 @@ fn prove_law(
             return Err(differs(UnprovedCause::NoDerivation));
         }
     }
-    let bytes =
-        terminal_codec::encode_mathematical_certificate(arena, &certificate).map_err(|_| {
-            Failure {
-                case: None,
-                cause: UnprovedCause::KernelRefused,
-                detail: "could not encode the judged mathematical term".to_owned(),
-            }
-        })?;
-    Ok(LawJudgment {
-        machine: law.machine_name.clone(),
-        clause: law.clause,
-        decision: MathematicalCoreDecision::Judged(receipt),
-        certificate: bytes,
-        conversion_steps: DEFAULT_CONVERSION_STEPS - check.remaining(),
-        theorem: None,
-    })
+    judged(arena, law, &certificate, receipt, &check, None)
 }
 
 /// What was left unproved, with the dispatched formal replaced by the case
