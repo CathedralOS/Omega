@@ -1,6 +1,6 @@
 //! A Build can configure its first group after its dependency is ready and a second group exists.
-use platform_custody::temporary_directory::TemporaryDirectory;
-use std::process::{Command, Stdio};
+#[path = "support/project.rs"]
+mod project;
 
 const BUILD: &str = r#"use main.omg as app;
 use {omega}/build/dependency.omg;
@@ -27,28 +27,22 @@ machine main() {}
 "#;
 
 fn build(product: &str, configuration: &str) -> (bool, String) {
-    let package = TemporaryDirectory::create("omega-group-settings", false).unwrap();
-    let root = package.path();
-    let kit = root.join("kit");
-    std::fs::create_dir(&kit).unwrap();
-    std::fs::write(
-        kit.join("build.omg"),
-        r#"machine build(builder: @mutable Build) { Build::package(builder, "kit"); }"#,
-    )
-    .unwrap();
-    std::fs::write(
-        kit.join("main.omg"),
-        "public machine version() -> u32 { 1u32 }",
-    )
-    .unwrap();
-    std::fs::write(root.join("main.omg"), product).unwrap();
-    std::fs::write(root.join("build.omg"), configuration).unwrap();
-    let result = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["build", "--target", "linux_x86_64", "build.omg"])
-        .current_dir(root)
-        .stdin(Stdio::null())
-        .output()
-        .unwrap();
+    let package = project::stage(
+        "group-settings",
+        &[
+            (
+                "kit/build.omg",
+                r#"machine build(builder: @mutable Build) { Build::package(builder, "kit"); }"#,
+            ),
+            ("kit/main.omg", "public machine version() -> u32 { 1u32 }"),
+            ("main.omg", product),
+            ("build.omg", configuration),
+        ],
+    );
+    let result = project::omega(
+        package.path(),
+        &["build", "--target", "linux_x86_64", "build.omg"],
+    );
     (
         result.status.success(),
         format!(

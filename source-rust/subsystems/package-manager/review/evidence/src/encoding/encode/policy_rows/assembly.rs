@@ -232,6 +232,9 @@ pub(super) fn project(
             true,
             |encoder| {
                 encode_nominal(encoder, &native.method.requirement)?;
+                encoder.option_field("application", native.application(), |encoder, application| {
+                    encoder.string(application)
+                })?;
                 let producer = native
                     .producer()
                     .ok_or_else(|| rejected("native row has no Build producer"))?;

@@ -280,7 +280,10 @@ impl<'a> Storage<'a> {
                     .iter()
                     .zip(call.contract.structural_parameters)
                 {
-                    if formal.access != StructuralAccess::Owned
+                    let scoped_address = actual.path.is_empty()
+                        && step.invocation_addresses.contains(&DescriptorLocation::whole(actual.place));
+                    if !scoped_address
+                        && formal.access != StructuralAccess::Owned
                         && matches!(
                             self.borrowed_resource(formal),
                             super::loans::BorrowedResource::Storage
@@ -313,7 +316,12 @@ impl<'a> Storage<'a> {
                     Shape::Typed(ty) => DescriptorSlotKind::BorrowedStorage.is_slot(self.types, ty),
                     _ => false,
                 };
-                let mut carriers = vec![(input.clone(), is_pointer)];
+                // A fresh input borrow exposes its address only within this call.
+                // References already stored inside its value retain their ordinary effects.
+                let mut carriers = Vec::new();
+                if is_pointer || !step.invocation_addresses.contains(input) {
+                    carriers.push((input.clone(), is_pointer));
+                }
                 if let Some(ty) = descriptor_location_type(self.types, root, &input.path) {
                     let inventory = DescriptorSlotKind::BorrowedStorage
                         .owned_inventory(self.types, input.root, ty)

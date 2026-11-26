@@ -21,23 +21,28 @@ fn source_program_in_scope(
         "/../../../../../../source/library/core/option.omg"
     ));
     let declaration = if bundled_optional {
-        "use omega\\language\\core\\Optional;"
+        "use {omega}/language/core/option.omg;"
     } else {
         optional
+    };
+    let option = if bundled_optional {
+        "|option|::Optional"
+    } else {
+        "Optional"
     };
     let text = format!(
         r#"
 {declaration}
 data Applied {{
-    small: Optional<u32>;
-    identity: Optional<u64>;
-    nested: Optional<Optional<u64>>;
+    small: {option}<u32>;
+    identity: {option}<u64>;
+    nested: {option}<{option}<u64>>;
 }}
 machine entry() -> Applied {{
     Applied {{
-        small: Optional::Some {{ value: 1u32 }},
-        identity: Optional::Some {{ value: {payload} }},
-        nested: Optional::Some {{ value: Optional::Some {{ value: 9u64 }} }}
+        small: {option}::Some {{ value: 1u32 }},
+        identity: {option}::Some {{ value: {payload} }},
+        nested: {option}::Some {{ value: {option}::Some {{ value: 9u64 }} }}
     }}
 }}
 "#
@@ -75,11 +80,8 @@ machine entry() -> Applied {{
         sources: Some(Arc::new(sources)),
         top_level_bindings: core
             .map(|core| {
-                crate::source_symbols::SourceScopedTopLevelBinding::logical_module_import(
-                    source,
-                    core,
-                    "omega::language::core::Optional",
-                    3,
+                crate::source_symbols::SourceScopedTopLevelBinding::file_import(
+                    source, core, "option",
                 )
             })
             .into_iter()
@@ -257,8 +259,8 @@ fn source_application_cannot_change_its_payload_type() {
         .program,
     );
     assert!(
-        matches!(verdicts.as_slice(), [Ok(RouteVerdict::FallBack(refused))]
-        if refused.detail.contains("record literal field type")),
+        matches!(verdicts.as_slice(), [Ok(RouteVerdict::Rejected { violations, .. })]
+        if matches!(violations.as_slice(), [violation] if violation.statement.contains("requires `Optional` with `T = u64`, but this value carries `bool`"))),
         "{verdicts:?}"
     );
 }
@@ -315,8 +317,9 @@ fn a_local_generic_data_template_is_read_and_judged_where_it_is_applied() {
         // refused for the data declaration any more.
         let closed = match verdicts.first() {
             Some(Ok(RouteVerdict::Accepted(_))) => accepted,
-            Some(Ok(RouteVerdict::FallBack(refused))) => {
-                !accepted && refused.detail.contains("record literal field type")
+            Some(Ok(RouteVerdict::Rejected { violations, .. })) => {
+                !accepted
+                    && matches!(violations.as_slice(), [violation] if violation.statement.contains("requires `Optional` with `T = u64`, but this value carries `bool`"))
             }
             _ => false,
         };

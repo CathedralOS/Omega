@@ -537,7 +537,6 @@ impl Lowering<'_> {
                             );
                         }
                     },
-                    fixed_service_reach: None,
                     synchronous_entries: match signature.invokes {
                         crate::Ceiling::Authored(row) => row,
                         crate::Ceiling::Inferred => {

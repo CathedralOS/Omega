@@ -53,9 +53,7 @@ pub(crate) mod identity_rewrite {
                     else {
                         continue;
                     };
-                    if !use_definitions.uses.iter().any(|(machine, use_site)| {
-                        *machine == function.machine && use_site.value == result
-                    }) {
+                    if !use_definitions.has_use(function.machine, result) {
                         continue;
                     }
                     let node_index =
@@ -144,9 +142,7 @@ pub(crate) mod identity_rewrite {
                     else {
                         continue;
                     };
-                    if !use_definitions.uses.iter().any(|(machine, use_site)| {
-                        *machine == function.machine && use_site.value == patch_shape.result
-                    }) {
+                    if !use_definitions.has_use(function.machine, patch_shape.result) {
                         continue;
                     }
                     let Ok(obligation_fact) = accepted_obligation_fact(
@@ -244,25 +240,15 @@ pub(crate) mod negative_one_shift_right {
     psi_rule_contract!(
         LiveProofCertifiedExactSignedIntegerNegativeOneShiftRightEliminationRule,
         super::proof_check_elision_rule_contract(
-                    b"omega.psi-rule.live-proof-certified-exact-signed-integer-negative-one-value-shift-right-elimination.v1",
-                    AnalysisSet::new([
-                        AnalysisKind::ScalarConstants,
-                        AnalysisKind::UseDefinition,
-                        AnalysisKind::EffectSummaries,
-                    ]),
-                ),
-    );
-
-    psi_rule_impl!(
-        LiveProofCertifiedExactSignedIntegerNegativeOneShiftRightEliminationRule,
-        |unit, analyses| {
-            propose_proof_certified_scalar_identities(
-                unit,
-                analyses,
-                Self::contract(),
-                proof_certified_exact_signed_integer_negative_one_shift_right_shapes,
-            )
-        }
+            b"omega.psi-rule.live-proof-certified-exact-signed-integer-negative-one-value-shift-right-elimination.v1",
+            AnalysisSet::new([
+                AnalysisKind::ScalarConstants,
+                AnalysisKind::UseDefinition,
+                AnalysisKind::EffectSummaries,
+            ]),
+        ),
+        propose = propose_proof_certified_scalar_identities,
+        proof_certified_exact_signed_integer_negative_one_shift_right_shapes,
     );
 }
 pub(crate) mod proof_certified_dead_scalar_elimination {
@@ -890,9 +876,7 @@ fn propose_proof_certified_remainder_by_constant(
                 if operands.left == operands.right
                     || operands.scalar_type.carrier() != IntegerCarrier::Fixed
                     || (signed_only && operands.scalar_type.sign() != IntegerSign::Signed)
-                    || !use_definitions.uses.iter().any(|(machine, use_site)| {
-                        *machine == function.machine && use_site.value == operands.result
-                    })
+                    || !use_definitions.has_use(function.machine, operands.result)
                 {
                     continue;
                 }

@@ -1849,15 +1849,28 @@ fn completed(
 ) -> Result<Option<TermHandle>, SearchError> {
     let mut waiting: std::collections::VecDeque<Equality> = stated.iter().copied().collect();
     let mut rules: Vec<Equality> = Vec::new();
-    while let Some(equality) = waiting.pop_front() {
-        charge(steps)?;
-        let carrier = equality.carrier;
-        let forward = settled(
+    let settle = |arena: &mut TermArena,
+                  rules: &[Equality],
+                  at,
+                  steps: &mut usize,
+                  conversion: &mut Budget| {
+        settled(
             arena,
             context,
             definitions,
             licenses,
             distributions,
+            rules,
+            at,
+            steps,
+            conversion,
+        )
+    };
+    while let Some(equality) = waiting.pop_front() {
+        charge(steps)?;
+        let carrier = equality.carrier;
+        let forward = settle(
+            arena,
             &rules,
             Rewriting {
                 ty: carrier,
@@ -1875,12 +1888,8 @@ fn completed(
             proof: forward.proof,
         }
         .reversed(arena);
-        let both = settled(
+        let both = settle(
             arena,
-            context,
-            definitions,
-            licenses,
-            distributions,
             &rules,
             Rewriting {
                 ty: carrier,
@@ -1910,12 +1919,8 @@ fn completed(
         rules = kept;
         rules.push(rule);
     }
-    let left = settled(
+    let left = settle(
         arena,
-        context,
-        definitions,
-        licenses,
-        distributions,
         &rules,
         Rewriting {
             ty: goal.ty,
@@ -1930,12 +1935,8 @@ fn completed(
         ty: goal.ty,
         value: goal.right,
     });
-    let right = settled(
+    let right = settle(
         arena,
-        context,
-        definitions,
-        licenses,
-        distributions,
         &rules,
         Rewriting {
             ty: goal.ty,

@@ -11,7 +11,7 @@
 3 source-rust/subsystems/compiler/psi-to-native/pipeline/02_target-bound-program-to-abstract-operations/src/operations/storage.rs
 3 source-rust/subsystems/compiler/psi-to-native/pipeline/03_abstract-operations-to-abstract-operations/src/abstract_optimization/control_flow_analyses.rs
 4 source-rust/subsystems/compiler/psi-to-native/pipeline/03_abstract-operations-to-abstract-operations/src/abstract_optimization/control_flow_cleanup.rs
-21 source-rust/subsystems/compiler/psi-to-native/pipeline/03_abstract-operations-to-abstract-operations/src/abstract_optimization/global_value_numbering.rs
+15 source-rust/subsystems/compiler/psi-to-native/pipeline/03_abstract-operations-to-abstract-operations/src/abstract_optimization/global_value_numbering.rs
 2 source-rust/subsystems/compiler/psi-to-native/pipeline/03_abstract-operations-to-abstract-operations/src/abstract_optimization/pass_manager.rs
 3 source-rust/subsystems/compiler/psi-to-native/pipeline/03_abstract-operations-to-abstract-operations/src/abstract_optimization/ranked_cycles_validation.rs
 21 source-rust/subsystems/compiler/psi-to-native/pipeline/03_abstract-operations-to-abstract-operations/src/abstract_optimization/ranked_rewrites.rs

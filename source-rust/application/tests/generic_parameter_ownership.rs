@@ -1,7 +1,7 @@
 //! Generic helpers forward values and loans without gaining discard permission.
 
-#[path = "support/build_fixture.rs"]
-mod build_fixture;
+#[path = "support/program.rs"]
+mod program;
 mod support;
 
 fn fixture(tier: &str) -> std::path::PathBuf {
@@ -13,12 +13,12 @@ fn fixture(tier: &str) -> std::path::PathBuf {
 
 #[test]
 fn generic_owned_and_borrowed_forwarding_agrees_in_both_engines() {
-    build_fixture::assert_silent_return(&fixture("run"));
+    program::assert_fixture_silent_return(&fixture("run"));
 }
 
 #[test]
 fn an_unused_generic_declaration_cannot_discard_its_argument() {
-    let (output, report) = build_fixture::check(&fixture("fail"));
+    let (output, report) = program::check_fixture(&fixture("fail"));
     assert!(!output.status.success(), "{report}");
     assert!(
         report.contains(

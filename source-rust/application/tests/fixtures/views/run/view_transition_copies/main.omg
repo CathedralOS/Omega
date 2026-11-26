@@ -1,0 +1,26 @@
+// Two byte views cross loop transitions unchanged; native code copies each
+// descriptor straight into the next state's parameter.
+data Bufs { a: [u8; 4]; b: [u8; 4]; }
+
+machine first(view: @[u8]) -> u32 {
+    transition 0 < view.length {
+        true -> (view[0] as u32),
+        false -> 0
+    }
+}
+
+// Sums first(x) + first(y) over `rounds` rounds with the views unchanged.
+machine kept(x: @[u8], y: @[u8], rounds: u32, acc: u32) -> u32 {
+    transition rounds > 0 && acc < 1000 {
+        true -> kept(x, y, rounds - 1, acc + first(x) + first(y)),
+        false -> acc
+    }
+}
+
+machine main() crashes Trap {
+    let b: Bufs = Bufs { a: [1, 0, 0, 0], b: [10, 0, 0, 0] };
+    let k: u32 = kept(@b.a[..], @b.b[..], 3, 0);
+    transition k == 33 { true -> done(), _ -> fail() }
+}
+machine done() {}
+machine fail() crashes Trap { crash Trap; }

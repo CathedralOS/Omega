@@ -1,4 +1,6 @@
 //! The preparing Build chooses which package implementation the next Build calls.
+#[path = "support/project.rs"]
+mod project;
 mod support;
 
 use platform_custody::temporary_directory::TemporaryDirectory;
@@ -117,11 +119,15 @@ machine build(builder: @mutable BuildPlan) {{
 }
 
 fn run(project: &TemporaryDirectory, engine: &str) -> (Output, String) {
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .current_dir(project.path().join("app"))
-        .args(["run", "--engine", engine, "--outputs"])
-        .arg(project.path().join(engine))
-        .args([
+    let outputs = project.path().join(engine);
+    let output = project::omega(
+        &project.path().join("app"),
+        &[
+            "run",
+            "--engine",
+            engine,
+            "--outputs",
+            outputs.to_str().unwrap(),
             "--build-input",
             "build.omg",
             "--build-input",
@@ -133,10 +139,8 @@ fn run(project: &TemporaryDirectory, engine: &str) -> (Output, String) {
             "--optional-build-input",
             "backings.omg",
             "build.omg",
-        ])
-        .stdin(Stdio::null())
-        .output()
-        .unwrap();
+        ],
+    );
     let report = format!(
         "{}{}",
         String::from_utf8_lossy(&output.stdout),

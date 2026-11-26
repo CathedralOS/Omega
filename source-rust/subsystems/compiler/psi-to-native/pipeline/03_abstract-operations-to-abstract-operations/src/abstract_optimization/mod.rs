@@ -72,7 +72,7 @@ pub(crate) use publication::OptimizedAbstractProjectionError;
 pub use publication::ValidatedOptimizedAbstractPlan;
 
 pub(crate) use analyses::{
-    AnalysisError, CallGraphAnalysis, EffectClass, EffectKnowledge, EffectSummaryAnalysis,
+    AnalysisError, CallGraphAnalysis, EffectKnowledge, EffectSummaryAnalysis,
     OwnershipFrontierAnalysis, ScalarConstantAnalysis, UseDefinitionAnalysis, ValueRangeAnalysis,
 };
 pub(crate) use analyses::{AnalysisProduct, AnalysisRevision, compute_analysis};

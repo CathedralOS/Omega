@@ -1061,11 +1061,6 @@ mod static_namespaces {
         reference: source_text::SourceSpan,
         lexical_head: SymbolHandle,
     ) -> Option<SymbolHandle> {
-        let fixed = symbols::FixedCoreDeclaration::from_name(name)
-            .and_then(|declaration| symbols.fixed_core_declaration_symbol(declaration));
-        if let Some(fixed) = fixed.filter(|symbol| symbol.is_valid()) {
-            return Some(fixed);
-        }
         if lexical_head.is_valid() && symbols.get(lexical_head).kind != SymbolKind::Module {
             return None;
         }

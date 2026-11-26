@@ -77,8 +77,8 @@ use terminal_psi::{ContractClause, TerminalMachine, TerminalMachineResult, Termi
 use terminal_semantics::CanonicalScalarGoal;
 
 use crate::{
-    Bindings, Unbound, decide, entry_inputs, hypotheses, joins, prepare_with_inhabitation, prove,
-    refusal, returned_for_result, terminal_machine,
+    Bindings, Unbound, decide, entry_inputs, hypotheses, joins, prove, refusal,
+    returned_for_result, terminal_machine,
 };
 
 /// Adds a proved result summary to the contract of each machine in
@@ -436,58 +436,14 @@ fn summarize(
     let original =
         terminal_check_tables::row(&elaboration.tables.machines, id, id, Construct::Machine)?;
     let mut scratch = original.clone();
-    let prepared = prepare_with_inhabitation(
+    let (prepared, beyond) = crate::with_prepared_machine(
         scope.formed(),
         &elaboration.domains,
         id,
         &mut scratch,
         inhabitation,
-    )?;
-    let mut references = prepared.references(&module.types.structural_types);
-    let storage = crate::places::Storage::new(
-        id,
-        lowered,
-        module,
-        &elaboration.domains,
-        &prepared.graph,
-        &scratch,
-        &prepared.types,
-        &mut references,
-    )?;
-    let declared_joins = joins::prepare(
-        lowered,
-        id,
-        &mut scratch,
-        &prepared.graph,
-        &prepared.context,
-        &module.proofs.scalar_block_invariants,
-        &storage,
-        &mut references,
-        activity,
-    )?;
-
-    let beyond = unreached.values(lowered, &scratch);
-    let mut decided = (0..scratch.obligations.len())
-        .map(|_| None)
-        .collect::<Vec<_>>();
-    joins::check(
-        &joins::Machine {
-            module,
-            lowered,
-            storage: &storage,
-            id,
-            types: &prepared.types,
-            graph: &prepared.graph,
-            context: &prepared.context,
-            ranking_bindings: &prepared.ranking_bindings,
-            declared: &declared_joins,
-            unreached: &beyond,
-            law_instances: &[],
-        },
-        &mut scratch,
-        &mut decided,
-        activity,
-        &mut references,
+        None,
+        |mut machine, scratch| machine.replay_joins(scratch, unreached, activity),
     )?;
     // The identities the summary's rows take once it is added: its published
     // row, then one guarantee per return.

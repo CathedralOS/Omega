@@ -1,7 +1,8 @@
+#[path = "support/project.rs"]
+mod project;
 mod support;
 
 use std::path::Path;
-use std::process::{Command, Stdio};
 use terminal_codec::CanonicalTerminalArtifact;
 use terminal_psi::{
     BoundaryLifetimeDependency, BoundaryReferenceDestination, BoundaryReferenceOutput,
@@ -10,17 +11,10 @@ use terminal_psi::{
 
 #[test]
 fn a_checked_boundary_returns_its_stored_descriptor() {
-    let project =
-        support::repository_root().join("source-rust/application/tests/fixtures/ownership/run/stored_descriptor_boundary");
+    let project = support::repository_root()
+        .join("source-rust/application/tests/fixtures/ownership/run/stored_descriptor_boundary");
     let run = |options: &[&str]| {
-        let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-            .arg("run")
-            .args(options)
-            .arg("build.omg")
-            .current_dir(&project)
-            .stdin(Stdio::null())
-            .output()
-            .expect("run the original boundary call");
+        let output = project::omega(&project, &[&["run"][..], options, &["build.omg"]].concat());
         let report = String::from_utf8_lossy(&output.stderr);
         assert!(output.status.success(), "{report}");
         assert!(output.stdout.is_empty(), "{output:?}");
@@ -41,7 +35,8 @@ fn a_checked_boundary_returns_its_stored_descriptor() {
     let reopened = CanonicalTerminalArtifact::from_bytes(&bytes).expect("reopen the saved product");
     let module = reopened.view().module();
     let requirement = module
-        .interfaces.boundary_machines
+        .interfaces
+        .boundary_machines
         .iter()
         .find(|boundary| {
             module

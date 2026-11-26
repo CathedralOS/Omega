@@ -5,12 +5,12 @@
 //! write through a lender while the joined reference is live is refused,
 //! even the lender of the arm the program does not take.
 
-#[path = "support/build_fixture.rs"]
-mod build_fixture;
+#[path = "support/program.rs"]
+mod program;
 mod support;
 
 fn assert_runs(fixture: &str) {
-    build_fixture::assert_silent_return(&support::repository_root().join(fixture));
+    program::assert_fixture_silent_return(&support::repository_root().join(fixture));
 }
 
 #[test]
@@ -34,7 +34,7 @@ fn a_write_to_the_untaken_lender_while_the_match_is_live_is_refused() {
             .join("expected.txt"),
     )
     .unwrap();
-    let (output, report) = build_fixture::check(&support::repository_root().join(fixture));
+    let (output, report) = program::check_fixture(&support::repository_root().join(fixture));
     assert!(!output.status.success(), "{report}");
     assert!(report.contains(expected.trim()), "{report}");
 }

@@ -27,23 +27,29 @@ pub(crate) fn parse_domain_definition<'tokens, 'source>(
             "domain families take a carrier type and proof-static const parameters, not lifetime parameters",
         ));
     }
-    let (target_type, target_label, target_identifier, input) =
-        if input.at_punctuation(PunctuationKind::LeftBracket) {
-            let (handle, input) =
-                crate::types::references::parse_type_reference_handle(syntax_trees, input)?;
-            let label = type_reference_target_label(syntax_trees, handle);
-            (handle, label, None, input)
+    let file_carrier = input.at_punctuation(PunctuationKind::Pipe);
+    let (target_type, target_label, target_identifier, input) = if input
+        .at_punctuation(PunctuationKind::LeftBracket)
+    {
+        let (handle, input) =
+            crate::types::references::parse_type_reference_handle(syntax_trees, input)?;
+        let label = type_reference_target_label(syntax_trees, handle);
+        (handle, label, None, input)
+    } else {
+        let (target_name, member, input) = if file_carrier {
+            input.take_file_qualified_head()?
         } else {
-            let (target_name, input) = input.take_identifier()?;
-            let (handle, input) =
-                parse_named_type_reference(syntax_trees, target_name.clone(), input, false)?;
-            (
-                handle,
-                target_name.as_str(syntax_trees).to_owned(),
-                Some(target_name),
-                input,
-            )
+            let (name, input) = input.take_identifier()?;
+            (name.clone(), name, input)
         };
+        let (handle, input) = parse_named_type_reference(syntax_trees, target_name, input, false)?;
+        (
+            handle,
+            member.as_str(syntax_trees).to_owned(),
+            Some(member),
+            input,
+        )
+    };
     let input = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
     let (first_segment, mut input) = input.take_identifier()?;
     let (first_arguments, rest) = parse_domain_argument_handles(syntax_trees, input)?;
@@ -104,14 +110,15 @@ pub(crate) fn parse_domain_definition<'tokens, 'source>(
     let parameters = syntax_trees
         .items
         .type_parameters(generic_parameters.type_parameters);
-    let fixed_name = target_identifier.as_ref().is_some_and(|carrier| {
-        !parameters.iter().any(|parameter| {
-            matches!(parameter.kind, TypeParameterKind::Type)
-                && parameter.name.as_str(syntax_trees) == carrier.as_str(syntax_trees)
-        })
-    });
-    // A nominal carrier owns the family name even when it takes type arguments.
-    // A carrier supplied by a type parameter is determined at the use.
+    let fixed_name = file_carrier
+        || target_identifier.as_ref().is_some_and(|carrier| {
+            !parameters.iter().any(|parameter| {
+                matches!(parameter.kind, TypeParameterKind::Type)
+                    && parameter.name.as_str(syntax_trees) == carrier.as_str(syntax_trees)
+            })
+        });
+    // The declaring file exposes Carrier::Domain for a fixed carrier. A
+    // carrier supplied by a type parameter is determined at the use.
     let name = Identifier::new(
         (parameters.is_empty() || fixed_name)
             .then_some(target_label.as_str())

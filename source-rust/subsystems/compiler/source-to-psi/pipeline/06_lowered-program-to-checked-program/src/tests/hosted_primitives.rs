@@ -51,7 +51,7 @@ fn judge_program(
 #[test]
 fn hosted_primitive_retains_distinct_source_and_public_completion() {
     let typed = program(
-        "use omega\\language\\core\\Never; use omega\\language\\core\\ProcessExit; use omega\\language\\core\\ProcessExitPrimitive; machine main() reaches ProcessExit crashes none terminates { ProcessExitPrimitive(7); }",
+        "use {omega}/language/core/never.omg;\nuse {omega}/language/core/process_exit.omg;\nuse {omega}/language/core/process_exit_native.omg;\nmachine main() reaches |process_exit|::ProcessExit crashes none terminates { |process_exit_native|::ProcessExitPrimitive(7); }",
     );
     let mut verdicts = judge_program(&typed);
     let accepted = match verdicts.remove(0) {
@@ -252,7 +252,7 @@ fn hosted_primitive_retains_distinct_source_and_public_completion() {
 #[test]
 fn a_copied_primitive_name_does_not_receive_compiler_custody() {
     let typed = program(
-        "use omega\\language\\core\\Never; use omega\\language\\core\\ProcessExit; public boundary machine ProcessExitPrimitive(return_code: i32) -> Never satisfies ProcessExit::exit_process reaches ProcessExit crashes none terminates; machine main() reaches ProcessExit crashes none terminates { ProcessExitPrimitive(7); }",
+        "use {omega}/language/core/never.omg;\nuse {omega}/language/core/process_exit.omg;\npublic boundary machine ProcessExitPrimitive(return_code: i32) -> |never|::Never satisfies |process_exit|::ProcessExit::exit_process reaches |process_exit|::ProcessExit crashes none terminates; machine main() reaches |process_exit|::ProcessExit crashes none terminates { ProcessExitPrimitive(7); }",
     );
     let verdicts = judge_program(&typed);
     // The declaration is refused, and so is `main`, which calls it.
