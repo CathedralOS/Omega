@@ -1,36 +1,20 @@
-# Acquired dependency and completed output-set reuse
+# Acquired dependency and completed output set
 
-This is the Linux completed-export admission witness for
-**BUILD-SNAPSHOT-OUTPUTS**. The root acquires a generator by `Source::Path` in
-both Build and Product contexts. Its Build reads `template.txt` from captured
-source and passes only six bytes to the package-local `build_support` helper. The helper produces the
-companion payload and the generated declaration. The Build passes the declaration
-bytes to `Build::include_source`, then completes its promised file. Both files must seal
-and complete before their shared output-set manifest is published. Authored
-product source calls the ordinary product helper, not a declaration generated
-by its own Build.
+The first Build gives the second Build access to the generator package. The
+second Build checks the generator’s value and reads six captured bytes from
+`template.txt`. A local helper uses the bytes to produce a companion file and
+emits an Omega declaration. The Build completes both files as one output set.
+The application calls its registered dependency and checks that it returns 7.
 
-The previous direct `use generator::main` in Build relied on the corpus's
-retired static dependency projection. Under
-[Build declarations](../../../../../../../../wiki/spec/build/declarations.md), requesting
-a dependency does not grant ordinary Build imports. The generation and
-completed-export obligations here are unchanged; dependency acquisition still
-joins both purposes. Explicit cross-package execution is pinned separately by
-`explicit_provider_readiness_exit` and its private-backing refusal control.
-This fixture does not establish a shared custom generator interface.
+Run this command from the fixture directory. Use `--engine native` to run the
+same program natively.
 
-Run `omega run --engine native build.omg` and `omega run --engine psi build.omg` to exercise the project’s declared entry. The expected
-result is native/Psi agreement at exit 0. The
-publication oracle requires exactly `companion.txt` and `generated.omg` under
-the committed set's `files/` directory. The Linux host workflow is exercised by
-`python3 tests/product/completed_outputs/check.py --omega <fresh-omega>`:
-valid repeated publication succeeds; interrupted, incomplete, extra, altered,
-executable and linked prior exports reject without a successful publication
-report. Restoring the complete export permits a retry. The existing
-`fail/build/acquired_generator_output_final_check_refused` control separately
-establishes that later generated-source failure exports no set.
+```sh
+omega run --engine psi \
+    --build-input build.omg --build-input outputs.omg --build-input main.omg \
+    --build-input build_support --build-input generator --build-input template.txt build.omg
+```
 
-This discharges admission of earlier host exports against retained manifest and
-file content. Atomic source capture, staging isolation against another process
-with the same authority, and Windows/macOS isolation qualification remain open;
-this Linux witness makes no claim about those premises.
+The program returns with empty output. Running `omega build --build-dir out`
+with the same input arguments exports exactly `companion.txt` and
+`generated.omg`. Product source comes from its selected package.

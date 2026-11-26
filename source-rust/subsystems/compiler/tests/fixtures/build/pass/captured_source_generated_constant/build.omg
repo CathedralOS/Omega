@@ -1,28 +1,37 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "captured_source_generated_constant");
-    Build::artifact_only(builder);
-    let source_path: BuildPath = BuildSource::resolve(@builder.source, "asset.txt");
-    let reader: i32 = BuildSource::open(@builder.source, source_path, 0);
-    let mutable bytes: [u8; 31];
-    _ = BuildSource::read(@builder.source, reader, @mutable bytes[..], 31);
-    _ = BuildSource::close(@builder.source, reader);
-    let obligation: RequiredOutput = BuildOutput::require(@mutable builder.output, "generated.omg");
-    let generated: BuildPath = BuildOutput::resolve(@builder.output, "generated.omg");
-    let writer: i32 = BuildOutput::create(@mutable builder.output, generated, 0);
-    _ = BuildOutput::write(@mutable builder.output, writer, @bytes[..]);
-    _ = BuildOutput::close(@mutable builder.output, writer);
-    Build::include_source(builder, "generated.omg", @bytes[..]);
-    let completion: OutputCompletion = BuildOutput::complete(@mutable builder.output, obligation, generated);
-    settle(builder, completion);
+machine build(plan: @mutable BuildPlan) {
+    copy(plan, "main.omg", "main.omg");
+    copy(plan, "asset.txt", "generated.omg");
+    copy(plan, "finish.template", "finish.omg");
+    let output: BuildPath = BuildOutput::resolve(@plan.output, "");
+    plan.package_root = BuildPackageRoot::Directory { path: output };
+    plan.product = BuildProduct::InterpretedBuild { entry: "finish.omg" };
 }
 
-machine settle(builder: @mutable Build, completion: OutputCompletion) {
-    transition completion {
-        OutputCompletion::Sealed { receipt } -> sealed(builder),
-        OutputCompletion::Retry { obligation, file } -> failed(builder, obligation)
+machine copy(plan: @mutable BuildPlan, source_name: @[u8], destination_name: @[u8]) crashes Trap {
+    let source: BuildPath = BuildSource::resolve(@plan.source, source_name);
+    let reader: i32 = BuildSource::open(@plan.source, source, 0);
+    let destination: BuildPath = BuildOutput::resolve(@plan.output, destination_name);
+    let writer: i32 = BuildOutput::create(@mutable plan.output, destination, 0);
+    transfer(plan, reader, writer);
+    _ = BuildSource::close(@plan.source, reader);
+    _ = BuildOutput::close(@mutable plan.output, writer);
+}
+
+machine transfer(plan: @mutable BuildPlan, reader: i32, writer: i32) crashes Trap {
+    let mutable byte: [u8; 1];
+    let count: i64 = BuildSource::read(@plan.source, reader, @mutable byte[..], 1u64);
+    transition count {
+        0i64 -> done(),
+        1i64 -> write_byte(plan, reader, writer, byte),
+        _ -> failed()
     }
-    machine sealed(builder: @mutable Build) {}
-    machine failed(builder: @mutable Build, obligation: RequiredOutput) {
-        BuildOutput::fail(@mutable builder.output, obligation, "generated source did not seal");
+    machine done() {}
+    machine failed() { crash Trap; }
+    machine write_byte(plan: @mutable BuildPlan, reader: i32, writer: i32, byte: [u8; 1]) {
+        let written: i64 = BuildOutput::write(@mutable plan.output, writer, @byte[..]);
+        transition written == 1i64 {
+            true -> transfer(plan, reader, writer),
+            false -> failed()
+        }
     }
 }
