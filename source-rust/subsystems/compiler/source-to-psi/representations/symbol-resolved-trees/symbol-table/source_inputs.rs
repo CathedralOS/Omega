@@ -890,6 +890,53 @@ mod tests {
     }
 
     #[test]
+    fn retained_descriptions_use_visibility_in_the_captured_product() {
+        use DependencyScope::{Build, Product};
+        use SourceOrigin::{Toolchain, User};
+        use SourceResolutionStratum::{Base, CurrentActivationExtension};
+
+        let owner = PackageKeyIdentity::from_digest([1; 32]).unwrap();
+        let dependency = PackageKeyIdentity::from_digest([2; 32]).unwrap();
+        let mut sources = SourceMap::default();
+        sources.retain_product_dependency_scope([(owner, "protocol", dependency)]);
+        let mut visible = |origin, scope, stratum, package, public| {
+            let file = sources
+                .add_checked_instance(
+                    PathBuf::from("record.omg"),
+                    "",
+                    PathBuf::from("."),
+                    package,
+                    origin,
+                    stratum,
+                    scope,
+                )
+                .clone();
+            let mut hidden = sources.clone();
+            hidden.retain_selected_sources(|_| false);
+            assert!(!hidden.product_description_visible(owner, &file, public));
+            sources.product_description_visible(owner, &file, public)
+        };
+        assert!(visible(
+            User,
+            Product,
+            CurrentActivationExtension,
+            Some(owner),
+            false
+        ));
+        assert!(visible(User, Product, Base, Some(dependency), true));
+        assert!(!visible(User, Product, Base, Some(dependency), false));
+        assert!(visible(Toolchain, Product, Base, None, true));
+        assert!(!visible(
+            Toolchain,
+            Product,
+            CurrentActivationExtension,
+            None,
+            true
+        ));
+        assert!(!visible(User, Build, Base, Some(owner), true));
+    }
+
+    #[test]
     fn query_aliases_stay_in_the_unowned_authors_captured_scope() {
         let mut sources = SourceMap::default();
         let root = PathBuf::from("query-root");
