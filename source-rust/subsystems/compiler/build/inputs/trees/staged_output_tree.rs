@@ -214,6 +214,57 @@ impl BuildStagedOutputTree {
         materialize_retained_tree(self, destination.as_ref())
     }
 
+    /// Freeze the selected directory under its own logical root, retaining
+    /// regular bytes, executable bits, directories and inert links together.
+    pub fn select_directory(&self, directory: &[u8]) -> Result<Self, Vec<Diagnostic>> {
+        if directory.is_empty() {
+            return Ok(self.clone());
+        }
+        if !self
+            .sealed_entry(directory)
+            .is_some_and(|entry| matches!(entry.kind(), BuildStagedOutputEntryKind::Directory))
+        {
+            return Err(diagnostics(format!(
+                "selected Product source directory `{}` is absent from private staging",
+                directory.escape_ascii()
+            )));
+        }
+        let entries = self
+            .entries
+            .iter()
+            .filter_map(|entry| {
+                let path = entry
+                    .relative_path
+                    .strip_prefix(directory)?
+                    .strip_prefix(b"/")?;
+                Some(RetainedStagedOutputEntry {
+                    relative_path: path.to_vec(),
+                    kind: entry.kind.clone(),
+                })
+            })
+            .collect();
+        Self::from_selection(entries)
+    }
+
+    /// Only regular Omega files in the selected frozen view are compiler inputs.
+    pub fn source_files(&self) -> Result<Vec<PackageGeneratedSource>, Vec<Diagnostic>> {
+        let mut sources = Vec::new();
+        for entry in &self.entries {
+            if !entry.relative_path.ends_with(b".omg") {
+                continue;
+            }
+            if let RetainedStagedOutputEntryKind::File { bytes, .. } = &entry.kind {
+                PackageGeneratedSource::validate_publication(&entry.relative_path, bytes)
+                    .map_err(diagnostics)?;
+                sources.push(PackageGeneratedSource::from_retained_parts(
+                    entry.relative_path.clone(),
+                    Arc::clone(bytes),
+                ));
+            }
+        }
+        Ok(sources)
+    }
+
     pub fn entries(&self) -> impl ExactSizeIterator<Item = BuildStagedOutputEntry<'_>> {
         self.entries.iter().map(|entry| {
             let kind = match &entry.kind {
@@ -308,9 +359,12 @@ impl BuildStagedOutputTree {
             .filter(|(_, is_selected)| *is_selected)
             .map(|(entry, _)| entry.clone())
             .collect();
-        let commitment = commitment_for_retained_entries(&entries).ok_or_else(|| {
-            diagnostics("selected build output exceeds the staged-output unique-content ceiling")
-        })?;
+        Self::from_selection(entries)
+    }
+
+    fn from_selection(entries: Vec<RetainedStagedOutputEntry>) -> Result<Self, Vec<Diagnostic>> {
+        let commitment = checked_retained_commitment(&entries)
+            .map_err(|error| diagnostics(error.to_string()))?;
         Ok(Self {
             commitment,
             entries,

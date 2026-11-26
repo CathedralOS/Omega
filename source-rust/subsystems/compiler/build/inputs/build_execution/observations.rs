@@ -22,7 +22,7 @@ pub use filesystem_authority::{
     FilesystemOperationResult as BuildFilesystemOperationResult,
 };
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 83;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 84;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct BuildActivation {
@@ -157,6 +157,7 @@ pub struct BuildObservationSummary {
     pub(crate) activation: BuildActivation,
     pub(crate) captured_source_inventory: Option<BuildCapturedSourceInventory>,
     pub(crate) named_input_inventories: Vec<BuildNamedInputInventory>,
+    pub(super) product_source_tree: Option<BuildStagedOutputTree>,
     pub(super) generated_sources: Vec<build_output::PackageGeneratedSource>,
     pub(crate) required_output_settlements: Vec<BuildRequiredOutputSettlement>, // Completed `BuildOutput::require` obligations in issue order.
     pub(crate) staged_output_tree: Option<BuildStagedOutputTree>,
@@ -216,6 +217,10 @@ impl BuildObservationSummary {
 
     pub fn build_log(&self) -> &[u8] {
         &self.build_log
+    }
+
+    pub fn product_source_tree(&self) -> Option<&BuildStagedOutputTree> {
+        self.product_source_tree.as_ref()
     }
 
     pub fn generated_sources(&self) -> &[build_output::PackageGeneratedSource] {
