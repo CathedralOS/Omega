@@ -1849,8 +1849,22 @@ fn completed(
 ) -> Result<Option<TermHandle>, SearchError> {
     let mut waiting: std::collections::VecDeque<Equality> = stated.iter().copied().collect();
     let mut rules: Vec<Equality> = Vec::new();
-    let settle = |arena: &mut TermArena, rules: &[Equality], at, steps: &mut usize, conversion: &mut Budget| {
-        settled(arena, context, definitions, licenses, distributions, rules, at, steps, conversion)
+    let settle = |arena: &mut TermArena,
+                  rules: &[Equality],
+                  at,
+                  steps: &mut usize,
+                  conversion: &mut Budget| {
+        settled(
+            arena,
+            context,
+            definitions,
+            licenses,
+            distributions,
+            rules,
+            at,
+            steps,
+            conversion,
+        )
     };
     while let Some(equality) = waiting.pop_front() {
         charge(steps)?;

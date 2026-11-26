@@ -1392,13 +1392,14 @@ fn judged(
     check: &Budget,
     theorem: Option<symbols::SymbolHandle>,
 ) -> Result<LawJudgment, Failure> {
-    let bytes = terminal_codec::encode_mathematical_certificate(arena, certificate).map_err(|_| {
-        Failure {
-            case: None,
-            cause: UnprovedCause::KernelRefused,
-            detail: "could not encode the judged mathematical term".to_owned(),
-        }
-    })?;
+    let bytes =
+        terminal_codec::encode_mathematical_certificate(arena, certificate).map_err(|_| {
+            Failure {
+                case: None,
+                cause: UnprovedCause::KernelRefused,
+                detail: "could not encode the judged mathematical term".to_owned(),
+            }
+        })?;
     Ok(LawJudgment {
         machine: law.machine_name.clone(),
         clause: law.clause,

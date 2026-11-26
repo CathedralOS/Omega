@@ -21,7 +21,8 @@ fn module_refusal(module: &TerminalModule, reason: &str) -> crate::Refusal {
 }
 
 pub(crate) fn validate_parameters(module: &TerminalModule) -> Checked<()> {
-    terminal_codec::validate_theorem_parameters(module).map_err(|reason| module_refusal(module, reason))
+    terminal_codec::validate_theorem_parameters(module)
+        .map_err(|reason| module_refusal(module, reason))
 }
 
 pub(crate) fn validate(
@@ -331,5 +332,6 @@ pub(crate) fn finalize_citations(
     for (index, citation, _) in prepared {
         module.proofs.theorem_citations[index] = citation;
     }
-    terminal_codec::validate_theorem_supply_sites(module).map_err(|reason| module_refusal(module, reason))
+    terminal_codec::validate_theorem_supply_sites(module)
+        .map_err(|reason| module_refusal(module, reason))
 }
