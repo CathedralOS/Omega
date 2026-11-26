@@ -1,6 +1,6 @@
-// Initial `Build` value construction under its admitted vocabulary and filesystem scope.
+// Initial `BuildPlan` value construction under its admitted vocabulary and filesystem scope.
 //
-// Populates the interpreter's starting `Build` struct with baseline defaults
+// Populates the interpreter's starting `BuildPlan` struct with baseline defaults
 // (`x86_deployment_features = Baseline`, `subsystem = Console`),
 // optional `identifier` bytes, zeroed `optimizations` counters, compiler-issued
 // private facet markers (`$OmegaBuildLogFacet`, `$OmegaBuildDeclarationsFacet`),
@@ -23,7 +23,10 @@ pub(super) fn initial_value(
     let mut build_fields = vec![
         (
             "product".to_owned(),
-            BuildTimeValue::Case { variant: "Unselected".into(), payload: Vec::new() },
+            BuildTimeValue::Case {
+                variant: "Unselected".into(),
+                payload: Vec::new(),
+            },
         ),
         (
             "seal".to_owned(),

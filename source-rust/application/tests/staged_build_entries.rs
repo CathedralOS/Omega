@@ -100,6 +100,46 @@ fn the_returned_product_is_the_last_value_in_the_plan() {
 }
 
 #[test]
+fn a_queried_declaration_keeps_its_product_identity() {
+    let first = r#"use {omega}/build/dependency.omg;
+use {omega}/language/core/reflect/reflect.omg as reflect;
+machine build(plan: @mutable BuildPlan) {
+    plan.product = BuildProduct::Package { name: "first" };
+    let mutable description: DependencyDescription = |dependency|::from_source(Source::Path { location: "library" });
+    |dependency|::with_alias(@mutable description, "api");
+    let registration: DependencyRegistration = Build::dependency(plan, description);
+    let info: |reflect|::FieldInfo = |reflect|::field(api::Table::invoke);
+    transition info.name == "invoke" {
+        true -> finish(plan),
+        false -> refuse()
+    }
+    machine finish(plan: @mutable BuildPlan) {
+        plan.product = BuildProduct::Package { name: "final_name" };
+    }
+    machine refuse() crashes Trap { crash Trap; }
+}"#;
+    let library = build(r#"builder.product = BuildProduct::Package { name: "descriptions" };"#);
+    for (name, approved) in [("first", true), ("other", false)] {
+        let caller = first.replace("final_name", name);
+        let (status, report) = invoke(
+            &[
+                ("build.omg", &caller),
+                ("library/build.omg", &library),
+                ("library/main.omg", "public data Table { invoke: addr; }"),
+            ],
+            &["--check"],
+        );
+        assert_eq!(status.success(), approved, "{report}");
+        if !approved {
+            assert!(
+                report.contains("returned Build product differs from the product that issued a declaration description"),
+                "{report}"
+            );
+        }
+    }
+}
+
+#[test]
 fn only_the_returned_workspace_catalog_selects_members() {
     let workspace = r#"use {omega}/build/workspace.omg;
 machine build(plan: @mutable BuildPlan) {

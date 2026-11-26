@@ -572,11 +572,15 @@ impl TerminalBuildActivation {
     /// A paused declaration query reads the product currently stored in this activation's plan.
     pub fn project_declaration(&self) -> Result<build_declarations::BuildDeclaration, String> {
         let current = project::destination(
-            &self.instance, &self.host.machine,
-            terminal_interpreter::TerminalObservationRoot::ArgumentAtHostCall(0), &self.requests, &self.host.requests,
-        ).map_err(|reason| format!(
-            "Product declaration query requires an already-issued named package or application: {reason}"
-        ))?;
+            &self.instance,
+            &self.host.machine,
+            terminal_interpreter::TerminalObservationRoot::ArgumentAtHostCall(0),
+            &self.requests,
+            &self.host.requests,
+        )
+        .map_err(|reason| {
+            format!("Product declaration query requires a named package or application: {reason}")
+        })?;
         current
             .project()
             .cloned()
@@ -806,8 +810,13 @@ impl TerminalBuildActivation {
             }
             None
         } else {
-            Some(project::destination(&self.instance, &self.host.machine,
-                terminal_interpreter::TerminalObservationRoot::ReturnedArgument(0), &self.requests, &self.host.requests)?)
+            Some(project::destination(
+                &self.instance,
+                &self.host.machine,
+                terminal_interpreter::TerminalObservationRoot::ReturnedArgument(0),
+                &self.requests,
+                &self.host.requests,
+            )?)
         };
         if let Some(issued) = &self.described_product {
             let returned = destination
