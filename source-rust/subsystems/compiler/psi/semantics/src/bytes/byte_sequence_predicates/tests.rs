@@ -189,8 +189,7 @@ fn boolean_literals_keep_their_type_and_exact_zero_or_one_value() {
     );
 }
 
-#[test]
-fn the_existing_machine_index_resolves_boolean_forwarding_without_rebinding_parameters() {
+fn boolean_forwarding_machine() -> TerminalMachine {
     let first = BlockId::new(1).unwrap();
     let second = BlockId::new(2).unwrap();
     let formal = value(1, ScalarType::Boolean);
@@ -220,7 +219,7 @@ fn the_existing_machine_index_resolves_boolean_forwarding_without_rebinding_para
             cleanup_actions: Vec::new(),
         },
     );
-    let machine = TerminalMachine {
+    TerminalMachine {
         assembly_target_requirement: RegisterTargetApplicability::Any,
         id: MachineId::new(1).unwrap(),
         attachment: None,
@@ -234,13 +233,61 @@ fn the_existing_machine_index_resolves_boolean_forwarding_without_rebinding_para
         entry: first,
         blocks: vec![entry, join],
         contract: MachineContract::empty(ContractId::new(1).unwrap()),
-    };
+    }
+}
+
+#[test]
+fn the_existing_machine_index_resolves_boolean_forwarding_without_rebinding_parameters() {
+    let machine = boolean_forwarding_machine();
     let index = MachineScalarIndex::new(&machine);
     let expected = Some((ScalarType::Boolean, IntegerValue::Unsigned(1)));
     assert_eq!(index.constant_value(ValueId::new(2).unwrap()), expected);
     assert_eq!(index.constant_value(ValueId::new(3).unwrap()), expected);
     assert_eq!(index.constant_value(ValueId::new(1).unwrap()), None);
     assert_eq!(index.constant_value(ValueId::new(99).unwrap()), None);
+}
+
+#[test]
+fn completion_operands_must_have_one_runtime_definition_dominating_the_exit() {
+    let mut machine = boolean_forwarding_machine();
+    let first = machine.entry;
+    let left = machine.blocks[1].id;
+    let right = BlockId::new(3).unwrap();
+    let sent = ValueId::new(2).unwrap();
+    let received = ValueId::new(3).unwrap();
+    let successor = |edge, target, arguments| terminal_psi::SuccessorEdge {
+        edge: EdgeId::new(edge).unwrap(),
+        target,
+        arguments,
+        erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
+        structural_arguments: Vec::new(),
+        cleanup_actions: Vec::new(),
+    };
+    machine.blocks[0].terminator = Terminator::Conditional {
+        condition: sent,
+        when_true: successor(1, left, vec![sent]),
+        when_false: successor(3, right, Vec::new()),
+    };
+    machine.blocks.push(Block::plain(
+        right,
+        Vec::new(),
+        Terminator::ReturnUnit {
+            edge: EdgeId::new(4).unwrap(),
+            cleanup_actions: Vec::new(),
+        },
+    ));
+    let index = MachineScalarIndex::new(&machine);
+    assert_eq!(index.scalar_type_at_block_end(sent, right), Some(ScalarType::Boolean));
+    assert_eq!(index.scalar_type_at_block_end(received, left), Some(ScalarType::Boolean));
+    assert_eq!(index.scalar_type_at_block_end(received, first), None);
+    assert_eq!(index.scalar_type_at_block_end(received, right), None);
+    assert_eq!(index.scalar_type_at_block_end(ValueId::new(99).unwrap(), left), None);
+
+    let duplicate = machine.blocks[0].operations[0].clone();
+    machine.blocks[1].operations.push(duplicate);
+    let index = MachineScalarIndex::new(&machine);
+    assert_eq!(index.scalar_type_at_block_end(sent, right), None);
 }
 
 #[test]
