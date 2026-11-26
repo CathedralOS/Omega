@@ -183,7 +183,20 @@ int main(int count, char **args) {
         )
     };
     require_undelegated_child_refusal(temp.path(), &public, &image, &library);
-    let pending = package("update", &image, &[]);
+    let targets = [
+        target::TargetProfile::LinuxX64,
+        target::TargetProfile::LinuxArm64,
+    ];
+    let pending = package(
+        "update",
+        &image,
+        &[
+            "--target",
+            targets[0].target_name(),
+            "--target",
+            targets[1].target_name(),
+        ],
+    );
     assert_eq!(pending.status.code(), Some(3), "{}", show(&pending));
     let lock = app.join("omega.lock");
     assert!(!lock.exists());
@@ -228,20 +241,33 @@ int main(int count, char **args) {
         !lock.exists(),
         "Build acceptance published an unchecked Product"
     );
-    let target_doc = app
-        .join("build/package-manager")
-        .join(format!("review-{}.txt", profile.target_name()));
-    let graph = std::fs::read_to_string(&target_doc).unwrap();
-    assert!(
-        graph.contains("launched") && !graph.contains("launch_failed"),
-        "{graph}"
-    );
-    std::fs::write(&target_doc, graph.replace(" pending\n", " accept\n")).unwrap();
+    for target in targets {
+        let target_doc = app
+            .join("build/package-manager")
+            .join(format!("review-{}.txt", target.target_name()));
+        let graph = std::fs::read_to_string(&target_doc).unwrap();
+        assert!(
+            graph.contains("launched") && !graph.contains("launch_failed"),
+            "{graph}"
+        );
+        std::fs::write(&target_doc, graph.replace(" pending\n", " accept\n")).unwrap();
+    }
     let published = package("update", &image, &["--resume"]);
     assert!(published.status.success(), "{}", show(&published));
     let locked = std::fs::read(&lock).unwrap();
     let audit = package("audit", &image, &[]);
     assert!(audit.status.success(), "{}", show(&audit));
+    for target in targets {
+        assert!(
+            show(&audit).contains(&format!(
+                "product target {} execution {}",
+                target.target_name(),
+                profile.target_name()
+            )),
+            "{}",
+            show(&audit)
+        );
+    }
     assert_eq!(std::fs::read(&lock).unwrap(), locked);
 
     let compile = || {
