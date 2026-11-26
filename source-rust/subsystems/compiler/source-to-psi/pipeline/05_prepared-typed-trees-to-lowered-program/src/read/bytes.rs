@@ -1247,6 +1247,9 @@ mod tests {
         let b = view(second, "region");
         let c = view(first, "other");
         let missing = view(first, "missing");
+        let arguments = typed
+            .type_reference_table
+            .insert(TypeReferenceNode::Slice { element_type: a });
         let mut program = Program::new(&typed, false);
         let machine = MachineId::new(1).unwrap();
         let origin = SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent);
@@ -1273,6 +1276,8 @@ mod tests {
         assert_ne!(program.view_type(machine, b).unwrap(), Some(a));
         assert_ne!(program.view_type(machine, c).unwrap(), Some(a));
         assert!(program.view_type(machine, missing).is_err());
+        // Checking a sequence must retain its element's supplying region too.
+        program.view_type(machine, arguments).unwrap().unwrap();
         assert!(
             program
                 .source_record_correspondence(machine)
