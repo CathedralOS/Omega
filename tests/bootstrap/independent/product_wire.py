@@ -74,7 +74,7 @@ def check_build_source_ownership(encode, runner, work, seconds):
     packages = [("app", 0), ("core", 1), ("library", 0)]
     entries = [(0, 0), (1, 1), (2, 1)]
     default = (ROOT / "source/library/core/defaults/build.omg").read_bytes()
-    files = [(0, "build.omg", b"machine build(builder: @mutable Build) {}"), (1, "defaults/build.omg", default)]
+    files = [(0, "build.omg", b"machine build(builder: @mutable BuildPlan) {}"), (1, "defaults/build.omg", default)]
     wire, _, _, _ = encode(packages, [], [(0, b"machine main() -> u8 {42}")], 0, b"main",
                             paths=["main.omg"], build_sources=files, build_entries=entries)
     # Mutate already encoded words to reach the Omega reader past the host's

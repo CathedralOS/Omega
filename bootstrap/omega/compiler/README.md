@@ -97,10 +97,11 @@ deployment and checks the full status alongside the Linux seed observation.
 
 A standalone deployment can also supply the distinct package roots of a
 verified immutable Git snapshot. The covered application registers one Product
-dependency with `Build::dependency(builder, dependency\from_source(Source::Path { location: "…" }))`.
+dependency by importing `{omega}/build/dependency.omg` and calling
+`Build::dependency(builder, |dependency|::from_source(Source::Path { location: "…" }))`.
 The canonical location is relative to the application's root. Its target must
 own the supplied dependency package, default alias and source bytes. The
-dependency's own `Build::package` activation can select its provider. The
+dependency's own Build selects a `BuildProduct::Package` and can select its provider. The
 remaining package supplies the trusted core default. Build-only dependencies,
 additional graph edges and overlapping package selections require further
 coverage. To prepare this embedding, pass the snapshot, immutable commit,
@@ -738,7 +739,7 @@ See [lifetimes and carried borrows](../../../wiki/spec/language/lifetimes.md).
 
 A nongeneric domain declaration retains its visibility, name, carrier type,
 and ordered predicate expressions. For example,
-`public domain [u8]::Utf8 requires byte_observation\valid_utf8(@self[..]);`
+`public domain [u8]::Utf8 requires |bytes|::valid_utf8(@self[..]);`
 in `source/library/system/calling.omg` retains the slice carrier and the call on
 its borrowed subject. A declaration ending directly in `;` has zero predicates.
 The parser rejects the retired subject binder and brace body. The compiler

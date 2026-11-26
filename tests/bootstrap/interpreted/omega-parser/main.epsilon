@@ -263,7 +263,7 @@ machine Main::main(&mut self) {
     assert self.parser.call_expressions[1].first_machine_argument == 0;
     assert self.parser.call_expressions[1].machine_argument_count == 1;
     assert self.parser.static_machine_arguments[2].path_member_count == 1;
-    self.parser.parse_view("machine p(builder: @mutable Build) { Build::select_provider::<Exit, |std|::NativeExit>(builder, alpha_bootstrap); }");
+    self.parser.parse_view("machine p(builder: @mutable BuildPlan) { Build::select_provider::<Exit, |std|::NativeExit>(builder, alpha_bootstrap); }");
     self.check_complete();
     assert self.parser.call_statements[0].name_member_count == 2;
     assert self.parser.call_statements[0].machine_argument_count == 2;
