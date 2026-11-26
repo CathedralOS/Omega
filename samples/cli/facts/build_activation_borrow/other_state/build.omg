@@ -1,12 +1,13 @@
+use main.omg as app;
 data Configuration<'activation, 'storage> { builder: @'activation mutable Build<'storage>; }
 machine wrap<'activation, 'storage>(builder: @'activation mutable Build<'storage>) -> Configuration<'activation, 'storage> {
     Configuration { builder: builder }
 }
 machine bind_configuration(configuration: @mutable Configuration) {
-    Build::bind(configuration.builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(configuration.builder, linux_arm64::ProgramEntry, main);
-    Build::bind(configuration.builder, macos_arm64::ProgramEntry, main);
-    Build::bind(configuration.builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(configuration.builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(configuration.builder, linux_arm64::ProgramEntry, |app|::main);
+    Build::bind(configuration.builder, macos_arm64::ProgramEntry, |app|::main);
+    Build::bind(configuration.builder, windows_x86_64::ProgramEntry, |app|::main);
 }
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "build_activation_borrow_other_state" };

@@ -1,13 +1,14 @@
+use main.omg as app;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "fixed_layout_bit_observation_target_body_invalid" };
-    Build::select_provider::<Delivery, SecondDelivery>(builder, windows_x86_64);
-    Build::select_provider::<Delivery, SecondDelivery>(builder, linux_x86_64);
-    Build::select_provider::<Delivery, FirstDelivery>(builder, macos_arm64);
-    Build::select_provider::<Delivery, SecondDelivery>(builder, linux_arm64);
-    Build::select_provider::<Delivery, SecondDelivery>(builder, macos_x86_64);
-    Build::bind(builder, windows_x86_64::ProgramEntry, main_other);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main_other);
-    Build::bind(builder, macos_arm64::ProgramEntry, main_arm);
-    Build::bind(builder, linux_arm64::ProgramEntry, main_other);
-    Build::bind(builder, macos_x86_64::ProgramEntry, main_other);
+    Build::select_provider::<|app|::Delivery, |app|::SecondDelivery>(builder, windows_x86_64);
+    Build::select_provider::<|app|::Delivery, |app|::SecondDelivery>(builder, linux_x86_64);
+    Build::select_provider::<|app|::Delivery, |app|::FirstDelivery>(builder, macos_arm64);
+    Build::select_provider::<|app|::Delivery, |app|::SecondDelivery>(builder, linux_arm64);
+    Build::select_provider::<|app|::Delivery, |app|::SecondDelivery>(builder, macos_x86_64);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main_other);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main_other);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main_arm);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::main_other);
+    Build::bind(builder, macos_x86_64::ProgramEntry, |app|::main_other);
 }

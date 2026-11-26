@@ -1,7 +1,8 @@
+use main.omg as app;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "domain_pattern_match_bound_target_body" };
-    Build::bind(builder, windows_x86_64::ProgramEntry, windows_entry);
-    Build::bind(builder, linux_x86_64::ProgramEntry, linux_entry);
-    Build::bind(builder, macos_arm64::ProgramEntry, mac_entry);
-    Build::bind(builder, linux_arm64::ProgramEntry, linux_arm_entry);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::windows_entry);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::linux_entry);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::mac_entry);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::linux_arm_entry);
 }
