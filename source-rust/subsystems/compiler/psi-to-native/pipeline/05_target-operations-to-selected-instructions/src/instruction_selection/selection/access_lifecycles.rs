@@ -6450,47 +6450,13 @@ impl ImageHome<'_> {
         anchor: PlaceId,
         byte_size: u32,
     ) -> Result<Self, SelectedInstructionError> {
-        use selected_instructions::{
-            FrameStorageSlotId, LocalStorageSlotId, SelectedLocalStorageSlot,
-            SelectedMemoryAccessRole,
-        };
-        let slot = LocalStorageSlotId::Boundary {
-            operation: row.operation,
-        };
-        if byte_size == 0
-            || builder
-                .transport
-                .local_slots
-                .iter()
-                .any(|item| item.id == slot)
-        {
-            return Err(failure(
-                "resident scratch must have one nonempty operation-owned allocation",
-            ));
-        }
-        builder
-            .transport
-            .local_slots
-            .push(SelectedLocalStorageSlot {
-                id: slot,
-                byte_size,
-                alignment: 8,
-            });
-        let pointer = crate::instruction_selection::selection::construction::scalar_graph::structural::transport_register(
-            builder, anchor, 0,
-        )?;
-        crate::instruction_selection::selection::construction::scalar_graph::structural::memory(
+        let (slot, pointer) = crate::instruction_selection::selection::construction::scalar_graph::structural::local_storage::boundary_scratch(
             builder,
             row,
             anchor,
-            0,
             byte_size,
-            SelectedMemoryAccessRole::AddressLocal { slot },
-        )?;
-        builder.emit_frame_address(
-            FrameStorageSlotId::Local(slot),
-            pointer,
-            crate::instruction_selection::selection::construction::scalar_graph::structural::provenance(row),
+            8,
+            "resident scratch must have one nonempty operation-owned allocation",
         )?;
         Ok(Self {
             storage: fragmented_scalar::StorageAccess::Local(slot),
