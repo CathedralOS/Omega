@@ -27,17 +27,26 @@ fn report(output: &process::Output) -> String {
 }
 
 fn run_and_reopen(project: &Path) -> String {
-    let output = omega(project, &["run", "--both", "--keep", "build.omg"]);
+    let interpreted = omega(project, &["run", "--engine", "psi", "build.omg"]);
+    let psi = report(&interpreted);
+    assert!(
+        interpreted.status.success() && psi.lines().any(|line| line == "Psi exit 0"),
+        "{psi}"
+    );
+    let output = omega(
+        project,
+        &["run", "--engine", "native", "--keep", "build.omg"],
+    );
     let run = report(&output);
-    assert!(output.status.success(), "{run}");
-    for receipt in ["native exit 0", "interp exit: 0"] {
-        assert!(run.lines().any(|line| line == receipt), "{run}");
-    }
+    assert!(
+        output.status.success() && run.lines().any(|line| line == "native exit 0"),
+        "{run}"
+    );
 
     let kept = run
         .lines()
         .find_map(|line| line.strip_prefix("build dir kept: "))
-        .expect("the differential run keeps its build directory");
+        .expect("the native run keeps the product containing its input Psi");
     let artifact = Path::new(kept).join("program.oterm");
     let output = omega(
         project,

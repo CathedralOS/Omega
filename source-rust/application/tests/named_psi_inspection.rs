@@ -340,12 +340,12 @@ fn reopened_program_runs_in_both_engines_after_the_source_is_gone() {
     };
     let inspected = command(&["psi", "inspect", "--artifact"]);
     assert!(inspected.status.success(), "{inspected:?}");
-    let withheld = command(&["run", "--both"]);
+    let withheld = command(&["run", "--engine", "psi"]);
     assert!(!withheld.status.success());
     assert!(String::from_utf8_lossy(&withheld.stderr).contains("requires --trusted-artifact"));
     let mut wrong = manifest.clone();
     wrong.replace_range(..1, if manifest.starts_with('0') { "1" } else { "0" });
-    let refused = command(&["run", "--both", "--trusted-artifact", &wrong]);
+    let refused = command(&["run", "--engine", "native", "--trusted-artifact", &wrong]);
     assert!(!refused.status.success());
     assert!(
         String::from_utf8_lossy(&refused.stderr).contains("differs from the artifact authorized")
@@ -367,13 +367,17 @@ fn reopened_program_runs_in_both_engines_after_the_source_is_gone() {
         };
         assert_hosted_image(target, &consumer.path().join(target).join(executable));
     }
-    let observed = command(&["run", "--both", "--trusted-artifact", &manifest]);
-    assert!(observed.status.success(), "{observed:?}");
-    assert!(observed.stdout.is_empty(), "{observed:?}");
-    assert!(
-        String::from_utf8_lossy(&observed.stderr).contains("interp exit: 0"),
-        "{observed:?}"
-    );
+    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+        let observed = command(&["run", "--engine", engine, "--trusted-artifact", &manifest]);
+        assert!(observed.status.success(), "{observed:?}");
+        assert!(observed.stdout.is_empty(), "{observed:?}");
+        assert!(
+            String::from_utf8_lossy(&observed.stderr)
+                .lines()
+                .any(|line| line == expected),
+            "{observed:?}"
+        );
+    }
 }
 
 #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
@@ -492,12 +496,16 @@ fn reopened_program_uses_the_host_pinned_package_lock() {
         .status()
         .unwrap();
     assert_eq!(status.code(), Some(0));
-    let compared = receive(&["run", "--both"], Some(&digest));
-    assert!(compared.status.success(), "{compared:?}");
-    assert!(
-        String::from_utf8_lossy(&compared.stderr).contains("interp exit: 0"),
-        "{compared:?}"
-    );
+    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+        let observed = receive(&["run", "--engine", engine], Some(&digest));
+        assert!(observed.status.success(), "{observed:?}");
+        assert!(
+            String::from_utf8_lossy(&observed.stderr)
+                .lines()
+                .any(|line| line == expected),
+            "{observed:?}"
+        );
+    }
 }
 
 #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
