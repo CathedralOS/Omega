@@ -116,26 +116,18 @@ pub mod operator {
                 .collect()
         }
 
-        pub fn closed_operator_application_for_operands(
+        /// An ordinary call infers the declaration's lifetimes from its actual loans.
+        /// Its explicit specialization arguments contain only types and constants.
+        pub fn operator_call_arguments(
             program: &TypedTrees,
             operator: &OperatorDefinition,
             operand_types: &[Option<TypeReferenceHandle>],
         ) -> Option<Vec<ClosedOperatorApplicationArgument>> {
-            closed_application_for_operands(program, operator, operand_types, false)
-        }
-
-        pub fn closed_indexed_operator_application_for_operands(
-            program: &TypedTrees,
-            operator: &OperatorDefinition,
-            operand_types: &[Option<TypeReferenceHandle>],
-        ) -> Option<Vec<ClosedOperatorApplicationArgument>> {
-            if !matches!(
+            let indexed_collection = matches!(
                 operator.spelling,
                 Some(super::OperatorSpelling::Index | super::OperatorSpelling::Range)
-            ) {
-                return None;
-            }
-            closed_application_for_operands(program, operator, operand_types, true)
+            );
+            closed_application_for_operands(program, operator, operand_types, indexed_collection)
         }
 
         fn closed_application_for_operands(
@@ -144,9 +136,6 @@ pub mod operator {
             operand_types: &[Option<TypeReferenceHandle>],
             indexed_collection: bool,
         ) -> Option<Vec<ClosedOperatorApplicationArgument>> {
-            if !operator.lifetime_parameters.is_empty() {
-                return None;
-            }
             let type_parameters = program.operator_type_parameters(operator);
             if type_parameters.iter().any(|parameter| {
                 !matches!(
@@ -302,6 +291,9 @@ pub mod operator {
             machine: &crate::source_state::machine::Machine,
             operator: &OperatorDefinition,
         ) -> Option<ClosedOperatorRealizationApplication> {
+            if !operator.lifetime_parameters.is_empty() {
+                return None;
+            }
             let state = program.machine_states(machine).first()?;
             let actual_parameters = program.state_parameters(state);
             let required_parameters = program.operator_parameters(operator);
@@ -322,7 +314,7 @@ pub mod operator {
                 .map(|parameter| Some(parameter.type_reference))
                 .collect::<Vec<_>>();
             let arguments =
-                closed_operator_application_for_operands(program, operator, &operand_types)?;
+                closed_application_for_operands(program, operator, &operand_types, false)?;
 
             if state.return_type.is_valid() != operator.return_type.is_valid() {
                 return None;
@@ -4486,9 +4478,8 @@ pub mod operator {
     pub use applications::{
         ClosedOperatorApplicationArgument, ClosedOperatorRealizationApplication,
         SymbolicOperatorTypeApplicationArgument, canonical_closed_operator_realization_bytes,
-        closed_indexed_operator_application_for_operands, closed_operator_application_for_operands,
         closed_operator_application_from_bindings, closed_operator_realization_application,
-        symbolic_operator_type_application_for_operands,
+        operator_call_arguments, symbolic_operator_type_application_for_operands,
     };
     pub use indexing::{
         builtin_index_read_is_spelled, resolve_indexed_spelling_for_operands,
