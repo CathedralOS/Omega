@@ -51,14 +51,14 @@ fn successive_builds_select_the_final_native_and_psi_entry() {
         host.target_name()
     );
     for (engine, observation) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
-    let (status, report) = invoke(
-        &[
-            ("build.omg", &first),
-            ("stages/configure.omg", &middle),
-            ("release.lock.omg", &last),
-        ],
-        &["run", "--engine", engine],
-    );
+        let (status, report) = invoke(
+            &[
+                ("build.omg", &first),
+                ("stages/configure.omg", &middle),
+                ("release.lock.omg", &last),
+            ],
+            &["run", "--engine", engine],
+        );
         assert!(status.success(), "{report}");
         assert!(report.lines().any(|line| line == observation), "{report}");
     }
@@ -73,7 +73,9 @@ fn a_successor_must_be_one_canonical_file_in_the_frozen_source_view() {
         ),
         ("absent.omg", "cannot select source"),
     ] {
-        let entry = build(&format!(r#"builder.product = BuildProduct::InterpretedBuild {{ entry: "{name}" }};"#));
+        let entry = build(&format!(
+            r#"builder.product = BuildProduct::InterpretedBuild {{ entry: "{name}" }};"#
+        ));
         let (status, report) = invoke(&[("build.omg", &entry)], &["build"]);
         assert!(!status.success(), "{report}");
         assert!(report.contains(reason), "{report}");
@@ -95,6 +97,42 @@ fn the_returned_product_is_the_last_value_in_the_plan() {
         &["--check"],
     );
     assert!(status.success(), "{report}");
+}
+
+#[test]
+fn only_the_returned_workspace_catalog_selects_members() {
+    let workspace = r#"use {omega}/build/workspace.omg;
+machine build(plan: @mutable BuildPlan) {
+    let discarded: [BuildWorkspaceMember; 1] = [BuildWorkspaceMember { path: "not_a_package" }];
+    let first: WorkspaceMembers = |workspace|::members(plan, @discarded[..]);
+    plan.product = BuildProduct::Workspace { members: first };
+    select_workspace(plan);
+}
+machine select_workspace(plan: @mutable BuildPlan) {
+    let selected: [BuildWorkspaceMember; 1] = [BuildWorkspaceMember { path: "tools" }];
+    let second: WorkspaceMembers = |workspace|::members(plan, @selected[..]);
+    plan.product = BuildProduct::Workspace { members: second };
+}"#;
+    let tools = build(r#"builder.product = BuildProduct::Package { name: "tools" };"#);
+    let (status, report) = invoke(
+        &[
+            ("build.omg", workspace),
+            ("tools/build.omg", &tools),
+            ("tools/main.omg", "public machine answer() -> u32 { 42u32 }"),
+        ],
+        &["--check"],
+    );
+    assert!(status.success(), "{report}");
+
+    let duplicate = workspace.replace("[BuildWorkspaceMember; 1] = [BuildWorkspaceMember { path: \"tools\" }]",
+        "[BuildWorkspaceMember; 2] = [BuildWorkspaceMember { path: \"tools\" }, BuildWorkspaceMember { path: \"tools\" }]");
+    assert_ne!(duplicate, workspace);
+    let (status, report) = invoke(&[("build.omg", &duplicate)], &["--check"]);
+    assert!(!status.success(), "{report}");
+    assert!(
+        report.contains("repeated workspace member `tools`"),
+        "{report}"
+    );
 }
 
 #[test]
@@ -161,8 +199,9 @@ fn dependency_imports_respect_the_build_files_the_child_entered() {
         ("prepare.omg", false),
         ("configure.omg", false),
     ] {
-        let source =
-            format!("use {{kit}}/{path} as lib; machine main() {{ let value: i32 = |lib|::marker(); }}");
+        let source = format!(
+            "use {{kit}}/{path} as lib; machine main() {{ let value: i32 = |lib|::marker(); }}"
+        );
         let (status, report) = invoke(
             &[
                 ("build.omg", consumer),
