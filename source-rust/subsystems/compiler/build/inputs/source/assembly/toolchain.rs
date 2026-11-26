@@ -2,7 +2,7 @@
 
 use super::BuildSourceSelection;
 use super::imports::{SourceRouting, load_source_frontiers};
-use crate::source::source_imports::{ImportQueue, SourceStorage};
+use crate::source::source_imports::{ImportQueue, ResolvedSourceImport, SourceStorage};
 use artifacts::compile_timings::CompileTimings;
 use diagnostics::Diagnostic;
 use source_admission::{SourceContents, SourceOrigin, SourceResolutionStratum};
@@ -136,7 +136,9 @@ pub(super) fn append_build_prelude(
                         modules.push((export.namespace, export.source.to_owned()));
                         modules.len() - 1
                     });
-                file_imports.push((file.source_id, index, alias.clone()));
+                file_imports.push((
+                    file.source_id, index, import.ordinal, import.target.to_string(), alias.clone(),
+                ));
             }
         }
     }
@@ -190,10 +192,11 @@ pub(super) fn append_build_prelude(
             );
         }
     }
-    for (author, index, alias) in file_imports {
+    for (author, index, ordinal, name, alias) in file_imports {
         let (_, source) = namespaces[index];
-        bindings.push(source_compiler::representations::source_symbols::SourceScopedTopLevelBinding::file_import(
-            author, source, alias.as_str(),
+        let declaration = storage.sources.get(source).expect("just-admitted Build library");
+        storage.resolved_imports.push(ResolvedSourceImport::file(
+            author, ordinal, name, &alias, declaration,
         ));
     }
     Ok(bindings)
