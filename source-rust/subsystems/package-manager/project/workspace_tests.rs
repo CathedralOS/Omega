@@ -160,11 +160,9 @@ fn write_catalog(directory: &Path, fixture: &Path) {
     );
     let observer = workspace.join("unselected");
     fs::create_dir(&observer).unwrap();
-    fs::copy(
-        fixture.join("unselected/main.omg"),
-        observer.join("main.omg"),
-    )
-    .unwrap();
+    for name in ["main.omg", "name.omg"] {
+        fs::copy(fixture.join("unselected").join(name), observer.join(name)).unwrap();
+    }
     let build = fs::read_to_string(fixture.join("unselected/build.omg")).unwrap();
     // Looking up the default name of this candidate settles its dependencies first.
     // The subsequent explicit "naming" request reaches its child through a different Git ref.
