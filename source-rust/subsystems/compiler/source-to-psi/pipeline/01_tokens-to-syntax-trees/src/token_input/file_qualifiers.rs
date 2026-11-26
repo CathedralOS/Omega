@@ -15,7 +15,8 @@ pub(crate) struct FileQualifiers<'source> {
     uses: RefCell<BTreeMap<usize, (&'source str, QualifierUse)>>,
 }
 
-enum QualifierUse {    Host,
+enum QualifierUse {
+    Host,
     Product,
     RootOperand(Option<String>),
     Description(String),
