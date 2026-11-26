@@ -11,7 +11,7 @@
 // and how `Slice`/`Array` surface their length and view contracts. The actual
 // runtime storage mechanics are OUT OF SCOPE here; only the proof-facing
 // contracts and provider-agnostic boundary requirements live in this layer.
-// The concrete u32 construction path lives in `alloc\vec`: a runtime-sized
+// The concrete u32 construction path lives in `allocation\vec`: a runtime-sized
 // owner of caller-supplied qualified extents that returns every buffer
 // explicitly. It is not this generic proof-facing carrier. An allocator's
 // temporary loan ends when it issues an extent; the vector owns that extent,

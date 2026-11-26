@@ -646,7 +646,7 @@ thirteen readers.
 
 | Declaration | Uses | Blocked by |
 | --- | --- | --- |
-| `core/extent.omg:228` `no_wrap(base: addr, length: u64): core\Strict<0>`, used by `Extent::Granted` (`:235-237`) and `alloc/bump/bump.omg:16` | closed, scalar formals, `Strict<0>` result | nothing in this task: stage 05 serves it as a `Proposition` (C4). Stage 06 test `src/tests/address_bounds.rs:290-319` accepts a call whose caller proves the bound and refuses it without. Its sample consumers fail earlier, see below. |
+| `core/extent.omg:228` `no_wrap(base: addr, length: u64): core\Strict<0>`, used by `Extent::Granted` (`:235-237`) and `allocation/bump/bump.omg:16` | closed, scalar formals, `Strict<0>` result | nothing in this task: stage 05 serves it as a `Proposition` (C4). Stage 06 test `src/tests/address_bounds.rs:290-319` accepts a call whose caller proves the bound and refuses it without. Its sample consumers fail earlier, see below. |
 | `core/extent.omg:219` `core\Identity::<IntervalSet<Nat>>(...)` in `transfer`'s `ensures` | Identity over data | C5 ("Identity of an unserved type") |
 | `core/algebra.omg:29-41` `CommutativeSemiring<T>` laws, `ensures core\Identity::<T>(...)` | Identity over a generic T; resultless theorem slots | C5, C8 |
 | `core/cauchy.omg` (28 uses), `nat.omg` (46), `nat_metric.omg` (32), `rat.omg` (28), `int.omg` (19), `math.omg` (14), `seq.omg` (12), `float_operations.omg` (78, mostly `FloatMeaning`) | `core\Identity`/`core\Type`/`core\Strict` over `Nat`, `Rat` and generic sequences, in `requires`/`ensures` | C5 for non-scalar T; C8 where a machine is a theorem |

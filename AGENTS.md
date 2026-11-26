@@ -485,7 +485,7 @@ reads the allowed lanes from this table:
 | `packages` | Package acquisition, graphs, review and update in `source-rust/subsystems/package-manager/`. |
 | `cli` | Command parsing, flags, help and dispatch in `source-rust/application/src/`. |
 | `tooling` | Shipped developer tooling and shared host support in `source-rust/foundation/`. |
-| `library` | Bundled packages in `source/library/` (`core`, `alloc`, `std`, etc.). |
+| `library` | Bundled packages in `source/library/` (`core`, `allocation`, `std`, etc.). |
 | `samples` | Standalone sample content in `samples/`. A regression fixture for a compiler fix uses that compiler stage's lane. |
 | `tests` | Shared test infrastructure, kept fixtures, or multi-owner gates. Stage-specific tests use their stage's lane. |
 | `tools` | Repository maintenance tooling, CI/bootstrap helpers, ratchets, and `mbx xtask` (`tools/xtask/`). |

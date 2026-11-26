@@ -2,5 +2,5 @@
 // (wiki/spec/resources/allocation.md, TASKS.md BUMP-ALLOCATOR-CANARY).
 
 machine build(builder: @mutable Build) {
-    Build::package(builder, "alloc");
+    Build::package(builder, "allocation");
 }

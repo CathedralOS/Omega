@@ -23,7 +23,7 @@ The 2026-11-12 completion selects borrowed registration handles for
 `Build::validate`, reusable registration identity shared with preparation, and
 explicit package roots with a narrow core-owner rule. It also ratifies
 `ordinary-library-packages`: optional distribution does not change ordinary
-`std`/`alloc` ownership or confer compiler custody. The two delivery tracks
+`std`/`allocation` ownership or confer compiler custody. The two delivery tracks
 below are independent; removal of all demonstrated `std` coupling must not
 block the validation API/root repair. No new implementation or execution result
 is claimed here.
@@ -80,7 +80,7 @@ package is the "real" one.
   the libraries it distributes, including unused declarations? Add ordinary
   full-package jobs where missing, retaining exact owners and the narrow
   existing-core root selection. The overlap guard protects the core subtree;
-  do not assume it also blocks `std` or `alloc` without separate evidence.
+  do not assume it also blocks `std` or `allocation` without separate evidence.
 2. Make the subject set explicit request state and carry it through
    orchestration, including dependency Build execution and generated source.
 3. Replace post-hoc graph filtering with discovery during checking. Extend the
@@ -125,7 +125,7 @@ package is the "real" one.
   coordinator pointer or a name string. Different contexts are not deduplicated
   merely because a path, alias or source revision agrees.
 - Qualify explicit checks of `source/library/core/main.omg`,
-  `source/library/std/main.omg` and `source/library/alloc/main.omg` as their
+  `source/library/std/main.omg` and `source/library/allocation/main.omg` as their
   existing package roots. Core keeps its toolchain owner; ordinary packages keep
   their resolved owners. Re-rooting must not create another core or label the
   library as the application's package.
