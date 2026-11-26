@@ -501,3 +501,30 @@ ensures embed(a) == embed(a) + embed(result)
         "{rejected:?}"
     );
 }
+
+#[test]
+fn an_integer_disjunct_can_establish_a_conditional_address_guarantee() {
+    let check = |empty_base| {
+        judge_build(&format!(
+            "machine build_entry(base: addr, requested: u64, length: u64) -> addr
+requires requested <= length, embed(base) + embed(length) <= addr::Bound
+ensures requested != 0 || result == base {{
+    match requested == 0 || requested == length {{
+        true -> {empty_base},
+        false -> base + requested,
+    }}
+}}"
+        ))
+        .unwrap()
+    };
+    let RouteVerdict::Accepted(checked) = check("base") else {
+        panic!("the interior arm proves the displacement is nonzero");
+    };
+    checked.publish_invocation().unwrap();
+    let wrong = check("0");
+    assert!(
+        matches!(wrong, RouteVerdict::Incomplete(ref failed) | RouteVerdict::Rejected { unproved: ref failed, .. }
+            if failed.iter().any(|row| matches!(row.kind, ObligationKind::NormalGuarantee { .. }))),
+        "{wrong:?}"
+    );
+}

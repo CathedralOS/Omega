@@ -2464,8 +2464,10 @@ impl<'a> Prover<'a> {
                 if let Some(proof) = self.closed(goal.clone()) {
                     return Ok(proof);
                 }
-                if !matches!(left.scalar_type(), ScalarType::Integer(_)) {
-                    return Err("equality of non-integers is proved only by a hypothesis");
+                if left.scalar_type() != right.scalar_type()
+                    || !left.scalar_type().as_integer().is_some_and(|integer| !integer.is_address())
+                {
+                    return Err("integer order antisymmetry requires one non-address integer carrier");
                 }
                 self.antisymmetry(
                     goal,
