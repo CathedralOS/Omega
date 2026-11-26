@@ -23,6 +23,7 @@ pub struct PackageSourceBinding {
     pub(super) canonical_name: String,
     pub(super) resolution: Option<[u8; 32]>,
     pub(super) source_root: PathBuf,
+    pub(super) preparing_source: Option<crate::CapturedLocalSource>,
     pub(super) canonical_source_metadata: Option<CanonicalFilesystemMetadataIndex>,
     pub(super) captured_source: Option<Arc<source_capture::CapturedSourceTree>>,
     pub(super) captured_build_source: Option<build_output::CapturedBuildSourceInput>,
@@ -40,10 +41,35 @@ impl PackageSourceBinding {
             canonical_name: canonical_name.into(),
             resolution: None,
             source_root,
+            preparing_source: None,
             canonical_source_metadata: None,
             captured_source: None,
             captured_build_source: None,
         }
+    }
+
+    /// A returned directory changes what the compiler reads. The original package
+    /// still determines whether two acquisitions overlapped on the host.
+    pub fn with_preparing_source(mut self, source: Option<crate::CapturedLocalSource>) -> Self {
+        self.preparing_source = source;
+        self
+    }
+
+    /// Reuse the root's prepared compiler input only for the same acquisition
+    /// and the same directory returned by the Build.
+    pub fn can_reuse_for(
+        &self,
+        requested: &Self,
+        entries: &super::PackageBuildEntries,
+        selected: Option<&Arc<source_capture::CapturedSourceTree>>,
+    ) -> bool {
+        self.identity == requested.identity
+            && self.canonical_name == requested.canonical_name
+            && self.resolution == requested.resolution
+            && self.source_root == requested.source_root
+            && self.preparing_source == requested.preparing_source
+            && &self.build_entries == entries
+            && self.captured_source.as_ref() == selected
     }
 
     pub fn with_build_entries(
