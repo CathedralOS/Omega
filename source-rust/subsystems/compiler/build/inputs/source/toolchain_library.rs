@@ -6,11 +6,15 @@
 // while it still holds `core/`, and otherwise recover `source/library` by walking
 // the running executable's ancestors so moved or secondary worktrees do not fail on
 // a stale compile-time checkout path. `identity()` re-hashes the library on demand
-// (`omega-toolchain-library-v1`) so edits to a development library are never masked
+// (the complete frozen source-tree digest) so edits to a development library are never masked
 // by the cached path in `LIBRARY`.
 
+use source_acquisition::LocalSourceLimits;
+use source_acquisition::local::resolution_observations::CapturedLocalSource;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
+
+pub const PACKAGE_CATALOG: &str = "packages.tsv";
 
 static LIBRARY: OnceLock<Result<PathBuf, String>> = OnceLock::new();
 
@@ -107,69 +111,51 @@ fn validate(root: &Path, expected: Option<&str>) -> Result<PathBuf, String> {
             root.display()
         ));
     }
-    if let Some(expected) = expected {
-        let actual = library_digest(&root)?;
-        if actual != expected {
-            return Err(format!(
-                "Omega toolchain library does not match this compiler: expected {expected}, found {actual}; reinstall the complete bundle"
-            ));
-        }
+    if expected.is_some() {
+        capture(&root, expected)?;
     }
     Ok(root)
 }
 
 pub fn identity() -> Result<String, String> {
-    library_digest(&root()?)
+    Ok(snapshot()?.normalized().content_identity.clone())
 }
 
-fn library_digest(root: &Path) -> Result<String, String> {
-    fn collect(root: &Path, directory: &Path, files: &mut Vec<String>) -> Result<(), String> {
-        for entry in std::fs::read_dir(directory).map_err(|error| error.to_string())? {
-            let entry = entry.map_err(|error| error.to_string())?;
-            let kind = entry.file_type().map_err(|error| error.to_string())?;
-            if kind.is_symlink() {
-                return Err(format!(
-                    "toolchain library contains a symbolic link: {}",
-                    entry.path().display()
-                ));
-            }
-            if kind.is_dir() {
-                collect(root, &entry.path(), files)?;
-            } else if entry
-                .path()
-                .extension()
-                .is_some_and(|extension| extension == "omg")
-            {
-                let path = entry.path();
-                let relative = path.strip_prefix(root).map_err(|error| error.to_string())?;
-                files.push(
-                    relative
-                        .to_str()
-                        .ok_or("non-UTF-8 toolchain library path")?
-                        .replace('\\', "/"),
-                );
-            }
-        }
-        Ok(())
+/// Package lookup and the source bytes returned to its caller share this capture.
+pub fn snapshot() -> Result<CapturedLocalSource, String> {
+    capture(&root()?, option_env!("OMEGA_RELEASE_LIBRARY_SHA256"))
+}
+
+fn capture(root: &Path, expected: Option<&str>) -> Result<CapturedLocalSource, String> {
+    let capture = source_acquisition::local::operations::capture_local_source_input(
+        root,
+        LocalSourceLimits::default(),
+    )
+    .map_err(|error| error.to_string())?;
+    if let Some((path, _)) = capture
+        .tree()
+        .entries()
+        .find(|(_, node)| matches!(node, source_capture::CapturedSourceNode::Symlink { .. }))
+    {
+        return Err(format!(
+            "toolchain library contains a symbolic link: {}",
+            path.display()
+        ));
     }
-    let mut files = Vec::new();
-    collect(root, root, &mut files)?;
-    files.sort();
-    let mut digest =
-        crate::digest_encoder::DomainDigestEncoder::new(b"omega-toolchain-library-v1\0");
-    for relative in files {
-        let contents = std::fs::read(root.join(&relative)).map_err(|error| error.to_string())?;
-        digest.u64(relative.len() as u64);
-        digest.raw(relative.as_bytes());
-        digest.u64(contents.len() as u64);
-        digest.raw(&contents);
+    let actual = &capture.normalized().content_identity;
+    if let Some(expected) = expected
+        && actual != expected
+    {
+        return Err(format!(
+            "Omega toolchain library does not match this compiler: expected {expected}, found {actual}; reinstall the complete bundle"
+        ));
     }
-    Ok(crate::digest_encoder::hex(&digest.finish()))
+    Ok(capture)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{library_digest, select, validate};
+    use super::{capture, select, validate};
     use platform_custody::temporary_directory::TemporaryDirectory;
     use std::fs;
     use std::path::PathBuf;
@@ -187,20 +173,59 @@ mod tests {
 
         fs::create_dir(root.join("core")).unwrap();
         fs::write(root.join("core/main.omg"), b"public data Word {}").unwrap();
-        let core_only = library_digest(&root).unwrap();
+        let core_only = capture(&root, None)
+            .unwrap()
+            .normalized()
+            .content_identity
+            .clone();
         assert_eq!(validate(&root, None).unwrap(), root);
         assert_eq!(validate(&root, Some(&core_only)).unwrap(), root);
 
         fs::create_dir(root.join("system")).unwrap();
         let service = root.join("system/build.omg");
         fs::write(&service, b"machine build(builder: @mutable Build) {}").unwrap();
-        let with_system = library_digest(&root).unwrap();
+        let with_system = capture(&root, None)
+            .unwrap()
+            .normalized()
+            .content_identity
+            .clone();
         assert_eq!(validate(&root, Some(&with_system)).unwrap(), root);
         fs::remove_file(service).unwrap();
         let refusal = validate(&root, Some(&with_system)).unwrap_err();
         assert!(
             refusal.contains("does not match this compiler"),
             "{refusal}"
+        );
+    }
+
+    #[test]
+    fn bundle_identity_covers_the_catalog_and_bytes_visible_to_package_builds() {
+        let directory = TemporaryDirectory::create("bundled-catalog", false).unwrap();
+        let root = directory.path();
+        fs::create_dir(root.join("core")).unwrap();
+        fs::create_dir(root.join("part")).unwrap();
+        fs::write(root.join(super::PACKAGE_CATALOG), "answers\tpart\n").unwrap();
+        fs::write(root.join("part/input.bin"), [4, 7]).unwrap();
+        let selected = capture(root, None).unwrap();
+        let digest = &selected.normalized().content_identity;
+        fs::write(root.join("part/input.bin"), [9, 7]).unwrap();
+        assert!(capture(root, Some(digest)).is_err());
+        fs::write(root.join("part/input.bin"), [4, 7]).unwrap();
+        fs::write(root.join(super::PACKAGE_CATALOG), "alias\tpart\n").unwrap();
+        assert!(capture(root, Some(digest)).is_err());
+        let member = selected
+            .workspace_member(
+                std::path::Path::new("part"),
+                &source_acquisition::SourceCaptureRequest::entire_tree(),
+            )
+            .unwrap();
+        assert_eq!(
+            member
+                .tree()
+                .read_to_string(std::path::Path::new("input.bin"))
+                .unwrap()
+                .as_bytes(),
+            &[4, 7]
         );
     }
 

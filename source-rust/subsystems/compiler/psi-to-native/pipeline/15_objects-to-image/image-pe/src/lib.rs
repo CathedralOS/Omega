@@ -52,7 +52,6 @@ use image::{
 };
 
 mod bytes {
-    use diagnostics::Diagnostic;
     pub(crate) use image::codec_bytes::{write_u16, write_u32, write_u64};
 
     pub(crate) fn write_u16_at(bytes: &mut [u8], offset: usize, value: u16) {
@@ -65,24 +64,6 @@ mod bytes {
 
     pub(crate) fn write_u64_at(bytes: &mut [u8], offset: usize, value: u64) {
         bytes[offset..offset + 8].copy_from_slice(&value.to_le_bytes());
-    }
-
-    pub(crate) fn write_i32_at(
-        bytes: &mut [u8],
-        offset: usize,
-        value: i32,
-    ) -> Result<(), Diagnostic> {
-        let end = offset
-            .checked_add(4)
-            .ok_or_else(|| Diagnostic::error("PE patch offset overflow"))?;
-        let Some(slice) = bytes.get_mut(offset..end) else {
-            return Err(Diagnostic::error(format!(
-                "PE patch offset {offset} is outside text section"
-            )));
-        };
-
-        slice.copy_from_slice(&value.to_le_bytes());
-        Ok(())
     }
 }
 
@@ -97,55 +78,8 @@ mod constants {
     pub(crate) const TEXT_RVA: u32 = 0x1000;
 }
 
-mod entry_symbol {
-    use crate::constants::TEXT_RVA;
-    use diagnostics::Diagnostic;
-    use image::FinalImage;
-
-    pub(crate) fn pe_entry_rva(image: &FinalImage) -> Result<u32, Diagnostic> {
-        Ok(TEXT_RVA + image::final_image_entry_symbol(image, "PE")?.offset as u32)
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::pe_entry_rva;
-        use crate::constants::TEXT_RVA;
-        use arena::Handle;
-        use image::{FinalImage, FinalImageSection, FinalImageSymbol};
-
-        #[test]
-        fn resolves_pe_entry_rva_from_final_image_entry_symbol() {
-            let mut image = FinalImage::with_capacity(
-                FinalImage::default().target,
-                image::FinalImageMemory {
-                    text: vec![0; 16],
-                    ..Default::default()
-                },
-                Handle::invalid(),
-                0,
-                0,
-                0,
-            );
-            let entry_symbol = image.symbol_table.symbols.insert(FinalImageSymbol {
-                name: "_start".into(),
-                section: FinalImageSection::Text,
-                offset: 6,
-                size: 4,
-                ..FinalImageSymbol::default()
-            });
-            image.symbol_table.entry_symbol = entry_symbol;
-
-            assert_eq!(pe_entry_rva(&image).unwrap(), TEXT_RVA + 6);
-        }
-    }
-}
-
 mod headers;
 mod imports;
-mod layout {
-    pub(crate) use image::align_to;
-}
-
 mod sections;
 mod shared_component;
 mod unwind;
@@ -157,13 +91,12 @@ pub use shared_component::{
 };
 
 use constants::{IMAGE_BASE, TEXT_RVA};
-use entry_symbol::pe_entry_rva;
 use headers::{PeHeaderInput, write_dos_header, write_pe_headers, write_section_header};
+use image::align_to;
 use imports::{
     PeIsa, build_import_table, install_import_thunks, patch_import_thunks,
     validate_import_thunk_footprints,
 };
-use layout::align_to;
 use sections::{plan_pe_sections, rdata_rva_after_text};
 
 pub(crate) enum PeImageKind {
@@ -223,7 +156,7 @@ pub(crate) fn emit_pe(
 
     patch_import_thunks(&mut image, &layout, &import_thunks, &import_table)?;
     apply_relocations(&mut image, &layout, "PE direct executable")?;
-    validate_import_thunk_footprints(&mut image, &import_thunks)?;
+    validate_import_thunk_footprints(&image, &import_thunks)?;
     let executable_regions = place_executable_regions(&image, layout)?;
     let data_regions = place_data_regions(&image, layout)?;
 
@@ -249,7 +182,9 @@ pub(crate) fn emit_pe(
     };
 
     let entry_rva = match &kind {
-        PeImageKind::Executable => pe_entry_rva(&image)?,
+        PeImageKind::Executable => {
+            TEXT_RVA + image::final_image_entry_symbol(&image, "PE")?.offset as u32
+        }
         PeImageKind::SharedComponent { .. } => 0,
     };
     let file_characteristics = match &kind {

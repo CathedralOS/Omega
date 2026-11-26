@@ -48,6 +48,19 @@ pub(super) struct Unfolded<R> {
     pub(super) result: R,
 }
 
+/// A called machine prepared for clause unfolding, including optional record
+/// formal slots and preconditions that must be established by the enclosing
+/// machine's `requires`.
+pub(super) struct UnfoldedCall {
+    pub(super) machine: SymbolHandle,
+    pub(super) bound: Vec<(SymbolHandle, ScalarTerm)>,
+    pub(super) callee_slots: Vec<super::Slot>,
+    pub(super) formal_fields: bool,
+    pub(super) requires: Vec<crate::source_state::expression::ExpressionHandle>,
+    pub(super) body: crate::source_state::expression::ExpressionHandle,
+    pub(super) result: ScalarType,
+}
+
 /// A scalar term forms all its operands. Track substitutions during its
 /// expansion so only discarded arguments need a separate formation clause.
 pub(super) struct Unfolding {
@@ -113,31 +126,144 @@ impl Program<'_> {
         id: MachineId,
         scope: &ClauseScope<'_>,
         call: &TableCallExpression,
-    ) -> Checked<Unfolded<ScalarType>> {
+    ) -> Checked<UnfoldedCall> {
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Contract(what)));
         let machine = self.clause_call_machine(id, call)?;
-        let mut unfolded = self.unfold_definition(
-            id,
-            call.target_symbol,
-            machine,
-            |program, declaration, state| {
-                let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Contract(what)));
-                if !declaration.contracts.is_empty() || !state.contracts.is_empty() {
-                    return unserved(
-                        "called machine in a clause is not a closed, contract-free body",
-                    );
+        let typed = self.typed;
+        let (declaration, state) = self.declaration(id, machine)?;
+        self.served(id, machine)?;
+        if call.target_symbol != machine && call.target_symbol != state.symbol {
+            return unserved("call in a clause of a state other than the entry");
+        }
+        if self
+            .unfolding_calls
+            .iter()
+            .any(|frame| frame.machine == machine)
+        {
+            return unserved("recursive call in a clause");
+        }
+        if !declaration.body_is_present
+            || declaration.suspends
+            || declaration.blocks
+            || !declaration.type_parameters.is_empty()
+        {
+            return unserved("called machine in a clause is not a closed, contract-free body");
+        }
+        let mut requires = Vec::new();
+        for contract in typed
+            .machine_contracts(declaration)
+            .iter()
+            .chain(typed.state_contracts(state).iter())
+        {
+            if contract.kind != crate::source_state::signature::SignatureContractKind::Requires
+                || contract.binding.is_some()
+            {
+                return unserved("called machine in a clause is not a closed, contract-free body");
+            }
+            for fact in typed.proof_facts.span_or_empty(contract.facts) {
+                let expr = fact.as_expression().copied().ok_or_else(|| {
+                    refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Contract(
+                            "called machine in a clause has a non-expression precondition",
+                        ),
+                    )
+                })?;
+                requires.push(expr);
+            }
+        }
+        let Some(result) = self
+            .result_type(id, state.return_type)?
+            .filter(|result| result.qualification() == Qualification::NONE)
+            .and_then(|result| result.scalar())
+        else {
+            return unserved("called machine in a clause has no plain scalar result");
+        };
+        let Some(body) = state.returned_expression(typed) else {
+            return unserved("called machine in a clause is not one value expression");
+        };
+        let parameters = typed.state_parameters(state);
+        let arguments = typed.expression_table.expression_handles(call.arguments);
+        if arguments.len() != parameters.len() {
+            return unserved("call in a clause with the wrong number of arguments");
+        }
+        let mut bound = Vec::new();
+        let mut callee_slots: Vec<super::Slot> = scope
+            .slots
+            .iter()
+            .map(|slot| super::Slot {
+                symbol: SymbolHandle::invalid(),
+                ..slot.clone()
+            })
+            .collect();
+        let mut has_record_param = false;
+        for (parameter, &argument) in parameters.iter().zip(arguments) {
+            let (value_type, erased, borrowed) = self.formal(id, parameter)?;
+            if erased || borrowed.is_some() || parameter.is_mutable {
+                return unserved("called machine in a clause takes a non-value parameter");
+            }
+            match value_type {
+                ValueType::Scalar(scalar, qualification) => {
+                    if qualification != Qualification::NONE {
+                        return unserved("called machine in a clause takes a qualified parameter");
+                    }
+                    let (actual, supplied) = self
+                        .clause_term(id, scope, argument, ClauseUse::Scalar(Some(scalar)))?
+                        .scalar(id)?;
+                    if supplied.scalar() != Some(scalar) {
+                        return unserved(
+                            "argument in a clause call differs from its parameter type",
+                        );
+                    }
+                    bound.push((parameter.symbol, actual));
                 }
-                let Some(result) = program
-                    .result_type(id, state.return_type)?
-                    .filter(|result| result.qualification() == Qualification::NONE)
-                    .and_then(|result| result.scalar())
-                else {
-                    return unserved("called machine in a clause has no plain scalar result");
-                };
-                Ok(result)
+                ValueType::Record(_, qualification, regions)
+                    if qualification == Qualification::NONE
+                        && regions == crate::body::Regions::NONE =>
+                {
+                    let crate::source_state::expression::ExpressionNode::Name(path) =
+                        typed.expression_table.expression(argument)
+                    else {
+                        return unserved(
+                            "record argument in a clause call must name a formal slot",
+                        );
+                    };
+                    let Some(slot_index) = scope
+                        .slots
+                        .iter()
+                        .position(|slot| slot.symbol == path.symbol)
+                    else {
+                        return unserved(
+                            "record argument in a clause call is not a formal slot in scope",
+                        );
+                    };
+                    if scope.slots[slot_index].value_type != value_type {
+                        return unserved(
+                            "record argument in a clause call differs from its parameter type",
+                        );
+                    }
+                    callee_slots[slot_index].symbol = parameter.symbol;
+                    has_record_param = true;
+                }
+                _ => {
+                    return unserved("called machine in a clause takes a non-scalar parameter");
+                }
+            }
+        }
+        Ok(UnfoldedCall {
+            machine,
+            bound,
+            callee_slots: if has_record_param {
+                callee_slots
+            } else {
+                Vec::new()
             },
-        )?;
-        self.bind_call_arguments(id, scope, call, &mut unfolded.bound)?;
-        Ok(unfolded)
+            formal_fields: has_record_param && scope.formal_fields,
+            requires,
+            body,
+            result,
+        })
     }
 
     pub(super) fn clause_call_machine(

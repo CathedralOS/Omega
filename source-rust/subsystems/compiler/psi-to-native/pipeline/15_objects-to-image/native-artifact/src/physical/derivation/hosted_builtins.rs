@@ -5,7 +5,6 @@ result custody shapes and reproduces identical instruction bytes across machine,
 object, and final-image custody.
 */
 
-use crate::BoundaryTraitSettlementParts;
 use crate::BoundaryTraitSettlementRole;
 use crate::CompilerBuiltinResult;
 use crate::CompilerBuiltinScalarArgument;
@@ -361,17 +360,15 @@ pub(crate) fn derive_hosted_builtin_child(
         scalar_argument,
         result,
     };
-    let parent = PhysicalChildParent::BoundaryTraitSettlement(
-        BoundaryTraitSettlementParts {
+    let parent =
+        PhysicalChildParent::BoundaryTraitSettlement(crate::physical::BoundaryTraitSettlement {
             occurrence: *occurrence,
             requirement_identity: requirement_identity.to_owned(),
             selected_supply: selected_plan_digest.into(),
             target,
             role,
             identity: parent_identity,
-        }
-        .into(),
-    );
+        });
     Ok(boundary_physical_child_parts(
         parent,
         projection,

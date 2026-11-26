@@ -1,6 +1,6 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Nested data: a struct field that is itself a struct, with field updates
 // through an explicit `@mutable` subject across multiple sub-machine calls.
 //
@@ -19,7 +19,6 @@ use omega\language\core\ProcessExit;
 //
 // Expected exit: 70.
 
-use system\Console;
 
 // The data predicates retain the original field bounds across construction
 // and mutable sub-machine calls. Equality guards make the final exact sum
@@ -74,8 +73,8 @@ requires
     main.state.multiplier = m;
 }
 
-machine Main::main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("nested_counters: mutating struct-in-struct fields across sub-machine calls");
+machine Main::main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("nested_counters: mutating struct-in-struct fields across sub-machine calls");
     Main::set_value(main, 10);
     Main::set_bonus(main, 20);
     Main::increment_count(main);
@@ -90,10 +89,10 @@ machine Main::main(main: @mutable Main) reaches ProcessExit + StandardInput + St
     }
 
     machine bad_value(main: @mutable Main) {
-        Console::write_line("FAIL: wrong nested value field (exit 71)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause);
-        ProcessExit::exit_process(71);
+        |console|::Console::write_line("FAIL: wrong nested value field (exit 71)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause);
+        |process_exit|::ProcessExit::exit_process(71);
     }
 
     machine check_bonus(main: @mutable Main) {
@@ -104,10 +103,10 @@ machine Main::main(main: @mutable Main) reaches ProcessExit + StandardInput + St
     }
 
     machine bad_bonus(main: @mutable Main) {
-        Console::write_line("FAIL: wrong nested bonus field (exit 72)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause);
-        ProcessExit::exit_process(72);
+        |console|::Console::write_line("FAIL: wrong nested bonus field (exit 72)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause);
+        |process_exit|::ProcessExit::exit_process(72);
     }
 
     machine check_count(main: @mutable Main) {
@@ -118,10 +117,10 @@ machine Main::main(main: @mutable Main) reaches ProcessExit + StandardInput + St
     }
 
     machine bad_count(main: @mutable Main) {
-        Console::write_line("FAIL: wrong counter value (exit 73)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause);
-        ProcessExit::exit_process(73);
+        |console|::Console::write_line("FAIL: wrong counter value (exit 73)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause);
+        |process_exit|::ProcessExit::exit_process(73);
     }
 
     machine check_multiplier(main: @mutable Main) {
@@ -132,10 +131,10 @@ machine Main::main(main: @mutable Main) reaches ProcessExit + StandardInput + St
     }
 
     machine bad_multiplier(main: @mutable Main) {
-        Console::write_line("FAIL: wrong nested multiplier field (exit 75)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause);
-        ProcessExit::exit_process(75);
+        |console|::Console::write_line("FAIL: wrong nested multiplier field (exit 75)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause);
+        |process_exit|::ProcessExit::exit_process(75);
     }
 
     machine compute_result(main: @mutable Main) {
@@ -150,22 +149,22 @@ machine Main::main(main: @mutable Main) reaches ProcessExit + StandardInput + St
     }
 
     machine bad_result(main: @mutable Main) {
-        Console::write_line("FAIL: wrong combined result (exit 74)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause);
-        ProcessExit::exit_process(74);
+        |console|::Console::write_line("FAIL: wrong combined result (exit 74)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause);
+        |process_exit|::ProcessExit::exit_process(74);
     }
 
     machine good(main: @mutable Main) {
-        Console::write_line("PASS: 40 + 20 + 2*5 = 70 from nested fields (exit 70)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause);
-        ProcessExit::exit_process(70);
+        |console|::Console::write_line("PASS: 40 + 20 + 2*5 = 70 from nested fields (exit 70)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause);
+        |process_exit|::ProcessExit::exit_process(70);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block Main::main(@mutable entry_storage);
 }

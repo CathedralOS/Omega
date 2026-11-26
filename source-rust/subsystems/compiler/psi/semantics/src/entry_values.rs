@@ -19,7 +19,7 @@ pub enum TerminalScalarValue {
         contract: semantic_vocabulary::CallableContractId,
         descriptor: semantic_vocabulary::MachineDescriptorId,
     },
-    /// A non-null `addr` a native import returned. Its number is a real
+    /// A non-null `address` a native import returned. Its number is a real
     /// host pointer, not an interpreter storage identity, so it carries
     /// its provenance here: the interpreter may store, copy and compare
     /// it with other host addresses and pass it back to native imports,

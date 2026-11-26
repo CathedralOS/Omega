@@ -444,11 +444,7 @@ fn root_operand_file_roles_follow_the_declared_build_record() {
             {declaration}
         "#
         );
-        let parsed = crate::tests::parse_source_verbose(
-            &text,
-            "tokenize file operands",
-            "parse file operands",
-        );
+        let parsed = crate::tests::parse_source(&text);
         let import = parsed.root_items().find_map(|item| match item {
             Item::Use(UseItem::File {
                 qualifiers,

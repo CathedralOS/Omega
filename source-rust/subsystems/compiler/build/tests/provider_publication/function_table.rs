@@ -6,8 +6,8 @@ use target::TargetProfile;
 #[test]
 fn table_bindings_check_unreached_requirements_and_their_borrowed_fields() {
     let product = r"
-public data Protocol { reset: addr; output: addr; revision: u64; }
-public data Other { reset: addr; output: addr; }
+public data Protocol { reset: address; output: address; revision: u64; }
+public data Other { reset: address; output: address; }
 public boundary trait Firmware {
     machine write(text: @[u16; 2], table: @Protocol) reaches none crashes none;
     machine clear(text: @[u16; 2], table: @Protocol) reaches none crashes none;
@@ -29,7 +29,7 @@ machine main() {}
         (
             "Firmware::write::table",
             "Protocol::revision",
-            Some("live, non-atomic addr field"),
+            Some("live, non-atomic address field"),
         ),
     ] {
         let scratch = platform_custody::temporary_directory::TemporaryDirectory::create(
@@ -38,7 +38,8 @@ machine main() {}
         )
         .unwrap();
         let root = scratch.path().join("build.omg");
-        let build = r#"use {omega}/language/core/external_binding.omg as native;
+        let build = r#"use main.omg as app;
+use {omega}/language/core/external_binding.omg as native;
 use {omega}/language/core/reflect/reflect.omg as reflect;
 machine build<'selection>(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "firmware" };
@@ -47,7 +48,7 @@ machine build<'selection>(builder: @mutable BuildPlan) {
         field: |reflect|::field(FIELD),
     };
     Build::bind_native::<Firmware::write>(builder, linux_x86_64, binding);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
 }
 "#;
         std::fs::write(

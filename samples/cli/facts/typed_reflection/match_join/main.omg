@@ -1,6 +1,6 @@
 // Fact: authorized typed visitation borrows each non-erased field with its exact type and invokes the selected callback once in declaration order.
 // Expected exit: 0
-use omega\language\core\reflect;
+use {omega}/language/core/reflect/reflect.omg;
 data FortyFields [copy] {
     field_0: u8;
     field_1: u16;
@@ -44,7 +44,7 @@ data FortyFields [copy] {
     field_39: bool;
 }
 data Totals { calls: u64; sum: u64; order: u64; }
-machine observe<Kind [copy]>(context: @mutable Totals, field: @reflect\FieldInfo, value: @Kind) crashes Trap
+machine observe<Kind [copy]>(context: @mutable Totals, field: @|reflect|::FieldInfo, value: @Kind) crashes Trap
 requires Kind == u8 || Kind == u16 || Kind == u32 || Kind == u64 || Kind == bool
 {
     let number: u64 = scalar::<Kind>(value);
@@ -155,7 +155,7 @@ machine exercise(flag: bool) crashes Trap {
         field_39: false,
     } };
     let mutable totals: Totals = Totals { calls: 0u64, sum: 0u64, order: 0u64 };
-    reflect\visit_runtime_fields::<FortyFields, observe>(@subject, @mutable totals);
+    |reflect|::visit_runtime_fields::<FortyFields, observe>(@subject, @mutable totals);
     transition totals.calls == 40u64 && ((flag && totals.sum == 645u64 && totals.order == 5743089196326724395u64) || (!flag && totals.sum == 646u64 && totals.order == 1286477644924461750u64)) {
         true -> done(),
         _ -> bad()

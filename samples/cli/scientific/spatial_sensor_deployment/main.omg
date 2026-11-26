@@ -1,21 +1,17 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use data/fixtures/fixtures.omg;
+use domain/search/search.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Expected exit: 0.
 // Expected output contains: placement mask=0005 cost=0004 score=0012
-use system\ByteRead;
-use system\Console;
-use domain\search;
-use domain\search\solve;
-use data\fixtures;
-use data\fixtures\load;
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    let input: ByteRead = block Console::read_byte();
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    let input: |console|::ByteRead = block |console|::Console::read_byte();
     transition input {
-        ByteRead::Error -> invalid(main),
-        ByteRead::Eof -> execute(main, 0),
-        ByteRead::Byte { value } -> command(main, value)
+        |console|::ByteRead::Error -> invalid(main),
+        |console|::ByteRead::Eof -> execute(main, 0),
+        |console|::ByteRead::Byte { value } -> command(main, value)
     }
     machine command(main: @mutable Main, value: i32) {
         transition value >= 48 && value <= 55 {
@@ -25,27 +21,27 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
     machine execute(main: @mutable Main, variant: u64 in Wrapping) {
         let mutable problem: Problem;
-        load(@mutable problem, variant);
+        |fixtures|::load(@mutable problem, variant);
         let mutable search: Search;
-        solve(@mutable search, @problem);
-        Console::write_line("spatial_sensor_deployment v1");
-        Console::write("case="); number(main, variant); Console::write_byte(10);
+        |search|::solve(@mutable search, @problem);
+        |console|::Console::write_line("spatial_sensor_deployment v1");
+        |console|::Console::write("case="); number(main, variant); |console|::Console::write_byte(10);
         report(main, @search, @problem);
-        ProcessExit::exit_process(0);
+        |process_exit|::ProcessExit::exit_process(0);
     }
     machine invalid(main: @mutable Main) {
-        Console::write_line("invalid command: expected one byte 0..7 or EOF");
-        ProcessExit::exit_process(64);
+        |console|::Console::write_line("invalid command: expected one byte 0..7 or EOF");
+        |process_exit|::ProcessExit::exit_process(64);
     }
 }
 // Four decimal digits keep the certificate format bounded and inspectable.
-machine number(main: @mutable Main, value: u64 in Wrapping) reaches StandardOutput {
-    Console::write_byte((((value / 1000) % 10) as i32) + 48);
-    Console::write_byte((((value / 100) % 10) as i32) + 48);
-    Console::write_byte((((value / 10) % 10) as i32) + 48);
-    Console::write_byte(((value % 10) as i32) + 48);
+machine number(main: @mutable Main, value: u64 in Wrapping) reaches |process_authority|::StandardOutput {
+    |console|::Console::write_byte((((value / 1000) % 10) as i32) + 48);
+    |console|::Console::write_byte((((value / 100) % 10) as i32) + 48);
+    |console|::Console::write_byte((((value / 10) % 10) as i32) + 48);
+    |console|::Console::write_byte(((value % 10) as i32) + 48);
 }
-machine report(main: @mutable Main, search: @Search, problem: @Problem) reaches StandardOutput {
+machine report(main: @mutable Main, search: @Search, problem: @Problem) reaches |process_authority|::StandardOutput {
     transition { _ -> row(main, search, problem, 0) }
     machine row(main: @mutable Main, search: @Search, problem: @Problem, mask: u64 in Wrapping) {
         transition mask < 8 {
@@ -54,28 +50,28 @@ machine report(main: @mutable Main, search: @Search, problem: @Problem) reaches 
         }
     }
     machine emit(main: @mutable Main, search: @Search, problem: @Problem, mask: u64 in Wrapping) {
-        Console::write("certificate mask="); number(main, mask);
-        Console::write(" cost="); number(main, search.rows[mask].cost);
-        Console::write(" score="); number(main, search.rows[mask].score);
-        Console::write(" feasible="); number(main, search.rows[mask].feasible);
-        Console::write(" code="); number(main, search.rows[mask].code);
-        Console::write_byte(10);
+        |console|::Console::write("certificate mask="); number(main, mask);
+        |console|::Console::write(" cost="); number(main, search.rows[mask].cost);
+        |console|::Console::write(" score="); number(main, search.rows[mask].score);
+        |console|::Console::write(" feasible="); number(main, search.rows[mask].feasible);
+        |console|::Console::write(" code="); number(main, search.rows[mask].code);
+        |console|::Console::write_byte(10);
         transition { _ -> row(main, search, problem, mask + 1) }
     }
     machine placement(main: @mutable Main, search: @Search, problem: @Problem) {
-        Console::write("placement mask="); number(main, search.mask);
-        Console::write(" cost="); number(main, search.cost);
-        Console::write(" score="); number(main, search.score);
-        Console::write(" code="); number(main, search.code);
-        Console::write(" ties="); number(main, search.ties);
-        Console::write(" status=");
+        |console|::Console::write("placement mask="); number(main, search.mask);
+        |console|::Console::write(" cost="); number(main, search.cost);
+        |console|::Console::write(" score="); number(main, search.score);
+        |console|::Console::write(" code="); number(main, search.code);
+        |console|::Console::write(" ties="); number(main, search.ties);
+        |console|::Console::write(" status=");
         transition search.score >= problem.minimum {
             true -> status(main, search, 1),
             false -> status(main, search, 0)
         }
     }
     machine status(main: @mutable Main, search: @Search, accepted: u64 in Wrapping) {
-        number(main, accepted); Console::write_byte(10);
+        number(main, accepted); |console|::Console::write_byte(10);
         transition { _ -> demand(main, search.code, 0) }
     }
     machine demand(main: @mutable Main, remaining: u64 in Wrapping, position: u64 in Wrapping) {
@@ -85,15 +81,15 @@ machine report(main: @mutable Main, search: @Search, problem: @Problem) reaches 
         }
     }
     machine coverage(main: @mutable Main, remaining: u64 in Wrapping, position: u64 in Wrapping) {
-        Console::write("demand="); number(main, position);
-        Console::write(" site="); number(main, remaining % 4); Console::write_byte(10);
+        |console|::Console::write("demand="); number(main, position);
+        |console|::Console::write(" site="); number(main, remaining % 4); |console|::Console::write_byte(10);
         transition { _ -> demand(main, remaining / 4, position + 1) }
     }
     machine done() { }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

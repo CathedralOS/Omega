@@ -546,7 +546,7 @@ pub(super) fn membership_carrier(
 pub(super) fn scalar_named(scalar: ScalarType) -> String {
     match scalar {
         ScalarType::Boolean => "bool".to_owned(),
-        ScalarType::Integer(integer) if integer.is_address() => "addr".to_owned(),
+        ScalarType::Integer(integer) if integer.is_address() => "address".to_owned(),
         ScalarType::Integer(integer) => {
             let prefix = match integer.sign() {
                 IntegerSign::Signed => 'i',

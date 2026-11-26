@@ -72,3 +72,74 @@ fn completing_a_roster_closure_prepares_every_witness_the_roster_owes() {
     assert!(prepared.witnesses.iter().all(Result::is_ok));
     assert!(lowered.source().roster.is_some());
 }
+
+#[test]
+fn modular_witness_stubs_closed_callees_without_lowering_transitive_bodies() {
+    let build = |crash_body: &str| {
+        format!(
+            "trait Check {{
+    machine run(x: u8) -> u8 requires x > 0u8 crashes none;
+}}
+machine transitive(x: u8) -> u8 {{ {crash_body} }}
+machine helper(x: u8) -> u8 requires x < 100u8 {{ transitive(x) }}
+Impl satisfies Check {{
+    machine run(x: u8) -> u8 requires x > 0u8, x < 100u8 crashes none {{ helper(x) }}
+}}
+machine main() -> u8 {{ 1u8 }}
+"
+        )
+    };
+    for (body, expects_trap) in [("x + 1u8", false), ("crash Trap;", true)] {
+        let program = Program::of(&build(body));
+        let closure = lower_roster_closure(roster(&program), &program.prepared).unwrap();
+        let closure_ref = closure.closure().expect("closure must lower");
+        let helper = program.machine_symbol("helper");
+        let transitive = program.machine_symbol("transitive");
+        assert!(closure_ref.machines.iter().any(|(_, sym)| *sym == helper));
+        assert!(
+            closure_ref
+                .machines
+                .iter()
+                .any(|(_, sym)| *sym == transitive)
+        );
+
+        let lowered = closure.complete();
+        let TerminalCompilation::Prepared(prepared) = lowered.program() else {
+            panic!("the roster binds no callable shape that could fail to form");
+        };
+        assert_eq!(prepared.witnesses.len(), 1);
+        let witness = prepared.witnesses[0]
+            .as_ref()
+            .expect("modular witness must lower cleanly");
+        assert!(
+            witness.machines.iter().all(|(_, sym)| *sym != transitive),
+            "modular witness must not lower transitive callees"
+        );
+        let helper_id = witness
+            .machines
+            .iter()
+            .find_map(|(id, sym)| (*sym == helper).then_some(id))
+            .expect("witness retains direct callee header");
+        assert!(
+            witness.requirements.contains(&helper_id),
+            "direct closed callee must be stubbed as a bodyless requirement"
+        );
+        let helper_machine = witness
+            .module
+            .machine(helper_id)
+            .expect("stubbed helper machine");
+        assert!(
+            helper_machine.blocks.is_empty(),
+            "stubbed helper must carry no lowered blocks"
+        );
+        let has_trap = helper_machine
+            .declared_crash_routes
+            .as_ref()
+            .is_some_and(|routes| {
+                routes
+                    .iter()
+                    .any(|bucket| bucket.cause == semantic_vocabulary::CrashCause::Trap)
+            });
+        assert_eq!(has_trap, expects_trap);
+    }
+}

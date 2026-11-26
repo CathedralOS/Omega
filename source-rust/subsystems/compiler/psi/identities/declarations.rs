@@ -47,19 +47,11 @@ pub struct CheckedMachineDeclaration {
 }
 
 impl CheckedMachineDeclaration {
-    pub fn callable_evidence_identity(
-        callable: &str,
-        specialization: Option<&[u8; 32]>,
-    ) -> String {
+    pub fn callable_evidence_identity(callable: &str, specialization: Option<&[u8; 32]>) -> String {
         let Some(commitment) = specialization else {
             return callable.to_owned();
         };
-        let mut hexadecimal = String::with_capacity(64);
-        for byte in commitment {
-            use std::fmt::Write;
-            write!(&mut hexadecimal, "{byte:02x}")
-                .expect("writing an identity to String cannot fail");
-        }
+        let hexadecimal = crate::digest_encoder::hex(commitment);
         format!(
             "specialized-machine|callable={}:{}|application={}",
             callable.len(),

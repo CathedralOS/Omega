@@ -1,12 +1,12 @@
-use configuration\ANIMATION_PERIOD;
+use configuration/configuration.omg;
 
 public data FrameClock [copy]
-requires ticks >= 0 && ticks < ANIMATION_PERIOD {
+requires ticks >= 0 && ticks < |configuration|::ANIMATION_PERIOD {
     ticks: i32;
 }
 
 public machine advance_clock(clock: FrameClock) -> FrameClock
 terminates
 {
-    FrameClock { ticks: (clock.ticks + 1) % ANIMATION_PERIOD }
+    FrameClock { ticks: (clock.ticks + 1) % |configuration|::ANIMATION_PERIOD }
 }

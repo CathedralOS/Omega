@@ -1,12 +1,12 @@
 // Midpoint finite-volume counterflow model; see README for equations and limits.
 // Two affine trials solve the cold far-boundary condition, then a third pass
 // retains every stage. This is application-private and uses no numerics package.
-use io\input;
+use io/input/input.omg;
 
 public data Pair { hot: f64; cold: f64; }
 public data Solution { hot: [f64; 9]; cold: [f64; 9]; heat: [f64; 8]; total: f64; }
 
-machine transfer(input: @io\input\Input, pair: @mutable Pair, position: u32) -> f64 requires position < 8 {
+machine transfer(input: @|input|::Input, pair: @mutable Pair, position: u32) -> f64 requires position < 8 {
     let conductance: f64 = input.conductance[position];
     let denominator: f64 = 1.0 + conductance / (2.0 * input.hot_capacity) - conductance / (2.0 * input.cold_capacity);
     let heat: f64 = conductance * (pair.hot - pair.cold) / denominator;
@@ -14,21 +14,21 @@ machine transfer(input: @io\input\Input, pair: @mutable Pair, position: u32) -> 
     pair.cold = pair.cold - heat / input.cold_capacity;
     heat
 }
-machine trial(input: @io\input\Input, pair: @mutable Pair) {
+machine trial(input: @|input|::Input, pair: @mutable Pair) {
     transition { _ -> scan(input, pair, 0) }
-    machine scan(input: @io\input\Input, pair: @mutable Pair, position: u32) {
+    machine scan(input: @|input|::Input, pair: @mutable Pair, position: u32) {
         transition position < input.stages && position < 8 {
             true -> stage(input, pair, position),
             false -> done()
         }
     }
-    machine stage(input: @io\input\Input, pair: @mutable Pair, position: u32) requires position < 8 {
+    machine stage(input: @|input|::Input, pair: @mutable Pair, position: u32) requires position < 8 {
         _ = transfer(input, pair, position);
         transition { _ -> scan(input, pair, position + 1) }
     }
     machine done() { }
 }
-public machine solve(input: @io\input\Input, solution: @mutable Solution) -> bool {
+public machine solve(input: @|input|::Input, solution: @mutable Solution) -> bool {
     let mutable base: Pair;
     base.hot = input.hot_in;
     base.cold = 0.0;
@@ -41,7 +41,7 @@ public machine solve(input: @io\input\Input, solution: @mutable Solution) -> boo
         true -> resolved(input, solution, base.cold, slope.cold),
         false -> bad()
     }
-    machine resolved(input: @io\input\Input, solution: @mutable Solution, base: f64, slope: f64) -> bool {
+    machine resolved(input: @|input|::Input, solution: @mutable Solution, base: f64, slope: f64) -> bool {
         let mutable pair: Pair;
         pair.hot = input.hot_in;
         pair.cold = (input.cold_in - base) / slope;
@@ -50,13 +50,13 @@ public machine solve(input: @io\input\Input, solution: @mutable Solution) -> boo
         solution.total = 0.0;
         transition { _ -> scan(input, solution, @mutable pair, 0) }
     }
-    machine scan(input: @io\input\Input, solution: @mutable Solution, pair: @mutable Pair, position: u32) -> bool {
+    machine scan(input: @|input|::Input, solution: @mutable Solution, pair: @mutable Pair, position: u32) -> bool {
         transition position < input.stages && position < 8 {
             true -> stage(input, solution, pair, position),
             false -> balances(input, solution, position)
         }
     }
-    machine stage(input: @io\input\Input, solution: @mutable Solution, pair: @mutable Pair, position: u32) -> bool requires position < 8 {
+    machine stage(input: @|input|::Input, solution: @mutable Solution, pair: @mutable Pair, position: u32) -> bool requires position < 8 {
         let heat: f64 = transfer(input, pair, position);
         solution.heat[position] = heat;
         solution.total = solution.total + heat;
@@ -64,13 +64,13 @@ public machine solve(input: @io\input\Input, solution: @mutable Solution) -> boo
         solution.cold[position + 1] = pair.cold;
         transition { _ -> scan(input, solution, pair, position + 1) }
     }
-    machine balances(input: @io\input\Input, solution: @mutable Solution, position: u32) -> bool {
+    machine balances(input: @|input|::Input, solution: @mutable Solution, position: u32) -> bool {
         transition position < 9 {
             true -> verify(input, solution, position),
             false -> bad()
         }
     }
-    machine verify(input: @io\input\Input, solution: @mutable Solution, position: u32) -> bool requires position < 9 {
+    machine verify(input: @|input|::Input, solution: @mutable Solution, position: u32) -> bool requires position < 9 {
         let hot_balance: f64 = input.hot_capacity * (input.hot_in - solution.hot[position]) - solution.total;
         let cold_balance: f64 = input.cold_capacity * (solution.cold[0] - input.cold_in) - solution.total;
         let cold_boundary: f64 = solution.cold[position] - input.cold_in;

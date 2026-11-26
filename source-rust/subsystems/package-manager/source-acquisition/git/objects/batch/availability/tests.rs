@@ -7,8 +7,8 @@ use super::{
     ExactGitObjectAvailability, ExactGitObjectKind, GitExecutor, OPERATION, SourceResolveError,
     VerifiedGitRepository, probe_exact_git_object, protocol,
 };
-use crate::git::executable::budget::GitCapturedOutputBudget;
-use crate::git::executable::executor::test_system_git_executor;
+use crate::git::executable::GitCapturedOutputBudget;
+use crate::git::executable::test_system_git_executor;
 use crate::git::request::GitExecutionTransport;
 use crate::limits::LocalSourceLimits;
 use crate::snapshot::permissions::make_tree_owner_writable;

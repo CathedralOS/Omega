@@ -67,6 +67,11 @@ pub(super) fn encode_source_lineage(
             }
             encoder.bytes_bounded(lineage.repository_path().as_bytes(), maximum_identity_bytes)?;
         }
+        SourceLineage::Bundled { library, directory } => {
+            encoder.byte(5);
+            encoder.fixed(library.digest());
+            encoder.bytes_bounded(directory.as_str().as_bytes(), maximum_identity_bytes)?;
+        }
         SourceLineage::Workspace(lineage) => {
             encoder.byte(3);
             encoder.fixed(lineage.workspace_identity().digest());
@@ -110,6 +115,10 @@ pub(super) fn encode_resolution(
             encoder.bytes_bounded(commit.to_hex().as_bytes(), 64)?;
             encoder.scratch(super::super::hex_length(tree.algorithm()))?;
             encoder.bytes_bounded(tree.to_hex().as_bytes(), 64)?;
+            encoder.fixed(content.digest());
+        }
+        ImmutableSourceResolution::Bundled { content } => {
+            encoder.byte(3);
             encoder.fixed(content.digest());
         }
         ImmutableSourceResolution::Workspace { content } => {

@@ -403,4 +403,4 @@ pub enum AllocationAdmissionError {
     Preservation(crate::allocation::AllocatedCalleeSavedRequirementError),
 }
 
-stage_error_display!(AllocationAdmissionError, "allocation admission failed");
+failed_display!(AllocationAdmissionError, "allocation admission failed");

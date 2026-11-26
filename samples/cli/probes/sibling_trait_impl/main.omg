@@ -1,4 +1,4 @@
-// `use contracts\drawable;` imports a trait from a sibling
+// `use contracts/drawable.omg;` imports a trait from a sibling
 // directory file; a free machine satisfies it with
 // `satisfies Drawable<Sprite, Canvas>::draw`.
 //
@@ -9,7 +9,7 @@
 // Compile-checked only: no standard-library dependency, no ProcessExit
 // provider.
 
-use contracts\drawable;
+use contracts/drawable.omg;
 
 data Canvas {
     width: i32;
@@ -19,7 +19,7 @@ data Sprite {
     id: i32;
 }
 
-machine Sprite::draw(sprite: @Sprite, canvas: @mutable Canvas) satisfies Drawable<Sprite, Canvas>::draw {
+machine Sprite::draw(sprite: @Sprite, canvas: @mutable Canvas) satisfies |drawable|::Drawable<Sprite, Canvas>::draw {
     canvas.width = 80;
 }
 

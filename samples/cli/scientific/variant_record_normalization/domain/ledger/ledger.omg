@@ -1,13 +1,11 @@
-use domain\normalization;
-use domain\normalization\Variant;
-use domain\sequence;
-use domain\sequence\equal;
+use domain/normalization/normalization.omg;
+use domain/sequence/sequence.omg;
 // First-seen canonical ordering is stable. Equal rows merge provenance masks.
 // Different rows conflict when their closed reference intervals intersect.
 // This deliberately conservative synthetic conflict model includes insertions
 // at deletion endpoints; no diploidy or biological pathogenicity is inferred.
 public data Ledger {
-    variants: [Variant; 32];
+    variants: [|normalization|::Variant; 32];
     count: u64 in Wrapping;
     conflicts: u64 in Wrapping;
     merged: u64 in Wrapping;
@@ -21,45 +19,45 @@ public machine source_mask(source: u64 in Wrapping) -> u64 in Wrapping {
         }
     }
 }
-public machine add(ledger: @mutable Ledger, variant: @Variant) -> u64 in Wrapping {
+public machine add(ledger: @mutable Ledger, variant: @|normalization|::Variant) -> u64 in Wrapping {
     transition { _ -> search(ledger, variant, 0) }
-    machine search(ledger: @mutable Ledger, variant: @Variant, index: u64 in Wrapping) -> u64 in Wrapping {
+    machine search(ledger: @mutable Ledger, variant: @|normalization|::Variant, index: u64 in Wrapping) -> u64 in Wrapping {
         transition index < ledger.count && index < 32 {
             true -> compare(ledger, variant, index),
             _ -> capacity(ledger, variant)
         }
     }
-    machine compare(ledger: @mutable Ledger, variant: @Variant, index: u64 in Wrapping) -> u64 in Wrapping {
-        let previous: Variant = ledger.variants[index];
-        let same: bool = equal(@previous.inserted, @variant.inserted);
+    machine compare(ledger: @mutable Ledger, variant: @|normalization|::Variant, index: u64 in Wrapping) -> u64 in Wrapping {
+        let previous: |normalization|::Variant = ledger.variants[index];
+        let same: bool = |sequence|::equal(@previous.inserted, @variant.inserted);
         transition previous.contig == variant.contig && previous.position == variant.position
             && previous.removed == variant.removed && same {
             true -> merge(ledger, variant, index),
             _ -> search(ledger, variant, index + 1)
         }
     }
-    machine merge(ledger: @mutable Ledger, variant: @Variant, index: u64 in Wrapping) -> u64 in Wrapping {
-        let previous: Variant = ledger.variants[index];
-        let mutable combined: Variant = previous;
+    machine merge(ledger: @mutable Ledger, variant: @|normalization|::Variant, index: u64 in Wrapping) -> u64 in Wrapping {
+        let previous: |normalization|::Variant = ledger.variants[index];
+        let mutable combined: |normalization|::Variant = previous;
         combined.provenance = previous.provenance | variant.provenance;
         ledger.variants[index] = combined;
         ledger.merged = ledger.merged + 1;
         (1)
     }
-    machine capacity(ledger: @mutable Ledger, variant: @Variant) -> u64 in Wrapping {
+    machine capacity(ledger: @mutable Ledger, variant: @|normalization|::Variant) -> u64 in Wrapping {
         transition ledger.count < 32 {
             true -> conflicts(ledger, variant, 0),
             _ -> 2
         }
     }
-    machine conflicts(ledger: @mutable Ledger, variant: @Variant, index: u64 in Wrapping) -> u64 in Wrapping {
+    machine conflicts(ledger: @mutable Ledger, variant: @|normalization|::Variant, index: u64 in Wrapping) -> u64 in Wrapping {
         transition index < ledger.count && index < 32 {
             true -> overlap(ledger, variant, index),
             _ -> store(ledger, variant)
         }
     }
-    machine overlap(ledger: @mutable Ledger, variant: @Variant, index: u64 in Wrapping) -> u64 in Wrapping {
-        let previous: Variant = ledger.variants[index];
+    machine overlap(ledger: @mutable Ledger, variant: @|normalization|::Variant, index: u64 in Wrapping) -> u64 in Wrapping {
+        let previous: |normalization|::Variant = ledger.variants[index];
         transition previous.contig == variant.contig
             && previous.position <= variant.position + variant.removed
             && variant.position <= previous.position + previous.removed {
@@ -67,19 +65,19 @@ public machine add(ledger: @mutable Ledger, variant: @Variant) -> u64 in Wrappin
             _ -> conflicts(ledger, variant, index + 1)
         }
     }
-    machine conflict(ledger: @mutable Ledger, variant: @Variant, index: u64 in Wrapping) -> u64 in Wrapping {
+    machine conflict(ledger: @mutable Ledger, variant: @|normalization|::Variant, index: u64 in Wrapping) -> u64 in Wrapping {
         ledger.conflicts = ledger.conflicts + 1;
         transition { _ -> conflicts(ledger, variant, index + 1) }
     }
-    machine store(ledger: @mutable Ledger, variant: @Variant) -> u64 in Wrapping {
+    machine store(ledger: @mutable Ledger, variant: @|normalization|::Variant) -> u64 in Wrapping {
         let index: u64 in Wrapping = ledger.count;
         transition index < 32 {
             true -> write(ledger, variant, index),
             _ -> 2
         }
     }
-    machine write(ledger: @mutable Ledger, variant: @Variant, index: u64 in Wrapping) -> u64 in Wrapping {
-        ledger.variants[index] = Variant {
+    machine write(ledger: @mutable Ledger, variant: @|normalization|::Variant, index: u64 in Wrapping) -> u64 in Wrapping {
+        ledger.variants[index] = |normalization|::Variant {
             contig: variant.contig, position: variant.position, removed: variant.removed,
             inserted: variant.inserted, provenance: variant.provenance
         };

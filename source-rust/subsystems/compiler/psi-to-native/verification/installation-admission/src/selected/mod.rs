@@ -15,51 +15,12 @@ use semantic_vocabulary::MachineId;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
     Mismatch(&'static str),
-    InstallationInterval {
-        machine: semantic_vocabulary::MachineId,
-        operation: semantic_vocabulary::OperationId,
-        detail: String,
-    },
-    InstallationGuard {
-        machine: semantic_vocabulary::MachineId,
-        operation: semantic_vocabulary::OperationId,
-        detail: String,
-    },
-    InstallationPairCapture {
-        machine: semantic_vocabulary::MachineId,
-        operation: semantic_vocabulary::OperationId,
-        detail: String,
-    },
 }
 
 impl std::fmt::Display for Error {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Mismatch(reason) => formatter.write_str(reason),
-            Self::InstallationInterval {
-                machine,
-                operation,
-                detail,
-            } => write!(
-                formatter,
-                "another source operation interrupts installation validation or publication at {machine:?}/{operation:?}: {detail}",
-            ),
-            Self::InstallationGuard {
-                machine,
-                operation,
-                detail,
-            } => write!(
-                formatter,
-                "installation is missing a dominating refusal guard at {machine:?}/{operation:?}: {detail}",
-            ),
-            Self::InstallationPairCapture {
-                machine,
-                operation,
-                detail,
-            } => write!(
-                formatter,
-                "installation stack-pair capture at {machine:?}/{operation:?}: {detail}",
-            ),
         }
     }
 }
@@ -88,7 +49,7 @@ pub fn selected_constant_operand(
             "constant operand has no unique function-local instruction",
         ));
     }
-    let [operation] = row.provenance.operations.as_slice() else {
+    let [_] = row.provenance.operations.as_slice() else {
         return Err(Error::Mismatch(
             "constant operand lost its exact source operation",
         ));
@@ -101,7 +62,7 @@ pub fn selected_constant_operand(
             "constant query does not name a selected input operand",
         ));
     }
-    let graph = Graph::new(function, *operation)?;
+    let graph = Graph::new(function)?;
     let mut values = Expressions::new(function, &graph)?;
     let expression = values.input(row, operand)?;
     Ok(match expression.word() {

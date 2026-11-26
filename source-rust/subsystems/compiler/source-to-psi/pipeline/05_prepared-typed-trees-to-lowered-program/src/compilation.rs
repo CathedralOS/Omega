@@ -114,6 +114,36 @@ enum ClosureReading<'source> {
     Read(Box<ReadClosure<'source>>),
 }
 
+fn collect_callee_summaries(
+    prepared: &crate::publication::PreparedProgram<'_>,
+    summaries: &mut crate::CalleeSummaries,
+) {
+    if prepared.has_type_alternative {
+        return;
+    }
+    let mut requirements = prepared.program.requirements.clone();
+    requirements.sort_unstable();
+    for (id, outcome) in prepared.outcomes.iter() {
+        if requirements.binary_search(&id).is_ok() {
+            continue;
+        }
+        let Some(&symbol) = prepared.program.machines.get(id) else {
+            continue;
+        };
+        let Some(envelope) = prepared.source_envelopes.get(id).and_then(Option::as_ref) else {
+            continue;
+        };
+        summaries.insert(
+            symbol,
+            crate::CalleeSummary {
+                envelope: envelope.clone(),
+                crash_routes: outcome.crash_routes.clone(),
+                completes_normally: outcome.completes_normally,
+            },
+        );
+    }
+}
+
 struct ReadClosure<'source> {
     captures: crate::SharedReading,
     closure: terminal_check_tables::Checked<crate::Elaboration>,
@@ -124,6 +154,7 @@ struct ReadClosure<'source> {
     rows: Vec<WitnessRow<'source>>,
     specializations: arena::IdTable<semantic_vocabulary::MachineId, Option<SymbolHandle>>,
     selection_witnesses: Vec<(usize, usize)>,
+    callee_summaries: crate::CalleeSummaries,
 }
 
 impl<'source> PreparedClosure<'source> {
@@ -159,6 +190,7 @@ impl<'source> PreparedClosure<'source> {
             mut rows,
             specializations,
             selection_witnesses,
+            callee_summaries,
         } = read;
         let typed = self.typed;
         let (subjects, purpose) = &self.roots;
@@ -172,6 +204,7 @@ impl<'source> PreparedClosure<'source> {
                         typed,
                         &mut rows,
                         &forms,
+                        &callee_summaries,
                         &captures,
                         *purpose,
                         subjects,
@@ -186,6 +219,7 @@ impl<'source> PreparedClosure<'source> {
                     typed,
                     &mut rows,
                     &forms,
+                    &callee_summaries,
                     &captures,
                     *purpose,
                     subjects,
@@ -309,15 +343,19 @@ pub(crate) fn prepare_closure<'source>(
     // Every refusal reading met is reported: the first as the closure's
     // verdict, the rest beside it (`PreparedCompilation::further`).
     let mut further = Vec::new();
+    let mut callee_summaries = crate::CalleeSummaries::default();
     let (mut closure, primary_source, signatures, prepared_applications, pending_publication) =
         match elaborated_primary {
-            Ok(prepared) => (
-                Ok(prepared.program),
-                Some(prepared.source),
-                prepared.selected_calls,
-                prepared.prepared_applications,
-                prepared.pending_publication,
-            ),
+            Ok(prepared) => {
+                collect_callee_summaries(&prepared, &mut callee_summaries);
+                (
+                    Ok(prepared.program),
+                    Some(prepared.source),
+                    prepared.selected_calls,
+                    prepared.prepared_applications,
+                    prepared.pending_publication,
+                )
+            }
             Err(mut refused) => {
                 let first = refused.remove(0);
                 further = refused;
@@ -369,7 +407,7 @@ pub(crate) fn prepare_closure<'source>(
     }
     // Template proof forms retain both the checked source context and the
     // actual publication mode of the invocation using their captures.
-    let mut forms = if let Ok(closure_ref) = &closure {
+    let (mut forms, form_summaries) = if let Ok(closure_ref) = &closure {
         let mut resolve_selections = || {
             for (selection, selected) in closure_ref.selections.iter().enumerate() {
                 if selected_failure.is_some() {
@@ -431,6 +469,7 @@ pub(crate) fn prepare_closure<'source>(
                                         captures: captures.clone(),
                                         purpose: compilation.purpose,
                                         outcome_subjects: Some(compilation.subjects),
+                                        callee_summaries: None,
                                         parallel_machines: false,
                                     },
                                 )
@@ -479,6 +518,7 @@ pub(crate) fn prepare_closure<'source>(
             &mut source,
         )
     };
+    callee_summaries.merge(form_summaries);
     if let Some(reason) = selected_failure {
         closure = Err(reason);
     }
@@ -535,6 +575,7 @@ pub(crate) fn prepare_closure<'source>(
             rows,
             specializations,
             selection_witnesses,
+            callee_summaries,
         })),
     })
 }
@@ -546,6 +587,7 @@ fn prepare_witnesses<'source>(
     typed: &'source TypedTrees,
     rows: &mut Vec<WitnessRow<'source>>,
     forms: &[GenericForms],
+    callee_summaries: &crate::CalleeSummaries,
     captures: &crate::SharedReading,
     purpose: source_provenance::DependencyScope,
     subjects: &[Option<semantic_vocabulary::PackageKeyIdentity>],
@@ -574,6 +616,7 @@ fn prepare_witnesses<'source>(
                         captures: captures.clone(),
                         purpose,
                         outcome_subjects: Some(subjects),
+                        callee_summaries: Some(callee_summaries),
                         parallel_machines: worker_budget::current_workers() > 1
                             && wave_end - next < 2,
                     },
@@ -873,7 +916,7 @@ fn prepare_generic_forms(
     captures: &crate::SharedReading,
     publication: terminal_codec::TerminalPublication,
     source: &mut crate::SourceCorrespondence,
-) -> Vec<GenericForms> {
+) -> (Vec<GenericForms>, crate::CalleeSummaries) {
     struct PreparedGeneric<'source> {
         template: SymbolHandle,
         name: String,
@@ -946,6 +989,14 @@ fn prepare_generic_forms(
     }
     // Borrow the source forms' actual headers once. Closing applications adds
     // their receipts; it does not change the template's public contract hash.
+    let mut summaries = crate::CalleeSummaries::default();
+    for generic in &prepared {
+        if let Ok(forms) = &generic.forms {
+            for form in forms {
+                collect_callee_summaries(form, &mut summaries);
+            }
+        }
+    }
     let bases: crate::declare::TemplateCommitments = prepared
         .iter()
         .map(|generic| {
@@ -1007,7 +1058,7 @@ fn prepare_generic_forms(
             .map(finalize_one)
             .collect()
     };
-    finalized
+    let forms = finalized
         .into_iter()
         .map(|(template, name, applies, forms)| {
             let forms = match forms {
@@ -1031,5 +1082,6 @@ fn prepare_generic_forms(
                 applies,
             }
         })
-        .collect()
+        .collect();
+    (forms, summaries)
 }

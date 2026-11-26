@@ -5,7 +5,6 @@ call-graph origins to an installed provider settlement plan.
 */
 
 use crate::BoundaryInternalCallCustody;
-use crate::BoundaryTraitSettlementParts;
 use crate::BoundaryTraitSettlementRole;
 use crate::NativePhysicalChild;
 use crate::NativePhysicalOccurrence;
@@ -395,17 +394,14 @@ pub(crate) fn derive_boundary_internal_call_child(
                 .to_string(),
             call: custody,
         };
-        PhysicalChildParent::BoundaryTraitSettlement(
-            BoundaryTraitSettlementParts {
-                occurrence: *occurrence,
-                requirement_identity: requirement_identity.to_owned(),
-                selected_supply: plan.plan_digest().into(),
-                target,
-                role,
-                identity: parent_identity,
-            }
-            .into(),
-        )
+        PhysicalChildParent::BoundaryTraitSettlement(crate::physical::BoundaryTraitSettlement {
+            occurrence: *occurrence,
+            requirement_identity: requirement_identity.to_owned(),
+            selected_supply: plan.plan_digest().into(),
+            target,
+            role,
+            identity: parent_identity,
+        })
     };
     Ok(Some(
         boundary_physical_child_parts(

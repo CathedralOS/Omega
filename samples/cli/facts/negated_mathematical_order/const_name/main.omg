@@ -1,6 +1,7 @@
+use {omega}/language/core/foundation.omg as proof;
 // Fact: a named negated integer-order predicate establishes value <= 5 for exact 5u64 - value.
 // Expected exit: 0
-let within(limit: u64, value: u64): core\Strict<0> = !(value > limit);
+let within(limit: u64, value: u64): |proof|::Strict<0> = !(value > limit);
 domain u64::Small requires within(5, self);
 const INITIAL: u64 = 3;
 machine establish() -> u64 in Small {

@@ -22,6 +22,6 @@ pub use catalog::{
 };
 pub use program::{
     BlockMachineEffects, FunctionMachineEffects, InstructionMachineEffects,
-    PreAllocationMachineEffectDecodeError, PreAllocationMachineEffectIdentity,
-    PreAllocationMachineEffectPlan, pre_allocation_machine_effect_identity,
+    PreAllocationMachineEffectIdentity, PreAllocationMachineEffectPlan,
+    pre_allocation_machine_effect_identity,
 };

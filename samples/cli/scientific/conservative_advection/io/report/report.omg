@@ -1,14 +1,17 @@
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
-use system\Console;
-use omega\language\core\I64::from_f64;
-use io\decimal;
+use io/decimal/decimal.omg;
+use model/courant/courant.omg;
+use model/scale/scale.omg;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/numeric_conversion.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Sixteen significant decimal digits with explicit exponent. Normalization bounds integer
 // conversion without imposing an arbitrary application concentration limit.
-public machine number(value:f64) reaches ProcessExit + StandardOutput invokes Console { scaled(value,0); }
-public machine scaled(value:f64,offset:i64 in Wrapping) reaches ProcessExit + StandardOutput invokes Console {
+public machine number(value:f64) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput invokes |console|::Console { scaled(value,0); }
+public machine scaled(value:f64,offset:i64 in Wrapping) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput invokes |console|::Console {
  transition value < 0.0 { true -> negative(value,offset), false -> normalize(value,offset) }
- machine negative(value:f64,offset:i64 in Wrapping) { Console::write("-"); transition { _ -> normalize(-value,offset) } }
+ machine negative(value:f64,offset:i64 in Wrapping) { |console|::Console::write("-"); transition { _ -> normalize(-value,offset) } }
  machine normalize(value:f64,exponent:i64 in Wrapping) {
   transition value >= 10.0 { true -> normalize(value/10.0,exponent+1), false -> small(value,exponent) }
  }
@@ -23,31 +26,27 @@ public machine scaled(value:f64,offset:i64 in Wrapping) reaches ProcessExit + St
   transition scaled == scaled && scaled >= 0.0 && scaled <= 10000000000000000.0 { true -> bounded(scaled,exponent), false -> failure() }
  }
  machine bounded(scaled:f64,exponent:i64 in Wrapping) requires scaled == scaled && scaled >= 0.0 && scaled <= 10000000000000000.0 {
-  let mantissa:i64=I64::from_f64(scaled);
-  io\decimal\number(mantissa as +Wrapping); io\decimal\number(exponent-15);
+  let mantissa:i64=|float_operations|::I64::from_f64(scaled);
+  |decimal|::number(mantissa as +Wrapping); |decimal|::number(exponent-15);
  }
- machine failure() { Console::write_line("REJECT numeric output"); ProcessExit::exit_process(70); }
+ machine failure() { |console|::Console::write_line("REJECT numeric output"); |process_exit|::ProcessExit::exit_process(70); }
 }
 
 // Decimal formatting may round outside a narrow authored interval. Compare
 // its actual decimal output against retained exact initial extrema and emit
 // that endpoint only within a1e-12 relative rounding envelope; larger
 // deviations refuse. This changes reporting, never a transport weight.
-use model\scale;
-use model\courant;
-use omega\language\core\narrow_i64_to_u64_saturating;
-use omega\language\core\narrow_u64_to_i64_saturating;
-public machine field(value:f64,power:i32 in Wrapping,lower:u64 in Wrapping,lower_power:i32 in Wrapping,upper:u64 in Wrapping,upper_power:i32 in Wrapping,lower_value:f64,lower_value_power:i32 in Wrapping,upper_value:f64,upper_value_power:i32 in Wrapping) reaches ProcessExit + StandardOutput invokes Console {
- let mutable parts:model\scale\Scale; model\scale\normalize(value,@mutable parts);
+public machine field(value:f64,power:i32 in Wrapping,lower:u64 in Wrapping,lower_power:i32 in Wrapping,upper:u64 in Wrapping,upper_power:i32 in Wrapping,lower_value:f64,lower_value_power:i32 in Wrapping,upper_value:f64,upper_value_power:i32 in Wrapping) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput invokes |console|::Console {
+ let mutable parts:|scale|::Scale; |scale|::normalize(value,@mutable parts);
  let scaled:f64=parts.mantissa*1000000000000000.0;
  transition scaled == scaled && scaled >= 0.0 && scaled <= 10000000000000000.0 { true -> bounded(scaled,power+parts.exponent-15,lower,lower_power,upper,upper_power,lower_value,lower_value_power,upper_value,upper_value_power), false -> failure() }
  machine bounded(scaled:f64,power:i32 in Wrapping,lower:u64 in Wrapping,lower_power:i32 in Wrapping,upper:u64 in Wrapping,upper_power:i32 in Wrapping,lower_value:f64,lower_value_power:i32 in Wrapping,upper_value:f64,upper_value_power:i32 in Wrapping) requires scaled == scaled && scaled >= 0.0 && scaled <= 10000000000000000.0 {
-  let signed:i64=I64::from_f64(scaled);
-  let coefficient:u64 in Wrapping=narrow_i64_to_u64_saturating(signed) as u64 +Wrapping;
-  transition model\courant\compare_decimal(coefficient,power,lower,lower_power) < 0 { true -> near(scaled,power,lower,lower_power,lower_value,lower_value_power), false -> upper(coefficient,power,upper,upper_power,scaled,upper_value,upper_value_power) }
+  let signed:i64=|float_operations|::I64::from_f64(scaled);
+  let coefficient:u64 in Wrapping=|numeric_conversion|::narrow_i64_to_u64_saturating(signed) as u64 +Wrapping;
+  transition |courant|::compare_decimal(coefficient,power,lower,lower_power) < 0 { true -> near(scaled,power,lower,lower_power,lower_value,lower_value_power), false -> upper(coefficient,power,upper,upper_power,scaled,upper_value,upper_value_power) }
  }
  machine upper(coefficient:u64 in Wrapping,power:i32 in Wrapping,upper:u64 in Wrapping,upper_power:i32 in Wrapping,scaled:f64,upper_value:f64,upper_value_power:i32 in Wrapping) {
-  transition model\courant\compare_decimal(coefficient,power,upper,upper_power) > 0 { true -> near(scaled,power,upper,upper_power,upper_value,upper_value_power), false -> emit(coefficient,power) }
+  transition |courant|::compare_decimal(coefficient,power,upper,upper_power) > 0 { true -> near(scaled,power,upper,upper_power,upper_value,upper_value_power), false -> emit(coefficient,power) }
  }
  machine near(scaled:f64,power:i32 in Wrapping,coefficient:u64 in Wrapping,endpoint_power:i32 in Wrapping,endpoint:f64,endpoint_value_power:i32 in Wrapping) {
   transition endpoint > 0.0 { true -> ratio(scaled,power,coefficient,endpoint_power,endpoint,endpoint_value_power), false -> zero(scaled,coefficient,endpoint_power) }
@@ -56,12 +55,12 @@ public machine field(value:f64,power:i32 in Wrapping,lower:u64 in Wrapping,lower
   transition scaled == 0.0 { true -> emit(coefficient,endpoint_power), false -> failure() }
  }
  machine ratio(scaled:f64,power:i32 in Wrapping,coefficient:u64 in Wrapping,endpoint_power:i32 in Wrapping,endpoint:f64,endpoint_value_power:i32 in Wrapping) {
-  let relative:f64=model\scale\apply(scaled,power-endpoint_value_power)/endpoint;
+  let relative:f64=|scale|::apply(scaled,power-endpoint_value_power)/endpoint;
   transition relative >= 0.999999999999 && relative <= 1.000000000001 { true -> emit(coefficient,endpoint_power), false -> failure() }
  }
  machine emit(coefficient:u64 in Wrapping,power:i32 in Wrapping) {
-  io\decimal\number(narrow_u64_to_i64_saturating(coefficient as u64) as i64 +Wrapping);
-  io\decimal\number(power as -Wrapping as i64 +Wrapping);
+  |decimal|::number(|numeric_conversion|::narrow_u64_to_i64_saturating(coefficient as u64) as i64 +Wrapping);
+  |decimal|::number(power as -Wrapping as i64 +Wrapping);
  }
- machine failure() { Console::write_line("REJECT numeric output"); ProcessExit::exit_process(70); }
+ machine failure() { |console|::Console::write_line("REJECT numeric output"); |process_exit|::ProcessExit::exit_process(70); }
 }

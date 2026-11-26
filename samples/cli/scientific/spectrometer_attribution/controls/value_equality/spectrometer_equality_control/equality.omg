@@ -1,11 +1,9 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Expected exit: 0.
 // Expected output contains: float equality: equal and unequal
-use system\ByteRead;
-use system\Console;
-use omega\language\core\F64::from_i32;
 
 public data Main { }
 
@@ -13,25 +11,25 @@ public data Main { }
 // sharing the carrier of a resultless law must not grant proposition equality.
 machine same(left: f64, right: f64) -> bool { left == right }
 
-public machine main(application: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput
-invokes Console
+public machine main(application: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput
+invokes |console|::Console
 blocks
 crashes Trap
 {
-    transition block Console::read_byte() {
-        ByteRead::Byte { value } -> compare(application, value),
+    transition block |console|::Console::read_byte() {
+        |console|::ByteRead::Byte { value } -> compare(application, value),
         _ -> bad(application)
     }
     machine compare(application: @mutable Main, value: i32) {
-        let floating: f64 = F64::from_i32(value);
+        let floating: f64 = |float_operations|::F64::from_i32(value);
         transition same(floating, 65.0) && !same(floating, 66.0) {
             true -> done(application),
             false -> bad(application)
         }
     }
     machine done(application: @mutable Main) {
-        Console::write_line("float equality: equal and unequal");
-        ProcessExit::exit_process(0);
+        |console|::Console::write_line("float equality: equal and unequal");
+        |process_exit|::ProcessExit::exit_process(0);
     }
-    machine bad(application: @mutable Main) { ProcessExit::exit_process(3); }
+    machine bad(application: @mutable Main) { |process_exit|::ProcessExit::exit_process(3); }
 }

@@ -3,10 +3,10 @@
 // when that authored layout was applied. The kit's overlapping Windows default
 // is replaced by this Build and never laid out.
 // Expected exit: 0
-use layout_default_kit\main\Measure;
+use {layout_default_kit}/main/layouts.omg;
 
 machine main() crashes Trap {
-    let byte: u8 = Measure::measure();
+    let byte: u8 = |layouts|::Measure::measure();
     transition byte == 42u8 {
         true -> done(),
         _ -> bad()

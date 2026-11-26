@@ -1,10 +1,8 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
-use system\ByteRead;
-use system\Console;
-use domain\scores\lag_sum;
-use domain\report\number;
+use domain/report/report.omg;
+use domain/scores/scores.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 
 data Main {
     samples: [i32 in Wrapping; 32];
@@ -27,7 +25,7 @@ data Main {
 
 // Newline-separated windows, each 1..32 ASCII digits, at most 16 windows.
 // EOF closes a final unterminated record. Empty records and CR reject.
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput crashes Trap {
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput crashes Trap {
     main.length = 0 as +Wrapping;
     main.frame = 0 as +Wrapping;
     main.previous = 0 as +Wrapping;
@@ -37,11 +35,11 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     main.eof = false;
     transition { _ -> block read(main) }
     machine read(main: @mutable Main) {
-        let observed: ByteRead = block Console::read_byte();
+        let observed: |console|::ByteRead = block |console|::Console::read_byte();
         transition observed {
-            ByteRead::Error -> bad(main),
-            ByteRead::Byte { value } -> block byte(main, value),
-            ByteRead::Eof -> block finish_input(main)
+            |console|::ByteRead::Error -> bad(main),
+            |console|::ByteRead::Byte { value } -> block byte(main, value),
+            |console|::ByteRead::Eof -> block finish_input(main)
         }
     }
     machine byte(main: @mutable Main, value: i32) {
@@ -75,8 +73,8 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         }
     }
     machine begin_frame(main: @mutable Main) {
-        Console::write("FRAME "); number(main.frame);
-        Console::write(" "); number(main.length); Console::write_line("");
+        |console|::Console::write("FRAME "); |report|::number(main.frame);
+        |console|::Console::write(" "); |report|::number(main.length); |console|::Console::write_line("");
         main.best_lag = 0 as +Wrapping;
         main.status = 3 as +Wrapping;
         main.lag = 2 as +Wrapping;
@@ -92,11 +90,11 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         }
     }
     machine calculate(main: @mutable Main) {
-        main.sum = lag_sum(@main.samples, main.length, main.lag);
+        main.sum = |scores|::lag_sum(@main.samples, main.length, main.lag);
         main.pairs = main.length - main.lag;
-        Console::write("LAG "); number(main.lag);
-        Console::write(" "); number(main.sum);
-        Console::write(" "); number(main.pairs); Console::write_line("");
+        |console|::Console::write("LAG "); |report|::number(main.lag);
+        |console|::Console::write(" "); |report|::number(main.sum);
+        |console|::Console::write(" "); |report|::number(main.pairs); |console|::Console::write_line("");
         transition main.sum * main.best_pairs < main.best_sum * main.pairs {
             true -> block better(main),
             _ -> block tie(main)
@@ -129,30 +127,30 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         transition { _ -> block track(main) }
     }
     machine track(main: @mutable Main) {
-        Console::write("TRACK "); number(main.frame);
-        Console::write(" "); number(main.best_lag);
-        Console::write(" ");
+        |console|::Console::write("TRACK "); |report|::number(main.frame);
+        |console|::Console::write(" "); |report|::number(main.best_lag);
+        |console|::Console::write(" ");
         transition main.best_lag > 0 { true -> pitch(main), _ -> no_pitch(main) }
     }
     machine pitch(main: @mutable Main) {
-        number(8000 / main.best_lag);
+        |report|::number(8000 / main.best_lag);
         transition { _ -> status(main) }
     }
     machine no_pitch(main: @mutable Main) {
-        number(0 as +Wrapping);
+        |report|::number(0 as +Wrapping);
         transition { _ -> status(main) }
     }
     machine status(main: @mutable Main) {
-        Console::write(" "); number(main.status); Console::write_line("");
+        |console|::Console::write(" "); |report|::number(main.status); |console|::Console::write_line("");
         transition main.previous > 0 && main.best_lag > 0 && main.previous != main.best_lag {
             true -> change(main),
             _ -> uncertainty(main)
         }
     }
     machine change(main: @mutable Main) {
-        Console::write("CHANGE "); number(main.frame);
-        Console::write(" "); number(main.previous);
-        Console::write(" "); number(main.best_lag); Console::write_line("");
+        |console|::Console::write("CHANGE "); |report|::number(main.frame);
+        |console|::Console::write(" "); |report|::number(main.previous);
+        |console|::Console::write(" "); |report|::number(main.best_lag); |console|::Console::write_line("");
         transition { _ -> uncertainty(main) }
     }
     machine uncertainty(main: @mutable Main) {
@@ -163,8 +161,8 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         }
     }
     machine segment(main: @mutable Main) {
-        Console::write("SEGMENT "); number(main.uncertain_start);
-        Console::write(" "); number(main.frame); Console::write_line("");
+        |console|::Console::write("SEGMENT "); |report|::number(main.uncertain_start);
+        |console|::Console::write(" "); |report|::number(main.frame); |console|::Console::write_line("");
         main.uncertain_start = (-1) as +Wrapping;
         transition { _ -> remember(main) }
     }
@@ -189,16 +187,16 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         }
     }
     machine final_segment(main: @mutable Main) {
-        Console::write("SEGMENT "); number(main.uncertain_start);
-        Console::write(" "); number(main.frame); Console::write_line("");
+        |console|::Console::write("SEGMENT "); |report|::number(main.uncertain_start);
+        |console|::Console::write(" "); |report|::number(main.frame); |console|::Console::write_line("");
         transition { _ -> good(main) }
     }
-    machine good(main: @mutable Main) { ProcessExit::exit_process(0); }
-    machine bad(main: @mutable Main) { Console::write_line("ERROR input"); ProcessExit::exit_process(64); }
+    machine good(main: @mutable Main) { |process_exit|::ProcessExit::exit_process(0); }
+    machine bad(main: @mutable Main) { |console|::Console::write_line("ERROR input"); |process_exit|::ProcessExit::exit_process(64); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput crashes Trap {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput crashes Trap {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

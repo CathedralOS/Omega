@@ -1,26 +1,17 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use codec/decoder/decoder.omg;
+use codec/field/field.omg;
+use {omega}/language/core/numeric_conversion.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Expected exit: 0
 // Empty input exits normally; frozen nonempty streams and status-3 limits are in data/.
-use system\Console;
-use system\LineReadResult;
-use omega\language\core\widen_u8_to_i32;
-use codec\field;
-use codec\field\Frame;
-use codec\field\encode;
-use codec\field\location;
-use codec\field\syndrome_first;
-use codec\field\syndrome_second;
-use codec\decoder;
-use codec\decoder\Recovery;
-use codec\decoder\recover;
 
 data Main { input: [u8; 8]; }
 // Protocol: Eab LF or Dabcd LF. Digits 0..4 are F5 symbols; '_' is an erasure.
 // One bounded line is consumed per record, at most 2000 records. Oversized
 // lines stop with status 3 rather than interpreting their tail as a new frame.
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     transition { _ -> next(main, 0) }
     machine next(main: @mutable Main, records: i32) {
         transition records < 2000 {
@@ -31,10 +22,10 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     machine read(main: @mutable Main, records: i32)
     requires records >= 0 && records < 2000
     {
-        let observed: LineReadResult = block Console::read_line(@mutable main.input[..]);
+        let observed: |console|::LineReadResult = block |console|::Console::read_line(@mutable main.input[..]);
         transition observed {
-            LineReadResult::LineComplete { count } -> dispatch(main, records + 1, count),
-            LineReadResult::EndOfInput { count } -> end(main, count),
+            |console|::LineReadResult::LineComplete { count } -> dispatch(main, records + 1, count),
+            |console|::LineReadResult::EndOfInput { count } -> end(main, count),
             _ -> limit(main)
         }
     }
@@ -49,72 +40,72 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         let first: i32 in Wrapping = symbol(main.input[1]);
         let second: i32 in Wrapping = symbol(main.input[2]);
         transition first < 5 && second < 5 {
-            true -> encoded(main, records, encode(first, second)),
+            true -> encoded(main, records, |field|::encode(first, second)),
             false -> malformed(main, records)
         }
     }
-    machine encoded(main: @mutable Main, records: i32, frame: Frame) {
-        Console::write("C ");
+    machine encoded(main: @mutable Main, records: i32, frame: |field|::Frame) {
+        |console|::Console::write("C ");
         digit(main, frame.first); digit(main, frame.second); digit(main, frame.third); digit(main, frame.fourth);
-        Console::write_line("");
+        |console|::Console::write_line("");
         transition { _ -> next(main, records) }
     }
     machine decoding(main: @mutable Main, records: i32) {
-        let frame: Frame = Frame { first: symbol(main.input[1]), second: symbol(main.input[2]),
+        let frame: |field|::Frame = |field|::Frame { first: symbol(main.input[1]), second: symbol(main.input[2]),
             third: symbol(main.input[3]), fourth: symbol(main.input[4]) };
         transition frame.first <= 5 && frame.second <= 5 && frame.third <= 5 && frame.fourth <= 5 {
             true -> recovering(main, records, frame),
             false -> malformed(main, records)
         }
     }
-    machine recovering(main: @mutable Main, records: i32, frame: Frame) {
-        let result: Recovery = recover(@frame);
+    machine recovering(main: @mutable Main, records: i32, frame: |field|::Frame) {
+        let result: |decoder|::Recovery = |decoder|::recover(@frame);
         transition { _ -> decoded(main, records, frame, result) }
     }
-    machine decoded(main: @mutable Main, records: i32, frame: Frame, result: Recovery) {
+    machine decoded(main: @mutable Main, records: i32, frame: |field|::Frame, result: |decoder|::Recovery) {
         transition result.matches == 1 {
             true -> recovered(main, records, frame, result),
             false -> unrecoverable(main, records, frame)
         }
     }
-    machine recovered(main: @mutable Main, records: i32, frame: Frame, result: Recovery) {
-        let code: Frame = encode(result.intercept, result.slope);
-        Console::write("R "); digit(main, result.intercept); digit(main, result.slope);
-        Console::write(" L ");
-        digit(main, location(frame.first, code.first)); digit(main, location(frame.second, code.second));
-        digit(main, location(frame.third, code.third)); digit(main, location(frame.fourth, code.fourth));
+    machine recovered(main: @mutable Main, records: i32, frame: |field|::Frame, result: |decoder|::Recovery) {
+        let code: |field|::Frame = |field|::encode(result.intercept, result.slope);
+        |console|::Console::write("R "); digit(main, result.intercept); digit(main, result.slope);
+        |console|::Console::write(" L ");
+        digit(main, |field|::location(frame.first, code.first)); digit(main, |field|::location(frame.second, code.second));
+        digit(main, |field|::location(frame.third, code.third)); digit(main, |field|::location(frame.fourth, code.fourth));
         syndromes(main, @frame);
         transition { _ -> next(main, records) }
     }
-    machine unrecoverable(main: @mutable Main, records: i32, frame: Frame) {
-        Console::write("U"); syndromes(main, @frame);
+    machine unrecoverable(main: @mutable Main, records: i32, frame: |field|::Frame) {
+        |console|::Console::write("U"); syndromes(main, @frame);
         transition { _ -> next(main, records) }
     }
     machine malformed(main: @mutable Main, records: i32) {
-        Console::write_line("M");
+        |console|::Console::write_line("M");
         transition { _ -> next(main, records) }
     }
     machine end(main: @mutable Main, count: u64) {
         transition count == 0 { true -> done(main), false -> truncated(main) }
     }
-    machine truncated(main: @mutable Main) { Console::write_line("M"); ProcessExit::exit_process(0); }
-    machine done(main: @mutable Main) { ProcessExit::exit_process(0); }
-    machine limit(main: @mutable Main) { Console::write_line("LIMIT"); ProcessExit::exit_process(3); }
+    machine truncated(main: @mutable Main) { |console|::Console::write_line("M"); |process_exit|::ProcessExit::exit_process(0); }
+    machine done(main: @mutable Main) { |process_exit|::ProcessExit::exit_process(0); }
+    machine limit(main: @mutable Main) { |console|::Console::write_line("LIMIT"); |process_exit|::ProcessExit::exit_process(3); }
 }
 machine symbol(byte: u8) -> i32 in Wrapping {
-    transition { byte >= 48 && byte <= 52 -> ((widen_u8_to_i32(byte) as i32 +Wrapping) - 48),
+    transition { byte >= 48 && byte <= 52 -> ((|numeric_conversion|::widen_u8_to_i32(byte) as i32 +Wrapping) - 48),
         byte == 95 -> 5, _ -> 6 }
 }
-machine digit(main: @mutable Main, value: i32 in Wrapping) reaches StandardOutput {
-    Console::write_byte((value + 48) as i32);
+machine digit(main: @mutable Main, value: i32 in Wrapping) reaches |process_authority|::StandardOutput {
+    |console|::Console::write_byte((value + 48) as i32);
 }
-machine syndromes(main: @mutable Main, frame: @Frame) reaches StandardOutput {
-    Console::write(" S "); digit(main, syndrome_first(frame)); digit(main, syndrome_second(frame));
-    Console::write_line("");
+machine syndromes(main: @mutable Main, frame: @|field|::Frame) reaches |process_authority|::StandardOutput {
+    |console|::Console::write(" S "); digit(main, |field|::syndrome_first(frame)); digit(main, |field|::syndrome_second(frame));
+    |console|::Console::write_line("");
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

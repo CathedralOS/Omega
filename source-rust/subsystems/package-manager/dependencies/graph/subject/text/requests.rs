@@ -1,7 +1,6 @@
 // We format and parse authored root and dependency requests, package
 // selections, and package navigation in canonical source-closure text records.
 
-use super::super::request_view::Request;
 use super::super::{
     CanonicalDependencySourceRequest, CanonicalRootSourceRequest, CanonicalRootSourceSelection,
 };
@@ -9,7 +8,7 @@ use super::framing::{Reader, Writer};
 use super::source::{read_lineage, read_source, write_lineage, write_source};
 use super::{Error, Limits};
 use crate::declarations::BuildDeclarationKind;
-use crate::declarations::dependencies::read::{DependencySourceRequest, PackageSelection};
+use crate::declarations::dependencies::read::PackageSelection;
 use crate::resolution::source::PackageSourceNavigation;
 use source_acquisition::ExternalSourceContext;
 
@@ -27,6 +26,9 @@ pub(super) fn write_root(
         &[],
     )?;
     match root.request() {
+        CanonicalRootSourceRequest::Bundled { name } => {
+            writer.row("request bundled", &[name.as_str().as_bytes()])?
+        }
         CanonicalRootSourceRequest::Git {
             requested_locator,
             requested_revision,
@@ -78,6 +80,9 @@ pub(super) fn read_root(
     };
     reader.expect("request")?;
     let request = match reader.atom()? {
+        "bundled" => CanonicalRootSourceRequest::Bundled {
+            name: reader.package_name(limits.maximum_identity_bytes)?,
+        },
         "git" => CanonicalRootSourceRequest::Git {
             requested_locator: reader.string(limits.maximum_request_bytes)?,
             requested_revision: reader.string(limits.maximum_request_bytes)?,
@@ -107,10 +112,18 @@ pub(super) fn read_root(
     })
 }
 
-pub(super) fn write_request(writer: &mut Writer, request: Request<'_>) -> Result<(), Error> {
+pub(super) fn write_request(
+    writer: &mut Writer,
+    request: &CanonicalDependencySourceRequest,
+) -> Result<(), Error> {
     match request {
-        Request::Path { location, .. } => writer.row("request path", &[location.as_bytes()])?,
-        Request::Git {
+        CanonicalDependencySourceRequest::Bundled { name, .. } => {
+            writer.row("request bundled", &[name.as_str().as_bytes()])?
+        }
+        CanonicalDependencySourceRequest::Path { location, .. } => {
+            writer.row("request path", &[location.as_bytes()])?
+        }
+        CanonicalDependencySourceRequest::Git {
             repository,
             revision,
             selection,
@@ -132,6 +145,10 @@ pub(super) fn read_request(
 ) -> Result<CanonicalDependencySourceRequest, Error> {
     reader.expect("request")?;
     let request = match reader.atom()? {
+        "bundled" => CanonicalDependencySourceRequest::Bundled {
+            explicit_alias: None,
+            name: reader.package_name(limits.maximum_identity_bytes)?,
+        },
         "path" => CanonicalDependencySourceRequest::Path {
             explicit_alias: None,
             location: reader.string(limits.maximum_request_bytes)?,
@@ -150,48 +167,13 @@ pub(super) fn read_request(
         "named" => Some(reader.alias(limits.maximum_identity_bytes)?),
         _ => return Err(Error::new("invalid text alias option")),
     };
-    Ok(match request {
-        CanonicalDependencySourceRequest::Path { location, .. } => {
-            CanonicalDependencySourceRequest::Path {
-                explicit_alias: alias,
-                location,
-            }
-        }
-        CanonicalDependencySourceRequest::Git {
-            repository,
-            revision,
-            selection,
-            ..
-        } => CanonicalDependencySourceRequest::Git {
-            explicit_alias: alias,
-            repository,
-            revision,
-            selection,
-        },
-    })
-}
-
-pub(crate) fn into_authored(request: CanonicalDependencySourceRequest) -> DependencySourceRequest {
-    match request {
-        CanonicalDependencySourceRequest::Path {
-            explicit_alias,
-            location,
-        } => DependencySourceRequest::Path {
-            explicit_alias,
-            location,
-        },
-        CanonicalDependencySourceRequest::Git {
-            explicit_alias,
-            repository,
-            revision,
-            selection,
-        } => DependencySourceRequest::Git {
-            explicit_alias,
-            repository,
-            revision,
-            selection,
-        },
+    let mut request = request;
+    match &mut request {
+        CanonicalDependencySourceRequest::Bundled { explicit_alias, .. }
+        | CanonicalDependencySourceRequest::Path { explicit_alias, .. }
+        | CanonicalDependencySourceRequest::Git { explicit_alias, .. } => *explicit_alias = alias,
     }
+    Ok(request)
 }
 
 fn write_selection(writer: &mut Writer, selection: &PackageSelection) -> Result<(), Error> {

@@ -1,5 +1,5 @@
 //! Compare direct and inherited public evidence in an ordinary package review.
-use super::run_project_build;
+use super::reviewed_policy;
 use review_evidence::record::PackagePolicyBaseline;
 use target::TargetProfile;
 
@@ -29,14 +29,7 @@ public Direct satisfies Parent<u16, Wrapped<u32>> { machine get(value: u16) -> u
     )
     .unwrap();
     let target = TargetProfile::LinuxX64;
-    let (returned, inputs) = run_project_build(&root.join("build.omg"), &[target]);
-    let settled = returned.settle_dependency(inputs.clone()).unwrap();
-    let product = settled.open_product(inputs).unwrap();
-    let review = product
-        .product_stage(&[target])
-        .unwrap()
-        .review_policy(target)
-        .unwrap();
+    let review = reviewed_policy(&root.join("build.omg"), target);
     let bytes = review.policy.canonical_bytes().unwrap();
     let saved = PackagePolicyBaseline::recover_canonical(&bytes, Default::default()).unwrap();
     let conformance = |name: &str| {

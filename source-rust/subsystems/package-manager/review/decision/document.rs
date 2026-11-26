@@ -16,15 +16,17 @@ use super::{
     PackagePolicyResolution, ReviewOnlyRootPolicyDisposition, resolve_package_policy_decisions,
 };
 use crate::Hex;
-use crate::declarations::PackageKey;
 use crate::lock::{PackageAcceptanceRow, PackageCheckedContext};
+use crate::review::rendering::{
+    GitFields::Positional, checked_context, package_key, resolution, source_lineage,
+};
 use crate::review::timings;
 use crate::review::{
     PackagePolicyChangeKind, PackagePolicyChangeSet, PackagePolicyDependencyPath,
     PackagePolicyReplacementSite,
 };
 use package_compilation::build_execution::RestrictedBuildRequest;
-use source_acquisition::{GitTransport, ImmutableSourceResolution, SourceLineage};
+use source_acquisition::SourceLineage;
 use std::fmt::{self, Write};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -218,7 +220,7 @@ fn render(output: &mut Output, changes: &PackagePolicyChangeSet) -> fmt::Result 
             "\nroot-role-change {}",
             change.broken_contract().as_str()
         )?;
-        package_key(output, "root", change.root())?;
+        package_key(output, "root", change.root(), Positional)?;
         writeln!(
             output,
             "- role {}\n+ role {}",
@@ -236,31 +238,41 @@ fn render(output: &mut Output, changes: &PackagePolicyChangeSet) -> fmt::Result 
                 purpose,
                 alias,
             } => {
-                package_key(output, "requester", requester)?;
+                package_key(output, "requester", requester, Positional)?;
                 writeln!(output, "purpose {}", purpose.name())?;
                 writeln!(output, "binding {:?}", alias.as_str())?;
             }
         }
-        package_key(output, "- package", replacement.baseline())?;
-        package_key(output, "+ package", replacement.candidate())?;
+        package_key(output, "- package", replacement.baseline(), Positional)?;
+        package_key(output, "+ package", replacement.candidate(), Positional)?;
         output.choice(PackagePolicyDecisionSubject::SourceReplacement(
             replacement.fingerprint().digest(),
         ))?;
     }
     for package in changes.packages() {
         writeln!(output)?;
-        package_key(output, "package", package.key())?;
-        resolution(output, "- source", package.baseline_resolution())?;
-        resolution(output, "+ source", package.candidate_resolution())?;
+        package_key(output, "package", package.key(), Positional)?;
+        optional(
+            output,
+            "- source",
+            package.baseline_resolution(),
+            |output, value| resolution(output, "- source", value),
+        )?;
+        optional(
+            output,
+            "+ source",
+            package.candidate_resolution(),
+            |output, value| resolution(output, "+ source", value),
+        )?;
         path(output, "- path", package.baseline_path())?;
         path(output, "+ path", package.candidate_path())?;
         purposes(output, "-", package.baseline_occurrence_contexts())?;
         purposes(output, "+", package.candidate_occurrence_contexts())?;
         for context in package.baseline_occurrence_contexts() {
-            checked_context(output, "-", Some(*context))?;
+            checked_context(output, "-", *context)?;
         }
         for context in package.candidate_occurrence_contexts() {
-            checked_context(output, "+", Some(*context))?;
+            checked_context(output, "+", *context)?;
         }
         writeln!(
             output,
@@ -284,8 +296,18 @@ fn render(output: &mut Output, changes: &PackagePolicyChangeSet) -> fmt::Result 
                 PackagePolicyChangeKind::Changed => "changed",
             };
             writeln!(output, "change {} {change}", row.kind().as_str())?;
-            checked_context(output, "-", row.baseline_context())?;
-            checked_context(output, "+", row.candidate_context())?;
+            optional(
+                output,
+                "- occurrence",
+                row.baseline_context(),
+                |output, context| checked_context(output, "-", context),
+            )?;
+            optional(
+                output,
+                "+ occurrence",
+                row.candidate_context(),
+                |output, context| checked_context(output, "+", context),
+            )?;
             writeln!(output, "audit-recommended {}", row.audit_recommended())?;
             policy(output, "-", row.baseline())?;
             policy(output, "+", row.candidate())?;
@@ -298,25 +320,6 @@ fn render(output: &mut Output, changes: &PackagePolicyChangeSet) -> fmt::Result 
         writeln!(output, "end-package")?;
     }
     writeln!(output, "end-review")
-}
-
-fn checked_context(
-    output: &mut Output,
-    prefix: &str,
-    context: Option<PackageCheckedContext>,
-) -> fmt::Result {
-    match context {
-        Some(context) => writeln!(
-            output,
-            "{prefix} occurrence {} target {} execution {}",
-            context.purpose().name(),
-            context.target().target_name(),
-            context
-                .build_execution_profile()
-                .map_or("none", |profile| profile.target_name())
-        ),
-        None => writeln!(output, "{prefix} occurrence none"),
-    }
 }
 
 fn purposes(output: &mut Output, prefix: &str, values: &[PackageCheckedContext]) -> fmt::Result {
@@ -478,83 +481,13 @@ fn policy(output: &mut Output, prefix: &str, row: Option<&PackageAcceptanceRow>)
     }
 }
 
-fn package_key(output: &mut Output, prefix: &str, key: &PackageKey) -> fmt::Result {
-    write!(
-        output,
-        "{prefix} {:?} {} ",
-        key.name().as_str(),
-        Hex(&key.identity().digest())
-    )?;
-    source_lineage(output, key.source_lineage())
-}
-
 pub(crate) fn render_build_lineage(
     lineage: &SourceLineage,
     maximum_bytes: usize,
 ) -> Result<String, PackagePolicyReviewError> {
     let mut output = Output::new(maximum_bytes);
-    let result = source_lineage(&mut output, lineage);
+    let result = source_lineage(&mut output, lineage, Positional);
     Ok(output.finish(result)?.text)
-}
-
-fn source_lineage(output: &mut Output, lineage: &SourceLineage) -> fmt::Result {
-    match lineage {
-        SourceLineage::GitHub(source) => writeln!(
-            output,
-            "github {:?} {:?}",
-            source.owner(),
-            source.repository()
-        ),
-        SourceLineage::GitLab(source) => writeln!(output, "gitlab {:?}", source.repository_path()),
-        SourceLineage::Git(source) => {
-            let transport = match source.transport() {
-                GitTransport::Https => "https",
-                GitTransport::SshUrl => "ssh",
-                GitTransport::ScpLike => "scp",
-            };
-            writeln!(
-                output,
-                "git {transport} {:?} {:?} {:?} {:?}",
-                source.user(),
-                source.host(),
-                source.port(),
-                source.repository_path()
-            )
-        }
-        SourceLineage::Workspace(source) => {
-            writeln!(output, "workspace {:?}", source.member_path().as_str())
-        }
-        SourceLineage::ExternalLocal(source) => {
-            writeln!(output, "local {:?}", source.canonical_absolute_path())
-        }
-    }
-}
-
-fn resolution(
-    output: &mut Output,
-    prefix: &str,
-    resolution: Option<&ImmutableSourceResolution>,
-) -> fmt::Result {
-    match resolution {
-        None => writeln!(output, "{prefix} none"),
-        Some(ImmutableSourceResolution::Git {
-            commit,
-            tree,
-            content,
-        }) => writeln!(
-            output,
-            "{prefix} git commit {} tree {} content {}",
-            commit.to_hex(),
-            tree.to_hex(),
-            content.to_hex()
-        ),
-        Some(ImmutableSourceResolution::Workspace { content }) => {
-            writeln!(output, "{prefix} workspace content {}", content.to_hex())
-        }
-        Some(ImmutableSourceResolution::ExternalLocal { content }) => {
-            writeln!(output, "{prefix} local content {}", content.to_hex())
-        }
-    }
 }
 
 fn path(
@@ -575,4 +508,17 @@ fn path(
         )?;
     }
     writeln!(output)
+}
+
+// An absent value renders as `{prefix} none`.
+fn optional<T>(
+    output: &mut Output,
+    prefix: &str,
+    value: Option<T>,
+    render: impl FnOnce(&mut Output, T) -> fmt::Result,
+) -> fmt::Result {
+    match value {
+        Some(value) => render(output, value),
+        None => writeln!(output, "{prefix} none"),
+    }
 }

@@ -1,6 +1,6 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Modular exponentiation by repeated squaring: compute (base ^ exponent) mod m.
 // This is the workhorse of public-key crypto (RSA, Diffie-Hellman); doing it by
 // squaring keeps every intermediate small instead of forming the astronomically
@@ -11,7 +11,6 @@ use omega\language\core\ProcessExit;
 // 100 and 2 are nonzero; the parity branch tests the exponent's low bit.
 // Expected exit: 87.
 
-use system\Console;
 
 // Each constant divisor is provably nonzero. The changing algorithm values
 // are explicit state inputs; no application object retains scratch storage.
@@ -75,18 +74,18 @@ ensures result >= 0 && result <= 99
 }
 
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("modular_exponentiation: 3^7 mod 100 by repeated squaring, fully exact");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("modular_exponentiation: 3^7 mod 100 by repeated squaring, fully exact");
     let result: i32 = modular_power(3, 7);
-    Console::write_line("result: 3^7 mod 100 = 87 (the exit code)");
-    Console::write_line("[press Enter to close]");
+    |console|::Console::write_line("result: 3^7 mod 100 = 87 (the exit code)");
+    |console|::Console::write_line("[press Enter to close]");
     let mutable pause: [u8; 256];
-    _ = block Console::read_line(@mutable pause[..]);
-    ProcessExit::exit_process(result);
+    _ = block |console|::Console::read_line(@mutable pause[..]);
+    |process_exit|::ProcessExit::exit_process(result);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

@@ -49,8 +49,8 @@ nearest scope first and stops at the first one that declares the name:
 
 1. a `let`, parameter or generic parameter of an enclosing machine;
 2. the current file;
-3. the files its `use` lines name, including `|alias|::` paths, `{dependency}/`
-   paths that `build.omg` locates and `omega\language\core\` library imports;
+3. the files its `use` lines name, when a name starts with `|alias|::`. The alias selects
+   the exact package-relative, `{dependency}/` or `{omega}/` file;
 4. its package: the nearest folder with a `build.omg`, without nested packages
    such as test fixtures;
 5. the bundled library in `source/library`;
@@ -76,7 +76,7 @@ follows it, as in `state: StatePlan;` or `write(out, value)`. Builtin type names
 and literal suffixes follow the
 [lexical profile](../../wiki/spec/language/data_and_literals.md#lexical-profile)
 and [builtin type names](../../wiki/spec/language/modules.md#builtin-type-names):
-`bool`, `addr`, `f32`, `f64` and any `i`/`u` width such as `u13`. Bare `i` and
+`bool`, `address`, `f32`, `f64` and any `i`/`u` width such as `u13`. Bare `i` and
 `u` stay uncolored because value bindings often use those spellings. The
 retired `dyn` spelling is marked deprecated.
 

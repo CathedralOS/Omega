@@ -80,7 +80,7 @@ fn chain_operands(expression: &ScalarTerm) -> Vec<(&ScalarTerm, &ScalarTerm)> {
     }
 }
 
-fn lift_endpoint_order(relation: ProofNode) -> Option<ProofNode> {
+pub(super) fn lift_endpoint_order(relation: ProofNode) -> Option<ProofNode> {
     let Proposition::LessOrEqual(left, right) = &relation.conclusion else {
         return None;
     };

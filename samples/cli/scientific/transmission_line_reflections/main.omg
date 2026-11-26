@@ -1,68 +1,60 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use io/input/input.omg;
+use io/report/report.omg;
+use physics/model/model.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Expected exit: 64 with empty stdin.
 // Expected output contains: ERROR input:
 // Valid requests in data/*.stdin exit 0 and emit the wave/voltage/energy records.
 // Complete bounded transmission-line pulse simulation. Output is CSV records
 // in micro-units; see data/oracle.json for independently frozen exact fractions.
-use system\Console;
-use physics\model;
-use physics\model\LineModel;
-use physics\model\preset;
-use physics\model\ReflectionTree;
-use physics\model\propagate;
-use io\input;
-use io\input\Request;
-use io\input\read_request;
-use io\report;
-use io\report\report;
 
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    let request: Request = block read_request();
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    let request: |input|::Request = block |input|::read_request();
     transition request.valid {
         true -> start(request.identifier, request.horizon),
         false -> invalid()
     }
     machine start(identifier: u64 in Saturating, horizon: u64 in Saturating) {
-        let model: LineModel = preset(identifier as u64);
-        let mutable tree: ReflectionTree;
-        Console::write_line("transmission_line_reflections v1 micro-units");
+        let model: |model|::LineModel = |model|::preset(identifier as u64);
+        let mutable tree: |model|::ReflectionTree;
+        |console|::Console::write_line("transmission_line_reflections v1 micro-units");
         transition { _ -> simulate(@mutable tree, @model, 0, horizon) }
     }
-    machine simulate(tree: @mutable ReflectionTree, model: @LineModel, tick: u64 in Saturating, horizon: u64 in Saturating) {
+    machine simulate(tree: @mutable |model|::ReflectionTree, model: @|model|::LineModel, tick: u64 in Saturating, horizon: u64 in Saturating) {
         transition tick < horizon && tick < 24 {
             true -> step(tree, model, tick, horizon),
             false -> finish()
         }
     }
-    machine step(tree: @mutable ReflectionTree, model: @LineModel, tick: u64 in Saturating, horizon: u64 in Saturating)
+    machine step(tree: @mutable |model|::ReflectionTree, model: @|model|::LineModel, tick: u64 in Saturating, horizon: u64 in Saturating)
     requires tick < 24
     {
-        let okay: bool = propagate(tree, model, tick as u64);
+        let okay: bool = |model|::propagate(tree, model, tick as u64);
         transition okay {
             true -> emit(tree, model, tick, horizon),
             false -> failed()
         }
     }
-    machine emit(tree: @mutable ReflectionTree, model: @LineModel, tick: u64 in Saturating, horizon: u64 in Saturating)
+    machine emit(tree: @mutable |model|::ReflectionTree, model: @|model|::LineModel, tick: u64 in Saturating, horizon: u64 in Saturating)
     requires tick < 24
     {
-        report(tick as u64, tree);
+        |report|::report(tick as u64, tree);
         let residual: f64 = tree.supplied - tree.source_heat - tree.load_heat - tree.travelling;
         transition residual >= -0.000000001 && residual <= 0.000000001 {
             true -> simulate(tree, model, tick + 1, horizon),
             false -> failed()
         }
     }
-    machine finish() { Console::write_line("END"); ProcessExit::exit_process(0); }
-    machine invalid() { Console::write_line("ERROR input: expected case 0..5 and horizon 1..24 followed by LF"); ProcessExit::exit_process(64); }
-    machine failed() { Console::write_line("ERROR simulation invariant"); ProcessExit::exit_process(70); }
+    machine finish() { |console|::Console::write_line("END"); |process_exit|::ProcessExit::exit_process(0); }
+    machine invalid() { |console|::Console::write_line("ERROR input: expected case 0..5 and horizon 1..24 followed by LF"); |process_exit|::ProcessExit::exit_process(64); }
+    machine failed() { |console|::Console::write_line("ERROR simulation invariant"); |process_exit|::ProcessExit::exit_process(70); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

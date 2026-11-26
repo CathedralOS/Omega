@@ -1,11 +1,10 @@
 // Local coordinate t=z-lower. Integrating width, pressure*width, and
 // z*pressure*width exactly requires polynomials of degree one, two, three.
 // No quadrature library or active-worker code is used.
-use geometry\profile;
-use geometry\profile\WetSegment;
+use geometry/profile/profile.omg;
 
 public data SegmentLoad [copy] { area: f64; force: f64; first_moment: f64; hinge_moment: f64; }
-public machine integrate(segment: WetSegment, water: f64, gamma: f64, hinge: f64) -> SegmentLoad {
+public machine integrate(segment: |profile|::WetSegment, water: f64, gamma: f64, hinge: f64) -> SegmentLoad {
     let height: f64 = segment.upper - segment.lower;
     transition height > 0.0 {
         true -> wet(segment, water, gamma, hinge, height),
@@ -14,7 +13,7 @@ public machine integrate(segment: WetSegment, water: f64, gamma: f64, hinge: f64
     machine zero() -> SegmentLoad {
         SegmentLoad { area: 0.0, force: 0.0, first_moment: 0.0, hinge_moment: 0.0 }
     }
-    machine wet(segment: WetSegment, water: f64, gamma: f64, hinge: f64, height: f64) -> SegmentLoad {
+    machine wet(segment: |profile|::WetSegment, water: f64, gamma: f64, hinge: f64, height: f64) -> SegmentLoad {
         let slope: f64 = (segment.upper_width - segment.lower_width) / height;
         let depth: f64 = water - segment.lower;
         let square: f64 = height * height;

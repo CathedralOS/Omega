@@ -194,7 +194,7 @@ impl BuiltinTypeAtom {
         (Self::Integer(FixedInteger::unsigned(16)), "u16", "u16"),
         (Self::Integer(FixedInteger::unsigned(32)), "u32", "u32"),
         (Self::Integer(FixedInteger::unsigned(64)), "u64", "u64"),
-        (Self::Address, "address", "addr"),
+        (Self::Address, "address", "address"),
         (Self::F32, "f32", "f32"),
         (Self::F64, "f64", "f64"),
         (Self::Slice, "slice", "Slice"),

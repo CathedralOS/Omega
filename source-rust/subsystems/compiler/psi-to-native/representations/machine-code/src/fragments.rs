@@ -32,9 +32,8 @@ use crate::{SelectedFormInternalMachineFixupKind, SelectedFormNormalizedForeignC
 
 pub(crate) use identity::function_fragment_emission_identity;
 pub use publication::{
-    FunctionFragmentEmissionManifest, FunctionFragmentEmissionManifestDecodeError,
-    FunctionFragmentEmissionStage, FunctionFragmentEmissionStatistics,
-    FunctionFragmentEmissionUnavailableData,
+    FunctionFragmentEmissionManifest, FunctionFragmentEmissionStage,
+    FunctionFragmentEmissionStatistics, FunctionFragmentEmissionUnavailableData,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]

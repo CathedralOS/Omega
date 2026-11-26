@@ -43,6 +43,10 @@ pub(super) fn render_resolution(
             push_hex_row(output, side, "_git_tree ", &tree.to_hex())?;
             push_hex_row(output, side, "_source_content ", &content.to_hex())?;
         }
+        Some(ImmutableSourceResolution::Bundled { content }) => {
+            output.push("bundled\n")?;
+            push_hex_row(output, side, "_source_content ", &content.to_hex())?;
+        }
         Some(ImmutableSourceResolution::Workspace { content }) => {
             output.push("workspace\n")?;
             push_hex_row(output, side, "_source_content ", &content.to_hex())?;

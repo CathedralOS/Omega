@@ -4,7 +4,6 @@ by supported target mechanisms, replaying their structural argument, completion,
 and target-specific byte custody across machine, object, and final-image bytes.
 */
 
-use crate::BoundaryTraitSettlementParts;
 use crate::BoundaryTraitSettlementRole;
 use crate::NativePhysicalChild;
 use crate::NativePhysicalOccurrence;
@@ -17,7 +16,6 @@ use crate::physical::derivation::evidence::boundary_physical_child_parts;
 use crate::physical::derivation::evidence::span;
 use crate::physical::derivation::evidence::text_relocation_overlaps;
 use crate::physical::derivation::provider_custody::direct_port_read_custody;
-use crate::physical::derivation::provider_custody::linux_write_line_custody_is_exact;
 use crate::physical::derivation::provider_custody::metadata_port_effect_custody;
 use crate::physical::derivation::provider_custody::rejoin_admitted_provider_execution;
 use crate::physical::derivation::provider_custody::settlement_completion_custody_is_exact;
@@ -126,7 +124,7 @@ pub(crate) fn derive_admitted_provider_settlement_child(
             None
         }
         BoundaryRealization::LinuxWriteLine(_) => {
-            if !linux_write_line_custody_is_exact(
+            if !image_emission::linux_write_line_custody_is_exact(
                 target,
                 settlement,
                 pass.is_receiver().then(|| function.bytes(object)),
@@ -199,17 +197,15 @@ pub(crate) fn derive_admitted_provider_settlement_child(
         settlement,
         port_effect.as_ref(),
     )?;
-    let parent = PhysicalChildParent::BoundaryTraitSettlement(
-        BoundaryTraitSettlementParts {
+    let parent =
+        PhysicalChildParent::BoundaryTraitSettlement(crate::physical::BoundaryTraitSettlement {
             occurrence: *occurrence,
             requirement_identity: requirement_identity.to_owned(),
             selected_supply: selected_plan.plan_digest().into(),
             target,
             role,
             identity: parent_identity,
-        }
-        .into(),
-    );
+        });
     Ok(Some(
         boundary_physical_child_parts(
             parent,

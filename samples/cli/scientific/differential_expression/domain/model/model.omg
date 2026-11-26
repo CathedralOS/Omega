@@ -1,8 +1,4 @@
-use domain\math;
-use domain\math\logarithm;
-use domain\math\exponential;
-use domain\math\log_one_plus;
-use domain\math\log_gamma;
+use domain/math/math.omg;
 
 public data Study {
     groups: [i32; 6]; counts: [f64; 48]; factors: [f64; 6];
@@ -37,12 +33,12 @@ machine geometric(study: @Study, gene: i32 in Wrapping) -> f64 {
     machine scan(study: @Study, gene: i32 in Wrapping, sample: i32 in Wrapping, sum: f64) -> f64 {
         transition sample < 6 {
  true -> value(study, gene, sample, sum),
- false -> exponential(sum / 6.0) }
+ false -> |math|::exponential(sum / 6.0) }
     }
     machine value(study: @Study, gene: i32 in Wrapping, sample: i32 in Wrapping, sum: f64) -> f64 {
         let value: f64 = count(study, gene, sample);
         transition value > 0.0 {
- true -> scan(study, gene, sample + 1, sum + logarithm(value)),
+ true -> scan(study, gene, sample + 1, sum + |math|::logarithm(value)),
  false -> 0.0 }
     }
 }
@@ -69,7 +65,7 @@ public machine normalize(study: @mutable Study) -> bool {
         }
     }
     machine prepare_insert(study: @mutable Study, index: i32 in Wrapping, gene: i32 in Wrapping, size: i32 in Wrapping, observed: f64, center: f64) -> bool requires index >= 0 && index < 6 && size >= 0 && size < 8 {
-        let value: f64 = logarithm(observed / center);
+        let value: f64 = |math|::logarithm(observed / center);
         transition { _ -> insert(study, index, gene, size, value, size) }
     }
     machine insert(study: @mutable Study, index: i32 in Wrapping, gene: i32 in Wrapping, size: i32 in Wrapping, value: f64, position: i32 in Wrapping) -> bool requires index >= 0 && index < 6 && size >= 0 && size < 8 {
@@ -103,7 +99,7 @@ public machine normalize(study: @mutable Study) -> bool {
  false -> false }
     }
     machine finish(study: @mutable Study, index: i32 in Wrapping, size: i32 in Wrapping, lower: i32 in Wrapping, upper: i32 in Wrapping) -> bool requires index >= 0 && index < 6 && lower >= 0 && lower < 8 && upper >= 0 && upper < 8 {
-        study.factors[index] = exponential((study.ratios[lower] + study.ratios[upper]) / 2.0);
+        study.factors[index] = |math|::exponential((study.ratios[lower] + study.ratios[upper]) / 2.0);
         study.eligible = size;
         transition { _ -> sample(study, index + 1) }
     }
@@ -198,8 +194,8 @@ public machine information(study: @Study, gene: i32 in Wrapping, selected: i32, 
 // SciPy's gammaln. Near the Poisson boundary, log1p avoids cancellation.
 machine log_probability(y: f64, mu: f64, alpha: f64) -> f64 {
     let r: f64 = 1.0 / alpha;
-    let combination: f64 = log_gamma(y + r) - log_gamma(r) - log_gamma(y + 1.0);
-    combination - r * log_one_plus(alpha * mu) + y * logarithm(mu / (r + mu))
+    let combination: f64 = |math|::log_gamma(y + r) - |math|::log_gamma(r) - |math|::log_gamma(y + 1.0);
+    combination - r * |math|::log_one_plus(alpha * mu) + y * |math|::logarithm(mu / (r + mu))
 }
 public machine log_likelihood(study: @Study, gene: i32 in Wrapping, a: f64, b: f64, alpha: f64) -> f64 {
     transition { _ -> scan(study, gene, a, b, alpha, 0, 0.0) }

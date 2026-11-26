@@ -311,72 +311,64 @@ impl BuildStagedOutputTree {
             .find(|entry| entry.relative_path == relative_path)
     }
 
-    pub fn select_files(&self, relative_paths: &[&[u8]]) -> Result<Self, Vec<Diagnostic>> {
-        if relative_paths.len() > self.entries.len() {
-            return Err(diagnostics(
-                "build output file selection exceeds the retained entry count",
-            ));
-        }
-        let mut selected = vec![false; self.entries.len()];
-        for relative_path in relative_paths {
-            let entry_index = self
+    /// Each `(output_name, staged_file)` pair publishes immutable bytes under the reserved name.
+    pub fn select_files(&self, files: &[(&[u8], &[u8])]) -> Result<Self, Vec<Diagnostic>> {
+        let mut selected = std::collections::BTreeMap::new();
+        for &(name, staged_file) in files {
+            let index = self
                 .entries
-                .binary_search_by(|entry| entry.relative_path.as_slice().cmp(relative_path))
+                .binary_search_by(|entry| entry.relative_path.as_slice().cmp(staged_file))
                 .map_err(|_| {
                     diagnostics(format!(
                         "selected build output `{}` is absent from the retained tree",
-                        String::from_utf8_lossy(relative_path)
+                        String::from_utf8_lossy(staged_file)
                     ))
                 })?;
-            if selected[entry_index] {
-                return Err(diagnostics(format!(
-                    "selected build output `{}` is requested more than once",
-                    String::from_utf8_lossy(relative_path)
-                )));
-            }
-            match &self.entries[entry_index].kind {
+            let kind = &self.entries[index].kind;
+            if !matches!(
+                kind,
                 RetainedStagedOutputEntryKind::File {
-                    executable: false, ..
-                } => {}
-                _ => {
-                    return Err(diagnostics(format!(
-                        "selected build output `{}` must be a non-executable regular file",
-                        String::from_utf8_lossy(relative_path)
-                    )));
+                    executable: false,
+                    ..
                 }
+            ) {
+                return Err(diagnostics(
+                    "selected build output must be a non-executable regular file",
+                ));
             }
-            selected[entry_index] = true;
-        }
-        for relative_path in relative_paths {
-            for (separator, byte) in relative_path.iter().enumerate() {
-                if *byte != b'/' {
-                    continue;
-                }
-                let parent = &relative_path[..separator];
-                let parent_index = self
-                    .entries
-                    .binary_search_by(|entry| entry.relative_path.as_slice().cmp(parent))
-                    .map_err(|_| {
-                        diagnostics("selected build output has a missing ancestor directory")
-                    })?;
-                if !matches!(
-                    self.entries[parent_index].kind,
-                    RetainedStagedOutputEntryKind::Directory
-                ) {
+            if selected.insert(name, kind.clone()).is_some() {
+                return Err(diagnostics("completed build output names collide"));
+            }
+            for (separator, _) in name.iter().enumerate().filter(|(_, byte)| **byte == b'/') {
+                let parent = selected
+                    .entry(&name[..separator])
+                    .or_insert(RetainedStagedOutputEntryKind::Directory);
+                if !matches!(parent, RetainedStagedOutputEntryKind::Directory) {
                     return Err(diagnostics(
-                        "selected build output has a non-directory ancestor",
+                        "completed build output has a non-directory ancestor",
                     ));
                 }
-                selected[parent_index] = true;
+                if selected.len() > MAX_STAGED_OUTPUT_ENTRIES {
+                    return Err(diagnostics(
+                        "completed build outputs exceed the retained entry limit",
+                    ));
+                }
+            }
+            if selected.len() > MAX_STAGED_OUTPUT_ENTRIES {
+                return Err(diagnostics(
+                    "completed build outputs exceed the retained entry limit",
+                ));
             }
         }
-        let entries: Vec<_> = self
-            .entries
-            .iter()
-            .zip(selected)
-            .filter(|(_, is_selected)| *is_selected)
-            .map(|(entry, _)| entry.clone())
-            .collect();
+        let mut path_bytes = 0;
+        let mut entries = Vec::with_capacity(selected.len());
+        for (name, kind) in selected {
+            path_bytes = crate::portable_paths::reserve_path_bytes(path_bytes, name.len())?;
+            entries.push(RetainedStagedOutputEntry {
+                relative_path: name.to_vec(),
+                kind,
+            });
+        }
         Self::from_selection(entries)
     }
 

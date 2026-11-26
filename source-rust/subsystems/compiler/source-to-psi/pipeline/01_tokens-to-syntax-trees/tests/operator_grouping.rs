@@ -27,7 +27,7 @@
 //! Every test lexes with the real lexer and parses through
 //! `source_parser::parse`.
 
-use crate::frontend_fixture::{Lexer, parse_syntax_trees};
+use crate::parsing_support::{parse, trees};
 use numerics::arithmetic::ArithmeticDomain::{self, Exact, Saturating, Trapping, Wrapping};
 use serde_json::json;
 use syntax_trees::SyntaxTrees;
@@ -126,22 +126,6 @@ fn every_operator() -> Vec<Spelled> {
         }
     }
     operators
-}
-
-fn parse(source: &str) -> Result<SyntaxTrees, source_parser::ParseError> {
-    let stream = Lexer::new(source).tokenize().expect("the source lexes");
-    parse_syntax_trees(&stream)
-}
-
-fn trees(source: &str) -> SyntaxTrees {
-    parse(source).unwrap_or_else(|error| {
-        let span = error.source_span.span;
-        panic!(
-            "{} at `{}` in {source:?}",
-            error.message,
-            &source[span.start..span.end]
-        )
-    })
 }
 
 /// The value the body of the machine named `name` ends in.
@@ -386,3 +370,5 @@ use source_parser as parsing;
 
 #[path = "../../../../../../../tests/support/frontend_operations.rs"]
 mod frontend_fixture;
+#[path = "support/parsing.rs"]
+mod parsing_support;

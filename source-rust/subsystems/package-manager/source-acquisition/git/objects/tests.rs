@@ -7,7 +7,7 @@ use super::{
     authentication::*, batch::*, identity::*, inspection::*, object_rows::*, projection::*, tree::*,
 };
 use crate::error::SourceResolveError;
-use crate::git::executable::executor::test_system_git_executor;
+use crate::git::executable::test_system_git_executor;
 use crate::git::git_command::*;
 use crate::git::request::GitExecutionTransport;
 use crate::git::snapshot::preflight_git_snapshot;
@@ -639,7 +639,7 @@ fn inert_gitlink_graph_keeps_exact_identity_and_refuses_source_consumption() {
         )
         .is_err()
     );
-    let graph = super::graph::AuthenticatedGitTreeGraph::authenticate(&tree, entries).unwrap();
+    let graph = super::AuthenticatedGitTreeGraph::authenticate(&tree, entries).unwrap();
     for path in [b"dependency".to_vec(), b"dependency/build.omg".to_vec()] {
         assert!(select_regular_files(&graph, vec![path], LocalSourceLimits::default()).is_err());
     }
@@ -672,7 +672,7 @@ fn selected_manifest_directory_prefix_is_not_hidden_by_projection() {
     let listing = format!("040000 tree {child} -\t.GiTmOdUlEs\0");
     let entries =
         parse_git_tree_graph_entries(listing.as_bytes(), Path::new("repository")).unwrap();
-    let graph = super::graph::AuthenticatedGitTreeGraph::authenticate(&tree, entries).unwrap();
+    let graph = super::AuthenticatedGitTreeGraph::authenticate(&tree, entries).unwrap();
     let request = GitTreeProjectionRequest::new([], b".GiTmOdUlEs".to_vec());
     assert!(matches!(
         GitTreeProjectionPlan::from_graph(&graph, &request, LocalSourceLimits::default()),
@@ -703,7 +703,7 @@ fn repository_metadata_budget_does_not_expand_selected_source_budget() {
     let repository = Path::new("repository");
     let entries = parse_git_tree_graph_entries(listing.as_bytes(), repository).unwrap();
     assert_eq!(entries.len(), SOURCE_ENTRY_ABSOLUTE_LIMIT + 1);
-    let graph = super::graph::AuthenticatedGitTreeGraph::authenticate(&tree, entries).unwrap();
+    let graph = super::AuthenticatedGitTreeGraph::authenticate(&tree, entries).unwrap();
     let limits = LocalSourceLimits {
         max_entries: 1,
         ..LocalSourceLimits::default()

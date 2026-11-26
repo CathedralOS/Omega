@@ -458,7 +458,7 @@ fn equal_addresses_stale_observation_and_user_comparison_do_not_prove_record_ide
     // 1. Equal addresses do not substitute for a missing field identity.
     let equal_addresses = "
         data Point { x: i32; y: i32; }
-        machine same_point(a: Point, b: Point, addr_a: addr, addr_b: addr)
+        machine same_point(a: Point, b: Point, addr_a: address, addr_b: address)
         requires core\\Identity::<i32>(a.x, b.x)
         requires addr_a == addr_b
         ensures core\\Identity::<Point>(a, b)

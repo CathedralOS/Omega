@@ -14,7 +14,7 @@ fn invalid_operands() -> TerminalEffectRejection {
     TerminalEffectRejection::new("native scalar differs from its admitted logical/storage codec")
 }
 
-// The interpreter carries a host-returned `addr` only as an opaque value at a
+// The interpreter carries a host-returned `address` only as an opaque value at a
 // native import's bare scalar argument or result; the codecs below never
 // admit it, so it cannot reach interpreter storage or a record layout.
 pub(super) fn is_host_address_carrier(scalar: ScalarType) -> bool {

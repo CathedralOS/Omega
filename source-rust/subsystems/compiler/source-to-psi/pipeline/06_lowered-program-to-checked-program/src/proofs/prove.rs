@@ -177,7 +177,10 @@ fn covered(
         // A comparison of two closed terms is the kernel's to evaluate
         // (`Prover::closed`), whatever its relation.
         Proposition::IntegerMathEqual(left, right) => {
-            left == right || (closed_mathematical(left, fixed) && closed_mathematical(right, fixed))
+            left == right
+                || (closed_mathematical(left, fixed) && closed_mathematical(right, fixed))
+                || (covered(&Proposition::IntegerMathLessOrEqual(left.clone(), right.clone()), fixed, width)
+                    && covered(&Proposition::IntegerMathLessOrEqual(right.clone(), left.clone()), fixed, width))
         }
         Proposition::IntegerMathLessThan(left, right) => {
             closed_mathematical(left, fixed) && closed_mathematical(right, fixed)
@@ -1618,6 +1621,23 @@ impl<'a> Prover<'a> {
             .map(|()| primitive(proposition, judgment))
     }
 
+    fn antisymmetry(
+        &mut self,
+        goal: &Proposition,
+        forward: Proposition,
+        backward: Proposition,
+    ) -> Result<ProofNode, Unproven> {
+        let forward = self.prove(&forward)?;
+        let backward = self.prove(&backward)?;
+        Ok(node(
+            goal.clone(),
+            ProofRule::IntegerOrderAntisymmetry {
+                forward: Box::new(forward),
+                backward: Box::new(backward),
+            },
+        ))
+    }
+
     fn reflexive(&self, proposition: Proposition) -> Option<ProofNode> {
         decide_primitive(
             self.context,
@@ -2458,19 +2478,16 @@ impl<'a> Prover<'a> {
                 if let Some(proof) = self.closed(goal.clone()) {
                     return Ok(proof);
                 }
-                if !matches!(left.scalar_type(), ScalarType::Integer(_)) {
-                    return Err("equality of non-integers is proved only by a hypothesis");
+                if left.scalar_type() != right.scalar_type()
+                    || !left.scalar_type().as_integer().is_some_and(|integer| !integer.is_address())
+                {
+                    return Err("integer order antisymmetry requires one non-address integer carrier");
                 }
-                let forward = self.prove(&Proposition::LessOrEqual(left.clone(), right.clone()))?;
-                let backward =
-                    self.prove(&Proposition::LessOrEqual(right.clone(), left.clone()))?;
-                Ok(node(
-                    goal.clone(),
-                    ProofRule::IntegerOrderAntisymmetry {
-                        forward: Box::new(forward),
-                        backward: Box::new(backward),
-                    },
-                ))
+                self.antisymmetry(
+                    goal,
+                    Proposition::LessOrEqual(left.clone(), right.clone()),
+                    Proposition::LessOrEqual(right.clone(), left.clone()),
+                )
             }
             Proposition::IntegerMathLessOrEqual(left, right) => {
                 if let Some(proof) = self.closed(goal.clone()) {
@@ -2491,10 +2508,19 @@ impl<'a> Prover<'a> {
                 }
                 self.arithmetic(left, right)
             }
-            Proposition::IntegerMathEqual(..) => self
-                .reflexive(goal.clone())
-                .or_else(|| self.closed(goal.clone()))
-                .ok_or("non-reflexive mathematical equality over open terms"),
+            Proposition::IntegerMathEqual(left, right) => {
+                if let Some(proof) = self
+                    .reflexive(goal.clone())
+                    .or_else(|| self.closed(goal.clone()))
+                {
+                    return Ok(proof);
+                }
+                self.antisymmetry(
+                    goal,
+                    Proposition::IntegerMathLessOrEqual(left.clone(), right.clone()),
+                    Proposition::IntegerMathLessOrEqual(right.clone(), left.clone()),
+                )
+            }
             Proposition::IntegerMathLessThan(left, right) => self
                 .closed(goal.clone())
                 .or_else(|| self.strict_sum_bound(left, right))

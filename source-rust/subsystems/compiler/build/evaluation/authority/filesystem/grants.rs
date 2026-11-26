@@ -136,46 +136,6 @@ impl FilesystemGrantRoot {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FilesystemAuthorizedPath {
-    pub(crate) operand_ordinal: u8,
-    pub(crate) access: FilesystemGrantAccess,
-    pub(crate) root: FilesystemGrantRootIdentity,
-    pub(crate) relative_path: Vec<u8>,
-}
-
-impl FilesystemAuthorizedPath {
-    pub fn new(
-        operand_ordinal: u8,
-        access: FilesystemGrantAccess,
-        root: FilesystemGrantRootIdentity,
-        relative_path: Vec<u8>,
-    ) -> Self {
-        Self {
-            operand_ordinal,
-            access,
-            root,
-            relative_path,
-        }
-    }
-
-    pub const fn operand_ordinal(&self) -> u8 {
-        self.operand_ordinal
-    }
-
-    pub const fn access(&self) -> FilesystemGrantAccess {
-        self.access
-    }
-
-    pub const fn root(&self) -> FilesystemGrantRootIdentity {
-        self.root
-    }
-
-    pub fn relative_path(&self) -> &[u8] {
-        &self.relative_path
-    }
-}
-
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct FsGrants {
     pub read_roots: Vec<FilesystemGrantRoot>, // Trees granted for read-only access.
@@ -286,17 +246,6 @@ impl FilesystemMetadataField {
             | Self::Blocks512
             | Self::PreferredBlockSize => 64,
         }
-    }
-
-    pub const fn is_signed(self) -> bool {
-        matches!(
-            self,
-            Self::AccessTime
-                | Self::ModificationTime
-                | Self::ChangeTime
-                | Self::BirthTime
-                | Self::Size
-        )
     }
 }
 
@@ -481,38 +430,5 @@ impl FilesystemMetadataLayout {
 impl Default for FilesystemMetadataLayout {
     fn default() -> Self {
         Self::host()
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FilesystemRootedPathOperandResolution {
-    pub(crate) operand_ordinal: u8,
-    pub(crate) root: FilesystemGrantRootIdentity,
-    pub(crate) relative_path: Vec<u8>,
-}
-
-impl FilesystemRootedPathOperandResolution {
-    pub fn new(
-        operand_ordinal: u8,
-        root: FilesystemGrantRootIdentity,
-        relative_path: Vec<u8>,
-    ) -> Self {
-        Self {
-            operand_ordinal,
-            root,
-            relative_path,
-        }
-    }
-
-    pub const fn operand_ordinal(&self) -> u8 {
-        self.operand_ordinal
-    }
-
-    pub const fn root(&self) -> FilesystemGrantRootIdentity {
-        self.root
-    }
-
-    pub fn relative_path(&self) -> &[u8] {
-        &self.relative_path
     }
 }

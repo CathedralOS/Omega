@@ -1,39 +1,38 @@
-use omega\language\core\abs_f64;
-use spectrometer\model\Spectrum;
-use spectrometer\model\Regions;
+use spectrometer/model/model.omg;
+use {omega}/language/core/math.omg;
 
 // All lines within the inclusive tolerance remain candidates. Nearest is only
 // a deterministic preference: equal distances keep the earlier catalog ID.
 // A many-candidate region is reported as ambiguous, never asserted unique.
-public machine match_regions(spectrum: @Spectrum, regions: @mutable Regions) {
+public machine match_regions(spectrum: @|model|::Spectrum, regions: @mutable |model|::Regions) {
     transition { _ -> region(spectrum, regions, 0) }
-    machine region(spectrum: @Spectrum, regions: @mutable Regions, index: i32 in Wrapping) {
+    machine region(spectrum: @|model|::Spectrum, regions: @mutable |model|::Regions, index: i32 in Wrapping) {
         transition index >= 0 && index < regions.count && index < 8 {
             true -> reset(spectrum, regions, index),
             false -> finished()
         }
     }
-    machine reset(spectrum: @Spectrum, regions: @mutable Regions, index: i32 in Wrapping) {
+    machine reset(spectrum: @|model|::Spectrum, regions: @mutable |model|::Regions, index: i32 in Wrapping) {
         regions.candidates[index] = 0;
         regions.nearest[index] = 0;
         transition { _ -> line(spectrum, regions, index, 0, 10000000.0) }
     }
-    machine line(spectrum: @Spectrum, regions: @mutable Regions, index: i32 in Wrapping,
+    machine line(spectrum: @|model|::Spectrum, regions: @mutable |model|::Regions, index: i32 in Wrapping,
                reference: i32 in Wrapping, best: f64) {
         transition reference >= 0 && reference < 4 {
             true -> distance(spectrum, regions, index, reference, best),
             false -> region(spectrum, regions, index + 1)
         }
     }
-    machine distance(spectrum: @Spectrum, regions: @mutable Regions, index: i32 in Wrapping,
+    machine distance(spectrum: @|model|::Spectrum, regions: @mutable |model|::Regions, index: i32 in Wrapping,
                    reference: i32 in Wrapping, best: f64) {
-        let difference: f64 = abs_f64(regions.centroids[index] - spectrum.lines[reference]);
+        let difference: f64 = |math|::abs_f64(regions.centroids[index] - spectrum.lines[reference]);
         transition difference <= spectrum.tolerance {
             true -> candidate(spectrum, regions, index, reference, best, difference),
             false -> line(spectrum, regions, index, reference + 1, best)
         }
     }
-    machine candidate(spectrum: @Spectrum, regions: @mutable Regions, index: i32 in Wrapping,
+    machine candidate(spectrum: @|model|::Spectrum, regions: @mutable |model|::Regions, index: i32 in Wrapping,
                     reference: i32 in Wrapping, best: f64, difference: f64) {
         regions.candidates[index] = regions.candidates[index] + 1;
         transition difference < best {
@@ -41,7 +40,7 @@ public machine match_regions(spectrum: @Spectrum, regions: @mutable Regions) {
             false -> line(spectrum, regions, index, reference + 1, best)
         }
     }
-    machine nearer(spectrum: @Spectrum, regions: @mutable Regions, index: i32 in Wrapping,
+    machine nearer(spectrum: @|model|::Spectrum, regions: @mutable |model|::Regions, index: i32 in Wrapping,
                  reference: i32 in Wrapping, difference: f64) {
         regions.nearest[index] = reference + 1;
         transition { _ -> line(spectrum, regions, index, reference + 1, difference) }

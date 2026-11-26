@@ -11,11 +11,9 @@ against their relocation-free plan rows before checking import relocations,
 callback address materializations, or direct kernel instruction bytes.
 */
 
-use crate::BoundaryTraitSettlementParts;
 use crate::BoundaryTraitSettlementRole;
 use crate::NativeByteSpan;
 use crate::NativePhysicalChild;
-use crate::NativePhysicalChildParts;
 use crate::NativePhysicalOccurrence;
 use crate::NativeProviderExecution;
 use crate::NativeSelectedProviderPlan;
@@ -24,7 +22,7 @@ use crate::NormalizedForeignCallbackRelocations;
 use crate::OptimizedBoundaryOccurrence;
 use crate::PhysicalChildParent;
 use crate::PhysicalRelocationDisposition;
-use crate::physical::derivation::evidence::{physical_child_identity, ranges_overlap, span};
+use crate::physical::derivation::evidence::{ranges_overlap, seal_physical_child_parts, span};
 use crate::physical::derivation::fragment_custody::fragment_normalized_foreign_rejoin;
 use crate::physical::derivation::settlement_identity::admitted_provider_boundary_trait_settlement_identity;
 use crate::physical::fragment_publication::FragmentPublicationBinding;
@@ -41,7 +39,6 @@ use object_file::RelocationKind;
 use object_file::SectionKind;
 use object_file::invocation_relocation_origin;
 use optimization_core::NativeOptimizationProjectionIdentity;
-use semantic_vocabulary::ScalarType;
 use sha2::{Digest, Sha256};
 use target::Architecture;
 use target::NativeTarget;
@@ -177,7 +174,7 @@ pub(crate) fn derive_normalized_foreign_child(
         .scalar_parameters
         .iter()
         .copied()
-        .map(foreign_scalar_shape)
+        .map(calling_conventions::ValueShape::for_scalar)
         .collect::<Option<Vec<_>>>()
     else {
         return Ok(None);
@@ -257,7 +254,8 @@ pub(crate) fn derive_normalized_foreign_child(
             && physical.home.source_value == value.id
             && physical.home.scalar_type == declared.scalar_type =>
         {
-            let Some(shape) = foreign_scalar_shape(declared.scalar_type) else {
+            let Some(shape) = calling_conventions::ValueShape::for_scalar(declared.scalar_type)
+            else {
                 return Ok(None);
             };
             Some(shape)
@@ -275,7 +273,8 @@ pub(crate) fn derive_normalized_foreign_child(
             {
                 return Err("normalized foreign D41 child changed its scalar result custody");
             }
-            let Some(shape) = foreign_scalar_shape(declared.scalar_type) else {
+            let Some(shape) = calling_conventions::ValueShape::for_scalar(declared.scalar_type)
+            else {
                 return Ok(None);
             };
             if home.shape != shape {
@@ -341,9 +340,13 @@ pub(crate) fn derive_normalized_foreign_child(
                 || !retained_types
                     .iter()
                     .any(|item| item.id == result.structural_type)
-                || retained_types
-                    .iter()
-                    .any(|item| !module.types.structural_types.iter().any(|source| source == item))
+                || retained_types.iter().any(|item| {
+                    !module
+                        .types
+                        .structural_types
+                        .iter()
+                        .any(|source| source == item)
+                })
                 || !layout_matches
             {
                 return Err("normalized foreign D41 child changed its structural result custody");
@@ -1042,47 +1045,30 @@ pub(crate) fn derive_normalized_foreign_child(
         structural_arguments,
         &declaration.structural_parameters,
     );
-    let parent = PhysicalChildParent::BoundaryTraitSettlement(
-        BoundaryTraitSettlementParts {
+    let parent =
+        PhysicalChildParent::BoundaryTraitSettlement(crate::physical::BoundaryTraitSettlement {
             occurrence: *occurrence,
             requirement_identity: requirement_identity.to_owned(),
             selected_supply,
             target,
             role,
             identity: parent_identity,
-        }
-        .into(),
-    );
-    let machine_bytes_digest = byte_digests.machine;
-    let object_bytes_digest = byte_digests.object;
-    let final_image_bytes_digest = byte_digests.final_image;
-    let physical_occurrence = NativePhysicalOccurrence::Boundary(occurrence.identity());
-    let identity = physical_child_identity(
-        &parent,
-        projection,
-        physical_occurrence,
-        &intervals.machine,
-        &intervals.object,
-        &intervals.final_image,
-        machine_bytes_digest,
-        object_bytes_digest,
-        final_image_bytes_digest,
-        &relocation,
-    );
+        });
     Ok(Some(
-        NativePhysicalChildParts {
+        seal_physical_child_parts(
             parent,
             projection,
-            occurrence: physical_occurrence,
-            machine_spans: intervals.machine,
-            object_spans: intervals.object,
-            final_image_spans: intervals.final_image,
-            machine_bytes_digest,
-            object_bytes_digest,
-            final_image_bytes_digest,
+            NativePhysicalOccurrence::Boundary(occurrence.identity()),
+            intervals.machine,
+            intervals.object,
+            intervals.final_image,
+            [
+                byte_digests.machine,
+                byte_digests.object,
+                byte_digests.final_image,
+            ],
             relocation,
-            identity,
-        }
+        )
         .into(),
     ))
 }
@@ -1128,12 +1114,6 @@ fn admitted_callback_relocation<'a>(
         matching.addend,
         matching.kind,
     ))
-}
-
-pub(super) fn foreign_scalar_shape(
-    scalar_type: ScalarType,
-) -> Option<calling_conventions::ValueShape> {
-    calling_conventions::ValueShape::for_scalar(scalar_type)
 }
 
 #[allow(clippy::too_many_arguments)]

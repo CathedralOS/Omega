@@ -13,7 +13,6 @@ fn application_key(plan: &ProviderPlan) -> (&str, &str) {
 
 struct ProviderGrant<'grant> {
     index: usize,
-    authored: &'grant AuthoredRootGrant,
     application: Option<&'grant str>,
 }
 
@@ -32,32 +31,6 @@ pub fn selected_provider_grants<'grant>(
         .into_iter()
         .map(|grant| (grant.index, grant.application))
         .collect())
-}
-
-pub(super) fn match_provider_grants<'plan>(
-    candidates: &[&ProviderPlan],
-    selected: &'plan SelectedProviderPlanFacts,
-    authored: &[AuthoredRootGrant],
-) -> Result<Vec<&'plan ProviderPlan>, Diagnostic> {
-    let matched = resolve_provider_grants(selected, authored)?;
-    if matched.is_empty() {
-        return Ok(Vec::new());
-    }
-    let mut candidates = candidates.to_vec();
-    candidates.sort_unstable_by(|left, right| application_key(left).cmp(&application_key(right)));
-    matched.into_iter().map(|grant| {
-        let plan = &selected.plans()[grant.index];
-        let key = application_key(plan);
-        let first = candidates.partition_point(|row| application_key(row) < key);
-        let last = candidates.partition_point(|row| application_key(row) <= key);
-        if candidates[first..last].iter().filter(|candidate| **candidate == plan).count() != 1 {
-            return Err(Diagnostic::error(format!(
-                "root grant `{}` has no unique exact candidate for its selected provider application",
-                grant.authored.selector,
-            )));
-        }
-        Ok(plan)
-    }).collect()
 }
 
 fn resolve_provider_grants<'grant>(
@@ -99,23 +72,8 @@ fn resolve_provider_grants<'grant>(
         }
         resolved_authored.push(ProviderGrant {
             index: *index,
-            authored,
             application: application.as_deref(),
         });
     }
     Ok(resolved_authored)
-}
-
-pub(super) fn commitment(plan: &ProviderPlan) -> String {
-    format!(
-        "provider application: {} [{}] for {} on {}",
-        plan.provider_type,
-        plan.identities.text(plan.provider_application),
-        plan.schema
-            .root_application_identity()
-            .unwrap_or_else(|| plan
-                .schema
-                .identity_text(plan.schema.declaration.trait_name)),
-        plan.target,
-    )
 }

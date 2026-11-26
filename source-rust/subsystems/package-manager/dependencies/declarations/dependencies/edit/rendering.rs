@@ -5,7 +5,7 @@
 use crate::declarations::dependencies::read::{DependencySourceRequest, PackageSelection};
 use crate::declarations::editable_build::{
     DEPENDENCY_DESCRIPTION_TYPE_NAME, DEPENDENCY_REGISTRATION_NAME, FROM_SOURCE_HELPER_NAME,
-    WITH_ALIAS_HELPER_NAME,
+    REGISTRATION_TYPE_NAME, WITH_ALIAS_HELPER_NAME,
 };
 use build_declarations::BUILD_MODULE_NAME;
 
@@ -20,12 +20,17 @@ pub(crate) fn canonical_dependency_statement(
     let base = match request.explicit_alias() {
         Some(alias) => alias.as_str().to_owned(),
         None => local_base(match request {
+            DependencySourceRequest::Bundled { name, .. } => name.as_str(),
             DependencySourceRequest::Path { location, .. } => location,
             DependencySourceRequest::Git { repository, .. } => repository,
         }),
     };
     let registration = fresh_local(build_source, &format!("{base}_registration"));
     let source = match request {
+        DependencySourceRequest::Bundled { name, .. } => format!(
+            "Source::Bundled {{ name: {} }}",
+            source_text::display_literal_bytes(name.as_str().as_bytes())
+        ),
         DependencySourceRequest::Path { location, .. } => format!(
             "Source::Path {{ location: {} }}",
             source_text::display_literal_bytes(location.as_bytes())
@@ -68,8 +73,6 @@ pub(crate) fn canonical_dependency_statement(
         source_text::display_literal_bytes(alias.as_str().as_bytes())
     )
 }
-
-const REGISTRATION_TYPE_NAME: &str = "DependencyRegistration";
 
 // A snake_case identifier from a location's last path segment, so an
 // unaliased `../library/system` registration reads `system_registration`.

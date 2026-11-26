@@ -14,7 +14,7 @@ requires
 {
     tail: |backing|::VacantStorage;
     remaining: u64;
-    base: addr;
+    base: address;
     capacity: u64;
 }
 
@@ -24,7 +24,7 @@ ensures
     result.capacity == whole.length,
     result.remaining == whole.length
 {
-    let base: addr = whole.base;
+    let base: address = whole.base;
     let capacity: u64 = whole.length;
     Bump { tail: whole, remaining: capacity, base: base, capacity: capacity }
 }
@@ -103,7 +103,7 @@ ensures
     result.capacity == strategy.capacity,
     result.base == strategy.base
 {
-    let base: addr = strategy.base;
+    let base: address = strategy.base;
     let capacity: u64 = strategy.capacity;
     let whole: |backing|::VacantStorage = |range|::merge_vacant_extents(retired, strategy.tail);
     Bump { tail: whole, remaining: capacity, base: base, capacity: capacity }

@@ -67,10 +67,7 @@ fn qualified_type_names_reject_missing_path_members() {
         r"dungeon::Packet\Header",
     ] {
         let text = format!("data Packet {{ value: {name}; }}");
-        let tokens = Lexer::new(&text)
-            .tokenize()
-            .expect("tokenize invalid qualified type");
-        crate::parse_syntax_trees(&tokens).expect_err("every separator needs a member");
+        crate::tests::parse_error(&text);
     }
 }
 
@@ -79,33 +76,32 @@ fn a_module_path_can_end_in_a_static_member_or_generic_call() {
     let text = r"use net\wire\Packet::Header;
         data Record { field: net\wire\Packet::Header; }
         machine caller() { net\wire\send::<u8>(); }";
-    let tokens = Lexer::new(text).tokenize().unwrap();
-    crate::parse_syntax_trees(&tokens).unwrap();
+    crate::tests::parse_source(text);
 }
 
 #[test]
 fn value_casts_require_explicit_domain_entries() {
     for target in ["u64 in Wrapping", "u64 in Marker", "u64 in Family<true>"] {
         let source = format!("machine m(x: u64) {{ let y: {target} = x as {target}; }}");
-        let tokens = Lexer::new(&source).tokenize().unwrap();
-        let error = crate::parse_syntax_trees(&tokens).expect_err("retired value cast");
-        assert!(error.message.contains("`as T in D` is retired"), "{error:?}");
+        let error = crate::tests::parse_error(&source);
+        assert!(
+            error.message.contains("`as T in D` is retired"),
+            "{error:?}"
+        );
     }
     for source in [
         "machine m(x: u64) { let y: u64 in Marker = x as +Marker; }",
         "machine m(x: u8) { let y: u64 in Wrapping = x as u64 +Wrapping; }",
         "machine m(x: @u64) { let y: @u8 in Marker = x as @u8 in Marker; }",
     ] {
-        let tokens = Lexer::new(source).tokenize().unwrap();
-        crate::parse_syntax_trees(&tokens).expect("distinct type, cast, and recast grammar");
+        crate::tests::parse_source(source);
     }
 }
 
 #[test]
 fn file_qualifiers_can_start_types_and_operands_after_an_operator() {
     let text = "machine read(input: @|wire|::Packet) -> u8 { input.flags | |wire|::MASK }";
-    let tokens = Lexer::new(text).tokenize().unwrap();
-    let syntax = crate::parse_syntax_trees(&tokens).unwrap();
+    let syntax = crate::tests::parse_source(text);
     let contains_mask = syntax.expressions.iter_expressions().any(|(_, node)| {
         let syntax_trees::expression::ExpressionNode::Name { members, .. } = node else {
             return false;
@@ -119,6 +115,5 @@ fn file_qualifiers_can_start_types_and_operands_after_an_operator() {
     assert!(contains_mask);
 
     let invalid = text.replace("flags | |wire|", "flags||wire|");
-    let tokens = Lexer::new(&invalid).tokenize().unwrap();
-    crate::parse_syntax_trees(&tokens).expect_err("logical OR cannot open a file qualifier");
+    crate::tests::parse_error(&invalid);
 }

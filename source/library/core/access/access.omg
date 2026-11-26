@@ -7,40 +7,26 @@
 use omega\language\core\Extent;
 use omega\language\core\Extent::Granted;
 use omega\language\core\Extent::Vacant;
-use omega\language\core\AccessPlan;
-use omega\language\core\AccessFieldEntry;
-use omega\language\core\AccessCallerRule;
-use omega\language\core\AccessRegion;
-use omega\language\core\BoundaryReach;
-use omega\language\core\FieldAccess;
-use omega\language\core\Issuance;
-use omega\language\core\ResourceProfile;
-use omega\language\core\ResourceProfileSupply;
-use omega\language\core\AccessOutcome;
-use omega\language\core\AccessReturn;
-use omega\language\core\AccessBorrowReturn;
-use omega\language\core\AccessInitializationFailure;
-use omega\language\core\AccessExtraction;
-use omega\language\core\AccessLifecycle;
-use omega\language\core\reflect\TypeSchema;
-use omega\language\core\reflect\CallableInfo;
-use omega\language\core\reflect\FieldInfo;
+use {omega}/language/core/layout.omg;
+use {omega}/language/core/reflect/reflect.omg;
 
 // A new plan adds no reader/writer restriction, observation demand or reach.
 // Its explicit issuance choice is independent of those empty axes.
-public machine new_plan<'text>(schema: @TypeSchema<'text>, issuance: Issuance<'text>) -> AccessPlan<'text>
+public machine new_plan<'text>(
+    schema: @|reflect|::TypeSchema<'text>, issuance: |layout|::Issuance<'text>
+) -> |layout|::AccessPlan<'text>
 reaches none
 crashes none
 terminates
 ensures result.field_count == 0, result.reader_count == 0,
     result.writer_count == 0, result.reach.service_count == 0
 {
-    let fields: [AccessFieldEntry; 32];
-    let readers: [AccessCallerRule; 32];
-    let writers: [AccessCallerRule; 32];
-    let reach: BoundaryReach;
-    AccessPlan {
-        schema: TypeSchema { storage: schema.storage },
+    let fields: [|layout|::AccessFieldEntry; 32];
+    let readers: [|layout|::AccessCallerRule; 32];
+    let writers: [|layout|::AccessCallerRule; 32];
+    let reach: |layout|::BoundaryReach;
+    |layout|::AccessPlan {
+        schema: |reflect|::TypeSchema { storage: schema.storage },
         issuance: issuance,
         fields: fields, field_count: 0,
         readers: readers, reader_count: 0,
@@ -52,7 +38,11 @@ ensures result.field_count == 0, result.reader_count == 0,
 // Each call appends an independent restriction. Empty callers deny that
 // region, while no row adds no restriction. Parent and repeated rules remain
 // separate so normalization must intersect them rather than replace a row.
-public machine allow_readers<'text>(plan: @mutable AccessPlan<'text>, region: AccessRegion<'text>, callers: [CallableInfo<'text>])
+public machine allow_readers<'text>(
+    plan: @mutable |layout|::AccessPlan<'text>,
+    region: |layout|::AccessRegion<'text>,
+    callers: [|reflect|::CallableInfo<'text>]
+)
 reaches none
 crashes none
 terminates
@@ -60,21 +50,29 @@ requires plan.reader_count < 32
 ensures embed(plan.reader_count) == embed(old(plan.reader_count)) + 1
 {
     let index: u64 = plan.reader_count;
-    plan.readers[index] = AccessCallerRule { region: region, callers: callers };
+    plan.readers[index] = |layout|::AccessCallerRule { region: region, callers: callers };
     plan.reader_count = index + 1;
 }
 
-public machine allow_readers<'text>(plan: @mutable AccessPlan<'text>, field: FieldInfo<'text>, callers: [CallableInfo<'text>])
+public machine allow_readers<'text>(
+    plan: @mutable |layout|::AccessPlan<'text>,
+    field: |reflect|::FieldInfo<'text>,
+    callers: [|reflect|::CallableInfo<'text>]
+)
 reaches none
 crashes none
 terminates
 requires plan.reader_count < 32
 ensures embed(plan.reader_count) == embed(old(plan.reader_count)) + 1
 {
-    allow_readers(plan, AccessRegion::Field { field: field }, callers);
+    allow_readers(plan, |layout|::AccessRegion::Field { field: field }, callers);
 }
 
-public machine allow_writers<'text>(plan: @mutable AccessPlan<'text>, region: AccessRegion<'text>, callers: [CallableInfo<'text>])
+public machine allow_writers<'text>(
+    plan: @mutable |layout|::AccessPlan<'text>,
+    region: |layout|::AccessRegion<'text>,
+    callers: [|reflect|::CallableInfo<'text>]
+)
 reaches none
 crashes none
 terminates
@@ -82,23 +80,27 @@ requires plan.writer_count < 32
 ensures embed(plan.writer_count) == embed(old(plan.writer_count)) + 1
 {
     let index: u64 = plan.writer_count;
-    plan.writers[index] = AccessCallerRule { region: region, callers: callers };
+    plan.writers[index] = |layout|::AccessCallerRule { region: region, callers: callers };
     plan.writer_count = index + 1;
 }
 
-public machine allow_writers<'text>(plan: @mutable AccessPlan<'text>, field: FieldInfo<'text>, callers: [CallableInfo<'text>])
+public machine allow_writers<'text>(
+    plan: @mutable |layout|::AccessPlan<'text>,
+    field: |reflect|::FieldInfo<'text>,
+    callers: [|reflect|::CallableInfo<'text>]
+)
 reaches none
 crashes none
 terminates
 requires plan.writer_count < 32
 ensures embed(plan.writer_count) == embed(old(plan.writer_count)) + 1
 {
-    allow_writers(plan, AccessRegion::Field { field: field }, callers);
+    allow_writers(plan, |layout|::AccessRegion::Field { field: field }, callers);
 }
 
 // Appending preserves repeated demands for the same field. Normalization must
 // satisfy every row; construction does not replace an inherited restriction.
-public machine observe<'text>(plan: @mutable AccessPlan<'text>, field: FieldInfo<'text>, access: FieldAccess)
+public machine observe<'text>(plan: @mutable |layout|::AccessPlan<'text>, field: |reflect|::FieldInfo<'text>, access: |layout|::FieldAccess)
 reaches none
 crashes none
 terminates
@@ -106,16 +108,16 @@ requires plan.field_count < 32
 ensures embed(plan.field_count) == embed(old(plan.field_count)) + 1
 {
     let index: u64 = plan.field_count;
-    plan.fields[index] = AccessFieldEntry { field: field, access: access };
+    plan.fields[index] = |layout|::AccessFieldEntry { field: field, access: access };
     plan.field_count = index + 1;
 }
 
-public machine with_reach(plan: AccessPlan, reach: BoundaryReach) -> AccessPlan
+public machine with_reach(plan: |layout|::AccessPlan, reach: |layout|::BoundaryReach) -> |layout|::AccessPlan
 reaches none
 crashes none
 terminates
 {
-    let mutable updated: AccessPlan = plan;
+    let mutable updated: |layout|::AccessPlan = plan;
     updated.reach = reach;
     updated
 }
@@ -144,19 +146,19 @@ public boundary machine view_resident_mut<P, Source, View>(
 // or a constructed ResourceProfile is not a substitute for either input.
 public machine view_extent<'storage, View, Role>(
     storage: @'storage Extent in Granted
-) -> AccessOutcome<
-    @'storage View, AccessBorrowReturn, AccessInitializationFailure
+) -> |layout|::AccessOutcome<
+    @'storage View, |layout|::AccessBorrowReturn, |layout|::AccessInitializationFailure
 >
 {
-    let profile: ResourceProfile = ResourceProfileSupply::<Role>::profile(storage);
+    let profile: |layout|::ResourceProfile = |layout|::ResourceProfileSupply::<Role>::profile(storage);
     view_from_profile::<View, Role>(storage, @profile)
 }
 
 boundary machine view_from_profile<'storage, View, Role>(
     storage: @'storage Extent in Granted,
-    profile: @ResourceProfile
-) -> AccessOutcome<
-    @'storage View, AccessBorrowReturn, AccessInitializationFailure
+    profile: @|layout|::ResourceProfile
+) -> |layout|::AccessOutcome<
+    @'storage View, |layout|::AccessBorrowReturn, |layout|::AccessInitializationFailure
 >;
 
 // The exclusive counterpart carries the same interpretation and original
@@ -164,19 +166,19 @@ boundary machine view_from_profile<'storage, View, Role>(
 // geometry-based permission, allows the placement's admitted writes.
 public machine view_extent_mut<'storage, View, Role>(
     storage: @'storage mutable Extent in Granted
-) -> AccessOutcome<
-    @'storage mutable View, AccessBorrowReturn, AccessInitializationFailure
+) -> |layout|::AccessOutcome<
+    @'storage mutable View, |layout|::AccessBorrowReturn, |layout|::AccessInitializationFailure
 >
 {
-    let profile: ResourceProfile = ResourceProfileSupply::<Role>::profile(storage);
+    let profile: |layout|::ResourceProfile = |layout|::ResourceProfileSupply::<Role>::profile(storage);
     view_mut_from_profile::<View, Role>(storage, @profile)
 }
 
 boundary machine view_mut_from_profile<'storage, View, Role>(
     storage: @'storage mutable Extent in Granted,
-    profile: @ResourceProfile
-) -> AccessOutcome<
-    @'storage mutable View, AccessBorrowReturn, AccessInitializationFailure
+    profile: @|layout|::ResourceProfile
+) -> |layout|::AccessOutcome<
+    @'storage mutable View, |layout|::AccessBorrowReturn, |layout|::AccessInitializationFailure
 >;
 
 // These exact private machines are explicit content-establishment routes.
@@ -186,17 +188,17 @@ boundary machine view_mut_from_profile<'storage, View, Role>(
 boundary machine initialize_from_profile<P, T, Storage, Role>(
     storage: Extent in Granted & Vacant,
     value: T,
-    profile: @ResourceProfile
-) -> AccessOutcome<
+    profile: @|layout|::ResourceProfile
+) -> |layout|::AccessOutcome<
     Extent in Granted & Resident<P, T>,
-    AccessReturn<Extent in Granted & Vacant, T>,
-    AccessInitializationFailure
+    |layout|::AccessReturn<Extent in Granted & Vacant, T>,
+    |layout|::AccessInitializationFailure
 >;
 
 boundary machine extract_resident<P, T, Storage, Role>(
     storage: Extent in Granted & Resident<P, T>,
-    profile: @ResourceProfile
-) -> AccessExtraction<Extent in Granted & Vacant, T>;
+    profile: @|layout|::ResourceProfile
+) -> |layout|::AccessExtraction<Extent in Granted & Vacant, T>;
 
 // The owned operation captures both inputs before its ordinary selected supply
 // call. Ready retains the original range and the complete value's custody;
@@ -206,13 +208,13 @@ boundary machine extract_resident<P, T, Storage, Role>(
 public machine initialize_owned<P, T>(
     storage: Extent in Granted & Vacant,
     value: T
-) -> AccessOutcome<
+) -> |layout|::AccessOutcome<
     Extent in Granted & Resident<P, T>,
-    AccessReturn<Extent in Granted & Vacant, T>,
-    AccessInitializationFailure
+    |layout|::AccessReturn<Extent in Granted & Vacant, T>,
+    |layout|::AccessInitializationFailure
 >
 {
-    AccessLifecycle::<P, T>::initialize(storage, value)
+    |layout|::AccessLifecycle::<P, T>::initialize(storage, value)
 }
 
 // Whole-value extraction ends this exact resident occurrence. Active loans or
@@ -221,10 +223,10 @@ public machine initialize_owned<P, T>(
 public machine move_out_owned<P, T>(
     storage: Extent in Granted & Resident<P, T>
 )
-    -> AccessReturn<Extent in Granted & Vacant, T>
+    -> |layout|::AccessReturn<Extent in Granted & Vacant, T>
 {
-    transition AccessLifecycle::<P, T>::move_out(storage) {
-        AccessExtraction::Moved { storage as vacant, value } ->
-            AccessReturn { source: vacant, custody: value }
+    transition |layout|::AccessLifecycle::<P, T>::move_out(storage) {
+        |layout|::AccessExtraction::Moved { storage as vacant, value } ->
+            |layout|::AccessReturn { source: vacant, custody: value }
     }
 }

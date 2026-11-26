@@ -1,6 +1,7 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/numeric_conversion.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // A two-digit calculator -- a small but complete app that ties together everything
 // needed to read and evaluate input. It parses the expression "12+34": the operands
 // are read from the text through named widening, subtracting '0', and combining
@@ -18,8 +19,6 @@ requires
 domain [u8; 5]::Utf8
 requires
     valid_utf8(self);
-use system\Console;
-use omega\language\core\widen_u8_to_i32;
 
 data Main {
     text: [u8; 5] in Utf8;
@@ -32,23 +31,23 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("calculator: parse and evaluate the expression \"12+34\" from text bytes");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("calculator: parse and evaluate the expression \"12+34\" from text bytes");
     main.text = "12+34";
 
     // First operand from text[0..1].
-    main.a = widen_u8_to_i32(main.text[0]) as i32 +Wrapping;
+    main.a = |numeric_conversion|::widen_u8_to_i32(main.text[0]) as i32 +Wrapping;
     main.a = main.a - 48;
     main.a = main.a * 10;
-    main.tmp = widen_u8_to_i32(main.text[1]) as i32 +Wrapping;
+    main.tmp = |numeric_conversion|::widen_u8_to_i32(main.text[1]) as i32 +Wrapping;
     main.tmp = main.tmp - 48;
     main.a = main.a + main.tmp;
 
     // Second operand from text[3..4].
-    main.b = widen_u8_to_i32(main.text[3]) as i32 +Wrapping;
+    main.b = |numeric_conversion|::widen_u8_to_i32(main.text[3]) as i32 +Wrapping;
     main.b = main.b - 48;
     main.b = main.b * 10;
-    main.tmp = widen_u8_to_i32(main.text[4]) as i32 +Wrapping;
+    main.tmp = |numeric_conversion|::widen_u8_to_i32(main.text[4]) as i32 +Wrapping;
     main.tmp = main.tmp - 48;
     main.b = main.b + main.tmp;
 
@@ -65,21 +64,21 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     machine do_add(main: @mutable Main) { main.result = main.a + main.b; transition { _ -> block emit(main) } }
     machine do_sub(main: @mutable Main) { main.result = main.a - main.b; transition { _ -> block emit(main) } }
     machine unknown(main: @mutable Main) {
-        Console::write_line("FAIL: operator byte not '+' or '-' -- unknown operator (exit 0)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(0);
+        |console|::Console::write_line("FAIL: operator byte not '+' or '-' -- unknown operator (exit 0)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(0);
     }
     machine emit(main: @mutable Main) {
-        Console::write_line("result: the evaluated expression, 12+34 = 46 (the exit code)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(main.result as i32);
+        |console|::Console::write_line("result: the evaluated expression, 12+34 = 46 (the exit code)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(main.result as i32);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

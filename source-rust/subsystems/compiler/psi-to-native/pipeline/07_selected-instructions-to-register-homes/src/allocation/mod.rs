@@ -41,48 +41,6 @@ fresh liveness, live-range, and legality checks before its homes are accepted.
   - `preservation.rs`: allocation-visible callee-saved register modification discovery and replay.
 */
 
-macro_rules! receipt_accessor_rows {
-    (ref $name:ident { $( $(#[$meta:meta])* $field:ident : $ty:ty ),* $(,)? }) => {
-        $( $(#[$meta])* pub const fn $field(&self) -> $ty { self.$field } )*
-    };
-    (borrow $name:ident { $( $(#[$meta:meta])* $field:ident : $ty:ty ),* $(,)? }) => {
-        $( $(#[$meta])* pub const fn $field(&self) -> $ty { &self.$field } )*
-    };
-    ($name:ident { $( $(#[$meta:meta])* $field:ident : $ty:ty ),* $(,)? }) => {
-        $( $(#[$meta])* pub const fn $field(self) -> $ty { self.$field } )*
-    };
-}
-
-macro_rules! copy_receipt {
-    (
-        $(#[$meta:meta])*
-        $vis:vis struct $name:ident {
-            $($fvis:vis $field:ident : $ty:ty),* $(,)?
-        }
-    ) => {
-        $(#[$meta])*
-        $vis struct $name {
-            $($fvis $field: $ty),*
-        }
-
-        impl $name {
-            receipt_accessor_rows!($name { $($field: $ty),* });
-        }
-    };
-}
-
-macro_rules! stage_error_display {
-    ($error:ty, $stage:literal) => {
-        impl std::fmt::Display for $error {
-            fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                write!(formatter, "{}: {self:?}", $stage)
-            }
-        }
-
-        impl std::error::Error for $error {}
-    };
-}
-
 use selected_instruction_analyses as analyses;
 #[allow(unused_imports)]
 pub(crate) use selected_instruction_analyses::*;

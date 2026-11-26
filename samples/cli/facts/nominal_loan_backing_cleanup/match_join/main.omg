@@ -3,7 +3,7 @@
 // Expected output contains: ODOD
 
 // This fixture explicitly assumes finite, normal completion of one byte write
-// from its reviewed external provider. It does not strengthen system\Console.
+// from its reviewed external provider. It does not strengthen Console in {system}/console.omg.
 public boundary trait Console {
     machine write_byte(byte: i32)
     reaches Console

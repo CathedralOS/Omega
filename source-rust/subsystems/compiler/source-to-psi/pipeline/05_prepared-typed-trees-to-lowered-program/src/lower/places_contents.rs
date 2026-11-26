@@ -244,7 +244,7 @@ impl Lowering<'_> {
                             .all(|invariant| invariant.predicate == Proposition::Truth);
                         (
                             self.read_only_default_indices(machine, types),
-                            formal_fields::observed(machine, types, unconditional),
+                            formal_fields::observed(machine, types, unconditional, self.signatures),
                         )
                     });
                     if fields.excludes(root, path) {

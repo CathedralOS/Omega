@@ -1,16 +1,10 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use domain/logic/logic.omg;
+use domain/report/report.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Declared synthetic instrument model: A sensor fault, B power fault,
 // C shared environmental cause. Input contains complete joint weights.
-use system\ByteRead;
-use system\Console;
-use domain\logic;
-use domain\logic\fails;
-use domain\logic\minimal_cut;
-use domain\logic\force_event;
-use domain\report;
-use domain\report\number;
 
 data Main {
     input: [i32; 13];
@@ -28,7 +22,7 @@ data Main {
     event: i32;
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     transition { _ -> block read(main) }
     machine read(main: @mutable Main) {
         transition main.bytes >= 0 && main.bytes < 256 {
@@ -39,11 +33,11 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     machine byte(main: @mutable Main)
     requires main.bytes >= 0 && main.bytes < 256 {
         main.bytes = main.bytes + 1;
-        let observed: ByteRead = block Console::read_byte();
+        let observed: |console|::ByteRead = block |console|::Console::read_byte();
         transition observed {
-            ByteRead::Error -> invalid(main),
-            ByteRead::Eof -> end(main),
-            ByteRead::Byte { value } -> block classify(main, value)
+            |console|::ByteRead::Error -> invalid(main),
+            |console|::ByteRead::Eof -> end(main),
+            |console|::ByteRead::Byte { value } -> block classify(main, value)
         }
     }
     machine classify(main: @mutable Main, value: i32) {
@@ -154,7 +148,7 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     machine weight(main: @mutable Main)
     requires main.index >= 0 && main.index < 8 {
         main.total = main.total + (main.input[main.index + 5] as i32 +Wrapping);
-        transition fails(@main.terms, main.input[0], main.index) {
+        transition |logic|::fails(@main.terms, main.input[0], main.index) {
             true -> failed_weight(main),
             _ -> next_weight(main)
         }
@@ -176,9 +170,9 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         }
     }
     machine report(main: @mutable Main) {
-        Console::write("failure_ppm=");
-        number(main.failure as i32);
-        Console::write_line("/1000000");
+        |console|::Console::write("failure_ppm=");
+        |report|::number(main.failure as i32);
+        |console|::Console::write_line("/1000000");
         main.index = 0;
         transition { _ -> cuts(main) }
     }
@@ -190,15 +184,15 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
     machine cut(main: @mutable Main)
     requires main.index >= 0 && main.index < 8 {
-        transition minimal_cut(@main.terms, main.input[0], main.index) {
+        transition |logic|::minimal_cut(@main.terms, main.input[0], main.index) {
             true -> emit_cut(main),
             _ -> next_cut(main)
         }
     }
     machine emit_cut(main: @mutable Main) {
-        Console::write("cut_mask=");
-        number(main.index);
-        Console::write_line("");
+        |console|::Console::write("cut_mask=");
+        |report|::number(main.index);
+        |console|::Console::write_line("");
         transition { _ -> next_cut(main) }
     }
     machine next_cut(main: @mutable Main)
@@ -231,8 +225,8 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
     machine audit(main: @mutable Main)
     requires main.index >= 0 && main.index < 8 {
-        let off: i32 = force_event(main.index, main.event, false);
-        let on: i32 = force_event(main.index, main.event, true);
+        let off: i32 = |logic|::force_event(main.index, main.event, false);
+        let on: i32 = |logic|::force_event(main.index, main.event, true);
         transition off != main.index {
             true -> marginal(main, off, on),
             _ -> repair(main, off, on)
@@ -244,7 +238,7 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         transition { _ -> repair(main, off, on) }
     }
     machine repair(main: @mutable Main, off: i32, on: i32) {
-        transition fails(@main.terms, main.input[0], off) {
+        transition |logic|::fails(@main.terms, main.input[0], off) {
             true -> add_repair(main, on),
             _ -> force(main, on)
         }
@@ -255,7 +249,7 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         transition { _ -> force(main, on) }
     }
     machine force(main: @mutable Main, on: i32) {
-        transition fails(@main.terms, main.input[0], on) {
+        transition |logic|::fails(@main.terms, main.input[0], on) {
             true -> add_force(main),
             _ -> next_audit(main)
         }
@@ -272,12 +266,12 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
     machine emit_audit(main: @mutable Main)
     requires main.event >= 0 && main.event < 3 {
-        Console::write("event="); number(main.event);
-        Console::write(" marginal_ppm="); number(main.marginal as i32);
-        Console::write(" repaired_ppm="); number(main.repaired as i32);
-        Console::write(" reduction_ppm="); number((main.failure - main.repaired) as i32);
-        Console::write(" forced_ppm="); number(main.forced as i32);
-        Console::write_line("");
+        |console|::Console::write("event="); |report|::number(main.event);
+        |console|::Console::write(" marginal_ppm="); |report|::number(main.marginal as i32);
+        |console|::Console::write(" repaired_ppm="); |report|::number(main.repaired as i32);
+        |console|::Console::write(" reduction_ppm="); |report|::number((main.failure - main.repaired) as i32);
+        |console|::Console::write(" forced_ppm="); |report|::number(main.forced as i32);
+        |console|::Console::write_line("");
         // Refresh the Exact cursor bound after service calls, directly on the
         // increment edge. A state arrival fact is not a post-call guarantee.
         transition main.event >= 0 && main.event < 3 {
@@ -291,17 +285,17 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         transition { _ -> event_loop(main) }
     }
     machine done(main: @mutable Main) {
-        Console::write_line("AUDIT COMPLETE");
-        ProcessExit::exit_process(0);
+        |console|::Console::write_line("AUDIT COMPLETE");
+        |process_exit|::ProcessExit::exit_process(0);
     }
     machine invalid(main: @mutable Main) {
-        Console::write_line("INVALID INPUT");
-        ProcessExit::exit_process(2);
+        |console|::Console::write_line("INVALID INPUT");
+        |process_exit|::ProcessExit::exit_process(2);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

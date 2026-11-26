@@ -572,12 +572,7 @@ impl ProductQueryInputs {
                                     .path
                                     .starts_with(storage.default_package_root())
                                     .then_some(storage.default_package_root())
-                            })
-                            .ok_or_else(|| {
-                                vec![Diagnostic::error(
-                                    "Product query file has no admitted package owner",
-                                )]
-                            })?;
+                            });
                         file.standalone(local, mounted, &storage.filesystem)?
                     };
                     let selected = match selected {

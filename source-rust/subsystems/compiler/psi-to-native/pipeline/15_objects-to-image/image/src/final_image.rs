@@ -7,11 +7,28 @@ import data into classified regions or explicit gap digests so container
 verifiers can prove complete byte custody.
 */
 
+macro_rules! region_rows {
+    ($($row:ty),+) => {$(
+        impl Region for $row {
+            fn section_offset(&self) -> usize {
+                self.section_offset
+            }
+            fn byte_count(&self) -> usize {
+                self.byte_count
+            }
+            fn symbol(&self) -> &str {
+                &self.symbol
+            }
+        }
+    )+};
+}
+
 mod data_regions {
+    use crate::region_extent::{ExtentKind, PlacedGap, PlacedRegion, Region};
     use crate::{FinalImage, FinalImageLayout};
     use diagnostics::Diagnostic;
 
-    use super::executable_regions::{byte_report_fingerprint, digest_bytes, fingerprint_bytes};
+    use super::executable_regions::byte_report_fingerprint;
 
     image_digest!(FinalInitializedDataDigest);
     image_digest!(PlacedDataRegionBytesDigest);
@@ -19,6 +36,18 @@ mod data_regions {
     image_digest!(PlacedDataRegionInventoryDigest);
 
     const PLACED_DATA_REGION_BYTES_DOMAIN: &[u8] = b"omega.placed-data-region-bytes.sha256.v1\0";
+
+    pub(crate) const DATA: ExtentKind = ExtentKind {
+        name: "initialized-data",
+        noun: "data",
+        whole: "",
+        exceeds: |length| format!("exceeds the {length}-byte extent"),
+        preceding: "a preceding region",
+        extent_domain: b"omega.final-initialized-data.sha256.v1\0",
+        region_domain: PLACED_DATA_REGION_BYTES_DOMAIN,
+        gap_domain: b"omega.placed-data-gap-bytes.sha256.v1\0",
+        inventory_domain: b"omega.placed-data-region-inventory.sha256.v1\0",
+    };
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum FinalDataRegionOrigin {
@@ -46,14 +75,7 @@ mod data_regions {
         pub symbol: String,
     }
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub struct PlacedDataGap {
-        pub section_offset: usize,
-        pub address: u64,
-        pub byte_count: usize,
-        pub byte_digest: PlacedDataGapBytesDigest,
-        pub byte_report_fingerprint: u64,
-    }
+    pub type PlacedDataGap = PlacedGap<PlacedDataGapBytesDigest>;
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct PlacedDataRegionInventory {
@@ -65,6 +87,28 @@ mod data_regions {
         pub inventory_report_fingerprint: u64,
         pub regions: Vec<PlacedDataRegion>,
         pub unclassified_gaps: Vec<PlacedDataGap>,
+    }
+
+    region_rows!(FinalDataRegion, PlacedDataRegion);
+
+    impl PlacedRegion for PlacedDataRegion {
+        type Digest = PlacedDataRegionBytesDigest;
+        fn address(&self) -> u64 {
+            self.address
+        }
+        fn byte_digest(&self) -> Self::Digest {
+            self.byte_digest
+        }
+        fn byte_report_fingerprint(&self) -> u64 {
+            self.byte_report_fingerprint
+        }
+        fn origin_tag(&self) -> u8 {
+            match self.origin {
+                FinalDataRegionOrigin::CompilerData => 1,
+                FinalDataRegionOrigin::ImportBindingSlot => 2,
+                FinalDataRegionOrigin::AlignmentPadding => 3,
+            }
+        }
     }
 
     impl PlacedDataRegionInventory {
@@ -93,105 +137,43 @@ mod data_regions {
         extent_name: &'static str,
     ) -> Result<PlacedDataRegionInventory, Diagnostic> {
         regions.sort_by_key(|region| region.section_offset);
-
-        let mut placed = Vec::with_capacity(regions.len());
-        let mut unclassified_gaps = Vec::new();
-        let mut cursor = 0usize;
-        for region in regions {
-            if region.byte_count == 0 {
-                return Err(Diagnostic::error(format!(
-                    "final {extent_name} region `{}` has zero width",
-                    region.symbol
-                )));
-            }
-            let end = region
-                .section_offset
-                .checked_add(region.byte_count)
-                .ok_or_else(|| {
-                    Diagnostic::error(format!(
-                        "final {extent_name} region `{}` range overflows",
-                        region.symbol
-                    ))
-                })?;
-            if end > extent_bytes.len() {
-                return Err(Diagnostic::error(format!(
-                    "final {extent_name} region `{}` [{}..{}) exceeds the {}-byte extent",
-                    region.symbol,
-                    region.section_offset,
-                    end,
-                    extent_bytes.len()
-                )));
-            }
-            if region.section_offset < cursor {
-                return Err(Diagnostic::error(format!(
-                    "final {extent_name} region `{}` overlaps a preceding region",
-                    region.symbol
-                )));
-            }
-            if region.section_offset > cursor {
-                unclassified_gaps.push(placed_gap_from_bytes(
-                    base_address,
-                    extent_bytes,
-                    cursor,
-                    region.section_offset - cursor,
-                )?);
-            }
-            let address = base_address
-                .checked_add(region.section_offset as u64)
-                .ok_or_else(|| {
-                    Diagnostic::error(format!("final {extent_name} region address overflows"))
-                })?;
-            cursor = end;
-            let region_bytes = &extent_bytes[region.section_offset..end];
-            placed.push(PlacedDataRegion {
+        let (regions, unclassified_gaps) = DATA.place(
+            extent_name,
+            extent_bytes,
+            base_address,
+            regions,
+            |region, address, byte_digest, byte_report_fingerprint| PlacedDataRegion {
                 origin: region.origin,
                 section_offset: region.section_offset,
                 address,
                 byte_count: region.byte_count,
-                byte_digest: PlacedDataRegionBytesDigest::from_digest(digest_bytes(
-                    PLACED_DATA_REGION_BYTES_DOMAIN,
-                    region_bytes,
-                )),
-                byte_report_fingerprint: byte_report_fingerprint(region_bytes),
+                byte_digest,
+                byte_report_fingerprint,
                 symbol: region.symbol,
-            });
-        }
-        if cursor < extent_bytes.len() {
-            unclassified_gaps.push(placed_gap_from_bytes(
-                base_address,
-                extent_bytes,
-                cursor,
-                extent_bytes.len() - cursor,
-            )?);
-        }
-
-        let data_digest = FinalInitializedDataDigest::from_digest(digest_bytes(
-            b"omega.final-initialized-data.sha256.v1\0",
-            extent_bytes,
-        ));
+            },
+        )?;
+        let data_digest = DATA.extent_digest(extent_bytes);
         let data_report_fingerprint = byte_report_fingerprint(extent_bytes);
-        let inventory_report_fingerprint = data_inventory_report_fingerprint(
-            base_address,
-            extent_bytes.len(),
-            data_report_fingerprint,
-            &placed,
-            &unclassified_gaps,
-        );
-        let inventory_digest = data_inventory_digest(
-            base_address,
-            extent_bytes.len(),
-            data_digest,
-            &placed,
-            &unclassified_gaps,
-        );
         Ok(PlacedDataRegionInventory {
             data_address: base_address,
             data_byte_count: extent_bytes.len(),
             data_digest,
             data_report_fingerprint,
-            inventory_digest,
-            inventory_report_fingerprint,
-            regions: placed,
+            inventory_digest: DATA.inventory_digest(
+                base_address,
+                extent_bytes.len(),
+                data_digest,
+                &regions,
+                &unclassified_gaps,
+            ),
+            inventory_report_fingerprint: crate::region_extent::inventory_report_fingerprint(
+                base_address,
+                extent_bytes.len(),
+                data_report_fingerprint,
+                &regions,
+                &unclassified_gaps,
+            ),
+            regions,
             unclassified_gaps,
         })
     }
@@ -200,250 +182,30 @@ mod data_regions {
         inventory: &PlacedDataRegionInventory,
         final_data_bytes: &[u8],
     ) -> Result<(), Diagnostic> {
-        if inventory.data_byte_count != final_data_bytes.len() {
-            return Err(Diagnostic::error(format!(
-                "final initialized-data inventory records {} data byte(s), but final data contains {}",
-                inventory.data_byte_count,
-                final_data_bytes.len()
-            )));
-        }
-        let data_digest = FinalInitializedDataDigest::from_digest(digest_bytes(
-            b"omega.final-initialized-data.sha256.v1\0",
-            final_data_bytes,
-        ));
-        if inventory.data_digest != data_digest {
-            return Err(Diagnostic::error(
-                "final initialized-data inventory digest does not match final data",
-            ));
-        }
-        let data_report_fingerprint = byte_report_fingerprint(final_data_bytes);
-        if inventory.data_report_fingerprint != data_report_fingerprint {
-            return Err(Diagnostic::error(
-                "final initialized-data inventory fingerprint does not match final data",
-            ));
-        }
-
-        let mut expected_gaps = Vec::new();
-        let mut cursor = 0usize;
-        for region in &inventory.regions {
-            if region.byte_count == 0 {
-                return Err(Diagnostic::error(format!(
-                    "placed initialized-data region `{}` has zero width",
-                    region.symbol
-                )));
-            }
-            let end = region
-                .section_offset
-                .checked_add(region.byte_count)
-                .filter(|end| *end <= final_data_bytes.len())
-                .ok_or_else(|| {
-                    Diagnostic::error(format!(
-                        "placed initialized-data region `{}` exceeds final data",
-                        region.symbol
-                    ))
-                })?;
-            if region.section_offset < cursor {
-                return Err(Diagnostic::error(format!(
-                    "placed initialized-data region `{}` is out of order or overlaps a preceding region",
-                    region.symbol
-                )));
-            }
-            if region.section_offset > cursor {
-                expected_gaps.push(placed_gap_from_bytes(
-                    inventory.data_address,
-                    final_data_bytes,
-                    cursor,
-                    region.section_offset - cursor,
-                )?);
-            }
-            let expected_address = inventory
-                .data_address
-                .checked_add(region.section_offset as u64)
-                .ok_or_else(|| {
-                    Diagnostic::error("placed initialized-data region address overflows")
-                })?;
-            if region.address != expected_address {
-                return Err(Diagnostic::error(format!(
-                    "placed initialized-data region `{}` address does not match its final data offset",
-                    region.symbol
-                )));
-            }
-            let region_bytes = &final_data_bytes[region.section_offset..end];
-            let expected_region_digest = PlacedDataRegionBytesDigest::from_digest(digest_bytes(
-                PLACED_DATA_REGION_BYTES_DOMAIN,
-                region_bytes,
-            ));
-            if region.byte_digest != expected_region_digest {
-                return Err(Diagnostic::error(format!(
-                    "placed initialized-data region `{}` byte digest does not match final data",
-                    region.symbol
-                )));
-            }
-            if region.byte_report_fingerprint != byte_report_fingerprint(region_bytes) {
-                return Err(Diagnostic::error(format!(
-                    "placed initialized-data region `{}` byte fingerprint does not match final data",
-                    region.symbol
-                )));
-            }
-            cursor = end;
-        }
-        if cursor < final_data_bytes.len() {
-            expected_gaps.push(placed_gap_from_bytes(
-                inventory.data_address,
-                final_data_bytes,
-                cursor,
-                final_data_bytes.len() - cursor,
-            )?);
-        }
-        if inventory.unclassified_gaps != expected_gaps {
-            return Err(Diagnostic::error(
-                "final initialized-data inventory gap partition does not match final data regions",
-            ));
-        }
-
-        let inventory_report_fingerprint = data_inventory_report_fingerprint(
-            inventory.data_address,
-            inventory.data_byte_count,
-            inventory.data_report_fingerprint,
-            &inventory.regions,
-            &inventory.unclassified_gaps,
-        );
-        if inventory.inventory_report_fingerprint != inventory_report_fingerprint {
-            return Err(Diagnostic::error(
-                "final initialized-data inventory fingerprint does not match its retained rows",
-            ));
-        }
-        let inventory_digest = data_inventory_digest(
+        DATA.replay(
             inventory.data_address,
             inventory.data_byte_count,
             inventory.data_digest,
+            inventory.data_report_fingerprint,
             &inventory.regions,
             &inventory.unclassified_gaps,
-        );
-        if inventory.inventory_digest != inventory_digest {
-            return Err(Diagnostic::error(
-                "final initialized-data inventory digest does not match its retained rows",
-            ));
-        }
-        Ok(())
-    }
-
-    fn placed_gap_from_bytes(
-        data_address: u64,
-        data_bytes: &[u8],
-        section_offset: usize,
-        byte_count: usize,
-    ) -> Result<PlacedDataGap, Diagnostic> {
-        let address = data_address
-            .checked_add(section_offset as u64)
-            .ok_or_else(|| Diagnostic::error("final initialized-data gap address overflows"))?;
-        Ok(PlacedDataGap {
-            section_offset,
-            address,
-            byte_count,
-            byte_digest: PlacedDataGapBytesDigest::from_digest(digest_bytes(
-                b"omega.placed-data-gap-bytes.sha256.v1\0",
-                &data_bytes[section_offset..section_offset + byte_count],
-            )),
-            byte_report_fingerprint: byte_report_fingerprint(
-                &data_bytes[section_offset..section_offset + byte_count],
-            ),
-        })
-    }
-
-    fn data_inventory_digest(
-        data_address: u64,
-        data_byte_count: usize,
-        data_digest: FinalInitializedDataDigest,
-        regions: &[PlacedDataRegion],
-        gaps: &[PlacedDataGap],
-    ) -> PlacedDataRegionInventoryDigest {
-        let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
-            b"omega.placed-data-region-inventory.sha256.v1\0",
-        );
-        digest.raw(&data_address.to_le_bytes());
-        digest.raw(
-            &u64::try_from(data_byte_count)
-                .expect("final initialized-data length fits u64")
-                .to_le_bytes(),
-        );
-        digest.raw(data_digest.as_bytes());
-        digest.raw(
-            &u64::try_from(regions.len())
-                .expect("placed initialized-data region count fits u64")
-                .to_le_bytes(),
-        );
-        for region in regions {
-            digest.byte(data_origin_tag(region.origin));
-            digest.u64(region.section_offset as u64);
-            digest.raw(&region.address.to_le_bytes());
-            digest.u64(region.byte_count as u64);
-            digest.raw(region.byte_digest.as_bytes());
-            digest.u64(region.symbol.len() as u64);
-            digest.raw(region.symbol.as_bytes());
-        }
-        digest.raw(
-            &u64::try_from(gaps.len())
-                .expect("placed initialized-data gap count fits u64")
-                .to_le_bytes(),
-        );
-        for gap in gaps {
-            digest.u64(gap.section_offset as u64);
-            digest.raw(&gap.address.to_le_bytes());
-            digest.u64(gap.byte_count as u64);
-            digest.raw(gap.byte_digest.as_bytes());
-        }
-        PlacedDataRegionInventoryDigest::from_digest(digest.finish())
-    }
-
-    fn data_inventory_report_fingerprint(
-        data_address: u64,
-        data_byte_count: usize,
-        data_report_fingerprint: u64,
-        regions: &[PlacedDataRegion],
-        gaps: &[PlacedDataGap],
-    ) -> u64 {
-        let mut hash = super::FNV_OFFSET;
-        fingerprint_bytes(&mut hash, &data_address.to_le_bytes());
-        fingerprint_bytes(&mut hash, &(data_byte_count as u64).to_le_bytes());
-        fingerprint_bytes(&mut hash, &data_report_fingerprint.to_le_bytes());
-        for region in regions {
-            fingerprint_bytes(&mut hash, &[data_origin_tag(region.origin)]);
-            fingerprint_bytes(&mut hash, &(region.section_offset as u64).to_le_bytes());
-            fingerprint_bytes(&mut hash, &region.address.to_le_bytes());
-            fingerprint_bytes(&mut hash, &(region.byte_count as u64).to_le_bytes());
-            fingerprint_bytes(&mut hash, &region.byte_report_fingerprint.to_le_bytes());
-            fingerprint_bytes(&mut hash, region.symbol.as_bytes());
-            fingerprint_bytes(&mut hash, &[0]);
-        }
-        for gap in gaps {
-            fingerprint_bytes(&mut hash, &(gap.section_offset as u64).to_le_bytes());
-            fingerprint_bytes(&mut hash, &gap.address.to_le_bytes());
-            fingerprint_bytes(&mut hash, &(gap.byte_count as u64).to_le_bytes());
-            fingerprint_bytes(&mut hash, &gap.byte_report_fingerprint.to_le_bytes());
-        }
-        hash
-    }
-
-    fn data_origin_tag(origin: FinalDataRegionOrigin) -> u8 {
-        match origin {
-            FinalDataRegionOrigin::CompilerData => 1,
-            FinalDataRegionOrigin::ImportBindingSlot => 2,
-            FinalDataRegionOrigin::AlignmentPadding => 3,
-        }
+            inventory.inventory_digest,
+            inventory.inventory_report_fingerprint,
+            final_data_bytes,
+        )
     }
 
     #[cfg(test)]
     mod tests {
         use super::super::executable_regions::{byte_report_fingerprint, digest_bytes};
         use super::{
-            FinalDataRegion, FinalDataRegionOrigin, FinalImage, FinalImageLayout,
+            DATA, FinalDataRegion, FinalDataRegionOrigin, FinalImage, FinalImageLayout,
             PLACED_DATA_REGION_BYTES_DOMAIN, PlacedDataGap, PlacedDataGapBytesDigest,
             PlacedDataRegion, PlacedDataRegionBytesDigest, PlacedDataRegionInventory,
-            PlacedDataRegionInventoryDigest, data_inventory_digest,
-            data_inventory_report_fingerprint, place_data_extent, place_data_regions,
+            PlacedDataRegionInventoryDigest, place_data_extent, place_data_regions,
             validate_placed_data_region_inventory,
         };
+        use crate::region_extent::inventory_report_fingerprint as data_inventory_report_fingerprint;
         use diagnostics::Diagnostic;
         use target::NativeTarget;
 
@@ -574,7 +336,7 @@ mod data_regions {
                 &inventory.regions,
                 &inventory.unclassified_gaps,
             );
-            inventory.inventory_digest = data_inventory_digest(
+            inventory.inventory_digest = DATA.inventory_digest(
                 inventory.data_address,
                 inventory.data_byte_count,
                 inventory.data_digest,
@@ -984,6 +746,8 @@ mod data_regions {
 }
 
 mod executable_regions {
+    use crate::digest_encoder::DomainDigestEncoder;
+    use crate::region_extent::{ExtentKind, PlacedGap, PlacedRegion, Region};
     use crate::{FinalImage, FinalImageLayout};
     use calling_conventions::StateFootprintEvidence;
     use diagnostics::Diagnostic;
@@ -993,6 +757,18 @@ mod executable_regions {
     image_digest!(PlacedExecutableGapBytesDigest);
     image_digest!(StateFootprintEvidenceDigest);
     image_digest!(PlacedExecutableRegionInventoryDigest);
+
+    const TEXT: ExtentKind = ExtentKind {
+        name: "executable",
+        noun: "text",
+        whole: "text ",
+        exceeds: |length| format!("exceeds .text size {length}"),
+        preceding: "a preceding .text region",
+        extent_domain: b"omega.final-executable-text.sha256.v1\0",
+        region_domain: b"omega.placed-executable-region-bytes.sha256.v1\0",
+        gap_domain: b"omega.placed-executable-gap-bytes.sha256.v1\0",
+        inventory_domain: b"omega.placed-executable-region-inventory.sha256.v2\0",
+    };
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum FinalExecutableRegionOrigin {
@@ -1024,14 +800,7 @@ mod executable_regions {
         pub entry_effects: Option<calling_conventions::StateEffectsEvidence>,
     }
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub struct PlacedExecutableGap {
-        pub section_offset: usize,
-        pub address: u64,
-        pub byte_count: usize,
-        pub byte_digest: PlacedExecutableGapBytesDigest,
-        pub byte_report_fingerprint: u64,
-    }
+    pub type PlacedExecutableGap = PlacedGap<PlacedExecutableGapBytesDigest>;
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct PlacedExecutableRegionInventory {
@@ -1043,6 +812,60 @@ mod executable_regions {
         pub inventory_report_fingerprint: u64,
         pub regions: Vec<PlacedExecutableRegion>,
         pub unclassified_gaps: Vec<PlacedExecutableGap>,
+    }
+
+    region_rows!(FinalExecutableRegion, PlacedExecutableRegion);
+
+    impl PlacedRegion for PlacedExecutableRegion {
+        type Digest = PlacedExecutableRegionBytesDigest;
+        fn address(&self) -> u64 {
+            self.address
+        }
+        fn byte_digest(&self) -> Self::Digest {
+            self.byte_digest
+        }
+        fn byte_report_fingerprint(&self) -> u64 {
+            self.byte_report_fingerprint
+        }
+        fn origin_tag(&self) -> u8 {
+            match self.origin {
+                FinalExecutableRegionOrigin::CompilerFunction => 1,
+                FinalExecutableRegionOrigin::ImportThunk => 2,
+                FinalExecutableRegionOrigin::CompilerReadOnlyData => 3,
+            }
+        }
+        fn digest_more(&self, digest: &mut DomainDigestEncoder) {
+            match &self.footprint {
+                Some(footprint) => {
+                    digest.byte(1);
+                    digest.raw(state_footprint_evidence_digest(footprint).as_bytes());
+                }
+                None => digest.byte(0),
+            }
+            match &self.entry_effects {
+                Some(effects) => {
+                    digest.byte(1);
+                    digest.raw(&state_effects_evidence_digest(effects));
+                }
+                None => digest.byte(0),
+            }
+        }
+        fn fingerprint_more(&self, hash: &mut u64) {
+            match &self.footprint {
+                Some(footprint) => {
+                    fingerprint_bytes(hash, &[1]);
+                    fingerprint_bytes(hash, &footprint.evidence_report_fingerprint().to_le_bytes());
+                }
+                None => fingerprint_bytes(hash, &[0]),
+            }
+            match &self.entry_effects {
+                Some(effects) => {
+                    fingerprint_bytes(hash, &[1]);
+                    fingerprint_bytes(hash, &state_effects_evidence_digest(effects));
+                }
+                None => fingerprint_bytes(hash, &[0]),
+            }
+        }
     }
 
     pub fn place_executable_regions(
@@ -1062,105 +885,45 @@ mod executable_regions {
         text_address: u64,
     ) -> Result<PlacedExecutableRegionInventory, Diagnostic> {
         regions.sort_by_key(|region| region.section_offset);
-
-        let mut placed = Vec::with_capacity(regions.len());
-        let mut unclassified_gaps = Vec::new();
-        let mut cursor = 0usize;
-        for region in regions {
-            if region.byte_count == 0 {
-                return Err(Diagnostic::error(format!(
-                    "final executable region `{}` has zero width",
-                    region.symbol
-                )));
-            }
-            let end = region
-                .section_offset
-                .checked_add(region.byte_count)
-                .ok_or_else(|| {
-                    Diagnostic::error(format!(
-                        "final executable region `{}` range overflows",
-                        region.symbol
-                    ))
-                })?;
-            if end > text_bytes.len() {
-                return Err(Diagnostic::error(format!(
-                    "final executable region `{}` [{}..{}) exceeds .text size {}",
-                    region.symbol,
-                    region.section_offset,
-                    end,
-                    text_bytes.len()
-                )));
-            }
-            if region.section_offset < cursor {
-                return Err(Diagnostic::error(format!(
-                    "final executable region `{}` overlaps a preceding .text region",
-                    region.symbol
-                )));
-            }
-            if region.section_offset > cursor {
-                unclassified_gaps.push(placed_gap_from_bytes(
-                    text_address,
-                    text_bytes,
-                    cursor,
-                    region.section_offset - cursor,
-                )?);
-            }
-            let address = text_address
-                .checked_add(region.section_offset as u64)
-                .ok_or_else(|| Diagnostic::error("final executable region address overflows"))?;
-            cursor = end;
-            let region_bytes = &text_bytes[region.section_offset..end];
-            placed.push(PlacedExecutableRegion {
+        let (regions, unclassified_gaps) = TEXT.place(
+            "executable",
+            text_bytes,
+            text_address,
+            regions,
+            |region, address, byte_digest, byte_report_fingerprint| PlacedExecutableRegion {
                 origin: region.origin,
                 section_offset: region.section_offset,
                 address,
                 byte_count: region.byte_count,
-                byte_digest: PlacedExecutableRegionBytesDigest::from_digest(digest_bytes(
-                    b"omega.placed-executable-region-bytes.sha256.v1\0",
-                    region_bytes,
-                )),
-                byte_report_fingerprint: byte_report_fingerprint(region_bytes),
+                byte_digest,
+                byte_report_fingerprint,
                 symbol: region.symbol,
                 footprint: region.footprint,
                 entry_effects: region.entry_effects,
-            });
-        }
-        if cursor < text_bytes.len() {
-            unclassified_gaps.push(placed_gap_from_bytes(
-                text_address,
-                text_bytes,
-                cursor,
-                text_bytes.len() - cursor,
-            )?);
-        }
-
-        let text_digest = FinalExecutableTextDigest::from_digest(digest_bytes(
-            b"omega.final-executable-text.sha256.v1\0",
-            text_bytes,
-        ));
+            },
+        )?;
+        let text_digest = TEXT.extent_digest(text_bytes);
         let text_report_fingerprint = byte_report_fingerprint(text_bytes);
-        let inventory_report_fingerprint = executable_inventory_report_fingerprint(
-            text_address,
-            text_bytes.len(),
-            text_report_fingerprint,
-            &placed,
-            &unclassified_gaps,
-        );
-        let inventory_digest = executable_inventory_digest(
-            text_address,
-            text_bytes.len(),
-            text_digest,
-            &placed,
-            &unclassified_gaps,
-        );
         Ok(PlacedExecutableRegionInventory {
             text_address,
             text_byte_count: text_bytes.len(),
             text_digest,
             text_report_fingerprint,
-            inventory_digest,
-            inventory_report_fingerprint,
-            regions: placed,
+            inventory_digest: TEXT.inventory_digest(
+                text_address,
+                text_bytes.len(),
+                text_digest,
+                &regions,
+                &unclassified_gaps,
+            ),
+            inventory_report_fingerprint: crate::region_extent::inventory_report_fingerprint(
+                text_address,
+                text_bytes.len(),
+                text_report_fingerprint,
+                &regions,
+                &unclassified_gaps,
+            ),
+            regions,
             unclassified_gaps,
         })
     }
@@ -1169,221 +932,23 @@ mod executable_regions {
         inventory: &PlacedExecutableRegionInventory,
         final_text_bytes: &[u8],
     ) -> Result<(), Diagnostic> {
-        if inventory.text_byte_count != final_text_bytes.len() {
-            return Err(Diagnostic::error(format!(
-                "final executable inventory records {} text byte(s), but final text contains {}",
-                inventory.text_byte_count,
-                final_text_bytes.len()
-            )));
-        }
-        let text_digest = FinalExecutableTextDigest::from_digest(digest_bytes(
-            b"omega.final-executable-text.sha256.v1\0",
-            final_text_bytes,
-        ));
-        if inventory.text_digest != text_digest {
-            return Err(Diagnostic::error(
-                "final executable inventory text digest does not match final text",
-            ));
-        }
-        let text_report_fingerprint = byte_report_fingerprint(final_text_bytes);
-        if inventory.text_report_fingerprint != text_report_fingerprint {
-            return Err(Diagnostic::error(
-                "final executable inventory text fingerprint does not match final text",
-            ));
-        }
-
-        let mut expected_gaps = Vec::new();
-        let mut cursor = 0usize;
-        for region in &inventory.regions {
-            if region.byte_count == 0 {
-                return Err(Diagnostic::error(format!(
-                    "placed executable region `{}` has zero width",
-                    region.symbol
-                )));
-            }
-            let end = region
-                .section_offset
-                .checked_add(region.byte_count)
-                .filter(|end| *end <= final_text_bytes.len())
-                .ok_or_else(|| {
-                    Diagnostic::error(format!(
-                        "placed executable region `{}` exceeds final text",
-                        region.symbol
-                    ))
-                })?;
-            if region.section_offset < cursor {
-                return Err(Diagnostic::error(format!(
-                    "placed executable region `{}` is out of order or overlaps a preceding region",
-                    region.symbol
-                )));
-            }
-            if region.section_offset > cursor {
-                expected_gaps.push(placed_gap_from_bytes(
-                    inventory.text_address,
-                    final_text_bytes,
-                    cursor,
-                    region.section_offset - cursor,
-                )?);
-            }
-            let expected_address = inventory
-                .text_address
-                .checked_add(region.section_offset as u64)
-                .ok_or_else(|| Diagnostic::error("placed executable region address overflows"))?;
-            if region.address != expected_address {
-                return Err(Diagnostic::error(format!(
-                    "placed executable region `{}` address does not match its final text offset",
-                    region.symbol
-                )));
-            }
-            let region_bytes = &final_text_bytes[region.section_offset..end];
-            let expected_region_digest =
-                PlacedExecutableRegionBytesDigest::from_digest(digest_bytes(
-                    b"omega.placed-executable-region-bytes.sha256.v1\0",
-                    region_bytes,
-                ));
-            if region.byte_digest != expected_region_digest {
-                return Err(Diagnostic::error(format!(
-                    "placed executable region `{}` byte digest does not match final text",
-                    region.symbol
-                )));
-            }
-            if region.byte_report_fingerprint != byte_report_fingerprint(region_bytes) {
-                return Err(Diagnostic::error(format!(
-                    "placed executable region `{}` byte fingerprint does not match final text",
-                    region.symbol
-                )));
-            }
-            cursor = end;
-        }
-        if cursor < final_text_bytes.len() {
-            expected_gaps.push(placed_gap_from_bytes(
-                inventory.text_address,
-                final_text_bytes,
-                cursor,
-                final_text_bytes.len() - cursor,
-            )?);
-        }
-        if inventory.unclassified_gaps != expected_gaps {
-            return Err(Diagnostic::error(
-                "final executable inventory gap partition does not match final text regions",
-            ));
-        }
-
-        let inventory_report_fingerprint = executable_inventory_report_fingerprint(
-            inventory.text_address,
-            inventory.text_byte_count,
-            inventory.text_report_fingerprint,
-            &inventory.regions,
-            &inventory.unclassified_gaps,
-        );
-        if inventory.inventory_report_fingerprint != inventory_report_fingerprint {
-            return Err(Diagnostic::error(
-                "final executable inventory fingerprint does not match its retained rows",
-            ));
-        }
-        let inventory_digest = executable_inventory_digest(
+        TEXT.replay(
             inventory.text_address,
             inventory.text_byte_count,
             inventory.text_digest,
+            inventory.text_report_fingerprint,
             &inventory.regions,
             &inventory.unclassified_gaps,
-        );
-        if inventory.inventory_digest != inventory_digest {
-            return Err(Diagnostic::error(
-                "final executable inventory digest does not match its retained rows",
-            ));
-        }
-        Ok(())
-    }
-
-    fn placed_gap_from_bytes(
-        text_address: u64,
-        text_bytes: &[u8],
-        section_offset: usize,
-        byte_count: usize,
-    ) -> Result<PlacedExecutableGap, Diagnostic> {
-        let address = text_address
-            .checked_add(section_offset as u64)
-            .ok_or_else(|| Diagnostic::error("final executable gap address overflows"))?;
-        Ok(PlacedExecutableGap {
-            section_offset,
-            address,
-            byte_count,
-            byte_digest: PlacedExecutableGapBytesDigest::from_digest(digest_bytes(
-                b"omega.placed-executable-gap-bytes.sha256.v1\0",
-                &text_bytes[section_offset..section_offset + byte_count],
-            )),
-            byte_report_fingerprint: byte_report_fingerprint(
-                &text_bytes[section_offset..section_offset + byte_count],
-            ),
-        })
-    }
-
-    pub(crate) fn executable_inventory_digest(
-        text_address: u64,
-        text_byte_count: usize,
-        text_digest: FinalExecutableTextDigest,
-        regions: &[PlacedExecutableRegion],
-        gaps: &[PlacedExecutableGap],
-    ) -> PlacedExecutableRegionInventoryDigest {
-        let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
-            b"omega.placed-executable-region-inventory.sha256.v2\0",
-        );
-        digest.raw(&text_address.to_le_bytes());
-        digest.raw(
-            &u64::try_from(text_byte_count)
-                .expect("final executable text length fits u64")
-                .to_le_bytes(),
-        );
-        digest.raw(text_digest.as_bytes());
-        digest.raw(
-            &u64::try_from(regions.len())
-                .expect("placed executable region count fits u64")
-                .to_le_bytes(),
-        );
-        for region in regions {
-            digest.byte(executable_origin_tag(region.origin));
-            digest.u64(region.section_offset as u64);
-            digest.raw(&region.address.to_le_bytes());
-            digest.u64(region.byte_count as u64);
-            digest.raw(region.byte_digest.as_bytes());
-            digest.u64(region.symbol.len() as u64);
-            digest.raw(region.symbol.as_bytes());
-            match &region.footprint {
-                Some(footprint) => {
-                    digest.byte(1);
-                    digest.raw(state_footprint_evidence_digest(footprint).as_bytes());
-                }
-                None => digest.byte(0),
-            }
-            match &region.entry_effects {
-                Some(effects) => {
-                    digest.byte(1);
-                    digest.raw(&state_effects_evidence_digest(effects));
-                }
-                None => digest.byte(0),
-            }
-        }
-        digest.raw(
-            &u64::try_from(gaps.len())
-                .expect("placed executable gap count fits u64")
-                .to_le_bytes(),
-        );
-        for gap in gaps {
-            digest.u64(gap.section_offset as u64);
-            digest.raw(&gap.address.to_le_bytes());
-            digest.u64(gap.byte_count as u64);
-            digest.raw(gap.byte_digest.as_bytes());
-        }
-        PlacedExecutableRegionInventoryDigest::from_digest(digest.finish())
+            inventory.inventory_digest,
+            inventory.inventory_report_fingerprint,
+            final_text_bytes,
+        )
     }
 
     pub(crate) fn state_footprint_evidence_digest(
         footprint: &StateFootprintEvidence,
     ) -> StateFootprintEvidenceDigest {
-        let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
-            b"omega.state-footprint-evidence.sha256.v1\0",
-        );
+        let mut digest = DomainDigestEncoder::new(b"omega.state-footprint-evidence.sha256.v1\0");
         digest.u64(footprint.registers().as_slice().len() as u64);
         for register in footprint.registers().as_slice() {
             let (class, index) = register.wire_class_index();
@@ -1397,9 +962,7 @@ mod executable_regions {
     fn state_effects_evidence_digest(
         effects: &calling_conventions::StateEffectsEvidence,
     ) -> [u8; 32] {
-        let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
-            b"omega.entry-state-effects.sha256.v1\0",
-        );
+        let mut digest = DomainDigestEncoder::new(b"omega.entry-state-effects.sha256.v1\0");
         digest.raw(state_footprint_evidence_digest(effects.footprint()).as_bytes());
         digest.u64(effects.registers_read().as_slice().len() as u64);
         for register in effects.registers_read().as_slice() {
@@ -1412,7 +975,7 @@ mod executable_regions {
     }
 
     pub(crate) fn digest_bytes(domain: &[u8], bytes: &[u8]) -> [u8; 32] {
-        let mut digest = crate::digest_encoder::DomainDigestEncoder::new(domain);
+        let mut digest = DomainDigestEncoder::new(domain);
         digest.u64(bytes.len() as u64);
         digest.raw(bytes);
         digest.finish()
@@ -1424,52 +987,6 @@ mod executable_regions {
         hash
     }
 
-    pub(crate) fn executable_inventory_report_fingerprint(
-        text_address: u64,
-        text_byte_count: usize,
-        text_report_fingerprint: u64,
-        regions: &[PlacedExecutableRegion],
-        gaps: &[PlacedExecutableGap],
-    ) -> u64 {
-        let mut hash = FNV_OFFSET;
-        fingerprint_bytes(&mut hash, &text_address.to_le_bytes());
-        fingerprint_bytes(&mut hash, &(text_byte_count as u64).to_le_bytes());
-        fingerprint_bytes(&mut hash, &text_report_fingerprint.to_le_bytes());
-        for region in regions {
-            fingerprint_bytes(&mut hash, &[executable_origin_tag(region.origin)]);
-            fingerprint_bytes(&mut hash, &(region.section_offset as u64).to_le_bytes());
-            fingerprint_bytes(&mut hash, &region.address.to_le_bytes());
-            fingerprint_bytes(&mut hash, &(region.byte_count as u64).to_le_bytes());
-            fingerprint_bytes(&mut hash, &region.byte_report_fingerprint.to_le_bytes());
-            fingerprint_bytes(&mut hash, region.symbol.as_bytes());
-            fingerprint_bytes(&mut hash, &[0]);
-            match &region.footprint {
-                Some(footprint) => {
-                    fingerprint_bytes(&mut hash, &[1]);
-                    fingerprint_bytes(
-                        &mut hash,
-                        &footprint.evidence_report_fingerprint().to_le_bytes(),
-                    );
-                }
-                None => fingerprint_bytes(&mut hash, &[0]),
-            }
-            match &region.entry_effects {
-                Some(effects) => {
-                    fingerprint_bytes(&mut hash, &[1]);
-                    fingerprint_bytes(&mut hash, &state_effects_evidence_digest(effects));
-                }
-                None => fingerprint_bytes(&mut hash, &[0]),
-            }
-        }
-        for gap in gaps {
-            fingerprint_bytes(&mut hash, &(gap.section_offset as u64).to_le_bytes());
-            fingerprint_bytes(&mut hash, &gap.address.to_le_bytes());
-            fingerprint_bytes(&mut hash, &(gap.byte_count as u64).to_le_bytes());
-            fingerprint_bytes(&mut hash, &gap.byte_report_fingerprint.to_le_bytes());
-        }
-        hash
-    }
-
     pub(crate) const FNV_OFFSET: u64 = wire::fnv1a::Fnv1a::OFFSET_BASIS;
 
     pub(crate) fn fingerprint_bytes(hash: &mut u64, bytes: &[u8]) {
@@ -1477,17 +994,11 @@ mod executable_regions {
         fingerprint.bytes(bytes);
         *hash = fingerprint.finish();
     }
-
-    fn executable_origin_tag(origin: FinalExecutableRegionOrigin) -> u8 {
-        match origin {
-            FinalExecutableRegionOrigin::CompilerFunction => 1,
-            FinalExecutableRegionOrigin::ImportThunk => 2,
-            FinalExecutableRegionOrigin::CompilerReadOnlyData => 3,
-        }
-    }
 }
 
-pub(crate) use executable_regions::{FNV_OFFSET, byte_report_fingerprint, fingerprint_bytes};
+pub(crate) use executable_regions::{
+    FNV_OFFSET, byte_report_fingerprint, digest_bytes, fingerprint_bytes,
+};
 mod layout {
     use crate::final_image::FinalImageSection;
 
@@ -1863,7 +1374,6 @@ pub use data_regions::{
     PlacedDataRegionBytesDigest, PlacedDataRegionInventory, PlacedDataRegionInventoryDigest,
     place_data_extent, place_data_regions, validate_placed_data_region_inventory,
 };
-pub(crate) use executable_regions::digest_bytes;
 pub use executable_regions::{
     FinalExecutableRegion, FinalExecutableRegionOrigin, FinalExecutableTextDigest,
     PlacedExecutableGapBytesDigest, PlacedExecutableRegion, PlacedExecutableRegionBytesDigest,

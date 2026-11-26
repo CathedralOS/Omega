@@ -93,3 +93,76 @@ machine build(builder: @mutable Build) {
     );
     assert!(!ok && reason.contains("Build scope"), "{reason}");
 }
+
+#[test]
+fn bundled_registration_selects_the_declared_name_and_preserves_the_edge_ceiling() {
+    let temp = TemporaryDirectory::create("installed-bundled-package", false).unwrap();
+    let project = temp.path().join("client");
+    let library = temp.path().join("relocated-installation");
+    copy_directory(&support::repository_root().join("source/library"), &library);
+    fs::create_dir(&project).unwrap();
+    let package = library.join("physical-dir-17");
+    fs::create_dir(&package).unwrap();
+    fs::write(library.join("packages.tsv"), "answers\tphysical-dir-17\n").unwrap();
+    let declaration = |name: &str| {
+        format!(
+            "machine build(plan: @mutable BuildPlan) {{ plan.product = BuildProduct::Package {{ name: \"{name}\" }}; }}"
+        )
+    };
+    fs::write(package.join("build.omg"), declaration("answers")).unwrap();
+    fs::write(package.join("answer.omg"),
+        "public boundary trait AuditEffect {}\npublic machine charged() reaches AuditEffect {}\npublic machine free() {}").unwrap();
+    fs::write(project.join("build.omg"), r#"use {omega}/build/dependency.omg;
+machine build(plan: @mutable BuildPlan) {
+    let mutable dep: DependencyDescription = |dependency|::from_source(Source::Bundled { name: "answers" });
+    |dependency|::with_alias(@mutable dep, "tool");
+    _ = |dependency|::add(plan, dep);
+    plan.product = BuildProduct::InterpretedBuild { entry: "select.omg" };
+}"#).unwrap();
+    let write_entry = |export: &str| {
+        fs::write(project.join("select.omg"), format!(
+        "use {{tool}}/answer.omg;\nmachine build(plan: @mutable BuildPlan) {{ |answer|::{export}(); plan.product = BuildProduct::Package {{ name: \"client\" }}; }}"
+    )).unwrap()
+    };
+    let check = || {
+        let output = Command::new(env!("CARGO_BIN_EXE_omega"))
+            .args(["--check", "--offline", "build.omg"])
+            .current_dir(&project)
+            .env("OMEGA_LIBRARY_ROOT", &library)
+            .output()
+            .unwrap();
+        (
+            output.status.success(),
+            format!(
+                "{}{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            ),
+        )
+    };
+    write_entry("free");
+    let (ok, output) = check();
+    assert!(ok, "{output}");
+    write_entry("charged");
+    let (ok, output) = check();
+    assert!(!ok && output.contains("AuditEffect"), "{output}");
+
+    write_entry("free");
+    fs::write(package.join("build.omg"), declaration("counterfeit")).unwrap();
+    let (ok, output) = check();
+    assert!(
+        !ok && output.contains("counterfeit") && output.contains("answers"),
+        "{output}"
+    );
+
+    let decoy = project.join("answers");
+    fs::create_dir(&decoy).unwrap();
+    fs::write(decoy.join("build.omg"), declaration("answers")).unwrap();
+    fs::copy(package.join("answer.omg"), decoy.join("answer.omg")).unwrap();
+    fs::write(library.join("packages.tsv"), "").unwrap();
+    let (ok, output) = check();
+    assert!(
+        !ok && output.contains("does not supply bundled package named answers"),
+        "{output}"
+    );
+}

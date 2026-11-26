@@ -218,7 +218,7 @@ machine build(plan: @mutable BuildPlan) {
                 ("build.omg", &caller),
                 ("main.omg", "use {api}/main.omg as table; public data Header { value: |table|::Table; }"),
                 ("library/build.omg", &library),
-                ("library/main.omg", "public data Table { invoke: addr; }"),
+                ("library/main.omg", "public data Table { invoke: address; }"),
             ],
             &["--check"],
         );
@@ -322,11 +322,12 @@ fn the_selected_build_must_accept_the_original_builder() {
 
 #[test]
 fn dependency_imports_respect_the_build_files_the_child_entered() {
-    let consumer = r#"use {omega}/build/dependency.omg;
+    let consumer = r#"use main.omg as app;
+use {omega}/build/dependency.omg;
         machine build(builder: @mutable BuildPlan) {
             builder.product = BuildProduct::Application { name: "consumer" };
             let kit: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "kit" }));
-            Build::bind(builder, linux_x86_64::ProgramEntry, main);
+            Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
         }"#;
     let first =
         build(r#"builder.product = BuildProduct::InterpretedBuild { entry: "prepare.omg" };"#);
@@ -372,12 +373,13 @@ fn only_executed_core_unsafe_opt_ins_admit_the_returned_product() {
     };
     let name = target.target_name();
     let build = format!(
-        r#"use {{omega}}/language/core/unsafe.omg as native;
+        r#"use main.omg as app;
+use {{omega}}/language/core/unsafe.omg as native;
         boundary trait RawMemoryRead {{}}
         machine build(plan: @mutable BuildPlan) {{
             plan.product = BuildProduct::Application {{ name: "reader" }};
             OPT_IN
-            Build::bind(plan, {name}::ProgramEntry, main);
+            Build::bind(plan, {name}::ProgramEntry, |app|::main);
         }}"#
     );
     let program = r#"use {omega}/language/core/unsafe.omg as native;

@@ -42,10 +42,10 @@ builtins. Library placement does not authorize a dependency from `core` to `syst
 
 The owner-ratified `core-integer-float-apis` decision (2026-10-27) places carrier
 queries and floating representation utilities in the ordinary core modules
-`omega\language\core\integer` and `omega\language\core\float`, not a
+`{omega}/language/core/integer/integer.omg` and `{omega}/language/core/float/float.omg`, not a
 catch-all limits module or an automatically imported primitive-type namespace.
-Examples use the module-qualified names `integer\max::<u32>()` and
-`float\max::<f32>()`. These zero-value-argument carrier queries are distinct from
+Importing both files with their default aliases gives the names `|integer|::max::<u32>()` and
+`|float|::max::<f32>()`. These zero-value-argument carrier queries are distinct from
 two-value comparison helpers such as `max(left, right)` above.
 
 The APIs are ordinary checked library machines. They may derive answers from
@@ -65,7 +65,7 @@ unbounded integers. Carrier-family classification below is a separate total
 query, not an extrema query or one compiler-recognized name per width.
 
 The integer query surface is supplied by ordinary checked declarations in
-`core\integer`, including exact carrier refinement and static evaluation.
+`{omega}/language/core/integer/integer.omg`, including exact carrier refinement and static evaluation.
 [The endpoint fact](../../../samples/cli/facts/core_integer_endpoint/README.md)
 records its transport witnesses. The floating contracts below are ratified
 requirements.
@@ -74,10 +74,10 @@ requirements.
 
 | Core call | Result | Meaning |
 | --- | --- | --- |
-| `integer\min::<T>()` | `T` | Least representable carrier value; zero for unsigned integers. |
-| `integer\max::<T>()` | `T` | Greatest representable carrier value. |
-| `integer\width_bits::<T>()` | `u64` | Semantic fixed integer width, not stored field width or an ABI register size. |
-| `integer\is_signed::<T>()` | `bool` | Whether the carrier has signed integer meaning. |
+| `\|integer\|::min::<T>()` | `T` | Least representable carrier value; zero for unsigned integers. |
+| `\|integer\|::max::<T>()` | `T` | Greatest representable carrier value. |
+| `\|integer\|::width_bits::<T>()` | `u64` | Semantic fixed integer width, not stored field width or an ABI register size. |
+| `\|integer\|::is_signed::<T>()` | `bool` | Whether the carrier has signed integer meaning. |
 
 For width `w`, unsigned bounds are `0` through `2^w - 1`; signed bounds are
 `-2^(w-1)` through `2^(w-1) - 1`. Arithmetic policy does not redefine these
@@ -86,21 +86,21 @@ merely because its underlying carrier has those endpoints.
 
 ### Floating values and format queries
 
-`float\min::<T>()` and `float\max::<T>()` return the least and greatest finite
+`|float|::min::<T>()` and `|float|::max::<T>()` return the least and greatest finite
 values of `T`, not infinities. In particular, `min` is most-negative finite,
 never a smallest-positive value. The following value queries return `T`:
 
 | Core call | `f32` value or exact representation |
 | --- | --- |
-| `float\min::<T>()` | Finite endpoint with bits `0xFF7F_FFFF`. |
-| `float\max::<T>()` | Finite endpoint with bits `0x7F7F_FFFF`. |
-| `float\min_positive_normal::<T>()` | `2^-126`, bits `0x0080_0000`. |
-| `float\min_positive_subnormal::<T>()` | `2^-149`, bits `0x0000_0001`. |
-| `float\max_subnormal::<T>()` | `2^-126 - 2^-149`, bits `0x007F_FFFF`. |
-| `float\epsilon::<T>()` | Gap from `1` to its next greater representable value: `2^-23`, bits `0x3400_0000`. Not a universal comparison tolerance. |
-| `float\infinity::<T>()` | Positive infinity, bits `0x7F80_0000`. |
-| `float\negative_infinity::<T>()` | Negative infinity, bits `0xFF80_0000`. |
-| `float\quiet_nan::<T>()` | One canonical positive quiet NaN: `f32` bits `0x7FC0_0000`, `f64` bits `0x7FF8_0000_0000_0000`. |
+| `\|float\|::min::<T>()` | Finite endpoint with bits `0xFF7F_FFFF`. |
+| `\|float\|::max::<T>()` | Finite endpoint with bits `0x7F7F_FFFF`. |
+| `\|float\|::min_positive_normal::<T>()` | `2^-126`, bits `0x0080_0000`. |
+| `\|float\|::min_positive_subnormal::<T>()` | `2^-149`, bits `0x0000_0001`. |
+| `\|float\|::max_subnormal::<T>()` | `2^-126 - 2^-149`, bits `0x007F_FFFF`. |
+| `\|float\|::epsilon::<T>()` | Gap from `1` to its next greater representable value: `2^-23`, bits `0x3400_0000`. Not a universal comparison tolerance. |
+| `\|float\|::infinity::<T>()` | Positive infinity, bits `0x7F80_0000`. |
+| `\|float\|::negative_infinity::<T>()` | Negative infinity, bits `0xFF80_0000`. |
+| `\|float\|::quiet_nan::<T>()` | One canonical positive quiet NaN: `f32` bits `0x7FC0_0000`, `f64` bits `0x7FF8_0000_0000_0000`. |
 
 Format properties are library queries with these exact values. Magnitudes and
 counts return `u64`; the three signed exponent queries return `i64`.
@@ -126,27 +126,27 @@ particular formatting algorithm or NaN payload encoding.
 ### Floating representation and classification
 
 The value-level convenience wrappers use ordinary typed overloads:
-`float\to_bits(f32) -> u32`, `float\to_bits(f64) -> u64`,
-`float\from_bits(u32) -> f32`, and `float\from_bits(u64) -> f64`.
+`|float|::to_bits(f32) -> u32`, `|float|::to_bits(f64) -> u64`,
+`|float|::from_bits(u32) -> f32`, and `|float|::from_bits(u64) -> f64`.
 They preserve exact presented representation bits, including signed zeros,
 NaN sign, payload, and quiet/signaling state. They perform no numeric conversion,
 quieting, canonicalization, or qualification establishment. They are checked
 wrappers around [representation views](../layouts/recasts.md) and scalar reads,
 not an unchecked transmute or a new general owned-aggregate cast primitive.
 
-`float\classify::<T>(value)` returns ordinary case-bearing library data with
+`|float|::classify::<T>(value)` returns ordinary case-bearing library data with
 `Zero`, `Subnormal`, `Normal`, `Infinity`, and `NaN` alternatives. Every case
 retains the sign; `NaN` additionally retains `Quiet` or `Signaling` kind and the
 unsigned payload excluding the quiet bit. `f32` uses a `u32` bit/payload carrier
 and `f64` a `u64` carrier. Classification and convenience queries
-`float\is_nan::<T>(value)`, `float\is_signaling_nan::<T>(value)`,
-`float\is_finite::<T>(value)`, and `float\sign::<T>(value)` inspect representation
+`|float|::is_nan::<T>(value)`, `|float|::is_signaling_nan::<T>(value)`,
+`|float|::is_finite::<T>(value)`, and `|float|::sign::<T>(value)` inspect representation
 without an arithmetic operation that could quiet a signaling NaN. Sign and kind
 are ordinary library cases, not keywords or new primitive species.
 
 Parameterized convenience constructors
-`float\quiet_nan::<T>(sign, payload)` and
-`float\signaling_nan::<T>(sign, payload)` construct the requested exact bits.
+`|float|::quiet_nan::<T>(sign, payload)` and
+`|float|::signaling_nan::<T>(sign, payload)` construct the requested exact bits.
 The payload carrier follows the format above. Only the low 22 bits for `f32`
 or 51 bits for `f64` may be present; signaling payloads must be nonzero so the
 result is not infinity. Calls prove those requirements or use an ordinary
@@ -156,9 +156,9 @@ policies. Width-indexed unsigned payload carriers may make them unnecessary;
 their admission does not automatically deprecate these APIs.
 Exact bit composition and its validity/access obligations remain the foundation.
 
-`float\quiet::<T>(value)` sets a signaling NaN's quiet bit while preserving sign
+`|float|::quiet::<T>(value)` sets a signaling NaN's quiet bit while preserving sign
 and payload, leaving every other representation unchanged.
-`float\canonicalize_nan::<T>(value)` replaces any NaN with the canonical encoding
+`|float|::canonicalize_nan::<T>(value)` replaces any NaN with the canonical encoding
 above and preserves all non-NaN bits. Both operations are explicit library code;
 ordinary transport and the bit wrappers do not insert them.
 
@@ -250,7 +250,7 @@ beyond host scalar limits. Published encodings must preserve them losslessly.
 ### Integer carrier families
 
 Named decision: `integer-carrier-family-constraints`, ratified 2026-11-13.
-Ordinary checked machines in `core\integer` expose these total type queries;
+Ordinary checked machines in `{omega}/language/core/integer/integer.omg` expose these total type queries;
 each takes a type argument and returns `bool`:
 
 | Query | Accepted computational carriers |
@@ -796,7 +796,7 @@ Already-typed incompatible operands retain ordinary resolution rules.
 Computational `/` on bounded integers and `i`/`u` denotes truncating quotient.
 Mathematical `/` instead follows [exact division](#mathematical-division).
 Integer quotient and remainder remain explicitly available on mathematical
-integers through `integer\quotient` and `integer\remainder`. Their contracts
+integers through `|integer|::quotient` and `|integer|::remainder`. Their contracts
 use integer operands, require a nonzero divisor, and preserve the rounding
 convention below; their checked mathematical API is distinct from runtime
 realization. For nonzero divisor `b`, quotient `q` and remainder `r` obey:
@@ -959,7 +959,7 @@ including equal signed zeros. NaN behavior is operand-order-dependent, not
 the IEEE-2019 NaN-propagating `minimum` or a non-NaN-wins rule.
 
 Sorting/keying selects the named `F32::TotalOrder` or `F64::TotalOrder` in
-`omega\language\core\float_order`. These implement IEEE totalOrder over
+`{omega}/language/core/float_order.omg`. These implement IEEE totalOrder over
 honest representation bits, including NaN signs/payload ordering and
 `-0.0 < +0.0`, without changing arithmetic comparison.
 

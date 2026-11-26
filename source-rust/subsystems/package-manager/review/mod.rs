@@ -44,6 +44,7 @@ pub(crate) mod build_session;
 mod inspect_packages;
 pub mod inspect_source;
 mod package_change;
+mod rendering;
 
 pub use inspect_packages::{
     PackageInspectionError, PackageInspectionOptions, PackageInspectionOutcome,

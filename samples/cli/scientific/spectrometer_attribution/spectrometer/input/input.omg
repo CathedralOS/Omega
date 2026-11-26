@@ -1,110 +1,108 @@
-use omega\language\core\StandardInput;
-use spectrometer\model\Spectrometer;
-use spectrometer\model\IntegerRead;
-use system\ByteRead;
-use system\Console;
-use omega\language\core\F64::from_i32;
+use spectrometer/model/model.omg;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 
 // Decimal magnitude is guarded before every multiplication. The signed bound
 // is one million, so Wrapping never wraps on accepted input. Delimiters are
 // consumed; a minus sign must be followed by a digit, including at EOF.
-public machine read_integer(application: @mutable Spectrometer) -> IntegerRead
-reaches StandardInput
-invokes Console
+public machine read_integer(application: @mutable |model|::Spectrometer) -> |model|::IntegerRead
+reaches |process_authority|::StandardInput
+invokes |console|::Console
 blocks
 crashes Trap
 {
     transition { _ -> block begin(application) }
-    machine begin(application: @mutable Spectrometer) -> IntegerRead {
-        transition block Console::read_byte() {
-            ByteRead::Error -> (IntegerRead::Invalid),
-            ByteRead::Eof -> (IntegerRead::End),
-            ByteRead::Byte { value } -> block first(application, value)
+    machine begin(application: @mutable |model|::Spectrometer) -> |model|::IntegerRead {
+        transition block |console|::Console::read_byte() {
+            |console|::ByteRead::Error -> (|model|::IntegerRead::Invalid),
+            |console|::ByteRead::Eof -> (|model|::IntegerRead::End),
+            |console|::ByteRead::Byte { value } -> block first(application, value)
         }
     }
-    machine first(application: @mutable Spectrometer, byte: i32) -> IntegerRead {
+    machine first(application: @mutable |model|::Spectrometer, byte: i32) -> |model|::IntegerRead {
         transition byte == 32 || byte == 10 || byte == 13 || byte == 9 {
             true -> block begin(application),
             false -> block sign(application, byte)
         }
     }
-    machine sign(application: @mutable Spectrometer, byte: i32) -> IntegerRead {
+    machine sign(application: @mutable |model|::Spectrometer, byte: i32) -> |model|::IntegerRead {
         transition byte == 45 {
             true -> block following(application, 0, -1, false),
             false -> block digit(application, byte, 0, 1, false)
         }
     }
-    machine digit(application: @mutable Spectrometer, byte: i32,
+    machine digit(application: @mutable |model|::Spectrometer, byte: i32,
                 magnitude: i32 in Wrapping, sign: i32 in Wrapping,
-                seen: bool) -> IntegerRead {
+                seen: bool) -> |model|::IntegerRead {
         transition byte >= 48 && byte <= 57 {
             true -> block accumulate(application, byte, magnitude, sign),
             false -> delimiter(application, byte, magnitude, sign, seen)
         }
     }
-    machine accumulate(application: @mutable Spectrometer, byte: i32,
-                     magnitude: i32 in Wrapping, sign: i32 in Wrapping) -> IntegerRead {
+    machine accumulate(application: @mutable |model|::Spectrometer, byte: i32,
+                     magnitude: i32 in Wrapping, sign: i32 in Wrapping) -> |model|::IntegerRead {
         transition magnitude <= 100000 {
             true -> block append(application, byte, magnitude, sign),
-            false -> (IntegerRead::Invalid)
+            false -> (|model|::IntegerRead::Invalid)
         }
     }
-    machine append(application: @mutable Spectrometer, byte: i32,
-                 magnitude: i32 in Wrapping, sign: i32 in Wrapping) -> IntegerRead {
+    machine append(application: @mutable |model|::Spectrometer, byte: i32,
+                 magnitude: i32 in Wrapping, sign: i32 in Wrapping) -> |model|::IntegerRead {
         let value: i32 in Wrapping = magnitude * 10 + (byte as +Wrapping) - 48;
         transition value <= 1000000 {
             true -> block following(application, value, sign, true),
-            false -> (IntegerRead::Invalid)
+            false -> (|model|::IntegerRead::Invalid)
         }
     }
-    machine following(application: @mutable Spectrometer, magnitude: i32 in Wrapping,
-                    sign: i32 in Wrapping, seen: bool) -> IntegerRead {
-        transition block Console::read_byte() {
-            ByteRead::Error -> (IntegerRead::Invalid),
-            ByteRead::Eof -> finish(magnitude, sign, seen),
-            ByteRead::Byte { value } -> block digit(application, value, magnitude, sign, seen)
+    machine following(application: @mutable |model|::Spectrometer, magnitude: i32 in Wrapping,
+                    sign: i32 in Wrapping, seen: bool) -> |model|::IntegerRead {
+        transition block |console|::Console::read_byte() {
+            |console|::ByteRead::Error -> (|model|::IntegerRead::Invalid),
+            |console|::ByteRead::Eof -> finish(magnitude, sign, seen),
+            |console|::ByteRead::Byte { value } -> block digit(application, value, magnitude, sign, seen)
         }
     }
-    machine delimiter(application: @mutable Spectrometer, byte: i32,
+    machine delimiter(application: @mutable |model|::Spectrometer, byte: i32,
                     magnitude: i32 in Wrapping, sign: i32 in Wrapping,
-                    seen: bool) -> IntegerRead {
+                    seen: bool) -> |model|::IntegerRead {
         transition byte == 32 || byte == 10 || byte == 13 || byte == 9 {
             true -> finish(magnitude, sign, seen),
-            false -> (IntegerRead::Invalid)
+            false -> (|model|::IntegerRead::Invalid)
         }
     }
     machine finish(magnitude: i32 in Wrapping, sign: i32 in Wrapping,
-                 seen: bool) -> IntegerRead {
+                 seen: bool) -> |model|::IntegerRead {
         transition seen {
-            true -> (IntegerRead::Value { value: magnitude * sign }),
-            false -> (IntegerRead::Invalid)
+            true -> (|model|::IntegerRead::Value { value: magnitude * sign }),
+            false -> (|model|::IntegerRead::Invalid)
         }
     }
 }
 
 // The validated integer inventory is converted once into floating coordinates.
 // Baseline endpoints are supplied calibration data, not estimated from peaks.
-public machine load_spectrum(application: @mutable Spectrometer) -> bool {
+public machine load_spectrum(application: @mutable |model|::Spectrometer) -> bool {
     transition { _ -> samples(application, 0) }
-    machine samples(application: @mutable Spectrometer, index: i32 in Wrapping) -> bool {
+    machine samples(application: @mutable |model|::Spectrometer, index: i32 in Wrapping) -> bool {
         transition index >= 0 && index < 16 {
             true -> sample(application, index),
             false -> configuration(application)
         }
     }
-    machine sample(application: @mutable Spectrometer, index: i32 in Wrapping) -> bool {
+    machine sample(application: @mutable |model|::Spectrometer, index: i32 in Wrapping) -> bool {
         let value: i32 in Wrapping = application.raw[index];
         transition value >= 0 && value <= 1000 {
             true -> save(application, index, value),
             false -> false
         }
     }
-    machine save(application: @mutable Spectrometer, index: i32 in Wrapping,
+    machine save(application: @mutable |model|::Spectrometer, index: i32 in Wrapping,
                value: i32 in Wrapping) -> bool {
-        application.spectrum.samples[index] = F64::from_i32(value as i32);
+        application.spectrum.samples[index] = |float_operations|::F64::from_i32(value as i32);
         transition { _ -> samples(application, index + 1) }
     }
-    machine configuration(application: @mutable Spectrometer) -> bool {
+    machine configuration(application: @mutable |model|::Spectrometer) -> bool {
         transition application.raw[16] >= 0 && application.raw[16] <= 1000 &&
                    application.raw[17] >= 0 && application.raw[17] <= 1000 &&
                    application.raw[18] > 0 && application.raw[18] <= 1000 &&
@@ -116,30 +114,30 @@ public machine load_spectrum(application: @mutable Spectrometer) -> bool {
             false -> false
         }
     }
-    machine settings(application: @mutable Spectrometer) -> bool {
-        application.spectrum.baseline_start = F64::from_i32(application.raw[16] as i32);
-        application.spectrum.baseline_end = F64::from_i32(application.raw[17] as i32);
-        application.spectrum.threshold = F64::from_i32(application.raw[18] as i32);
-        application.spectrum.origin = F64::from_i32(application.raw[19] as i32);
-        application.spectrum.spacing = F64::from_i32(application.raw[20] as i32);
-        application.spectrum.calibration = F64::from_i32(application.raw[21] as i32);
-        application.spectrum.tolerance = F64::from_i32(application.raw[22] as i32);
+    machine settings(application: @mutable |model|::Spectrometer) -> bool {
+        application.spectrum.baseline_start = |float_operations|::F64::from_i32(application.raw[16] as i32);
+        application.spectrum.baseline_end = |float_operations|::F64::from_i32(application.raw[17] as i32);
+        application.spectrum.threshold = |float_operations|::F64::from_i32(application.raw[18] as i32);
+        application.spectrum.origin = |float_operations|::F64::from_i32(application.raw[19] as i32);
+        application.spectrum.spacing = |float_operations|::F64::from_i32(application.raw[20] as i32);
+        application.spectrum.calibration = |float_operations|::F64::from_i32(application.raw[21] as i32);
+        application.spectrum.tolerance = |float_operations|::F64::from_i32(application.raw[22] as i32);
         transition { _ -> catalog(application, 0) }
     }
-    machine catalog(application: @mutable Spectrometer, index: i32 in Wrapping) -> bool {
+    machine catalog(application: @mutable |model|::Spectrometer, index: i32 in Wrapping) -> bool {
         transition index >= 0 && index < 4 {
             true -> line(application, index),
             false -> true
         }
     }
-    machine line(application: @mutable Spectrometer, index: i32 in Wrapping) -> bool {
+    machine line(application: @mutable |model|::Spectrometer, index: i32 in Wrapping) -> bool {
         let offset: i32 in Wrapping = index + 23;
         transition offset >= 23 && offset < 27 {
             true -> read_line(application, index, offset),
             false -> false
         }
     }
-    machine read_line(application: @mutable Spectrometer, index: i32 in Wrapping,
+    machine read_line(application: @mutable |model|::Spectrometer, index: i32 in Wrapping,
                     offset: i32 in Wrapping) -> bool {
         let value: i32 in Wrapping = application.raw[offset];
         transition value >= 0 && value <= 1000000 {
@@ -147,9 +145,9 @@ public machine load_spectrum(application: @mutable Spectrometer) -> bool {
             false -> false
         }
     }
-    machine save_line(application: @mutable Spectrometer, index: i32 in Wrapping,
+    machine save_line(application: @mutable |model|::Spectrometer, index: i32 in Wrapping,
                     value: i32 in Wrapping) -> bool {
-        application.spectrum.lines[index] = F64::from_i32(value as i32);
+        application.spectrum.lines[index] = |float_operations|::F64::from_i32(value as i32);
         transition { _ -> catalog(application, index + 1) }
     }
 }

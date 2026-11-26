@@ -1,12 +1,10 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
-use system\Console;
-use system\LineReadResult;
-use domain\process;
+use domain/process/process.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 
 data Main {
-    process: domain\process\Process;
+    process: |process|::Process;
     input: [u8; 4];
     variant: u64 in Wrapping;
     horizon: u64 in Wrapping;
@@ -17,10 +15,10 @@ data Main {
 // First line: two ASCII digits followed by LF, variant 0..5 and horizon 0..8.
 // Processing ends after this line; trailing input is ignored.
 // The bounded line API distinguishes EOF, full buffers and complete lines.
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    let result: LineReadResult = block Console::read_line(@mutable main.input[..]);
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    let result: |console|::LineReadResult = block |console|::Console::read_line(@mutable main.input[..]);
     transition result {
-        LineReadResult::LineComplete { count } -> length(main, count),
+        |console|::LineReadResult::LineComplete { count } -> length(main, count),
         _ -> invalid(main)
     }
     machine length(main: @mutable Main, count: u64) {
@@ -35,9 +33,9 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     machine setup(main: @mutable Main) {
         main.variant = (main.input[0] as u64 +Wrapping) - 48;
         main.horizon = (main.input[1] as u64 +Wrapping) - 48;
-        domain\process\initialize(@mutable main.process, main.variant);
+        |process|::initialize(@mutable main.process, main.variant);
         main.step = 0;
-        Console::write_line("step healthy degraded failed survival denominator");
+        |console|::Console::write_line("step healthy degraded failed survival denominator");
         transition { _ -> row(main) }
     }
     machine row(main: @mutable Main) {
@@ -55,45 +53,45 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         let survival: u64 in Wrapping = main.process.healthy + main.process.degraded;
         let denominator: u64 in Wrapping = main.process.denominator;
         decimal(main, step);
-        Console::write_byte(32);
+        |console|::Console::write_byte(32);
         decimal(main, healthy);
-        Console::write_byte(32);
+        |console|::Console::write_byte(32);
         decimal(main, degraded);
-        Console::write_byte(32);
+        |console|::Console::write_byte(32);
         decimal(main, failed);
-        Console::write_byte(32);
+        |console|::Console::write_byte(32);
         decimal(main, survival);
-        Console::write_byte(32);
+        |console|::Console::write_byte(32);
         decimal(main, denominator);
-        Console::write_byte(10);
+        |console|::Console::write_byte(10);
         transition main.step < main.horizon { true -> next(main), _ -> finish(main) }
     }
     machine next(main: @mutable Main) {
-        domain\process\advance(@mutable main.process);
+        |process|::advance(@mutable main.process);
         main.step = main.step + 1;
         transition { _ -> row(main) }
     }
     machine finish(main: @mutable Main) {
         let lifetime: u64 in Wrapping = main.process.lifetime;
         let denominator: u64 in Wrapping = main.process.denominator;
-        Console::write("expected_min_lifetime ");
+        |console|::Console::write("expected_min_lifetime ");
         decimal(main, lifetime);
-        Console::write_byte(32);
+        |console|::Console::write_byte(32);
         decimal(main, denominator);
-        Console::write_byte(10);
-        ProcessExit::exit_process(0);
+        |console|::Console::write_byte(10);
+        |process_exit|::ProcessExit::exit_process(0);
     }
     machine invalid(main: @mutable Main) {
-        Console::write_line("invalid input: expected variant 0..5 and horizon 0..8 followed by LF");
-        ProcessExit::exit_process(64);
+        |console|::Console::write_line("invalid input: expected variant 0..5 and horizon 0..8 followed by LF");
+        |process_exit|::ProcessExit::exit_process(64);
     }
     machine failure(main: @mutable Main) {
-        Console::write_line("probability conservation failed");
-        ProcessExit::exit_process(70);
+        |console|::Console::write_line("probability conservation failed");
+        |process_exit|::ProcessExit::exit_process(70);
     }
 }
 // Private decimal formatting over the established byte console provider.
-machine decimal(main: @mutable Main, number: u64 in Wrapping) reaches StandardOutput {
+machine decimal(main: @mutable Main, number: u64 in Wrapping) reaches |process_authority|::StandardOutput {
     main.number = number;
     main.divisor = 1;
     transition { _ -> scale(main) }
@@ -112,7 +110,7 @@ machine decimal(main: @mutable Main, number: u64 in Wrapping) reaches StandardOu
     }
     machine write(main: @mutable Main) {
         let digit: u64 in Wrapping = (main.number / main.divisor) % 10;
-        Console::write_byte((digit as i32) + 48);
+        |console|::Console::write_byte((digit as i32) + 48);
         main.divisor = main.divisor / 10;
         transition { _ -> digit(main) }
     }
@@ -120,7 +118,7 @@ machine decimal(main: @mutable Main, number: u64 in Wrapping) reaches StandardOu
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

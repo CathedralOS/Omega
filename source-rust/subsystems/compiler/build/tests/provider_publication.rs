@@ -40,6 +40,18 @@ fn run_project_build(
     run_project_build_with_sources(path, targets, &["main.omg", "build.omg"])
 }
 
+/// Run the project's Build, settle it as a dependency and review its policy.
+fn reviewed_policy(path: &Path, target: TargetProfile) -> project_build::CheckedPackagePolicy {
+    let (returned, inputs) = run_project_build(path, &[target]);
+    let settled = returned.settle_dependency(inputs.clone()).unwrap();
+    let product = settled.open_product(inputs).unwrap();
+    product
+        .product_stage(&[target])
+        .unwrap()
+        .review_policy(target)
+        .unwrap()
+}
+
 fn run_project_build_with_sources(
     path: &Path,
     targets: &[TargetProfile],
@@ -1028,14 +1040,7 @@ fn public_service_ceilings_are_reviewed_without_an_installed_provider_or_grant()
         )
         .unwrap();
         std::fs::write(root.join("main.omg"), format!("{service}\npublic machine inspect_value(value: u32) -> u32 reaches {name} crashes none {{ value }}\n")).unwrap();
-        let (returned, inputs) = run_project_build(&root.join("build.omg"), &[target]);
-        let settled = returned.settle_dependency(inputs.clone()).unwrap();
-        let product = settled.open_product(inputs).unwrap();
-        let checked = product
-            .product_stage(&[target])
-            .unwrap()
-            .review_policy(target)
-            .unwrap();
+        let checked = reviewed_policy(&root.join("build.omg"), target);
         let callable = checked
             .policy
             .callables
@@ -1386,14 +1391,7 @@ public boundary trait Framed<Frame> {
     .unwrap();
 
     let target = TargetProfile::LinuxX64;
-    let (returned, inputs) = run_project_build(&build, &[target]);
-    let settled = returned.settle_dependency(inputs.clone()).unwrap();
-    let product = settled.open_product(inputs).unwrap();
-    let reviewed = product
-        .product_stage(&[target])
-        .unwrap()
-        .review_policy(target)
-        .unwrap();
+    let reviewed = reviewed_policy(&build, target);
     let bytes = reviewed.policy.canonical_bytes().unwrap();
     let policy = PackagePolicyBaseline::recover_canonical(&bytes, Default::default()).unwrap();
     policy
@@ -1815,14 +1813,7 @@ fn selected_provider_review_preserves_declared_crash_suspend_and_stack_contracts
         program.replace(observation, "machine seen(value: @Token) reaches none crashes none stack 128 bytes;"),
     ).unwrap();
     let target = TargetProfile::LinuxX64;
-    let (returned, inputs) = run_project_build(&temporary.path().join("build.omg"), &[target]);
-    let settled = returned.settle_dependency(inputs.clone()).unwrap();
-    let product = settled.open_product(inputs).unwrap();
-    let reviewed = product
-        .product_stage(&[target])
-        .unwrap()
-        .review_policy(target)
-        .unwrap();
+    let reviewed = reviewed_policy(&temporary.path().join("build.omg"), target);
     let policy = &reviewed.policy;
     policy
         .validate_package_membership(|key| key == policy.package, Default::default())

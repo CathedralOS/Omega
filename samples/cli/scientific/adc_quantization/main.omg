@@ -1,58 +1,51 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
-use system\Console;
-use io\input;
-use io\input\number;
-use io\output;
-use io\output\integer;
-use domain\settings;
-use domain\settings\Settings;
-use domain\settings\settings;
-use domain\adc;
-use domain\adc\Conversion;
-use domain\adc\quantize;
+use domain/adc/adc.omg;
+use domain/settings/settings.omg;
+use io/input/input.omg;
+use io/output/output.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput crashes Trap {
-    let mutable configuration: Settings;
-    let accepted: bool = block settings(@mutable configuration);
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput crashes Trap {
+    let mutable configuration: |settings|::Settings;
+    let accepted: bool = block |settings|::settings(@mutable configuration);
     transition accepted { true -> block header(@configuration), _ -> invalid() }
-    machine header(configuration: @Settings) {
-        Console::write_line("raw,code,reconstructed_num,reconstructed_den,clip,error_num,error_den,bound_num,bound_den");
+    machine header(configuration: @|settings|::Settings) {
+        |console|::Console::write_line("raw,code,reconstructed_num,reconstructed_den,clip,error_num,error_den,bound_num,bound_den");
         transition { _ -> block sample(configuration, 0) }
     }
-    machine sample(configuration: @Settings, index: i64 in Wrapping) {
+    machine sample(configuration: @|settings|::Settings, index: i64 in Wrapping) {
         transition index < configuration.count { true -> block read(configuration, index), _ -> block trailing() }
     }
-    machine read(configuration: @Settings, index: i64 in Wrapping) {
-        let raw: i64 in Wrapping = block number();
+    machine read(configuration: @|settings|::Settings, index: i64 in Wrapping) {
+        let raw: i64 in Wrapping = block |input|::number();
         transition raw >= -1000 && raw <= 1000 { true -> block convert(configuration, index, raw), _ -> invalid() }
     }
-    machine convert(configuration: @Settings, index: i64 in Wrapping, raw: i64 in Wrapping) {
-        let mutable result: Conversion;
-        quantize(configuration, raw, @mutable result);
-        integer(raw); Console::write(",");
-        integer(result.code); Console::write(",");
-        integer(result.reconstruction_numerator); Console::write(",");
-        integer(result.reconstruction_denominator); Console::write(",");
-        integer(result.clipped); Console::write(",");
-        integer(result.error_numerator); Console::write(",");
-        integer(result.error_denominator); Console::write(",");
-        integer(result.bound_numerator); Console::write(",");
-        integer(result.bound_denominator); Console::write_line("");
+    machine convert(configuration: @|settings|::Settings, index: i64 in Wrapping, raw: i64 in Wrapping) {
+        let mutable result: |adc|::Conversion;
+        |adc|::quantize(configuration, raw, @mutable result);
+        |output|::integer(raw); |console|::Console::write(",");
+        |output|::integer(result.code); |console|::Console::write(",");
+        |output|::integer(result.reconstruction_numerator); |console|::Console::write(",");
+        |output|::integer(result.reconstruction_denominator); |console|::Console::write(",");
+        |output|::integer(result.clipped); |console|::Console::write(",");
+        |output|::integer(result.error_numerator); |console|::Console::write(",");
+        |output|::integer(result.error_denominator); |console|::Console::write(",");
+        |output|::integer(result.bound_numerator); |console|::Console::write(",");
+        |output|::integer(result.bound_denominator); |console|::Console::write_line("");
         transition { _ -> block sample(configuration, index + 1) }
     }
     machine trailing() {
-        let extra: i64 in Wrapping = block number();
+        let extra: i64 in Wrapping = block |input|::number();
         transition extra == 2002 { true -> done(), _ -> invalid() }
     }
-    machine done() { ProcessExit::exit_process(0); }
-    machine invalid() { Console::write_line("ERROR: malformed ADC settings or readings"); ProcessExit::exit_process(64); }
+    machine done() { |process_exit|::ProcessExit::exit_process(0); }
+    machine invalid() { |console|::Console::write_line("ERROR: malformed ADC settings or readings"); |process_exit|::ProcessExit::exit_process(64); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput crashes Trap {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput crashes Trap {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

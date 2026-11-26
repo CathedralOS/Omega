@@ -1,6 +1,6 @@
 // Ten signed decimal integers, at most 10000 in magnitude, separated by
 // ASCII spaces, tab, CR or LF. No exponent, partial token or numeric wrap.
-use omega\language\core\widen_u8_to_i32;
+use {omega}/language/core/numeric_conversion.omg;
 public data Inputs {
     values: [i32; 10];
     count: i32 in Wrapping;
@@ -21,7 +21,7 @@ public machine parse(bytes: @[u8]) -> Inputs {
         }
     }
     machine character(bytes: @[u8], index: u64, input: Inputs) -> Inputs {
-        let byte: i32 = widen_u8_to_i32(bytes[index]);
+        let byte: i32 = |numeric_conversion|::widen_u8_to_i32(bytes[index]);
         transition byte == 32 || byte == 9 || byte == 10 || byte == 13 {
             true -> separator(bytes, index, input),
             false -> nonspace(bytes, index, input, byte)

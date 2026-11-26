@@ -11,7 +11,7 @@ use crate::{
     OptimizationDecisionTargetIdentity,
 };
 
-use super::codec::VERSION;
+const VERSION: u32 = 2;
 use super::{ExternalDecisionAction, ExternalDecisionContext, ExternalDecisionPoint};
 
 pub(super) fn versioned_domain(prefix: &str, terminated: bool) -> Vec<u8> {

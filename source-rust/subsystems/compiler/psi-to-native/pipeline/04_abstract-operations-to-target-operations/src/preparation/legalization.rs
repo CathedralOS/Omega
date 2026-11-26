@@ -1,8 +1,9 @@
 /*
-We drive mandatory target-operation legalization (`legalize_target_operations`)
-and the standalone target-plan verifier (`verify_target_operation_plan_with_closed_module`),
-packaging canonical `LegalizedOperationPlan` instances with their validation
-receipts and obligation/runtime-index helpers.
+We drive mandatory target-operation legalization (`prepare_execution_plan`)
+and the standalone target-plan validators (`verify_execution_plan` and
+`verify_target_operation_plan_with_closed_module`), packaging canonical
+`LegalizedOperationPlan` instances with their validation receipts and
+obligation/runtime-index helpers.
 */
 
 pub(crate) mod model {
@@ -14,36 +15,21 @@ pub(crate) mod model {
         )
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct ReferenceObservationContext {
-        pub position: Option<(semantic_vocabulary::BlockId, u32)>,
-        pub place: semantic_vocabulary::PlaceId,
-        pub path: Vec<terminal_psi::StructuralPathSegment>,
-        pub carrier: Option<semantic_vocabulary::StructuralTypeId>,
-        pub catalog_available: bool,
-        pub location: Option<terminal_semantics::descriptor_lifetimes::DescriptorLocation>,
-        pub observation_available: bool,
-        pub storage: Option<terminal_semantics::descriptor_lifetimes::DescriptorLocation>,
-        pub resident_path: Option<Vec<terminal_psi::StructuralPathSegment>>,
-        pub resident_referent: Option<semantic_vocabulary::StructuralTypeId>,
-        pub origin_count: Option<usize>,
-        pub interference: Option<String>,
-    }
-
+    /// Errors raised while preparing or validating a target execution plan.
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum LegalizationError {
-        /// The plan stage 02 published differs from the plan the validator
-        /// derived independently from the abstract program, or states a
-        /// closed type the module does not retain. `machine` names the first
-        /// function that differs; `None` means the plan's header or its seal.
-        PublishedPlanMismatch {
-            machine: Option<semantic_vocabulary::MachineId>,
-            part: &'static str,
-        },
         InstructionMetadata {
             machine: Option<semantic_vocabulary::MachineId>,
             operation: Option<semantic_vocabulary::OperationId>,
             reason: &'static str,
+        },
+        /// The plan stage 04 published differs from the plan the validator
+        /// derived from the target operations, or states a closed type the
+        /// module does not retain. `machine` names the first function that
+        /// differs; `None` means the plan's header or its seal.
+        PublishedPlanMismatch {
+            machine: Option<semantic_vocabulary::MachineId>,
+            part: &'static str,
         },
         CallableValueProvenance {
             reason: &'static str,
@@ -64,63 +50,11 @@ pub(crate) mod model {
             site: compiler_check_site::CompilerCheckSite,
             cause: Option<String>,
         },
-        ElementViewCustody {
-            machine: semantic_vocabulary::MachineId,
-            operation: semantic_vocabulary::OperationId,
-            place: semantic_vocabulary::PlaceId,
-            reason: &'static str,
-        },
-        DescriptorCallOrigins {
-            machine: semantic_vocabulary::MachineId,
-            result: semantic_vocabulary::PlaceId,
-            reason: &'static str,
-        },
-        ReferenceObservation {
-            machine: semantic_vocabulary::MachineId,
-            operation: Option<semantic_vocabulary::OperationId>,
-            site: compiler_check_site::CompilerCheckSite,
-            reason: &'static str,
-            context: Box<ReferenceObservationContext>,
-        },
-        UnsupportedScalarOperation {
-            machine: semantic_vocabulary::MachineId,
-            operation: abstract_operations::AbstractOperation,
-        },
-        InvalidScalarStore {
-            machine: semantic_vocabulary::MachineId,
-            operation: semantic_vocabulary::OperationId,
-            reason: &'static str,
-        },
-        InvalidScalarReferenceBacking {
-            machine: semantic_vocabulary::MachineId,
-            operation: semantic_vocabulary::OperationId,
-            reason: &'static str,
-        },
-        UnsupportedSourceShape {
-            function: usize,
-        },
-        ReferenceCompletion {
-            reason: terminal_semantics::ReferenceCompletionError,
-        },
-        ReferenceResult {
-            reason: &'static str,
-        },
-        ReferenceDisposalConflict {
-            machine: semantic_vocabulary::MachineId,
-            place: semantic_vocabulary::PlaceId,
-        },
     }
 
     impl std::fmt::Display for LegalizationError {
         fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            match self {
-                Self::ReferenceCompletion { reason } => formatter.write_str(reason.description()),
-                Self::UnsupportedScalarOperation { machine, operation } => write!(
-                    formatter,
-                    "target legalization has no legal scalar instruction for {operation:?} in machine {machine:?}"
-                ),
-                _ => write!(formatter, "target legalization failed: {self:?}"),
-            }
+            write!(formatter, "target legalization failed: {self:?}")
         }
     }
 
@@ -184,57 +118,15 @@ pub(crate) mod model {
                     site,
                     cause,
                 },
-                Self::ReferenceObservation {
-                    machine: owner,
-                    operation: None,
-                    site,
-                    reason,
-                    context,
-                } => Self::ReferenceObservation {
-                    machine: owner,
-                    operation,
-                    site,
-                    reason,
-                    context,
-                },
                 other => other,
             }
         }
     }
 }
+
 pub(crate) mod obligations {
     use crate::preparation::LegalizationError;
-    use optimization_unit::{PsiOptimizationFunction, PsiOptimizationUnit};
-    use semantic_vocabulary::{ObligationId, OperationId};
-
-    pub(crate) fn facts<'unit>(
-        unit: &'unit PsiOptimizationUnit,
-        optimized: &PsiOptimizationFunction,
-        owner: impl Into<optimization_unit::AcceptedObligationOwner>,
-        obligation: ObligationId,
-    ) -> impl Iterator<Item = &'unit optimization_unit::AcceptedObligationFact> {
-        matching_fact(
-            &unit.accepted_obligation_facts,
-            optimized.machine,
-            owner.into(),
-            obligation,
-        )
-        .into_iter()
-    }
-
-    pub(crate) fn accepted_fact(
-        unit: &PsiOptimizationUnit,
-        optimized: &PsiOptimizationFunction,
-        owner: impl Into<optimization_unit::AcceptedObligationOwner>,
-        obligation: ObligationId,
-    ) -> Result<optimization_core::AcceptedObligationFactIdentity, LegalizationError> {
-        retained_fact(
-            &unit.accepted_obligation_facts,
-            optimized.machine,
-            owner,
-            obligation,
-        )
-    }
+    use semantic_vocabulary::ObligationId;
 
     pub(crate) fn retained_fact(
         facts: &[optimization_unit::AcceptedObligationFact],
@@ -262,29 +154,11 @@ pub(crate) mod obligations {
             .ok()
             .map(|position| &facts[position])
     }
-
-    pub(crate) fn references_obligation(
-        optimized: &PsiOptimizationFunction,
-        operation: OperationId,
-        obligation: ObligationId,
-    ) -> bool {
-        optimized.facts.iter().any(|fact| {
-            matches!(fact,
-                optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
-                if *referenced == obligation && *support == operation)
-        })
-    }
 }
+
 pub(crate) mod runtime_indices {
     use crate::preparation::LegalizationError;
-    use crate::preparation::legalization::accepted_fact;
-    use crate::preparation::structural_inputs::structural_reference_input::RuntimeElement;
-    use crate::preparation::structural_inputs::structural_reference_input::{
-        reference_formation_geometry, runtime_projection_elements,
-    };
     use legalized_operations::LegalizedRuntimeIndexOperand;
-    use optimization_unit::PsiOptimizationFunction;
-    use semantic_vocabulary::{ScalarType, StructuralTypeId, ValueId};
 
     /// Resolve retained proof keys against the admitted catalog, without reading
     /// an earlier function body or recomputing its structural projection.
@@ -314,80 +188,6 @@ pub(crate) mod runtime_indices {
             .collect()
     }
 
-    pub(crate) fn operands(
-        optimized: &PsiOptimizationFunction,
-        unit: &crate::preparation::native_geometry::NativeUnit<'_>,
-        owner: impl Into<optimization_unit::AcceptedObligationOwner>,
-        elements: &[RuntimeElement],
-    ) -> Result<Vec<LegalizedRuntimeIndexOperand>, LegalizationError> {
-        let owner = owner.into();
-        elements
-            .iter()
-            .map(|element| {
-                let scalar_type = defined_type(optimized, element.index)
-                    .filter(
-                        |scalar| matches!(unit.closed_scalar(*scalar), Some(semantic_vocabulary::ClosedScalarType::Integer(integer)) if integer.bits() <= 64),
-                    )
-                    .ok_or(LegalizationError::custody())?;
-                let accepted_fact = accepted_fact(unit, optimized, owner, element.obligation)?;
-                Ok(LegalizedRuntimeIndexOperand {
-                    operand: abstract_operations::AbstractResult {
-                        value: element.index,
-                        scalar_type,
-                    },
-                    stride: element.stride,
-                    extent: element.extent,
-                    obligation: element.obligation,
-                    accepted_fact,
-                })
-            })
-            .collect()
-    }
-
-    pub(crate) fn defined_type(
-        optimized: &PsiOptimizationFunction,
-        value: ValueId,
-    ) -> Option<ScalarType> {
-        optimized
-            .parameters
-            .iter()
-            .chain(
-                optimized
-                    .blocks
-                    .iter()
-                    .flat_map(|block| block.parameters.iter().chain(block.definitions())),
-            )
-            .find(|definition| definition.value == value)
-            .map(|definition| definition.scalar_type)
-    }
-
-    pub(crate) fn projection(
-        optimized: &PsiOptimizationFunction,
-        unit: &crate::preparation::native_geometry::NativeUnit<'_>,
-        owner: impl Into<optimization_unit::AcceptedObligationOwner>,
-        root: StructuralTypeId,
-        path: &[terminal_psi::StructuralPathSegment],
-        declarations: &crate::preparation::native_geometry::NativeGeometry<'_>,
-    ) -> Result<Vec<LegalizedRuntimeIndexOperand>, LegalizationError> {
-        if !path.iter().any(|segment| {
-            matches!(
-                segment,
-                terminal_psi::StructuralPathSegment::RuntimeIndex { .. }
-            )
-        }) {
-            return Ok(Vec::new());
-        }
-        let elements = if path.contains(&terminal_psi::StructuralPathSegment::Referent) {
-            reference_formation_geometry(root, path, declarations)
-                .ok_or(LegalizationError::custody())?
-                .elements
-        } else {
-            runtime_projection_elements(root, path, declarations)
-                .ok_or(LegalizationError::custody())?
-        };
-        operands(optimized, unit, owner, &elements)
-    }
-
     #[cfg(test)]
     mod retained_tests {
         use super::retained_operands;
@@ -396,7 +196,7 @@ pub(crate) mod runtime_indices {
         use target_operations::{TargetStructuralRuntimeIndex, TargetUnitScalarArgumentSource};
 
         #[test]
-        fn retained_index_needs_only_target_row_and_exact_admitted_fact() {
+        fn retained_index_needs_only_target_row_and_admitted_fact() {
             let machine = MachineId::new(1).unwrap();
             let operation = OperationId::new(2).unwrap();
             let obligation = ObligationId::new(3).unwrap();
@@ -471,12 +271,12 @@ pub(crate) mod runtime_indices {
         }
     }
 }
+
 pub(in crate::preparation) use crate::preparation::legalization_scalar_graph as scalar_graph_input;
 pub(in crate::preparation) use crate::preparation::legalization_source as source;
 
 pub use model::LegalizationError;
 pub(crate) use model::legalization_validator_identity;
-pub(crate) use obligations::{accepted_fact, facts, references_obligation};
 
 #[allow(unused_imports)]
 pub(crate) use abstract_operations::AbstractOperationPlan;
@@ -486,9 +286,6 @@ pub(crate) use legalized_operations::{LegalizedOperationPlan, legalized_operatio
 pub(crate) use scalar_graph_input::call_origin::validate_boundary_origins;
 #[allow(unused_imports)]
 pub(crate) use target_operations::TargetOperationPlan;
-
-#[allow(unused_imports)]
-pub(crate) use source::derive_source_function_rosters;
 
 /// The facts of the optimized program that preparation joins to target rows.
 #[derive(Debug, Clone, Copy)]
@@ -640,7 +437,7 @@ fn function_abis(
     Ok(abis.into())
 }
 
-/// Build the execution plan from the target operations stage 02 lowered.
+/// Build the execution plan from the target operations stage 04 lowered.
 ///
 /// Every target row keeps the identity and obligations of the operation it
 /// came from, so this reads the target program and the optimized program's
@@ -748,9 +545,8 @@ fn verify_target_operation_plan_input(
     )
 }
 
-/// Compare the target operations with a plan prepared from them here and
-/// now. Use this where no published plan exists: fixtures, and a retained
-/// private body that was never sealed.
+/// Compare the target operations with their source rosters, obligations, and
+/// closed scalar types when no sealed execution plan exists.
 #[cfg(test)]
 pub(crate) fn audit_target_operation_plan(
     target: &TargetOperationPlan,
@@ -773,8 +569,8 @@ fn audit_target_operation_plan_with_module(
             machine: None,
             part: reason,
         })?;
-    let expected = derive_expected_functions(target, abstract_plan, unit, closed_types, module)?;
-    let retained = source::derive_target_function_rosters(
+    verify_target_source_correspondence(target, abstract_plan, unit, module)?;
+    let _ = source::derive_target_function_rosters(
         target,
         PreparationEvidence {
             optimization_unit: unit.identity,
@@ -784,22 +580,16 @@ fn audit_target_operation_plan_with_module(
         },
         closed_types,
     )?;
-    if expected.scalar_functions != retained.scalar_functions {
-        return Err(LegalizationError::custody());
-    }
     Ok(())
 }
 
-/// Validate the execution plan stage 02 actually published.
+/// Validate the execution plan stage 04 actually published.
 ///
-/// The validator derives every function of the plan a second way, from the
-/// abstract program and the optimization unit, and requires the published
-/// plan to equal that derivation row for row: concrete types, placements and
-/// transports, the proof identity at each operation, edge and terminator, and
-/// each function's ownership-frontier facts. It also requires the plan's
-/// header to match its sources, every closed type the plan states to be one
-/// the module retains, and the plan to still hash to the identity it was
-/// sealed under. Ordinary compilation never calls
+/// The validator checks the plan's seal, header, callable facts, source
+/// publication, closed types, ABIs, surviving installations, boundary origins,
+/// and target-to-source operation correspondence, then re-derives every
+/// legalized function from the target operations and requires the published
+/// plan to equal that derivation row for row. Ordinary compilation never calls
 /// this; it runs on an explicit validator request and in tests.
 pub fn verify_execution_plan(
     prepared: &legalized_operations::PreparedExecutionPlan,
@@ -917,12 +707,16 @@ pub fn verify_execution_plan(
         abstract_plan,
     )?;
     validate_boundary_origins(target, origins)?;
-    let expected = derive_expected_functions(
+    verify_target_source_correspondence(target, abstract_plan, unit, Some(origins.module))?;
+    let expected = source::derive_target_function_rosters(
         target,
-        abstract_plan,
-        unit,
+        PreparationEvidence {
+            optimization_unit: unit.identity,
+            work_schedule: unit.work_schedule,
+            accepted_obligation_facts: &unit.accepted_obligation_facts,
+            ownership_frontier_facts: &unit.ownership_frontier_facts,
+        },
         &closed_types,
-        Some(origins.module),
     )?;
     if expected.scalar_functions.len() != plan.scalar_functions.len() {
         return Err(mismatch(None, "the plan has a different set of functions"));
@@ -947,119 +741,284 @@ pub fn verify_execution_plan(
     Ok(())
 }
 
-/// Check the target operations against their sources and derive, from the
-/// abstract program and the optimization unit alone, the functions a plan
-/// prepared from them must contain.
-fn derive_expected_functions(
+/// Verify target-to-source roster, metadata, terminator, and constant
+/// correspondence without re-auditing `PsiOptimizationUnit` input custody.
+fn verify_target_source_correspondence(
     target: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
     unit: &optimization_unit::PsiOptimizationUnit,
-    closed_types: &crate::preparation::native_geometry::ModuleTypes,
     module: Option<&terminal_psi::TerminalModule>,
-) -> Result<source::SourceFunctionRosters, LegalizationError> {
+) -> Result<(), LegalizationError> {
+    use abstract_operations::AbstractOperation;
+    use semantic_vocabulary::ScalarType;
+    use target_operations::{TargetControlTerminator, TargetUnitOperation};
+
     scalar_graph_input::call_origin::validate_qualified_numeric_executions(
         target,
         &unit.boundary_machines,
         module,
     )?;
-    let plan_geometry =
-        crate::preparation::native_geometry::NativeGeometry::with_owned_sequence_bounds(
-            &abstract_plan.structural_types,
-            abstract_plan.structural_types.owned_sequence_bounds(),
-            target.target,
-        )
-        .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
-    let unit_geometry =
-        crate::preparation::native_geometry::NativeGeometry::with_owned_sequence_bounds(
-            &unit.structural_types,
-            unit.structural_types.owned_sequence_bounds(),
-            target.target,
-        )
-        .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
-    let abstract_plan = &crate::preparation::native_geometry::NativeInput::with_types(
-        abstract_plan,
-        &plan_geometry,
-        closed_types,
-    );
-    let unit = &crate::preparation::native_geometry::NativeInput::with_types(
-        unit,
-        &unit_geometry,
-        closed_types,
-    );
     source::validate_source_custody(target, abstract_plan, unit)?;
-    validate_call_descriptor_origins(target, abstract_plan, unit)?;
     scalar_graph_input::normalized_foreign::validate_native_callback_roster(target)?;
-    let descriptor_inputs =
-        crate::preparation::legalization_descriptor_inputs::DescriptorInputs::new(
-            target,
-            abstract_plan,
-            unit,
-        );
-    for function in &target.functions {
-        let mut abstracted = abstract_plan
-            .functions
-            .iter()
-            .filter(|row| row.machine == function.machine);
-        let mut optimized = unit
-            .functions
-            .iter()
-            .filter(|row| row.machine == function.machine);
-        let (Some(abstracted_function), Some(optimized_function), None, None) = (
-            abstracted.next(),
-            optimized.next(),
-            abstracted.next(),
-            optimized.next(),
-        ) else {
-            return Err(LegalizationError::custody());
-        };
-        scalar_graph_input::match_input(
-            function,
-            abstracted_function,
-            optimized_function,
-            &descriptor_inputs,
-        )
-        .map_err(|error| error.attributed(function.machine, None))?;
-    }
-    derive_source_function_rosters(target, abstract_plan, unit, closed_types)
-}
 
-/// Independent source correspondence, never called by ordinary construction.
-pub(crate) fn validate_call_descriptor_origins(
-    target: &TargetOperationPlan,
-    abstract_plan: &crate::preparation::native_geometry::NativePlan<'_>,
-    unit: &crate::preparation::native_geometry::NativeUnit<'_>,
-) -> Result<(), LegalizationError> {
-    let call_descriptor_graph = std::cell::OnceCell::new();
-    let mut call_descriptor_origins = scalar_graph_input::byte_views::CallDescriptorOrigins::new(
-        unit,
-        target,
-        abstract_plan,
-        &call_descriptor_graph,
-    );
-    for function in &target.functions {
-        for operation in function
+    for ((target_fn, abstract_fn), unit_fn) in target
+        .functions
+        .iter()
+        .zip(&abstract_plan.functions)
+        .zip(&unit.functions)
+    {
+        let machine = target_fn.machine;
+        if machine != abstract_fn.machine
+            || machine != unit_fn.machine
+            || target_fn.graph.entry != abstract_fn.entry
+            || target_fn.graph.entry != unit_fn.entry
+            || target_fn.graph.blocks.len() != abstract_fn.blocks.len()
+            || target_fn.graph.blocks.len() != unit_fn.blocks.len()
+        {
+            return Err(LegalizationError::custody().attributed(machine, None));
+        }
+        let has_storage = target_fn.mixed_structural_scalar_abi.is_some()
+            || !target_fn.graph.parameters.is_empty()
+            || !unit_fn.declared_places.is_empty();
+        match &target_fn.structural_contract {
+            Some(contract) => {
+                if !has_storage
+                    || contract.parameters != abstract_fn.structural_parameters
+                    || contract.places != unit_fn.structural_places
+                    || contract.entry_claims != abstract_fn.entry_claims
+                    || contract.published_service_ceiling != abstract_fn.published_service_ceiling
+                    || contract.result.as_ref() != abstract_fn.result.structural()
+                {
+                    return Err(LegalizationError::custody().attributed(machine, None));
+                }
+            }
+            None if has_storage => {
+                return Err(LegalizationError::custody().attributed(machine, None));
+            }
+            None => {}
+        }
+        for ((target_block, abstract_block), unit_block) in target_fn
             .graph
             .blocks
             .iter()
-            .flat_map(|block| block.operations())
+            .zip(&abstract_fn.blocks)
+            .zip(&unit_fn.blocks)
         {
-            if let target_operations::TargetUnitOperation::Call {
-                result:
-                    target_operations::TargetCallResult::Structural {
-                        result,
-                        descriptor_origins,
-                        ..
-                    },
-                ..
-            } = operation
+            if target_block.block != abstract_block.block || target_block.block != unit_block.id {
+                return Err(LegalizationError::custody().attributed(machine, None));
+            }
+            let Some((source_terminal, body)) = unit_block.nodes.split_last() else {
+                return Err(LegalizationError::custody().attributed(machine, None));
+            };
+            if target_block.terminator_metadata.work != source_terminal.work
+                || target_block.terminator_metadata.effect != source_terminal.effect
+                || target_block.terminator_metadata.ownership != source_terminal.ownership
             {
-                let expected = call_descriptor_origins.resolve(function.machine, result)?;
-                if descriptor_origins != &expected {
-                    return Err(LegalizationError::DescriptorCallOrigins {
-                        machine: function.machine,
-                        result: result.place,
-                        reason: "retained descriptor backing differs from source correspondence",
-                    });
+                return Err(LegalizationError::custody().attributed(machine, None));
+            }
+            let edge_matches =
+                |edge,
+                 destination,
+                 work: &[optimization_unit::WorkSettlement],
+                 source: &optimization_unit::OptimizationEdge| {
+                    edge == source.psi_edge
+                        && destination == source.target
+                        && work == source.work.as_slice()
+                };
+            let terminator_ok = match &target_block.terminator {
+                TargetControlTerminator::Jump { successor } => matches!(
+                    (
+                        &source_terminal.operation,
+                        source_terminal.successors.as_slice(),
+                    ),
+                    (
+                        AbstractOperation::Jump {
+                            psi_edge,
+                            target: dest,
+                            ..
+                        },
+                        [source_edge],
+                    ) if *psi_edge == successor.psi_edge
+                        && *dest == successor.target
+                        && edge_matches(
+                            successor.psi_edge,
+                            successor.target,
+                            &successor.work,
+                            source_edge,
+                        )
+                ),
+                TargetControlTerminator::Conditional {
+                    when_true,
+                    when_false,
+                    ..
+                } => matches!(
+                    (
+                        &source_terminal.operation,
+                        source_terminal.successors.as_slice(),
+                    ),
+                    (AbstractOperation::Conditional { .. }, [source_true, source_false])
+                        if edge_matches(
+                            when_true.psi_edge,
+                            when_true.target,
+                            &when_true.work,
+                            source_true,
+                        ) && edge_matches(
+                            when_false.psi_edge,
+                            when_false.target,
+                            &when_false.work,
+                            source_false,
+                        )
+                ),
+                TargetControlTerminator::StructuralCase {
+                    psi_block, cases, ..
+                } => {
+                    matches!(
+                        &source_terminal.operation,
+                        AbstractOperation::StructuralCase { psi_block: source_block, .. }
+                            if source_block == psi_block
+                    ) && cases.len() == source_terminal.successors.len()
+                        && cases.iter().zip(&source_terminal.successors).all(
+                            |(case, source_edge)| {
+                                edge_matches(case.psi_edge, case.target, &case.work, source_edge)
+                            },
+                        )
+                }
+                TargetControlTerminator::Return { psi_edge, .. } => matches!(
+                    &source_terminal.operation,
+                    AbstractOperation::ReturnUnit { psi_edge: source_edge, .. }
+                        if source_edge == psi_edge
+                ),
+                TargetControlTerminator::ReturnScalar { psi_edge, .. } => matches!(
+                    &source_terminal.operation,
+                    AbstractOperation::Return { psi_edge: source_edge, .. }
+                        if source_edge == psi_edge
+                ),
+                TargetControlTerminator::ReturnStructural { psi_edge, .. } => matches!(
+                    &source_terminal.operation,
+                    AbstractOperation::ReturnStructural { psi_edge: source_edge, .. }
+                        if source_edge == psi_edge
+                ),
+                TargetControlTerminator::Crash { psi_edge, .. } => matches!(
+                    &source_terminal.operation,
+                    AbstractOperation::Crash { psi_edge: source_edge, .. }
+                        if source_edge == psi_edge
+                ),
+                TargetControlTerminator::EliminateEmpty { psi_edge, .. } => matches!(
+                    &source_terminal.operation,
+                    AbstractOperation::EliminateEmpty { psi_edge: source_edge, .. }
+                        if source_edge == psi_edge
+                ),
+                TargetControlTerminator::InvokeNoNormal {
+                    psi_edge, callee, ..
+                } => matches!(
+                    &source_terminal.operation,
+                    AbstractOperation::InvokeNoNormal {
+                        psi_edge: source_edge,
+                        callee: source_callee,
+                        ..
+                    } if source_edge == psi_edge && source_callee == callee
+                ),
+                TargetControlTerminator::ExternalCompletion {
+                    psi_edge, boundary, ..
+                } => matches!(
+                    &source_terminal.operation,
+                    AbstractOperation::ExternalCompletion {
+                        psi_edge: source_edge,
+                        boundary: source_boundary,
+                        ..
+                    } if source_edge == psi_edge && source_boundary == boundary
+                ),
+            };
+            if !terminator_ok {
+                return Err(LegalizationError::custody().attributed(machine, None));
+            }
+            let ordinary_count = target_block
+                .operations
+                .iter()
+                .position(|row| matches!(row.kind, TargetUnitOperation::CleanupCall { .. }))
+                .unwrap_or(target_block.operations.len());
+            if ordinary_count != body.len() {
+                return Err(LegalizationError::custody().attributed(machine, None));
+            }
+            if target_block.operations[ordinary_count..].iter().any(|row| {
+                row.source.is_some() || !matches!(row.kind, TargetUnitOperation::CleanupCall { .. })
+            }) {
+                return Err(LegalizationError::custody().attributed(machine, None));
+            }
+            for (row, node) in target_block.operations[..ordinary_count].iter().zip(body) {
+                let Some(source) = &row.source else {
+                    return Err(LegalizationError::custody().attributed(machine, None));
+                };
+                let Some(expected_op) = node.operation.psi_operation() else {
+                    return Err(LegalizationError::custody().attributed(machine, None));
+                };
+                let expected_result = match node.definitions.as_slice() {
+                    [] => None,
+                    [definition] => Some(*definition),
+                    _ => {
+                        return Err(
+                            LegalizationError::custody().attributed(machine, Some(expected_op))
+                        );
+                    }
+                };
+                if source.operation != expected_op
+                    || source.result != expected_result
+                    || source.metadata.work != node.work
+                    || source.metadata.effect != node.effect
+                    || source.metadata.ownership != node.ownership
+                {
+                    return Err(LegalizationError::custody().attributed(machine, Some(expected_op)));
+                }
+                let literal_ok = match &row.kind {
+                    TargetUnitOperation::IntegerConstant {
+                        psi_operation,
+                        result,
+                        scalar_type,
+                        value,
+                    } => matches!(
+                        &node.operation,
+                        AbstractOperation::IntegerConstant {
+                            psi_operation: source_op,
+                            result: source_result,
+                            scalar_type: source_type,
+                            value: source_value,
+                        } if source_op == psi_operation
+                            && source_result == result
+                            && *source_type == ScalarType::Integer(*scalar_type)
+                            && source_value == value
+                    ),
+                    TargetUnitOperation::BooleanConstant {
+                        psi_operation,
+                        result,
+                        value,
+                    } => matches!(
+                        &node.operation,
+                        AbstractOperation::BooleanConstant {
+                            psi_operation: source_op,
+                            result: source_result,
+                            value: source_value,
+                        } if source_op == psi_operation
+                            && source_result == result
+                            && source_value == value
+                    ),
+                    TargetUnitOperation::IeeeFloatConstant {
+                        psi_operation,
+                        result,
+                        value,
+                    } => matches!(
+                        &node.operation,
+                        AbstractOperation::IeeeFloatConstant {
+                            psi_operation: source_op,
+                            result: source_result,
+                            value: source_value,
+                        } if source_op == psi_operation
+                            && source_result == result
+                            && source_value == value
+                    ),
+                    _ => true,
+                };
+                if !literal_ok {
+                    return Err(LegalizationError::custody().attributed(machine, Some(expected_op)));
                 }
             }
         }

@@ -143,7 +143,7 @@ qualification; whole-object replacement of governed storage is a write to its
 affected fields, not fresh establishment exempt from policy.
 
 The policy may carry per-region observation demands using the existing Stable,
-External and Atomic operation descriptions below. `access\observe(@mutable plan,
+External and Atomic operation descriptions below. `|access|::observe(@mutable plan,
 field, behavior)` denotes ordinary construction of such a demand, not authority
 to implement it. Caller authorization has no special atomic grammar or second
 atomic caller allowlist: load needs read permission, store needs write permission,

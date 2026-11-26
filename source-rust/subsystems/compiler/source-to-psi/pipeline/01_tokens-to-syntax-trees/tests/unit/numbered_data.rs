@@ -10,11 +10,7 @@ fn numbered_declarations_share_ordinary_data_and_source_identity() {
         "data Message<'scope> { #7 value: @'scope u32; retired #8; }",
         "data Message { #7 value: u32; #9 case Ready; }",
     ] {
-        let parsed = crate::tests::parse_source_verbose(
-            declaration,
-            "tokens",
-            "ordinary numbered declaration",
-        );
+        let parsed = crate::tests::parse_source(declaration);
         let Some(Item::Data(definition)) = parsed.root_items().next() else {
             panic!("numbering must not select a different declaration representation");
         };
@@ -36,8 +32,7 @@ fn nested_version_blocks_reject_regardless_of_leading_member() {
         "retired #2; version v1 { #1 value: u32; } #1 value: u32;",
     ] {
         let declaration = format!("data Message {{ {members} }}");
-        let error =
-            crate::tests::parse_source_error(&declaration, "tokens", "retired version syntax");
+        let error = crate::tests::parse_error(&declaration);
         assert!(error.message.contains("data `version` blocks are retired"));
     }
 }
@@ -50,7 +45,7 @@ fn retired_is_a_field_name_unless_followed_by_an_identity() {
         "data Record { #1 retired: u32; retired #2; }",
         "data Sum { #1 case Held(#1 retired: u32, retired #2); }",
     ] {
-        let parsed = crate::tests::parse_source(declaration, "retired field name");
+        let parsed = crate::tests::parse_source(declaration);
         let data = crate::tests::root_data(&parsed, "data declaration");
         let field = match &parsed.items.data_members(data.members)[0] {
             DataMember::Field(field) => field,
@@ -69,7 +64,7 @@ fn numbered_data_rejects_duplicate_and_retired_identity_reuse() {
         "#7 value: u32; retired #8; retired #8;",
     ] {
         let declaration = format!("data Message {{ {members} }}");
-        let error = crate::tests::parse_source_error(&declaration, "tokens", "identity collision");
+        let error = crate::tests::parse_error(&declaration);
         assert!(error.message.contains("declared more than once"));
     }
 }

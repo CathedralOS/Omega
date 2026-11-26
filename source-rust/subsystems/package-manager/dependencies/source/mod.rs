@@ -21,6 +21,7 @@
 mod acquisition;
 pub(crate) use acquisition::LocalWorkspaceMembers;
 mod build_resolution;
+mod bundled;
 mod custody;
 pub(crate) mod git;
 mod local;
@@ -114,5 +115,3 @@ pub(crate) enum PackageSourceNavigation {
     Root,
     Member(SourceRelativePath),
 }
-
-impl PackageSourceNavigation {}

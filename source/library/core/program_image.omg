@@ -4,11 +4,11 @@
 // Exclude the entire suffix, including alignment and image padding, before
 // passing the remaining image extent to the semantic continuation.
 public boundary trait ProgramImage {
-    machine retained_suffix_start() -> addr reaches none crashes none;
+    machine retained_suffix_start() -> address reaches none crashes none;
 }
 
 public ProgramImageNativeProvider satisfies ProgramImage {
-    boundary machine retained_suffix_start() -> addr
+    boundary machine retained_suffix_start() -> address
     satisfies ProgramImage::retained_suffix_start
     reaches none crashes none;
 }

@@ -1,48 +1,47 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use alignment/local/local.omg;
+use input/sequence/sequence.omg;
+use output/report/report.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // With absent stdin, the sample harness checks the missing-input diagnostic.
 // Expected exit: 64.
 // Expected output contains: ERROR missing-sequence
 // Independent bounded local biological alignment. Every score and path is
 // computed from stdin at runtime; no fixture selection or reference imports.
-use system\Console;
-use input\sequence;
-use alignment\local;
-use output\report;
 
 data Main { }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    let mutable first: input\sequence\Sequence;
-    let mutable second: input\sequence\Sequence;
-    let mutable result: alignment\local\Alignment;
-    let status: i32 = block input\sequence\read_sequence(@mutable first);
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    let mutable first: |sequence|::Sequence;
+    let mutable second: |sequence|::Sequence;
+    let mutable result: |local|::Alignment;
+    let status: i32 = block |sequence|::read_sequence(@mutable first);
     transition status == 0 { true -> block read_second(main, @first, @mutable second, @mutable result), false -> diagnostic(main, status) }
-    machine read_second(main: @mutable Main, first: @input\sequence\Sequence, second: @mutable input\sequence\Sequence, result: @mutable alignment\local\Alignment) {
-        let status: i32 = block input\sequence\read_sequence(second);
+    machine read_second(main: @mutable Main, first: @|sequence|::Sequence, second: @mutable |sequence|::Sequence, result: @mutable |local|::Alignment) {
+        let status: i32 = block |sequence|::read_sequence(second);
         transition status == 0 { true -> compute(main, first, second, result), false -> diagnostic(main, status) }
     }
-    machine compute(main: @mutable Main, first: @input\sequence\Sequence, second: @input\sequence\Sequence, result: @mutable alignment\local\Alignment) {
-        let valid: bool = alignment\local\align(first, second, result);
+    machine compute(main: @mutable Main, first: @|sequence|::Sequence, second: @|sequence|::Sequence, result: @mutable |local|::Alignment) {
+        let valid: bool = |local|::align(first, second, result);
         transition valid { true -> emit(main, result), false -> internal(main) }
     }
-    machine emit(main: @mutable Main, result: @alignment\local\Alignment) {
-        output\report\report(result);
-        ProcessExit::exit_process(0);
+    machine emit(main: @mutable Main, result: @|local|::Alignment) {
+        |report|::report(result);
+        |process_exit|::ProcessExit::exit_process(0);
     }
     machine diagnostic(main: @mutable Main, status: i32) {
         transition status { 1 -> empty(main), 2 -> alphabet(main), 3 -> capacity(main), 4 -> missing(main), _ -> internal(main) }
     }
-    machine empty(main: @mutable Main) { Console::write_line("ERROR empty-sequence"); ProcessExit::exit_process(64); }
-    machine alphabet(main: @mutable Main) { Console::write_line("ERROR alphabet-expected-ACGTN"); ProcessExit::exit_process(64); }
-    machine capacity(main: @mutable Main) { Console::write_line("ERROR sequence-exceeds-16"); ProcessExit::exit_process(64); }
-    machine missing(main: @mutable Main) { Console::write_line("ERROR missing-sequence"); ProcessExit::exit_process(64); }
-    machine internal(main: @mutable Main) { Console::write_line("ERROR internal-alignment"); ProcessExit::exit_process(70); }
+    machine empty(main: @mutable Main) { |console|::Console::write_line("ERROR empty-sequence"); |process_exit|::ProcessExit::exit_process(64); }
+    machine alphabet(main: @mutable Main) { |console|::Console::write_line("ERROR alphabet-expected-ACGTN"); |process_exit|::ProcessExit::exit_process(64); }
+    machine capacity(main: @mutable Main) { |console|::Console::write_line("ERROR sequence-exceeds-16"); |process_exit|::ProcessExit::exit_process(64); }
+    machine missing(main: @mutable Main) { |console|::Console::write_line("ERROR missing-sequence"); |process_exit|::ProcessExit::exit_process(64); }
+    machine internal(main: @mutable Main) { |console|::Console::write_line("ERROR internal-alignment"); |process_exit|::ProcessExit::exit_process(70); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

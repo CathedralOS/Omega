@@ -4,8 +4,8 @@ use {omega}/build/dependency.omg;
 
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "square_tone" };
-    let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {
-        location: "../../../../source/library/system"
+    let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Bundled {
+        name: "system"
     }));
     let wav_output_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {
         location: "../wav_output"

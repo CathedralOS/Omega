@@ -3,8 +3,7 @@
 // navigation.
 
 use super::super::{
-    CanonicalDependencySourceRequest, CanonicalSourceClosureSubjectError, request_view::Request,
-    usage::Budget,
+    CanonicalDependencySourceRequest, CanonicalSourceClosureSubjectError, usage::Budget,
 };
 use super::source::{validate_git_selection, validate_request_bytes};
 use crate::declarations::AliasName;
@@ -21,7 +20,33 @@ pub(in super::super) fn validate_dependency_selection_kind(
     budget: &mut Budget,
 ) -> Result<(), CanonicalSourceClosureSubjectError> {
     match request {
+        CanonicalDependencySourceRequest::Bundled { name, .. } => {
+            if selected.key().name() != name
+                || !matches!(
+                    selected.key().source_lineage(),
+                    SourceLineage::Bundled { .. }
+                )
+                || !matches!(
+                    selected.resolution(),
+                    ImmutableSourceResolution::Bundled { .. }
+                )
+                || selected_navigation != &PackageSourceNavigation::Root
+            {
+                return Err(CanonicalSourceClosureSubjectError::new(
+                    "bundled request disagrees with its selected package",
+                ));
+            }
+        }
         CanonicalDependencySourceRequest::Path { .. } => match selected.key().source_lineage() {
+            SourceLineage::Bundled { library, .. } => {
+                if !matches!(requester_lineage, SourceLineage::Bundled { library: owner, .. } if owner == library)
+                    || selected_navigation != &PackageSourceNavigation::Root
+                {
+                    return Err(CanonicalSourceClosureSubjectError::new(
+                        "bundled relative path escaped its library",
+                    ));
+                }
+            }
             SourceLineage::Workspace(_) | SourceLineage::ExternalLocal(_) => {
                 if selected_navigation != &PackageSourceNavigation::Root {
                     return Err(CanonicalSourceClosureSubjectError::new(
@@ -61,24 +86,31 @@ pub(in super::super) fn validate_dependency_selection_kind(
 }
 
 pub(in super::super) fn validate_dependency_request(
-    request: Request<'_>,
+    request: &CanonicalDependencySourceRequest,
     maximum_request_bytes: usize,
 ) -> Result<(), CanonicalSourceClosureSubjectError> {
     match request {
-        Request::Path {
+        CanonicalDependencySourceRequest::Bundled {
+            explicit_alias,
+            name,
+        } => {
+            validate_optional_alias(explicit_alias.as_ref())?;
+            validate_request_bytes(name.as_str().as_bytes(), maximum_request_bytes)
+        }
+        CanonicalDependencySourceRequest::Path {
             explicit_alias,
             location,
         } => {
-            validate_optional_alias(explicit_alias)?;
+            validate_optional_alias(explicit_alias.as_ref())?;
             validate_request_bytes(location.as_bytes(), maximum_request_bytes)
         }
-        Request::Git {
+        CanonicalDependencySourceRequest::Git {
             explicit_alias,
             repository,
             revision,
             selection: _,
         } => {
-            validate_optional_alias(explicit_alias)?;
+            validate_optional_alias(explicit_alias.as_ref())?;
             validate_request_bytes(repository.as_bytes(), maximum_request_bytes)?;
             validate_request_bytes(revision.as_bytes(), maximum_request_bytes)
         }

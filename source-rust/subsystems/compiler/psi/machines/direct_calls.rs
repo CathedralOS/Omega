@@ -18,73 +18,28 @@ pub struct DirectCallParts<'a> {
     pub selected_evidence: &'a [OutcomeSpecificCallEvidence],
 }
 
+/// Read a direct call through the operands its invocation declares, adding
+/// only the call's result role and its outcome-specific evidence.
 pub fn direct_call_parts(kind: &OperationKind) -> Option<DirectCallParts<'_>> {
-    let (callee, role, arguments, structural_arguments, selected_evidence) = match kind {
-        OperationKind::Call {
-            callee, arguments, ..
-        } => (
-            callee,
-            DirectCallRole::Scalar,
-            arguments.as_slice(),
-            &[][..],
-            &[][..],
-        ),
-        OperationKind::CallUnit {
-            callee,
-            arguments,
-            structural_arguments,
-            ..
-        } => (
-            callee,
-            DirectCallRole::Unit,
-            arguments.as_slice(),
-            structural_arguments.as_slice(),
-            &[][..],
-        ),
-        OperationKind::CallStructuralScalar {
-            callee,
-            arguments,
-            structural_arguments,
-            ..
-        } => (
-            callee,
-            DirectCallRole::Scalar,
-            arguments.as_slice(),
-            structural_arguments.as_slice(),
-            &[][..],
-        ),
+    let (role, selected_evidence) = match kind {
+        OperationKind::Call { .. } | OperationKind::CallStructuralScalar { .. } => {
+            (DirectCallRole::Scalar, &[][..])
+        }
+        OperationKind::CallUnit { .. } => (DirectCallRole::Unit, &[][..]),
         OperationKind::CallStructural {
-            callee,
-            structural_arguments,
-            selected_evidence,
-            ..
-        } => (
-            callee,
-            DirectCallRole::Structural,
-            &[][..],
-            structural_arguments.as_slice(),
-            selected_evidence.as_slice(),
-        ),
-        OperationKind::CallStructuralWithScalarArguments {
-            callee,
-            arguments,
-            structural_arguments,
-            selected_evidence,
-            ..
-        } => (
-            callee,
-            DirectCallRole::Structural,
-            arguments.as_slice(),
-            structural_arguments.as_slice(),
-            selected_evidence.as_slice(),
-        ),
+            selected_evidence, ..
+        }
+        | OperationKind::CallStructuralWithScalarArguments {
+            selected_evidence, ..
+        } => (DirectCallRole::Structural, selected_evidence.as_slice()),
         _ => return None,
     };
+    let invocation = kind.module_invocation()?;
     Some(DirectCallParts {
-        callee: *callee,
+        callee: invocation.callee,
         role,
-        arguments,
-        structural_arguments,
+        arguments: invocation.arguments,
+        structural_arguments: invocation.structural_arguments,
         selected_evidence,
     })
 }

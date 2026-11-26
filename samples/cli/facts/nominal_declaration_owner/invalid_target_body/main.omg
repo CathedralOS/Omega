@@ -1,7 +1,7 @@
-// A library Token retains its declaring owner when it reaches library\read.
+// A library Token retains its declaring owner when it reaches |shared_library|::read.
 // Expected exit: 0
-use shared\copied\Token;
-use shared\library\read;
+use {shared}/copied/copied.omg;
+use {shared}/library/library.omg as shared_library;
 boundary trait SelectedBodyCheck {
     machine require_tag(tag: u64) reaches none crashes Trap;
 }
@@ -23,30 +23,30 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 }
 
 boundary trait SelectedReceive {
-    machine receive(token: Token) -> u8
+    machine receive(token: |copied|::Token) -> u8
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
 }
 
 X86Receive satisfies SelectedReceive {
-    machine receive(token: Token) -> u8
+    machine receive(token: |copied|::Token) -> u8
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(17u64);
-     read(token) 
+     |shared_library|::read(token)
     }
 }
 
 ArmReceive satisfies SelectedReceive {
-    machine receive(token: Token) -> u8
+    machine receive(token: |copied|::Token) -> u8
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(29u64);
-     read(token) 
+     |shared_library|::read(token)
     }
 }
 
 
-machine transported() -> u8 { SelectedReceive::receive(Token { value: 7 }) }
+machine transported() -> u8 { SelectedReceive::receive(|copied|::Token { value: 7 }) }
 machine main() crashes Trap {
     transition transported() == 7 { true -> done(), _ -> bad() }
     machine done() {}

@@ -1,6 +1,6 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Pixel canvas: fixed array of structs with per-element field mutations.
 //
 // Exercises: a fixed-size array of structs ([Pixel; 4]) where each element
@@ -31,7 +31,6 @@ use omega\language\core\ProcessExit;
 //
 // Expected exit: 70.
 
-use system\Console;
 
 data Pixel [copy] {
     r: i32 in Saturating;
@@ -105,8 +104,8 @@ machine set_g(main: @mutable Main, idx: i32 in Saturating, val: i32 in Saturatin
     machine g3(main: @mutable Main, val: i32 in Saturating) { main.canvas.pixels[3].g = val; }
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("pixel_canvas: writing r/g channels of 4 pixel structs, then summing them");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("pixel_canvas: writing r/g channels of 4 pixel structs, then summing them");
     set_r(main, 0 as +Saturating, 10 as +Saturating);
     set_g(main, 0 as +Saturating, 5 as +Saturating);
     set_r(main, 1 as +Saturating, 20 as +Saturating);
@@ -129,23 +128,23 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
 
     machine good(main: @mutable Main) {
-        Console::write_line("PASS: channel sum is 70 (exit 70)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(70);
+        |console|::Console::write_line("PASS: channel sum is 70 (exit 70)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(70);
     }
 
     machine bad(main: @mutable Main, total: i32 in Saturating) {
         // Exit with a code that encodes the wrong total for debugging.
-        Console::write_line("FAIL: wrong channel sum (exit 71)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(71);
+        |console|::Console::write_line("FAIL: wrong channel sum (exit 71)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(71);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

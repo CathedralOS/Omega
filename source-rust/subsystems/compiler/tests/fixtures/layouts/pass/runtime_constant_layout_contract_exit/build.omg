@@ -1,7 +1,9 @@
+use main.omg as app;
+
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "runtime_constant_layout_contract_exit" };
-    Build::bind(builder, windows_x86_64::ProgramEntry, program);
-    Build::bind(builder, linux_x86_64::ProgramEntry, program);
-    Build::bind(builder, linux_arm64::ProgramEntry, program);
-    Build::bind(builder, macos_arm64::ProgramEntry, program);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::program);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::program);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::program);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::program);
 }

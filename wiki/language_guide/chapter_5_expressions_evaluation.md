@@ -208,7 +208,7 @@ For integer computation without a finite width, use `i` or nonnegative `u`:
 
 Use `embed` to enter mathematical arithmetic. `embed(7i32) / 2` is exact
 rational `7/2`; `embed(7i32 / 2)` instead embeds the integer quotient `3`.
-Named `integer\quotient` and `integer\remainder` remain available in
+Named `|integer|::quotient` and `|integer|::remainder` remain available in
 mathematical expressions. See [numeric conversions and division](../spec/language/numeric_values.md#unbounded-computational-integers).
 
 ## Converting between numbers

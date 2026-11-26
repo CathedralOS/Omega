@@ -1,21 +1,20 @@
 // Fact: A mutable foreign registration retains exclusive access to the exact original Buffer backing until completion consumes Pending; completion writes 73 while an earlier copied value remains 37.
 // Expected exit: 0. Completion changes the original cell to 73; prior copied value stays 37.
-use omega\language\core\Content;
-use omega\language\core\CountedQuantity;
+use {omega}/language/core/content.omg;
 public data ByteUnit {}
 public data Buffer [linear] dropped by drop_buffer { value: u64; }
 machine drop_buffer(buffer: @mutable Buffer) {}
 public domain Buffer::Owned;
 public domain Buffer::Extra;
-machine Owned::content(buffer: @Buffer) -> CountedQuantity<ByteUnit>
-satisfies Content<Buffer, CountedQuantity<ByteUnit>>::project {
-    CountedQuantity { magnitude: Nat::Succ { prev: Nat::Zero } }
+machine Owned::content(buffer: @Buffer) -> |content|::CountedQuantity<ByteUnit>
+satisfies |content|::Content<Buffer, |content|::CountedQuantity<ByteUnit>>::project {
+    |content|::CountedQuantity { magnitude: Nat::Succ { prev: Nat::Zero } }
 }
 public data Pending<'source> [linear] { slot: u64; }
 public domain Pending::Retained established by Writer::register;
-machine Retained::content<'source>(pending: @Pending<'source>) -> CountedQuantity<ByteUnit>
-satisfies Content<Pending<'source>, CountedQuantity<ByteUnit>>::project {
-    CountedQuantity { magnitude: Nat::Succ { prev: Nat::Zero } }
+machine Retained::content<'source>(pending: @Pending<'source>) -> |content|::CountedQuantity<ByteUnit>
+satisfies |content|::Content<Pending<'source>, |content|::CountedQuantity<ByteUnit>>::project {
+    |content|::CountedQuantity { magnitude: Nat::Succ { prev: Nat::Zero } }
 }
 public data Capacity [linear] { token: u64; }
 public domain Capacity::Available established by Writer::acquire, Writer::complete;

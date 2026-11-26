@@ -389,14 +389,15 @@ fn reopened_uefi_image_retains_its_checked_physical_entry_and_subsystem() {
     let (manifest, image) = {
         let producer = TemporaryDirectory::create("saved-uefi-producer", false).unwrap();
         let system = library.join("system").to_string_lossy().replace('\\', "/");
-        let build = r#"use {omega}/build/dependency.omg;
+        let build = r#"use main.omg as app;
+use {omega}/build/dependency.omg;
 use {system}/uefi_x86_64_entry.omg as firmware;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "firmware" };
     builder.subsystem = Subsystem::EfiApplication;
     let system: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "SYSTEM_SOURCE" }));
     Build::select_provider::<|firmware|::UefiPhysicalEntry, RejectArrival>(builder, uefi_x86_64);
-    Build::bind(builder, uefi_x86_64::ProgramEntry, semantic_entry);
+    Build::bind(builder, uefi_x86_64::ProgramEntry, |app|::semantic_entry);
 }
 "#;
         std::fs::write(

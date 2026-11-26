@@ -45,8 +45,8 @@ mod constant_values;
 mod content_contracts;
 mod content_projections;
 mod contracts;
-mod expressions;
 pub(crate) mod domain_predicate_forms;
+mod expressions;
 mod families;
 mod fixed_bytes;
 mod float_meaning;
@@ -163,7 +163,9 @@ pub(crate) struct DeclaredDomain {
 
 impl DeclaredDomain {
     pub(crate) fn schema_source(&self) -> Option<&crate::source_state::SourceTypeScope> {
-        self.schema_scope.as_ref().map(|scope| scope.source.as_ref())
+        self.schema_scope
+            .as_ref()
+            .map(|scope| scope.source.as_ref())
     }
 }
 
@@ -279,6 +281,8 @@ pub(crate) struct Program<'t> {
     pub(crate) template_bodies: Vec<(MachineId, templates::TemplateBody)>,
     /// Each quotient of mathematical data read so far (`quotients`).
     pub(crate) quotients: Vec<quotients::QuotientRecord>,
+    /// Each executable quotient of custody-free copyable data read so far (`quotients`).
+    pub(crate) executable_quotients: Vec<quotients::ExecutableQuotient>,
     /// Each data declaration indexed by values read so far (`families`).
     pub(crate) families: Vec<families::FamilyRecord>,
     /// Each theorem over such data read so far (`families`).
@@ -292,6 +296,10 @@ pub(crate) struct Program<'t> {
     /// Each active clause retains the arguments an unfolded helper evaluates,
     /// even when its result does not use them. Frames keep nested scopes apart.
     clause_arguments: Vec<Vec<semantic_vocabulary::ScalarTerm>>,
+    /// Entry `requires` clauses already read for the machine whose `ensures`
+    /// clauses are currently being read, so clause unfolding can verify
+    /// called-machine preconditions.
+    enclosing_requires: Vec<semantic_vocabulary::Proposition>,
     /// The services a Build selection awaits a provider for, in first-read
     /// order (`designate`, `publish_readiness`).
     readiness: Vec<semantic_vocabulary::ServiceId>,
@@ -303,6 +311,8 @@ pub(crate) struct Program<'t> {
     rigid: bool,
     /// The machines that are a requirement's contract with no body.
     pub requirements: Vec<MachineId>,
+    /// Stubbed requirement callees whose original body does not return normally.
+    pub(crate) non_returning_requirements: Vec<MachineId>,
     /// Only the ordinary/callable header reader allocates this family. Record
     /// member projections retain their separate receiver/member instance key.
     requirement_headers: Vec<(machine::RequirementHeaderOrigin, MachineId)>,
@@ -577,8 +587,8 @@ impl<'t> Program<'t> {
             admitted_signature_view_owners: Vec::new(),
             signature_view_owner: None,
             boundary_parent_contracts: Vec::new(),
-            completed_operators: crate::publication::selection_questions::CompletedOperators::default(
-            ),
+            completed_operators:
+                crate::publication::selection_questions::CompletedOperators::default(),
             shared,
             symbols: IdTable::default(),
             signatures: IdTable::default(),
@@ -605,11 +615,13 @@ impl<'t> Program<'t> {
             reading_template: None,
             template_bodies: Vec::new(),
             quotients: Vec::new(),
+            executable_quotients: Vec::new(),
             families: Vec::new(),
             family_theorems: Vec::new(),
             evidence_uses: Vec::new(),
             lifted_operations: Vec::new(),
             clause_arguments: Vec::new(),
+            enclosing_requires: Vec::new(),
             readiness: Vec::new(),
             names: IdTable::default(),
             rigid,
@@ -669,6 +681,7 @@ impl<'t> Program<'t> {
             block_slots: Vec::new(),
             block_slot_base: 0,
             block_floor: None,
+            non_returning_requirements: Vec::new(),
         }
     }
 
@@ -939,8 +952,7 @@ mod tests {
         use terminal_psi::StructuralAccess;
         let typed = TypedTrees::default();
         let mut program = Program::new(&typed, false);
-        let source =
-            crate::SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent);
+        let source = crate::SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent);
         let empty = program.records.push(plain_record());
         program.record_sources.push(places::RecordSource {
             constant_input_owner: None,
@@ -1121,14 +1133,14 @@ mod tests {
                 complete_predicate_theory: false,
             }));
         let bodies = arena::IdTable::default();
-        let components =
-            crate::prepare_call_components(&bodies, &mut program.signatures).unwrap();
+        let components = crate::prepare_call_components(&bodies, &mut program.signatures).unwrap();
         program.prepare_domain_predicates(machine()).unwrap();
         let elaboration = crate::lower_program(
             None,
             &bodies,
             &components,
             crate::body::Signatures {
+                inferred_inputs: None,
                 theorems: &program.theorem_parameters,
                 machines: &program.signatures,
                 declarations: &program.declaration_signatures,
@@ -1498,11 +1510,9 @@ mod tests {
                     ..
                 }
             ));
-            assert!(
-                matches!(read.source, crate::SourceOrigin::AuthoredNode {
+            assert!(matches!(read.source, crate::SourceOrigin::AuthoredNode {
                 source_member, owner, node: source_node, ..
-            } if source_member == id && owner == caller && source_node == node)
-            );
+            } if source_member == id && owner == caller && source_node == node));
         }
     }
 
@@ -2450,9 +2460,7 @@ mod tests {
         );
         assert_eq!(names.ensures.len(), 1);
         let callee = MachineId::new(2).unwrap();
-        let source = crate::SourceOrigin::Unpositioned(
-            crate::Unpositioned::ConformanceWitness,
-        );
+        let source = crate::SourceOrigin::Unpositioned(crate::Unpositioned::ConformanceWitness);
         let call = crate::body::Expression {
             call_context: None,
             kind: ExpressionKind::Call {
@@ -2623,9 +2631,7 @@ mod tests {
                     machine(),
                     record,
                     &pattern,
-                    crate::SourceOrigin::Unpositioned(
-                        crate::Unpositioned::SpanAbsent,
-                    ),
+                    crate::SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent),
                 )
                 .unwrap_err();
             assert_eq!(
@@ -3082,10 +3088,7 @@ mod tests {
             ))
         );
         assert!(!slot.assignable && !slot.homed && slot.borrowed.is_none());
-        assert!(matches!(
-            statement,
-            crate::Statement::Bind { slot: 0, .. }
-        ));
+        assert!(matches!(statement, crate::Statement::Bind { slot: 0, .. }));
         let (computed_slot, statement) = program
             .local(
                 machine(),

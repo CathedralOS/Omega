@@ -1,9 +1,7 @@
 // The worker keeps its token across a suspending call. The separate settle
 // machine consumes a linear task through the selected lifecycle operation.
 
-use omega\language\core\Task;
-use omega\language\core\TaskLifecycle;
-use omega\language\core\TaskOutcome;
+use {omega}/language/core/task.omg;
 
 public boundary trait Sleeper {
     machine park(token: i32) reaches none suspends crashes none;
@@ -21,10 +19,10 @@ reaches Sleeper invokes Sleeper suspends
     carried
 }
 
-machine settle<T>(task: Task<T>) -> TaskOutcome<T>
-reaches TaskLifecycle invokes TaskLifecycle suspends blocks crashes Trap crashes Abort
+machine settle<T>(task: |task|::Task<T>) -> |task|::TaskOutcome<T>
+reaches |task|::TaskLifecycle invokes |task|::TaskLifecycle suspends blocks crashes Trap crashes Abort
 {
-    suspend block TaskLifecycle::finish::<T>(task)
+    suspend block |task|::TaskLifecycle::finish::<T>(task)
 }
 
 data Main { hits: i32 in Wrapping; }

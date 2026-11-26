@@ -32,7 +32,7 @@ Computed NaN observations retain their existing exact-bit requirements.
 The compiler-known [address queries](../language/counts_and_addresses.md#address-exposure)
 `address_of(reference)` and `address_of::<SelectedMachine<Arguments>>()` are not recasts.
 They expose a storage or executable-entry address without establishing a new
-view, calling contract, or inverse conversion from `addr`.
+view, calling contract, or inverse conversion from `address`.
 
 ## Layout optimization and recasts
 

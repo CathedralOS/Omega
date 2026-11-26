@@ -145,7 +145,7 @@ describes which arguments the foreign function receives.
 
 The description borrows its reflected identity text. A Build that names the
 locator type can bind its lifetime as `machine build<'selection>(builder:
-@mutable Build)` and declare the local as
+@mutable BuildPlan)` and declare the local as
 `let locator: |native|::FunctionFieldBinding<'selection> = …`.
 
 These are [typed declaration selectors](../language/reflection.md#typed-declaration-selectors),
@@ -155,7 +155,7 @@ resolution retains exact declaration, application and signature/schema identity
 without importing or executing product code in the Build activation. The formal
 must belong to the bound requirement application. It may occur anywhere in the
 signature; its position is never inferred from its type or from a first-parameter
-convention. The field must be a live, non-atomic `addr` field of the exact table
+convention. The field must be a live, non-atomic `address` field of the exact table
 application borrowed by that formal. Layout validation derives its offset.
 Wrong owners, applications, revisions, field kinds and inaccessible selectors
 reject, including in declared bindings that are not reached by an entry.
@@ -183,7 +183,7 @@ the same admitted contract. Dispatch is an actual read: its access, lifetime and
 memory-observation obligations survive even when the formal is dispatch-only;
 it cannot be discarded as an unused argument.
 
-Reading an `addr` proves neither a callable signature nor permission to invoke
+Reading an `address` proves neither a callable signature nor permission to invoke
 it. The existing admitted boundary and entry/handoff contracts must justify the
 table's provenance, field-to-signature correspondence, foreign behavior and
 applicable authority/protocol lifetime. Constructing a matching record or a
@@ -382,8 +382,8 @@ an opaque provider is an unsound admitted claim.
 
 Execution placement is ordinary provider/executor selection, not a foreign-call
 disposition keyword. A dedicated pinned UI executor may perform a blocking
-native call; a blocking-executor package may move custody through bounded queues
-and completion claims. A detached in-process call retains its worker, storage,
+native call. A worker pool can take ownership of queued work and return a
+completion claim to the caller. A detached in-process call retains its worker, storage,
 and provider era until native return. Safely bounded recovery from a genuine hang
 requires process isolation; an in-process worker cannot simply be killed.
 

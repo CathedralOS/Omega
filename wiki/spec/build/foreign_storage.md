@@ -9,7 +9,7 @@ unsupported backing and lifetime routes reject.
 
 ## Inert addresses and marshaling
 
-`addr` is numerical address data. `Ptr<T>` is a sealed, inert ABI carrier whose
+`address` is numerical address data. `Ptr<T>` is a sealed, inert ABI carrier whose
 type parameter supplies representation/pointee shape. Neither grants authority;
 ordinary code cannot dereference, index, or manufacture a reference from it.
 A binding materializes a pointer only from established storage claims after

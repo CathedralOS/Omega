@@ -6,8 +6,8 @@ use wav_output/wav_output.omg as output;
 
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Package { name: "wav_output" };
-    let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {
-        location: "../../../../source/library/system"
+    let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Bundled {
+        name: "system"
     }));
 
     Build::select_provider::<|output|::WavOutput, |output|::WindowsWavOutput>(builder, windows_x86_64);

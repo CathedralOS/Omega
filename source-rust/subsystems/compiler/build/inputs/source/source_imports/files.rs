@@ -158,15 +158,23 @@ impl<'a> FileImport<'a> {
 
     pub fn standalone(
         &self,
-        current_root: &Path,
+        current_root: Option<&Path>,
         mounted: Option<&PackageCompilationInputs>,
         filesystem: &SourceFileSystem,
     ) -> Result<FileSelection, Vec<Diagnostic>> {
         if !self.import.used_in(self.source.scope) {
             return Ok(FileSelection::Unbound);
         }
+        if self.root == Some("omega") {
+            return self.toolchain(filesystem);
+        }
+        let current_root = current_root.ok_or_else(|| {
+            self.error(format!(
+                "file import `{}` has no admitted package root",
+                self.import.target
+            ))
+        })?;
         match self.root {
-            Some("omega") => self.toolchain(filesystem),
             Some(_) if let Some(inputs) = mounted => self.package(inputs, inputs.root(), true),
             Some(_) => self.unavailable(match self.source.scope {
                 DependencyScope::Build => DependencyPurpose::Build,
@@ -200,7 +208,7 @@ impl<'a> FileImport<'a> {
                         .then_some(core.as_path())
                 })
                 .ok_or_else(|| self.error("file import has no admitted package owner".into()))?;
-            return self.standalone(root, None, filesystem);
+            return self.standalone(Some(root), None, filesystem);
         };
         match self.package_owner(inputs, requester, purpose)? {
             Some(owner) => self.package(inputs, owner, self.root.is_some()),

@@ -1,5 +1,5 @@
-use omega\language\core\ProcessExit;
-use system\Console;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 
 public boundary trait Reader { machine read() -> i32 reaches none crashes none; }
 public ProviderReaderImplementation satisfies Reader {
@@ -8,12 +8,12 @@ public ProviderReaderImplementation satisfies Reader {
 
 // Both modules export the same leaf name. The description must retain the
 // exact selected declaration; choosing the sibling changes the exit oracle.
-public machine run() reaches ProcessExit + Reader, Console
+public machine run() reaches |process_exit|::ProcessExit + Reader, |console|::Console
 invokes Reader
-invokes Console
+invokes |console|::Console
 {
     let value: i32 = Reader::read();
     transition value == 37 { true -> deliver(value), _ -> wrong(value) }
-    machine deliver(observed: i32) { ProcessExit::exit_process(observed); }
-    machine wrong(observed: i32) { ProcessExit::exit_process(65); }
+    machine deliver(observed: i32) { |process_exit|::ProcessExit::exit_process(observed); }
+    machine wrong(observed: i32) { |process_exit|::ProcessExit::exit_process(65); }
 }

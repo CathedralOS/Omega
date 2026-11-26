@@ -1,8 +1,8 @@
 // Expected exit: 0
 // A plain byte view preserves Utf8 and the storage beside its changed byte.
-use omega\language\core\byte_observation;
+use {omega}/language/core/byte_observation/byte_observation.omg;
 
-domain [u8; 28]::Utf8 requires byte_observation\valid_utf8(@self[..]);
+domain [u8; 28]::Utf8 requires |byte_observation|::valid_utf8(@self[..]);
 data Packet {
     before: u8;
     line: [u8; 28] in Utf8;

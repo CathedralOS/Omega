@@ -1,6 +1,5 @@
-use omega\language\core\StandardInput;
-use system\ByteRead;
-use system\Console;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 
 public data Input {
     values: [i64 in Wrapping; 9];
@@ -17,8 +16,8 @@ public data Input {
 // One record, at most 96 consumed bytes and at most nine signed decimal
 // tokens of at most four digits. Spaces and LF/EOF delimit; other bytes reject.
 public machine read(input: @mutable Input)
-reaches StandardInput
-invokes Console
+reaches |process_authority|::StandardInput
+invokes |console|::Console
 blocks
 crashes Trap
 {
@@ -31,11 +30,11 @@ crashes Trap
     }
     machine byte(input: @mutable Input) {
         input.count = input.count + 1;
-        let observed: ByteRead = block Console::read_byte();
+        let observed: |console|::ByteRead = block |console|::Console::read_byte();
         transition observed {
-            ByteRead::Error -> reject(input),
-            ByteRead::Eof -> finish(input),
-            ByteRead::Byte { value } -> classify(input, value)
+            |console|::ByteRead::Error -> reject(input),
+            |console|::ByteRead::Eof -> finish(input),
+            |console|::ByteRead::Byte { value } -> classify(input, value)
         }
     }
     machine classify(input: @mutable Input, value: i32) {

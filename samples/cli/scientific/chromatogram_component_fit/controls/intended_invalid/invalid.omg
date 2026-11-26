@@ -1,16 +1,16 @@
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_exit.omg;
 // Complete source control: an unconditional read at the array's exclusive end.
 // Ordinary documented bounds rule requires index < length, hence index 5 for
 // five detector bins must be rejected. Not a syntax or dependency failure.
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit {
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit {
     let samples: [i32; 5] = [0, 2, 7, 8, 3];
     let impossible: i32 = samples[5];
-    ProcessExit::exit_process(impossible);
+    |process_exit|::ProcessExit::exit_process(impossible);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit {
+machine entry_start() reaches |process_exit|::ProcessExit {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }

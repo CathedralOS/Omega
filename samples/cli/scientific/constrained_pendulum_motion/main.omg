@@ -1,33 +1,26 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use model/integrator/integrator.omg;
+use report/report/report.omg;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Expected exit: 64 (empty stdin); valid data fixtures exit 0.
 // Expected output contains: INVALID: expected scenario
-use system\ByteRead;
-use system\Console;
-use model\integrator;
-use model\integrator\Pendulum;
-use model\integrator\pendulum_project;
-use model\integrator\step;
-use report\report;
-use report\report\print_micro;
-use omega\language\core\F64::from_i32;
-use omega\language\core\F64::square_root;
 
 data Main {
-    pendulum: Pendulum;
+    pendulum: |integrator|::Pendulum;
     scenario: i32;
     step: i32;
     initial_energy: f64;
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("NEW021 constrained pendulum; signed micro-units; dt=0.01; gravity=9.81; mass=1");
-    let input: ByteRead = block Console::read_byte();
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("NEW021 constrained pendulum; signed micro-units; dt=0.01; gravity=9.81; mass=1");
+    let input: |console|::ByteRead = block |console|::Console::read_byte();
     transition input {
-        ByteRead::Error -> invalid(main),
-        ByteRead::Byte { value } -> block scenario(main, value),
-        ByteRead::Eof -> invalid(main)
+        |console|::ByteRead::Error -> invalid(main),
+        |console|::ByteRead::Byte { value } -> block scenario(main, value),
+        |console|::ByteRead::Eof -> invalid(main)
     }
     machine scenario(main: @mutable Main, value: i32) {
         transition value >= 48 && value <= 51 {
@@ -37,11 +30,11 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
     machine length_input(main: @mutable Main, scenario: i32) {
         main.scenario = scenario;
-        let input: ByteRead = block Console::read_byte();
+        let input: |console|::ByteRead = block |console|::Console::read_byte();
         transition input {
-            ByteRead::Error -> invalid(main),
-            ByteRead::Byte { value } -> block length(main, value),
-            ByteRead::Eof -> invalid(main)
+            |console|::ByteRead::Error -> invalid(main),
+            |console|::ByteRead::Byte { value } -> block length(main, value),
+            |console|::ByteRead::Eof -> invalid(main)
         }
     }
     machine length(main: @mutable Main, value: i32) {
@@ -60,11 +53,11 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         transition { _ -> block newline(main) }
     }
     machine newline(main: @mutable Main) {
-        let input: ByteRead = block Console::read_byte();
+        let input: |console|::ByteRead = block |console|::Console::read_byte();
         transition input {
-            ByteRead::Error -> invalid(main),
-            ByteRead::Byte { value } -> block check_newline(main, value),
-            ByteRead::Eof -> invalid(main)
+            |console|::ByteRead::Error -> invalid(main),
+            |console|::ByteRead::Byte { value } -> block check_newline(main, value),
+            |console|::ByteRead::Eof -> invalid(main)
         }
     }
     machine check_newline(main: @mutable Main, value: i32) {
@@ -74,11 +67,11 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         }
     }
     machine end_input(main: @mutable Main) {
-        let input: ByteRead = block Console::read_byte();
+        let input: |console|::ByteRead = block |console|::Console::read_byte();
         transition input {
-            ByteRead::Error -> invalid(main),
-            ByteRead::Eof -> initialize(main),
-            ByteRead::Byte { value } -> invalid(main)
+            |console|::ByteRead::Error -> invalid(main),
+            |console|::ByteRead::Eof -> initialize(main),
+            |console|::ByteRead::Byte { value } -> invalid(main)
         }
     }
     machine initialize(main: @mutable Main) {
@@ -99,7 +92,7 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
     machine small_angle(main: @mutable Main) {
         main.pendulum.x = 0.01 * main.pendulum.length;
-        main.pendulum.y = 0.0 - F64::square_root(main.pendulum.length * main.pendulum.length - main.pendulum.x * main.pendulum.x);
+        main.pendulum.y = 0.0 - |float_operations|::F64::square_root(main.pendulum.length * main.pendulum.length - main.pendulum.x * main.pendulum.x);
         transition { _ -> project(main) }
     }
     machine released(main: @mutable Main) {
@@ -115,30 +108,30 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         transition { _ -> project(main) }
     }
     machine project(main: @mutable Main) {
-        pendulum_project(@mutable main.pendulum);
+        |integrator|::pendulum_project(@mutable main.pendulum);
         main.initial_energy = main.pendulum.energy;
         transition { _ -> row(main) }
     }
     machine row(main: @mutable Main) {
-        Console::write("ROW ");
-        print_micro(F64::from_i32(main.step));
-        Console::write(" ");
-        print_micro(main.pendulum.x);
-        Console::write(" ");
-        print_micro(main.pendulum.y);
-        Console::write(" ");
-        print_micro(main.pendulum.vx);
-        Console::write(" ");
-        print_micro(main.pendulum.vy);
-        Console::write(" ");
-        print_micro(main.pendulum.raw_drift);
-        Console::write(" ");
-        print_micro(main.pendulum.drift);
-        Console::write(" ");
-        print_micro(main.pendulum.tangent);
-        Console::write(" ");
-        print_micro(main.pendulum.energy);
-        Console::write_line("");
+        |console|::Console::write("ROW ");
+        |report|::print_micro(|float_operations|::F64::from_i32(main.step));
+        |console|::Console::write(" ");
+        |report|::print_micro(main.pendulum.x);
+        |console|::Console::write(" ");
+        |report|::print_micro(main.pendulum.y);
+        |console|::Console::write(" ");
+        |report|::print_micro(main.pendulum.vx);
+        |console|::Console::write(" ");
+        |report|::print_micro(main.pendulum.vy);
+        |console|::Console::write(" ");
+        |report|::print_micro(main.pendulum.raw_drift);
+        |console|::Console::write(" ");
+        |report|::print_micro(main.pendulum.drift);
+        |console|::Console::write(" ");
+        |report|::print_micro(main.pendulum.tangent);
+        |console|::Console::write(" ");
+        |report|::print_micro(main.pendulum.energy);
+        |console|::Console::write_line("");
         transition main.step >= 0 && main.step < 32 {
             true -> advance(main),
             false -> finish(main)
@@ -148,24 +141,24 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     requires main.step >= 0 && main.step < 32
     {
         main.step = main.step + 1;
-        step(@mutable main.pendulum);
+        |integrator|::step(@mutable main.pendulum);
         transition { _ -> row(main) }
     }
     machine finish(main: @mutable Main) {
-        Console::write("ENERGY_CHANGE ");
-        print_micro(main.pendulum.energy - main.initial_energy);
-        Console::write_line("");
-        Console::write_line("COMPLETE 32 steps");
-        ProcessExit::exit_process(0);
+        |console|::Console::write("ENERGY_CHANGE ");
+        |report|::print_micro(main.pendulum.energy - main.initial_energy);
+        |console|::Console::write_line("");
+        |console|::Console::write_line("COMPLETE 32 steps");
+        |process_exit|::ProcessExit::exit_process(0);
     }
     machine invalid(main: @mutable Main) {
-        Console::write_line("INVALID: expected scenario 0..3, length 1..2, LF, EOF");
-        ProcessExit::exit_process(64);
+        |console|::Console::write_line("INVALID: expected scenario 0..3, length 1..2, LF, EOF");
+        |process_exit|::ProcessExit::exit_process(64);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

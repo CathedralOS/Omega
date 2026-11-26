@@ -1,7 +1,7 @@
 // Core relation traits parameterized by RELATION FAMILIES:
-// `use omega\language\core\relation` (depend-free) imports
+// `use {omega}/language/core/relation.omg` (depend-free) imports
 // Reflexive/Symmetric/Transitive/Antisymmetric — each
-// `trait X<C, R: C -> C -> core\Type>` carries one law; a user
+// `trait X<C, R: C -> C -> |proof|::Type>` carries one law; a user
 // `proposition` binds the family through `satisfies`.
 //
 //   * `related` is a defined proposition (code equality), so every
@@ -10,10 +10,7 @@
 // Compile-checked only: declaration surface (proposition
 // contracts aren't callable), no standard-library dependency.
 
-use omega\language\core\Antisymmetric;
-use omega\language\core\Reflexive;
-use omega\language\core\Symmetric;
-use omega\language\core\Transitive;
+use {omega}/language/core/relation.omg;
 
 data Carrier {
     code: u32;
@@ -25,20 +22,20 @@ data Carrier {
 proposition related(left: Carrier, right: Carrier) = left.code == right.code;
 
 machine related_reflexive(value: Carrier)
-satisfies Reflexive<Carrier, related>::reflexive
+satisfies |relation|::Reflexive<Carrier, related>::reflexive
 ensures related(value, value)
 {
 }
 
 machine related_symmetric(left: Carrier, right: Carrier)
-satisfies Symmetric<Carrier, related>::symmetric
+satisfies |relation|::Symmetric<Carrier, related>::symmetric
 requires related(left, right)
 ensures related(right, left)
 {
 }
 
 machine related_transitive(left: Carrier, middle: Carrier, right: Carrier)
-satisfies Transitive<Carrier, related>::transitive
+satisfies |relation|::Transitive<Carrier, related>::transitive
 requires
     related(left, middle),
     related(middle, right)
@@ -47,7 +44,7 @@ ensures related(left, right)
 }
 
 machine related_antisymmetric(left: Carrier, right: Carrier)
-satisfies Antisymmetric<Carrier, related>::antisymmetric
+satisfies |relation|::Antisymmetric<Carrier, related>::antisymmetric
 requires
     related(left, right),
     related(right, left)

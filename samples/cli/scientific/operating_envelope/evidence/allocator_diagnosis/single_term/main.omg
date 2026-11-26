@@ -1,8 +1,8 @@
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Keep independently produced trapping additions live until their sum.
 // The callee parameter makes the operands runtime values rather than constants.
-use system\Console;
 data Main { }
 
 machine doubled_sum(x: u64 in Trapping) -> u64 in Trapping {
@@ -11,15 +11,15 @@ machine doubled_sum(x: u64 in Trapping) -> u64 in Trapping {
 }
 
 // A later state loop retains fixed division sites after earlier real pressure.
-public machine integer(value: i32) reaches StandardOutput
-invokes Console
+public machine integer(value: i32) reaches |process_authority|::StandardOutput
+invokes |console|::Console
 {
     transition value < 0 {
         true -> negative(value as i32 +Wrapping),
         _ -> digits(value as i32 +Wrapping, 1000000000, false)
     }
     machine negative(value: i32 in Wrapping) {
-        Console::write_byte(45);
+        |console|::Console::write_byte(45);
         transition { _ -> digits(0 - value, 1000000000, false) }
     }
     machine digits(value: i32 in Wrapping, divisor: i32 in Wrapping, started: bool) {
@@ -36,7 +36,7 @@ invokes Console
         }
     }
     machine emit(value: i32 in Wrapping, divisor: i32 in Wrapping, digit: i32 in Wrapping) {
-        Console::write_byte((digit + 48) as i32);
+        |console|::Console::write_byte((digit + 48) as i32);
         transition divisor > 1 {
             true -> digits(value % divisor, divisor / 10, true),
             _ -> done()
@@ -44,7 +44,7 @@ invokes Console
     }
     machine done() { }
 }
-machine main(main: @mutable Main) reaches ProcessExit + StandardOutput {
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     let total: u64 in Trapping = doubled_sum(1);
     transition total == 4 {
         true -> good(main),
@@ -52,13 +52,13 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardOutput {
     }
     machine good(main: @mutable Main) {
         integer(1120);
-        ProcessExit::exit_process(70);
+        |process_exit|::ProcessExit::exit_process(70);
     }
-    machine bad(main: @mutable Main) { ProcessExit::exit_process(71); }
+    machine bad(main: @mutable Main) { |process_exit|::ProcessExit::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }

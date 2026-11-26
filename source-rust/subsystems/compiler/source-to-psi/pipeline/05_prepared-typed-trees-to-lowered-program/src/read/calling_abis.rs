@@ -685,7 +685,7 @@ mod descriptor_storage_tests {
                 .handles()
                 .nth(BuiltinTypeAtom::Address.ordinal())
                 .unwrap(),
-            "addr",
+            "address",
         );
         let length = named(
             children

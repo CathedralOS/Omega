@@ -8,9 +8,10 @@ use crate::NativeSelectedProviderPlanDigest;
 pub(crate) use crate::OptimizedBoundaryOccurrence;
 use crate::digest_encoder::DomainDigestEncoder;
 use crate::physical::derivation::hashing::{
-    canonical_usize, hash_boundary_settlement_record, hash_boundary_structural_result, hash_bytes,
-    hash_call_site_owner, hash_internal_scalar_argument_source, hash_port_effect_record,
-    hash_structural_argument, hash_structural_parameter_declaration, hash_target,
+    hash_boundary_settlement_record, hash_boundary_structural_result, hash_call_site_owner,
+    hash_internal_scalar_argument_source, hash_normalized_foreign_mechanism,
+    hash_port_effect_record, hash_provider_execution_record, hash_structural_argument,
+    hash_structural_parameter_declaration, hash_target,
 };
 use crate::{BoundaryInternalCallCustody, CompilerBuiltinResult, CompilerBuiltinScalarArgument};
 use machine_code::PortEffectRecord;
@@ -36,7 +37,7 @@ pub(crate) fn hosted_builtin_settlement_identity(
         }
     });
     digest.raw(&occurrence.identity().bytes());
-    hash_bytes(&mut digest, requirement_identity.as_bytes());
+    digest.bytes(requirement_identity.as_bytes());
     digest.raw(selected_plan_digest.as_bytes());
     hash_target(&mut digest, target);
     digest.byte(1);
@@ -93,7 +94,7 @@ pub(crate) fn admitted_provider_boundary_trait_settlement_identity(
 ) -> [u8; 32] {
     let mut digest = DomainDigestEncoder::new(b"omega.d41-boundary-trait-settlement.sha256.v7\0");
     digest.raw(&occurrence.identity().bytes());
-    hash_bytes(&mut digest, requirement_identity.as_bytes());
+    digest.bytes(requirement_identity.as_bytes());
     match selected_supply {
         crate::physical::NativeSelectedSupply::ProviderPlan(plan) => {
             digest.byte(0);
@@ -109,93 +110,15 @@ pub(crate) fn admitted_provider_boundary_trait_settlement_identity(
     let mut execution_bytes = Vec::new();
     target_vocabulary::encode_external_execution(&mut execution_bytes, execution);
     digest.raw(&execution_bytes);
-    match mechanism {
-        target_vocabulary::NormalizedForeignCallMechanism::CompilerImport {
-            import,
-            requirement_identity,
-            selected_plan,
-        } => {
-            digest.byte(6);
-            digest.byte(import.tag());
-            digest.raw(selected_plan);
-            hash_bytes(&mut digest, requirement_identity.as_bytes());
-        }
-        target_vocabulary::NormalizedForeignCallMechanism::BuildImport {
-            stack,
-            locator,
-            receipt,
-            requirement_identity,
-        } => {
-            digest.byte(5);
-            digest.raw(&locator.identity_digest().as_bytes());
-            digest.raw(&stack.commitment());
-            digest.raw(receipt);
-            hash_bytes(&mut digest, requirement_identity.as_bytes());
-        }
-        target_vocabulary::NormalizedForeignCallMechanism::Table {
-            target,
-            byte_offset,
-            table_operand,
-            dispatch_only,
-            source,
-        } => {
-            digest.byte(3);
-            hash_bytes(&mut digest, target.target_name().as_bytes());
-            digest.raw(&byte_offset.to_le_bytes());
-            digest.raw(&table_operand.to_le_bytes());
-            digest.byte(u8::from(*dispatch_only));
-            digest.raw(&source.commitment());
-        }
-        target_vocabulary::NormalizedForeignCallMechanism::Import {
-            locator,
-            same_stack_contribution,
-        } => {
-            digest.byte(1);
-            digest.raw(&locator.identity_digest().as_bytes());
-            digest.raw(&same_stack_contribution.commitment().as_bytes());
-        }
-        target_vocabulary::NormalizedForeignCallMechanism::Component {
-            locator,
-            provider,
-            candidate,
-            application_commitment,
-            same_stack_contribution,
-        } => {
-            digest.byte(4);
-            digest.raw(locator.identity_digest());
-            digest.raw(&provider.vocabulary_marker.get().to_le_bytes());
-            digest.raw(provider.program_fingerprint.as_bytes());
-            digest.raw(&candidate.get().to_le_bytes());
-            digest.raw(application_commitment);
-            digest.raw(&same_stack_contribution.commitment().as_bytes());
-        }
-        target_vocabulary::NormalizedForeignCallMechanism::SystemCall(kernel) => {
-            digest.byte(2);
-            hash_bytes(&mut digest, kernel.target.target_name().as_bytes());
-            digest.raw(&kernel.number.to_le_bytes());
-            match kernel.execution {
-                target_vocabulary::NormalizedForeignExecution::ProviderPlan {
-                    report,
-                    commitment,
-                } => {
-                    digest.byte(0);
-                    digest.raw(&report.to_le_bytes());
-                    digest.raw(&commitment);
-                }
-                target_vocabulary::NormalizedForeignExecution::NativeBinding(binding) => {
-                    digest.byte(1);
-                    digest.raw(&binding);
-                }
-            }
-            hash_bytes(&mut digest, kernel.requirement_identity.as_bytes());
-        }
+    if let Some(contribution) = hash_normalized_foreign_mechanism(&mut digest, mechanism) {
+        digest.raw(&contribution.commitment().as_bytes());
     }
     digest.raw(&boundary_plan_identity);
-    digest.raw(&canonical_usize(structural_arguments.len()));
+    digest.len(structural_arguments.len());
     for argument in structural_arguments {
         hash_structural_argument(&mut digest, argument);
     }
-    digest.raw(&canonical_usize(structural_parameters.len()));
+    digest.len(structural_parameters.len());
     for parameter in structural_parameters {
         hash_structural_parameter_declaration(&mut digest, parameter);
     }
@@ -214,11 +137,11 @@ pub(crate) fn admitted_provider_settlement_identity(
 ) -> Result<[u8; 32], &'static str> {
     let mut digest = DomainDigestEncoder::new(b"omega.d41-boundary-trait-settlement.sha256.v4\0");
     digest.raw(&occurrence.identity().bytes());
-    hash_bytes(&mut digest, requirement_identity.as_bytes());
+    digest.bytes(requirement_identity.as_bytes());
     digest.raw(selected_plan_digest.as_bytes());
     hash_target(&mut digest, target);
     digest.byte(3);
-    hash_provider_execution_binding(&mut digest, execution);
+    hash_provider_execution_record(&mut digest, &execution.into());
     hash_boundary_settlement_record(&mut digest, settlement)?;
     match port_effect {
         None => digest.byte(0),
@@ -228,21 +151,6 @@ pub(crate) fn admitted_provider_settlement_identity(
         }
     }
     Ok(digest.finish())
-}
-
-fn hash_provider_execution_binding(
-    digest: &mut DomainDigestEncoder,
-    execution: ProviderExecutionBinding,
-) {
-    for coordinate in [
-        execution.provider_plan_report_identity().get(),
-        execution.provider_execution_report_identity(),
-        execution.provider_execution_report_fingerprint(),
-        execution.normalized_root_report_identity(),
-        execution.boundary_contract_report_fingerprint(),
-    ] {
-        digest.raw(&coordinate.to_le_bytes());
-    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -259,14 +167,14 @@ pub(crate) fn installed_provider_internal_call_identity(
 ) -> [u8; 32] {
     let mut digest = DomainDigestEncoder::new(b"omega.d41-boundary-trait-settlement.sha256.v6\0");
     digest.raw(&occurrence.identity().bytes());
-    hash_bytes(&mut digest, requirement_identity.as_bytes());
+    digest.bytes(requirement_identity.as_bytes());
     digest.raw(selected_plan_digest.as_bytes());
     hash_target(&mut digest, target);
     digest.byte(4);
     digest.raw(&boundary.get().to_le_bytes());
-    hash_bytes(&mut digest, provider_declaration.as_bytes());
-    hash_bytes(&mut digest, provider_identity.as_bytes());
-    hash_bytes(&mut digest, candidate_identity.as_bytes());
+    digest.bytes(provider_declaration.as_bytes());
+    digest.bytes(provider_identity.as_bytes());
+    digest.bytes(candidate_identity.as_bytes());
     hash_internal_call_custody(&mut digest, call);
     digest.finish()
 }
@@ -309,7 +217,7 @@ pub(super) fn hash_internal_call_custody(
     digest.byte(family_tag);
     hash_call_site_owner(digest, owner);
     digest.raw(&call_target.get().to_le_bytes());
-    digest.raw(&canonical_usize(call_field_offset));
+    digest.len(call_field_offset);
     match frame_terms {
         None => digest.byte(0),
         Some((active_frame_bytes, transient_bytes)) => {

@@ -1252,7 +1252,11 @@ mod schemes_and_quotients {
             apply, boxed, default_budget, id, is_set_zero, lambda, pi, quotient_signature, refl,
             squash, squash_intro, two, two_identity, two_quotient, variable,
         };
-        use crate::{Context, CoreError, Level, TermArena, check_type, convertible, infer_type};
+        use crate::{
+            Context, CoreError, Level, QUOTIENT_BOX_PROP, QUOTIENT_ID_CANCEL, QUOTIENT_ID_SYM,
+            QUOTIENT_ID_TRANS, QUOTIENT_IND_PROP, QUOTIENT_PROP_IS_SET, QUOTIENT_UNIQUE, TermArena,
+            check_type, convertible, infer_type,
+        };
 
         #[test]
         fn quotient_identity_lemmas_check_at_two() {
@@ -1273,7 +1277,8 @@ mod schemes_and_quotients {
             let a = variable(&mut arena, 2);
             let b = variable(&mut arena, 1);
             let p = variable(&mut arena, 0);
-            let symmetrized = family.id_sym(&mut arena, zero.clone(), ty, a, b, p);
+            let symmetrized =
+                family.identity_law(&mut arena, QUOTIENT_ID_SYM, zero.clone(), &[ty, a, b, p]);
             let expected = two_identity(&mut arena, 1, 2);
             check_type(&mut arena, &context, symmetrized, expected, &mut budget).unwrap();
 
@@ -1282,7 +1287,7 @@ mod schemes_and_quotients {
                 let a = variable(&mut arena, 2);
                 let b = variable(&mut arena, 1);
                 let p = variable(&mut arena, 0);
-                family.id_sym(&mut arena, zero.clone(), ty, a, b, p)
+                family.identity_law(&mut arena, QUOTIENT_ID_SYM, zero.clone(), &[ty, a, b, p])
             };
             let trans_sym_p = {
                 let ty = two(&mut arena);
@@ -1290,13 +1295,19 @@ mod schemes_and_quotients {
                 let a = variable(&mut arena, 2);
                 let b2 = variable(&mut arena, 1);
                 let p = variable(&mut arena, 0);
-                family.id_trans(&mut arena, zero.clone(), ty, b, a, b2, sym_p, p)
+                family.identity_law(
+                    &mut arena,
+                    QUOTIENT_ID_TRANS,
+                    zero.clone(),
+                    &[ty, b, a, b2, sym_p, p],
+                )
             };
             let ty = two(&mut arena);
             let a = variable(&mut arena, 2);
             let b = variable(&mut arena, 1);
             let p = variable(&mut arena, 0);
-            let cancelled = family.id_cancel(&mut arena, zero.clone(), ty, a, b, p);
+            let cancelled =
+                family.identity_law(&mut arena, QUOTIENT_ID_CANCEL, zero.clone(), &[ty, a, b, p]);
             let expected = {
                 let id_bb = two_identity(&mut arena, 1, 1);
                 let ty = two(&mut arena);
@@ -1340,7 +1351,8 @@ mod schemes_and_quotients {
             let b = variable(&mut arena, 2);
             let p = variable(&mut arena, 1);
             let q = variable(&mut arena, 0);
-            let set_witness = family.prop_is_set(&mut arena, zero.clone(), ty, f);
+            let set_witness =
+                family.identity_law(&mut arena, QUOTIENT_PROP_IS_SET, zero.clone(), &[ty, f]);
             let set_witness = apply(&mut arena, set_witness, a);
             let set_witness = apply(&mut arena, set_witness, b);
             let set_witness = apply(&mut arena, set_witness, p);
@@ -1381,7 +1393,12 @@ mod schemes_and_quotients {
             let strict_ty = squash(&mut arena, carrier);
             let x = variable(&mut arena, 1);
             let y = variable(&mut arena, 0);
-            let prop = family.box_prop(&mut arena, zero.clone(), strict_ty, x, y);
+            let prop = family.identity_law(
+                &mut arena,
+                QUOTIENT_BOX_PROP,
+                zero.clone(),
+                &[strict_ty, x, y],
+            );
             let expected = {
                 let ty = {
                     let carrier = two(&mut arena);
@@ -1432,7 +1449,12 @@ mod schemes_and_quotients {
             let context = Context::empty().with_signature(signature).extend(element);
 
             let z = variable(&mut arena, 0);
-            let induced = family.ind_prop(&mut arena, zero.clone(), strict_motive, case, z);
+            let induced = family.law(
+                &mut arena,
+                QUOTIENT_IND_PROP,
+                vec![zero.clone()],
+                &[strict_motive, case, z],
+            );
             let inner = two(&mut arena);
             let expected = squash(&mut arena, inner);
             check_type(&mut arena, &context, induced, expected, &mut budget).unwrap();
@@ -1448,7 +1470,12 @@ mod schemes_and_quotients {
                 lambda(&mut arena, domain, body)
             };
             let z = variable(&mut arena, 0);
-            let wrong = family.ind_prop(&mut arena, zero, relevant_motive, case, z);
+            let wrong = family.law(
+                &mut arena,
+                QUOTIENT_IND_PROP,
+                vec![zero],
+                &[relevant_motive, case, z],
+            );
             let error = infer_type(&mut arena, &context, wrong, &mut budget).unwrap_err();
             assert!(
                 matches!(error, CoreError::ArgumentTypeMismatch { .. }),
@@ -1516,15 +1543,11 @@ mod schemes_and_quotients {
             let s2 = variable(&mut arena, 2);
             let h = variable(&mut arena, 1);
             let z = variable(&mut arena, 0);
-            let unique = family.unique(
+            let unique = family.law(
                 &mut arena,
-                zero.clone(),
-                constant_family,
-                sets,
-                s1,
-                s2,
-                h,
-                z,
+                QUOTIENT_UNIQUE,
+                vec![zero.clone()],
+                &[constant_family, sets, s1, s2, h, z],
             );
             let expected = {
                 let ty = two(&mut arena);
@@ -1542,7 +1565,12 @@ mod schemes_and_quotients {
             let s2 = variable(&mut arena, 2);
             let h = variable(&mut arena, 1);
             let z = variable(&mut arena, 0);
-            let unique = family.unique(&mut arena, zero, constant_family, sets, s1, s2, h, z);
+            let unique = family.law(
+                &mut arena,
+                QUOTIENT_UNIQUE,
+                vec![zero],
+                &[constant_family, sets, s1, s2, h, z],
+            );
             let function_identity = {
                 let ty = section;
                 let s1 = variable(&mut arena, 3);
@@ -1568,8 +1596,8 @@ mod schemes_and_quotients {
         };
         use crate::{
             Context, CoreError, Level, MathematicalCertificate, QUOTIENT, QUOTIENT_BETA,
-            QUOTIENT_EFFECTIVE, QUOTIENT_ELIM, QUOTIENT_PROJECT, QUOTIENT_SET, QUOTIENT_SOUND,
-            QuotientFamily, Signature, TermArena, assumption_closure,
+            QUOTIENT_EFFECTIVE, QUOTIENT_ELIM, QUOTIENT_ID_SYM, QUOTIENT_PROJECT, QUOTIENT_SET,
+            QUOTIENT_SOUND, QuotientFamily, Signature, TermArena, assumption_closure,
             certificate_assumption_closure, check_type, infer_type, quotient_scheme,
             verify_mathematical_certificate,
         };
@@ -1908,7 +1936,12 @@ mod schemes_and_quotients {
                 let a = variable(&mut arena, 2);
                 let b = variable(&mut arena, 1);
                 let p = variable(&mut arena, 0);
-                family.id_sym(&mut arena, Level::Constant(0), ty, a, b, p)
+                family.identity_law(
+                    &mut arena,
+                    QUOTIENT_ID_SYM,
+                    Level::Constant(0),
+                    &[ty, a, b, p],
+                )
             };
             let symmetrized_type = two_identity(&mut arena, 1, 2);
             let representative_certificate = MathematicalCertificate::with_signature(
@@ -1983,8 +2016,8 @@ mod schemes_and_quotients {
         use crate::{
             Context, CoreError, Declaration, Level, QUOTIENT, QUOTIENT_BETA, QUOTIENT_EFFECTIVE,
             QUOTIENT_ELIM, QUOTIENT_IS_SET, QUOTIENT_LIFT, QUOTIENT_PROJECT, QUOTIENT_SET,
-            QUOTIENT_SOUND, QUOTIENT_UNIQUE, TermArena, check_signature, check_type, infer_type,
-            quotient_scheme,
+            QUOTIENT_SOUND, QUOTIENT_TRANSPORT, QUOTIENT_UNIQUE, TermArena, check_signature,
+            check_type, infer_type, quotient_scheme,
         };
         use std::collections::BTreeSet;
 
@@ -2036,8 +2069,12 @@ mod schemes_and_quotients {
                     let a2 = variable(&mut arena, 2);
                     let case_at_a = apply(&mut arena, d, a2);
                     let p = variable(&mut arena, 5);
-                    let transported =
-                        family.transport(&mut arena, zero.clone(), p, a, b, r, case_at_a);
+                    let transported = family.law(
+                        &mut arena,
+                        QUOTIENT_TRANSPORT,
+                        vec![zero.clone()],
+                        &[p, a, b, r, case_at_a],
+                    );
                     let d = variable(&mut arena, 3);
                     let b = variable(&mut arena, 1);
                     let case_at_b = apply(&mut arena, d, b);
@@ -2061,7 +2098,12 @@ mod schemes_and_quotients {
             let d = variable(&mut arena, 2);
             let c = variable(&mut arena, 1);
             let a = variable(&mut arena, 0);
-            let point = family.beta(&mut arena, zero.clone(), p, sets, d, c, a);
+            let point = family.law(
+                &mut arena,
+                QUOTIENT_BETA,
+                vec![zero.clone()],
+                &[p, sets, d, c, a],
+            );
             let expected = {
                 let a = variable(&mut arena, 0);
                 let projected_a = family.project(&mut arena, a);
@@ -2073,7 +2115,12 @@ mod schemes_and_quotients {
                 let c = variable(&mut arena, 1);
                 let a = variable(&mut arena, 0);
                 let projected = family.project(&mut arena, a);
-                let section = family.elim(&mut arena, zero, p, sets, d, c, projected);
+                let section = family.law(
+                    &mut arena,
+                    QUOTIENT_ELIM,
+                    vec![zero],
+                    &[p, sets, d, c, projected],
+                );
                 let d = variable(&mut arena, 2);
                 let a = variable(&mut arena, 0);
                 let case = apply(&mut arena, d, a);
@@ -2126,14 +2173,11 @@ mod schemes_and_quotients {
             let flipped = variable(&mut arena, 1);
             let element = variable(&mut arena, 0);
             let result_ty = two(&mut arena);
-            let wrong = family.lift(
+            let wrong = family.law(
                 &mut arena,
-                zero.clone(),
-                result_ty,
-                set_b,
-                operation,
-                flipped,
-                element,
+                QUOTIENT_LIFT,
+                vec![zero.clone()],
+                &[result_ty, set_b, operation, flipped, element],
             );
             let error = infer_type(&mut arena, &context, wrong, &mut budget).unwrap_err();
             assert!(

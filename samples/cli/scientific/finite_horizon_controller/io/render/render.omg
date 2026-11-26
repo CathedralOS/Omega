@@ -1,18 +1,15 @@
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
-use system\Console;
-use controller\model;
-use controller\model\Problem;
-use controller\model\Plan;
-use controller\model\power_three;
+use controller/model/model.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Decimal output is computed from the result, with no expected-value strings.
-machine number(value: i32 in Wrapping) reaches StandardOutput {
+machine number(value: i32 in Wrapping) reaches |process_authority|::StandardOutput {
     transition value < 0 {
         true -> negative(value),
         _ -> magnitude(value)
     }
     machine negative(value: i32 in Wrapping) {
-        Console::write_byte(45);
+        |console|::Console::write_byte(45);
         transition { _ -> magnitude(0 - value) }
     }
     machine magnitude(value: i32 in Wrapping) {
@@ -37,7 +34,7 @@ machine number(value: i32 in Wrapping) reaches StandardOutput {
         }
     }
     machine digit_positive(value: i32 in Wrapping, divisor: i32 in Wrapping) {
-        Console::write_byte((value / divisor % 10 + 48) as i32);
+        |console|::Console::write_byte((value / divisor % 10 + 48) as i32);
         transition divisor > 1 {
             true -> digit(value, divisor / 10),
             _ -> done()
@@ -45,43 +42,43 @@ machine number(value: i32 in Wrapping) reaches StandardOutput {
     }
     machine done() { }
 }
-public machine report(problem: @Problem, plan: @Plan) reaches ProcessExit + StandardOutput {
-    Console::write("candidates="); number(plan.candidates); Console::write_line("");
-    Console::write("feasible="); number(plan.feasible); Console::write_line("");
-    Console::write("boundary_rejected="); number(plan.boundary_rejected); Console::write_line("");
-    Console::write("terminal_rejected="); number(plan.terminal_rejected); Console::write_line("");
+public machine report(problem: @|model|::Problem, plan: @|model|::Plan) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
+    |console|::Console::write("candidates="); number(plan.candidates); |console|::Console::write_line("");
+    |console|::Console::write("feasible="); number(plan.feasible); |console|::Console::write_line("");
+    |console|::Console::write("boundary_rejected="); number(plan.boundary_rejected); |console|::Console::write_line("");
+    |console|::Console::write("terminal_rejected="); number(plan.terminal_rejected); |console|::Console::write_line("");
     transition plan.feasible > 0 {
         true -> chosen(problem, plan),
         _ -> infeasible()
     }
     machine infeasible() {
-        Console::write_line("INFEASIBLE: every sequence violates a step constraint or terminal equality");
-        ProcessExit::exit_process(3);
+        |console|::Console::write_line("INFEASIBLE: every sequence violates a step constraint or terminal equality");
+        |process_exit|::ProcessExit::exit_process(3);
     }
-    machine chosen(problem: @Problem, plan: @Plan) {
-        Console::write("cost="); number(plan.cost); Console::write_line("");
-        Console::write("initial="); number(problem.initial); Console::write_line("");
-        let divisor: i32 in Wrapping = power_three(problem.horizon - 1);
+    machine chosen(problem: @|model|::Problem, plan: @|model|::Plan) {
+        |console|::Console::write("cost="); number(plan.cost); |console|::Console::write_line("");
+        |console|::Console::write("initial="); number(problem.initial); |console|::Console::write_line("");
+        let divisor: i32 in Wrapping = |model|::power_three(problem.horizon - 1);
         transition { _ -> step(problem, plan, 0, divisor, problem.initial) }
     }
-    machine step(problem: @Problem, plan: @Plan,
+    machine step(problem: @|model|::Problem, plan: @|model|::Plan,
                time: i32 in Wrapping, divisor: i32 in Wrapping, position: i32 in Wrapping) {
         transition divisor > 0 {
             true -> emit(problem, plan, time, divisor, position),
             _ -> finish()
         }
     }
-    machine emit(problem: @Problem, plan: @Plan,
+    machine emit(problem: @|model|::Problem, plan: @|model|::Plan,
                time: i32 in Wrapping, divisor: i32 in Wrapping, position: i32 in Wrapping) {
         let action: i32 in Wrapping = plan.code / divisor % 3 - 1;
         let next: i32 in Wrapping = position + action + problem.drift;
-        Console::write("step="); number(time);
-        Console::write(" action="); number(action);
-        Console::write(" state="); number(next); Console::write_line("");
+        |console|::Console::write("step="); number(time);
+        |console|::Console::write(" action="); number(action);
+        |console|::Console::write(" state="); number(next); |console|::Console::write_line("");
         transition { _ -> step(problem, plan, time + 1, divisor / 3, next) }
     }
     machine finish() {
-        Console::write_line("OPTIMAL: lexicographically smallest minimum-cost sequence");
-        ProcessExit::exit_process(0);
+        |console|::Console::write_line("OPTIMAL: lexicographically smallest minimum-cost sequence");
+        |process_exit|::ProcessExit::exit_process(0);
     }
 }

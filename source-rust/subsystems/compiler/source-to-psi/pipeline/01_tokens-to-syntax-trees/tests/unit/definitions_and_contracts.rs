@@ -47,7 +47,7 @@ fn parses_domain_definition_surface() {
             self.health > 0
         "#;
 
-    let parsed = crate::tests::parse_source(source, "parse should succeed");
+    let parsed = crate::tests::parse_source(source);
     let domains = crate::tests::root_domains(&parsed);
 
     assert_eq!(domains.len(), 1);
@@ -81,7 +81,7 @@ fn fixed_domain_carriers_keep_their_names_when_the_family_binds_indices() {
     let source = "domain<P, T> Tag::Occupied<P, T>;
                   domain<T, P> T::Selected<P>;
                   domain<const Tag: u64> Tag::Number<Tag>;";
-    let parsed = crate::tests::parse_source(source, "indexed domains should parse");
+    let parsed = crate::tests::parse_source(source);
     let domains = crate::tests::root_domains(&parsed);
     assert_eq!(domains[0].name.as_str(&parsed), "Tag::Occupied");
     assert_eq!(domains[1].name.as_str(&parsed), "Selected");
@@ -93,7 +93,7 @@ fn fixed_domain_carriers_keep_their_names_when_the_family_binds_indices() {
 #[test]
 fn parses_domain_on_applied_carrier_without_mixing_domain_arguments() {
     let source = "domain<T, const N: u64> Buffer<Pair<T, u32>, N>::Live<T>;";
-    let parsed = crate::tests::parse_source(source, "applied carrier domain should parse");
+    let parsed = crate::tests::parse_source(source);
     let domain = crate::tests::root_domain(&parsed, "domain");
     assert_eq!(domain.name.as_str(&parsed), "Buffer::Live");
     let TypeReferenceNode::Generic {
@@ -148,7 +148,7 @@ fn parses_domain_requires_and_requirement_routes_independently() {
             Imported::Reservations::restore;
         "#;
 
-    let parsed = crate::tests::parse_source(source, "parse should succeed");
+    let parsed = crate::tests::parse_source(source);
     let domain = crate::tests::root_domain(&parsed, "domain");
 
     assert_eq!(domain.predicate_presence, DomainPredicatePresence::Present);
@@ -173,8 +173,7 @@ fn parses_domain_requires_and_requirement_routes_independently() {
 #[test]
 fn parses_unqualified_machine_establishment_routes() {
     let source = "domain u64::Issued established by issue, Factory::issue;";
-    let parsed =
-        crate::tests::parse_source_verbose(source, "tokens", "free and attached issuer paths");
+    let parsed = crate::tests::parse_source(source);
     let domain = crate::tests::root_domain(&parsed, "domain");
     let routes = domain
         .authored_routes
@@ -190,8 +189,7 @@ fn parses_unqualified_machine_establishment_routes() {
 
     for malformed in ["", "issue::", "issue,", "issue()", "issue<u64>"] {
         let source = format!("domain u64::Issued established by {malformed};");
-        let tokens = Lexer::new(&source).tokenize().expect("tokens");
-        assert!(parse_syntax_trees(&tokens).is_err(), "{source}");
+        crate::tests::parse_error(&source);
     }
 }
 
@@ -203,7 +201,7 @@ fn parses_explicit_progress_profile_classification() {
         established by SchedulerAdmission::grant_weak_fair;
         "#;
 
-    let parsed = crate::tests::parse_source(source, "parse should succeed");
+    let parsed = crate::tests::parse_source(source);
     let domain = crate::tests::root_domain(&parsed, "domain");
 
     assert_eq!(
@@ -225,7 +223,7 @@ fn rejects_unknown_or_duplicate_domain_classifications() {
             "at most one compiler-owned classification",
         ),
     ] {
-        let error = crate::tests::parse_tokenized_error(source, "classification must reject");
+        let error = crate::tests::parse_error(source);
         assert!(error.message.contains(expected), "got: {}", error.message);
     }
 }
@@ -238,7 +236,7 @@ fn rejects_domain_classification_after_requires() {
         satisfies ProgressProfile
         established by SchedulerAdmission::grant;
         "#;
-    let error = crate::tests::parse_tokenized_error(source, "classification order must reject");
+    let error = crate::tests::parse_error(source);
     crate::tests::expect_error(
         &error,
         "classification must appear immediately after the domain head",
@@ -246,7 +244,7 @@ fn rejects_domain_classification_after_requires() {
 }
 
 fn access_policy_path(source: &str) -> Option<String> {
-    let parsed = crate::tests::parse_source(source, "parse should succeed");
+    let parsed = crate::tests::parse_source(source);
     let domain = crate::tests::root_domain(&parsed, "domain");
     assert!(domain.authored_routes.is_empty());
     domain.access_policy.as_ref().map(|policy| {
@@ -284,7 +282,6 @@ fn parses_a_domain_access_policy_after_its_predicates() {
 fn parses_an_access_policy_applied_at_static_arguments() {
     let parsed = crate::tests::parse_source(
         "domain Folder::Writable access IssuedBy<reflect\\callable(choose_folder)>;",
-        "parse should succeed",
     );
     let domain = crate::tests::root_domain(&parsed, "domain");
     let policy = domain.access_policy.as_ref().expect("the access policy");
@@ -300,11 +297,10 @@ fn rejects_a_domain_that_writes_both_a_policy_and_a_route_list() {
         "domain u64::Issued access Issuers established by issue;",
         "domain u64::Issued established by issue access Issuers;",
     ] {
-        let error = crate::tests::parse_tokenized_error(source, "one issuance clause");
+        let error = crate::tests::parse_error(source);
         crate::tests::expect_error(&error, "states its issuers in that policy's plan");
     }
-    let error =
-        crate::tests::parse_tokenized_error("domain u64::Issued access;", "a policy is required");
+    let error = crate::tests::parse_error("domain u64::Issued access;");
     crate::tests::expect_error(&error, "identifier");
 }
 
@@ -316,7 +312,7 @@ fn rejects_legacy_domain_route_bodies_with_migration_guidance() {
         }
         "#;
 
-    let error = crate::tests::parse_tokenized_error(source, "route bodies must be retired");
+    let error = crate::tests::parse_error(source);
     crate::tests::expect_error(&error, "domain route bodies are retired");
     assert!(error.message.contains("`established by Trait::requirement"));
 }
@@ -329,7 +325,7 @@ fn rejects_legacy_domain_body_predicates_with_migration_guidance() {
         }
         "#;
 
-    let error = crate::tests::parse_tokenized_error(source, "body predicates must be retired");
+    let error = crate::tests::parse_error(source);
     crate::tests::expect_error(&error, "domain predicates must be written in `requires`");
     assert!(error.message.contains("`established by Trait::requirement"));
 }
@@ -341,11 +337,7 @@ fn rejects_empty_domain_bodies_with_migration_guidance() {
         "domain u64::Positive requires self > 0 { }",
         "domain<T> T::Tagged {}",
     ] {
-        let error = crate::tests::parse_source_error(
-            source,
-            "tokenize should succeed",
-            "empty domain bodies must be retired",
-        );
+        let error = crate::tests::parse_error(source);
         crate::tests::expect_error(&error, "empty domain bodies are retired");
         assert!(error.message.contains("end the declaration with `;`"));
     }
@@ -358,7 +350,7 @@ fn domain_semicolon_preserves_following_mathematical_declarations() {
         "let identity(value: u64): u64 = value;",
     ] {
         let source = format!("domain u64::Positive requires self > 0;\n{following}");
-        let parsed = crate::tests::parse_source(&source, "each declaration owns its semicolon");
+        let parsed = crate::tests::parse_source(&source);
         let domain = parsed
             .root_items()
             .find_map(|item| match item {
@@ -378,7 +370,7 @@ fn rejects_nested_domain_operators_with_top_level_home_guidance() {
         }
         "#;
 
-    let error = crate::tests::parse_tokenized_error(source, "nested operators must be retired");
+    let error = crate::tests::parse_error(source);
     crate::tests::expect_error(
         &error,
         "domain operators must be ordinary top-level declarations",
@@ -400,7 +392,7 @@ fn parses_domain_predicate_absence_distinct_from_true_predicate() {
             true;
         "#;
 
-    let parsed = crate::tests::parse_source(source, "parse should succeed");
+    let parsed = crate::tests::parse_source(source);
     let domains = crate::tests::root_domains(&parsed);
 
     assert_eq!(domains.len(), 3);
@@ -422,7 +414,7 @@ fn parses_transparent_domain_alias_as_an_independent_record() {
             Socket::Connected & Socket::Authenticated;
         "#;
 
-    let parsed = crate::tests::parse_source(source, "parse should succeed");
+    let parsed = crate::tests::parse_source(source);
     let domain = crate::tests::root_domain(&parsed, "alias domain");
 
     let alias = domain.alias.as_ref().expect("transparent alias record");
@@ -455,7 +447,7 @@ fn parses_explicit_parameter_with_named_carrier_type() {
         machine Main::main(main: @mutable Main) {}
         "#;
 
-    let parsed = crate::tests::parse_source(source, "parse should succeed");
+    let parsed = crate::tests::parse_source(source);
     let machine = crate::tests::root_machine(&parsed, "machine root item");
     let state = crate::tests::entry_state(&parsed, machine);
     let parameter = parsed.items.state_parameter(
@@ -494,7 +486,7 @@ fn parses_explicit_write_only_borrow_with_exact_access_mode() {
         }
     "#;
 
-    let parsed = crate::tests::parse_source(source, "parse should succeed");
+    let parsed = crate::tests::parse_source(source);
     let argument = machine_first_call_argument(&parsed, "caller");
     let ExpressionNode::Borrow(borrow) = parsed.expressions.expression(argument) else {
         panic!("argument should retain one closed borrow-expression node");
@@ -516,7 +508,7 @@ fn parses_explicit_shared_borrow_with_exact_access_mode() {
         }
     "#;
 
-    let parsed = crate::tests::parse_source(source, "parse should succeed");
+    let parsed = crate::tests::parse_source(source);
     let argument = machine_first_call_argument(&parsed, "caller");
     let ExpressionNode::Borrow(borrow) = parsed.expressions.expression(argument) else {
         panic!("argument should retain one closed shared-borrow expression node");
@@ -533,7 +525,7 @@ fn uninvoked_declaration_paths_retain_both_static_telescopes_when_copied() {
             reflect\field(Buffer::<u32>::used);
         }
         "#;
-    let parsed = crate::tests::parse_source(source, "applied declaration operands should parse");
+    let parsed = crate::tests::parse_source(source);
     let mut copied = syntax_trees::SyntaxTrees::new(Default::default());
     let operands = parsed
         .expressions
@@ -593,7 +585,7 @@ fn parses_explicit_parameter_use_as_ordinary_name() {
         }
         "#;
 
-    let parsed = crate::tests::parse_source(source, "parse should succeed");
+    let parsed = crate::tests::parse_source(source);
     let machine = crate::tests::root_machine(&parsed, "machine root item");
     let state = crate::tests::entry_state(&parsed, machine);
     let statement = parsed.statements.statement(
@@ -642,7 +634,7 @@ fn parses_nested_call_arguments_as_contiguous_expression_spans() {
         }
         "#;
 
-    let parsed = crate::tests::parse_source(source, "parse should succeed");
+    let parsed = crate::tests::parse_source(source);
     let machine = crate::tests::root_machine(&parsed, "machine root item");
     let state = crate::tests::entry_state(&parsed, machine);
     let statement = parsed.statements.statement(
@@ -670,8 +662,7 @@ fn parses_positional_erased_evidence_call_lane_after_semicolon() {
             consume(value; first_proof, second_proof);
         }
     "#;
-    let parsed =
-        crate::tests::parse_source_verbose(source, "tokenize", "evidence lane should parse");
+    let parsed = crate::tests::parse_source(source);
     let machine = crate::tests::root_machine(&parsed, "machine");
     let state = parsed
         .items
@@ -704,8 +695,7 @@ fn parses_evidence_only_call_lane_with_leading_semicolon() {
             consume(; proof);
         }
     "#;
-    let parsed =
-        crate::tests::parse_source_verbose(source, "tokenize", "evidence-only lane should parse");
+    let parsed = crate::tests::parse_source(source);
     let machine = crate::tests::root_machine(&parsed, "machine");
     let state = parsed
         .items
@@ -734,11 +724,7 @@ fn parses_evidence_lane_on_named_transition_without_dropping_it() {
             machine next() {}
         }
     "#;
-    let parsed = crate::tests::parse_source_verbose(
-        source,
-        "tokenize",
-        "named transition evidence lane should parse",
-    );
+    let parsed = crate::tests::parse_source(source);
     let machine = crate::tests::root_machine(&parsed, "machine");
     let state = parsed
         .items
@@ -751,7 +737,10 @@ fn parses_evidence_lane_on_named_transition_without_dropping_it() {
         panic!("expected named transition target");
     };
     assert_eq!(
-        parsed.expressions.call(*expression).evidence_arguments
+        parsed
+            .expressions
+            .call(*expression)
+            .evidence_arguments
             .iter()
             .map(|name| name.as_str(&parsed))
             .collect::<Vec<_>>(),
@@ -768,8 +757,7 @@ fn tail_self_call_retains_authored_call_until_resolution() {
             repeat(remaining - 1)
         }
     "#;
-    let parsed =
-        crate::tests::parse_source_verbose(source, "tokenize", "tail self call should parse");
+    let parsed = crate::tests::parse_source(source);
     let machine = crate::tests::root_machine(&parsed, "machine");
     let state = parsed
         .items
@@ -807,10 +795,7 @@ fn rejects_self_as_ordinary_declaration_name() {
         data self {}
         "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    assert!(parse_syntax_trees(&tokens).is_err());
+    crate::tests::parse_error(source);
 }
 
 #[test]
@@ -822,7 +807,7 @@ fn callable_alias_owns_its_complete_contract() {
         machine retain<const Transform: Callback<u32>>(value: u32) -> u32
             suspends blocks { suspend block Transform(value) }
     "#;
-    let parsed = crate::tests::parse_source(source, "callable alias and its use");
+    let parsed = crate::tests::parse_source(source);
     let Some(Item::TypeAlias(alias)) = parsed.root_items().next() else {
         panic!("expected Callback alias");
     };
@@ -855,14 +840,10 @@ fn structural_callable_signatures_only_parse_as_the_complete_alias_rhs() {
         "data Callbacks = [machine()];",
         "data MaybeCallback = Maybe<machine()>;",
     ] {
-        let tokens = Lexer::new(text).tokenize().unwrap();
-        assert!(parse_syntax_trees(&tokens).is_err(), "{text}");
+        crate::tests::parse_error(text);
     }
-    crate::tests::parse_source(
-        "data Callback = machine(); data Factory = machine() -> Callback; data Registry { callback: Callback; }
-         machine retain(callback: Callback) -> Callback { callback }",
-        "nested and runtime callable uses name their alias",
-    );
+    crate::tests::parse_source("data Callback = machine(); data Factory = machine() -> Callback; data Registry { callback: Callback; }
+         machine retain(callback: Callback) -> Callback { callback }");
 }
 
 #[test]
@@ -880,7 +861,7 @@ fn parses_machine_parameter_with_mandatory_contract() {
         }
         "#;
 
-    let parsed = crate::tests::parse_source(source, "machine parameter should parse");
+    let parsed = crate::tests::parse_source(source);
     let machine = crate::tests::root_machine(&parsed, "generic machine");
     let parameters = parsed.items.type_parameters(machine.type_parameters);
     assert_eq!(parameters.len(), 1);
@@ -910,7 +891,7 @@ fn parses_machine_parameter_with_mandatory_contract() {
 #[test]
 fn parses_nominal_callable_as_a_typed_static_parameter() {
     let source = r"boundary machine register<const Selected: platform\WindowProcedure::call>();";
-    let parsed = crate::tests::parse_source(source, "bodyless nominal binder should parse");
+    let parsed = crate::tests::parse_source(source);
     let machine = crate::tests::root_machine(&parsed, "generic machine");
     assert!(machine.bodyless);
     let [parameter] = parsed.items.type_parameters(machine.type_parameters) else {
@@ -935,11 +916,7 @@ fn parses_target_scoped_bodyless_boundary_machine() {
             satisfies ProcessExit::exit_process;
         "#;
 
-    let parsed = crate::tests::parse_source_verbose(
-        source,
-        "tokenize target-scoped catalog leaf",
-        "parse target-scoped catalog leaf",
-    );
+    let parsed = crate::tests::parse_source(source);
     let machine = parsed
         .root_items()
         .filter_map(|item| match item {
@@ -970,7 +947,7 @@ fn parses_structural_and_nominal_machine_parameter_contracts_together() {
         }
         "#;
 
-    let parsed = crate::tests::parse_source(source, "mixed machine contracts should parse");
+    let parsed = crate::tests::parse_source(source);
     let machine = crate::tests::root_machine(&parsed, "generic machine");
     let parameters = parsed.items.type_parameters(machine.type_parameters);
     assert!(matches!(
@@ -996,7 +973,7 @@ fn retains_nominal_machine_parameter_trait_application() {
             Step(context);
         }
     "#;
-    let parsed = crate::tests::parse_source(source, "an applied nominal binder should parse");
+    let parsed = crate::tests::parse_source(source);
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
@@ -1021,7 +998,10 @@ fn retains_nominal_machine_parameter_trait_application() {
     let application = owner.application.as_ref().unwrap();
     assert_eq!(owner.path[0].as_str(&parsed), "Visitor");
     assert_eq!(application.arguments[0].path[0].as_str(&parsed), "Context");
-    let member = parsed.expressions.static_member(application.member).unwrap();
+    let member = parsed
+        .expressions
+        .static_member(application.member)
+        .unwrap();
     assert_eq!(member.path[0].as_str(&parsed), "visit");
 }
 
@@ -1029,7 +1009,7 @@ fn retains_nominal_machine_parameter_trait_application() {
 fn rejects_detached_nominal_callable_contracts() {
     let source =
         "machine register<machine Selected>() requires machine Selected satisfies Hook::step; {}";
-    let error = crate::tests::parse_tokenized_error(source, "the nominal contract belongs on its binder");
+    let error = crate::tests::parse_error(source);
     crate::tests::expect_error(&error, "const Selected: Trait::requirement");
 }
 
@@ -1040,7 +1020,7 @@ fn machine_requirements_cannot_reclassify_type_parameters() {
         "requires machine F satisfies Visitor::visit;",
     ] {
         let source = format!("machine apply<F>(value: F) {contract} {{}}");
-        let error = crate::tests::parse_tokenized_error(&source, "F was declared as a type");
+        let error = crate::tests::parse_error(&source);
         crate::tests::expect_error(&error, "`F` is not a machine parameter");
     }
 }
@@ -1056,11 +1036,7 @@ fn rejects_one_off_machine_member_requirements_instead_of_discarding_them() {
         }
         "#;
 
-    let error = crate::tests::parse_source_error(
-        source,
-        "tokenize should succeed",
-        "a one-off member requirement has no semantic carrier and must reject",
-    );
+    let error = crate::tests::parse_error(source);
     assert!(
         error
             .message
@@ -1083,7 +1059,7 @@ fn parses_higher_order_machine_parameter_contract() {
         }
         "#;
 
-    let parsed = crate::tests::parse_source(source, "higher-order contract should parse");
+    let parsed = crate::tests::parse_source(source);
     let machine = crate::tests::root_machine(&parsed, "generic machine");
     let parameters = parsed.items.type_parameters(machine.type_parameters);
     assert_eq!(parameters.len(), 2);
@@ -1113,7 +1089,7 @@ fn rejects_higher_order_parameter_without_nested_contract() {
         {
         }
         "#;
-    let error = crate::tests::parse_tokenized_error(source, "missing nested contract must fail");
+    let error = crate::tests::parse_error(source);
     crate::tests::expect_error(
         &error,
         "machine parameter `Inner` requires an authored declaration-site contract",
@@ -1127,7 +1103,7 @@ fn rejects_machine_parameter_without_authored_contract() {
             0
         }
         "#;
-    let error = crate::tests::parse_tokenized_error(source, "missing contract must fail");
+    let error = crate::tests::parse_error(source);
     crate::tests::expect_error(&error, "requires an authored declaration-site contract");
 }
 
@@ -1140,7 +1116,7 @@ fn parses_machine_parameter_on_proof_data_declaration() {
             case More(tail: Stream<S>);
         }
     "#;
-    let parsed = crate::tests::parse_source(source, "proof-data machine parameter should parse");
+    let parsed = crate::tests::parse_source(source);
     let data = crate::tests::root_data(&parsed, "Stream declaration");
     let parameters = parsed.items.type_parameters(data.type_parameters);
     assert_eq!(parameters.len(), 1);
@@ -1163,7 +1139,7 @@ fn parses_proof_quotient_data_declaration() {
 
         data Quotient = Carrier % Laws::equivalent;
     "#;
-    let parsed = crate::tests::parse_source(source, "quotient declaration should parse");
+    let parsed = crate::tests::parse_source(source);
     let quotient = parsed
         .root_items()
         .find_map(|item| match item {
@@ -1193,7 +1169,7 @@ fn parses_quotient_equivalence_selection_requirement() {
         data Quotient = Carrier % same
         requires same satisfies Equivalence<Carrier, same> as Laws;
     "#;
-    let parsed = crate::tests::parse_source(source, "quotient selection should parse");
+    let parsed = crate::tests::parse_source(source);
     let selection = parsed
         .root_items()
         .find_map(|item| match item {
@@ -1206,9 +1182,8 @@ fn parses_quotient_equivalence_selection_requirement() {
     assert_eq!(selection.trait_name.as_str(&parsed), "Equivalence");
     assert_eq!(selection.conformance_name.as_str(&parsed), "Laws");
 
-    let retired = crate::tests::parse_tokenized_error(
+    let retired = crate::tests::parse_error(
         "data Carrier { case Value; }\ndata Quotient = Carrier % same\nwhere same satisfies Equivalence<Carrier, same> as Laws;",
-        "retired quotient `where` must reject",
     );
     crate::tests::expect_error(&retired, "found identifier `where`");
 }
@@ -1227,7 +1202,7 @@ fn parses_static_machine_symbol_call_argument() {
             map::<Card::power>(card);
         }
     "#;
-    let parsed = crate::tests::parse_source(source, "static machine argument should parse");
+    let parsed = crate::tests::parse_source(source);
     let (_, call) = parsed
         .expressions
         .iter_expressions()
@@ -1253,7 +1228,6 @@ fn static_call_lookahead_keeps_delimiters_inside_argument_groups() {
             select::<(Record { value: 3 }).value + 1>();
             select::<[u8; 3]>();
         }"#,
-        "grouped match arms, record fields and array extents stay inside static arguments",
     );
     let calls = parsed
         .expressions
@@ -1281,7 +1255,7 @@ fn parses_nested_static_conformance_application() {
             send::<Message, SequenceEncoding<'scope, Bytes, Message>>();
         }
     "#;
-    let parsed = crate::tests::parse_source(source, "nested static application should parse");
+    let parsed = crate::tests::parse_source(source);
     let call = parsed
         .expressions
         .iter_expressions()
@@ -1319,7 +1293,7 @@ fn parses_evidence_term_member_as_a_distinct_proof_static_argument() {
             consume::<proof.modulus>();
         }
     "#;
-    let parsed = crate::tests::parse_source(source, "evidence projection should parse");
+    let parsed = crate::tests::parse_source(source);
     let call = parsed
         .expressions
         .iter_expressions()
@@ -1346,7 +1320,6 @@ fn parses_evidence_term_member_as_a_distinct_proof_static_argument() {
 fn named_locals_require_a_type_with_or_without_an_initializer() {
     let parsed = crate::tests::parse_source(
         "machine main() { let value: u64 = produce(); let mutable flag: bool = true; let prepared: u64; } machine produce() -> u64 { 29u64 }",
-        "named locals with explicit types must parse",
     );
     let machine = crate::tests::root_machine(&parsed, "main is the first machine");
     let state = crate::tests::entry_state(&parsed, machine);
@@ -1372,8 +1345,7 @@ fn named_locals_require_a_type_with_or_without_an_initializer() {
         "let mutable flag = true;",
     ] {
         let source = format!("machine main() {{ {binding} }}");
-        let tokens = Lexer::new(&source).tokenize().unwrap();
-        let refusal = parse_syntax_trees(&tokens).expect_err("the local must name its type");
+        let refusal = crate::tests::parse_error(&source);
         assert!(format!("{refusal:?}").contains("a named local must declare its type"));
     }
 }
@@ -1382,7 +1354,6 @@ fn named_locals_require_a_type_with_or_without_an_initializer() {
 fn an_empty_record_pattern_keeps_its_consuming_marker() {
     let parsed = crate::tests::parse_source(
         "data Zero [linear] {} machine consume(value: Zero) { let {} = move value; }",
-        "an empty consuming pattern must parse",
     );
     let machine = crate::tests::root_machine(&parsed, "machine root item");
     let state = crate::tests::entry_state(&parsed, machine);
@@ -1415,7 +1386,7 @@ fn record_pattern_marker_carries_its_field_roster() {
             let { left__value, right as _, other as renamed } = pair;
         }
     "#;
-    let parsed = crate::tests::parse_source(source, "destructure should parse");
+    let parsed = crate::tests::parse_source(source);
     let machine = crate::tests::root_machine(&parsed, "machine root item");
     let state = crate::tests::entry_state(&parsed, machine);
     let locals = parsed
@@ -1491,8 +1462,7 @@ fn proof_output_binding_separates_type_and_prop_lanes() {
             value
         }
     "#;
-    let parsed =
-        crate::tests::parse_source_verbose(source, "tokenize", "proof-output lane should parse");
+    let parsed = crate::tests::parse_source(source);
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
@@ -1523,8 +1493,7 @@ fn retired_generated_proof_package_has_directed_migration() {
         machine produce() ensures proof: true { proof = true; }
         machine consume() { let { proof: local } = produce(); }
     "#;
-    let error =
-        crate::tests::parse_source_error(source, "tokenize", "old package spelling must reject");
+    let error = crate::tests::parse_error(source);
     assert!(error.message.contains("proof-output packages are retired"));
     assert!(
         error
@@ -1534,7 +1503,7 @@ fn retired_generated_proof_package_has_directed_migration() {
 }
 
 fn parse_domain_facts(source: &str) -> (syntax_trees::SyntaxTrees, Vec<ProofFact>) {
-    let parsed = crate::tests::parse_source(source, "parse should succeed");
+    let parsed = crate::tests::parse_source(source);
     let facts = parsed
         .root_items()
         .find_map(|item| match item {
@@ -1667,8 +1636,11 @@ fn file_qualified_names_can_start_domain_and_range_proof_facts() {
              self.count in |limits|::minimum + 1 ..= 10,
              self.count in |limits|::minimum & 7 .. 8;",
     );
-    let [ProofFact::Membership(membership), ProofFact::Expression(_), ProofFact::Expression(_)] =
-        facts.as_slice()
+    let [
+        ProofFact::Membership(membership),
+        ProofFact::Expression(_),
+        ProofFact::Expression(_),
+    ] = facts.as_slice()
     else {
         panic!("expected domain membership followed by inclusive and exclusive ranges");
     };
@@ -1797,10 +1769,7 @@ fn boundary_requirement_publishes_explicit_empty_reach_without_repeating_it_on_r
         MarkerMark satisfies Mark { machine read() -> u64 { 7 } }
         machine main() { let value: u64 = Mark::read(); }
     "#;
-    let parsed = crate::tests::parse_source(
-        source,
-        "an empty boundary ceiling and inferred realizer parse",
-    );
+    let parsed = crate::tests::parse_source(source);
     let requirement = parsed
         .root_items()
         .find_map(|item| match item {
@@ -1832,11 +1801,7 @@ fn boundary_requirement_publishes_explicit_empty_reach_without_repeating_it_on_r
             ensures true;
         }
     "#;
-    let tokens = Lexer::new(nested)
-        .tokenize()
-        .expect("valid nested contract tokens");
-    let error = parse_syntax_trees(&tokens)
-        .expect_err("a nested binder ceiling does not annotate the requirement");
+    let error = crate::tests::parse_error(nested);
     crate::tests::expect_error(
         &error,
         "Mark::relay` must declare an explicit `reaches` ceiling",
@@ -1852,7 +1817,7 @@ fn explicit_empty_rows_spell_none() {
             public boundary trait Mark { machine read() -> u64 reaches none crashes none; }
             public machine quiet() -> u64 reaches none crashes none { 7 }
         "#;
-    let parsed = crate::tests::parse_source(source, "explicit empty rows parse");
+    let parsed = crate::tests::parse_source(source);
     let requirement = parsed
         .root_items()
         .find_map(|item| match item {
@@ -1887,10 +1852,7 @@ fn explicit_empty_rows_spell_none() {
     // With no contract row, the authored promise is kept as its own
     // fact, so a later stage can tell it from an omitted clause.
     assert!(quiet.declares_no_crash_route);
-    let omitted = crate::tests::parse_source(
-        "machine quiet() -> u64 { 7 }",
-        "an omitted crashes clause parses",
-    );
+    let omitted = crate::tests::parse_source("machine quiet() -> u64 { 7 }");
     let omitted_quiet = omitted
         .root_items()
         .find_map(|item| match item {
@@ -1929,8 +1891,7 @@ fn contextual_declaration_names_can_start_later_domain_facts() {
             let source = format!(
                 "domain i32::Ready requires self >= 0{separator} {predicate}; domain i32::Next requires true;"
             );
-            let tree =
-                crate::tests::parse_source(&source, "two predicates followed by another domain");
+            let tree = crate::tests::parse_source(&source);
             let domains = crate::tests::root_domains(&tree);
             assert_eq!(domains.len(), 2);
             assert_eq!(tree.items.proof_facts(domains[0].facts).len(), 2);
@@ -1944,6 +1905,6 @@ fn adjacent_domains_without_a_separator_keep_their_own_predicates() {
     let source = (0..12)
         .map(|n| format!("domain i32::Ready{n} requires true\n"))
         .collect::<String>();
-    let tree = crate::tests::parse_source(&source, "domain sequence");
+    let tree = crate::tests::parse_source(&source);
     assert_eq!(crate::tests::root_domains(&tree).len(), 12);
 }

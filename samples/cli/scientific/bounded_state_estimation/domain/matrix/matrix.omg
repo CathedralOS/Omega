@@ -1,6 +1,6 @@
 // Private fixed-dimensional algebra. Four entries retain both covariance
 // off-diagonals: symmetry is checked rather than silently assumed.
-use omega\language\core\F64::is_finite;
+use {omega}/language/core/float_operations.omg;
 public data Matrix [copy] { a: f64; b: f64; c: f64; d: f64; }
 public data Vector [copy] { position: f64; velocity: f64; }
 public machine multiply(left: Matrix, right: Matrix) -> Matrix {
@@ -25,8 +25,8 @@ public machine apply(value: Matrix, vector: Vector) -> Vector {
 public machine covariance_valid(value: Matrix) -> bool {
     let difference: f64 = value.b - value.c;
     let determinant: f64 = value.a * value.d - value.b * value.c;
-    transition { _ -> (F64::is_finite(value.a) && F64::is_finite(value.b)
-        && F64::is_finite(value.c) && F64::is_finite(value.d)
+    transition { _ -> (|float_operations|::F64::is_finite(value.a) && |float_operations|::F64::is_finite(value.b)
+        && |float_operations|::F64::is_finite(value.c) && |float_operations|::F64::is_finite(value.d)
         && difference >= -0.0000000001 && difference <= 0.0000000001
         && value.a >= -0.0000000001 && value.d >= -0.0000000001
         && determinant >= -0.0000000001) }

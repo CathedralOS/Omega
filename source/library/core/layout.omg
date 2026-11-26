@@ -15,7 +15,7 @@ use {omega}/language/core/reflect/reflect.omg as reflect;
 // compiler normalizes them back to field names before identity/reporting.
 //
 // COUNT CARRIERS: nonnegative byte sizes, alignments, offsets, widths, counts,
-// indices, tags, and opaque compiler keys use u64, distinct from addr. Signed
+// indices, tags, and opaque compiler keys use u64, distinct from address. Signed
 // carriers remain only where a value is genuinely signed or an explicitly
 // retained sentinel requires one.
 

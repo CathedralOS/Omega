@@ -11,12 +11,12 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::error::{SourceResolveError, git_tree_invalid, too_many_bytes, too_many_files};
 use crate::git::cache::repository::VerifiedGitRepository;
-use crate::git::executable::executor::GitExecutor;
+use crate::git::executable::GitExecutor;
 use crate::limits::{LocalSourceLimits, SOURCE_DEPTH_ABSOLUTE_LIMIT};
 
+use super::AuthenticatedGitTreeGraph;
 use super::authentication::{authenticate_git_tree, authenticate_git_tree_graph};
 use super::batch::read_git_blobs_batch;
-use super::graph::AuthenticatedGitTreeGraph;
 use super::tree::{git_path_from_bytes, validate_git_path};
 use super::{GitTreeEntry, GitTreeEntryKind};
 

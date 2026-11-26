@@ -150,20 +150,6 @@ pub(crate) fn symbol_section_name(target: NativeTarget, section: SymbolSection) 
     }
 }
 
-pub(crate) fn encode_manifest_envelope(
-    magic: &[u8; 8],
-    version: u32,
-    identity: &[u8],
-    content: &[u8],
-) -> Vec<u8> {
-    let mut encoded = Vec::with_capacity(44_usize.saturating_add(content.len()));
-    encoded.extend_from_slice(magic);
-    crate::codec_bytes::push_encoded(&mut encoded, version.to_le_bytes());
-    encoded.extend_from_slice(identity);
-    encoded.extend_from_slice(content);
-    encoded
-}
-
 #[cfg(test)]
 mod tests {
     use super::{

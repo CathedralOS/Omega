@@ -1,2 +1,1 @@
-import `ghost::main` does not select one declaration, callable family, or module in its checked package
-main.omg:1:5
+no direct product dependency named `ghost` supplies `main.omg`

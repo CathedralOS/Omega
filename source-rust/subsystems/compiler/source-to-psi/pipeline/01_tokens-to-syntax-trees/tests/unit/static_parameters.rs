@@ -1,9 +1,12 @@
-use crate::frontend_fixture::Lexer;
-use crate::parse_syntax_trees;
-
 #[test]
 fn retired_receiver_parameters_reject_in_every_signature_owner() {
-    for parameter in ["self", "mutable self", "@self", "@mutable self", "@write self"] {
+    for parameter in [
+        "self",
+        "mutable self",
+        "@self",
+        "@mutable self",
+        "@write self",
+    ] {
         for source in [
             format!("data Counter {{ value: u32; }} machine Counter::step({parameter}) {{}}"),
             format!("trait Operation {{ machine step({parameter}); }}"),
@@ -12,8 +15,7 @@ fn retired_receiver_parameters_reject_in_every_signature_owner() {
             ),
             format!("machine run() {{ machine step({parameter}) {{}} }}"),
         ] {
-            let tokens = Lexer::new(&source).tokenize().unwrap();
-            let error = parse_syntax_trees(&tokens).expect_err("receiver must reject");
+            let error = crate::tests::parse_error(&source);
             crate::tests::expect_error(&error, "`self` receivers are retired");
         }
     }
@@ -28,8 +30,7 @@ fn implicit_self_expressions_and_transition_targets_reject() {
         "transition { _ -> self() }",
     ] {
         let source = format!("machine run() {{ {body} }}");
-        let tokens = Lexer::new(&source).tokenize().unwrap();
-        let error = parse_syntax_trees(&tokens).expect_err("implicit subject must reject");
+        let error = crate::tests::parse_error(&source);
         crate::tests::expect_error(&error, "implicit `self` is retired");
     }
 }
@@ -47,8 +48,7 @@ fn explicit_owned_shared_mutable_and_write_only_parameters_parse() {
             machine finish(counter: @mutable Counter) { counter.value = 0; }
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().unwrap();
-    parse_syntax_trees(&tokens).expect("ordinary explicit parameters remain valid");
+    crate::tests::parse_source(source);
 }
 
 #[test]
@@ -61,8 +61,7 @@ fn only_the_current_mutability_modifier_is_accepted() {
         "machine f(value: u8) { let loan: @u8 = @mut value; }",
         "machine f(value: @mutable u8) { let loan: @u8 = value as @mut u8; }",
     ] {
-        let tokens = Lexer::new(source).tokenize().unwrap();
-        let error = parse_syntax_trees(&tokens).expect_err("old modifier must reject");
+        let error = crate::tests::parse_error(source);
         let span = error.source_span.span;
         assert!(span.end > span.start, "{source}");
     }
@@ -74,8 +73,7 @@ fn an_ordinary_name_can_be_borrowed_after_the_at_sign() {
         machine read(value: @mut) -> u8 { value.value }
         machine f(mut: mut) -> u8 { read(@mut) }
         machine g() -> u8 { let mut: mut = mut { value: 3u8 }; read(@mut) }";
-    let tokens = Lexer::new(source).tokenize().unwrap();
-    parse_syntax_trees(&tokens).expect("an ordinary type or value named mut remains usable");
+    crate::tests::parse_source(source);
 }
 
 #[test]
@@ -88,14 +86,12 @@ fn reference_introduction_uses_at_and_leaves_ampersand_as_an_operator() {
         "machine f(value: u8) { let loan: @u8 = &value; }",
         "machine f(value: u8) { let loan: @u8 = @state value; }",
     ] {
-        let tokens = Lexer::new(source).tokenize().unwrap();
-        assert!(parse_syntax_trees(&tokens).is_err(), "{source}");
+        crate::tests::parse_error(source);
     }
     let source = "machine f(mutable state: u8, mask: u8) -> u8 {
         let read: @u8 = @state;
         let mutable owned: u8 = state & mask;
         owned
     }";
-    let tokens = Lexer::new(source).tokenize().unwrap();
-    parse_syntax_trees(&tokens).expect("named state and bitwise AND remain ordinary source");
+    crate::tests::parse_source(source);
 }

@@ -17,7 +17,7 @@ use crate::custody::lock::CacheEntryLock;
 use crate::custody::tree::{CacheCustodyKind, cache_custody_invalid, read_bounded_cache_record};
 use crate::error::{cache_invalid, git_tree_invalid};
 use crate::git::cache::repository::VerifiedGitRepository;
-use crate::git::executable::executor::GitExecutor;
+use crate::git::executable::GitExecutor;
 use crate::git::git_command::reconciliation::reconcile_git_cache_operation_result;
 use crate::git::objects::authentication::authenticate_git_tree;
 use crate::git::objects::tree::git_directory_paths;
@@ -39,9 +39,7 @@ use std::collections::BTreeMap;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
-use super::snapshot_metadata::{
-    GitSnapshotMetadata, git_snapshot_metadata, parse_git_snapshot_metadata,
-};
+use super::{GitSnapshotMetadata, git_snapshot_metadata, parse_git_snapshot_metadata};
 use crate::limits::LOCAL_SNAPSHOT_LOCK_TIMEOUT;
 use crate::snapshot::construction::{
     create_snapshot_symlink_from_open_root, open_or_create_snapshot_directory,

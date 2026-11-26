@@ -1,29 +1,19 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use domain/orbit/orbit.omg;
+use io/protocol/protocol.omg;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Expected exit: 64 (empty stdin); valid orbital fixtures exit 0 or collision 2.
 // Expected output contains: ERROR syntax
-use io\protocol;
-use io\protocol\Protocol;
-use io\protocol\read;
-use io\protocol\integer;
-use io\protocol\number;
-use domain\orbit;
-use domain\orbit\Orbit;
-use domain\orbit\coordinate;
-use domain\orbit\diagnostics;
-use domain\orbit\step;
-use system\Console;
-use omega\language\core\F64::from_i32;
-use omega\language\core\I32::from_f64;
 
-data Main { protocol: Protocol; orbit: Orbit; step: i32 in Wrapping; steps: i32 in Wrapping; time: f64; }
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    let valid: bool = block read(@mutable main.protocol);
+data Main { protocol: |protocol|::Protocol; orbit: |orbit|::Orbit; step: i32 in Wrapping; steps: i32 in Wrapping; time: f64; }
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    let valid: bool = block |protocol|::read(@mutable main.protocol);
     transition valid { true -> validate(main), false -> syntax(main) }
     machine syntax(main: @mutable Main) {
-        Console::write_line("ERROR syntax: seven finite decimal fields, maximum 512 bytes, EOF");
-        ProcessExit::exit_process(64);
+        |console|::Console::write_line("ERROR syntax: seven finite decimal fields, maximum 512 bytes, EOF");
+        |process_exit|::ProcessExit::exit_process(64);
     }
     machine validate(main: @mutable Main) {
         transition main.protocol.fields[0] > 0.0 && main.protocol.fields[0] <= 1000000.0
@@ -38,13 +28,13 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         }
     }
     machine range(main: @mutable Main) {
-        Console::write_line("ERROR range: positive mu/dt, nonzero radius, bounded coordinates/velocity, integer steps 1..4096");
-        ProcessExit::exit_process(65);
+        |console|::Console::write_line("ERROR range: positive mu/dt, nonzero radius, bounded coordinates/velocity, integer steps 1..4096");
+        |process_exit|::ProcessExit::exit_process(65);
     }
     machine count(main: @mutable Main, count: f64)
     requires count == count && count >= 1.0 && count <= 4096.0 {
-        let steps: i32 = I32::from_f64(count);
-        transition F64::from_i32(steps) == count { true -> configure(main, steps), false -> range(main) }
+        let steps: i32 = |float_operations|::I32::from_f64(count);
+        transition |float_operations|::F64::from_i32(steps) == count { true -> configure(main, steps), false -> range(main) }
     }
     machine configure(main: @mutable Main, steps: i32) {
         main.steps = steps as i32 +Wrapping;
@@ -66,7 +56,7 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     machine bounded(main: @mutable Main, x: f64, y: f64)
     requires x == x && x >= -1000000.0 && x <= 1000000.0
         && y == y && y >= -1000000.0 && y <= 1000000.0 {
-        main.orbit.x = coordinate(x); main.orbit.y = coordinate(y);
+        main.orbit.x = |orbit|::coordinate(x); main.orbit.y = |orbit|::coordinate(y);
         transition { _ -> radius(main) }
     }
     machine radius(main: @mutable Main) {
@@ -75,38 +65,38 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         }
     }
     machine initial(main: @mutable Main) {
-        diagnostics(@mutable main.orbit);
+        |orbit|::diagnostics(@mutable main.orbit);
         main.orbit.initial_energy = main.orbit.energy;
         main.orbit.initial_momentum = main.orbit.momentum;
-        Console::write_line("checkpoint,step,time,x,y,vx,vy,energy,angular_momentum,energy_drift,angular_momentum_drift");
+        |console|::Console::write_line("checkpoint,step,time,x,y,vx,vy,energy,angular_momentum,energy_drift,angular_momentum_drift");
         transition { _ -> checkpoint(main) }
     }
     machine checkpoint(main: @mutable Main) {
-        Console::write("checkpoint,");
-        integer(@mutable main.protocol, main.step);
-        Console::write(",");
-        number(@mutable main.protocol, main.time);
-        Console::write(",");
-        number(@mutable main.protocol, main.orbit.x);
-        Console::write(",");
-        number(@mutable main.protocol, main.orbit.y);
-        Console::write(",");
-        number(@mutable main.protocol, main.orbit.vx);
-        Console::write(",");
-        number(@mutable main.protocol, main.orbit.vy);
-        Console::write(",");
-        number(@mutable main.protocol, main.orbit.energy);
-        Console::write(",");
-        number(@mutable main.protocol, main.orbit.momentum);
-        Console::write(",");
-        number(@mutable main.protocol, main.orbit.energy - main.orbit.initial_energy);
-        Console::write(",");
-        number(@mutable main.protocol, main.orbit.momentum - main.orbit.initial_momentum);
-        Console::write_line("");
+        |console|::Console::write("checkpoint,");
+        |protocol|::integer(@mutable main.protocol, main.step);
+        |console|::Console::write(",");
+        |protocol|::number(@mutable main.protocol, main.time);
+        |console|::Console::write(",");
+        |protocol|::number(@mutable main.protocol, main.orbit.x);
+        |console|::Console::write(",");
+        |protocol|::number(@mutable main.protocol, main.orbit.y);
+        |console|::Console::write(",");
+        |protocol|::number(@mutable main.protocol, main.orbit.vx);
+        |console|::Console::write(",");
+        |protocol|::number(@mutable main.protocol, main.orbit.vy);
+        |console|::Console::write(",");
+        |protocol|::number(@mutable main.protocol, main.orbit.energy);
+        |console|::Console::write(",");
+        |protocol|::number(@mutable main.protocol, main.orbit.momentum);
+        |console|::Console::write(",");
+        |protocol|::number(@mutable main.protocol, main.orbit.energy - main.orbit.initial_energy);
+        |console|::Console::write(",");
+        |protocol|::number(@mutable main.protocol, main.orbit.momentum - main.orbit.initial_momentum);
+        |console|::Console::write_line("");
         transition main.step < main.steps { true -> advance(main), false -> done(main) }
     }
     machine advance(main: @mutable Main) {
-        step(@mutable main.orbit);
+        |orbit|::step(@mutable main.orbit);
         transition main.orbit.collision { true -> collision(main), false -> advanced(main) }
     }
     machine advanced(main: @mutable Main) {
@@ -115,24 +105,24 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         transition main.orbit.periapsis { true -> event(main), false -> checkpoint(main) }
     }
     machine event(main: @mutable Main) {
-        Console::write("periapsis,");
+        |console|::Console::write("periapsis,");
         let time: f64 = main.time - main.orbit.timestep + main.orbit.event_fraction * main.orbit.timestep;
-        number(@mutable main.protocol, time);
-        Console::write_line("");
+        |protocol|::number(@mutable main.protocol, time);
+        |console|::Console::write_line("");
         transition { _ -> checkpoint(main) }
     }
     machine collision(main: @mutable Main) {
-        Console::write_line("status,collision_threshold");
-        ProcessExit::exit_process(2);
+        |console|::Console::write_line("status,collision_threshold");
+        |process_exit|::ProcessExit::exit_process(2);
     }
     machine done(main: @mutable Main) {
-        Console::write_line("status,complete");
-        ProcessExit::exit_process(0);
+        |console|::Console::write_line("status,complete");
+        |process_exit|::ProcessExit::exit_process(0);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

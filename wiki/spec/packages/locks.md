@@ -58,7 +58,7 @@ selected implementation or a checked adapter to satisfy the caller-facing
 contract. Existing assumed-binding rows must be removed when migrating.
 See [provider contracts and migration](../resources/native_borrows.md#provider-contracts-and-migration).
 
-Restricted-build rows bind the exact package and permission meaning, operation,
+Version 4 restricted-build rows bind the exact package and permission meaning, operation,
 logical resource scope, bounds, and applicable context. They record the consuming
 project's explicit acceptance, not authority supplied by a dependency's own lock.
 Fresh checked contracts reconstruct the direct/transitive requests at each use;

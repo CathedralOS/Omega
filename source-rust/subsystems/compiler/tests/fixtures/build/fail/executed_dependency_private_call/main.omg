@@ -1,7 +1,7 @@
-use selected;
+use {selected}/main.omg as selected;
 
 machine main() crashes Trap {
-    transition selected\private_answer() == 73u32 {
+    transition |selected|::private_answer() == 73u32 {
         true -> done(),
         false -> bad()
     }

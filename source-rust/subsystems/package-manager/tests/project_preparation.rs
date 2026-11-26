@@ -200,7 +200,7 @@ machine build(builder: @mutable BuildPlan) suspends {
             &format!("machine build(builder: @mutable BuildPlan) {{ builder.product = BuildProduct::Package {{ name: \"{directory}\" }}; }}"),
             r#"use {omega}/language/core/program_image.omg as image;
 public TestImage satisfies |image|::ProgramImage {
-    machine retained_suffix_start() -> addr { 64 }
+    machine retained_suffix_start() -> address { 64 }
 }"#,
         );
         BuildLibraryRequest {

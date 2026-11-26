@@ -84,7 +84,7 @@ pub(crate) fn discover_imports(
         for import in &unit.imports {
             if let Some(file) = FileImport::from(unit, import)? {
                 let root = contracts.root_for(&unit.path).unwrap_or(source_root);
-                match file.standalone(root, None, filesystem)? {
+                match file.standalone(Some(root), None, filesystem)? {
                     FileSelection::Selected(resolved) => {
                         imports.push((resolved.path.clone(), unit.scope));
                         retained.push(resolved);

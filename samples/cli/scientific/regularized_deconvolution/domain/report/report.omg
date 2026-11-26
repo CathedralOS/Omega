@@ -1,45 +1,44 @@
-use omega\language\core\StandardOutput;
-use domain\input;
-use domain\input\Reader;
-use omega\language\core\narrow_i64_to_i32_wrapping;
-use system\Console;
-use omega\language\core\I64::from_f64;
+use domain/input/input.omg;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/numeric_conversion.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 
 // Decimal byte output avoids imposing a text-domain proof on dynamic numbers.
-public machine integer(reader: @mutable Reader, value: i64)
-reaches StandardOutput
-invokes Console
+public machine integer(reader: @mutable |input|::Reader, value: i64)
+reaches |process_authority|::StandardOutput
+invokes |console|::Console
 {
     let widened: i64 = value;
     transition widened < 0 {
         true -> negative(reader, widened),
         _ -> digits(reader, widened)
     }
-    machine negative(reader: @mutable Reader, value: i64) {
-        Console::write_byte(45);
+    machine negative(reader: @mutable |input|::Reader, value: i64) {
+        |console|::Console::write_byte(45);
         let absolute: i64 in Wrapping = 0 - (value as i64 +Wrapping);
         transition { _ -> digits(reader, absolute as i64) }
     }
-    machine digits(reader: @mutable Reader, value: i64) {
+    machine digits(reader: @mutable |input|::Reader, value: i64) {
         transition { _ -> seek(reader, value as i64 +Wrapping, 1) }
     }
-    machine seek(reader: @mutable Reader, value: i64 in Wrapping, divisor: i64 in Wrapping) {
+    machine seek(reader: @mutable |input|::Reader, value: i64 in Wrapping, divisor: i64 in Wrapping) {
         transition divisor > 0 && divisor <= value / 10 {
             true -> seek(reader, value, divisor * 10),
             _ -> ready(reader, value, divisor)
         }
     }
-    machine ready(reader: @mutable Reader, value: i64 in Wrapping, divisor: i64 in Wrapping) {
+    machine ready(reader: @mutable |input|::Reader, value: i64 in Wrapping, divisor: i64 in Wrapping) {
         transition divisor > 0 {
             true -> emit(reader, value, divisor),
             _ -> {}
         }
     }
-    machine emit(reader: @mutable Reader, value: i64 in Wrapping, divisor: i64 in Wrapping)
+    machine emit(reader: @mutable |input|::Reader, value: i64 in Wrapping, divisor: i64 in Wrapping)
     requires divisor > 0
     {
         let byte: i64 in Wrapping = (value / divisor) % 10 + 48;
-        Console::write_byte(narrow_i64_to_i32_wrapping(byte as i64));
+        |console|::Console::write_byte(|numeric_conversion|::narrow_i64_to_i32_wrapping(byte as i64));
         transition divisor > 1 {
             true -> ready(reader, value, divisor / 10),
             _ -> {}
@@ -47,21 +46,21 @@ invokes Console
     }
 }
 // Emit 13 significant digits in scientific notation without clipping signs.
-public machine field(reader: @mutable Reader, name: @[u8], value: f64) reaches StandardOutput invokes Console {
-    Console::write(name);
+public machine field(reader: @mutable |input|::Reader, name: @[u8], value: f64) reaches |process_authority|::StandardOutput invokes |console|::Console {
+    |console|::Console::write(name);
     transition value < 0.0 { true -> negative(reader, value), _ -> normalize(reader, value, 0) }
-    machine negative(reader: @mutable Reader, value: f64) { Console::write_byte(45); transition { _ -> normalize(reader, 0.0 - value, 0) } }
-    machine normalize(reader: @mutable Reader, value: f64, exponent: i32 in Wrapping) {
+    machine negative(reader: @mutable |input|::Reader, value: f64) { |console|::Console::write_byte(45); transition { _ -> normalize(reader, 0.0 - value, 0) } }
+    machine normalize(reader: @mutable |input|::Reader, value: f64, exponent: i32 in Wrapping) {
         transition value >= 10.0 { true -> normalize(reader, value * 0.1, exponent + 1), _ -> small(reader, value, exponent) }
     }
-    machine small(reader: @mutable Reader, value: f64, exponent: i32 in Wrapping) {
+    machine small(reader: @mutable |input|::Reader, value: f64, exponent: i32 in Wrapping) {
         transition value > 0.0 && value < 1.0 { true -> small(reader, value * 10.0, exponent - 1), _ -> emit(reader, value, exponent) }
     }
-    machine emit(reader: @mutable Reader, value: f64, exponent: i32 in Wrapping) {
-        let narrowed: i64 in Saturating = I64::from_f64(value * 1000000000000.0);
+    machine emit(reader: @mutable |input|::Reader, value: f64, exponent: i32 in Wrapping) {
+        let narrowed: i64 in Saturating = |float_operations|::I64::from_f64(value * 1000000000000.0);
         integer(reader, narrowed as i64);
-        Console::write_byte(101);
+        |console|::Console::write_byte(101);
         integer(reader, (exponent - 12) as i64);
-        Console::write_byte(10);
+        |console|::Console::write_byte(10);
     }
 }

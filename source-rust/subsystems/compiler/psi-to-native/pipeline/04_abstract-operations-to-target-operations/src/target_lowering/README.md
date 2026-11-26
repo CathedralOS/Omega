@@ -44,11 +44,12 @@ program here. The native driver carries the optional archive to the object.
 Only explicit correspondence checks and their tests can open it.
 
 [`verify_execution_plan`](../preparation/legalization.rs) is the
-stage's validator. It derives the plan's functions a second way, from the
-abstract program and the optimization unit, and requires the published plan
-to equal that derivation, to match its sources' header, to state only closed
-types the module retains, and to still hash to its seal. It runs on `omega --validator
-TargetOperationCorrespondence` and in tests, never in an ordinary compile.
+stage's validator. It checks the plan's seal, header, callable facts, source
+publication, closed types, ABIs, surviving installations, boundary origins,
+and target-to-source operation correspondence, then re-derives every legalized
+function from the target operations and requires the published plan to equal
+that derivation. It runs on `omega --validator TargetOperationCorrespondence`
+and in tests, never in an ordinary compile.
 
 [stage 02](../../../02_target-bound-program-to-abstract-operations/src/admit_providers.rs)
 admits providers, callbacks and authority. This stage checks its lowering of
@@ -106,12 +107,10 @@ produces the program, and rejects a raw fused-multiply-add plan. The same
 compile does not recheck the output; output breaking this stage's contract is
 a bug here, for focused tests and explicit validator requests to find.
 
-The [independent audit](../preparation/legalization/target.rs)
-in this stage's validator matches every graph to its source and
-optimized operations. Direct-native tests run it on the saved artifact, outside
-graph construction; a default compile does not. It checks source order, value
-identity, exact ABI, and proof, call and cleanup obligations. Root and roster
-custody alone never proves a body correct.
+The [validator](../preparation/legalization.rs) checks target-to-source
+function, block, metadata, terminator, and constant correspondence, boundary
+and interrupt associations, and plan re-derivation. Direct-native tests run it
+on the saved artifact, outside graph construction; a default compile does not.
 
 Natural-ranked and unranked cycles share the graph and native route, each with
 its own verification obligations. The older unsigned-countdown native custody

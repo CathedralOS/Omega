@@ -307,8 +307,9 @@ Named decision: `ordinary-library-packages`, settled 2026-11-12. `system` and
 `allocation`, wherever no compiler privilege is required, use ordinary package
 ownership, dependencies, validation and immutable version selection. They may
 be distributed beside the compiler, fetched from Git or supplied by another
-accepted source without acquiring a new semantic package kind. Bundling is
-optional distribution convenience, not a source of compiler custody.
+accepted source without acquiring a new semantic package kind. The
+[standard distribution](../packages/toolchain.md#selecting-a-bundled-package)
+ships them for explicit selection by package name.
 
 Keep four identities and obligations distinct: the distribution digest verifies
 the release contents; the package owner identifies declarations; exact sealed

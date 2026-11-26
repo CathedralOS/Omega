@@ -1,88 +1,81 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use output/render/render.omg;
+use terrain/fill/fill.omg;
+use terrain/raster/raster.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Complete offline watershed workflow. Stdin: exactly 25 digits, whitespace
 // optional. EOF completes the raster; errors exit 2 without partial results.
-use system\ByteRead;
-use system\Console;
-use terrain\raster;
-use terrain\raster\Raster;
-use terrain\fill;
-use terrain\fill\fill;
-use terrain\fill\sum_volumes;
-use output\render;
-use output\render\number;
-use output\render\grid;
 
 data Main { }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    let mutable raster: Raster;
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    let mutable raster: |raster|::Raster;
     transition { _ -> block read(main, @mutable raster, 0) }
-    machine read(main: @mutable Main, raster: @mutable Raster, count: i32 in Wrapping) {
-        let observed: ByteRead = block Console::read_byte();
+    machine read(main: @mutable Main, raster: @mutable |raster|::Raster, count: i32 in Wrapping) {
+        let observed: |console|::ByteRead = block |console|::Console::read_byte();
         transition observed {
-            ByteRead::Error -> invalid(main),
-            ByteRead::Eof -> finish_input(main, raster, count),
-            ByteRead::Byte { value } -> block classify(main, raster, count, value)
+            |console|::ByteRead::Error -> invalid(main),
+            |console|::ByteRead::Eof -> finish_input(main, raster, count),
+            |console|::ByteRead::Byte { value } -> block classify(main, raster, count, value)
         }
     }
-    machine classify(main: @mutable Main, raster: @mutable Raster, count: i32 in Wrapping, value: i32) {
+    machine classify(main: @mutable Main, raster: @mutable |raster|::Raster, count: i32 in Wrapping, value: i32) {
         transition value == 32 || value == 9 || value == 10 || value == 13 {
             true -> block read(main, raster, count),
             _ -> block validate(main, raster, count, value)
         }
     }
-    machine validate(main: @mutable Main, raster: @mutable Raster, count: i32 in Wrapping, value: i32) {
+    machine validate(main: @mutable Main, raster: @mutable |raster|::Raster, count: i32 in Wrapping, value: i32) {
         transition count >= 0 && count < 25 && value >= 48 && value <= 57 {
             true -> block store(main, raster, count, value),
             _ -> invalid(main)
         }
     }
-    machine store(main: @mutable Main, raster: @mutable Raster, count: i32 in Wrapping, value: i32) {
+    machine store(main: @mutable Main, raster: @mutable |raster|::Raster, count: i32 in Wrapping, value: i32) {
         raster.heights[count] = (value as +Wrapping) - 48;
         transition { _ -> block read(main, raster, count + 1) }
     }
-    machine finish_input(main: @mutable Main, raster: @mutable Raster, count: i32 in Wrapping) {
+    machine finish_input(main: @mutable Main, raster: @mutable |raster|::Raster, count: i32 in Wrapping) {
         transition count == 25 {
             true -> analyze(main, raster),
             _ -> invalid(main)
         }
     }
-    machine analyze(main: @mutable Main, raster: @mutable Raster) {
-        let filled: bool = fill(raster);
-        let summed: bool = sum_volumes(raster);
+    machine analyze(main: @mutable Main, raster: @mutable |raster|::Raster) {
+        let filled: bool = |fill|::fill(raster);
+        let summed: bool = |fill|::sum_volumes(raster);
         transition filled && summed {
             true -> emit(main, raster),
             _ -> internal_error(main)
         }
     }
-    machine emit(main: @mutable Main, raster: @Raster) {
-        Console::write_line("filled");
-        grid(@raster.filled);
-        Console::write_line("outlets");
-        grid(@raster.outlets);
-        Console::write_line("parents");
-        grid(@raster.parents);
-        Console::write_line("volumes");
-        grid(@raster.volumes);
-        Console::write_line("total");
-        number(raster.total);
-        Console::write_byte(10);
-        ProcessExit::exit_process(0);
+    machine emit(main: @mutable Main, raster: @|raster|::Raster) {
+        |console|::Console::write_line("filled");
+        |render|::grid(@raster.filled);
+        |console|::Console::write_line("outlets");
+        |render|::grid(@raster.outlets);
+        |console|::Console::write_line("parents");
+        |render|::grid(@raster.parents);
+        |console|::Console::write_line("volumes");
+        |render|::grid(@raster.volumes);
+        |console|::Console::write_line("total");
+        |render|::number(raster.total);
+        |console|::Console::write_byte(10);
+        |process_exit|::ProcessExit::exit_process(0);
     }
     machine invalid(main: @mutable Main) {
-        Console::write_line("ERROR: expected exactly 25 elevation digits (0-9)");
-        ProcessExit::exit_process(2);
+        |console|::Console::write_line("ERROR: expected exactly 25 elevation digits (0-9)");
+        |process_exit|::ProcessExit::exit_process(2);
     }
     machine internal_error(main: @mutable Main) {
-        Console::write_line("ERROR: drainage invariant failed");
-        ProcessExit::exit_process(3);
+        |console|::Console::write_line("ERROR: drainage invariant failed");
+        |process_exit|::ProcessExit::exit_process(3);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

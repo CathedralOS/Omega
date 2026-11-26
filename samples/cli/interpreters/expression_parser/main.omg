@@ -1,5 +1,6 @@
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Expected exit: 9.
 // An infix expression evaluator: "2*(3+4)-5" is parsed with operator
 // precedence and parentheses and evaluated to 9, the exit code.
@@ -15,7 +16,6 @@ use omega\language\core\ProcessExit;
 //
 // Bytes: '(' 40, ')' 41, '*' 42, '+' 43, '-' 45, '0'..'9' 48..57.
 
-use system\Console;
 
 // Where `apply` returns once it has reduced one operator.
 data Resume {
@@ -54,7 +54,7 @@ machine precedence(operator: u8) -> u64 {
     machine none() -> u64 { 0 }
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardOutput {
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     // "2*(3+4)-5"
     main.text[0] = 50;
     main.text[1] = 42;
@@ -264,18 +264,18 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardOutput {
     }
 
     machine report(main: @mutable Main) {
-        Console::write_line("expression_parser: 2*(3+4)-5");
+        |console|::Console::write_line("expression_parser: 2*(3+4)-5");
         let result: i32 in Wrapping = main.values[0];
-        ProcessExit::exit_process(result as i32);
+        |process_exit|::ProcessExit::exit_process(result as i32);
     }
 
     machine malformed() {
-        ProcessExit::exit_process(1);
+        |process_exit|::ProcessExit::exit_process(1);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }

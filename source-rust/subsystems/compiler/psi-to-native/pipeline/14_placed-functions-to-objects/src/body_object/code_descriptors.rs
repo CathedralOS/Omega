@@ -1,8 +1,8 @@
 use super::ObjectFunctionLocation;
 use super::{Error, refuse_symbol_collision};
 use crate::{
-    ObjectPlan, ObjectSymbolHandle, RelocationKind, RelocationOrigin, RelocationPlan,
-    RelocationRecord, SectionKind, SectionPlan, SymbolKind, SymbolPlan, SymbolSection,
+    ObjectPlan, ObjectSymbolHandle, RelocationKind, RelocationOrigin, RelocationRecord,
+    SectionKind, SectionPlan, SymbolKind, SymbolPlan, SymbolSection,
 };
 use machine_code::PlacedImageAddress;
 use terminal_psi::TerminalDynamicDispatchCatalog;
@@ -157,19 +157,6 @@ pub fn place(
         }),
         data,
     ))
-}
-
-pub(super) fn publish_relocations(
-    pool: Option<&ObjectCodeDescriptorPool>,
-    functions: &[impl AsRef<ObjectFunctionLocation>],
-    relocations: &mut RelocationPlan,
-) -> Result<(), Error> {
-    if let Some(pool) = pool {
-        for record in records(pool, functions)? {
-            relocations.push_record(record);
-        }
-    }
-    Ok(())
 }
 
 pub fn records(
