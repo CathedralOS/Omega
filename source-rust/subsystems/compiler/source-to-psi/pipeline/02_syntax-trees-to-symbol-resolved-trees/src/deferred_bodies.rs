@@ -375,8 +375,9 @@ impl DeferredResolvedFrontier {
         expression_roots: &[ExpressionHandle],
         overloads: Option<&AuthoredDeclarationSelections>,
     ) -> Result<ResolvedMachineBodyDemand, Vec<Diagnostic>> {
-        let demand = collect_machine_body_demand(&self.trees, machine_roots, expression_roots, overloads)
-            .map_err(|message| vec![Diagnostic::error(message)])?;
+        let demand =
+            collect_machine_body_demand(&self.trees, machine_roots, expression_roots, overloads)
+                .map_err(|message| vec![Diagnostic::error(message)])?;
         for symbol in &demand.deferred_machines {
             if !self.pending_machines().any(|pending| pending == *symbol) {
                 return Err(vec![Diagnostic::error(

@@ -75,7 +75,12 @@ impl FileImportAdvisories {
                 continue;
             }
             let identity = (file.path.clone(), span.span.start, Arc::clone(&file.source));
-            let seen = qualifiers.iter().any(|usage| declaration_used(source_text::SourceSpan::new(span.source_id, usage.declaration)));
+            let seen = qualifiers.iter().any(|usage| {
+                declaration_used(source_text::SourceSpan::new(
+                    span.source_id,
+                    usage.declaration,
+                ))
+            });
             self.0
                 .entry(identity)
                 .or_insert_with(|| (alias.as_str(syntax).to_owned(), false))

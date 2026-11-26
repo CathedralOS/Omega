@@ -1033,7 +1033,8 @@ impl<'program, 'selection> Collector<'program, 'selection> {
                 // The same occurrence survives typing. Its selected declaration can be a
                 // machine or its entry state; call() follows the owning authored body.
                 for selection in occurrences.filter_map(|id| selections.get(id)) {
-                    if selection.kind() == crate::declaration_selection::AuthoredDeclarationSelectionKind::Call
+                    if selection.kind()
+                        == crate::declaration_selection::AuthoredDeclarationSelectionKind::Call
                         && let Some(chosen) = selection.target().as_resolved()
                     {
                         self.call(chosen.selected_symbol(), target_span)?;

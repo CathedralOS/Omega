@@ -1112,7 +1112,12 @@ fn typed_build(
         entry,
     };
     Ok(stage
-        .prepare(&Default::default(), "linux_x86_64", None, &Default::default())?
+        .prepare(
+            &Default::default(),
+            "linux_x86_64",
+            None,
+            &Default::default(),
+        )?
         .program)
 }
 
@@ -1132,11 +1137,15 @@ fn source_syntax_stores_only_the_complete_parse_and_files() {
         bytes.strip_prefix(b"OmegaSourceSyntax4".as_slice()),
         Some(body.as_slice())
     );
-    for tag in [b"OmegaSourceSyntax1", b"OmegaSourceSyntax2", b"OmegaSourceSyntax3"] {
+    for tag in [
+        b"OmegaSourceSyntax1",
+        b"OmegaSourceSyntax2",
+        b"OmegaSourceSyntax3",
+    ] {
         let mut former = tag.to_vec();
         former.extend_from_slice(&body);
-        let error = record_storage::decode::<source_compiler::SourceSyntax>(&former, limits)
-            .unwrap_err();
+        let error =
+            record_storage::decode::<source_compiler::SourceSyntax>(&former, limits).unwrap_err();
         assert_eq!(error.reason, "unsupported SourceSyntax record format");
     }
     let reopened: source_compiler::SourceSyntax = record_storage::decode(&bytes, limits).unwrap();

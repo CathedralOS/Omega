@@ -309,7 +309,13 @@ pub fn prepare(
             &assembled.build_scope_sources,
             assembled.build_source,
         ) {
-        check_only_subject(&assembled, &preparation, profile, &supplied_libraries, &execution.interpreter_providers)?
+        check_only_subject(
+            &assembled,
+            &preparation,
+            profile,
+            &supplied_libraries,
+            &execution.interpreter_providers,
+        )?
     } else {
         None
     };
@@ -644,8 +650,7 @@ impl PlanningSource {
                 )
             })?
             .1;
-        self.file_imports
-            .observe_product(&source.parsed);
+        self.file_imports.observe_product(&source.parsed);
         Ok(PlannedProduct {
             file_imports: self.file_imports,
             supplied_build_libraries: self.supplied_libraries,

@@ -144,7 +144,8 @@ impl BuildStageSource {
             .selected_files()
             .filter(|file| {
                 file.dependency_scope == source_provenance::DependencyScope::Build
-                    && ((file.origin == source_admission::SourceOrigin::User && providers.is_none())
+                    && ((file.origin == source_admission::SourceOrigin::User
+                        && providers.is_none())
                         || (file.origin == source_admission::SourceOrigin::Toolchain
                             && source_admission::source_identity::is_build_prelude_path(
                                 &file.path,

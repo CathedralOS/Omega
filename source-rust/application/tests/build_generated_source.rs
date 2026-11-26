@@ -109,8 +109,15 @@ machine copy<const N: u64>(plan: @mutable BuildPlan, source: @[u8], destination:
             assert_eq!(result.status.success(), valid, "{engine}: {report}");
             if valid {
                 assert_returned(project.path(), engine);
-                assert!(!report.contains("unused file import `generated`"), "{report}");
-                assert_eq!(report.matches("unused file import `unused`").count(), 1, "{report}");
+                assert!(
+                    !report.contains("unused file import `generated`"),
+                    "{report}"
+                );
+                assert_eq!(
+                    report.matches("unused file import `unused`").count(),
+                    1,
+                    "{report}"
+                );
             } else {
                 assert!(
                     report.contains("no visible declaration"),
