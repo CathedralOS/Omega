@@ -78,7 +78,7 @@ impl ResolvedSourceImport {
         declaration: &source_admission::SourceFile,
     ) -> Self {
         Self {
-            occurrence: ImportOccurrence::file(source, ordinal, name, alias),
+            occurrence: ImportOccurrence::file(source, ordinal, name, alias, None),
             path: declaration.path.clone(),
         }
     }
