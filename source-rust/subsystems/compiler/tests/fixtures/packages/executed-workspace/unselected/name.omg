@@ -12,7 +12,7 @@ requires addr::Bound == 18446744073709551616 {
         Build::package(builder, "workspace_unselected");
         let mutable missing_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "../never_acquired" });
         |dependency|::with_alias(@mutable missing_dependency, "missing");
-        let missing_registration: DependencyRegistration = |dependency|::add(builder, missing_dependency);
+        _ = |dependency|::add(builder, missing_dependency);
     }
     machine wrong_helper(builder: @mutable Build) {
         Build::package(builder, "workspace_selected");

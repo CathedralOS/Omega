@@ -251,7 +251,7 @@ machine build(builder: @mutable Build) {
             repository: "ssh://git@helper-fixture.invalid/catalog-helper.git", revision: "also-helper",
             selection: PackageSelection::Root
         });
-        let registration: DependencyRegistration = Build::dependency(builder, helper);
+        _ = |dependency|::add(builder, helper);
     }"#,
     );
     for repository in [&workspace, &candidate, &helper] {
@@ -275,7 +275,7 @@ machine build(builder: @mutable Build) {
             repository: "ssh://git@omega-fixture.invalid/workspace.git", revision: "executed-build-fixture-v1",
             selection: PackageSelection::Named { package: "workspace_selected" }
         });
-        let registration: DependencyRegistration = Build::dependency(builder, member);
+        _ = |dependency|::add(builder, member);
         Build::bind(builder, windows_x86_64::ProgramEntry, main);
         Build::bind(builder, linux_x86_64::ProgramEntry, main);
         Build::bind(builder, macos_arm64::ProgramEntry, main);
