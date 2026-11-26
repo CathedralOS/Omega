@@ -49,6 +49,9 @@ pub struct DescriptorFlowStep {
     pub reborrows_view: bool,
     pub inputs: Vec<DescriptorFlowInput>,
     pub may_escape: bool,
+    /// Actual outer borrows local to this invocation. All descriptor contents
+    /// behind those addresses retain the call's ordinary escape account.
+    pub invocation_addresses: Vec<DescriptorLocation>,
     pub successors: Vec<DescriptorFlowEdge>,
 }
 
@@ -432,7 +435,7 @@ fn location_live_positions(
             .any(|input| input.contains(name) || name.contains(input))
         {
             observations.push(occurrence.clone());
-            if step.may_escape {
+            if step.may_escape && !(borrowed_authority && step.invocation_addresses.contains(name)) {
                 escaped.push(*position);
             }
         } else if needs_contents(*position, name) {

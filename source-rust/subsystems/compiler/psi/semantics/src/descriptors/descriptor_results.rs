@@ -1377,18 +1377,25 @@ pub fn terminal_borrowed_storage_graph_from(
     )
 }
 
-pub fn terminal_borrowed_storage_graph_with_nominal_calls(
+#[derive(Clone, Copy, Default)]
+pub(crate) struct GenericCallInputs<'a> {
+    pub nominal: &'a [terminal_psi::generic_calls::NominalCallArgument],
+    pub scoped: Option<&'a BTreeMap<MachineId, &'a [usize]>>,
+}
+
+pub fn terminal_borrowed_storage_graph_with_generic_calls(
     module: &TerminalModule,
     roots: impl IntoIterator<Item = MachineId>,
     selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
-    nominal_calls: &[terminal_psi::generic_calls::NominalCallArgument],
+    nominal: &[terminal_psi::generic_calls::NominalCallArgument],
+    scoped: &BTreeMap<MachineId, &[usize]>,
 ) -> Result<Vec<DescriptorMachine>, DescriptorGraphError> {
-    terminal_graph_rows_with_nominal_calls(
+    terminal_graph_rows_with_generic_calls(
         module,
         roots,
         DescriptorSlotKind::BorrowedStorage,
         selected_calls,
-        nominal_calls,
+        GenericCallInputs { nominal, scoped: Some(scoped) },
     )
     .into_iter()
     .collect()
@@ -1684,15 +1691,21 @@ pub(crate) fn terminal_graph_rows(
     kind: DescriptorSlotKind,
     selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
 ) -> Vec<Result<DescriptorMachine, DescriptorGraphError>> {
-    terminal_graph_rows_with_nominal_calls(module, roots, kind, selected_calls, &[])
+    terminal_graph_rows_with_generic_calls(
+        module,
+        roots,
+        kind,
+        selected_calls,
+        GenericCallInputs::default(),
+    )
 }
 
-fn terminal_graph_rows_with_nominal_calls(
+fn terminal_graph_rows_with_generic_calls(
     module: &TerminalModule,
     roots: impl IntoIterator<Item = MachineId>,
     kind: DescriptorSlotKind,
     selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
-    nominal_calls: &[terminal_psi::generic_calls::NominalCallArgument],
+    generic_calls: GenericCallInputs<'_>,
 ) -> Vec<Result<DescriptorMachine, DescriptorGraphError>> {
     let machines = match terminal_machine_roster(module) {
         Ok(machines) => machines,
@@ -1719,7 +1732,7 @@ fn terminal_graph_rows_with_nominal_calls(
             kind,
             selected_calls,
             None,
-            nominal_calls,
+            generic_calls,
             &mut zeroed_cases,
         ) {
             Ok(graph) => graph,
@@ -1789,7 +1802,7 @@ fn terminal_graph_rows_with_nominal_calls(
             kind,
             selected_calls,
             Some(&initial),
-            nominal_calls,
+            generic_calls,
             &mut zeroed_cases,
         ));
     }
@@ -1844,7 +1857,7 @@ pub(crate) fn terminal_graph_for(
                 kind,
                 selected_calls,
                 None,
-                &[],
+                GenericCallInputs::default(),
                 &mut zeroed_cases,
             )
             .ok()
@@ -1868,7 +1881,7 @@ pub(crate) fn terminal_graph_for(
                 kind,
                 selected_calls,
                 Some(&initial),
-                &[],
+                GenericCallInputs::default(),
                 &mut zeroed_cases,
             )
             .ok()

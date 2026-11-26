@@ -1055,6 +1055,7 @@ fn examine(
             sources: &elaboration.sources,
             requirements: &elaboration.requirements,
             nominal_calls: &elaboration.nominal_calls,
+            schemas: &elaboration.static_schemas,
             domain_sources: &elaboration.domain_sources,
         },
         &mut elaboration.tables,

@@ -172,6 +172,7 @@ pub fn prepare_replay<'source>(
 pub(crate) struct FormedModule<'a> {
     module: &'a TerminalModule,
     nominal_calls: &'a [terminal_psi::generic_calls::NominalCallArgument],
+    pub(crate) schemas: &'a [terminal_check_tables::contracts::StaticSchemaQuestion],
     domain_sources: &'a arena::IdTable<
         semantic_vocabulary::DomainSemanticId,
         terminal_check_tables::program::DomainSource,
@@ -182,6 +183,7 @@ impl<'a> FormedModule<'a> {
     pub(crate) fn new(
         module: &'a TerminalModule,
         nominal_calls: &'a [terminal_psi::generic_calls::NominalCallArgument],
+        schemas: &'a [terminal_check_tables::contracts::StaticSchemaQuestion],
         domain_sources: &'a arena::IdTable<
             semantic_vocabulary::DomainSemanticId,
             terminal_check_tables::program::DomainSource,
@@ -190,6 +192,7 @@ impl<'a> FormedModule<'a> {
         Self {
             module,
             nominal_calls,
+            schemas,
             domain_sources,
         }
     }
@@ -223,6 +226,7 @@ impl ReplayScope<'_> {
         FormedModule {
             module: &self.elaboration.module,
             nominal_calls: &self.elaboration.nominal_calls,
+            schemas: &self.elaboration.static_schemas,
             domain_sources: &self.elaboration.domain_sources,
         }
     }
@@ -354,6 +358,7 @@ impl ReplayScope<'_> {
             FormedModule {
                 module: &self.elaboration.module,
                 nominal_calls: &self.elaboration.nominal_calls,
+            schemas: &self.elaboration.static_schemas,
                 domain_sources: &self.elaboration.domain_sources,
             },
             &self.elaboration.domains,

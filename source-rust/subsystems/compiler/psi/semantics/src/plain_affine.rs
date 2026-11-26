@@ -921,7 +921,7 @@ fn live_entries(
     }
 }
 
-/// Future uses of non-owning headers with no contained permission cells.
+/// Future uses of a non-owning header, independently of loans held in its contents.
 /// Each block retains the last actual use, rather than a set at every operation.
 pub struct BorrowedAddressLiveness {
     headers: IdSet<PlaceId>,
@@ -985,10 +985,8 @@ pub fn borrowed_address_liveness(
             crate::structural_declaration(types.iter(), parameter.structural_type).ok_or(
                 Error::malformed("borrowed address header lost its declared carrier"),
             )?;
-            if !crate::descriptor_results::is_descriptor(types.iter(), parameter.structural_type)
-                && crate::descriptor_results::DescriptorSlotKind::BorrowedStorage
-                    .owned_slots(types, parameter.place, parameter.structural_type)
-                    .is_some_and(|slots| slots.is_empty())
+            if crate::descriptor_results::DescriptorSlotKind::BorrowedStorage
+                .borrows_inline_storage(types, parameter.place, parameter.structural_type)
                 && headers.insert(parameter.place)
             {
                 header_places.push(parameter.place);

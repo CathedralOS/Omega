@@ -551,10 +551,11 @@ pub(crate) fn writes(
 fn materialize_writes(elaboration: &mut Elaboration) -> Checked<()> {
     let mut pending = Vec::new();
     for caller in &elaboration.module.machines {
-        let graph = crate::places::reference_graph_with_nominal_calls(
+        let graph = crate::places::reference_graph_with_generic_calls(
             &elaboration.module,
             caller.id,
             &elaboration.nominal_calls,
+            &elaboration.static_schemas,
         )?;
         let mut analysis =
             terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
