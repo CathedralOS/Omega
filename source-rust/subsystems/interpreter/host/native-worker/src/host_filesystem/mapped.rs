@@ -405,4 +405,44 @@ mod tests {
         );
         assert_eq!(std::fs::read(directory.join("inside")).unwrap(), b"mapped");
     }
+    #[test]
+    fn opening_the_mount_root_lists_the_retained_directory() {
+        let temp = TemporaryDirectory::create("guest-directory-list", false).unwrap();
+        std::fs::write(temp.path().join("ledger-entry"), b"content").unwrap();
+        let mut grants = DirectoryMappings::default();
+        grants
+            .grant(temp.path(), "/ledger", DirectoryAccess::ReadOnly)
+            .unwrap();
+        let mut fs = LinuxFilesystem::mapped(grants).unwrap();
+        let directory = fs
+            .call(
+                libc::SYS_openat,
+                &mut [
+                    Arg::Directory(LINUX_AT_FDCWD),
+                    Arg::Path(c"/ledger"),
+                    Arg::Value(i64::from(libc::O_DIRECTORY)),
+                    Arg::Value(0),
+                ],
+                KernelResult::Descriptor,
+            )
+            .unwrap();
+        assert!(directory >= 0);
+        let mut entries = [0; 512];
+        let count = fs
+            .call(
+                libc::SYS_getdents64,
+                &mut [
+                    Arg::Descriptor(directory as i32),
+                    Arg::OutputView(&mut entries),
+                ],
+                KernelResult::Status,
+            )
+            .unwrap();
+        assert!(count > 0);
+        assert!(
+            entries[..count as usize]
+                .windows(b"ledger-entry\0".len())
+                .any(|name| name == b"ledger-entry\0")
+        );
+    }
 }
