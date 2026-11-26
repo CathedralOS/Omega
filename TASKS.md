@@ -107,6 +107,7 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 - **VALIDATION-SUBJECTS.** Implement [validation subjects](wiki/drafts/designs/validation_subjects.md): check the selected packages in full and dependencies only through their required semantic closure.
   - Carry the subject set from [project planning](source-rust/subsystems/compiler/build/project_build.rs) into the [source driver](source-rust/subsystems/compiler/source-to-psi/driver/compile_product/judge_product_roster.rs). Check generated and unused declarations owned by a selected subject. Follow dependency bodies only as demanded by types, proofs, cleanup, bindings and conformances.
   - Complete `Build::validate`, all-members workspace selection and full validation of the admitted package revision with reusable, activation-scoped registrations.
+  - Accept the incoming `PackageBinding` from `|dependency|::input` as a [validation operand](wiki/spec/build/validation_subjects.md#buildvalidate). Check all declarations in its Build-host context, including an invalid unused declaration, without adding a Product dependency. Reject a binding from a different activation.
 
 - **ORDINARY-LIBRARY-PACKAGES.** Remove the remaining `system` compilation-identity and entry coupling ([acceptance](wiki/drafts/designs/validation_subjects.md#ordinary-library-migration)); preserve primitive custody and release integrity. Independent of validation delivery.
 

@@ -75,49 +75,8 @@ inputs and defaults should apply to the Build activation? The
 cover source capture, and the [default filesystem contract](wiki/spec/build/scoped_execution.md#inputs-and-default-filesystem)
 covers the executing Build's view. Product runtime mappings grant no Build access.
 
-<a id="unnamed-workspace-check-discovery"></a>
-### 2. How does an unnamed check identify its workspace among enclosing Build entries?
-
-`omega --check` inside a workspace selects every declared member. A member and
-its enclosing workspace can each have a `build.omg`. The workspace can compute
-its roster through helpers and later Build stages, so filenames and the text of
-an individual source file cannot establish membership. Running every enclosing
-Build to inspect its return can execute an unrelated ancestor's program. The
-source-based workflow has no persistent workspace marker.
-
-Should tooling require the caller to name the catalog when it finds multiple
-enclosing Build entries, or should a workspace declare a discoverable identity
-outside Build execution? Recommend the explicit path in the ambiguous case.
-`omega --check ../build.omg` can execute that catalog and validate its actual
-members. A single enclosing entry remains discoverable from a subdirectory.
-
-[Command vocabulary](wiki/spec/build/command_line.md#command-vocabulary) ·
-[Workspaces](wiki/spec/build/declarations.md#workspaces) ·
-[Validation subjects](wiki/spec/build/validation_subjects.md#subjects)
-
-<a id="validation-of-incoming-build-libraries"></a>
-### 3. Can a Build request a full check of a library it received from its caller?
-
-The board's configuration imports an already admitted layout generator. It can
-use that generator without adding it to the firmware. If the board wants every
-declaration in the generator checked on the Build host, what value does it pass
-to the validator? The validation contract makes supplied Build libraries
-eligible and takes a dependency registration. Looking up the incoming generator
-returns a `PackageBinding`. Adding that binding produces a registration but
-also adds a Product dependency. A preparing caller can already validate its own
-registration before handing the generator to the board.
-[Board configuration and forwarding](wiki/spec/packages/staged_inputs.md#from-source-to-the-next-stage) ·
-[Eligible validation subjects](wiki/spec/build/validation_subjects.md#buildvalidate) ·
-[Dependency operations](source/library/build/dependency.omg)
-
-**Recommend accepting the incoming binding as a validation operand.** The
-binding already names the admitted occurrence. Checking it would use its Build
-host context and leave the board's Product dependencies alone. The alternative
-is to give the supplying caller sole responsibility for requesting the full
-check. That choice would narrow the eligibility rule for the receiving Build.
-
 <a id="staged-restricted-request-approval"></a>
-### 4. How does a source Build receive project approval for a restricted action?
+### 2. How does a source Build receive project approval for a restricted action?
 
 A developer binds a packer with `--allow ProgramLaunch --program Packer ./packer`.
 A dependency that invokes it still needs the consuming project's approval for
