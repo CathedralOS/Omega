@@ -1,3 +1,5 @@
+use algebra.omg;
+
 // Core natural-number ranking surface.
 //
 // `Nat::Descending` is the default well-founded ranking for unsigned natural
@@ -25,7 +27,7 @@ machine Nat::IncreasingTo(cursor: u64, limit: u64) -> u64;
 
 // The core algebraic conformance surface: Nat EARNS ring canonicalization
 // (rearrange-mode) by conforming `CommutativeSemiring` machine-by-machine
-// below -- ops via `satisfies CommutativeSemiring<Nat>::<op>`, laws via the lemma
+// below -- ops via `satisfies |algebra|::CommutativeSemiring<Nat>::<op>`, laws via the lemma
 // machines binding the law slots (each proof machine-checked against the
 // declared law, forall-to-forall).
 
@@ -69,7 +71,7 @@ requires
 // The extraction lemmas (add_zero, add_succ, commutativity) are discharged
 // by ensures extraction.
 public machine add(a: Nat, b: Nat) -> Nat
-satisfies CommutativeSemiring<Nat>::add
+satisfies |algebra|::CommutativeSemiring<Nat>::add
 terminates by a
 {
     transition a {
@@ -79,7 +81,7 @@ terminates by a
 }
 
 public machine mul(a: Nat, b: Nat) -> Nat
-satisfies CommutativeSemiring<Nat>::mul
+satisfies |algebra|::CommutativeSemiring<Nat>::mul
 terminates by a
 {
     transition a {
@@ -91,13 +93,13 @@ terminates by a
 // The semiring constants -- trivial one-transition machines (the settle's
 // zero/one rule: no constructor-binding surface).
 machine zero() -> Nat
-satisfies CommutativeSemiring<Nat>::zero
+satisfies |algebra|::CommutativeSemiring<Nat>::zero
 {
     transition { _ -> Nat::Zero }
 }
 
 machine one() -> Nat
-satisfies CommutativeSemiring<Nat>::one
+satisfies |algebra|::CommutativeSemiring<Nat>::one
 {
     transition { _ -> Nat::Succ { prev: Nat::Zero } }
 }
@@ -121,7 +123,7 @@ ensures
 // `a`, then the citation contributes `add(prev, Zero) == prev` to that arm.
 // Consumers cite the theorem as a statement; it never computes a dummy Nat.
 public machine add_zero_right(a: Nat)
-satisfies CommutativeSemiring<Nat>::add_identity
+satisfies |algebra|::CommutativeSemiring<Nat>::add_identity
 terminates by a
 ensures
     core\Identity::<Nat>(add(a, Nat::Zero), a)
@@ -193,7 +195,7 @@ ensures
 // (provenance: every transition into comm_step binds it from `a`'s Succ
 // payload).
 public machine add_comm(a: Nat, b: Nat)
-satisfies CommutativeSemiring<Nat>::add_comm
+satisfies |algebra|::CommutativeSemiring<Nat>::add_comm
 terminates by a
 ensures
     core\Identity::<Nat>(add(a, b), add(b, a))
@@ -216,7 +218,7 @@ ensures
 // ASSOCIATIVITY: pure induction on `a`, no citations -- both sides
 // normalize by unfolding plus the inductive hypothesis.
 public machine add_assoc(a: Nat, b: Nat, c: Nat)
-satisfies CommutativeSemiring<Nat>::add_assoc
+satisfies |algebra|::CommutativeSemiring<Nat>::add_assoc
 terminates by a
 ensures
     core\Identity::<Nat>(add(add(a, b), c), add(a, add(b, c)))
@@ -271,7 +273,7 @@ ensures
 // the three cited constructor-form laws reduce mul(a, one()) through
 // add(a, mul(a, Zero)) to a.
 machine mul_identity(a: Nat)
-satisfies CommutativeSemiring<Nat>::mul_identity
+satisfies |algebra|::CommutativeSemiring<Nat>::mul_identity
 ensures
     core\Identity::<Nat>(mul(a, one()), a)
 {
@@ -289,7 +291,7 @@ ensures
 // exactly Lean's `ring` discipline, license by declared instance, never by
 // imports in scope.
 machine mul_distributes(a: Nat, b: Nat, c: Nat)
-satisfies CommutativeSemiring<Nat>::mul_distributes
+satisfies |algebra|::CommutativeSemiring<Nat>::mul_distributes
 terminates by a
 ensures
     core\Identity::<Nat>(mul(a, add(b, c)), add(mul(a, b), mul(a, c)))
@@ -331,7 +333,7 @@ ensures
 // -- and takes the inductive hypothesis from its smaller citation, after
 // which both sides meet at `add(mul(b, c), mul(prev, mul(b, c)))`.
 machine mul_assoc(a: Nat, b: Nat, c: Nat)
-satisfies CommutativeSemiring<Nat>::mul_assoc
+satisfies |algebra|::CommutativeSemiring<Nat>::mul_assoc
 terminates by a
 ensures
     core\Identity::<Nat>(mul(mul(a, b), c), mul(a, mul(b, c)))
@@ -381,7 +383,7 @@ ensures
 // MULTIPLICATION COMMUTES: base cites mul_zero_right; step cites
 // mul_succ_right at (b, prev) plus the inductive hypothesis.
 public machine mul_comm(a: Nat, b: Nat)
-satisfies CommutativeSemiring<Nat>::mul_comm
+satisfies |algebra|::CommutativeSemiring<Nat>::mul_comm
 terminates by a
 ensures
     core\Identity::<Nat>(mul(a, b), mul(b, a))

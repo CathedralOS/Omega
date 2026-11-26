@@ -81,8 +81,8 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
     for &size in &sizes {
         let project = scratch.join(format!("n{size}"));
         write_program(shape, size, &project)?;
-        let main = project.join("main.omg").display().to_string();
-        let template = ["--check", "--build-dir", "{build}", main.as_str()];
+        let plan = project.join("build.omg").display().to_string();
+        let template = ["--check", "--build-dir", "{build}", plan.as_str()];
         let mut costs = Vec::new();
         let mut metric = "instructions_u";
         // One untimed warmup fills the file cache.
@@ -154,24 +154,38 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
 /// per call (cost per citation then grows with the citations before it).
 fn write_program(shape: Shape, size: usize, directory: &Path) -> Result<(), String> {
     fs::create_dir_all(directory).map_err(|error| error.to_string())?;
-    let build = "machine build(builder: @mutable Build) {\n    Build::application(builder, \"machine_count\");\n}\n";
+    let build = r#"machine build(plan: @mutable BuildPlan) {
+    plan.product = BuildProduct::Package { name: "scaling" };
+}
+"#;
     let mut main = String::new();
     match shape {
         Shape::Machines => {
-            main.push_str("data Main {\n    marker: u64;\n}\nmachine main(main: @mut Main) {\n    main.marker = 0;\n}\n");
+            main.push_str("data Main { marker: u64; }\n");
+            main.push_str("machine main(main: @mutable Main) { main.marker = 0; }\n");
             for index in 1..=size {
-                let _ = write!(
+                let _ = writeln!(
                     main,
-                    "machine step_{index}(main: @mut Main) {{\n    main.marker = {index};\n}}\n"
+                    "machine step_{index}(main: @mutable Main) {{ main.marker = {index}; }}"
                 );
             }
         }
         Shape::Citations => {
-            main.push_str("machine keep(a: Nat, b: Nat)\nrequires\n    core\\Identity::<Nat>(saturating_sub(a, b), Nat::Zero)\nensures\n    core\\Identity::<Nat>(saturating_sub(a, b), Nat::Zero)\n{\n}\n\nmachine chain(a: Nat, b: Nat)\nrequires\n    core\\Identity::<Nat>(saturating_sub(a, b), Nat::Zero)\n{\n");
+            main.push_str("use {omega}/language/core/nat.omg;\n\n");
+            let operands = "a: |nat|::Nat, b: |nat|::Nat";
+            let law = r"core\Identity::<|nat|::Nat>(|nat|::saturating_sub(a, b), |nat|::Nat::Zero)";
+            let _ = writeln!(
+                main,
+                "machine keep({operands})\nrequires {law}\nensures {law}\n{{}}"
+            );
+            let _ = writeln!(
+                main,
+                "machine chain({operands})\nrequires {law}\nensures {law}\n{{"
+            );
             for _ in 0..size {
                 main.push_str("    keep(a, b);\n");
             }
-            main.push_str("}\n\nmachine main() {\n}\n");
+            main.push_str("}\n\nmachine main() {}\n");
         }
     }
     let write = |name: &str, text: &str| {
