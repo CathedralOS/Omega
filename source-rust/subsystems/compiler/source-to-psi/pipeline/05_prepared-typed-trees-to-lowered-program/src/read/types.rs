@@ -159,7 +159,7 @@ fn landed_type(
         Landed::Addr => Err(refuse(
             machine,
             Construct::Machine,
-            Unserved::Type("addr literal"),
+            Unserved::Type("address literal"),
         )),
     }
 }

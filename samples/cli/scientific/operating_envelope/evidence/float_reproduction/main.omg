@@ -1,14 +1,14 @@
-use omega\language\core\ProcessExit;
+use calculation/calculation.omg;
+use {omega}/language/core/process_exit.omg;
 // Complete reproduction: conversions are owned by an ordinary domain module.
-use calculation;
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit {
-    let converted: i32 = calculation\sample();
-    ProcessExit::exit_process(converted);
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit {
+    let converted: i32 = |calculation|::sample();
+    |process_exit|::ProcessExit::exit_process(converted);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit {
+machine entry_start() reaches |process_exit|::ProcessExit {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }

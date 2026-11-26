@@ -1,6 +1,6 @@
 // Stable type, callable, trait, conformance, and external-supply signatures.
 
-use super::identity::PackageReviewNominalIdentity;
+use super::PackageReviewNominalIdentity;
 
 mod callables;
 mod external_policy;

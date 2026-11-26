@@ -1,29 +1,23 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use io/protocol/protocol.omg;
+use model/planck/planck.omg;
+use {omega}/language/core/math.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Expected exit: 0.
 // Expected output contains: emitted_W,ambient_W,net_W,emission_fraction
-use io\protocol;
-use io\protocol\Protocol;
-use io\protocol\read;
-use io\protocol\number;
-use model\planck;
-use model\planck\band;
-use model\planck\net_exitance;
-use system\Console;
-use omega\language\core\is_finite;
 
 // The scanner borrows the parsed fields through a shared descriptor.
 data RadiometryInput<'fields> [copy] { values: @'fields [f64]; }
 machine finite_input<'fields>(input: RadiometryInput<'fields>, index: u64) -> bool
-requires index < input.values.length { is_finite(input.values[index]) }
+requires index < input.values.length { |math|::is_finite(input.values[index]) }
 
 data Main {
-    protocol: Protocol;
+    protocol: |protocol|::Protocol;
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    let parsed: bool = block read(@mutable main.protocol);
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    let parsed: bool = block |protocol|::read(@mutable main.protocol);
     transition parsed { true -> finite(main, 0), false -> invalid(main) }
     machine finite(main: @mutable Main, index: u64) {
         transition index < 7 { true -> field(main, index), false -> validate(main) }
@@ -48,8 +42,8 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     machine compute(main: @mutable Main) {
         let emitter: f64 = main.protocol.fields[0];
         let ambient: f64 = main.protocol.fields[1];
-        let fraction_integral: f64 = band(emitter, main.protocol.fields[5], main.protocol.fields[6], 0.0, false);
-        let ambient_integral: f64 = band(ambient, main.protocol.fields[5], main.protocol.fields[6], 0.0, false);
+        let fraction_integral: f64 = |planck|::band(emitter, main.protocol.fields[5], main.protocol.fields[6], 0.0, false);
+        let ambient_integral: f64 = |planck|::band(ambient, main.protocol.fields[5], main.protocol.fields[6], 0.0, false);
         let fraction: f64 = fraction_integral / 6.4939394022668291;
         let background_fraction: f64 = ambient_integral / 6.4939394022668291;
         // sigma derived from the same exact SI constants and pi, not a rounded
@@ -57,26 +51,26 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         let scale: f64 = main.protocol.fields[2] * main.protocol.fields[3] * main.protocol.fields[4];
         let emitted: f64 = 0.000000056703744191844294 * emitter * emitter * emitter * emitter * fraction * scale;
         let background: f64 = 0.000000056703744191844294 * ambient * ambient * ambient * ambient * background_fraction * scale;
-        let net: f64 = net_exitance(emitter, ambient, main.protocol.fields[5], main.protocol.fields[6]);
-        Console::write_line("emitted_W,ambient_W,net_W,emission_fraction");
-        number(@mutable main.protocol, emitted);
-        Console::write(",");
-        number(@mutable main.protocol, background);
-        Console::write(",");
-        number(@mutable main.protocol, net * scale);
-        Console::write(",");
-        number(@mutable main.protocol, fraction);
-        Console::write_line("");
-        ProcessExit::exit_process(0);
+        let net: f64 = |planck|::net_exitance(emitter, ambient, main.protocol.fields[5], main.protocol.fields[6]);
+        |console|::Console::write_line("emitted_W,ambient_W,net_W,emission_fraction");
+        |protocol|::number(@mutable main.protocol, emitted);
+        |console|::Console::write(",");
+        |protocol|::number(@mutable main.protocol, background);
+        |console|::Console::write(",");
+        |protocol|::number(@mutable main.protocol, net * scale);
+        |console|::Console::write(",");
+        |protocol|::number(@mutable main.protocol, fraction);
+        |console|::Console::write_line("");
+        |process_exit|::ProcessExit::exit_process(0);
     }
     machine invalid(main: @mutable Main) {
-        Console::write_line("ERROR invalid input");
-        ProcessExit::exit_process(64);
+        |console|::Console::write_line("ERROR invalid input");
+        |process_exit|::ProcessExit::exit_process(64);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

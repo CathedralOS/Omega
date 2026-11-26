@@ -1,4 +1,4 @@
-// Proof-Nat import surface: `use omega\language\core\nat`
+// Proof-Nat import surface: `use {omega}/language/core/nat.omg`
 // brings Nat into a depend-free package and Nat values flow through
 // ordinary machines.
 //
@@ -9,9 +9,9 @@
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.
 
-use omega\language\core\Nat;
+use {omega}/language/core/nat.omg;
 
-machine relay(total: Nat, used: Nat) -> Nat {
+machine relay(total: |nat|::Nat, used: |nat|::Nat) -> |nat|::Nat {
     transition { _ -> (total) }
 }
 

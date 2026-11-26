@@ -1,6 +1,6 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Smallest prime factor by trial division. Walk d = 2, 3, 4, ... and return the
 // first d that divides n; if d * d ever exceeds n with no divisor found, n is
 // prime and is its own smallest factor. For n = 169 (= 13 * 13) the answer is 13:
@@ -12,7 +12,6 @@ use omega\language\core\ProcessExit;
 // algorithm rather than a canary.
 // Expected exit: 13.
 
-use system\Console;
 
 // The complete owner predicate bounds the square to 40000. Divisor-nonzero
 // requirements belong to the invoked trial steps; zero remains a valid owner.
@@ -29,8 +28,8 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("smallest_prime_factor: trial division finds the smallest factor of 169");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("smallest_prime_factor: trial division finds the smallest factor of 169");
     main.trial.n = 169;
     main.trial.d = 2;
 
@@ -77,22 +76,22 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
 
     machine found(main: @mutable Main) {
-        Console::write_line("PASS: smallest prime factor found, 13 for n=169 (the exit code)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(main.trial.d);
+        |console|::Console::write_line("PASS: smallest prime factor found, 13 for n=169 (the exit code)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(main.trial.d);
     }
 
     machine prime(main: @mutable Main) {
-        Console::write_line("result: n has no divisor up to sqrt(n), so n is prime and exits as its own factor (the exit code)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(main.trial.n);
+        |console|::Console::write_line("result: n has no divisor up to sqrt(n), so n is prime and exits as its own factor (the exit code)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(main.trial.n);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

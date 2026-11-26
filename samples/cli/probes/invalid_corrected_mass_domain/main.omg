@@ -1,4 +1,4 @@
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_exit.omg;
 // A negative corrected mass is not a nonnegative f64 mass. The annotation
 // does not establish the predicate.
 
@@ -7,13 +7,13 @@ requires self >= 0.0;
 
 data Main { }
 
-machine Main::main(main: @mutable Main) reaches ProcessExit {
+machine Main::main(main: @mutable Main) reaches |process_exit|::ProcessExit {
     let corrected: f64 in NonnegativeMass = 0.0 - 1.0;
-    ProcessExit::exit_process(0);
+    |process_exit|::ProcessExit::exit_process(0);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit {
+machine entry_start() reaches |process_exit|::ProcessExit {
     let mutable entry_storage: Main;
     Main::main(@mutable entry_storage);
 }

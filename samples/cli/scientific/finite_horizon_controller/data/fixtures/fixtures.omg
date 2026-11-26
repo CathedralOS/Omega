@@ -1,7 +1,6 @@
-use controller\model;
-use controller\model\Problem;
+use controller/model/model.omg;
 // Mirrored input fixtures.
-public machine load_case(problem: @mutable Problem, selector: i32) {
+public machine load_case(problem: @mutable |model|::Problem, selector: i32) {
     transition selector {
         0 -> case_0(problem),
         1 -> case_1(problem),
@@ -13,7 +12,7 @@ public machine load_case(problem: @mutable Problem, selector: i32) {
         7 -> case_7(problem),
         _ -> done()
     }
-    machine case_0(problem: @mutable Problem) {
+    machine case_0(problem: @mutable |model|::Problem) {
         problem.horizon = 4;
         problem.initial = 3;
         problem.target = 0;
@@ -27,7 +26,7 @@ public machine load_case(problem: @mutable Problem, selector: i32) {
         problem.drift = 0;
         problem.exact_terminal = false;
     }
-    machine case_1(problem: @mutable Problem) {
+    machine case_1(problem: @mutable |model|::Problem) {
         problem.horizon = 4;
         problem.initial = 0;
         problem.target = 3;
@@ -41,7 +40,7 @@ public machine load_case(problem: @mutable Problem, selector: i32) {
         problem.drift = 0;
         problem.exact_terminal = false;
     }
-    machine case_2(problem: @mutable Problem) {
+    machine case_2(problem: @mutable |model|::Problem) {
         problem.horizon = 2;
         problem.initial = 0;
         problem.target = 0;
@@ -55,7 +54,7 @@ public machine load_case(problem: @mutable Problem, selector: i32) {
         problem.drift = 0;
         problem.exact_terminal = false;
     }
-    machine case_3(problem: @mutable Problem) {
+    machine case_3(problem: @mutable |model|::Problem) {
         problem.horizon = 2;
         problem.initial = 0;
         problem.target = 3;
@@ -69,7 +68,7 @@ public machine load_case(problem: @mutable Problem, selector: i32) {
         problem.drift = 0;
         problem.exact_terminal = true;
     }
-    machine case_4(problem: @mutable Problem) {
+    machine case_4(problem: @mutable |model|::Problem) {
         problem.horizon = 5;
         problem.initial = 0;
         problem.target = 1;
@@ -83,7 +82,7 @@ public machine load_case(problem: @mutable Problem, selector: i32) {
         problem.drift = 1;
         problem.exact_terminal = true;
     }
-    machine case_5(problem: @mutable Problem) {
+    machine case_5(problem: @mutable |model|::Problem) {
         problem.horizon = 3;
         problem.initial = 0;
         problem.target = 0;
@@ -97,7 +96,7 @@ public machine load_case(problem: @mutable Problem, selector: i32) {
         problem.drift = 1;
         problem.exact_terminal = false;
     }
-    machine case_6(problem: @mutable Problem) {
+    machine case_6(problem: @mutable |model|::Problem) {
         problem.horizon = 6;
         problem.initial = 0;
         problem.target = 0;
@@ -111,7 +110,7 @@ public machine load_case(problem: @mutable Problem, selector: i32) {
         problem.drift = 0;
         problem.exact_terminal = false;
     }
-    machine case_7(problem: @mutable Problem) {
+    machine case_7(problem: @mutable |model|::Problem) {
         problem.horizon = 3;
         problem.initial = 0;
         problem.target = 0;

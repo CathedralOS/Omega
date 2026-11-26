@@ -261,6 +261,29 @@ pub(crate) mod record {
         }
 
         impl TerminalExecution<'_> {
+            pub(crate) fn stored_case_at_value(
+                &self,
+                value: &crate::boundary::values::TerminalStructuralValue,
+                path: &[StructuralPathSegment],
+            ) -> Option<StructuralCaseId> {
+                crate::boundary::structural_inputs::case_membership::stored_case_at_projection(
+                    &self.structural_types(),
+                    value,
+                    &self.array_initialization.cases(&self.structural_cases),
+                    path,
+                )
+            }
+
+            pub(crate) fn stored_case_at(
+                &self,
+                current: &StructuralAffineDiscard,
+            ) -> Option<StructuralCaseId> {
+                self.stored_case_at_value(
+                    self.structural_values.get(&current.place)?,
+                    &current.path,
+                )
+            }
+
             pub(crate) fn validate_transferred_affine_complement(
                 &self,
                 source: &StructuralArgument,
@@ -277,6 +300,7 @@ pub(crate) mod record {
                     }
                 }
                 let mut actual = self.live_affine_frontier.clone();
+                let source_case = |current: &StructuralAffineDiscard| self.stored_case_at(current);
                 if let Some(containing) = actual
                     .iter()
                     .find(|entry| {
@@ -292,14 +316,7 @@ pub(crate) mod record {
                         &mut actual,
                         containing,
                         &source.path,
-                        &|current| {
-                            crate::boundary::structural_inputs::case_membership::stored_case_at_projection(
-                        &types,
-                        self.structural_values.get(&current.place)?,
-                        &self.array_initialization.cases(&self.structural_cases),
-                        &current.path,
-                    )
-                        },
+                        &source_case,
                     )?;
                     actual.insert(StructuralAffineDiscard {
                         place: source.place,
@@ -325,14 +342,7 @@ pub(crate) mod record {
                     &types,
                     &mut actual,
                     covered_claims,
-                    &|current| {
-                        crate::boundary::structural_inputs::case_membership::stored_case_at_projection(
-                            &types,
-                            self.structural_values.get(&current.place)?,
-                            &self.array_initialization.cases(&self.structural_cases),
-                            &current.path,
-                        )
-                    },
+                    &source_case,
                 )?;
                 let mut remaining = result_frontier
                     .iter()
@@ -620,23 +630,38 @@ pub(crate) mod record {
             fn field(id: u32) -> Vec<StructuralPathSegment> {
                 vec![StructuralPathSegment::Field(TerminalIdentityIndex(id))]
             }
+            fn claim_pairs(
+                paths: &[(u64, Vec<StructuralPathSegment>)],
+            ) -> Vec<(ClaimId, Vec<StructuralPathSegment>)> {
+                paths
+                    .iter()
+                    .map(|(id, path)| (ClaimId::new(*id).unwrap(), path.clone()))
+                    .collect()
+            }
+            fn bind_claims(
+                origin: ResultClaimOrigin,
+                result: &StructuralOperationResult,
+                transported: &[(u64, Vec<StructuralPathSegment>)],
+                nominal_root: Option<ClaimId>,
+                active: impl Fn(&[StructuralPathSegment]) -> Result<bool, TerminalInterpretError>,
+            ) -> Result<Vec<(ClaimId, LiveClaim)>, TerminalInterpretError> {
+                bind_constructor_claims(
+                    origin,
+                    result,
+                    |_| false,
+                    claim_pairs(transported),
+                    nominal_root,
+                    active,
+                )
+            }
 
             #[test]
             fn transported_sibling_claims_stay_linear_in_an_affine_result() {
                 let paths = [(1, field(1)), (2, field(2))];
                 let result = result(StructuralMultiplicity::Affine, &paths);
-                let transported = paths
-                    .iter()
-                    .map(|(id, path)| (ClaimId::new(*id).unwrap(), path.clone()))
-                    .collect();
-                let bound = bind_constructor_claims(
-                    ResultClaimOrigin::Transfer,
-                    &result,
-                    |_| false,
-                    transported,
-                    None,
-                    |_| Ok(true),
-                )
+                let bound = bind_claims(ResultClaimOrigin::Transfer, &result, &paths, None, |_| {
+                    Ok(true)
+                })
                 .unwrap();
                 assert_eq!(bound.len(), 2);
                 for binding in &result.claims {
@@ -655,41 +680,33 @@ pub(crate) mod record {
             fn a_new_root_never_subsumes_transported_children_or_mints_during_transfer() {
                 let root = ClaimId::new(3).unwrap();
                 let result = result(StructuralMultiplicity::Linear, &[(3, Vec::new())]);
-                let fresh = bind_constructor_claims(
+                let fresh = bind_claims(
                     ResultClaimOrigin::Construction,
                     &result,
-                    |_| false,
-                    Vec::new(),
+                    &[],
                     Some(root),
                     |_| Ok(true),
                 )
                 .unwrap();
                 assert_eq!(fresh.len(), 1);
                 assert!(
-                    bind_constructor_claims(
+                    bind_claims(
                         ResultClaimOrigin::Transfer,
                         &result,
-                        |_| false,
-                        Vec::new(),
+                        &[],
                         Some(root),
-                        |_| Ok(true)
+                        |_| Ok(true),
                     )
                     .is_err()
                 );
-                let children = [
-                    (ClaimId::new(1).unwrap(), field(1)),
-                    (ClaimId::new(2).unwrap(), field(2)),
-                ]
-                .into_iter()
-                .collect();
+                let children = [(1, field(1)), (2, field(2))];
                 assert!(
-                    bind_constructor_claims(
+                    bind_claims(
                         ResultClaimOrigin::Construction,
                         &result,
-                        |_| false,
-                        children,
+                        &children,
                         Some(root),
-                        |_| Ok(true)
+                        |_| Ok(true),
                     )
                     .is_err()
                 );
@@ -697,49 +714,35 @@ pub(crate) mod record {
 
             #[test]
             fn inactive_case_bindings_cannot_hide_a_transported_claim() {
-                let first = vec![
-                    StructuralPathSegment::Case(
-                        semantic_vocabulary::StructuralCaseId::new(1).unwrap(),
-                    ),
-                    StructuralPathSegment::Field(TerminalIdentityIndex(1)),
-                ];
-                let second = vec![
-                    StructuralPathSegment::Case(
-                        semantic_vocabulary::StructuralCaseId::new(2).unwrap(),
-                    ),
-                    StructuralPathSegment::Field(TerminalIdentityIndex(2)),
-                ];
+                let case_field = |c, f| {
+                    vec![
+                        StructuralPathSegment::Case(
+                            semantic_vocabulary::StructuralCaseId::new(c).unwrap(),
+                        ),
+                        StructuralPathSegment::Field(TerminalIdentityIndex(f)),
+                    ]
+                };
+                let (first, second) = (case_field(1, 1), case_field(2, 2));
                 let result = result(
                     StructuralMultiplicity::Affine,
                     &[(1, first.clone()), (2, second.clone())],
                 );
-                let transported = [(ClaimId::new(1).unwrap(), first.clone())]
-                    .into_iter()
-                    .collect();
-                let bound = bind_constructor_claims(
+                let bound = bind_claims(
                     ResultClaimOrigin::Transfer,
                     &result,
-                    |_| false,
-                    transported,
+                    &[(1, first.clone())],
                     None,
                     |path| Ok(path == first),
                 )
                 .unwrap();
                 assert_eq!(bound.len(), 1);
-                let transported = [
-                    (ClaimId::new(1).unwrap(), first.clone()),
-                    (ClaimId::new(2).unwrap(), second),
-                ]
-                .into_iter()
-                .collect();
                 assert!(
-                    bind_constructor_claims(
+                    bind_claims(
                         ResultClaimOrigin::Transfer,
                         &result,
-                        |_| false,
-                        transported,
+                        &[(1, first.clone()), (2, second)],
                         None,
-                        |path| Ok(path == first)
+                        |path| Ok(path == first),
                     )
                     .is_err()
                 );
@@ -1202,6 +1205,87 @@ pub(crate) mod record {
             }
         }
 
+        fn relocate_place(
+            source: &StructuralRuntimePlace,
+            destination: &StructuralRuntimePlace,
+            home: &StructuralRuntimePlace,
+        ) -> Option<StructuralRuntimePlace> {
+            if home.opaque_identity != source.opaque_identity
+                || !home.path.starts_with(&source.path)
+            {
+                return None;
+            }
+            let mut path = destination.path.clone();
+            path.extend_from_slice(&home.path[source.path.len()..]);
+            Some(StructuralRuntimePlace {
+                opaque_identity: destination.opaque_identity,
+                path,
+            })
+        }
+
+        fn relocate_descriptor_home(
+            descriptor: &TerminalStructuralValue,
+            target: &StructuralRuntimePlace,
+        ) -> TerminalStructuralValue {
+            let mut relocated = descriptor.clone();
+            relocated.opaque_identity = target.opaque_identity;
+            relocated.path = target.path.clone();
+            relocated
+        }
+
+        fn is_immutable_byte_binding(
+            binding: &crate::storage::byte_sequences::binding::ByteSequenceBinding,
+        ) -> bool {
+            matches!(
+                binding,
+                crate::storage::byte_sequences::binding::ByteSequenceBinding::Immutable(_)
+                    | crate::storage::byte_sequences::binding::ByteSequenceBinding::Representation(
+                        _
+                    )
+            )
+        }
+
+        fn insert_unique<K: Ord, V>(
+            rows: &mut RuntimeRows<K, V>,
+            key: K,
+            value: V,
+        ) -> Result<(), TerminalInterpretError> {
+            if rows.insert(key, value)?.is_some() {
+                return Err(malformed());
+            }
+            Ok(())
+        }
+
+        macro_rules! for_constructor_tables {
+            (@fields $mode:tt $($arg:tt)*) => {
+                for_constructor_tables!($mode $($arg)*;
+                    (original_roots, original_storage_roots),
+                    (completed_profiles, provider_storage.completed_profiles),
+                    (provider_descriptors, provider_storage.descriptors),
+                    (activation_descriptors, activation_storage.claim_descriptors),
+                    (host_atoms, structural_host_atoms),
+                    (scalars, structural_scalar_fields),
+                    (bytes, structural_byte_sequence_fields),
+                    (views, structural_element_view_fields),
+                    (byte_descriptors, structural_byte_descriptors),
+                    (references, reference_referents),
+                    (primitives, structural_primitive_storage),
+                    (byte_arrays, structural_byte_storage),
+                    (array_initialization.rows, array_initialization.rows),
+                    (cases, structural_cases),
+                )
+            };
+            (@measure $self:expr, $custody:expr; $(($($l:ident).+, $($r:ident).+),)*) => {{
+                $( $custody.add_cells($self.$($l).+.len())?; )*
+            }};
+            (@validate $self:expr, $exec:expr; $(($($l:ident).+, $($r:ident).+),)*) => {{
+                $( $exec.$($r).+.validate_append(&$self.$($l).+)?; )*
+            }};
+            (@append $self:expr, $exec:expr; $(($($l:ident).+, $($r:ident).+),)*) => {{
+                $( $exec.$($r).+.append(&mut $self.$($l).+)?; )*
+            }};
+        }
+
         impl ConstructorStorage {
             pub(crate) fn retain_storage(
                 &self,
@@ -1228,34 +1312,16 @@ pub(crate) mod record {
                 execution: &'storage TerminalExecution<'_>,
                 custody: &mut crate::boundary::result_custody::ResultCustody<'storage>,
             ) -> Result<(), TerminalInterpretError> {
-                for count in [
-                    self.original_roots.len(),
-                    self.completed_profiles.len(),
-                    self.provider_descriptors.len(),
-                    self.activation_descriptors.len(),
-                    self.host_atoms.len(),
-                    self.scalars.len(),
-                    self.bytes.len(),
-                    self.views.len(),
-                    self.byte_descriptors.len(),
-                    self.references.len(),
-                    self.primitives.len(),
-                    self.byte_arrays.len(),
-                    self.array_initialization.rows.len(),
-                    self.cases.len(),
-                ] {
-                    custody.add_cells(count)?;
-                }
+                for_constructor_tables!(@fields @measure self, custody);
                 for binding in self.provider_descriptors.values() {
                     custody.provider(execution, *binding)?;
                 }
-                for binding in self.activation_descriptors.values() {
-                    custody.binding(binding)?;
-                }
-                for binding in self.bytes.values() {
-                    custody.binding(binding)?;
-                }
-                for binding in self.byte_descriptors.values() {
+                for binding in self
+                    .activation_descriptors
+                    .values()
+                    .chain(self.bytes.values())
+                    .chain(self.byte_descriptors.values())
+                {
                     custody.binding(binding)?;
                 }
                 for bytes in self.byte_arrays.values() {
@@ -1315,17 +1381,7 @@ pub(crate) mod record {
                 }
                 let source = StructuralRuntimePlace::from(&retained.value);
                 let relocate = |home: &StructuralRuntimePlace| {
-                    if home.opaque_identity != source.opaque_identity
-                        || !home.path.starts_with(&source.path)
-                    {
-                        return Err(malformed());
-                    }
-                    let mut path = destination.path.clone();
-                    path.extend_from_slice(&home.path[source.path.len()..]);
-                    Ok(StructuralRuntimePlace {
-                        opaque_identity: destination.opaque_identity,
-                        path,
-                    })
+                    relocate_place(&source, destination, home).ok_or_else(malformed)
                 };
                 for (home, root) in &original.original_roots {
                     self.original_roots.insert(relocate(home)?, *root)?;
@@ -1333,19 +1389,20 @@ pub(crate) mod record {
                 for (home, binding) in &original.provider_descriptors {
                     if !execution.provider_storage.binding_is_live(*binding) {
                         return Err(
-                    crate::boundary::errors::TerminalInterpretError::ContentTransformationMismatch(
-                        "retained value lost its provider allocation",
-                    ),
-                );
+                            crate::boundary::errors::TerminalInterpretError::ContentTransformationMismatch(
+                                "retained value lost its provider allocation",
+                            ),
+                        );
                     }
                     self.provider_descriptors
                         .insert(relocate(home)?, *binding)?;
                 }
                 for (home, binding) in &original.activation_descriptors {
                     let target = relocate(home)?;
-                    let mut descriptor = binding.descriptor_home().ok_or(malformed())?.clone();
-                    descriptor.opaque_identity = target.opaque_identity;
-                    descriptor.path = target.path.clone();
+                    let descriptor = relocate_descriptor_home(
+                        binding.descriptor_home().ok_or(malformed())?,
+                        &target,
+                    );
                     self.activation_descriptors
                         .insert(target, binding.clone().with_descriptor_home(descriptor))?;
                 }
@@ -1412,10 +1469,10 @@ pub(crate) mod record {
             ) -> Result<DetachedConstructorStorage, TerminalInterpretError> {
                 if !self.owner_writes.is_empty() {
                     return Err(
-                crate::boundary::errors::TerminalInterpretError::ContentTransformationMismatch(
-                    "detached value unexpectedly writes through an existing owner",
-                ),
-            );
+                        crate::boundary::errors::TerminalInterpretError::ContentTransformationMismatch(
+                            "detached value unexpectedly writes through an existing owner",
+                        ),
+                    );
                 }
                 Ok(DetachedConstructorStorage(self))
             }
@@ -1439,9 +1496,11 @@ pub(crate) mod record {
             ) -> Result<(), TerminalInterpretError> {
                 for row in required {
                     let active = crate::boundary::structural_inputs::case_membership::case_projection_with_membership_is_active(
-                &execution.structural_types(), root.structural_type, &row.path,
-                &|prefix| self.case_at_projection(execution, root, prefix),
-            )?;
+                        &execution.structural_types(),
+                        root.structural_type,
+                        &row.path,
+                        &|prefix| self.case_at_projection(execution, root, prefix),
+                    )?;
                     if active && !root.projected_qualifications.contains(row) {
                         return Err(malformed());
                     }
@@ -1477,10 +1536,7 @@ pub(crate) mod record {
                 destination: StructuralRuntimePlace,
                 bytes: crate::storage::byte_sequences::binding::ByteSequenceBinding,
             ) -> Result<(), TerminalInterpretError> {
-                if self.byte_descriptors.insert(destination, bytes)?.is_some() {
-                    return Err(malformed());
-                }
-                Ok(())
+                insert_unique(&mut self.byte_descriptors, destination, bytes)
             }
 
             pub(crate) fn stage_element_view(
@@ -1488,10 +1544,7 @@ pub(crate) mod record {
                 destination: StructuralRuntimePlace,
                 view: crate::storage::element_views::ElementView,
             ) -> Result<(), TerminalInterpretError> {
-                if self.views.insert(destination, view)?.is_some() {
-                    return Err(malformed());
-                }
-                Ok(())
+                insert_unique(&mut self.views, destination, view)
             }
 
             pub(crate) fn stage_reference(
@@ -1499,10 +1552,7 @@ pub(crate) mod record {
                 destination: StructuralRuntimePlace,
                 referent: crate::storage::reference::ReferenceReferent,
             ) -> Result<(), TerminalInterpretError> {
-                if self.references.insert(destination, referent)?.is_some() {
-                    return Err(malformed());
-                }
-                Ok(())
+                insert_unique(&mut self.references, destination, referent)
             }
 
             pub(crate) fn stage_byte_array(
@@ -1790,12 +1840,9 @@ pub(crate) mod record {
                     {
                         return Err(malformed());
                     }
-                    let mut descriptor = child.clone();
-                    descriptor.opaque_identity = destination.opaque_identity;
-                    descriptor.path = destination.path.clone();
                     self.activation_descriptors.insert(
                         destination.clone(),
-                        binding.with_descriptor_home(descriptor),
+                        binding.with_descriptor_home(relocate_descriptor_home(child, destination)),
                     )?;
                     return Ok(());
                 }
@@ -1812,12 +1859,9 @@ pub(crate) mod record {
                     } else {
                         execution.byte_descriptor_binding(argument, child)?
                     };
-                    let mut descriptor = child.clone();
-                    descriptor.opaque_identity = destination.opaque_identity;
-                    descriptor.path = destination.path.clone();
                     self.byte_descriptors.insert(
                         destination.clone(),
-                        binding.with_descriptor_home(descriptor),
+                        binding.with_descriptor_home(relocate_descriptor_home(child, destination)),
                     )?;
                     return Ok(());
                 }
@@ -1859,35 +1903,41 @@ pub(crate) mod record {
                     };
                     let (_, bytes) = execution.bounded_owner_snapshot(&source)?;
                     match execution.captured_byte_owner_binding_at(destination, child.structural_type) {
-                Some(
-                    crate::storage::byte_sequences::binding::ByteSequenceBinding::MutableField {
-                        field,
-                        ..
-                    },
-                ) => {
-                    self.bytes.insert(
-                        field.clone(),
-                        crate::storage::byte_sequences::binding::ByteSequenceBinding::Immutable(
-                            bytes.owned_snapshot(),
-                        ),
-                    )?;
-                }
-                Some(
-                    crate::storage::byte_sequences::binding::ByteSequenceBinding::MutableOwner {
-                        home,
-                        ..
-                    },
-                ) => {
-                    execution.byte_owner_bytes(home)?;
-                    self.owner_writes
-                        .push((home.clone(), bytes.owned_snapshot()));
-                }
-                Some(_) => return Err(malformed()),
-                None => {
-                    self.byte_arrays
-                        .insert(destination.clone(), crate::boundary::structural_inputs::byte_arrays::storage::StructuralByteArrayStorage::new(child.structural_type, bytes.owned_snapshot(), execution.account.as_ref()))?;
-                }
-            }
+                        Some(
+                            crate::storage::byte_sequences::binding::ByteSequenceBinding::MutableField {
+                                field,
+                                ..
+                            },
+                        ) => {
+                            self.bytes.insert(
+                                field.clone(),
+                                crate::storage::byte_sequences::binding::ByteSequenceBinding::Immutable(
+                                    bytes.owned_snapshot(),
+                                ),
+                            )?;
+                        }
+                        Some(
+                            crate::storage::byte_sequences::binding::ByteSequenceBinding::MutableOwner {
+                                home,
+                                ..
+                            },
+                        ) => {
+                            execution.byte_owner_bytes(home)?;
+                            self.owner_writes
+                                .push((home.clone(), bytes.owned_snapshot()));
+                        }
+                        Some(_) => return Err(malformed()),
+                        None => {
+                            self.byte_arrays.insert(
+                                destination.clone(),
+                                crate::boundary::structural_inputs::byte_arrays::storage::StructuralByteArrayStorage::new(
+                                    child.structural_type,
+                                    bytes.owned_snapshot(),
+                                    execution.account.as_ref(),
+                                ),
+                            )?;
+                        }
+                    }
                 }
                 self.stage_subtree(
                     execution,
@@ -1904,178 +1954,132 @@ pub(crate) mod record {
                 destination: &StructuralRuntimePlace,
                 transfers_custody: bool,
             ) -> Result<(), TerminalInterpretError> {
-                let relocate = |home: &StructuralRuntimePlace| {
-                    if home.opaque_identity != source.opaque_identity
-                        || !home.path.starts_with(&source.path)
-                    {
-                        return None;
-                    }
-                    let mut path = destination.path.clone();
-                    path.extend_from_slice(&home.path[source.path.len()..]);
-                    Some(StructuralRuntimePlace {
-                        opaque_identity: destination.opaque_identity,
-                        path,
-                    })
-                };
-                if transfers_custody {
-                    for (home, original) in crate::storage::structural_storage::cells(
-                        &execution.original_storage_roots,
-                        source,
-                    ) {
-                        if let Some(target) = relocate(home) {
-                            self.original_roots.insert(target, *original)?;
+                macro_rules! relocate_cells {
+                    ($table:expr, |$home:ident, $val:ident, $target:ident| $body:block) => {
+                        for ($home, $val) in
+                            crate::storage::structural_storage::cells(&$table, source)
+                        {
+                            if let Some($target) = relocate_place(source, destination, $home) {
+                                $body
+                            }
                         }
-                    }
-                    for (home, profile) in crate::storage::structural_storage::cells(
-                        &execution.provider_storage.completed_profiles,
-                        source,
-                    ) {
-                        if let Some(target) = relocate(home) {
+                    };
+                    (@field $table:expr, |$field:ident, $val:ident, $parent:ident| $body:block) => {
+                        for ($field, $val) in
+                            crate::storage::structural_storage::cells(&$table, source)
+                        {
+                            if let Some($parent) =
+                                relocate_place(source, destination, &$field.parent)
+                            {
+                                $body
+                            }
+                        }
+                    };
+                }
+                if transfers_custody {
+                    relocate_cells!(execution.original_storage_roots, |_h, original, target| {
+                        self.original_roots.insert(target, *original)?;
+                    });
+                    relocate_cells!(
+                        execution.provider_storage.completed_profiles,
+                        |_h, profile, target| {
                             self.completed_profiles.insert(target, profile.clone())?;
                         }
-                    }
+                    );
                 }
-                for (home, binding) in crate::storage::structural_storage::cells(
-                    &execution.provider_storage.descriptors,
-                    source,
-                ) {
-                    if let Some(target) = relocate(home) {
+                relocate_cells!(
+                    execution.provider_storage.descriptors,
+                    |home, binding, target| {
                         if !transfers_custody
                             || !execution.is_live_provider_descriptor(home, binding)
                         {
                             return Err(
-                        crate::boundary::errors::TerminalInterpretError::ContentTransformationMismatch(
-                            "provider storage transport requires owned custody and live backing",
-                        ),
-                    );
+                            crate::boundary::errors::TerminalInterpretError::ContentTransformationMismatch(
+                                "provider storage transport requires owned custody and live backing",
+                            ),
+                        );
                         }
                         self.provider_descriptors.insert(target, *binding)?;
                     }
-                }
-                for (home, binding) in crate::storage::structural_storage::cells(
-                    &execution.activation_storage.claim_descriptors,
-                    source,
-                ) {
-                    if let Some(target) = relocate(home) {
+                );
+                relocate_cells!(
+                    execution.activation_storage.claim_descriptors,
+                    |_h, binding, target| {
                         let old = binding.descriptor_home().ok_or(malformed())?;
                         if !transfers_custody
                             || !execution.is_live_activation_descriptor(binding, old)
                         {
                             return Err(malformed());
                         }
-                        let mut descriptor = old.clone();
-                        descriptor.opaque_identity = target.opaque_identity;
-                        descriptor.path = target.path.clone();
+                        let descriptor = relocate_descriptor_home(old, &target);
                         self.activation_descriptors
                             .insert(target, binding.clone().with_descriptor_home(descriptor))?;
                     }
-                }
-                for (home, binding) in crate::storage::structural_storage::cells(
-                    &execution.structural_byte_descriptors,
-                    source,
-                ) {
-                    if let Some(target) = relocate(home) {
-                        if !transfers_custody
-                    && !matches!(
-                        binding,
-                        crate::storage::byte_sequences::binding::ByteSequenceBinding::Immutable(_)
-                            | crate::storage::byte_sequences::binding::ByteSequenceBinding::Representation(
-                                _
-                            )
-                    )
-                {
-                    return Err(malformed());
-                }
+                );
+                relocate_cells!(
+                    execution.structural_byte_descriptors,
+                    |home, binding, target| {
+                        if !transfers_custody && !is_immutable_byte_binding(binding) {
+                            return Err(malformed());
+                        }
                         if !transfers_custody && target.path.is_empty() {
                             continue;
                         }
                         self.byte_descriptors
                             .insert(target.clone(), binding.relocated_descriptor(home, &target)?)?;
                     }
-                }
-                for (home, descriptor) in crate::storage::structural_storage::cells(
-                    &execution.structural_element_view_fields,
-                    source,
-                ) {
-                    if let Some(target) = relocate(home) {
+                );
+                relocate_cells!(
+                    execution.structural_element_view_fields,
+                    |home, descriptor, target| {
                         self.views.insert(
                             target.clone(),
                             descriptor.relocated_descriptor(home, &target)?,
                         )?;
                     }
-                }
-                for (home, referent) in crate::storage::structural_storage::cells(
-                    &execution.reference_referents,
-                    source,
-                ) {
-                    if let Some(target) = relocate(home) {
-                        if !transfers_custody {
-                            let carrier_type = execution.actual_storage_type_from_owner(home)?;
-                            if !execution.structural_types().get(&carrier_type).is_some_and(
-                                |declaration| {
-                                    matches!(
-                                        declaration.shape,
-                                        StructuralTypeShape::Reference {
-                                            access: terminal_psi::StructuralAccess::SharedBorrow,
-                                            ..
-                                        }
-                                    )
-                                },
-                            ) {
-                                return Err(malformed());
-                            }
+                );
+                relocate_cells!(execution.reference_referents, |home, referent, target| {
+                    if !transfers_custody {
+                        let carrier_type = execution.actual_storage_type_from_owner(home)?;
+                        if !execution.structural_types().get(&carrier_type).is_some_and(
+                            |declaration| {
+                                matches!(
+                                    declaration.shape,
+                                    StructuralTypeShape::Reference {
+                                        access: terminal_psi::StructuralAccess::SharedBorrow,
+                                        ..
+                                    }
+                                )
+                            },
+                        ) {
+                            return Err(malformed());
                         }
-                        self.references.insert(target, referent.clone())?;
                     }
-                }
-                for (field, scalar) in crate::storage::structural_storage::cells(
-                    &execution.structural_scalar_fields,
-                    source,
-                ) {
-                    if let Some(parent) = relocate(&field.parent) {
-                        self.scalars.insert_cell(
-                            field.relocated(parent),
-                            scalar.relocated(transfers_custody)?,
-                        )?;
+                    self.references.insert(target, referent.clone())?;
+                });
+                relocate_cells!(@field execution.structural_scalar_fields, |field, scalar, parent| {
+                    self.scalars.insert_cell(
+                        field.relocated(parent),
+                        scalar.relocated(transfers_custody)?,
+                    )?;
+                });
+                relocate_cells!(@field execution.structural_byte_sequence_fields, |field, bytes, parent| {
+                    if !transfers_custody && !is_immutable_byte_binding(bytes) {
+                        return Err(malformed());
                     }
-                }
-                for (field, bytes) in crate::storage::structural_storage::cells(
-                    &execution.structural_byte_sequence_fields,
-                    source,
-                ) {
-                    if let Some(parent) = relocate(&field.parent) {
-                        if !transfers_custody
-                    && !matches!(
-                        bytes,
-                        crate::storage::byte_sequences::binding::ByteSequenceBinding::Immutable(_)
-                            | crate::storage::byte_sequences::binding::ByteSequenceBinding::Representation(
-                                _
-                            )
-                    )
-                {
-                    return Err(malformed());
-                }
-                        self.bytes.insert(field.relocated(parent), bytes.clone())?;
-                    }
-                }
-                for (home, value) in crate::storage::structural_storage::cells(
-                    &execution.structural_primitive_storage,
-                    source,
-                ) {
-                    if let Some(target) = relocate(home) {
+                    self.bytes.insert(field.relocated(parent), bytes.clone())?;
+                });
+                relocate_cells!(
+                    execution.structural_primitive_storage,
+                    |_h, value, target| {
                         self.primitives
                             .insert_cell(target, value.relocated(transfers_custody)?)?;
                     }
-                }
-                for (home, bytes) in crate::storage::structural_storage::cells(
-                    &execution.structural_byte_storage,
-                    source,
-                ) {
-                    if let Some(target) = relocate(home) {
-                        self.byte_arrays
-                            .insert(target, bytes.relocated(transfers_custody)?)?;
-                    }
-                }
+                );
+                relocate_cells!(execution.structural_byte_storage, |_h, bytes, target| {
+                    self.byte_arrays
+                        .insert(target, bytes.relocated(transfers_custody)?)?;
+                });
                 self.array_initialization.stage_subtree(
                     &execution.structural_types(),
                     &execution.array_initialization,
@@ -2083,21 +2087,12 @@ pub(crate) mod record {
                     source,
                     destination,
                 )?;
-                for (home, atom) in crate::storage::structural_storage::cells(
-                    &execution.structural_host_atoms,
-                    source,
-                ) {
-                    if let Some(target) = relocate(home) {
-                        self.host_atoms.insert(target, *atom)?;
-                    }
-                }
-                for (home, case) in
-                    crate::storage::structural_storage::cells(&execution.structural_cases, source)
-                {
-                    if let Some(target) = relocate(home) {
-                        self.cases.insert(target, *case)?;
-                    }
-                }
+                relocate_cells!(execution.structural_host_atoms, |_h, atom, target| {
+                    self.host_atoms.insert(target, *atom)?;
+                });
+                relocate_cells!(execution.structural_cases, |_h, case, target| {
+                    self.cases.insert(target, *case)?;
+                });
                 Ok(())
             }
 
@@ -2242,50 +2237,7 @@ pub(crate) mod record {
                 &self,
                 execution: &TerminalExecution<'_>,
             ) -> Result<(), TerminalInterpretError> {
-                execution
-                    .original_storage_roots
-                    .validate_append(&self.original_roots)?;
-                execution
-                    .provider_storage
-                    .descriptors
-                    .validate_append(&self.provider_descriptors)?;
-                execution
-                    .provider_storage
-                    .completed_profiles
-                    .validate_append(&self.completed_profiles)?;
-                execution
-                    .activation_storage
-                    .claim_descriptors
-                    .validate_append(&self.activation_descriptors)?;
-                execution
-                    .structural_scalar_fields
-                    .validate_append(&self.scalars)?;
-                execution
-                    .structural_primitive_storage
-                    .validate_append(&self.primitives)?;
-                execution
-                    .structural_byte_sequence_fields
-                    .validate_append(&self.bytes)?;
-                execution
-                    .structural_element_view_fields
-                    .validate_append(&self.views)?;
-                execution
-                    .structural_byte_descriptors
-                    .validate_append(&self.byte_descriptors)?;
-                execution
-                    .reference_referents
-                    .validate_append(&self.references)?;
-                execution
-                    .structural_byte_storage
-                    .validate_append(&self.byte_arrays)?;
-                execution
-                    .array_initialization
-                    .rows
-                    .validate_append(&self.array_initialization.rows)?;
-                execution.structural_cases.validate_append(&self.cases)?;
-                execution
-                    .structural_host_atoms
-                    .validate_append(&self.host_atoms)?;
+                for_constructor_tables!(@fields @validate self, execution);
                 Ok(())
             }
 
@@ -2294,48 +2246,7 @@ pub(crate) mod record {
                 execution: &mut TerminalExecution<'_>,
             ) -> Result<(), TerminalInterpretError> {
                 self.validate_publication(execution)?;
-                execution
-                    .original_storage_roots
-                    .append(&mut self.original_roots)?;
-                execution
-                    .structural_scalar_fields
-                    .append(&mut self.scalars)?;
-                execution
-                    .structural_primitive_storage
-                    .append(&mut self.primitives)?;
-                execution
-                    .activation_storage
-                    .claim_descriptors
-                    .append(&mut self.activation_descriptors)?;
-                execution
-                    .provider_storage
-                    .descriptors
-                    .append(&mut self.provider_descriptors)?;
-                execution
-                    .provider_storage
-                    .completed_profiles
-                    .append(&mut self.completed_profiles)?;
-                execution
-                    .structural_byte_sequence_fields
-                    .append(&mut self.bytes)?;
-                execution
-                    .structural_element_view_fields
-                    .append(&mut self.views)?;
-                execution
-                    .structural_byte_descriptors
-                    .append(&mut self.byte_descriptors)?;
-                execution.reference_referents.append(&mut self.references)?;
-                execution
-                    .structural_byte_storage
-                    .append(&mut self.byte_arrays)?;
-                execution
-                    .array_initialization
-                    .rows
-                    .append(&mut self.array_initialization.rows)?;
-                execution.structural_cases.append(&mut self.cases)?;
-                execution
-                    .structural_host_atoms
-                    .append(&mut self.host_atoms)?;
+                for_constructor_tables!(@fields @append self, execution);
                 Ok(())
             }
         }
@@ -4649,28 +4560,48 @@ pub(crate) mod scalar_array {
             .unwrap()
         }
 
-        #[test]
-        fn payload_is_funded_before_reading_elements_and_refusal_preserves_inspection() {
-            let sponsor = sponsor(2);
+        fn funded(
+            cells: u64,
+        ) -> (
+            BuildEvaluationSponsor,
+            evaluation_accounting::EvaluationInvocationAccount,
+        ) {
+            let sponsor = sponsor(cells);
             let account = sponsor
                 .begin_invocation(sponsor.measurement(), 100)
                 .unwrap();
-            let mut value = PackedScalarArrayValue::collect(
+            (sponsor, account)
+        }
+
+        fn packed_bools(
+            account: Option<&evaluation_accounting::EvaluationInvocationAccount>,
+        ) -> PackedScalarArrayValue {
+            PackedScalarArrayValue::collect(
                 StructuralTypeId::new(1).unwrap(),
                 Vec::new(),
                 2,
                 [TerminalScalarValue::Boolean(false); 2].map(Ok),
-                Some(&account),
+                account,
             )
-            .unwrap();
-            let inspected = value.clone();
-            assert_eq!(sponsor.live_storage_cells(), 2);
+            .unwrap()
+        }
+
+        fn assert_live_storage_exhausted<T>(result: Result<T, TerminalInterpretError>) {
             assert!(matches!(
-                value.set_element(0, TerminalScalarValue::Boolean(true)),
+                result,
                 Err(TerminalInterpretError::Storage(
                     EvaluationAccountingError::BudgetExhausted(EvaluationResource::LiveStorage)
                 ))
             ));
+        }
+
+        #[test]
+        fn payload_is_funded_before_reading_elements_and_refusal_preserves_inspection() {
+            let (sponsor, account) = funded(2);
+            let mut value = packed_bools(Some(&account));
+            let inspected = value.clone();
+            assert_eq!(sponsor.live_storage_cells(), 2);
+            assert_live_storage_exhausted(value.set_element(0, TerminalScalarValue::Boolean(true)));
             assert_eq!(value.elements().unwrap(), inspected.elements().unwrap());
             assert_eq!(sponsor.live_storage_cells(), 2);
             assert!(value.snapshot().is_err());
@@ -4682,7 +4613,7 @@ pub(crate) mod scalar_array {
                         consumed.set(true);
                         Ok(TerminalScalarValue::Boolean(true))
                     }),
-                    Some(&account)
+                    Some(&account),
                 )
                 .is_err()
             );
@@ -4701,18 +4632,8 @@ pub(crate) mod scalar_array {
 
         #[test]
         fn snapshots_and_detached_writes_own_their_overlap_until_last_observation() {
-            let sponsor = sponsor(4);
-            let account = sponsor
-                .begin_invocation(sponsor.measurement(), 100)
-                .unwrap();
-            let mut value = PackedScalarArrayValue::collect(
-                StructuralTypeId::new(1).unwrap(),
-                Vec::new(),
-                2,
-                [TerminalScalarValue::Boolean(false); 2].map(Ok),
-                Some(&account),
-            )
-            .unwrap();
+            let (sponsor, account) = funded(4);
+            let mut value = packed_bools(Some(&account));
             value.storage_identity = Some(7);
             let copied = value.snapshot().unwrap();
             assert_eq!(copied.storage_identity, None);
@@ -4738,10 +4659,7 @@ pub(crate) mod scalar_array {
 
         #[test]
         fn empty_and_incomplete_payloads_do_not_leak_reservations() {
-            let sponsor = sponsor(2);
-            let account = sponsor
-                .begin_invocation(sponsor.measurement(), 100)
-                .unwrap();
+            let (sponsor, account) = funded(2);
             let empty =
                 ScalarArrayStorage::<TerminalScalarValue>::collect(0, [], Some(&account)).unwrap();
             assert!(empty.elements().is_empty());
@@ -4799,24 +4717,31 @@ pub(crate) mod scalar_array {
             })
         }
 
-        fn array() -> PackedScalarArrayValue {
+        fn array_with(
+            account: Option<&evaluation_accounting::EvaluationInvocationAccount>,
+        ) -> PackedScalarArrayValue {
             PackedScalarArrayValue::collect(
                 StructuralTypeId::new(1).unwrap(),
                 Vec::new(),
                 2,
                 [Ok(byte(7)), Ok(byte(1))],
-                None,
+                account,
             )
             .unwrap()
         }
 
-        #[test]
-        fn resident_mutation_detaches_local_cells_but_preserves_the_original_endpoint() {
-            let mut value = array();
+        fn resident_array() -> (PackedScalarArrayValue, std::rc::Rc<OriginalCell>) {
+            let mut value = array_with(None);
             let home = original(7);
             value
                 .install_resident(0, ScalarCell::resident(byte(7), home.clone()).unwrap())
                 .unwrap();
+            (value, home)
+        }
+
+        #[test]
+        fn resident_mutation_detaches_local_cells_but_preserves_the_original_endpoint() {
+            let (mut value, home) = resident_array();
             value.storage_identity = Some(19);
             let snapshot = value.snapshot().unwrap();
             let inspected = value.clone();
@@ -4844,7 +4769,7 @@ pub(crate) mod scalar_array {
 
         #[test]
         fn resident_installation_cannot_redirect_or_change_an_established_cell() {
-            let mut value = array();
+            let mut value = array_with(None);
             let home = original(7);
             assert!(
                 value
@@ -4870,18 +4795,8 @@ pub(crate) mod scalar_array {
 
         #[test]
         fn resident_preflight_funds_detachment_without_publishing_contents() {
-            let sponsor = sponsor(4);
-            let account = sponsor
-                .begin_invocation(sponsor.measurement(), 100)
-                .unwrap();
-            let mut value = PackedScalarArrayValue::collect(
-                StructuralTypeId::new(1).unwrap(),
-                Vec::new(),
-                2,
-                [Ok(byte(7)), Ok(byte(1))],
-                Some(&account),
-            )
-            .unwrap();
+            let (sponsor, account) = funded(4);
+            let mut value = array_with(Some(&account));
             let inspected = value.clone();
             let home = original(7);
             let resident = ScalarCell::resident(byte(7), home.clone()).unwrap();
@@ -4897,28 +4812,17 @@ pub(crate) mod scalar_array {
             assert_eq!(inspected.element(0).unwrap(), Some(byte(7)));
             let further_inspection = value.clone();
             let same_resident = value.cell(0).unwrap().clone();
-            assert!(matches!(
-                value.prepare_resident_install(0, &same_resident),
-                Err(TerminalInterpretError::Storage(
-                    EvaluationAccountingError::BudgetExhausted(EvaluationResource::LiveStorage)
-                ))
-            ));
+            assert_live_storage_exhausted(value.prepare_resident_install(0, &same_resident));
             assert_eq!(value.cell(0), further_inspection.cell(0));
             assert_eq!(value.element(0).unwrap(), Some(byte(47)));
             assert_eq!(sponsor.live_storage_cells(), 4);
-            drop(further_inspection);
-            drop(inspected);
-            drop(value);
+            drop((further_inspection, inspected, value));
             assert_eq!(sponsor.live_storage_cells(), 0);
         }
 
         #[test]
         fn retained_packed_cells_keep_the_scalar_wire_format_and_decode_as_local_snapshots() {
-            let mut value = array();
-            let home = original(7);
-            value
-                .install_resident(0, ScalarCell::resident(byte(7), home.clone()).unwrap())
-                .unwrap();
+            let (value, home) = resident_array();
             home.value.set(byte(37));
             let limits = RecordLimits::default();
             let portable = value.snapshot().unwrap();
@@ -4937,11 +4841,7 @@ pub(crate) mod scalar_array {
 
         #[test]
         fn byte_observation_borrows_live_packed_cells_and_propagates_original_read_failure() {
-            let mut value = array();
-            let home = original(7);
-            value
-                .install_resident(0, ScalarCell::resident(byte(7), home.clone()).unwrap())
-                .unwrap();
+            let (value, home) = resident_array();
             let bytes = crate::TerminalByteRead::cells(value.cells()).unwrap();
             assert_eq!(bytes.len(), 2);
             assert_eq!(bytes.read(0).unwrap(), 7);
@@ -4962,10 +4862,7 @@ pub(crate) mod scalar_array {
             fn assert_send_sync<Value: Send + Sync>() {}
             assert_send_sync::<TerminalScalarArrayValue>();
             assert_send_sync::<TerminalScalarArrayResult>();
-            let sponsor = sponsor(4);
-            let account = sponsor
-                .begin_invocation(sponsor.measurement(), 100)
-                .unwrap();
+            let (sponsor, account) = funded(4);
             let owned = TerminalScalarArrayValue::collect(
                 StructuralTypeId::new(1).unwrap(),
                 Vec::new(),
@@ -6106,6 +6003,50 @@ pub(crate) mod structural_storage {
                 continuation: Option<&CleanupContinuation>,
                 bindings: Option<&BlockBindings>,
             ) {
+                macro_rules! retain_frame {
+                    ($retained:expr, $frame:expr) => {{
+                        for value in $frame
+                            .structural_values
+                            .values()
+                            .chain($frame.linear_homes.values())
+                        {
+                            $retained.value(value);
+                        }
+                        for (place, backing) in &$frame.aggregate_argument_backings {
+                            if $frame.structural_values.contains_key(place) {
+                                $retained.aggregate_backing(backing);
+                            }
+                        }
+                        for occurrence in $frame.access_view_occurrences.values() {
+                            $retained.place(occurrence.referent.clone());
+                        }
+                        for (place, view) in &$frame.element_view_values {
+                            if $frame.structural_values.contains_key(place) {
+                                view.retain_storage(&mut $retained);
+                            }
+                        }
+                        for (place, loan) in &$frame.primitive_loan_values {
+                            if $frame.structural_values.contains_key(place) {
+                                $retained.primitive_endpoint(&loan.storage.endpoint);
+                            }
+                        }
+                        for (place, binding) in &$frame.byte_sequence_values {
+                            if $frame.structural_values.contains_key(place) {
+                                $retained.byte_binding(binding);
+                            }
+                        }
+                    }};
+                }
+                fn matching_keys<K: super::StorageKey, V>(
+                    map: &impl std::borrow::Borrow<std::collections::BTreeMap<K, V>>,
+                    root: &StructuralRuntimePlace,
+                    mut pred: impl FnMut(&K, &V) -> bool,
+                ) -> Vec<K> {
+                    super::cells(map, root)
+                        .filter(|(k, v)| pred(k, v))
+                        .map(|(key, _)| key.clone())
+                        .collect()
+                }
                 let has_retired_arrays = self.scalar_array_values.has_retired()
                     || self
                         .call_stack
@@ -6122,70 +6063,12 @@ pub(crate) mod structural_storage {
                     return;
                 }
                 let mut retained = RetainedStorage::default();
-                for value in self
-                    .structural_values
-                    .values()
-                    .chain(self.linear_homes.values())
-                {
-                    retained.value(value);
-                }
-                for (place, backing) in &self.aggregate_argument_backings {
-                    if self.structural_values.contains_key(place) {
-                        retained.aggregate_backing(backing);
-                    }
-                }
-                for occurrence in self.access_view_occurrences.values() {
-                    retained.place(occurrence.referent.clone());
-                }
-                for (place, view) in &self.element_view_values {
-                    if self.structural_values.contains_key(place) {
-                        view.retain_storage(&mut retained);
-                    }
-                }
-                for (place, loan) in &self.primitive_loan_values {
-                    if self.structural_values.contains_key(place) {
-                        retained.primitive_endpoint(&loan.storage.endpoint);
-                    }
-                }
-                for (place, binding) in &self.byte_sequence_values {
-                    if self.structural_values.contains_key(place) {
-                        retained.byte_binding(binding);
-                    }
-                }
+                retain_frame!(retained, self);
                 for original in &self.private_entry_ram {
                     retained.value(&original.allocation);
                 }
                 for frame in &self.call_stack {
-                    for value in frame
-                        .structural_values
-                        .values()
-                        .chain(frame.linear_homes.values())
-                    {
-                        retained.value(value);
-                    }
-                    for (place, backing) in &frame.aggregate_argument_backings {
-                        if frame.structural_values.contains_key(place) {
-                            retained.aggregate_backing(backing);
-                        }
-                    }
-                    for occurrence in frame.access_view_occurrences.values() {
-                        retained.place(occurrence.referent.clone());
-                    }
-                    for (place, view) in &frame.element_view_values {
-                        if frame.structural_values.contains_key(place) {
-                            view.retain_storage(&mut retained);
-                        }
-                    }
-                    for (place, loan) in &frame.primitive_loan_values {
-                        if frame.structural_values.contains_key(place) {
-                            retained.primitive_endpoint(&loan.storage.endpoint);
-                        }
-                    }
-                    for (place, binding) in &frame.byte_sequence_values {
-                        if frame.structural_values.contains_key(place) {
-                            retained.byte_binding(binding);
-                        }
-                    }
+                    retain_frame!(retained, frame);
                     match &frame.result {
                         SuspendedCallResult::Structural {
                             expected_reference_backings,
@@ -6258,18 +6141,16 @@ pub(crate) mod structural_storage {
                 }
                 let candidates = std::mem::take(&mut self.retired_descriptor_homes);
                 for root in candidates {
-                    let references: Vec<_> = super::cells(&self.reference_referents, &root)
-                        .filter(|(carrier, _)| !retained.reference_is_retained(carrier))
-                        .map(|(carrier, _)| carrier.clone())
-                        .collect();
-                    let views: Vec<_> = super::cells(&self.structural_element_view_fields, &root)
-                        .filter(|(carrier, _)| !retained.view_is_retained(carrier))
-                        .map(|(carrier, _)| carrier.clone())
-                        .collect();
-                    for carrier in references {
+                    for carrier in matching_keys(&self.reference_referents, &root, |carrier, _| {
+                        !retained.reference_is_retained(carrier)
+                    }) {
                         self.reference_referents.remove(&carrier);
                     }
-                    for carrier in views {
+                    for carrier in
+                        matching_keys(&self.structural_element_view_fields, &root, |carrier, _| {
+                            !retained.view_is_retained(carrier)
+                        })
+                    {
                         self.structural_element_view_fields.remove(&carrier);
                     }
                     // A materialized resident referent owns its cells even
@@ -6280,36 +6161,31 @@ pub(crate) mod structural_storage {
                         .iter()
                         .any(|region| region.root().opaque_identity == root.opaque_identity)
                     {
-                        let primitives: Vec<_> =
-                            super::cells(&self.structural_primitive_storage, &root)
-                                .filter(|(_, cell)| {
-                                    matches!(
-                                        cell,
-                                        crate::storage::scalar_storage::ScalarCell::Resident { .. }
-                                    )
-                                })
-                                .map(|(home, _)| home.clone())
-                                .collect();
-                        let fields: Vec<_> = super::cells(&self.structural_scalar_fields, &root)
-                            .filter(|(_, cell)| {
-                                matches!(
-                                    cell,
-                                    crate::storage::scalar_storage::ScalarCell::Resident { .. }
-                                )
+                        let is_resident = |cell: &crate::storage::scalar_storage::ScalarCell| {
+                            matches!(
+                                cell,
+                                crate::storage::scalar_storage::ScalarCell::Resident { .. }
+                            )
+                        };
+                        for home in
+                            matching_keys(&self.structural_primitive_storage, &root, |_, cell| {
+                                is_resident(cell)
                             })
-                            .map(|(home, _)| home.clone())
-                            .collect();
-                        let arrays: Vec<_> = super::cells(&self.structural_byte_storage, &root)
-                            .filter(|(_, array)| array.has_residents())
-                            .map(|(home, _)| home.clone())
-                            .collect();
-                        for home in primitives {
+                        {
                             self.structural_primitive_storage.remove(&home);
                         }
-                        for home in fields {
+                        for home in
+                            matching_keys(&self.structural_scalar_fields, &root, |_, cell| {
+                                is_resident(cell)
+                            })
+                        {
                             self.structural_scalar_fields.remove(&home);
                         }
-                        for home in arrays {
+                        for home in
+                            matching_keys(&self.structural_byte_storage, &root, |_, array| {
+                                array.has_residents()
+                            })
+                        {
                             self.structural_byte_storage.remove(&home);
                         }
                     }
@@ -6707,33 +6583,49 @@ pub(crate) mod structural_storage {
                 return;
             }
             let mut roots = BTreeSet::new();
-            roots.extend(
-                self.borrowed_entry_storage
-                    .iter()
-                    .map(|(_, _, value)| value.opaque_identity),
-            );
-            for occurrence in self.access_view_occurrences.values() {
-                roots.insert(occurrence.referent.opaque_identity);
-            }
-            for value in self.structural_values.values().chain(
-                self.aggregate_argument_backings
-                    .values()
-                    .map(|backing| &backing.value),
+            fn collect_frame_roots<'a>(
+                roots: &mut BTreeSet<u64>,
+                access_view_occurrences: impl Iterator<
+                    Item = &'a crate::boundary_inputs::access_views::AccessViewOccurrence,
+                >,
+                structural_values: &crate::storage::runtime_rows::RuntimeRows<
+                    semantic_vocabulary::PlaceId,
+                    crate::boundary::values::TerminalStructuralValue,
+                >,
+                aggregate_argument_backings: &crate::storage::runtime_rows::RuntimeRows<
+                    semantic_vocabulary::PlaceId,
+                    crate::storage::reference::AggregateBacking,
+                >,
             ) {
-                roots.insert(value.opaque_identity);
-            }
-            for frame in &self.call_stack {
-                for occurrence in frame.access_view_occurrences.values() {
+                for occurrence in access_view_occurrences {
                     roots.insert(occurrence.referent.opaque_identity);
                 }
-                for value in frame.structural_values.values().chain(
-                    frame
-                        .aggregate_argument_backings
+                for value in structural_values.values().chain(
+                    aggregate_argument_backings
                         .values()
                         .map(|backing| &backing.value),
                 ) {
                     roots.insert(value.opaque_identity);
                 }
+            }
+            roots.extend(
+                self.borrowed_entry_storage
+                    .iter()
+                    .map(|(_, _, value)| value.opaque_identity),
+            );
+            collect_frame_roots(
+                &mut roots,
+                self.access_view_occurrences.values(),
+                &self.structural_values,
+                &self.aggregate_argument_backings,
+            );
+            for frame in &self.call_stack {
+                collect_frame_roots(
+                    &mut roots,
+                    frame.access_view_occurrences.values(),
+                    &frame.structural_values,
+                    &frame.aggregate_argument_backings,
+                );
                 if let SuspendedCallResult::Structural {
                     expected_reference_backings,
                     ..

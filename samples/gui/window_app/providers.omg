@@ -3,99 +3,78 @@
 // member declared for the build target, exactly like window_demo's providers.
 // Windows bodies use the shared WindowsGuiHost seam; macOS bodies keep the
 // existing Cocoa facades. Window is the shared application-owned state.
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use system\AppKit;
-use system\CoreGraphics;
-use system\DarwinClock;
-use system\ObjectiveC;
-use system\Window;
-use system\macos_key_state;
-use system\macos_sleep;
-use system\macos_window_blit;
-use system\macos_window_create;
-use system\macos_window_destroy;
-use system\macos_window_foreground_window;
-use system\macos_window_get_dc;
-use system\macos_window_is_window;
-use system\macos_window_msg_dispatch;
-use system\macos_window_msg_peek;
-use system\macos_window_msg_translate;
-use system\MacosImageData;
-use system\MacosImageObjects;
-use system\WindowsGuiHost;
-use system\WindowsMessage;
-use system\windows_message_kind;
-use system\windows_message_window;
-use system\windows_message_word_parameter;
+use {omega}/language/core/process_authority.omg;
+use {system}/macos_gui.omg;
+use {system}/macos_image.omg;
+use {system}/windows_gui_host.omg;
 
-public windows_x86_64 machine app_window_create(class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
+public windows_x86_64 machine app_window_create(class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> |macos_gui|::Window
 requires title[10] == 0
 reaches
     NativeCodeExecution + WindowManagement + SurfacePresentation +
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-    StandardOutput + ProcessExit invokes WindowsGuiHost {
-    let handle: u64 = WindowsGuiHost::window_create_client(@class_name, @title, style, x, y, width, height);
-    Window { window: handle, view: 0, app: 0, space: 0, date: 0, mode: 0,
+    DirectoryEnumeration + FilesystemNamespaceMutation + |process_authority|::StandardInput +
+    |process_authority|::StandardOutput + ProcessExit invokes |windows_gui_host|::WindowsGuiHost {
+    let handle: u64 = |windows_gui_host|::WindowsGuiHost::window_create_client(@class_name, @title, style, x, y, width, height);
+    |macos_gui|::Window { window: handle, view: 0, app: 0, space: 0, date: 0, mode: 0,
         psel: 0, mask: 0, evt: 0, relsel: 0, dsel: 0, vsel: 0, ksel: 0, pool: 0 }
 }
-public macos_arm64 machine app_window_create(class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
+public macos_arm64 machine app_window_create(class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> |macos_gui|::Window
 requires title[10] == 0
 reaches
     NativeCodeExecution + WindowManagement + SurfacePresentation +
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-    StandardOutput + ProcessExit invokes ObjectiveC invokes CoreGraphics invokes AppKit {
-    macos_window_create::<11>(class_name, @title, style, x, y, width, height)
+    DirectoryEnumeration + FilesystemNamespaceMutation + |process_authority|::StandardInput +
+    |process_authority|::StandardOutput + ProcessExit invokes |macos_gui|::ObjectiveC invokes |macos_gui|::CoreGraphics invokes |macos_gui|::AppKit {
+    |macos_gui|::macos_window_create::<11>(class_name, @title, style, x, y, width, height)
 }
 
-public windows_x86_64 machine app_window_destroy(window: Window) reaches
+public windows_x86_64 machine app_window_destroy(window: |macos_gui|::Window) reaches
     GlobalInputObservation + NativeCodeExecution + WindowManagement +
     SurfacePresentation + WindowEventObservation + WindowEventDispatch +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-    StandardOutput + ProcessExit invokes WindowsGuiHost {
-    _ = WindowsGuiHost::window_destroy(window.window);
+    DirectoryEnumeration + FilesystemNamespaceMutation + |process_authority|::StandardInput +
+    |process_authority|::StandardOutput + ProcessExit invokes |windows_gui_host|::WindowsGuiHost {
+    _ = |windows_gui_host|::WindowsGuiHost::window_destroy(window.window);
 }
-public macos_arm64 machine app_window_destroy(window: Window) reaches
+public macos_arm64 machine app_window_destroy(window: |macos_gui|::Window) reaches
     GlobalInputObservation + NativeCodeExecution + WindowManagement +
     SurfacePresentation + WindowEventObservation + WindowEventDispatch +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-    StandardOutput + ProcessExit invokes ObjectiveC invokes CoreGraphics {
-    macos_window_destroy(window);
+    DirectoryEnumeration + FilesystemNamespaceMutation + |process_authority|::StandardInput +
+    |process_authority|::StandardOutput + ProcessExit invokes |macos_gui|::ObjectiveC invokes |macos_gui|::CoreGraphics {
+    |macos_gui|::macos_window_destroy(window);
 }
 
-public windows_x86_64 machine app_get_dc(window_state: @Window, window: u64) -> u64
+public windows_x86_64 machine app_get_dc(window_state: @|macos_gui|::Window, window: u64) -> u64
 reaches
     SurfacePresentation + FilesystemContentRead + FilesystemContentWrite +
     FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration +
-    FilesystemNamespaceMutation invokes WindowsGuiHost {
-    WindowsGuiHost::get_dc(window)
+    FilesystemNamespaceMutation invokes |windows_gui_host|::WindowsGuiHost {
+    |windows_gui_host|::WindowsGuiHost::get_dc(window)
 }
-public macos_arm64 machine app_get_dc(window_state: @Window, window: u64) -> u64
+public macos_arm64 machine app_get_dc(window_state: @|macos_gui|::Window, window: u64) -> u64
 reaches
     SurfacePresentation + FilesystemContentRead + FilesystemContentWrite +
     FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration +
-    FilesystemNamespaceMutation invokes ObjectiveC {
-    macos_window_get_dc(window_state, window)
+    FilesystemNamespaceMutation invokes |macos_gui|::ObjectiveC {
+    |macos_gui|::macos_window_get_dc(window_state, window)
 }
 
-public windows_x86_64 machine app_blit(window_state: @Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, mutable pixels: [i32; 4096], info: [i32; 11]) -> u32
+public windows_x86_64 machine app_blit(window_state: @|macos_gui|::Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, mutable pixels: [i32; 4096], info: [i32; 11]) -> u32
 reaches
     GlobalInputObservation + NativeCodeExecution + WindowManagement +
     SurfacePresentation + WindowEventObservation + WindowEventDispatch +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-    StandardOutput + ProcessExit invokes WindowsGuiHost {
+    DirectoryEnumeration + FilesystemNamespaceMutation + |process_authority|::StandardInput +
+    |process_authority|::StandardOutput + ProcessExit invokes |windows_gui_host|::WindowsGuiHost {
     transition dest_width <= 2147483647 && dest_height <= 2147483647
         && source_width <= 2147483647 && source_height <= 2147483647 {
         true -> copy(device, dest_width, dest_height, source_width, source_height, pixels, info),
@@ -105,144 +84,144 @@ reaches
     requires dest_width <= 2147483647 && dest_height <= 2147483647 && source_width <= 2147483647 && source_height <= 2147483647 {
         // DIB_RGB_COLORS (0) and SRCCOPY (0x00CC0020): the caller's pixels and
         // BITMAPINFO are lent for this synchronous draw only.
-        let copied: i32 = WindowsGuiHost::stretch_dibits(device, 0, 0,
+        let copied: i32 = |windows_gui_host|::WindowsGuiHost::stretch_dibits(device, 0, 0,
             dest_width as i32, dest_height as i32, 0, 0,
             source_width as i32, source_height as i32, @pixels[0], @info[0], 0, 0x00CC0020);
         transition copied > 0 { true -> result(copied), _ -> (0) }
     }
     machine result(copied: i32) -> u32 requires copied > 0 { copied as u32 }
 }
-public macos_arm64 machine app_blit(window_state: @Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, mutable pixels: [i32; 4096], info: [i32; 11]) -> u32
+public macos_arm64 machine app_blit(window_state: @|macos_gui|::Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, mutable pixels: [i32; 4096], info: [i32; 11]) -> u32
 reaches
     GlobalInputObservation + NativeCodeExecution + WindowManagement +
     SurfacePresentation + WindowEventObservation + WindowEventDispatch +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-    StandardOutput + ProcessExit invokes ObjectiveC invokes CoreGraphics invokes MacosImageData invokes MacosImageObjects {
-    macos_window_blit(window_state, device, dest_width, dest_height, source_width, source_height, pixels, info)
+    DirectoryEnumeration + FilesystemNamespaceMutation + |process_authority|::StandardInput +
+    |process_authority|::StandardOutput + ProcessExit invokes |macos_gui|::ObjectiveC invokes |macos_gui|::CoreGraphics invokes |macos_image|::MacosImageData invokes |macos_image|::MacosImageObjects {
+    |macos_gui|::macos_window_blit(window_state, device, dest_width, dest_height, source_width, source_height, pixels, info)
 }
 
 // One Windows pump removes, translates and dispatches; the application keeps
 // the decomposed peek/translate/dispatch contract of the Gui row. The peeked
 // message is copied out so close detection still reads the raw fields.
-public windows_x86_64 machine app_msg_peek(window_state: @mutable Window, mutable message: [u64; 6]) -> u32
+public windows_x86_64 machine app_msg_peek(window_state: @mutable |macos_gui|::Window, mutable message: [u64; 6]) -> u32
 reaches
     NativeCodeExecution + WindowManagement + SurfacePresentation +
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-    StandardOutput + ProcessExit invokes WindowsGuiHost {
-    let mutable native: WindowsMessage;
-    let pumped: bool = WindowsGuiHost::pump_message(@mutable native);
+    DirectoryEnumeration + FilesystemNamespaceMutation + |process_authority|::StandardInput +
+    |process_authority|::StandardOutput + ProcessExit invokes |windows_gui_host|::WindowsGuiHost {
+    let mutable native: |windows_gui_host|::WindowsMessage;
+    let pumped: bool = |windows_gui_host|::WindowsGuiHost::pump_message(@mutable native);
     // The row contract's caller buffer keeps the window/kind/wParam layout the
     // close-detection reads; lParam/time/pt stay zero (the sample reads none).
-    message[0] = windows_message_window(@native);
-    message[1] = windows_message_kind(@native);
-    message[2] = windows_message_word_parameter(@native);
+    message[0] = |windows_gui_host|::windows_message_window(@native);
+    message[1] = |windows_gui_host|::windows_message_kind(@native);
+    message[2] = |windows_gui_host|::windows_message_word_parameter(@native);
     message[3] = 0;
     message[4] = 0;
     message[5] = 0;
     transition pumped { true -> (1), _ -> (0) }
 }
-public macos_arm64 machine app_msg_peek(window_state: @mutable Window, mutable message: [u64; 6]) -> u32
+public macos_arm64 machine app_msg_peek(window_state: @mutable |macos_gui|::Window, mutable message: [u64; 6]) -> u32
 reaches
     NativeCodeExecution + WindowManagement + SurfacePresentation +
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-    StandardOutput + ProcessExit invokes ObjectiveC {
-    macos_window_msg_peek(window_state, message)
+    DirectoryEnumeration + FilesystemNamespaceMutation + |process_authority|::StandardInput +
+    |process_authority|::StandardOutput + ProcessExit invokes |macos_gui|::ObjectiveC {
+    |macos_gui|::macos_window_msg_peek(window_state, message)
 }
 
-public windows_x86_64 machine app_msg_translate(window_state: @Window, message: [u64; 6]) -> u32
+public windows_x86_64 machine app_msg_translate(window_state: @|macos_gui|::Window, message: [u64; 6]) -> u32
 reaches none {
     1
 }
-public macos_arm64 machine app_msg_translate(window_state: @Window, message: [u64; 6]) -> u32
+public macos_arm64 machine app_msg_translate(window_state: @|macos_gui|::Window, message: [u64; 6]) -> u32
 reaches none {
-    macos_window_msg_translate(window_state, message)
+    |macos_gui|::macos_window_msg_translate(window_state, message)
 }
 
-public windows_x86_64 machine app_msg_dispatch(window_state: @Window, message: [u64; 6]) -> u64
+public windows_x86_64 machine app_msg_dispatch(window_state: @|macos_gui|::Window, message: [u64; 6]) -> u64
 reaches
     NativeCodeExecution + WindowManagement + SurfacePresentation +
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-    StandardOutput + ProcessExit {
+    DirectoryEnumeration + FilesystemNamespaceMutation + |process_authority|::StandardInput +
+    |process_authority|::StandardOutput + ProcessExit {
     0
 }
-public macos_arm64 machine app_msg_dispatch(window_state: @Window, message: [u64; 6]) -> u64
+public macos_arm64 machine app_msg_dispatch(window_state: @|macos_gui|::Window, message: [u64; 6]) -> u64
 reaches
     NativeCodeExecution + WindowManagement + SurfacePresentation +
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-    StandardOutput + ProcessExit invokes ObjectiveC {
-    macos_window_msg_dispatch(window_state, message)
+    DirectoryEnumeration + FilesystemNamespaceMutation + |process_authority|::StandardInput +
+    |process_authority|::StandardOutput + ProcessExit invokes |macos_gui|::ObjectiveC {
+    |macos_gui|::macos_window_msg_dispatch(window_state, message)
 }
 
-public windows_x86_64 machine app_is_window(window_state: @Window, window: u64) -> u32
+public windows_x86_64 machine app_is_window(window_state: @|macos_gui|::Window, window: u64) -> u32
 reaches
     NativeCodeExecution + WindowManagement + SurfacePresentation +
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-    StandardOutput + ProcessExit invokes WindowsGuiHost {
-    let answer: bool = WindowsGuiHost::is_window(window);
+    DirectoryEnumeration + FilesystemNamespaceMutation + |process_authority|::StandardInput +
+    |process_authority|::StandardOutput + ProcessExit invokes |windows_gui_host|::WindowsGuiHost {
+    let answer: bool = |windows_gui_host|::WindowsGuiHost::is_window(window);
     transition answer { true -> (1), _ -> (0) }
 }
-public macos_arm64 machine app_is_window(window_state: @Window, window: u64) -> u32
+public macos_arm64 machine app_is_window(window_state: @|macos_gui|::Window, window: u64) -> u32
 reaches
     NativeCodeExecution + WindowManagement + SurfacePresentation +
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-    StandardOutput + ProcessExit invokes ObjectiveC {
-    macos_window_is_window(window_state, window)
+    DirectoryEnumeration + FilesystemNamespaceMutation + |process_authority|::StandardInput +
+    |process_authority|::StandardOutput + ProcessExit invokes |macos_gui|::ObjectiveC {
+    |macos_gui|::macos_window_is_window(window_state, window)
 }
 
-public windows_x86_64 machine app_foreground_window(window_state: @Window) -> u64
+public windows_x86_64 machine app_foreground_window(window_state: @|macos_gui|::Window) -> u64
 reaches
     NativeCodeExecution + WindowManagement + SurfacePresentation +
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-    StandardOutput + ProcessExit invokes WindowsGuiHost {
-    WindowsGuiHost::foreground_window()
+    DirectoryEnumeration + FilesystemNamespaceMutation + |process_authority|::StandardInput +
+    |process_authority|::StandardOutput + ProcessExit invokes |windows_gui_host|::WindowsGuiHost {
+    |windows_gui_host|::WindowsGuiHost::foreground_window()
 }
-public macos_arm64 machine app_foreground_window(window_state: @Window) -> u64
+public macos_arm64 machine app_foreground_window(window_state: @|macos_gui|::Window) -> u64
 reaches
     NativeCodeExecution + WindowManagement + SurfacePresentation +
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-    StandardOutput + ProcessExit invokes ObjectiveC {
-    macos_window_foreground_window(window_state)
+    DirectoryEnumeration + FilesystemNamespaceMutation + |process_authority|::StandardInput +
+    |process_authority|::StandardOutput + ProcessExit invokes |macos_gui|::ObjectiveC {
+    |macos_gui|::macos_window_foreground_window(window_state)
 }
 
 public windows_x86_64 machine app_key_state(virtual_key: u32) -> u64
-reaches GlobalInputObservation invokes WindowsGuiHost {
-    WindowsGuiHost::key_state(virtual_key)
+reaches GlobalInputObservation invokes |windows_gui_host|::WindowsGuiHost {
+    |windows_gui_host|::WindowsGuiHost::key_state(virtual_key)
 }
 public macos_arm64 machine app_key_state(virtual_key: u32) -> u64
-reaches GlobalInputObservation invokes CoreGraphics {
-    macos_key_state(virtual_key)
+reaches GlobalInputObservation invokes |macos_gui|::CoreGraphics {
+    |macos_gui|::macos_key_state(virtual_key)
 }
 
 // Windows pacing is a direct Build::bind_native of kernel32 Sleep; the non-blocking
 // Clock row cannot call the blocking TimeHost::sleep, so only macOS carries
 // this family member.
 public macos_arm64 machine app_sleep(milliseconds: u32)
-reaches ClockObservation + ExecutionDelay invokes DarwinClock {
-    macos_sleep(milliseconds);
+reaches ClockObservation + ExecutionDelay invokes |macos_gui|::DarwinClock {
+    |macos_gui|::macos_sleep(milliseconds);
 }

@@ -13,7 +13,7 @@ use {omega}/language/core/extent.omg as storage;
 // numeric stack guarantee. ProviderSelected requires independent backing.
 // See :HostedArgumentAuthority in entry_shapes.omg for the handoff to source.
 boundary trait MacosX64PhysicalEntry {
-    machine enter(argc: i32, argv: addr, envp: addr, apple: addr) -> i32 reaches none crashes Trap crashes Abort;
+    machine enter(argc: i32, argv: address, envp: address, apple: address) -> i32 reaches none crashes Trap crashes Abort;
 }
 
 MacosX64CallingPolicy satisfies |abi|::CallingPolicy {

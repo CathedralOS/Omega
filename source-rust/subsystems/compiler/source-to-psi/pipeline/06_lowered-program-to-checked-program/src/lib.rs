@@ -2,6 +2,10 @@
 
 // Crate-wide aliases for sibling stages and the shared test fixtures.
 #[cfg(test)]
+use prepared_typed_trees_to_lowered_program as lowering;
+#[cfg(test)]
+use source_admission::LoadedSource;
+#[cfg(test)]
 use source_declarations::declaration_selection;
 #[cfg(test)]
 use source_lexer as lexing;
@@ -16,11 +20,7 @@ use syntax_trees_to_symbol_resolved_trees::resolution;
 #[cfg(test)]
 use typed_trees::source_state;
 #[cfg(test)]
-use prepared_typed_trees_to_lowered_program as lowering;
-#[cfg(test)]
 use typed_trees_to_prepared_typed_trees as preparation;
-#[cfg(test)]
-use source_admission::LoadedSource;
 #[cfg(test)]
 #[path = "../../../../../../../tests/support/frontend_operations.rs"]
 mod frontend_fixture;
@@ -174,8 +174,7 @@ pub use verdict::{
 };
 #[cfg(not(any(test, feature = "test-support")))]
 pub use verdict::{
-    AcceptedClosure, CheckedPublicationModule, CompilationRefusal, RouteVerdict,
-    UnprovedObligation,
+    AcceptedClosure, CheckedPublicationModule, CompilationRefusal, RouteVerdict, UnprovedObligation,
 };
 
 #[cfg(test)]
@@ -239,8 +238,8 @@ pub enum Discharged {
     RetainedMembership,
     /// A typed source Identity checked against its actual mathematical term.
     Identity(equality::Judgment),
-    /// The declared closed projection follows this unchanged owned entry claim on every normal return.
-    ConservedContent(semantic_vocabulary::ClaimId),
+    /// The result conserves the declared projection of every listed owned entry claim on all normal returns.
+    ConservedContent(Vec<semantic_vocabulary::ClaimId>),
     /// A certificate the kernel accepted.
     Certificate(Evidence),
     /// A `NormalGuarantee` of a theorem over data indexed by values. The
@@ -310,7 +309,10 @@ impl Discharged {
     pub const fn certificate(&self) -> Option<&Evidence> {
         match self {
             Self::Certificate(evidence) => Some(evidence),
-            Self::Identity(_) | Self::Law(_) | Self::ConservedContent(_) | Self::TargetCondition(_)
+            Self::Identity(_)
+            | Self::Law(_)
+            | Self::ConservedContent(_)
+            | Self::TargetCondition(_)
             | Self::PendingNormalGuarantee(_)
             | Self::EveryExit(_)
             | Self::Window(_)
@@ -490,7 +492,7 @@ pub fn discharge(
     elaboration: &mut Elaboration,
     activity: &mut ProofSearchActivity,
 ) -> Checked<Discharge> {
-    discharge_inner(elaboration, &[], &[], None, None, activity)
+    discharge_inner(elaboration, &[], &[], None, activity)
 }
 
 /// `discharge`, where each machine of `carried` is one stage 04 generated
@@ -509,7 +511,7 @@ pub fn discharge_carrying(
     carried: &[Carried<'_>],
     activity: &mut ProofSearchActivity,
 ) -> Checked<Discharge> {
-    discharge_inner(elaboration, carried, &[], None, None, activity)
+    discharge_inner(elaboration, carried, &[], None, activity)
 }
 
 /// Read-only fields of `Elaboration` needed while checking machines and
@@ -519,7 +521,6 @@ pub(crate) struct ElaborationView<'a> {
     pub(crate) domains: &'a IdTable<StructuralTypeId, Vec<Proposition>>,
     pub(crate) sources: &'a IdTable<MachineId, terminal_check_tables::program::MachineSources>,
     pub(crate) requirements: &'a [MachineId],
-    pub(crate) machines: &'a IdTable<MachineId, symbols::SymbolHandle>,
     pub(crate) nominal_calls: &'a [terminal_psi::generic_calls::NominalCallArgument],
     pub(crate) domain_sources: &'a IdTable<
         semantic_vocabulary::DomainSemanticId,
@@ -676,7 +677,6 @@ pub(crate) fn finish_discharge<'m>(
     prepared: PreparedDischarge<'_>,
     carried: &[Carried<'_>],
     verified_borrow_ends: Option<&VerifiedBorrowEnds>,
-    donors: Option<&reuse::Donors<'_>>,
     affine: &'m terminal_semantics::plain_affine::AffineSummaries<'m>,
     activity: &mut ProofSearchActivity,
 ) -> Checked<Discharge> {
@@ -737,9 +737,6 @@ pub(crate) fn finish_discharge<'m>(
             }
             let lowered = terminal_machine(&module.machines, id, id)?;
             let beyond = unreached.values(lowered, tables);
-            let donated = donors.and_then(|donors| {
-                donors.for_machine(*view.machines.get(id)?, lowered, tables)
-            });
             let proved = &theorems[theorems.partition_point(|(machine, _)| *machine < id)
                 ..theorems.partition_point(|(machine, _)| *machine <= id)];
             let borrow_ends = verified_borrow_ends.map(|ends| {
@@ -754,7 +751,6 @@ pub(crate) fn finish_discharge<'m>(
                 tables,
                 &beyond,
                 inputs.carried.map(|position| &carried[position]),
-                donated.as_ref(),
                 inputs.branches,
                 &law_instances,
                 proved,
@@ -794,7 +790,6 @@ pub(crate) fn discharge_inner(
     carried: &[Carried<'_>],
     laws: &[laws::LawJudgment],
     verified_borrow_ends: Option<&VerifiedBorrowEnds>,
-    donors: Option<&reuse::Donors<'_>>,
     activity: &mut ProofSearchActivity,
 ) -> Checked<Discharge> {
     let prepared = prepare_discharge(elaboration, laws, activity)?;
@@ -805,7 +800,6 @@ pub(crate) fn discharge_inner(
             domains: &elaboration.domains,
             sources: &elaboration.sources,
             requirements: &elaboration.requirements,
-            machines: &elaboration.machines,
             nominal_calls: &elaboration.nominal_calls,
             domain_sources: &elaboration.domain_sources,
         },
@@ -813,7 +807,6 @@ pub(crate) fn discharge_inner(
         prepared,
         carried,
         verified_borrow_ends,
-        donors,
         &summaries,
         activity,
     )?;
@@ -920,7 +913,6 @@ fn machine(
     tables: &mut MachineTables,
     unreached: &[ValueId],
     carried: Option<&Carried<'_>>,
-    donated: Option<&reuse::Donated<'_>>,
     branches: &[terminal_check_tables::program::Branch],
     law_instances: &[MachineId],
     proved: &[(MachineId, &laws::LawJudgment)],
@@ -953,7 +945,6 @@ fn machine(
                 tables,
                 unreached,
                 carried,
-                donated,
                 law_instances,
                 proved,
                 empty_contracts,
@@ -976,7 +967,6 @@ fn check_prepared_machine(
     tables: &mut MachineTables,
     unreached: &[ValueId],
     carried: Option<&Carried<'_>>,
-    donated: Option<&reuse::Donated<'_>>,
     law_instances: &[MachineId],
     proved: &[(MachineId, &laws::LawJudgment)],
     empty_contracts: &terminal_semantics::inhabitation::TerminalContracts<'_>,
@@ -1039,7 +1029,6 @@ fn check_prepared_machine(
             declared: &declared,
             unreached,
             law_instances,
-            donated,
         },
         tables,
         &mut decided,
@@ -1061,20 +1050,22 @@ fn check_prepared_machine(
         })?
         .into_iter()
         .peekable();
-    let mut target_ranges =
-        terminal_semantics::target_scalar_ranges(module, lowered, types)
-            .map_err(|detail| {
-                refusal(
-                    RefusalReason::ForeignIdentity,
-                    id,
-                    Construct::Machine,
-                    detail,
-                )
-            })?
-            .into_iter()
-            .peekable();
-    let content_returns = terminal_semantics::content_transformations::forwarding::checked_returns(module, lowered)
-        .map_err(|detail| refusal(RefusalReason::Unestablished, id, Construct::Machine, detail))?;
+    let mut target_ranges = terminal_semantics::target_scalar_ranges(module, lowered, types)
+        .map_err(|detail| {
+            refusal(
+                RefusalReason::ForeignIdentity,
+                id,
+                Construct::Machine,
+                detail,
+            )
+        })?
+        .into_iter()
+        .peekable();
+    let content_returns = terminal_semantics::content_transformations::forwarding::checked_returns(
+        module, lowered,
+    )
+    .map_err(|detail| refusal(RefusalReason::Unestablished, id, Construct::Machine, detail))?;
+    let mut knowledge = KnowledgeIndex::new(graph, tables, id)?;
     for (index, (obligation, row)) in tables.obligations.iter().enumerate() {
         if decided[index].is_some() {
             continue;
@@ -1126,9 +1117,12 @@ fn check_prepared_machine(
             continue;
         }
         if let ObligationKind::NormalGuarantee { clause, .. } = row.kind
-            && let Ok(index_in_returns) = content_returns.binary_search_by_key(&(clause as usize), |&(ordinal, _)| ordinal)
+            && let Ok(index_in_returns) =
+                content_returns.binary_search_by_key(&(clause as usize), |&(ordinal, _)| ordinal)
         {
-            decided[index] = Some(Ok(Discharged::ConservedContent(content_returns[index_in_returns].1)));
+            decided[index] = Some(Ok(Discharged::ConservedContent(
+                content_returns[index_in_returns].1.clone(),
+            )));
             continue;
         }
         // A theorem over indexed data: the signature proved this clause.
@@ -1200,16 +1194,16 @@ fn check_prepared_machine(
             {
                 return Ok(Discharged::Certificate(evidence));
             }
-            decide_borrowing(
+            decide_indexed(
                 context,
                 graph,
                 tables,
+                &mut knowledge,
                 id,
                 obligation,
                 row.created_at,
                 goal,
                 unreached,
-                donated,
                 activity,
             )
             .map(Discharged::Certificate)
@@ -1221,16 +1215,16 @@ fn check_prepared_machine(
         ranking_bindings,
         &mut decided,
         |obligation, edge, goal| {
-            decide_borrowing(
+            decide_indexed(
                 context,
                 graph,
                 tables,
+                &mut knowledge,
                 id,
                 obligation,
                 ProgramPoint::Edge(edge),
                 goal,
                 unreached,
-                donated,
                 activity,
             )
         },
@@ -1254,6 +1248,7 @@ fn check_prepared_machine(
                 terminal_psi::Terminator::PendingNormalCompletion { .. }
             )
         });
+    let mut knowledge = KnowledgeIndex::new(graph, tables, id)?;
     for (index, (obligation, row)) in tables.obligations.iter().enumerate() {
         if decided[index].is_none()
             && let ObligationKind::PublishedGuarantee { clause } = row.kind
@@ -1379,16 +1374,16 @@ fn check_prepared_machine(
             )
         })?;
         let proved = consumption.goal.and_then(|goal| {
-            decide_borrowing(
+            decide_indexed(
                 context,
                 graph,
                 tables,
+                &mut knowledge,
                 id,
                 window.obligation,
                 consumption.point,
                 goal,
                 unreached,
-                donated,
                 activity,
             )
         });
@@ -1989,7 +1984,10 @@ fn published(
         let position = usize::try_from(obligation.get() - 1).unwrap_or(usize::MAX);
         match decided.get(position) {
             Some(Some(Ok(
-                Discharged::Certificate(_) | Discharged::Identity(_) | Discharged::Law(_) | Discharged::ConservedContent(_),
+                Discharged::Certificate(_)
+                | Discharged::Identity(_)
+                | Discharged::Law(_)
+                | Discharged::ConservedContent(_),
             ))) => exits.push(obligation),
             _ => return Err(unproved("a normal return does not establish this clause")),
         }
@@ -2245,9 +2243,9 @@ pub(crate) fn substitute_goal(
         // a declaration application. Use the same typed form as authored
         // clause applications, and keep the ordinary scalar route otherwise.
         Ok(Proposition::Equal(left, right))
-            if [&left, &right].into_iter().any(|term| matches!(
-                term, ScalarTerm::DeclarationApplication { .. }
-            )) =>
+            if [&left, &right]
+                .into_iter()
+                .any(|term| matches!(term, ScalarTerm::DeclarationApplication { .. })) =>
         {
             terminal_codec::contract_forms::equal(left, right)
                 .map_err(|_| Unbound::Unsupported("an erased equality has no canonical form"))
@@ -2352,9 +2350,7 @@ fn erased_actuals(
             ScalarTerm::Value { .. }
             | ScalarTerm::Integer { .. }
             | ScalarTerm::Boolean(_)
-            | ScalarTerm::DeclarationApplication { .. } => {
-                Ok((formal.id, term.clone()))
-            }
+            | ScalarTerm::DeclarationApplication { .. } => Ok((formal.id, term.clone())),
             _ => Err(refuse(
                 RefusalReason::Unsupported,
                 "erased actual outside values, literals, and declaration applications",
@@ -2702,19 +2698,17 @@ fn stated_goal<'a>(
             &module.proofs.scalar_block_invariants,
             references,
         ),
-        ObligationKind::CrashCoverage { site, cause } => {
-            crashes::coverage_goal(
-                module,
-                lowered,
-                (storage, references),
-                tables,
-                types,
-                id,
-                obligation,
-                site,
-                cause,
-            )
-        }
+        ObligationKind::CrashCoverage { site, cause } => crashes::coverage_goal(
+            module,
+            lowered,
+            (storage, references),
+            tables,
+            types,
+            id,
+            obligation,
+            site,
+            cause,
+        ),
         ObligationKind::RankComparison { component, edge } => rankings::goal(
             lowered,
             ranking_bindings,
@@ -2752,49 +2746,11 @@ fn decide(
     unreached: &[ValueId],
     activity: &mut ProofSearchActivity,
 ) -> Checked<Evidence> {
-    decide_borrowing(
-        context, graph, tables, id, obligation, point, goal, unreached, None, activity,
-    )
-}
-
-/// `decide`, taking the certificate an earlier checked copy of this machine
-/// found when its search started from this obligation's inputs
-/// (`reuse::Donated::borrow`). The kernel decides a borrowed certificate
-/// against this machine's own goal and hypotheses; when there is none, or
-/// the kernel refuses it, the search runs as in `decide`.
-#[allow(clippy::too_many_arguments)]
-fn decide_borrowing(
-    context: &PropositionContext,
-    graph: &Graph,
-    tables: &MachineTables,
-    id: MachineId,
-    obligation: ObligationId,
-    point: ProgramPoint,
-    goal: Proposition,
-    unreached: &[ValueId],
-    donated: Option<&reuse::Donated<'_>>,
-    activity: &mut ProofSearchActivity,
-) -> Checked<Evidence> {
     let hypotheses = hypotheses(graph, tables, id, obligation, point)?;
     // Search and the kernel first see only the facts connected to the goal
     // (`connected`); the full set is tried only when that search fails, so
     // the narrowing never refuses an obligation the full set proves.
     let narrowed = connected(&goal, &hypotheses);
-    if let Some(borrowed) = donated
-        .and_then(|donated| donated.borrow(obligation, &goal, &hypotheses, narrowed.as_ref()))
-    {
-        let premises = match narrowed {
-            Some(narrowed) if borrowed.narrowed => narrowed,
-            _ => hypotheses,
-        };
-        return Ok(Evidence {
-            goal,
-            assumptions: premises.assumption_rows,
-            axioms: premises.axiom_rows,
-            certificate: borrowed.certificate,
-            fact: borrowed.fact,
-        });
-    }
     if let Some(narrowed) = narrowed
         && let Ok(certificate) = search_certificate(
             context,
@@ -2822,6 +2778,655 @@ fn decide_borrowing(
         activity,
     )?;
     verify(context, id, obligation, goal, hypotheses, certificate)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn decide_indexed(
+    context: &PropositionContext,
+    graph: &Graph,
+    tables: &MachineTables,
+    knowledge: &mut KnowledgeIndex<'_>,
+    id: MachineId,
+    obligation: ObligationId,
+    point: ProgramPoint,
+    goal: Proposition,
+    unreached: &[ValueId],
+    activity: &mut ProofSearchActivity,
+) -> Checked<Evidence> {
+    match knowledge.narrowed_or_full(graph, tables, id, obligation, point, &goal)? {
+        NarrowedKnowledge::Narrowed(narrowed) => {
+            if let Ok(certificate) = search_certificate(
+                context,
+                &tables.values,
+                id,
+                obligation,
+                &goal,
+                &narrowed.assumptions,
+                &narrowed.axioms,
+                unreached,
+                activity,
+            ) {
+                return verify(context, id, obligation, goal, narrowed, certificate);
+            }
+            let full = knowledge.full(graph, tables, id, obligation, point)?;
+            let certificate = search_certificate(
+                context,
+                &tables.values,
+                id,
+                obligation,
+                &goal,
+                &full.assumptions,
+                &full.axioms,
+                unreached,
+                activity,
+            )?;
+            verify(context, id, obligation, goal, full, certificate)
+        }
+        NarrowedKnowledge::All(hypotheses) => {
+            let certificate = search_certificate(
+                context,
+                &tables.values,
+                id,
+                obligation,
+                &goal,
+                &hypotheses.assumptions,
+                &hypotheses.axioms,
+                unreached,
+                activity,
+            )?;
+            verify(context, id, obligation, goal, hypotheses, certificate)
+        }
+    }
+}
+
+enum NarrowedKnowledge {
+    Narrowed(Hypotheses),
+    All(Hypotheses),
+}
+
+#[derive(Clone, Copy)]
+struct BlockKnowledgeRow {
+    pos: usize,
+    row_idx: u32,
+}
+
+#[derive(Clone, Copy)]
+enum RowLocation {
+    Block {
+        block: semantic_vocabulary::BlockId,
+        pos: usize,
+    },
+    EdgeDominated {
+        target: semantic_vocabulary::BlockId,
+    },
+    ExactEdge,
+    Cleanup,
+}
+
+#[derive(Clone, Copy)]
+struct ValueRowRef {
+    traversal_start: usize,
+    pos: usize,
+    row_idx: u32,
+}
+
+struct KnowledgeIndex<'a> {
+    row_ids: Vec<KnowledgeId>,
+    row_points: Vec<ProgramPoint>,
+    row_is_axiom: Vec<bool>,
+    row_props: Vec<Option<&'a Proposition>>,
+    row_locations: Vec<RowLocation>,
+    bad_rows: Vec<(KnowledgeId, ProgramPoint)>,
+    block_rows: Vec<Vec<BlockKnowledgeRow>>,
+    edge_target_rows: Vec<Vec<u32>>,
+    exact_edge_rows: Vec<(semantic_vocabulary::EdgeId, u32)>,
+    cleanup_rows: Vec<u32>,
+    strict_dom_block_count: Vec<usize>,
+    strict_dom_edge_count: Vec<usize>,
+    has_edge_or_cleanup_rows: bool,
+    distinct_values: Vec<ValueId>,
+    val_dense: Vec<u32>,
+    val_row_ranges: Vec<(u32, u32)>,
+    val_rows: Vec<ValueRowRef>,
+    row_val_ranges: Vec<(u32, u32)>,
+    row_vals: Vec<u32>,
+    always_kept: Vec<u32>,
+    visited_val: Vec<u32>,
+    visited_row: Vec<u32>,
+    stamp: u32,
+    queue: Vec<u32>,
+    kept_rows: Vec<u32>,
+    goal_vals: Vec<ValueId>,
+}
+
+impl<'a> KnowledgeIndex<'a> {
+    fn new(graph: &Graph, tables: &'a MachineTables, id: MachineId) -> Checked<Self> {
+        let block_count = graph.block_count();
+        let row_count = tables.knowledge.len();
+        let mut row_ids = Vec::with_capacity(row_count);
+        let mut row_points = Vec::with_capacity(row_count);
+        let mut row_is_axiom = Vec::with_capacity(row_count);
+        let mut row_props = Vec::with_capacity(row_count);
+        let mut row_locations = Vec::with_capacity(row_count);
+        let mut bad_rows = Vec::new();
+        let mut block_rows = vec![Vec::new(); block_count];
+        let mut edge_target_rows = vec![Vec::new(); block_count];
+        let mut exact_edge_rows = Vec::new();
+        let mut cleanup_rows = Vec::new();
+        let mut always_kept = Vec::new();
+        let mut raw_row_vals: Vec<(ValueId, usize, usize, u32)> = Vec::new();
+        let mut temp_vals = Vec::new();
+        let mut distinct_values = Vec::new();
+        let mut row_complete = Vec::with_capacity(row_count);
+        let mut row_val_slices = Vec::with_capacity(row_count);
+        let mut flat_raw_vals = Vec::new();
+
+        for (row_pos, (row, knowledge_row)) in tables.knowledge.iter().enumerate() {
+            let row_idx = u32::try_from(row_pos).unwrap_or(u32::MAX);
+            row_ids.push(row);
+            row_points.push(knowledge_row.available_from);
+            row_is_axiom.push(matches!(
+                knowledge_row.justification,
+                Justification::OperationSemantics(_)
+            ));
+            let valid_prop = match knowledge_proposition(tables, row) {
+                Some(proposition)
+                    if concrete(tables, id, Construct::Machine, proposition).is_ok() =>
+                {
+                    Some(proposition)
+                }
+                _ => {
+                    bad_rows.push((row, knowledge_row.available_from));
+                    None
+                }
+            };
+            row_props.push(valid_prop);
+            let (location, sort_start, sort_pos) = match knowledge_row.available_from {
+                ProgramPoint::BlockEntry(_) | ProgramPoint::AfterOperation(_) => {
+                    let (block, pos, dom) =
+                        graph.locate_with_dominance_info(knowledge_row.available_from)?;
+                    block_rows[usize::try_from(block.get() - 1).unwrap_or(usize::MAX)]
+                        .push(BlockKnowledgeRow { pos, row_idx });
+                    (
+                        RowLocation::Block { block, pos },
+                        dom.traversal_start(),
+                        pos,
+                    )
+                }
+                ProgramPoint::Edge(edge) => {
+                    exact_edge_rows.push((edge, row_idx));
+                    if let Some(target) = graph.edge_dominator(edge)? {
+                        edge_target_rows[usize::try_from(target.get() - 1).unwrap_or(usize::MAX)]
+                            .push(row_idx);
+                        (RowLocation::EdgeDominated { target }, 0, 0)
+                    } else {
+                        (RowLocation::ExactEdge, 0, 0)
+                    }
+                }
+                ProgramPoint::BeforeCleanup { .. } | ProgramPoint::AfterCleanup { .. } => {
+                    cleanup_rows.push(row_idx);
+                    (RowLocation::Cleanup, 0, 0)
+                }
+            };
+            row_locations.push(location);
+            let start = flat_raw_vals.len() as u32;
+            if let Some(proposition) = valid_prop {
+                temp_vals.clear();
+                let complete = proposition.visit_value_ids(|value| temp_vals.push(value));
+                if !complete || temp_vals.is_empty() {
+                    always_kept.push(row_idx);
+                    row_complete.push(false);
+                } else {
+                    temp_vals.sort_unstable();
+                    temp_vals.dedup();
+                    for &val in &temp_vals {
+                        distinct_values.push(val);
+                        flat_raw_vals.push(val);
+                        raw_row_vals.push((val, sort_start, sort_pos, row_idx));
+                    }
+                    row_complete.push(true);
+                }
+            } else {
+                row_complete.push(false);
+            }
+            row_val_slices.push((start, flat_raw_vals.len() as u32));
+        }
+
+        for rows in &mut block_rows {
+            rows.sort_unstable_by_key(|row| (row.pos, row.row_idx));
+        }
+        exact_edge_rows.sort_unstable();
+
+        let mut by_preorder = (0..block_count).collect::<Vec<_>>();
+        by_preorder.sort_unstable_by_key(|&slot| {
+            let block = BlockId::new(slot as u64 + 1).expect("dense block identity");
+            graph
+                .dominance_of(block)
+                .map_or(0, |dom| dom.traversal_start())
+        });
+        let mut strict_dom_block_count = vec![0usize; block_count];
+        let mut strict_dom_edge_count = vec![0usize; block_count];
+        for slot in by_preorder {
+            let block = BlockId::new(slot as u64 + 1).expect("dense block identity");
+            if let Some(parent) = graph.immediate_dominator(block)? {
+                let p_slot = usize::try_from(parent.get() - 1).unwrap_or(usize::MAX);
+                strict_dom_block_count[slot] =
+                    strict_dom_block_count[p_slot] + block_rows[p_slot].len();
+                strict_dom_edge_count[slot] =
+                    strict_dom_edge_count[p_slot] + edge_target_rows[p_slot].len();
+            }
+        }
+        let has_edge_or_cleanup_rows = !cleanup_rows.is_empty()
+            || !exact_edge_rows.is_empty()
+            || edge_target_rows.iter().any(|rows| !rows.is_empty());
+
+        distinct_values.sort_unstable();
+        distinct_values.dedup();
+        let max_val_slot = distinct_values
+            .last()
+            .and_then(|val| usize::try_from(val.get() - 1).ok())
+            .unwrap_or(0);
+        let mut val_dense =
+            if !distinct_values.is_empty() && max_val_slot <= distinct_values.len() * 4 + 64 {
+                let mut map = vec![u32::MAX; max_val_slot + 1];
+                for (dense, &val) in distinct_values.iter().enumerate() {
+                    map[usize::try_from(val.get() - 1).expect("bounded value id")] = dense as u32;
+                }
+                map
+            } else {
+                Vec::new()
+            };
+        let lookup_val = |val: ValueId| -> Option<u32> {
+            if !val_dense.is_empty() {
+                let slot = usize::try_from(val.get() - 1).ok()?;
+                let mapped = *val_dense.get(slot)?;
+                (mapped != u32::MAX).then_some(mapped)
+            } else {
+                distinct_values
+                    .binary_search(&val)
+                    .ok()
+                    .map(|idx| idx as u32)
+            }
+        };
+
+        let mut val_row_ranges = vec![(0u32, 0u32); distinct_values.len()];
+        let mut counts = vec![0u32; distinct_values.len()];
+        for &(val, _, _, _) in &raw_row_vals {
+            if let Some(dense) = lookup_val(val) {
+                counts[dense as usize] += 1;
+            }
+        }
+        let mut offset = 0u32;
+        for (dense, &count) in counts.iter().enumerate() {
+            val_row_ranges[dense] = (offset, offset + count);
+            offset += count;
+        }
+        let mut write_pos = val_row_ranges
+            .iter()
+            .map(|(start, _)| *start)
+            .collect::<Vec<_>>();
+        let mut val_rows = vec![
+            ValueRowRef {
+                traversal_start: 0,
+                pos: 0,
+                row_idx: 0,
+            };
+            offset as usize
+        ];
+        for (val, traversal_start, pos, row_idx) in raw_row_vals {
+            if let Some(dense) = lookup_val(val) {
+                let slot = write_pos[dense as usize] as usize;
+                write_pos[dense as usize] += 1;
+                val_rows[slot] = ValueRowRef {
+                    traversal_start,
+                    pos,
+                    row_idx,
+                };
+            }
+        }
+        for &(start, end) in &val_row_ranges {
+            val_rows[start as usize..end as usize]
+                .sort_unstable_by_key(|entry| (entry.traversal_start, entry.pos, entry.row_idx));
+        }
+
+        let mut row_val_ranges = Vec::with_capacity(row_count);
+        let mut row_vals = Vec::with_capacity(flat_raw_vals.len());
+        for row_idx in 0..row_count {
+            let (raw_start, raw_end) = row_val_slices[row_idx];
+            let out_start = row_vals.len() as u32;
+            if row_complete[row_idx] {
+                for &val in &flat_raw_vals[raw_start as usize..raw_end as usize] {
+                    if let Some(dense) = lookup_val(val) {
+                        row_vals.push(dense);
+                    }
+                }
+            }
+            row_val_ranges.push((out_start, row_vals.len() as u32));
+        }
+        let _ = &mut val_dense;
+        let distinct_count = distinct_values.len();
+
+        Ok(Self {
+            row_ids,
+            row_points,
+            row_is_axiom,
+            row_props,
+            row_locations,
+            bad_rows,
+            block_rows,
+            edge_target_rows,
+            exact_edge_rows,
+            cleanup_rows,
+            strict_dom_block_count,
+            strict_dom_edge_count,
+            has_edge_or_cleanup_rows,
+            distinct_values,
+            val_dense,
+            val_row_ranges,
+            val_rows,
+            row_val_ranges,
+            row_vals,
+            always_kept,
+            visited_val: vec![0u32; distinct_count],
+            visited_row: vec![0u32; row_count],
+            stamp: 0,
+            queue: Vec::new(),
+            kept_rows: Vec::new(),
+            goal_vals: Vec::new(),
+        })
+    }
+
+    fn lookup_val(&self, val: ValueId) -> Option<u32> {
+        if !self.val_dense.is_empty() {
+            let slot = usize::try_from(val.get() - 1).ok()?;
+            let mapped = *self.val_dense.get(slot)?;
+            (mapped != u32::MAX).then_some(mapped)
+        } else {
+            self.distinct_values
+                .binary_search(&val)
+                .ok()
+                .map(|idx| idx as u32)
+        }
+    }
+
+    fn check_bad_rows(
+        &self,
+        graph: &Graph,
+        tables: &MachineTables,
+        id: MachineId,
+        obligation: ObligationId,
+        point: ProgramPoint,
+    ) -> Checked<()> {
+        if self.bad_rows.is_empty() {
+            return Ok(());
+        }
+        for &(row, available_from) in &self.bad_rows {
+            if !graph.dominates(available_from, point)? {
+                continue;
+            }
+            let proposition = knowledge_proposition(tables, row).ok_or_else(|| {
+                refusal(
+                    RefusalReason::ForeignIdentity,
+                    id,
+                    Construct::Obligation(obligation),
+                    "knowledge row has no proposition",
+                )
+            })?;
+            concrete(tables, id, Construct::Obligation(obligation), proposition)?;
+        }
+        Ok(())
+    }
+
+    fn dominates_row(
+        &self,
+        graph: &Graph,
+        row_idx: usize,
+        point: ProgramPoint,
+        used_block: semantic_vocabulary::BlockId,
+        used_pos: usize,
+        used_dom: &terminal_semantics::control_graph::DominanceInterval,
+    ) -> Checked<bool> {
+        match self.row_locations[row_idx] {
+            RowLocation::Block { block, pos } => {
+                if block == used_block {
+                    Ok(pos <= used_pos)
+                } else {
+                    Ok(graph.dominance_of(block)?.dominates(used_dom))
+                }
+            }
+            RowLocation::EdgeDominated { .. } | RowLocation::ExactEdge | RowLocation::Cleanup => {
+                graph.dominates(self.row_points[row_idx], point)
+            }
+        }
+    }
+
+    fn count_dominating(
+        &self,
+        graph: &Graph,
+        point: ProgramPoint,
+        used_block: semantic_vocabulary::BlockId,
+        used_pos: usize,
+        used_dom: &terminal_semantics::control_graph::DominanceInterval,
+    ) -> Checked<usize> {
+        let used_slot = usize::try_from(used_block.get() - 1).unwrap_or(usize::MAX);
+        let mut total = self.strict_dom_block_count[used_slot]
+            + self.block_rows[used_slot].partition_point(|row| row.pos <= used_pos);
+        if !self.has_edge_or_cleanup_rows {
+            return Ok(total);
+        }
+        let is_cleanup_or_edge = matches!(
+            point,
+            ProgramPoint::BeforeCleanup { .. }
+                | ProgramPoint::AfterCleanup { .. }
+                | ProgramPoint::Edge(_)
+        );
+        if !is_cleanup_or_edge {
+            total += self.strict_dom_edge_count[used_slot] + self.edge_target_rows[used_slot].len();
+        } else {
+            let mut cur = Some(used_block);
+            while let Some(block) = cur {
+                let slot = usize::try_from(block.get() - 1).unwrap_or(usize::MAX);
+                for &row_idx in &self.edge_target_rows[slot] {
+                    if graph.dominates(self.row_points[row_idx as usize], point)? {
+                        total += 1;
+                    }
+                }
+                cur = graph.immediate_dominator(block)?;
+            }
+            if let ProgramPoint::Edge(used_edge) = point {
+                let start = self
+                    .exact_edge_rows
+                    .partition_point(|&(edge, _)| edge < used_edge);
+                for &(edge, row_idx) in &self.exact_edge_rows[start..] {
+                    if edge != used_edge {
+                        break;
+                    }
+                    let already_counted = match self.row_locations[row_idx as usize] {
+                        RowLocation::EdgeDominated { target } => {
+                            graph.dominance_of(target)?.dominates(used_dom)
+                        }
+                        _ => false,
+                    };
+                    if !already_counted {
+                        total += 1;
+                    }
+                }
+            }
+        }
+        for &row_idx in &self.cleanup_rows {
+            if graph.dominates(self.row_points[row_idx as usize], point)? {
+                total += 1;
+            }
+        }
+        Ok(total)
+    }
+
+    fn materialize(&self, rows: &[u32]) -> Hypotheses {
+        let mut assumption_rows = Vec::new();
+        let mut axiom_rows = Vec::new();
+        let mut assumptions = Vec::new();
+        let mut axioms = Vec::new();
+        for &row_idx in rows {
+            let idx = row_idx as usize;
+            let row = self.row_ids[idx];
+            let proposition = self.row_props[idx].expect("validated proposition");
+            if self.row_is_axiom[idx] {
+                axiom_rows.push(row);
+                axioms.push(proposition.clone());
+            } else {
+                assumption_rows.push(row);
+                assumptions.push(proposition.clone());
+            }
+        }
+        Hypotheses {
+            assumption_rows,
+            axiom_rows,
+            assumptions,
+            axioms,
+        }
+    }
+
+    fn full(
+        &mut self,
+        graph: &Graph,
+        tables: &MachineTables,
+        id: MachineId,
+        obligation: ObligationId,
+        point: ProgramPoint,
+    ) -> Checked<Hypotheses> {
+        self.check_bad_rows(graph, tables, id, obligation, point)?;
+        let (used_block, used_pos, used_dom) = graph.locate_with_dominance_info(point)?;
+        self.kept_rows.clear();
+        let is_cleanup = matches!(
+            point,
+            ProgramPoint::BeforeCleanup { .. } | ProgramPoint::AfterCleanup { .. }
+        );
+        let mut cur = Some(used_block);
+        while let Some(block) = cur {
+            let slot = usize::try_from(block.get() - 1).unwrap_or(usize::MAX);
+            let rows = &self.block_rows[slot];
+            let limit = if block == used_block {
+                rows.partition_point(|row| row.pos <= used_pos)
+            } else {
+                rows.len()
+            };
+            for row in &rows[..limit] {
+                self.kept_rows.push(row.row_idx);
+            }
+            for &row_idx in &self.edge_target_rows[slot] {
+                if !is_cleanup || graph.dominates(self.row_points[row_idx as usize], point)? {
+                    self.kept_rows.push(row_idx);
+                }
+            }
+            cur = graph.immediate_dominator(block)?;
+        }
+        if let ProgramPoint::Edge(used_edge) = point {
+            let start = self
+                .exact_edge_rows
+                .partition_point(|&(edge, _)| edge < used_edge);
+            for &(edge, row_idx) in &self.exact_edge_rows[start..] {
+                if edge != used_edge {
+                    break;
+                }
+                let already_counted = match self.row_locations[row_idx as usize] {
+                    RowLocation::EdgeDominated { target } => {
+                        graph.dominance_of(target)?.dominates(used_dom)
+                    }
+                    _ => false,
+                };
+                if !already_counted {
+                    self.kept_rows.push(row_idx);
+                }
+            }
+        }
+        for &row_idx in &self.cleanup_rows {
+            if graph.dominates(self.row_points[row_idx as usize], point)? {
+                self.kept_rows.push(row_idx);
+            }
+        }
+        self.kept_rows.sort_unstable();
+        Ok(self.materialize(&self.kept_rows))
+    }
+
+    fn narrowed_or_full(
+        &mut self,
+        graph: &Graph,
+        tables: &MachineTables,
+        id: MachineId,
+        obligation: ObligationId,
+        point: ProgramPoint,
+        goal: &Proposition,
+    ) -> Checked<NarrowedKnowledge> {
+        self.check_bad_rows(graph, tables, id, obligation, point)?;
+        let (used_block, used_pos, used_dom) = graph.locate_with_dominance_info(point)?;
+        let used_start = used_dom.traversal_start();
+        self.goal_vals.clear();
+        if !goal.visit_value_ids(|value| self.goal_vals.push(value)) {
+            return Ok(NarrowedKnowledge::All(
+                self.full(graph, tables, id, obligation, point)?,
+            ));
+        }
+        if self.stamp == u32::MAX {
+            self.visited_val.fill(0);
+            self.visited_row.fill(0);
+            self.stamp = 1;
+        } else {
+            self.stamp += 1;
+        }
+        let stamp = self.stamp;
+        self.queue.clear();
+        self.kept_rows.clear();
+        for &val in &self.goal_vals {
+            if let Some(dense) = self.lookup_val(val)
+                && self.visited_val[dense as usize] != stamp
+            {
+                self.visited_val[dense as usize] = stamp;
+                self.queue.push(dense);
+            }
+        }
+        while let Some(dense) = self.queue.pop() {
+            let (start, end) = self.val_row_ranges[dense as usize];
+            let entries = &self.val_rows[start as usize..end as usize];
+            let limit = entries.partition_point(|entry| {
+                (entry.traversal_start, entry.pos) <= (used_start, used_pos)
+            });
+            for entry in &entries[..limit] {
+                let row_idx = entry.row_idx as usize;
+                if self.visited_row[row_idx] == stamp {
+                    continue;
+                }
+                self.visited_row[row_idx] = stamp;
+                if !self.dominates_row(graph, row_idx, point, used_block, used_pos, used_dom)? {
+                    continue;
+                }
+                self.kept_rows.push(entry.row_idx);
+                let (val_start, val_end) = self.row_val_ranges[row_idx];
+                for &other_val in &self.row_vals[val_start as usize..val_end as usize] {
+                    if self.visited_val[other_val as usize] != stamp {
+                        self.visited_val[other_val as usize] = stamp;
+                        self.queue.push(other_val);
+                    }
+                }
+            }
+        }
+        for &row_idx in &self.always_kept {
+            let idx = row_idx as usize;
+            if self.visited_row[idx] != stamp
+                && self.dominates_row(graph, idx, point, used_block, used_pos, used_dom)?
+            {
+                self.visited_row[idx] = stamp;
+                self.kept_rows.push(row_idx);
+            }
+        }
+        self.kept_rows.sort_unstable();
+        let total = self.count_dominating(graph, point, used_block, used_pos, used_dom)?;
+        let hypotheses = self.materialize(&self.kept_rows);
+        if self.kept_rows.len() < total {
+            Ok(NarrowedKnowledge::Narrowed(hypotheses))
+        } else {
+            Ok(NarrowedKnowledge::All(hypotheses))
+        }
+    }
 }
 
 /// The hypotheses that share a value with `goal`, directly or through a

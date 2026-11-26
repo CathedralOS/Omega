@@ -8,6 +8,7 @@
 // service present in a callable's published ceiling but absent from its checked
 // transitive body reach.
 
+use super::PackageReviewNominalIdentity;
 pub(crate) use super::authority_expressions::{
     PackageReviewBooleanExpression, PackageReviewIeeeFloatComparisonKind,
     PackageReviewIntegerBinaryKind, PackageReviewIntegerComparisonKind,
@@ -15,7 +16,6 @@ pub(crate) use super::authority_expressions::{
     PackageReviewPrimitiveType, PackageReviewRuntimeIndex, PackageReviewScalarExpression,
     PackageReviewStructuralParameterField, PackageReviewStructuralPredicatePathSegment,
 };
-use super::identity::PackageReviewNominalIdentity;
 use crate::record::PackageReviewServiceIdentity;
 use crate::record::accessors::field_projection_accessors;
 

@@ -8,6 +8,7 @@ use semantic_vocabulary::{
     ContentProjectionIdentity, ContentProjectionScalar, Proposition, ScalarType, ServiceId,
     StructuralDomainId, StructuralTypeId, ValueId,
 };
+use wire::fnv1a::Fnv1a;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct StructuralDomainRequirement {
@@ -110,10 +111,7 @@ impl BoundaryMachineResult {
         }
     }
 
-    pub fn matches_structural_result(
-        &self,
-        result: &crate::StructuralResultDeclaration,
-    ) -> bool {
+    pub fn matches_structural_result(&self, result: &crate::StructuralResultDeclaration) -> bool {
         let Self::Structural(expected) = self else {
             return false;
         };
@@ -278,9 +276,7 @@ impl CheckedBoundaryExecution {
         match self {
             Self::StaticInterruptInstall => Some(StaticInterruptOperation::Install),
             Self::StaticInterruptContext => Some(StaticInterruptOperation::Context),
-            Self::StaticInterruptBeginCompletion => {
-                Some(StaticInterruptOperation::BeginCompletion)
-            }
+            Self::StaticInterruptBeginCompletion => Some(StaticInterruptOperation::BeginCompletion),
             Self::StaticInterruptFinishCompletion => {
                 Some(StaticInterruptOperation::FinishCompletion)
             }
@@ -332,9 +328,7 @@ impl CheckedBoundaryCallable {
             identities
                 .text(index)
                 .filter(|value| !value.is_empty())
-                .ok_or_else(|| {
-                    "boundary calling correspondence lost a source identity".to_owned()
-                })
+                .ok_or_else(|| "boundary calling correspondence lost a source identity".to_owned())
         };
         let Some(application) = &self.source.specialization else {
             return Ok(self.method_arguments.is_empty()
@@ -386,9 +380,7 @@ impl CheckedBoundaryCallable {
                     crate::ClosedReachArgument::Const(index) => Ok(
                         MachineOperandSelectionIdentity::Const(text(*index)?.to_owned()),
                     ),
-                    _ => {
-                        Err("boundary calling needs a complete type or value tuple".to_owned())
-                    }
+                    _ => Err("boundary calling needs a complete type or value tuple".to_owned()),
                 }
             })
             .collect::<Result<Vec<_>, String>>()?;
@@ -560,11 +552,10 @@ impl BoundaryMachineDeclaration {
                                 self.requires
                                     .iter()
                                     .filter(|row| {
-                                        usize::try_from(row.argument_index).ok()
-                                            == Some(position)
-                                            && !row.path.contains(
-                                                &crate::StructuralPathSegment::Referent,
-                                            )
+                                        usize::try_from(row.argument_index).ok() == Some(position)
+                                            && !row
+                                                .path
+                                                .contains(&crate::StructuralPathSegment::Referent)
                                     })
                                     .map(|row| &row.domain),
                             )
@@ -777,95 +768,75 @@ pub fn program_local_root_introduction_compatibility_report_identity(
     carrier_identity: &str,
     schema: &ProgramLocalRootIntroductionSchema,
 ) -> u64 {
-    fn bytes(hash: &mut u64, value: &[u8]) {
-        for byte in value {
-            *hash ^= u64::from(*byte);
-            *hash = hash.wrapping_mul(1_099_511_628_211);
-        }
-    }
-    fn string(hash: &mut u64, value: &str) {
-        bytes(hash, &(value.len() as u64).to_le_bytes());
-        bytes(hash, value.as_bytes());
-    }
-    fn scalar(hash: &mut u64, value: &ContentProjectionScalar) {
+    fn scalar(hash: &mut Fnv1a, value: &ContentProjectionScalar) {
         match value {
             ContentProjectionScalar::SubjectField(path)
             | ContentProjectionScalar::RuntimeScalarEmbedding(path) => {
-                bytes(
-                    hash,
-                    &[
-                        if matches!(value, ContentProjectionScalar::SubjectField(_)) {
-                            1
-                        } else {
-                            2
-                        },
-                    ],
+                hash.byte(
+                    if matches!(value, ContentProjectionScalar::SubjectField(_)) {
+                        1
+                    } else {
+                        2
+                    },
                 );
-                bytes(hash, &(path.len() as u64).to_le_bytes());
+                hash.usize(path.len());
                 for segment in path {
-                    string(hash, segment);
+                    hash.string_framed(segment);
                 }
             }
             ContentProjectionScalar::Natural(value) => {
-                bytes(hash, &[3]);
-                string(hash, value);
+                hash.byte(3);
+                hash.string_framed(value);
             }
             ContentProjectionScalar::Successor(inner) => {
-                bytes(hash, &[4]);
+                hash.byte(4);
                 scalar(hash, inner);
             }
             ContentProjectionScalar::Add(left, right)
             | ContentProjectionScalar::Subtract(left, right)
             | ContentProjectionScalar::Multiply(left, right) => {
-                bytes(
-                    hash,
-                    &[match value {
-                        ContentProjectionScalar::Add(_, _) => 5,
-                        ContentProjectionScalar::Subtract(_, _) => 6,
-                        ContentProjectionScalar::Multiply(_, _) => 7,
-                        _ => unreachable!(),
-                    }],
-                );
+                hash.byte(match value {
+                    ContentProjectionScalar::Add(_, _) => 5,
+                    ContentProjectionScalar::Subtract(_, _) => 6,
+                    ContentProjectionScalar::Multiply(_, _) => 7,
+                    _ => unreachable!(),
+                });
                 scalar(hash, left);
                 scalar(hash, right);
             }
         }
     }
-    let mut hash = 14_695_981_039_346_656_037_u64;
-    bytes(&mut hash, b"psi.program-local-root-introduction.v1");
-    string(&mut hash, requirement_identity);
-    string(&mut hash, qualification_identity);
-    string(&mut hash, carrier_identity);
-    bytes(&mut hash, &schema.argument_index.to_le_bytes());
-    bytes(&mut hash, &schema.source_parameter_position.to_le_bytes());
-    bytes(
-        &mut hash,
+    let mut hash = Fnv1a::new();
+    hash.bytes(b"psi.program-local-root-introduction.v1");
+    hash.string_framed(requirement_identity);
+    hash.string_framed(qualification_identity);
+    hash.string_framed(carrier_identity);
+    hash.bytes(&schema.argument_index.to_le_bytes());
+    hash.bytes(&schema.source_parameter_position.to_le_bytes());
+    hash.bytes(
         &schema
             .projection
             .projection_report_fingerprint
             .to_le_bytes(),
     );
-    bytes(
-        &mut hash,
-        &[match schema.algebra.kind {
-            semantic_vocabulary::ContentAlgebraKind::IntervalSet => 1,
-            semantic_vocabulary::ContentAlgebraKind::CountedQuantity => 2,
-        }],
-    );
-    string(&mut hash, &schema.algebra.parameter);
+    hash.byte(match schema.algebra.kind {
+        semantic_vocabulary::ContentAlgebraKind::IntervalSet => 1,
+        semantic_vocabulary::ContentAlgebraKind::CountedQuantity => 2,
+    });
+    hash.string_framed(&schema.algebra.parameter);
     match &schema.capacity {
         ContentProjectionExpression::IntervalSet(members) => {
-            bytes(&mut hash, &[1]);
-            bytes(&mut hash, &(members.len() as u64).to_le_bytes());
+            hash.byte(1);
+            hash.usize(members.len());
             for (start, end) in members {
                 scalar(&mut hash, start);
                 scalar(&mut hash, end);
             }
         }
         ContentProjectionExpression::CountedQuantity(magnitude) => {
-            bytes(&mut hash, &[2]);
+            hash.byte(2);
             scalar(&mut hash, magnitude);
         }
     }
-    if hash == 0 { 1 } else { hash }
+    hash.finish_or(1)
 }

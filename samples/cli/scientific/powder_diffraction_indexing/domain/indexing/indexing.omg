@@ -1,15 +1,8 @@
-use omega\language\core\StandardOutput;
-use omega\language\core\F64::from_u64;
-use omega\language\core\F64::square_root;
-use omega\language\core\U64::from_f64;
-use system\Console;
-use io\input;
-use io\input\Raw;
-use io\output;
-use io\output\integer;
-use io\output\report;
-use io\output\families;
-use io\output\missing;
+use io/input/input.omg;
+use io/output/output.omg;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 public data Problem {
     count: u64; wavelength: f64; tolerance: f64;
     angles: [f64; 6]; vectors: [f64; 6]; lines: [u64; 8];
@@ -17,27 +10,27 @@ public data Problem {
     selected: u64; missing: u64; last: u64; hypotheses: u64;
     scale: f64; lattice: f64;
 }
-public machine decode(raw: @Raw, problem: @mutable Problem) -> bool {
-    let count: u64 in Saturating = U64::from_f64(raw.values[1]);
+public machine decode(raw: @|input|::Raw, problem: @mutable Problem) -> bool {
+    let count: u64 in Saturating = |float_operations|::U64::from_f64(raw.values[1]);
     transition raw.count >= 6 && raw.count <= 9 && count >= 3 && count <= 6
-        && F64::from_u64(count as u64) == raw.values[1] && raw.count == 3 + (count as u64)
+        && |float_operations|::F64::from_u64(count as u64) == raw.values[1] && raw.count == 3 + (count as u64)
         && raw.values[0] >= 0.5 && raw.values[0] <= 2.5 && raw.values[2] > 0.0 && raw.values[2] <= 1.0 {
         true -> initialize(raw, problem, count as u64), false -> bad()
     }
-    machine initialize(raw: @Raw, problem: @mutable Problem, count: u64) -> bool {
+    machine initialize(raw: @|input|::Raw, problem: @mutable Problem, count: u64) -> bool {
         problem.count = count; problem.wavelength = raw.values[0]; problem.tolerance = raw.values[2];
         transition { _ -> scan(raw, problem, 0, 0.0) }
     }
-    machine scan(raw: @Raw, problem: @mutable Problem, index: u64, previous: f64) -> bool {
+    machine scan(raw: @|input|::Raw, problem: @mutable Problem, index: u64, previous: f64) -> bool {
         transition index < problem.count && index < 6 { true -> angle(raw, problem, index, previous), false -> good() }
     }
-    machine angle(raw: @Raw, problem: @mutable Problem, index: u64, previous: f64) -> bool requires index < 6 {
+    machine angle(raw: @|input|::Raw, problem: @mutable Problem, index: u64, previous: f64) -> bool requires index < 6 {
         let observed: f64 = raw.values[index + 3];
         transition observed > previous && observed < 180.0 {
             true -> save(problem, raw, index, observed), false -> bad()
         }
     }
-    machine save(problem: @mutable Problem, raw: @Raw, index: u64, observed: f64) -> bool requires index < 6 {
+    machine save(problem: @mutable Problem, raw: @|input|::Raw, index: u64, observed: f64) -> bool requires index < 6 {
         problem.angles[index] = observed;
         let vector: f64 = 2.0 * sine(observed * 3.14159265358979323846 / 360.0) / problem.wavelength;
         problem.vectors[index] = vector * vector;
@@ -54,7 +47,7 @@ public machine sine(value: f64) -> f64 {
         transition index < 16 { true -> add(value, index, current, total), false -> done(total) }
     }
     machine add(value: f64, index: u64, current: f64, total: f64) -> f64 requires index < 16 {
-        let divisor: f64 = F64::from_u64(2 * index) * F64::from_u64(2 * index + 1);
+        let divisor: f64 = |float_operations|::F64::from_u64(2 * index) * |float_operations|::F64::from_u64(2 * index + 1);
         let following: f64 = (0.0 - current) * value * value / divisor;
         transition { _ -> term(value, index + 1, following, total + following) }
     }
@@ -103,11 +96,11 @@ machine collect(problem: @mutable Problem, kind: u64, squared: u64, count: u64) 
     }
     machine done() { }
 }
-public machine enumerate(problem: @mutable Problem) reaches StandardOutput invokes Console {
-    Console::write_line("units lattice/scale/angles/residuals 1e-12; indices/families exact");
-    classes(problem, 0); Console::write("hypotheses"); integer(problem.hypotheses); Console::write_line("");
+public machine enumerate(problem: @mutable Problem) reaches |process_authority|::StandardOutput invokes |console|::Console {
+    |console|::Console::write_line("units lattice/scale/angles/residuals 1e-12; indices/families exact");
+    classes(problem, 0); |console|::Console::write("hypotheses"); |output|::integer(problem.hypotheses); |console|::Console::write_line("");
 }
-machine classes(problem: @mutable Problem, kind: u64) reaches StandardOutput invokes Console {
+machine classes(problem: @mutable Problem, kind: u64) reaches |process_authority|::StandardOutput invokes |console|::Console {
     transition kind < 3 { true -> search(problem, kind), false -> done() }
     machine search(problem: @mutable Problem, kind: u64) requires kind < 3 {
         collect(problem, kind, 1, 0); masks(problem, kind, 1);
@@ -115,7 +108,7 @@ machine classes(problem: @mutable Problem, kind: u64) reaches StandardOutput inv
     }
     machine done() { }
 }
-machine masks(problem: @mutable Problem, kind: u64, mask: u64) reaches StandardOutput invokes Console {
+machine masks(problem: @mutable Problem, kind: u64, mask: u64) reaches |process_authority|::StandardOutput invokes |console|::Console {
     transition mask < 256 { true -> test(problem, kind, mask), false -> done() }
     machine test(problem: @mutable Problem, kind: u64, mask: u64) requires mask < 256 {
         problem.selected = 0; problem.missing = 0; problem.last = 0;
@@ -129,7 +122,7 @@ machine masks(problem: @mutable Problem, kind: u64, mask: u64) reaches StandardO
     }
     machine emit(problem: @mutable Problem, kind: u64, mask: u64) requires mask < 256, problem.hypotheses < 768 {
         let total: u64 = problem.hypotheses;
-        report(problem, kind, mask); problem.hypotheses = total + 1;
+        |output|::report(problem, kind, mask); problem.hypotheses = total + 1;
         transition { _ -> masks(problem, kind, mask + 1) }
     }
     machine done() { }
@@ -161,18 +154,18 @@ machine fit(problem: @mutable Problem) -> bool {
         transition index < problem.count && index < 6 { true -> term(problem, index, numerator, denominator), false -> scale(problem, numerator, denominator) }
     }
     machine term(problem: @mutable Problem, index: u64, numerator: f64, denominator: f64) -> bool requires index < 6 {
-        let squared: f64 = F64::from_u64(problem.assignments[index]);
+        let squared: f64 = |float_operations|::F64::from_u64(problem.assignments[index]);
         transition { _ -> accumulate(problem, index + 1, numerator + squared * problem.vectors[index], denominator + squared * squared) }
     }
     machine scale(problem: @mutable Problem, numerator: f64, denominator: f64) -> bool {
-        problem.scale = numerator / denominator; problem.lattice = 1.0 / F64::square_root(problem.scale);
+        problem.scale = numerator / denominator; problem.lattice = 1.0 / |float_operations|::F64::square_root(problem.scale);
         transition problem.lattice >= 2.0 && problem.lattice <= 10.0 { true -> residual(problem, 0), false -> no() }
     }
     machine residual(problem: @mutable Problem, index: u64) -> bool {
         transition index < problem.count && index < 6 { true -> predict(problem, index), false -> yes() }
     }
     machine predict(problem: @mutable Problem, index: u64) -> bool requires index < 6 {
-        let argument: f64 = problem.wavelength * F64::square_root(problem.scale * F64::from_u64(problem.assignments[index])) * 0.5;
+        let argument: f64 = problem.wavelength * |float_operations|::F64::square_root(problem.scale * |float_operations|::F64::from_u64(problem.assignments[index])) * 0.5;
         transition argument > 0.0 && argument < 1.0 { true -> angle(problem, index, argument), false -> no() }
     }
     machine angle(problem: @mutable Problem, index: u64, argument: f64) -> bool requires index < 6 {

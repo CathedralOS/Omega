@@ -333,6 +333,17 @@ impl<'source> Questions<'source> {
         Ok(*call)
     }
 
+    fn toolchain_sources(&self) -> Result<&[(source_text::SourceId, [u8; 32])], Diagnostic> {
+        self.exact_toolchain_sources
+            .get_or_init(|| {
+                source_admission::source_identity::toolchain_source_identities(
+                    self.source.source().symbols.source_files(),
+                )
+            })
+            .as_deref()
+            .map_err(refused)
+    }
+
     fn source_target(&self, target: TargetMachineCallable) -> Result<SymbolHandle, Diagnostic> {
         let elaboration = &self.source.closure().elaboration();
         match target {
@@ -393,11 +404,15 @@ impl<'source> Questions<'source> {
                 else {
                     return Err(refused("emitted invocation source is no call expression"));
                 };
+                let source_target = call
+                    .quotient_operation
+                    .as_ref()
+                    .map_or(call.target_symbol, |op| op.representative_operation.symbol);
                 (
                     call.runtime_call,
                     call.static_machine_parameter,
                     call.static_requirement_dispatch.as_ref(),
-                    call.target_symbol,
+                    source_target,
                 )
             }
             crate::source_state::SourceNode::Statement(statement) => {
@@ -618,14 +633,7 @@ impl<'source> Questions<'source> {
                 call,
                 &operand,
                 supplier,
-                self.exact_toolchain_sources
-                    .get_or_init(|| {
-                        source_admission::source_identity::toolchain_source_identities(
-                            typed.symbols.source_files(),
-                        )
-                    })
-                    .as_deref()
-                    .map_err(refused)?,
+                self.toolchain_sources()?,
             )
             .map_err(refused)?;
         match (record, retained.static_record.as_ref()) {
@@ -653,15 +661,7 @@ impl<'source> Questions<'source> {
                     lexical_owner: supplier,
                     binders: &[],
                     lifetime_binders: &[],
-                    exact_toolchain_sources: self
-                        .exact_toolchain_sources
-                        .get_or_init(|| {
-                            source_admission::source_identity::toolchain_source_identities(
-                                typed.symbols.source_files(),
-                            )
-                        })
-                        .as_deref()
-                        .map_err(refused)?,
+                    exact_toolchain_sources: self.toolchain_sources()?,
                 },
             )
             .and_then(|identity| typed.type_identity_text(identity))
@@ -870,24 +870,17 @@ impl<'source> Questions<'source> {
                     "source component heads are not in exact block order",
                 ));
             }
-            let symbol = *elaboration
-                .machines
-                .get(machine.id)
-                .ok_or_else(|| refused("emitted machine has no source declaration"))?;
-            let declaration = self.declarations.declaration(&mut self.output, symbol)?;
-            self.output.joins.push(SelectionJoin::Machine {
-                declaration,
-                machine: machine.id,
-                head: machine.entry,
-            });
-            for &(head, original) in &sources.heads {
-                if head == machine.entry && original == machine.id {
-                    continue;
-                }
-                let symbol = *elaboration
-                    .machines
-                    .get(original)
-                    .ok_or_else(|| refused("folded head has no original source declaration"))?;
+            // The entry's own origin comes first, then each folded head's.
+            let entry = (machine.entry, machine.id);
+            let heads = sources.heads.iter().copied().filter(|&head| head != entry);
+            for (head, original) in std::iter::once(entry).chain(heads) {
+                let symbol = *elaboration.machines.get(original).ok_or_else(|| {
+                    refused(if (head, original) == entry {
+                        "emitted machine has no source declaration"
+                    } else {
+                        "folded head has no original source declaration"
+                    })
+                })?;
                 let declaration = self.declarations.declaration(&mut self.output, symbol)?;
                 self.output.joins.push(SelectionJoin::Machine {
                     declaration,
@@ -1568,6 +1561,22 @@ impl<'source> Declarations<'source> {
         })
     }
 
+    /// Rows for `typed` alone, with no accepted module behind them.
+    #[cfg(test)]
+    fn detached(typed: &'source TypedTrees) -> Self {
+        let count = typed.symbols.symbols().nodes().len();
+        Self {
+            typed,
+            build_entry_source: None,
+            ids: SymbolRows::new(count),
+            identities: SymbolRows::new(count),
+            contracts: SymbolRows::new(count),
+            callable_declarations: HashMap::new(),
+            sources: Vec::new(),
+            core_operators: BTreeMap::new(),
+        }
+    }
+
     fn core_integer_operator(
         &mut self,
         output: &mut SelectionQuestions,
@@ -1808,6 +1817,18 @@ impl<'source> Declarations<'source> {
         Ok(id)
     }
 
+    /// The source file and span a refusal names for `symbol`.
+    fn provenance(
+        &self,
+        symbol: SymbolHandle,
+    ) -> Option<(Option<&std::path::PathBuf>, source_text::SourceSpan)> {
+        let span = self.typed.symbols.symbol_provenance_source_span(symbol)?;
+        Some((
+            self.typed.symbols.source_file(span).map(|file| &file.path),
+            span,
+        ))
+    }
+
     fn local_binding(
         &mut self,
         output: &mut SelectionQuestions,
@@ -1819,16 +1840,7 @@ impl<'source> Declarations<'source> {
         self.valid(lexical_owner, "local binding lexical owner")?;
         self.valid(declared_owner, "local binding declaration owner")
             .map_err(|error| {
-                let provenance = self
-                    .typed
-                    .symbols
-                    .symbol_provenance_source_span(symbol)
-                    .map(|span| {
-                        (
-                            self.typed.symbols.source_file(span).map(|file| &file.path),
-                            span,
-                        )
-                    });
+                let provenance = self.provenance(symbol);
                 selection_context(
                     error,
                     format_args!(
@@ -1924,21 +1936,11 @@ impl<'source> Declarations<'source> {
                 && sees_binding(true)?);
         if !visible {
             let description = |symbol: SymbolHandle| {
-                let provenance = self
-                    .typed
-                    .symbols
-                    .symbol_provenance_source_span(symbol)
-                    .map(|span| {
-                        (
-                            self.typed.symbols.source_file(span).map(|file| &file.path),
-                            span,
-                        )
-                    });
                 (
                     self.typed.symbols.display_path(symbol, "::"),
                     symbol,
                     self.typed.symbols.get(symbol).kind,
-                    provenance,
+                    self.provenance(symbol),
                 )
             };
             return Err(selection_context(
@@ -2044,17 +2046,7 @@ mod symbol_rows_tests {
             symbols: builder.finish(),
             ..Default::default()
         };
-        let count = typed.symbols.symbols().nodes().len();
-        let mut declarations = Declarations {
-            callable_declarations: HashMap::new(),
-            typed: &typed,
-            build_entry_source: None,
-            ids: SymbolRows::new(count),
-            identities: SymbolRows::new(count),
-            contracts: SymbolRows::new(count),
-            sources: Vec::new(),
-            core_operators: BTreeMap::new(),
-        };
+        let mut declarations = Declarations::detached(&typed);
         let mut output = SelectionQuestions::default();
         let mut identities = std::collections::BTreeSet::new();
         for declaration in FixedCoreDeclaration::ALL {
@@ -2138,6 +2130,95 @@ mod invocation_tests {
     use super::*;
     use std::sync::Arc;
 
+    /// Prepare the source's selection packet and require that it validates.
+    fn validated(source: &AcceptedTerminalSource) -> PreparedSelections {
+        let prepared = prepare(source, source.module(), None).unwrap();
+        psi_authorization::selection_questions::validate_selection_questions(
+            source.module(),
+            &prepared.questions,
+        )
+        .unwrap();
+        prepared
+    }
+
+    /// A declared call through a public requirement header: caller, operation,
+    /// header and selected callee.
+    type RequirementCall = (
+        MachineId,
+        semantic_vocabulary::OperationId,
+        ContractId,
+        TargetMachineCallable,
+    );
+
+    fn requirement_calls(module: &TerminalModule) -> Vec<RequirementCall> {
+        module
+            .machines
+            .iter()
+            .flat_map(|machine| {
+                machine.operations().filter_map(move |operation| {
+                    let call = operation.declared_invocation()?;
+                    Some((
+                        machine.id,
+                        operation.id,
+                        call.required_contract?,
+                        call.callee,
+                    ))
+                })
+            })
+            .collect()
+    }
+
+    /// The call's typed origin and the selection the checker retained for it.
+    fn retained_requirement(
+        source: &AcceptedTerminalSource,
+        (caller, operation, header, target): RequirementCall,
+    ) -> (
+        crate::source_state::SourceCallCorrespondence,
+        &terminal_check_tables::program::Selected,
+    ) {
+        let TargetMachineCallable::Machine(body) = target else {
+            panic!("the requirement call has a checked machine body");
+        };
+        let origin = Questions::new(source, source.module())
+            .unwrap()
+            .typed_origin(caller, InvocationSite::Operation(operation))
+            .unwrap();
+        let retained = source
+            .closure()
+            .elaboration()
+            .selections
+            .iter()
+            .find(|selection| {
+                (
+                    selection.caller,
+                    selection.required_contract,
+                    selection.implementation,
+                ) == (origin.source_member, Some(header), body)
+            })
+            .unwrap();
+        (origin, retained)
+    }
+
+    /// Retain the call against `changed` in place of its checked selection.
+    fn refuse_changed_requirement(
+        source: &AcceptedTerminalSource,
+        (caller, operation, header, target): RequirementCall,
+        changed: &terminal_check_tables::program::Selected,
+    ) -> Diagnostic {
+        let mut questions = Questions::new(source, source.module()).unwrap();
+        questions
+            .requirements
+            .insert((changed.caller, header, changed.implementation), changed);
+        questions
+            .retain_invocation(
+                caller,
+                InvocationSite::Operation(operation),
+                semantic_vocabulary::source_selections::SelectionCallTarget::Declared(target),
+                Some(header),
+            )
+            .unwrap_err()
+    }
+
     fn named_calls() -> AcceptedTerminalSource {
         const TEXT: &str = r#"
 trait FirstRequirement {
@@ -2192,57 +2273,49 @@ machine entry() -> u64 crashes none {
         core: &[(&str, &str, &[u8])],
         publication: terminal_codec::TerminalPublication,
     ) -> AcceptedTerminalSource {
-        let mut sources = crate::source_inputs::SourceMap::default();
-        let id = sources
-            .add_checked_instance(
-                "selection/main.omg".into(),
-                text,
-                "selection".into(),
-                Some(semantic_vocabulary::PackageKeyIdentity::from_digest([0xc3; 32]).unwrap()),
-                source_admission::SourceOrigin::User,
-                source_admission::SourceResolutionStratum::Base,
-                source_provenance::DependencyScope::Product,
-            )
-            .source_id;
-        let tokens = crate::frontend_fixture::Lexer::new(text)
-            .tokenize()
-            .unwrap();
-        let mut syntax = crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../../../../../source/library/core");
-        let mut bindings = Vec::new();
-        for &(file, declaration, bytes) in core {
-            let text = std::str::from_utf8(bytes).unwrap();
-            let source = sources
-                .add_with_metadata(
-                    root.join(file),
-                    text.to_owned(),
-                    root.clone(),
-                    None,
-                    source_admission::SourceOrigin::Toolchain,
-                )
-                .source_id;
-            let tokens = crate::frontend_fixture::Lexer::new(text)
-                .tokenize()
-                .unwrap();
-            crate::frontend_fixture::parse(&mut syntax, source, &tokens).unwrap();
-            bindings.push(
-                crate::source_symbols::SourceScopedTopLevelBinding::logical_module_import(
-                    id,
-                    source,
-                    &format!("omega::language::core::{declaration}"),
-                    3,
-                ),
-            );
-        }
-        let resolved = crate::resolution::resolve(crate::resolution::ResolutionRequest {
-            syntax,
-            sources: Some(Arc::new(sources)),
-            top_level_bindings: bindings,
-            retained_base: None,
+        let paths = core
+            .iter()
+            .map(|(file, _, _)| root.join(file).to_str().unwrap().to_owned())
+            .collect::<Vec<_>>();
+        let root = root.to_str().unwrap();
+        let files = std::iter::once(crate::FixtureFile {
+            path: "selection/main.omg",
+            text,
+            root: "selection",
+            package: Some(
+                semantic_vocabulary::PackageKeyIdentity::from_digest([0xc3; 32]).unwrap(),
+            ),
+            origin: source_admission::SourceOrigin::User,
+            scope: source_provenance::DependencyScope::Product,
         })
-        .unwrap();
-        let typed = crate::typing::lower_symbol_resolved_trees(&resolved).unwrap();
+        .chain(
+            core.iter()
+                .zip(&paths)
+                .map(|(&(_, _, bytes), path)| crate::FixtureFile {
+                    path,
+                    text: std::str::from_utf8(bytes).unwrap(),
+                    root,
+                    package: None,
+                    origin: source_admission::SourceOrigin::Toolchain,
+                    scope: source_provenance::DependencyScope::Product,
+                }),
+        )
+        .collect::<Vec<_>>();
+        let (typed, _) = crate::fixture_trees(&files, |ids| {
+            core.iter()
+                .zip(&ids[1..])
+                .map(|(&(_, declaration, _), &source)| {
+                    crate::source_symbols::SourceScopedTopLevelBinding::logical_module_import(
+                        ids[0],
+                        source,
+                        &format!("omega::language::core::{declaration}"),
+                        3,
+                    )
+                })
+                .collect()
+        });
         let entry = typed
             .machines()
             .iter()
@@ -2316,10 +2389,7 @@ machine entry() -> u32 crashes none {{
             if calls_build { "build();" } else { "" }
         );
         let package = semantic_vocabulary::PackageKeyIdentity::from_digest([0xc4; 32]).unwrap();
-        let mut sources = crate::source_inputs::SourceMap::default();
-        let mut syntax = None;
-        let mut build_source = None;
-        for (path, text, scope) in [
+        let files = [
             (
                 "scope/build.omg",
                 BUILD,
@@ -2330,39 +2400,17 @@ machine entry() -> u32 crashes none {{
                 product.as_str(),
                 source_provenance::DependencyScope::Product,
             ),
-        ] {
-            let id = sources
-                .add_checked_instance(
-                    path.into(),
-                    text,
-                    "scope".into(),
-                    Some(package),
-                    source_admission::SourceOrigin::User,
-                    source_admission::SourceResolutionStratum::Base,
-                    scope,
-                )
-                .source_id;
-            if scope == source_provenance::DependencyScope::Build {
-                build_source = Some(id);
-            }
-            let tokens = crate::frontend_fixture::Lexer::new(text)
-                .tokenize()
-                .unwrap();
-            match &mut syntax {
-                None => {
-                    syntax = Some(
-                        crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap(),
-                    )
-                }
-                Some(syntax) => {
-                    crate::frontend_fixture::parse(syntax, id, &tokens).unwrap();
-                }
-            }
-        }
-        let mut request = crate::resolution::ResolutionRequest::new(syntax.unwrap());
-        request.sources = Some(Arc::new(sources));
-        let resolved = crate::resolution::resolve(request).unwrap();
-        let mut program = crate::typing::lower_symbol_resolved_trees(&resolved).unwrap();
+        ]
+        .map(|(path, text, scope)| crate::FixtureFile {
+            path,
+            text,
+            root: "scope",
+            package: Some(package),
+            origin: source_admission::SourceOrigin::User,
+            scope,
+        });
+        let (mut program, ids) = crate::fixture_trees(&files, |_| Vec::new());
+        let build_source = Some(ids[0]);
         let author = program.realized_machine_named("build").unwrap().symbol;
         let (literal, span) = program
             .expression_table
@@ -2429,24 +2477,12 @@ machine entry() -> u32 crashes none {{
             .realized_machine_named("entry")
             .unwrap()
             .symbol;
-        let package = program
-            .trees()
-            .symbols
-            .symbol_package_identity(entry)
-            .unwrap();
-        crate::judge_fixture(
+        let package = program.trees().symbols.symbol_package_identity(entry);
+        crate::judge_entry(
             program,
-            crate::lowering::Compilation {
-                declaration_metadata: &[],
-                entries: &[entry],
-                subjects: &[Some(package)],
-                purpose: source_provenance::DependencyScope::Product,
-                selected: &[],
-                bindings: &[],
-                calling: None,
-                providers: None,
-                supplies: &[],
-            },
+            "entry",
+            &[package],
+            source_provenance::DependencyScope::Product,
             terminal_codec::TerminalPublication::Invocation,
         )
     }
@@ -2604,12 +2640,7 @@ machine entry() {
             &[],
         );
         let module = source.module();
-        let prepared = prepare(&source, module, None).expect("cleanup choices must publish");
-        psi_authorization::selection_questions::validate_selection_questions(
-            module,
-            &prepared.questions,
-        )
-        .expect("each generated call must retain its carrier author's exact selection");
+        let prepared = validated(&source);
         let calls = prepared
             .questions
             .joins
@@ -2813,13 +2844,7 @@ machine entry() -> u64 crashes none { choose::<prepare>(read, 47u64) }
 "#,
             &[],
         );
-        let module = source.module();
-        let prepared = prepare(&source, module, None).unwrap();
-        psi_authorization::selection_questions::validate_selection_questions(
-            module,
-            &prepared.questions,
-        )
-        .unwrap();
+        let prepared = validated(&source);
 
         let typed = source.source();
         let mut reapplied = 0;
@@ -2882,86 +2907,54 @@ machine entry() -> u64 reaches none crashes none {
     apply(selected, 7)
 }
 "#;
-        let source = accepted_source(TEXT, &[]);
-        let typed = source.source();
-        let occurrences = typed
-            .runtime_callable_contracts
-            .iter()
-            .filter_map(|(handle, contract)| {
-                let symbol = contract.signature.symbol;
-                if typed.symbols.get(symbol).kind != SymbolKind::CallableContract
-                    || typed.symbols.get(contract.lexical_owner).kind == SymbolKind::TypeAlias
-                {
-                    return None;
-                }
-                let parameters = typed.state_signature_parameters(&contract.signature);
-                let [formal] = parameters.as_array()?;
-                matches!(formal.name.as_str(), "value" | "amount").then_some((
-                    symbol,
-                    (handle, formal.symbol, formal.name.as_str().to_owned()),
-                ))
-            })
-            .collect::<HashMap<_, _>>();
-        assert_eq!(occurrences.len(), 2);
-        let mut occurrences = occurrences.into_iter();
-        let (first, (first_contract, first_formal, first_name)) = occurrences.next().unwrap();
-        let (second, (second_contract, second_formal, second_name)) = occurrences.next().unwrap();
-        assert_ne!(first, second);
-        assert_ne!(first_formal, second_formal);
-        assert_ne!(first_name, second_name);
-        assert_ne!(
-            typed.symbols.symbol_provenance_source_span(first).unwrap(),
-            typed.symbols.symbol_provenance_source_span(second).unwrap()
-        );
-        let identities = [first, second]
-            .map(|symbol| typed.normalized_hermetic_symbol_identity(symbol).unwrap());
-        assert_ne!(identities[0], identities[1]);
-        let meanings = [first_contract, second_contract].map(|contract| {
+        // Each anonymous signature with one `value` or `amount` formal, by name.
+        let occurrences = |source: &AcceptedTerminalSource| {
+            let typed = source.source();
             typed
-                .runtime_callable_contract_identity(contract, &[])
-                .unwrap()
-        });
-        assert_eq!(meanings[0], meanings[1]);
+                .runtime_callable_contracts
+                .iter()
+                .filter_map(|(handle, contract)| {
+                    let symbol = contract.signature.symbol;
+                    if typed.symbols.get(symbol).kind != SymbolKind::CallableContract
+                        || typed.symbols.get(contract.lexical_owner).kind == SymbolKind::TypeAlias
+                    {
+                        return None;
+                    }
+                    let parameters = typed.state_signature_parameters(&contract.signature);
+                    let [formal] = parameters.as_array()?;
+                    matches!(formal.name.as_str(), "value" | "amount").then(|| {
+                        let identity = typed.normalized_hermetic_symbol_identity(symbol).unwrap();
+                        let meaning = typed
+                            .runtime_callable_contract_identity(handle, &[])
+                            .unwrap();
+                        let span = typed.symbols.symbol_provenance_source_span(symbol).unwrap();
+                        let name = formal.name.as_str().to_owned();
+                        (name, (symbol, formal.symbol, span, identity, meaning))
+                    })
+                })
+                .collect::<std::collections::BTreeMap<_, _>>()
+        };
+        let source = accepted_source(TEXT, &[]);
+        let original = occurrences(&source);
+        let [first, second] = [&original["amount"], &original["value"]];
+        assert_eq!(original.len(), 2);
+        assert_ne!(first.0, second.0);
+        assert_ne!(first.1, second.1);
+        assert_ne!(first.2, second.2);
+        assert_ne!(first.3, second.3);
+        assert_eq!(first.4, second.4);
+        let identities = [first.3.clone(), second.3.clone()];
+        let meanings = [first.4.clone(), second.4.clone()];
 
         // Adding a comment after the types must leave their identities unchanged.
-        let revised_text = format!("{TEXT}\n// An unrelated trailing source comment.\n");
-        let revised = accepted_source(&revised_text, &[]);
-        let revised_typed = revised.source();
-        let revised_occurrences = revised_typed
-            .runtime_callable_contracts
-            .iter()
-            .filter_map(|(handle, contract)| {
-                let symbol = contract.signature.symbol;
-                if revised_typed.symbols.get(symbol).kind != SymbolKind::CallableContract
-                    || revised_typed.symbols.get(contract.lexical_owner).kind
-                        == SymbolKind::TypeAlias
-                {
-                    return None;
-                }
-                let parameters = revised_typed.state_signature_parameters(&contract.signature);
-                let [formal] = parameters.as_array()?;
-                if !matches!(formal.name.as_str(), "value" | "amount") {
-                    return None;
-                }
-                Some((
-                    formal.name.as_str().to_owned(),
-                    (
-                        revised_typed
-                            .normalized_hermetic_symbol_identity(symbol)
-                            .unwrap(),
-                        revised_typed
-                            .runtime_callable_contract_identity(handle, &[])
-                            .unwrap(),
-                    ),
-                ))
-            })
-            .collect::<HashMap<_, _>>();
-        assert_eq!(revised_occurrences.len(), 2);
-        for (name, identity, meaning) in [
-            (&first_name, &identities[0], &meanings[0]),
-            (&second_name, &identities[1], &meanings[1]),
-        ] {
-            let (revised_identity, revised_meaning) = revised_occurrences.get(name).unwrap();
+        let revised = accepted_source(
+            &format!("{TEXT}\n// An unrelated trailing source comment.\n"),
+            &[],
+        );
+        let revised = occurrences(&revised);
+        assert_eq!(revised.len(), 2);
+        for (name, (_, _, _, identity, meaning)) in &original {
+            let (_, _, _, revised_identity, revised_meaning) = &revised[name];
             assert_eq!(identity, revised_identity);
             assert_eq!(meaning, revised_meaning);
         }
@@ -2976,12 +2969,7 @@ machine entry() -> u64 reaches none crashes none {
                 .any(|operation| operation.kind.callable_invocation().is_some()),
             "the source must retain a runtime call through its callable parameter"
         );
-        let prepared = prepare(&source, module, None).unwrap();
-        psi_authorization::selection_questions::validate_selection_questions(
-            module,
-            &prepared.questions,
-        )
-        .unwrap();
+        let prepared = validated(&source);
         let rows = [0, 1].map(|index| {
             let identity = callable_declaration_path(&identities[index], &meanings[index]);
             let rows = prepared
@@ -3083,12 +3071,7 @@ machine entry() {
                 "structural domain identity"
             ))
         ));
-        let prepared = prepare(&source, module, None).unwrap();
-        psi_authorization::selection_questions::validate_selection_questions(
-            module,
-            &prepared.questions,
-        )
-        .unwrap();
+        let prepared = validated(&source);
         let rows = prepared
             .questions
             .declarations
@@ -3128,12 +3111,7 @@ machine entry() reaches Input {}
             &["Input"],
         );
         let module = source.module();
-        let prepared = prepare(&source, module, None).unwrap();
-        psi_authorization::selection_questions::validate_selection_questions(
-            module,
-            &prepared.questions,
-        )
-        .unwrap();
+        let prepared = validated(&source);
         let typed = source.source();
         let owner = typed
             .traits()
@@ -3260,12 +3238,7 @@ machine entry() reaches Input {}
              }",
             &[],
         );
-        let prepared = prepare(&source, source.module(), None).unwrap();
-        psi_authorization::selection_questions::validate_selection_questions(
-            source.module(),
-            &prepared.questions,
-        )
-        .unwrap();
+        let prepared = validated(&source);
         let meanings = prepared
             .questions
             .declarations
@@ -3461,67 +3434,21 @@ machine entry() reaches Input {}
                 .contains("differs from its exact source selection")
         );
 
-        let prepared = prepare(&source, module, None).unwrap();
-        psi_authorization::selection_questions::validate_selection_questions(
-            module,
-            &prepared.questions,
-        )
-        .unwrap();
+        validated(&source);
     }
 
     #[test]
     fn copied_record_calls_keep_the_exact_operand_supplier_and_schema() {
-        use semantic_vocabulary::source_selections::SelectionCallTarget;
-
         let text = include_str!(
             "../../../../../../../../tests/fixtures/calls/run/record_callback_loop/main.omg"
         )
         .replace("machine main()", "machine entry()");
         let source = accepted_source(&text, &[]);
-        let module = source.module();
-        let prepared = prepare(&source, module, None)
-            .expect("copied calls retain the enclosing record argument supplier");
-        psi_authorization::selection_questions::validate_selection_questions(
-            module,
-            &prepared.questions,
-        )
-        .unwrap();
-        let (caller, operation, header, target) = module
-            .machines
-            .iter()
-            .find_map(|machine| {
-                machine.operations().find_map(|operation| {
-                    let call = operation.declared_invocation()?;
-                    Some((
-                        machine.id,
-                        operation.id,
-                        call.required_contract?,
-                        call.callee,
-                    ))
-                })
-            })
+        validated(&source);
+        let call = *requirement_calls(source.module())
+            .first()
             .expect("the loop calls the selected operation through its public header");
-        let TargetMachineCallable::Machine(body) = target else {
-            panic!("the selected record operation has a checked machine body");
-        };
-        let origin = Questions::new(&source, module)
-            .unwrap()
-            .typed_origin(caller, InvocationSite::Operation(operation))
-            .unwrap();
-        let key = (origin.source_member, header, body);
-        let retained = source
-            .closure()
-            .elaboration()
-            .selections
-            .iter()
-            .find(|selection| {
-                (
-                    selection.caller,
-                    selection.required_contract,
-                    selection.implementation,
-                ) == (key.0, Some(key.1), key.2)
-            })
-            .unwrap();
+        let (origin, retained) = retained_requirement(&source, call);
         assert!(
             retained
                 .source_operand
@@ -3545,16 +3472,7 @@ machine entry() reaches Input {}
                     .push_str("changed schema"),
                 _ => unreachable!(),
             }
-            let mut questions = Questions::new(&source, module).unwrap();
-            questions.requirements.insert(key, &changed);
-            let error = questions
-                .retain_invocation(
-                    caller,
-                    InvocationSite::Operation(operation),
-                    SelectionCallTarget::Declared(target),
-                    Some(header),
-                )
-                .unwrap_err();
+            let error = refuse_changed_requirement(&source, call, &changed);
             let expected = if changed_field < 2 {
                 "changes its retained implementation operand or supplier"
             } else {
@@ -3573,27 +3491,8 @@ machine entry() reaches Input {}
 
         let source = named_calls();
         let module = source.module();
-        let prepared = prepare(&source, module, None).unwrap();
-        psi_authorization::selection_questions::validate_selection_questions(
-            module,
-            &prepared.questions,
-        )
-        .unwrap();
-        let calls = module
-            .machines
-            .iter()
-            .flat_map(|machine| {
-                machine.operations().filter_map(move |operation| {
-                    let call = operation.declared_invocation()?;
-                    Some((
-                        machine.id,
-                        operation.id,
-                        call.required_contract?,
-                        call.callee,
-                    ))
-                })
-            })
-            .collect::<Vec<_>>();
+        let prepared = validated(&source);
+        let calls = requirement_calls(module);
         assert_eq!(calls.len(), 3);
         let mut bodies = Vec::new();
         for &(machine, operation, _, target) in &calls {
@@ -3632,28 +3531,11 @@ machine entry() reaches Input {}
         bodies.sort_unstable();
         assert_eq!(bodies, ["First::pick", "First::pick", "Second::pick"]);
 
-        let (caller, operation, header, target) = calls[0];
+        let (caller, operation, _, target) = calls[0];
         let TargetMachineCallable::Machine(body) = target else {
             panic!("the named call must have a machine body");
         };
-        let origin = Questions::new(&source, module)
-            .unwrap()
-            .typed_origin(caller, InvocationSite::Operation(operation))
-            .unwrap();
-        let key = (origin.source_member, header, body);
-        let retained = source
-            .closure()
-            .elaboration()
-            .selections
-            .iter()
-            .find(|selection| {
-                (
-                    selection.caller,
-                    selection.required_contract,
-                    selection.implementation,
-                ) == (key.0, Some(key.1), key.2)
-            })
-            .unwrap();
+        let (_, retained) = retained_requirement(&source, calls[0]);
         for change_supplier in [false, true] {
             let mut changed = retained.clone();
             let operand = changed.source_operand.as_mut().unwrap();
@@ -3662,16 +3544,7 @@ machine entry() reaches Input {}
             } else {
                 operand.identity.push_str("different operand");
             }
-            let mut questions = Questions::new(&source, module).unwrap();
-            questions.requirements.insert(key, &changed);
-            let error = questions
-                .retain_invocation(
-                    caller,
-                    InvocationSite::Operation(operation),
-                    SelectionCallTarget::Declared(target),
-                    Some(header),
-                )
-                .unwrap_err();
+            let error = refuse_changed_requirement(&source, calls[0], &changed);
             assert!(
                 error
                     .message
@@ -3727,16 +3600,7 @@ mod core_catalog_tests {
     #[test]
     fn core_operator_declarations_keep_their_actual_applied_signatures() {
         let typed = TypedTrees::default();
-        let mut declarations = Declarations {
-            callable_declarations: HashMap::new(),
-            typed: &typed,
-            build_entry_source: None,
-            ids: SymbolRows::new(0),
-            identities: SymbolRows::new(0),
-            contracts: SymbolRows::new(0),
-            sources: Vec::new(),
-            core_operators: BTreeMap::new(),
-        };
+        let mut declarations = Declarations::detached(&typed);
         let mut output = SelectionQuestions::default();
         let carrier = numerics::integer_carrier::FixedInteger::signed(64);
         let plain = CoreIntegerOperand {

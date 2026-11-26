@@ -1,6 +1,7 @@
-use game\Game;
-use game\game_initialize;
-use game\run_game_loop;
+use game/game.omg;
+use {omega}/language/core/process_authority.omg as streams;
+use {omega}/language/core/process_exit.omg as process;
+
 // Interactive dungeon crawler. With closed stdin (the runtime harness, EOF on the
 // first prompt) the game loop reads an empty command and exits cleanly via
 // `finished()`. Native lookup must preserve the generated room description.
@@ -8,11 +9,11 @@ use game\run_game_loop;
 // Expected output contains: A bottomless dark room near the dungeon heart.
 
 data Main {
-    game: Game;
+    game: |game|::Game;
 }
 
 machine main(main: @mutable Main) {
-    game_initialize(@mutable main.game, 7u64 as +Wrapping);
+    |game|::game_initialize(@mutable main.game, 7u64 as +Wrapping);
 
     transition {
         _ -> block running(main)
@@ -20,7 +21,7 @@ machine main(main: @mutable Main) {
 
 
     machine running(main: @mutable Main) {
-        block run_game_loop(@mutable main.game);
+        block |game|::run_game_loop(@mutable main.game);
 
         transition {
             _ -> shutdown(main)

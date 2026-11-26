@@ -1,33 +1,25 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use domain/distribution/distribution.omg;
+use domain/model/model.omg;
+use io/input/input.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Expected exit: 0.
 // Expected output contains: molecular_pair_distribution
-use system\Console;
-use io\input;
-use io\input\InputReader;
-use io\input\Token;
-use io\input\token;
-use io\output;
-use domain\model;
-use domain\model\Distribution;
-use domain\distribution;
-use domain\distribution\histogram;
-use domain\distribution\report;
 
-machine main() reaches ProcessExit + StandardInput + StandardOutput invokes Console blocks crashes Trap {
-    let mutable reader: InputReader;
+machine main() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput invokes |console|::Console blocks crashes Trap {
+    let mutable reader: |input|::InputReader;
     reader.remaining = 32768; reader.exhausted = false;
-    let mutable distribution: Distribution;
+    let mutable distribution: |model|::Distribution;
     transition { _ -> block read(@mutable reader, @mutable distribution, 0) }
-    machine read(reader: @mutable InputReader, distribution: @mutable Distribution, position: i32 in Wrapping) {
-        let observed: Token = block token(reader);
+    machine read(reader: @mutable |input|::InputReader, distribution: @mutable |model|::Distribution, position: i32 in Wrapping) {
+        let observed: |input|::Token = block |input|::token(reader);
         transition observed {
-            Token::Number { value } -> block header(reader, distribution, position, value),
+            |input|::Token::Number { value } -> block header(reader, distribution, position, value),
             _ -> invalid()
         }
     }
-    machine header(reader: @mutable InputReader, distribution: @mutable Distribution, position: i32 in Wrapping, value: i32) {
+    machine header(reader: @mutable |input|::InputReader, distribution: @mutable |model|::Distribution, position: i32 in Wrapping, value: i32) {
         transition position {
             0 -> block box(reader, distribution, value),
             1 -> block particles(reader, distribution, value),
@@ -36,81 +28,81 @@ machine main() reaches ProcessExit + StandardInput + StandardOutput invokes Cons
             _ -> block body(reader, distribution, position, value)
         }
     }
-    machine box(reader: @mutable InputReader, distribution: @mutable Distribution, value: i32) {
+    machine box(reader: @mutable |input|::InputReader, distribution: @mutable |model|::Distribution, value: i32) {
         transition value >= 2 && value <= 1000 { true -> block set_box(reader, distribution, value), _ -> invalid() }
     }
-    machine set_box(reader: @mutable InputReader, distribution: @mutable Distribution, value: i32) {
+    machine set_box(reader: @mutable |input|::InputReader, distribution: @mutable |model|::Distribution, value: i32) {
         distribution.box = value; transition { _ -> block read(reader, distribution, 1) }
     }
-    machine particles(reader: @mutable InputReader, distribution: @mutable Distribution, value: i32) {
+    machine particles(reader: @mutable |input|::InputReader, distribution: @mutable |model|::Distribution, value: i32) {
         transition value >= 2 && value <= 32 { true -> block set_particles(reader, distribution, value), _ -> invalid() }
     }
-    machine set_particles(reader: @mutable InputReader, distribution: @mutable Distribution, value: i32) {
+    machine set_particles(reader: @mutable |input|::InputReader, distribution: @mutable |model|::Distribution, value: i32) {
         distribution.particles = value as +Wrapping; transition { _ -> block read(reader, distribution, 2) }
     }
-    machine snapshots(reader: @mutable InputReader, distribution: @mutable Distribution, value: i32) {
+    machine snapshots(reader: @mutable |input|::InputReader, distribution: @mutable |model|::Distribution, value: i32) {
         transition value >= 1 && value <= 8 { true -> block set_snapshots(reader, distribution, value), _ -> invalid() }
     }
-    machine set_snapshots(reader: @mutable InputReader, distribution: @mutable Distribution, value: i32) {
+    machine set_snapshots(reader: @mutable |input|::InputReader, distribution: @mutable |model|::Distribution, value: i32) {
         distribution.snapshots = value as +Wrapping; transition { _ -> block read(reader, distribution, 3) }
     }
-    machine bins(reader: @mutable InputReader, distribution: @mutable Distribution, value: i32) {
+    machine bins(reader: @mutable |input|::InputReader, distribution: @mutable |model|::Distribution, value: i32) {
         transition value >= 1 && value <= 16 { true -> block set_bins(reader, distribution, value), _ -> invalid() }
     }
-    machine set_bins(reader: @mutable InputReader, distribution: @mutable Distribution, value: i32) {
+    machine set_bins(reader: @mutable |input|::InputReader, distribution: @mutable |model|::Distribution, value: i32) {
         distribution.bins = value as +Wrapping; transition { _ -> block read(reader, distribution, 4) }
     }
-    machine body(reader: @mutable InputReader, distribution: @mutable Distribution, position: i32 in Wrapping, value: i32) {
+    machine body(reader: @mutable |input|::InputReader, distribution: @mutable |model|::Distribution, position: i32 in Wrapping, value: i32) {
         transition position < 4 + distribution.bins {
             true -> block edge_guard(reader, distribution, position - 4, value),
             _ -> block coordinate_guard(reader, distribution, position, value)
         }
     }
-    machine edge_guard(reader: @mutable InputReader, distribution: @mutable Distribution, index: i32 in Wrapping, value: i32) {
+    machine edge_guard(reader: @mutable |input|::InputReader, distribution: @mutable |model|::Distribution, index: i32 in Wrapping, value: i32) {
         transition index >= 0 && index < 16 && value > 0 && value <= distribution.box / 2 {
             true -> block prior(reader, distribution, index, value), _ -> invalid()
         }
     }
-    machine prior(reader: @mutable InputReader, distribution: @mutable Distribution, index: i32 in Wrapping, value: i32) {
+    machine prior(reader: @mutable |input|::InputReader, distribution: @mutable |model|::Distribution, index: i32 in Wrapping, value: i32) {
         transition index == 0 { true -> block edge(reader, distribution, index, value), _ -> block increasing(reader, distribution, index, value) }
     }
-    machine increasing(reader: @mutable InputReader, distribution: @mutable Distribution, index: i32 in Wrapping, value: i32) {
+    machine increasing(reader: @mutable |input|::InputReader, distribution: @mutable |model|::Distribution, index: i32 in Wrapping, value: i32) {
         transition index > 0 && index < 16 {
             true -> block compare(reader, distribution, index, value), _ -> invalid()
         }
     }
-    machine compare(reader: @mutable InputReader, distribution: @mutable Distribution, index: i32 in Wrapping, value: i32) {
+    machine compare(reader: @mutable |input|::InputReader, distribution: @mutable |model|::Distribution, index: i32 in Wrapping, value: i32) {
         transition value > distribution.edges[index - 1] { true -> block edge(reader, distribution, index, value), _ -> invalid() }
     }
-    machine edge(reader: @mutable InputReader, distribution: @mutable Distribution, index: i32 in Wrapping, value: i32) {
+    machine edge(reader: @mutable |input|::InputReader, distribution: @mutable |model|::Distribution, index: i32 in Wrapping, value: i32) {
         distribution.edges[index] = value;
         distribution.counts[index] = 0;
         transition { _ -> block read(reader, distribution, 5 + index) }
     }
-    machine coordinate_guard(reader: @mutable InputReader, distribution: @mutable Distribution, position: i32 in Wrapping, value: i32) {
+    machine coordinate_guard(reader: @mutable |input|::InputReader, distribution: @mutable |model|::Distribution, position: i32 in Wrapping, value: i32) {
         let index: i32 in Wrapping = position - 4 - distribution.bins;
         transition index >= 0 && index < 768 && value >= -1000000 && value <= 1000000 {
             true -> block coordinate(reader, distribution, index, value), _ -> invalid()
         }
     }
-    machine coordinate(reader: @mutable InputReader, distribution: @mutable Distribution, index: i32 in Wrapping, value: i32) {
+    machine coordinate(reader: @mutable |input|::InputReader, distribution: @mutable |model|::Distribution, index: i32 in Wrapping, value: i32) {
         distribution.coordinates[index] = value;
         let next: i32 in Wrapping = 5 + distribution.bins + index;
         transition index + 1 == 3 * distribution.particles * distribution.snapshots {
             true -> block tail(reader, distribution), _ -> block read(reader, distribution, next)
         }
     }
-    machine tail(reader: @mutable InputReader, distribution: @mutable Distribution) {
-        let observed: Token = block token(reader);
-        transition observed { Token::End -> budget(reader, distribution), _ -> invalid() }
+    machine tail(reader: @mutable |input|::InputReader, distribution: @mutable |model|::Distribution) {
+        let observed: |input|::Token = block |input|::token(reader);
+        transition observed { |input|::Token::End -> budget(reader, distribution), _ -> invalid() }
     }
-    machine budget(reader: @InputReader, distribution: @mutable Distribution) {
+    machine budget(reader: @|input|::InputReader, distribution: @mutable |model|::Distribution) {
         transition !reader.exhausted { true -> calculate(distribution), _ -> invalid() }
     }
-    machine calculate(distribution: @mutable Distribution) {
-        histogram(distribution);
-        report(distribution);
-        ProcessExit::exit_process(0);
+    machine calculate(distribution: @mutable |model|::Distribution) {
+        |distribution|::histogram(distribution);
+        |distribution|::report(distribution);
+        |process_exit|::ProcessExit::exit_process(0);
     }
-    machine invalid() { Console::write_line("INVALID molecular input"); ProcessExit::exit_process(2); }
+    machine invalid() { |console|::Console::write_line("INVALID molecular input"); |process_exit|::ProcessExit::exit_process(2); }
 }

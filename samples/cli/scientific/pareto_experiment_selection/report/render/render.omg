@@ -1,46 +1,42 @@
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use domain/model/model.omg;
+use domain/selection/selection.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Numeric output is computed at runtime through the settled byte console provider.
 // Fixed three-digit fields make reports exact byte oracles without floating tolerance.
-use domain\model;
-use domain\model\Experiment;
-use domain\model\Application;
-use domain\selection;
-use domain\selection\violations;
-use domain\selection\witness;
-use system\Console;
-public machine number(application: @mutable Application, value: u64) reaches StandardOutput
-invokes Console
+public machine number(application: @mutable |model|::Application, value: u64) reaches |process_authority|::StandardOutput
+invokes |console|::Console
 requires value <= 999 {
-    Console::write_byte(((value / 100) + 48) as i32);
-    Console::write_byte((((value / 10) % 10) + 48) as i32);
-    Console::write_byte(((value % 10) + 48) as i32);
+    |console|::Console::write_byte(((value / 100) + 48) as i32);
+    |console|::Console::write_byte((((value / 10) % 10) + 48) as i32);
+    |console|::Console::write_byte(((value % 10) + 48) as i32);
 }
-public machine field(application: @mutable Application, value: u64) reaches StandardOutput
-invokes Console
+public machine field(application: @mutable |model|::Application, value: u64) reaches |process_authority|::StandardOutput
+invokes |console|::Console
 requires value <= 999 {
-    Console::write("|");
+    |console|::Console::write("|");
     number(application, value);
 }
-public machine report(application: @mutable Application) reaches ProcessExit + StandardOutput
-invokes Console
+public machine report(application: @mutable |model|::Application) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput
+invokes |console|::Console
 {
-    Console::write_line("PARETO|id|source|position|cost|days|gain|risk|status|certificate");
+    |console|::Console::write_line("PARETO|id|source|position|cost|days|gain|risk|status|certificate");
     transition { _ -> next(application, 0, 0) }
-    machine next(application: @mutable Application, previous: u64, emitted: u64) {
+    machine next(application: @mutable |model|::Application, previous: u64, emitted: u64) {
         transition emitted < application.count && emitted < 12 {
             true -> find(application, previous, emitted, 0, 1000, 0),
             false -> done(application)
         }
     }
-    machine find(application: @mutable Application, previous: u64, emitted: u64, index: u64, best: u64, slot: u64)
+    machine find(application: @mutable |model|::Application, previous: u64, emitted: u64, index: u64, best: u64, slot: u64)
     requires emitted < 12 {
         transition index < application.count && index < 12 {
             true -> inspect(application, previous, emitted, index, best, slot),
             false -> row(application, emitted, slot)
         }
     }
-    machine inspect(application: @mutable Application, previous: u64, emitted: u64, index: u64, best: u64, slot: u64)
+    machine inspect(application: @mutable |model|::Application, previous: u64, emitted: u64, index: u64, best: u64, slot: u64)
     requires emitted < 12
     requires index < 12 {
         let identifier: u64 = application.rows[index].identifier;
@@ -49,23 +45,23 @@ invokes Console
             false -> find(application, previous, emitted, index + 1, best, slot)
         }
     }
-    machine row(application: @mutable Application, emitted: u64, slot: u64)
+    machine row(application: @mutable |model|::Application, emitted: u64, slot: u64)
     requires emitted < 12 {
         transition slot < 12 { true -> render(application, emitted, slot), false -> internal_error(application) }
     }
-    machine render(application: @mutable Application, emitted: u64, slot: u64)
+    machine render(application: @mutable |model|::Application, emitted: u64, slot: u64)
     requires emitted < 12
     requires slot < 12 {
-        let experiment: Experiment = application.rows[slot];
-        let mask: u64 = violations(@experiment, application.budget, application.deadline, application.risk_limit);
-        let dominator: u64 = witness(application, @experiment);
+        let experiment: |model|::Experiment = application.rows[slot];
+        let mask: u64 = |selection|::violations(@experiment, application.budget, application.deadline, application.risk_limit);
+        let dominator: u64 = |selection|::witness(application, @experiment);
         transition experiment.identifier <= 999 && experiment.provenance <= 999 && experiment.position <= 999
             && experiment.cost <= 999 && experiment.days <= 999 && experiment.gain <= 999 && experiment.risk <= 999 {
             true -> values(application, experiment, emitted, mask, dominator),
             false -> internal_error(application)
         }
     }
-    machine values(application: @mutable Application, experiment: Experiment, emitted: u64, mask: u64, dominator: u64)
+    machine values(application: @mutable |model|::Application, experiment: |model|::Experiment, emitted: u64, mask: u64, dominator: u64)
     requires emitted < 12
     requires experiment.identifier <= 999 && experiment.provenance <= 999 && experiment.position <= 999
     requires experiment.cost <= 999 && experiment.days <= 999 && experiment.gain <= 999 && experiment.risk <= 999 {
@@ -78,35 +74,35 @@ invokes Console
         field(application, experiment.risk);
         transition mask > 0 { true -> infeasible(application, experiment.identifier, emitted, mask), false -> feasible(application, experiment.identifier, emitted, dominator) }
     }
-    machine infeasible(application: @mutable Application, identifier: u64, emitted: u64, mask: u64)
+    machine infeasible(application: @mutable |model|::Application, identifier: u64, emitted: u64, mask: u64)
     requires emitted < 12 {
-        Console::write("|INFEASIBLE");
+        |console|::Console::write("|INFEASIBLE");
         transition mask <= 7 { true -> finish(application, identifier, emitted, mask), false -> internal_error(application) }
     }
-    machine feasible(application: @mutable Application, identifier: u64, emitted: u64, dominator: u64)
+    machine feasible(application: @mutable |model|::Application, identifier: u64, emitted: u64, dominator: u64)
     requires emitted < 12 {
         transition dominator == 0 { true -> selected(application, identifier, emitted), false -> rejected(application, identifier, emitted, dominator) }
     }
-    machine selected(application: @mutable Application, identifier: u64, emitted: u64)
+    machine selected(application: @mutable |model|::Application, identifier: u64, emitted: u64)
     requires emitted < 12 {
-        Console::write("|SELECTED");
+        |console|::Console::write("|SELECTED");
         transition { _ -> finish(application, identifier, emitted, 0) }
     }
-    machine rejected(application: @mutable Application, identifier: u64, emitted: u64, dominator: u64)
+    machine rejected(application: @mutable |model|::Application, identifier: u64, emitted: u64, dominator: u64)
     requires emitted < 12 {
-        Console::write("|DOMINATED");
+        |console|::Console::write("|DOMINATED");
         transition dominator <= 999 { true -> finish(application, identifier, emitted, dominator), false -> internal_error(application) }
     }
-    machine finish(application: @mutable Application, identifier: u64, emitted: u64, certificate: u64)
+    machine finish(application: @mutable |model|::Application, identifier: u64, emitted: u64, certificate: u64)
     requires emitted < 12
     requires certificate <= 999 {
         field(application, certificate);
-        Console::write_line("");
+        |console|::Console::write_line("");
         transition { _ -> next(application, identifier, emitted + 1) }
     }
-    machine internal_error(application: @mutable Application) {
-        Console::write_line("ERROR|internal-invariant");
-        ProcessExit::exit_process(3);
+    machine internal_error(application: @mutable |model|::Application) {
+        |console|::Console::write_line("ERROR|internal-invariant");
+        |process_exit|::ProcessExit::exit_process(3);
     }
-    machine done(application: @mutable Application) { Console::write_line("END"); }
+    machine done(application: @mutable |model|::Application) { |console|::Console::write_line("END"); }
 }

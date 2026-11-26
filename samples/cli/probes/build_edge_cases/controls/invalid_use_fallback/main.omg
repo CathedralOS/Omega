@@ -1,4 +1,4 @@
-use ghost\main;
+use {ghost}/main.omg as ghost;
 machine entry() -> i32 {
-    0
+    |ghost|::entry()
 }

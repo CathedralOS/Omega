@@ -6,7 +6,8 @@ fn an_entryless_product_does_not_demand_every_library_layout() {
         &[],
         &[],
         &[],
-        &package_compilation::source_imports::source_targets(None).unwrap(),
+        &package_compilation::source_imports::source_targets(None, &target::TargetProfile::ALL)
+            .unwrap(),
     )
     .unwrap();
     assert!(
@@ -28,30 +29,32 @@ fn a_claimed_native_binding_is_a_layout_root_on_its_own_target() {
     let package = semantic_vocabulary::PackageKeyIdentity::from_digest([3; 32]).unwrap();
     let subject = symbols::SymbolHandle::from_parts(1, 0);
     let requirement = symbols::SymbolHandle::from_parts(2, 0);
-    let selection = source_compiler::compile_product::native_binding_declarations::NativeBindingSelection {
-        application: None,
-        subject,
-        requirement,
-        requirement_identity: "DarwinTimespec::read".into(),
-        service_declaration: [1; 32],
-        target: ProductTarget::MacosArm64,
-        locator: semantic_vocabulary::NativeBindingLocator::Syscall { number: 1 },
-        producer: NativeBindingProducer {
-            package,
-            declaration_path: "build".into(),
-            callable_identity: "build::bind_times".into(),
-        },
-        source_occurrence_digest: [5; 32],
-        supplier_package: package,
-        source_span: Default::default(),
-    };
+    let selection =
+        source_compiler::compile_product::native_binding_declarations::NativeBindingSelection {
+            application: None,
+            subject,
+            requirement,
+            requirement_identity: "DarwinTimespec::read".into(),
+            service_declaration: [1; 32],
+            target: ProductTarget::MacosArm64,
+            locator: semantic_vocabulary::NativeBindingLocator::Syscall { number: 1 },
+            producer: NativeBindingProducer {
+                package,
+                declaration_path: "build".into(),
+                callable_identity: "build::bind_times".into(),
+            },
+            source_occurrence_digest: [5; 32],
+            supplier_package: package,
+            source_span: Default::default(),
+        };
     let scopes = source_compiler::test_support::layout_target_scopes(
         &source_compiler::representations::source_state::TypedTrees::default(),
         &[],
         &[],
         &[],
         &[&selection],
-        &package_compilation::source_imports::source_targets(None).unwrap(),
+        &package_compilation::source_imports::source_targets(None, &target::TargetProfile::ALL)
+            .unwrap(),
     )
     .unwrap();
     for scope in &scopes {
@@ -60,4 +63,22 @@ fn a_claimed_native_binding_is_a_layout_root_on_its_own_target() {
         assert_eq!(roots, scope.target == "macos_arm64", "{scopes:?}");
     }
     assert!(scopes.iter().any(|scope| scope.target == "macos_arm64"));
+}
+
+#[test]
+fn source_targets_scopes_to_bound_profiles_and_deduplicates_preserving_order() {
+    let targets = package_compilation::source_imports::source_targets(
+        None,
+        &[
+            target::TargetProfile::LinuxX64,
+            target::TargetProfile::MacosArm64,
+            target::TargetProfile::LinuxX64,
+        ],
+    )
+    .unwrap();
+    let names: Vec<_> = targets
+        .iter()
+        .map(|row| row.numeric_support.target)
+        .collect();
+    assert_eq!(names, ["linux_x86_64", "macos_arm64"]);
 }

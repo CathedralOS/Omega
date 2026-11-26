@@ -129,11 +129,7 @@ pub mod encoding {
         output.push('(');
         output.push_str(&value.len().to_string());
         output.push(':');
-        const HEX: &[u8; 16] = b"0123456789abcdef";
-        for &byte in value {
-            output.push(char::from(HEX[usize::from(byte >> 4)]));
-            output.push(char::from(HEX[usize::from(byte & 0x0f)]));
-        }
+        output.push_str(&wire::digest_encoder::hex(value));
         output.push(')');
         output
     }
@@ -258,7 +254,7 @@ mod callable_display {
 }
 mod framing {
     use super::vocabulary::{Spelled, Vocabulary, is_vocabulary_spelling};
-    use super::{Error, Result, TypeIdentityPackageOwnerVisitor};
+    use super::{Error, Result, TypeIdentityPackageOwnerVisitor, scoped};
     use std::borrow::Cow;
 
     pub(super) struct Reader<'a> {
@@ -381,23 +377,18 @@ mod framing {
             tag: impl Spelled,
             visitor: &mut dyn TypeIdentityPackageOwnerVisitor,
         ) -> Result {
-            visitor.enter()?;
-            let result = self
-                .expect_tag(tag)
-                .and_then(|()| self.raw_value())
-                .map(|_| ());
-            visitor.leave();
-            result
+            scoped(visitor, |_| {
+                self.expect_tag(tag)
+                    .and_then(|()| self.raw_value())
+                    .map(|_| ())
+            })
         }
 
         pub(super) fn leaf_opaque(
             &mut self,
             visitor: &mut dyn TypeIdentityPackageOwnerVisitor,
         ) -> Result {
-            visitor.enter()?;
-            let result = self.raw_value().map(|_| ());
-            visitor.leave();
-            result
+            scoped(visitor, |_| self.raw_value().map(|_| ()))
         }
 
         pub(super) fn atom(
@@ -405,22 +396,17 @@ mod framing {
             tag: impl Spelled,
             visitor: &mut dyn TypeIdentityPackageOwnerVisitor,
         ) -> Result<Cow<'a, str>> {
-            visitor.enter()?;
-            let result = self
-                .expect_tag(tag)
-                .and_then(|()| self.unescaped_value(visitor));
-            visitor.leave();
-            result
+            scoped(visitor, |visitor| {
+                self.expect_tag(tag)
+                    .and_then(|()| self.unescaped_value(visitor))
+            })
         }
 
         pub(super) fn leaf_atom(
             &mut self,
             visitor: &mut dyn TypeIdentityPackageOwnerVisitor,
         ) -> Result<Cow<'a, str>> {
-            visitor.enter()?;
-            let result = self.unescaped_value(visitor);
-            visitor.leave();
-            result
+            scoped(visitor, |visitor| self.unescaped_value(visitor))
         }
 
         fn unescaped_value(
@@ -453,10 +439,7 @@ mod framing {
             &mut self,
             visitor: &mut dyn TypeIdentityPackageOwnerVisitor,
         ) -> Result<&'a str> {
-            visitor.enter()?;
-            let result = self.hexadecimal_value();
-            visitor.leave();
-            result
+            scoped(visitor, |_| self.hexadecimal_value())
         }
 
         fn hexadecimal_value(&mut self) -> Result<&'a str> {
@@ -1591,11 +1574,7 @@ pub fn package_declaration_identity(
     package: semantic_vocabulary::PackageKeyIdentity,
     path: &str,
 ) -> String {
-    use std::fmt::Write as _;
-    let mut owner = String::with_capacity(64);
-    for byte in package.digest() {
-        let _ = write!(owner, "{byte:02x}");
-    }
+    let owner = wire::digest_encoder::hex(&package.digest());
     format!("package:{owner}::{path}")
 }
 

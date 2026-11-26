@@ -10,3 +10,6 @@ path = "src/lib.rs"
 
 [dependencies]
 record-storage = { path = "../../../../foundation/record-storage" }
+
+[build-dependencies]
+source-provenance = { path = "../source-provenance" }

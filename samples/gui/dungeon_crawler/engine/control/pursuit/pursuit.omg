@@ -1,31 +1,30 @@
-use actors\state\Actor;
-use control\state\Command;
-use configuration\ANIMATION_PERIOD;
-use configuration\PURSUIT_INTERVAL;
+use actors/state/state.omg as actor_state;
+use configuration/configuration.omg;
+use control/state/state.omg as state_state;
 
-public machine pursue<const Rooms: u64>(actor: Actor<Rooms>, target: Actor<Rooms>, phase: i32) -> Command
+public machine pursue<const Rooms: u64>(actor: |actor_state|::Actor<Rooms>, target: |actor_state|::Actor<Rooms>, phase: i32) -> |state_state|::Command
 terminates
-requires Rooms >= 1 && phase >= 0 && phase < ANIMATION_PERIOD {
-    transition actor.active && actor.vitality.current > 0 && target.vitality.current > 0 && actor.room == target.room && phase % PURSUIT_INTERVAL == 0 {
+requires Rooms >= 1 && phase >= 0 && phase < |configuration|::ANIMATION_PERIOD {
+    transition actor.active && actor.vitality.current > 0 && target.vitality.current > 0 && actor.room == target.room && phase % |configuration|::PURSUIT_INTERVAL == 0 {
         true -> horizontal(actor, target),
-        _ -> (Command { direction: -1, attack: false })
+        _ -> (|state_state|::Command { direction: -1, attack: false })
     }
-    machine horizontal(actor: Actor<Rooms>, target: Actor<Rooms>) -> Command {
+    machine horizontal(actor: |actor_state|::Actor<Rooms>, target: |actor_state|::Actor<Rooms>) -> |state_state|::Command {
         transition actor.position.x < target.position.x {
-            true -> (Command { direction: 1, attack: false }),
+            true -> (|state_state|::Command { direction: 1, attack: false }),
             _ -> left(actor, target)
         }
     }
-    machine left(actor: Actor<Rooms>, target: Actor<Rooms>) -> Command {
+    machine left(actor: |actor_state|::Actor<Rooms>, target: |actor_state|::Actor<Rooms>) -> |state_state|::Command {
         transition actor.position.x > target.position.x {
-            true -> (Command { direction: 3, attack: false }),
+            true -> (|state_state|::Command { direction: 3, attack: false }),
             _ -> vertical(actor, target)
         }
     }
-    machine vertical(actor: Actor<Rooms>, target: Actor<Rooms>) -> Command {
+    machine vertical(actor: |actor_state|::Actor<Rooms>, target: |actor_state|::Actor<Rooms>) -> |state_state|::Command {
         transition actor.position.y < target.position.y {
-            true -> (Command { direction: 2, attack: false }),
-            _ -> (Command { direction: 0, attack: false })
+            true -> (|state_state|::Command { direction: 2, attack: false }),
+            _ -> (|state_state|::Command { direction: 0, attack: false })
         }
     }
 }

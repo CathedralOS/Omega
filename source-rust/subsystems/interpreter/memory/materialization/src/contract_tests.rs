@@ -43,6 +43,50 @@ mod conventional_materializations {
         };
     }
 
+    fn ready_sum_report(payload_identity: Option<u64>) -> ConventionalSumLayoutReport {
+        ConventionalSumLayoutReport {
+            schema_report_fingerprint: 7,
+            tag_offset: 0,
+            tag_size: 4,
+            tag_align: 4,
+            common_fields: Vec::new(),
+            cases: vec![ConventionalSumCaseLayoutReport {
+                case: "Ready".into(),
+                member_identity: Some(41),
+                ordinal: 0,
+                payload_fields: vec![ConventionalSumPayloadFieldLayoutReport {
+                    field: "value".into(),
+                    member_identity: payload_identity,
+                    offset: 4,
+                    size: 4,
+                    align: 4,
+                }],
+            }],
+            size: 8,
+            align: 4,
+        }
+    }
+
+    fn assert_atomic_aggregate_reject<const N: usize>(
+        layout: &LayoutPlanReport,
+        fields: &[AggregateFieldSchema],
+        values: &[AggregateFieldValue],
+        fill: u8,
+        expected: &str,
+    ) {
+        let mut buf = [fill; N];
+        let error = materialize_aggregate_layout_into(
+            layout,
+            fields,
+            values,
+            ByteOrder::LittleEndian,
+            &mut buf,
+        )
+        .expect_err(expected);
+        assert!(error.0.contains(expected), "{error}");
+        assert_eq!(buf, [fill; N]);
+    }
+
     #[test]
     fn normalized_layout_report_fingerprint_is_order_independent_and_geometry_bound() {
         let forward = split_layout();
@@ -67,27 +111,7 @@ mod conventional_materializations {
 
     #[test]
     fn conventional_sum_report_fingerprint_binds_ordinals_geometry_and_unnumbered_names() {
-        let baseline = ConventionalSumLayoutReport {
-            schema_report_fingerprint: 7,
-            tag_offset: 0,
-            tag_size: 4,
-            tag_align: 4,
-            common_fields: Vec::new(),
-            cases: vec![ConventionalSumCaseLayoutReport {
-                case: "Ready".into(),
-                member_identity: Some(41),
-                ordinal: 0,
-                payload_fields: vec![ConventionalSumPayloadFieldLayoutReport {
-                    field: "value".into(),
-                    member_identity: None,
-                    offset: 4,
-                    size: 4,
-                    align: 4,
-                }],
-            }],
-            size: 8,
-            align: 4,
-        };
+        let baseline = ready_sum_report(None);
         let report_fingerprint = normalized_conventional_sum_layout_report_fingerprint(&baseline);
         assert_ne!(report_fingerprint, 0);
 
@@ -98,51 +122,24 @@ mod conventional_materializations {
             normalized_conventional_sum_layout_report_fingerprint(&renamed_numbered_case)
         );
 
-        let mut reordered = baseline.clone();
-        reordered.cases[0].ordinal = 1;
-        assert_ne!(
-            report_fingerprint,
-            normalized_conventional_sum_layout_report_fingerprint(&reordered)
-        );
-
-        let mut renamed_unnumbered_field = baseline.clone();
-        renamed_unnumbered_field.cases[0].payload_fields[0].field = "payload".into();
-        assert_ne!(
-            report_fingerprint,
-            normalized_conventional_sum_layout_report_fingerprint(&renamed_unnumbered_field)
-        );
-
-        let mut shifted = baseline;
-        shifted.cases[0].payload_fields[0].offset = 8;
-        assert_ne!(
-            report_fingerprint,
-            normalized_conventional_sum_layout_report_fingerprint(&shifted)
-        );
+        for mutate in [
+            (|r: &mut ConventionalSumLayoutReport| r.cases[0].ordinal = 1)
+                as fn(&mut ConventionalSumLayoutReport),
+            |r| r.cases[0].payload_fields[0].field = "payload".into(),
+            |r| r.cases[0].payload_fields[0].offset = 8,
+        ] {
+            let mut variant = baseline.clone();
+            mutate(&mut variant);
+            assert_ne!(
+                report_fingerprint,
+                normalized_conventional_sum_layout_report_fingerprint(&variant)
+            );
+        }
     }
 
     #[test]
     fn conventional_sum_replay_uses_numbered_identity_and_exact_geometry() {
-        let original = ConventionalSumLayoutReport {
-            schema_report_fingerprint: 7,
-            tag_offset: 0,
-            tag_size: 4,
-            tag_align: 4,
-            common_fields: Vec::new(),
-            cases: vec![ConventionalSumCaseLayoutReport {
-                case: "Ready".into(),
-                member_identity: Some(41),
-                ordinal: 0,
-                payload_fields: vec![ConventionalSumPayloadFieldLayoutReport {
-                    field: "value".into(),
-                    member_identity: Some(52),
-                    offset: 4,
-                    size: 4,
-                    align: 4,
-                }],
-            }],
-            size: 8,
-            align: 4,
-        };
+        let original = ready_sum_report(Some(52));
         let mut renamed = original.clone();
         renamed.cases[0].case = "Available".into();
         renamed.cases[0].payload_fields[0].field = "payload".into();
@@ -150,18 +147,17 @@ mod conventional_materializations {
             &original, &renamed
         ));
 
-        let mut shifted = renamed.clone();
-        shifted.cases[0].payload_fields[0].offset = 8;
-        assert!(!conventional_sum_layout_reports_match_for_replay(
-            &original, &shifted
-        ));
-
-        let mut changed_ordinal = renamed.clone();
-        changed_ordinal.cases[0].ordinal = 1;
-        assert!(!conventional_sum_layout_reports_match_for_replay(
-            &original,
-            &changed_ordinal
-        ));
+        for mutate in [
+            (|r: &mut ConventionalSumLayoutReport| r.cases[0].payload_fields[0].offset = 8)
+                as fn(&mut ConventionalSumLayoutReport),
+            |r| r.cases[0].ordinal = 1,
+        ] {
+            let mut drifted = renamed.clone();
+            mutate(&mut drifted);
+            assert!(!conventional_sum_layout_reports_match_for_replay(
+                &original, &drifted
+            ));
+        }
 
         let mut unnumbered = original.clone();
         unnumbered.cases[0].member_identity = None;
@@ -172,7 +168,7 @@ mod conventional_materializations {
             &renamed_unnumbered
         ));
 
-        let mut aliased = original.clone();
+        let mut aliased = original;
         aliased.cases.push(aliased.cases[0].clone());
         assert!(!conventional_sum_layout_reports_match_for_replay(
             &aliased, &aliased
@@ -300,20 +296,18 @@ mod conventional_materializations {
             Some(8),
             4,
         );
-        let schema = AggregateFieldSchema::new_repeated_numbered("payload", 9, 4, 4, 2)
-            .expect("numbered repeated aggregate");
-        let value = AggregateFieldValue::new("payload", vec![0; 8]).expect("aggregate value");
-        let mut aggregate_bytes = [0xa5; 8];
-        let error = materialize_aggregate_layout_into(
+        let schema = [
+            AggregateFieldSchema::new_repeated_numbered("payload", 9, 4, 4, 2)
+                .expect("numbered repeated aggregate"),
+        ];
+        let value = [AggregateFieldValue::new("payload", vec![0; 8]).expect("aggregate value")];
+        assert_atomic_aggregate_reject::<8>(
             &aggregate_layout,
-            &[schema],
-            &[value],
-            ByteOrder::LittleEndian,
-            &mut aggregate_bytes,
-        )
-        .expect_err("aggregate materialization must reject one identity under two names");
-        assert!(error.0.contains("identity names both"), "{}", error.0);
-        assert_eq!(aggregate_bytes, [0xa5; 8]);
+            &schema,
+            &value,
+            0xa5,
+            "identity names both",
+        );
     }
 
     #[test]
@@ -329,7 +323,6 @@ mod conventional_materializations {
             size: Some(u64::MAX),
             ..dynamic.clone()
         };
-
         assert_ne!(
             normalized_layout_plan_report_fingerprint(&dynamic),
             normalized_layout_plan_report_fingerprint(&fixed)
@@ -377,26 +370,16 @@ mod conventional_materializations {
 
         let mut short = values.clone();
         short[1] = AggregateFieldValue::new("payload", [5, 6, 7]).expect("short payload");
-        let mut unchanged = [0xa5; 20];
-        let error = materialize_aggregate_layout_into(
+        assert_atomic_aggregate_reject::<20>(
             &layout,
             &fields,
             &short,
-            ByteOrder::LittleEndian,
-            &mut unchanged,
-        )
-        .expect_err("caller bytes cannot claim a complete aggregate extent");
-        assert!(error.0.contains("compiler-derived extent is 6"));
-        assert_eq!(unchanged, [0xa5; 20]);
+            0xa5,
+            "compiler-derived extent is 6",
+        );
 
-        let mut fragmented = layout.clone();
-        fragmented.entries[0].placement = LayoutPlacementReport::Bits {
-            container: 4,
-            container_width: 32,
-            destination_lsb: 0,
-            source_lsb: 0,
-            width: 32,
-        };
+        let mut fragmented = layout;
+        fragmented.entries[0].placement = bits!(4 => 32 => 0 => 0 => 32);
         let mut fragmented_bytes = [0xa5; 20];
         materialize_aggregate_layout_into(
             &fragmented,
@@ -408,28 +391,14 @@ mod conventional_materializations {
         .expect("a carrier-sized field may carry a scalar fragment placement");
         assert_eq!(&fragmented_bytes[4..8], &[1, 2, 3, 4]);
 
-        fragmented.entries[0].placement = LayoutPlacementReport::Bits {
-            container: 12,
-            container_width: 32,
-            destination_lsb: 0,
-            source_lsb: 0,
-            width: 32,
-        };
-        let error = materialize_aggregate_layout_into(
+        fragmented.entries[0].placement = bits!(12 => 32 => 0 => 0 => 32);
+        assert_atomic_aggregate_reject::<20>(
             &fragmented,
             &fields,
             &values,
-            ByteOrder::LittleEndian,
-            &mut unchanged,
-        )
-        .expect_err("a fragment destination cannot overlap a whole-extent placement");
-        assert!(
-            error
-                .0
-                .contains("fragment destination overlaps a whole-extent placement"),
-            "{error}"
+            0xa5,
+            "fragment destination overlaps a whole-extent placement",
         );
-        assert_eq!(unchanged, [0xa5; 20]);
     }
 
     #[test]
@@ -444,8 +413,8 @@ mod conventional_materializations {
             Some(12),
             4,
         );
-        let schema = [AggregateFieldSchema::new_numbered("payload", 7, 4)
-            .expect("compiler-derived numbered schema")];
+        let schema =
+            [AggregateFieldSchema::new_numbered("payload", 7, 4).expect("numbered schema")];
         let values = [AggregateFieldValue::new("payload", [1, 2, 3, 4]).expect("complete payload")];
         let mut bytes = [0xa5; 12];
         materialize_aggregate_layout_into(
@@ -460,17 +429,13 @@ mod conventional_materializations {
 
         let mut drifted = layout;
         drifted.entries[0].member_identity = Some(8);
-        let mut unchanged = [0x5a; 12];
-        let error = materialize_aggregate_layout_into(
+        assert_atomic_aggregate_reject::<12>(
             &drifted,
             &schema,
             &values,
-            ByteOrder::LittleEndian,
-            &mut unchanged,
-        )
-        .expect_err("stable member identity drift must reject before mutation");
-        assert!(error.0.contains("same stable identity"));
-        assert_eq!(unchanged, [0x5a; 12]);
+            0x5a,
+            "same stable identity",
+        );
 
         let repeated_layout = LayoutPlanReport {
             schema_report_fingerprint: 2,
@@ -490,10 +455,11 @@ mod conventional_materializations {
         };
         let repeated_schema = [
             AggregateFieldSchema::new_repeated_numbered("items", 9, 4, 4, 2)
-                .expect("compiler-derived numbered repeated schema"),
+                .expect("repeated schema"),
         ];
-        let repeated_values = [AggregateFieldValue::new("items", [1, 2, 3, 4, 5, 6, 7, 8])
-            .expect("complete repeated payload")];
+        let repeated_values =
+            [AggregateFieldValue::new("items", [1, 2, 3, 4, 5, 6, 7, 8])
+                .expect("repeated payload")];
         let mut repeated_bytes = [0xa5; 16];
         materialize_aggregate_layout_into(
             &repeated_layout,
@@ -511,24 +477,24 @@ mod conventional_materializations {
 
     #[test]
     fn repeated_aggregate_materializer_rejects_invalid_geometry_atomically() {
-        let schema = [AggregateFieldSchema::new_repeated("items", 4, 4, 3)
-            .expect("compiler-derived repeated schema")];
-        let values = [
-            AggregateFieldValue::new("items", (0_u8..12).collect::<Vec<_>>())
-                .expect("complete repeated aggregate"),
-        ];
-        let layout = |offsets: &[u64]| LayoutPlanReport {
-            schema_report_fingerprint: 1,
-            entries: offsets
-                .iter()
-                .map(|offset| {
-                    layout_field_entry("items", LayoutPlacementReport::At { offset: *offset })
-                })
-                .collect(),
-            offsets: None,
-            size: Some(32),
-            align: 4,
-        };
+        let schema =
+            [AggregateFieldSchema::new_repeated("items", 4, 4, 3).expect("repeated schema")];
+        let values =
+            [AggregateFieldValue::new("items", (0_u8..12).collect::<Vec<_>>()).expect("items")];
+        fn layout(offsets: &[u64]) -> LayoutPlanReport {
+            LayoutPlanReport {
+                schema_report_fingerprint: 1,
+                entries: offsets
+                    .iter()
+                    .map(|&offset| {
+                        layout_field_entry("items", LayoutPlacementReport::At { offset })
+                    })
+                    .collect(),
+                offsets: None,
+                size: Some(32),
+                align: 4,
+            }
+        }
 
         for (offsets, expected) in [
             (&[0, 8][..], "2 element placements, expected 3"),
@@ -542,20 +508,13 @@ mod conventional_materializations {
             ),
             (&[0, 6, 12][..], "violates its compiler-derived alignment 4"),
         ] {
-            let mut unchanged = [0xa5; 32];
-            let error = materialize_aggregate_layout_into(
+            assert_atomic_aggregate_reject::<32>(
                 &layout(offsets),
                 &schema,
                 &values,
-                ByteOrder::LittleEndian,
-                &mut unchanged,
-            )
-            .expect_err("invalid repeated aggregate geometry must reject");
-            assert!(
-                error.0.contains(expected),
-                "unexpected diagnostic: {error:?}"
+                0xa5,
+                expected,
             );
-            assert_eq!(unchanged, [0xa5; 32]);
         }
     }
 
@@ -586,45 +545,31 @@ mod conventional_materializations {
             AggregateFieldSchema::new("pair", 2).expect("pair extent"),
             AggregateFieldSchema::new_repeated("items", 2, 2, 2).expect("items shape"),
         ];
-        let little_values = [
-            AggregateFieldValue::new("id", [0x34, 0x12, 0, 0]).expect("id"),
-            AggregateFieldValue::new("flags", [0xa5, 0x02]).expect("flags"),
-            AggregateFieldValue::new("pair", [9, 8]).expect("pair"),
-            AggregateFieldValue::new("items", [0x11, 0x22, 0x33, 0x44]).expect("items"),
-        ];
-        let mut bytes = [0x5a; 12];
-        materialize_aggregate_layout_into(
-            &layout,
-            &fields,
-            &little_values,
-            ByteOrder::LittleEndian,
-            &mut bytes,
-        )
-        .expect("scalar placements should compose with whole extents");
-        assert_eq!(
-            bytes,
-            [0x34, 0x12, 0xa5, 0x02, 9, 8, 0, 0, 0x11, 0x22, 0x33, 0x44]
-        );
-
-        let big_values = [
-            AggregateFieldValue::new("id", [0, 0, 0x12, 0x34]).expect("id"),
-            AggregateFieldValue::new("flags", [0x02, 0xa5]).expect("flags"),
-            AggregateFieldValue::new("pair", [9, 8]).expect("pair"),
-            AggregateFieldValue::new("items", [0x11, 0x22, 0x33, 0x44]).expect("items"),
-        ];
-        let mut big = [0x5a; 12];
-        materialize_aggregate_layout_into(
-            &layout,
-            &fields,
-            &big_values,
-            ByteOrder::BigEndian,
-            &mut big,
-        )
-        .expect("the same plan should materialize big-endian");
-        assert_eq!(
-            big,
-            [0x12, 0x34, 0x02, 0xa5, 9, 8, 0, 0, 0x11, 0x22, 0x33, 0x44]
-        );
+        for (order, id_bytes, flag_bytes, expected) in [
+            (
+                ByteOrder::LittleEndian,
+                [0x34, 0x12, 0, 0],
+                [0xa5, 0x02],
+                [0x34, 0x12, 0xa5, 0x02, 9, 8, 0, 0, 0x11, 0x22, 0x33, 0x44],
+            ),
+            (
+                ByteOrder::BigEndian,
+                [0, 0, 0x12, 0x34],
+                [0x02, 0xa5],
+                [0x12, 0x34, 0x02, 0xa5, 9, 8, 0, 0, 0x11, 0x22, 0x33, 0x44],
+            ),
+        ] {
+            let values = [
+                AggregateFieldValue::new("id", id_bytes).expect("id"),
+                AggregateFieldValue::new("flags", flag_bytes).expect("flags"),
+                AggregateFieldValue::new("pair", [9, 8]).expect("pair"),
+                AggregateFieldValue::new("items", [0x11, 0x22, 0x33, 0x44]).expect("items"),
+            ];
+            let mut bytes = [0x5a; 12];
+            materialize_aggregate_layout_into(&layout, &fields, &values, order, &mut bytes)
+                .expect("scalar placements should compose with whole extents");
+            assert_eq!(bytes, expected);
+        }
     }
 
     #[test]
@@ -656,59 +601,22 @@ mod conventional_materializations {
         )
         .expect("disjoint destination bits may share one container byte");
         assert_eq!(bytes[4], 0xdb);
-        assert!(
-            bytes
-                .iter()
-                .enumerate()
-                .all(|(index, byte)| index == 4 || *byte == 0)
-        );
+        assert!(bytes.iter().enumerate().all(|(i, b)| i == 4 || *b == 0));
 
-        let mut overlapping = shared.clone();
-        overlapping.entries[1].placement = LayoutPlacementReport::Bits {
-            container: 4,
-            container_width: 8,
-            destination_lsb: 2,
-            source_lsb: 0,
-            width: 4,
-        };
-        let mut unchanged = [0x5a; 8];
-        let error = materialize_aggregate_layout_into(
-            &overlapping,
-            &fields,
-            &values,
-            ByteOrder::LittleEndian,
-            &mut unchanged,
-        )
-        .expect_err("overlapping fragment destinations must reject");
-        assert!(
-            error
-                .0
-                .contains("fragment destination overlaps an earlier fragment"),
-            "{error}"
-        );
-        assert_eq!(unchanged, [0x5a; 8]);
-
-        let mut out_of_layout = shared.clone();
-        out_of_layout.entries[1].placement = LayoutPlacementReport::Bits {
-            container: 7,
-            container_width: 16,
-            destination_lsb: 8,
-            source_lsb: 0,
-            width: 4,
-        };
-        let error = materialize_aggregate_layout_into(
-            &out_of_layout,
-            &fields,
-            &values,
-            ByteOrder::LittleEndian,
-            &mut unchanged,
-        )
-        .expect_err("a fragment destination past the layout must reject");
-        assert!(
-            error.0.contains("writes byte 8, past the 8-byte layout"),
-            "{error}"
-        );
-        assert_eq!(unchanged, [0x5a; 8]);
+        for (placement, expected) in [
+            (
+                bits!(4 => 8 => 2 => 0 => 4),
+                "fragment destination overlaps an earlier fragment",
+            ),
+            (
+                bits!(7 => 16 => 8 => 0 => 4),
+                "writes byte 8, past the 8-byte layout",
+            ),
+        ] {
+            let mut bad = shared.clone();
+            bad.entries[1].placement = placement;
+            assert_atomic_aggregate_reject::<8>(&bad, &fields, &values, 0x5a, expected);
+        }
     }
 
     #[test]
@@ -836,6 +744,8 @@ mod conventional_materializations {
             AggregateFieldValue::new("wide", [7; 16]).expect("wide"),
             AggregateFieldValue::new("zz", [9, 9, 9, 9]).expect("zz"),
         ];
+        let mut overflow_values = values.clone();
+        overflow_values[0] = AggregateFieldValue::new("id", [0, 0, 1, 0]).expect("id");
         let base = |entries: Vec<LayoutFieldEntryReport>| LayoutPlanReport {
             schema_report_fingerprint: 1,
             entries,
@@ -843,136 +753,78 @@ mod conventional_materializations {
             size: Some(32),
             align: 4,
         };
-
-        let mixed = base(vec![
-            layout_field_entry("id", LayoutPlacementReport::At { offset: 0 }),
-            layout_field_entry("id", bits!(4 => 8 => 0 => 0 => 8)),
-            layout_field_entry("items", LayoutPlacementReport::At { offset: 8 }),
-            layout_field_entry("items", LayoutPlacementReport::At { offset: 10 }),
-            layout_field_entry("wide", LayoutPlacementReport::At { offset: 16 }),
-            layout_field_entry("zz", LayoutPlacementReport::At { offset: 24 }),
-        ]);
-        let mut unchanged = [0xa5; 32];
-        let error = materialize_aggregate_layout_into(
-            &mixed,
-            &fields,
-            &values,
-            ByteOrder::LittleEndian,
-            &mut unchanged,
-        )
-        .expect_err("mixing `At` and scalar placements must reject");
-        assert!(
-            error.0.contains("mixes `At` with scalar placements"),
-            "{error}"
-        );
-        assert_eq!(unchanged, [0xa5; 32]);
-
-        let fragmented_array = base(vec![
-            layout_field_entry("id", LayoutPlacementReport::At { offset: 0 }),
-            layout_field_entry("items", bits!(4 => 8 => 0 => 0 => 8)),
-            layout_field_entry("wide", LayoutPlacementReport::At { offset: 16 }),
-            layout_field_entry("zz", LayoutPlacementReport::At { offset: 24 }),
-        ]);
-        let error = materialize_aggregate_layout_into(
-            &fragmented_array,
-            &fields,
-            &values,
-            ByteOrder::LittleEndian,
-            &mut unchanged,
-        )
-        .expect_err("an outer fixed array cannot carry scalar placements");
-        assert!(
-            error
-                .0
-                .contains("carries scalar placements but is an outer fixed array"),
-            "{error}"
-        );
-        assert_eq!(unchanged, [0xa5; 32]);
-
-        let oversized_scalar = base(vec![
-            layout_field_entry("id", LayoutPlacementReport::At { offset: 0 }),
-            layout_field_entry("items", LayoutPlacementReport::At { offset: 8 }),
-            layout_field_entry("items", LayoutPlacementReport::At { offset: 10 }),
-            layout_field_entry("wide", bits!(16 => 64 => 0 => 0 => 64)),
-            layout_field_entry("zz", LayoutPlacementReport::At { offset: 24 }),
-        ]);
-        let error = materialize_aggregate_layout_into(
-            &oversized_scalar,
-            &fields,
-            &values,
-            ByteOrder::LittleEndian,
-            &mut unchanged,
-        )
-        .expect_err("a field wider than the scalar carrier cannot fragment");
-        assert!(
-            error.0.contains("past the 64-bit scalar placement carrier"),
-            "{error}"
-        );
-        assert_eq!(unchanged, [0xa5; 32]);
-
-        let overlapping_stored = base(vec![
-            layout_field_entry("id", LayoutPlacementReport::At { offset: 0 }),
-            layout_field_entry("items", LayoutPlacementReport::At { offset: 8 }),
-            layout_field_entry("items", LayoutPlacementReport::At { offset: 10 }),
-            layout_field_entry("wide", LayoutPlacementReport::At { offset: 16 }),
+        let at = |name, offset| layout_field_entry(name, LayoutPlacementReport::At { offset });
+        let int_u16 = |name, offset| {
             layout_field_entry(
-                "zz",
+                name,
                 LayoutPlacementReport::IntegerAt {
-                    offset: 8,
+                    offset,
                     stored_width: 16,
                     interpretation: IntegerInterpretation::Unsigned,
                 },
-            ),
-        ]);
-        let error = materialize_aggregate_layout_into(
-            &overlapping_stored,
-            &fields,
-            &values,
-            ByteOrder::LittleEndian,
-            &mut unchanged,
-        )
-        .expect_err("a stored integer cannot overlap another placement");
-        assert!(
-            error
-                .0
-                .contains("stored-integer placement overlaps an earlier placement"),
-            "{error}"
-        );
-        assert_eq!(unchanged, [0xa5; 32]);
+            )
+        };
 
-        let overflow_values = [
-            AggregateFieldValue::new("id", [0, 0, 1, 0]).expect("id"),
-            AggregateFieldValue::new("items", [1, 2, 3, 4]).expect("items"),
-            AggregateFieldValue::new("wide", [7; 16]).expect("wide"),
-            AggregateFieldValue::new("zz", [9, 9, 9, 9]).expect("zz"),
+        let cases = [
+            (
+                vec![
+                    at("id", 0),
+                    layout_field_entry("id", bits!(4 => 8 => 0 => 0 => 8)),
+                    at("items", 8),
+                    at("items", 10),
+                    at("wide", 16),
+                    at("zz", 24),
+                ],
+                &values,
+                "mixes `At` with scalar placements",
+            ),
+            (
+                vec![
+                    at("id", 0),
+                    layout_field_entry("items", bits!(4 => 8 => 0 => 0 => 8)),
+                    at("wide", 16),
+                    at("zz", 24),
+                ],
+                &values,
+                "carries scalar placements but is an outer fixed array",
+            ),
+            (
+                vec![
+                    at("id", 0),
+                    at("items", 8),
+                    at("items", 10),
+                    layout_field_entry("wide", bits!(16 => 64 => 0 => 0 => 64)),
+                    at("zz", 24),
+                ],
+                &values,
+                "past the 64-bit scalar placement carrier",
+            ),
+            (
+                vec![
+                    at("id", 0),
+                    at("items", 8),
+                    at("items", 10),
+                    at("wide", 16),
+                    int_u16("zz", 8),
+                ],
+                &values,
+                "stored-integer placement overlaps an earlier placement",
+            ),
+            (
+                vec![
+                    int_u16("id", 0),
+                    at("items", 8),
+                    at("items", 10),
+                    at("wide", 16),
+                    at("zz", 24),
+                ],
+                &overflow_values,
+                "does not fit its 16-bit unsigned storage",
+            ),
         ];
-        let stored = base(vec![
-            layout_field_entry(
-                "id",
-                LayoutPlacementReport::IntegerAt {
-                    offset: 0,
-                    stored_width: 16,
-                    interpretation: IntegerInterpretation::Unsigned,
-                },
-            ),
-            layout_field_entry("items", LayoutPlacementReport::At { offset: 8 }),
-            layout_field_entry("items", LayoutPlacementReport::At { offset: 10 }),
-            layout_field_entry("wide", LayoutPlacementReport::At { offset: 16 }),
-            layout_field_entry("zz", LayoutPlacementReport::At { offset: 24 }),
-        ]);
-        let error = materialize_aggregate_layout_into(
-            &stored,
-            &fields,
-            &overflow_values,
-            ByteOrder::LittleEndian,
-            &mut unchanged,
-        )
-        .expect_err("a value exceeding its stored integer width must reject");
-        assert!(
-            error.0.contains("does not fit its 16-bit unsigned storage"),
-            "{error}"
-        );
-        assert_eq!(unchanged, [0xa5; 32]);
+        for (entries, vals, expected) in cases {
+            assert_atomic_aggregate_reject::<32>(&base(entries), &fields, vals, 0xa5, expected);
+        }
     }
 
     #[test]
@@ -1142,25 +994,17 @@ mod conventional_materializations {
             1,
         );
         let mut bytes = [0xa5_u8];
-        let error = materialize_scalar_layout_into(
-            &layout,
-            &[ScalarFieldValue::new("value", 64, 128).expect("wide value")],
-            ByteOrder::LittleEndian,
-            &mut bytes,
-        )
-        .expect_err("a value outside signed byte storage must reject");
-        assert!(error.0.contains("does not fit"), "{}", error.0);
-        assert_eq!(bytes, [0xa5], "rejection must not partially materialize");
-
-        let error = materialize_scalar_layout_into(
-            &layout,
-            &[ScalarFieldValue::new("value", 4, 7).expect("narrow value")],
-            ByteOrder::LittleEndian,
-            &mut bytes,
-        )
-        .expect_err("a semantic carrier narrower than storage must reject");
-        assert!(error.0.contains("narrower"), "{}", error.0);
-        assert_eq!(bytes, [0xa5]);
+        for (width, val, expected) in [(64, 128, "does not fit"), (4, 7, "narrower")] {
+            let error = materialize_scalar_layout_into(
+                &layout,
+                &[ScalarFieldValue::new("value", width, val).expect("scalar value")],
+                ByteOrder::LittleEndian,
+                &mut bytes,
+            )
+            .expect_err(expected);
+            assert!(error.0.contains(expected), "{}", error.0);
+            assert_eq!(bytes, [0xa5]);
+        }
     }
 
     #[test]
@@ -1175,26 +1019,17 @@ mod conventional_materializations {
             1,
         );
         let mut bytes = [0xa5_u8];
-        let error = materialize_scalar_layout_into(
-            &layout,
-            &[ScalarFieldValue::new("low", 4, 3).expect("low")],
-            ByteOrder::LittleEndian,
-            &mut bytes,
-        )
-        .expect_err("missing planned fields reject");
-        assert!(error.0.contains("`high`"));
-        assert_eq!(bytes, [0xa5]);
-
-        let duplicate = ScalarFieldValue::new("low", 4, 3).expect("duplicate");
-        let error = materialize_scalar_layout_into(
-            &layout,
-            &[duplicate.clone(), duplicate],
-            ByteOrder::LittleEndian,
-            &mut bytes,
-        )
-        .expect_err("duplicate supplied fields reject");
-        assert!(error.0.contains("more than once"));
-        assert_eq!(bytes, [0xa5]);
+        let low = ScalarFieldValue::new("low", 4, 3).expect("low");
+        for (vals, expected) in [
+            (vec![low.clone()], "`high`"),
+            (vec![low.clone(), low], "more than once"),
+        ] {
+            let error =
+                materialize_scalar_layout_into(&layout, &vals, ByteOrder::LittleEndian, &mut bytes)
+                    .expect_err(expected);
+            assert!(error.0.contains(expected));
+            assert_eq!(bytes, [0xa5]);
+        }
 
         let error = decode_scalar_layout(
             &layout,
@@ -1307,10 +1142,9 @@ mod conventional_materializations {
 }
 mod symbolic_materializations {
     use super::{
-        data, deeply_nested_layout, entry, layout_field_entry, nested_layout,
+        assert_reject_inner, data, deeply_nested_layout, entry, layout_field_entry, nested_layout,
         numbered_layout_field_entry, post_handoff_context, post_handoff_context_with,
-        record_interior, reject_inner_layout_materialization, repeated_layout, split_layout,
-        symbolic_path,
+        record_interior, record_layout, repeated_layout, split_layout, sym_path,
     };
     use crate::derive_symbolic_materialization;
     use layout_plans::{
@@ -1338,7 +1172,6 @@ mod symbolic_materializations {
             |_| None,
         )
         .expect_err("sixteen bytes cannot fit an eight-byte range");
-
         assert!(error.0.contains("cannot fit"));
     }
 
@@ -1416,9 +1249,7 @@ mod symbolic_materializations {
     #[test]
     fn symbolic_inner_materialization_requires_a_bound_traversed_carrier() {
         let (layout, carrier) = nested_layout();
-        let inner_path = SymbolicFieldValue::new("slot", 64, entry())
-            .expect("outer record field")
-            .with_inner_segment(SymbolicFieldPathSegment::new("entry"));
+        let inner_path = sym_path("slot", &["entry"], entry());
 
         let error = derive_symbolic_materialization(
             &layout,
@@ -1436,45 +1267,7 @@ mod symbolic_materializations {
         );
 
         let flat = SymbolicFieldValue::new("header", 64, entry()).expect("flat field");
-        let error = reject_inner_layout_materialization(
-            &layout,
-            std::slice::from_ref(&carrier),
-            &[flat],
-            "a carrier no symbolic path traverses must reject",
-        );
-        assert!(
-            error.contains("no symbolic field path traverses the supplied inner layout for `slot`"),
-            "{}",
-            error
-        );
-
         let orphan = SymbolicFieldInnerLayout::new("missing", record_interior(&carrier));
-        let error = reject_inner_layout_materialization(
-            &layout,
-            &[orphan],
-            std::slice::from_ref(&inner_path),
-            "a carrier must bind to a field the outer plan contains",
-        );
-        assert!(
-            error.contains(
-                "inner layout for `missing` binds to a field the validated layout plan does not contain"
-            ),
-            "{}",
-            error
-        );
-
-        let error = reject_inner_layout_materialization(
-            &layout,
-            &[carrier.clone(), carrier.clone()],
-            std::slice::from_ref(&inner_path),
-            "one outer field accepts one interior carrier",
-        );
-        assert!(
-            error.contains("inner layout for `slot` is supplied more than once"),
-            "{}",
-            error
-        );
-
         let unsized_carrier = SymbolicFieldInnerLayout::new(
             "slot",
             LayoutPlanReport {
@@ -1482,31 +1275,43 @@ mod symbolic_materializations {
                 ..record_interior(&carrier)
             },
         );
-        let error = reject_inner_layout_materialization(
-            &layout,
-            &[unsized_carrier],
-            std::slice::from_ref(&inner_path),
-            "the interior layout must be fixed-size",
-        );
-        assert!(
-            error.contains("inner layout for `slot` requires a fixed-size interior layout plan"),
-            "{}",
-            error
-        );
+        for (carriers, fields, expected) in [
+            (
+                vec![carrier.clone()],
+                vec![flat],
+                "no symbolic field path traverses the supplied inner layout for `slot`",
+            ),
+            (
+                vec![orphan],
+                vec![inner_path.clone()],
+                "inner layout for `missing` binds to a field the validated layout plan does not contain",
+            ),
+            (
+                vec![carrier.clone(), carrier],
+                vec![inner_path.clone()],
+                "inner layout for `slot` is supplied more than once",
+            ),
+            (
+                vec![unsized_carrier],
+                vec![inner_path],
+                "inner layout for `slot` requires a fixed-size interior layout plan",
+            ),
+        ] {
+            assert_reject_inner(&layout, &carriers, &fields, expected);
+        }
     }
 
     #[test]
     fn symbolic_inner_materialization_rejects_ambiguous_or_missing_members() {
         let (layout, carrier) = nested_layout();
-
         let repeated_outer = LayoutPlanReport {
             schema_report_fingerprint: 1,
             entries: (0..4)
-                .map(|index| {
+                .map(|i| {
                     numbered_layout_field_entry(
                         "handlers",
                         9,
-                        LayoutPlacementReport::At { offset: index * 16 },
+                        LayoutPlacementReport::At { offset: i * 16 },
                     )
                 })
                 .collect(),
@@ -1519,17 +1324,11 @@ mod symbolic_materializations {
         let ambiguous = SymbolicFieldValue::new_numbered("handlers", 9, 64, entry())
             .expect("repeated outer record")
             .with_inner_segment(SymbolicFieldPathSegment::new("flags"));
-        let error = reject_inner_layout_materialization(
+        assert_reject_inner(
             &repeated_outer,
             &[repeated_carrier],
-            std::slice::from_ref(&ambiguous),
-            "an unindexed inner path cannot cover several elements",
-        );
-        assert!(
-            error
-                .contains("requires the outer field `handlers` to resolve to exactly one element placement, found 4"),
-            "{}",
-            error
+            &[ambiguous],
+            "requires the outer field `handlers` to resolve to exactly one element placement, found 4",
         );
 
         let integer_outer = LayoutPlanReport {
@@ -1546,22 +1345,6 @@ mod symbolic_materializations {
             size: Some(4),
             align: 4,
         };
-        let integer_carrier = SymbolicFieldInnerLayout::new("address", record_interior(&carrier));
-        let through_integer = SymbolicFieldValue::new("address", 64, entry())
-            .expect("stored integer outer")
-            .with_inner_segment(SymbolicFieldPathSegment::new("entry"));
-        let error = reject_inner_layout_materialization(
-            &integer_outer,
-            &[integer_carrier],
-            std::slice::from_ref(&through_integer),
-            "an inner hop requires a whole-record outer placement",
-        );
-        assert!(
-            error.contains("inner layout for `address` requires a whole `At` placement"),
-            "{}",
-            error
-        );
-
         let bits_outer = LayoutPlanReport {
             entries: vec![layout_field_entry(
                 "address",
@@ -1575,159 +1358,86 @@ mod symbolic_materializations {
             )],
             ..integer_outer.clone()
         };
-        let bits_carrier = SymbolicFieldInnerLayout::new("address", record_interior(&carrier));
-        let error = reject_inner_layout_materialization(
-            &bits_outer,
-            &[bits_carrier],
-            std::slice::from_ref(&through_integer),
-            "a fragmented outer placement cannot enclose a record interior",
-        );
-        assert!(
-            error.contains("inner layout for `address` requires a whole `At` placement"),
-            "{}",
-            error
-        );
+        let addr_carrier = SymbolicFieldInnerLayout::new("address", record_interior(&carrier));
+        let through_addr = sym_path("address", &["entry"], entry());
+        for bad_outer in [&integer_outer, &bits_outer] {
+            assert_reject_inner(
+                bad_outer,
+                std::slice::from_ref(&addr_carrier),
+                std::slice::from_ref(&through_addr),
+                "inner layout for `address` requires a whole `At` placement",
+            );
+        }
 
-        let missing_member = SymbolicFieldValue::new("slot", 64, entry())
-            .expect("outer record field")
-            .with_inner_segment(SymbolicFieldPathSegment::new("missing"));
-        let error = reject_inner_layout_materialization(
+        assert_reject_inner(
             &layout,
             std::slice::from_ref(&carrier),
-            std::slice::from_ref(&missing_member),
-            "an absent inner member cannot materialize",
+            &[sym_path("slot", &["missing"], entry())],
+            "`slot.missing` has no entry in the inner layout plan",
         );
-        assert!(
-            error.contains("`slot.missing` has no entry in the inner layout plan"),
-            "{}",
-            error
-        );
-
-        let duplicate = SymbolicFieldValue::new("slot", 64, data())
-            .expect("outer record field")
-            .with_inner_segment(SymbolicFieldPathSegment::new("entry"));
-        let error = reject_inner_layout_materialization(
+        assert_reject_inner(
             &layout,
-            std::slice::from_ref(&carrier),
+            &[carrier],
             &[
-                SymbolicFieldValue::new("slot", 64, entry())
-                    .expect("outer record field")
-                    .with_inner_segment(SymbolicFieldPathSegment::new("entry")),
-                duplicate,
+                sym_path("slot", &["entry"], entry()),
+                sym_path("slot", &["entry"], data()),
             ],
-            "the same inner path cannot be supplied twice",
-        );
-        assert!(
-            error.contains("`slot.entry` is supplied more than once"),
-            "{}",
-            error
+            "`slot.entry` is supplied more than once",
         );
     }
 
     #[test]
     fn symbolic_inner_materialization_rejects_deeper_path_faults() {
         let (layout, carrier) = deeply_nested_layout();
-        let deep_path = |member: &str| {
-            SymbolicFieldValue::new("slot", 64, entry())
-                .expect("outer record field")
-                .with_inner_segment(
-                    SymbolicFieldPathSegment::new("sub")
-                        .with_inner_segment(SymbolicFieldPathSegment::new(member)),
-                )
-        };
-
+        let deep_path = |member: &str| sym_path("slot", &["sub", member], entry());
         let shallow = SymbolicFieldInnerLayout::new("slot", record_interior(&carrier));
-        let error = reject_inner_layout_materialization(
-            &layout,
-            &[shallow],
-            std::slice::from_ref(&deep_path("entry")),
-            "a deeper hop needs the nested carrier",
-        );
-        assert!(
-            error.contains("`slot.sub.entry` has no supplied inner layout for `slot.sub`"),
-            "{}",
-            error
-        );
+        let shallow_path = sym_path("slot", &["pad"], entry());
+        let stray =
+            SymbolicFieldInnerLayout::new("slot", record_interior(&carrier)).with_inner_layout(
+                SymbolicFieldInnerLayout::new("missing", record_layout(4, &[], 8)),
+            );
 
-        let shallow_path = SymbolicFieldValue::new("slot", 64, entry())
-            .expect("outer record field")
-            .with_inner_segment(SymbolicFieldPathSegment::new("pad"));
-        let error = reject_inner_layout_materialization(
-            &layout,
-            std::slice::from_ref(&carrier),
-            std::slice::from_ref(&shallow_path),
-            "a nested carrier no path traverses must reject",
-        );
-        assert!(
-            error.contains(
-                "no symbolic field path traverses the supplied inner layout for `slot.sub`"
+        for (carriers, fields, expected) in [
+            (
+                vec![shallow],
+                vec![deep_path("entry")],
+                "`slot.sub.entry` has no supplied inner layout for `slot.sub`",
             ),
-            "{}",
-            error
-        );
-
-        let stray = SymbolicFieldInnerLayout::new("slot", record_interior(&carrier))
-            .with_inner_layout(SymbolicFieldInnerLayout::new(
-                "missing",
-                LayoutPlanReport {
-                    schema_report_fingerprint: 4,
-                    entries: vec![],
-                    offsets: Some(vec![]),
-                    size: Some(8),
-                    align: 8,
-                },
-            ));
-        let error = reject_inner_layout_materialization(
-            &layout,
-            &[stray],
-            std::slice::from_ref(&shallow_path),
-            "a nested carrier must bind inside the enclosing interior",
-        );
-        assert!(
-            error.contains(
-                "inner layout for `slot.missing` binds to a field the enclosing interior layout plan does not contain"
+            (
+                vec![carrier.clone()],
+                vec![shallow_path.clone()],
+                "no symbolic field path traverses the supplied inner layout for `slot.sub`",
             ),
-            "{}",
-            error
-        );
-
-        let error = reject_inner_layout_materialization(
-            &layout,
-            std::slice::from_ref(&carrier),
-            &[
-                deep_path("entry"),
-                SymbolicFieldValue::new("slot", 64, data())
-                    .expect("outer record field")
-                    .with_inner_segment(symbolic_path(&["sub", "entry"])),
-            ],
-            "the same deeper path cannot be supplied twice",
-        );
-        assert!(
-            error.contains("`slot.sub.entry` is supplied more than once"),
-            "{}",
-            error
-        );
+            (
+                vec![stray],
+                vec![shallow_path],
+                "inner layout for `slot.missing` binds to a field the enclosing interior layout plan does not contain",
+            ),
+            (
+                vec![carrier],
+                vec![
+                    deep_path("entry"),
+                    sym_path("slot", &["sub", "entry"], data()),
+                ],
+                "`slot.sub.entry` is supplied more than once",
+            ),
+        ] {
+            assert_reject_inner(&layout, &carriers, &fields, expected);
+        }
     }
 
     #[test]
     fn symbolic_inner_materialization_bounds_each_record_boundary() {
         let (layout, carrier) = deeply_nested_layout();
-        let deep_path = |member: &str| {
-            SymbolicFieldValue::new("slot", 64, entry())
-                .expect("outer record field")
-                .with_inner_segment(
-                    SymbolicFieldPathSegment::new("sub")
-                        .with_inner_segment(SymbolicFieldPathSegment::new(member)),
-                )
-        };
+        let deep_path = |member: &str| sym_path("slot", &["sub", member], entry());
 
         let repeated_middle = SymbolicFieldInnerLayout::new(
             "slot",
             LayoutPlanReport {
                 schema_report_fingerprint: 2,
                 entries: (0..2)
-                    .map(|index| {
-                        layout_field_entry("subs", LayoutPlacementReport::At { offset: index * 24 })
+                    .map(|i| {
+                        layout_field_entry("subs", LayoutPlacementReport::At { offset: i * 24 })
                     })
                     .collect(),
                 offsets: None,
@@ -1737,36 +1447,17 @@ mod symbolic_materializations {
         )
         .with_inner_layout(SymbolicFieldInnerLayout::new(
             "subs",
-            LayoutPlanReport {
-                schema_report_fingerprint: 3,
-                entries: vec![layout_field_entry(
-                    "entry",
-                    LayoutPlacementReport::At { offset: 0 },
-                )],
-                offsets: Some(vec![0]),
-                size: Some(24),
-                align: 8,
-            },
+            record_layout(3, &[("entry", 0)], 24),
         ));
-        let ambiguous = SymbolicFieldValue::new("slot", 64, entry())
-            .expect("outer record field")
-            .with_inner_segment(symbolic_path(&["subs", "entry"]));
         let outer_56 = LayoutPlanReport {
             size: Some(56),
             ..layout.clone()
         };
-        let error = reject_inner_layout_materialization(
+        assert_reject_inner(
             &outer_56,
             &[repeated_middle],
-            std::slice::from_ref(&ambiguous),
-            "an unindexed deeper hop cannot cover several elements",
-        );
-        assert!(
-            error.contains(
-                "requires the enclosing field `slot.subs` to resolve to exactly one element placement, found 2"
-            ),
-            "{}",
-            error
+            &[sym_path("slot", &["subs", "entry"], entry())],
+            "requires the enclosing field `slot.subs` to resolve to exactly one element placement, found 2",
         );
 
         let integer_middle = SymbolicFieldInnerLayout::new(
@@ -1790,46 +1481,10 @@ mod symbolic_materializations {
             "sub",
             record_interior(&carrier.inner_layouts()[0]),
         ));
-        let error = reject_inner_layout_materialization(
-            &layout,
-            &[integer_middle],
-            std::slice::from_ref(&deep_path("entry")),
-            "a deeper hop requires a whole-record enclosing placement",
-        );
-        assert!(
-            error.contains("inner layout for `slot.sub` requires a whole `At` placement"),
-            "{}",
-            error
-        );
-
-        let overflowing_interior = SymbolicFieldInnerLayout::new("slot", record_interior(&carrier))
-            .with_inner_layout(SymbolicFieldInnerLayout::new(
-                "sub",
-                LayoutPlanReport {
-                    schema_report_fingerprint: 3,
-                    entries: vec![layout_field_entry(
-                        "entry",
-                        LayoutPlacementReport::At { offset: 0 },
-                    )],
-                    offsets: Some(vec![0]),
-                    size: Some(32),
-                    align: 8,
-                },
-            ));
-        let error = reject_inner_layout_materialization(
-            &layout,
-            &[overflowing_interior],
-            std::slice::from_ref(&deep_path("entry")),
-            "a nested interior may not exceed its enclosing element",
-        );
-        assert!(
-            error.contains(
-                "interior layout for `slot.sub` exceeds the enclosing 32-byte record extent"
-            ),
-            "{}",
-            error
-        );
-
+        let overflowing_interior =
+            SymbolicFieldInnerLayout::new("slot", record_interior(&carrier)).with_inner_layout(
+                SymbolicFieldInnerLayout::new("sub", record_layout(3, &[("entry", 0)], 32)),
+            );
         let mut deep_escape = record_interior(&carrier.inner_layouts()[0]);
         deep_escape.entries.push(layout_field_entry(
             "escape",
@@ -1837,25 +1492,35 @@ mod symbolic_materializations {
         ));
         let escaping = SymbolicFieldInnerLayout::new("slot", record_interior(&carrier))
             .with_inner_layout(SymbolicFieldInnerLayout::new("sub", deep_escape));
-        let error = reject_inner_layout_materialization(
-            &layout,
-            &[escaping],
-            std::slice::from_ref(&deep_path("escape")),
-            "a deeper leaf may not escape its interior record extent",
-        );
-        assert!(
-            error.contains("writes outside the 24-byte materialization"),
-            "{}",
-            error
-        );
+
+        for (bad_carrier, leaf, expected) in [
+            (
+                integer_middle,
+                "entry",
+                "inner layout for `slot.sub` requires a whole `At` placement",
+            ),
+            (
+                overflowing_interior,
+                "entry",
+                "interior layout for `slot.sub` exceeds the enclosing 32-byte record extent",
+            ),
+            (
+                escaping,
+                "escape",
+                "writes outside the 24-byte materialization",
+            ),
+        ] {
+            assert_reject_inner(&layout, &[bad_carrier], &[deep_path(leaf)], expected);
+        }
     }
 }
+
 mod symbolic_sum_materializations {
     use super::{
-        data, deeply_nested_layout, entry, layout_field_entry, nested_layout,
-        numbered_layout_field_entry, post_handoff_context, record_interior,
-        recursive_record_array_report, recursive_sum_report, reject_inner_layout_materialization,
-        sum_array_layout, sum_field_layout, sum_layout, symbolic_path, writer_field_offsets,
+        assert_reject_inner, data, deeply_nested_layout, entry, layout_field_entry, nested_layout,
+        numbered_layout_field_entry, post_handoff_context, record_interior, record_layout,
+        recursive_record_array_report, recursive_sum_report, sum_array_layout, sum_field_layout,
+        sum_layout, sym_path, symbolic_path, writer_field_offsets,
     };
     use crate::{
         derive_symbolic_materialization, derive_symbolic_materialization_with_inner_layouts,
@@ -1905,7 +1570,7 @@ mod symbolic_sum_materializations {
                 "mutation {mutation}"
             );
         }
-        assert!(derive(&layout, &[carrier.clone(), carrier.clone()]).is_err());
+        assert!(derive(&layout, &[carrier.clone(), carrier]).is_err());
         assert!(
             derive(
                 &layout,
@@ -1933,16 +1598,7 @@ mod symbolic_sum_materializations {
             .is_err()
         );
 
-        let interior = LayoutPlanReport {
-            schema_report_fingerprint: 2,
-            entries: vec![layout_field_entry(
-                "choice",
-                LayoutPlacementReport::At { offset: 0 },
-            )],
-            offsets: Some(vec![0]),
-            size: Some(24),
-            align: 8,
-        };
+        let interior = record_layout(2, &[("choice", 0)], 24);
         let record_carrier = |interior| {
             SymbolicFieldInnerLayout::new_record_array("sums", interior, 0, 24)
                 .with_inner_layout(SymbolicFieldInnerLayout::new_sum("choice", sum_layout()))
@@ -1959,77 +1615,39 @@ mod symbolic_sum_materializations {
     #[test]
     fn symbolic_inner_materialization_bounds_record_path_depth() {
         let (layout, carrier) = deeply_nested_layout();
-
-        let mut chain = SymbolicFieldPathSegment::new("leaf");
-        for _ in 1..CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT - 1 {
-            chain = SymbolicFieldPathSegment::new("sub").with_inner_segment(chain);
-        }
-        let at_bound = SymbolicFieldValue::new("slot", 64, entry())
-            .expect("outer record field")
-            .with_inner_segment(chain);
-        let error = reject_inner_layout_materialization(
-            &layout,
-            std::slice::from_ref(&carrier),
-            std::slice::from_ref(&at_bound),
-            "the second `sub` hop is not a member of `sub`'s interior",
-        );
-        assert!(
-            error.contains("has no entry in the inner layout plan"),
-            "{}",
-            error
-        );
-
-        let mut chain = SymbolicFieldPathSegment::new("leaf");
-        for _ in 1..CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT {
-            chain = SymbolicFieldPathSegment::new("sub").with_inner_segment(chain);
-        }
-        let over_bound = SymbolicFieldValue::new("slot", 64, entry())
-            .expect("outer record field")
-            .with_inner_segment(chain);
-        let error = reject_inner_layout_materialization(
-            &layout,
-            std::slice::from_ref(&carrier),
-            std::slice::from_ref(&over_bound),
-            "a path past the record depth bound must reject",
-        );
-        assert!(
-            error.contains("exceeds the compiler's 64-segment record path bound"),
-            "{}",
-            error
-        );
-
-        let self_similar = || {
-            SymbolicFieldInnerLayout::new(
-                "slot",
-                LayoutPlanReport {
-                    schema_report_fingerprint: 2,
-                    entries: vec![layout_field_entry(
-                        "slot",
-                        LayoutPlacementReport::At { offset: 0 },
-                    )],
-                    offsets: Some(vec![0]),
-                    size: Some(8),
-                    align: 8,
-                },
-            )
+        let make_chain = |count: usize| {
+            let mut chain = SymbolicFieldPathSegment::new("leaf");
+            for _ in 1..count {
+                chain = SymbolicFieldPathSegment::new("sub").with_inner_segment(chain);
+            }
+            SymbolicFieldValue::new("slot", 64, entry())
+                .expect("outer record field")
+                .with_inner_segment(chain)
         };
+        assert_reject_inner(
+            &layout,
+            std::slice::from_ref(&carrier),
+            &[make_chain(CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT - 1)],
+            "has no entry in the inner layout plan",
+        );
+        assert_reject_inner(
+            &layout,
+            &[carrier],
+            &[make_chain(CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT)],
+            "exceeds the compiler's 64-segment record path bound",
+        );
+
+        let self_similar =
+            || SymbolicFieldInnerLayout::new("slot", record_layout(2, &[("slot", 0)], 8));
         let mut tree = self_similar();
         for _ in 1..CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT + 1 {
             tree = self_similar().with_inner_layout(tree);
         }
-        let symbolic = SymbolicFieldValue::new("slot", 64, entry())
-            .expect("outer record field")
-            .with_inner_segment(SymbolicFieldPathSegment::new("slot"));
-        let error = reject_inner_layout_materialization(
+        assert_reject_inner(
             &layout,
             &[tree],
-            std::slice::from_ref(&symbolic),
-            "a carrier tree deeper than the bound must reject",
-        );
-        assert!(
-            error.contains("nests beyond the compiler's 64-segment record path bound"),
-            "{}",
-            error
+            &[sym_path("slot", &["slot"], entry())],
+            "nests beyond the compiler's 64-segment record path bound",
         );
     }
 
@@ -2058,8 +1676,8 @@ mod symbolic_sum_materializations {
             );
         let plan = derive_symbolic_materialization_with_inner_layouts(
             &numbered_layout,
-            std::slice::from_ref(&carrier),
-            std::slice::from_ref(&symbolic),
+            &[carrier],
+            &[symbolic],
             post_handoff_context(),
             |_| None,
         )
@@ -2075,132 +1693,57 @@ mod symbolic_sum_materializations {
     #[test]
     fn symbolic_sum_materialization_rejects_malformed_sum_paths() {
         let (layout, carrier) = sum_field_layout();
-
-        let caseless = SymbolicFieldValue::new("choice", 64, entry())
-            .expect("direct sum field")
-            .with_inner_segment(SymbolicFieldPathSegment::new("Run"));
-        let error = reject_inner_layout_materialization(
-            &layout,
-            std::slice::from_ref(&carrier),
-            std::slice::from_ref(&caseless),
-            "a case hop that ends the path cannot resolve a payload",
-        );
-        assert!(
-            error.contains("requires a payload field below case `choice.Run`"),
-            "{}",
-            error
-        );
-
-        let missing_case = SymbolicFieldValue::new("choice", 64, entry())
-            .expect("direct sum field")
-            .with_inner_segment(symbolic_path(&["Bogus", "callback"]));
-        let error = reject_inner_layout_materialization(
-            &layout,
-            std::slice::from_ref(&carrier),
-            std::slice::from_ref(&missing_case),
-            "a spelled case the sum interior lacks must reject",
-        );
-        assert!(
-            error.contains(
-                "spells no case or common field `Bogus` of the inner sum layout for `choice`"
-            ),
-            "{}",
-            error
-        );
-
-        let wrong_case_payload = SymbolicFieldValue::new("choice", 64, entry())
-            .expect("direct sum field")
-            .with_inner_segment(symbolic_path(&["Run", "flags"]));
-        let error = reject_inner_layout_materialization(
-            &layout,
-            std::slice::from_ref(&carrier),
-            std::slice::from_ref(&wrong_case_payload),
-            "a payload spelled on the wrong case must reject",
-        );
-        assert!(
-            error.contains("spells no payload field `flags` of case `choice.Run`"),
-            "{}",
-            error
-        );
-
-        let continues = SymbolicFieldValue::new("choice", 64, entry())
-            .expect("direct sum field")
-            .with_inner_segment(symbolic_path(&["Run", "callback", "deeper"]));
-        let error = reject_inner_layout_materialization(
-            &layout,
-            std::slice::from_ref(&carrier),
-            std::slice::from_ref(&continues),
-            "no interior exists below a case payload",
-        );
-        assert!(
-            error.contains(
-                "continues below sum payload `choice.Run.callback`; a case payload is the leaf of a sum path"
-            ),
-            "{}",
-            error
-        );
-
         let indexed_case = SymbolicFieldValue::new("choice", 64, entry())
             .expect("direct sum field")
             .with_inner_segment(
                 SymbolicFieldPathSegment::new_indexed("Run", 0)
                     .with_inner_segment(SymbolicFieldPathSegment::new("callback")),
             );
-        let error = reject_inner_layout_materialization(
-            &layout,
-            std::slice::from_ref(&carrier),
-            std::slice::from_ref(&indexed_case),
-            "a case hop cannot carry an element index",
-        );
-        assert!(
-            error.contains("case `choice.Run` cannot carry an element index"),
-            "{}",
-            error
-        );
-
         let indexed_payload = SymbolicFieldValue::new("choice", 64, entry())
             .expect("direct sum field")
             .with_inner_segment(
                 SymbolicFieldPathSegment::new("Run")
                     .with_inner_segment(SymbolicFieldPathSegment::new_indexed("callback", 0)),
             );
-        let error = reject_inner_layout_materialization(
-            &layout,
-            std::slice::from_ref(&carrier),
-            std::slice::from_ref(&indexed_payload),
-            "a payload hop cannot carry an element index",
-        );
-        assert!(
-            error.contains(
-                "payload `choice.Run.callback` cannot carry an element index; a sum payload retains one extent per field"
-            ),
-            "{}",
-            error
-        );
 
-        let oversized = SymbolicFieldValue::new("choice", 64, entry())
-            .expect("direct sum field")
-            .with_inner_segment(symbolic_path(&["Small", "flags"]));
-        let error = reject_inner_layout_materialization(
-            &layout,
-            std::slice::from_ref(&carrier),
-            std::slice::from_ref(&oversized),
-            "a write wider than its payload slot must reject",
-        );
-        assert!(
-            error.contains("width 64 exceeds the 8-bit sum member `choice.Small.flags`"),
-            "{}",
-            error
-        );
+        for (field, expected) in [
+            (
+                sym_path("choice", &["Run"], entry()),
+                "requires a payload field below case `choice.Run`",
+            ),
+            (
+                sym_path("choice", &["Bogus", "callback"], entry()),
+                "spells no case or common field `Bogus` of the inner sum layout for `choice`",
+            ),
+            (
+                sym_path("choice", &["Run", "flags"], entry()),
+                "spells no payload field `flags` of case `choice.Run`",
+            ),
+            (
+                sym_path("choice", &["Run", "callback", "deeper"], entry()),
+                "continues below sum payload `choice.Run.callback`; a case payload is the leaf of a sum path",
+            ),
+            (
+                indexed_case,
+                "case `choice.Run` cannot carry an element index",
+            ),
+            (
+                indexed_payload,
+                "payload `choice.Run.callback` cannot carry an element index; a sum payload retains one extent per field",
+            ),
+            (
+                sym_path("choice", &["Small", "flags"], entry()),
+                "width 64 exceeds the 8-bit sum member `choice.Small.flags`",
+            ),
+        ] {
+            assert_reject_inner(&layout, std::slice::from_ref(&carrier), &[field], expected);
+        }
     }
 
     #[test]
     fn symbolic_sum_materialization_rejects_malformed_sum_carriers() {
         let (layout, carrier) = sum_field_layout();
-
-        let path = SymbolicFieldValue::new("choice", 64, entry())
-            .expect("direct sum field")
-            .with_inner_segment(symbolic_path(&["Run", "callback"]));
+        let path = sym_path("choice", &["Run", "callback"], entry());
         let error = derive_symbolic_materialization(
             &layout,
             std::slice::from_ref(&path),
@@ -2217,55 +1760,13 @@ mod symbolic_sum_materializations {
         );
 
         let flat = SymbolicFieldValue::new("header", 64, entry()).expect("scalar field");
-        let error = reject_inner_layout_materialization(
-            &layout,
-            std::slice::from_ref(&carrier),
-            std::slice::from_ref(&flat),
-            "an untraversed sum carrier must reject",
-        );
-        assert!(
-            error.contains(
-                "no symbolic field path traverses the supplied inner layout for `choice`"
-            ),
-            "{}",
-            error
-        );
-
         let nested_under_sum =
             SymbolicFieldInnerLayout::new_sum("choice", sum_layout()).with_inner_layout(
                 SymbolicFieldInnerLayout::new("callback", record_interior(&nested_layout().1)),
             );
-        let error = reject_inner_layout_materialization(
-            &layout,
-            &[nested_under_sum],
-            std::slice::from_ref(&path),
-            "a sum interior cannot bind nested carriers",
-        );
-        assert!(
-            error.contains(
-                "inner layout for `choice` binds a sum interior; its case payload fields carry no nested record carriers"
-            ),
-            "{}",
-            error
-        );
-
         let mut escaping_layout = sum_layout();
         escaping_layout.cases[1].payload_fields[1].offset = 20;
         let escaping = SymbolicFieldInnerLayout::new_sum("choice", escaping_layout);
-        let error = reject_inner_layout_materialization(
-            &layout,
-            &[escaping],
-            std::slice::from_ref(&path),
-            "a payload outside the sum extent must reject",
-        );
-        assert!(
-            error.contains(
-                "inner layout for `choice` places payload field `clock` of case `Run` outside the sum's 24-byte extent"
-            ),
-            "{}",
-            error
-        );
-
         let oversized = SymbolicFieldInnerLayout::new_sum(
             "choice",
             ConventionalSumLayoutReport {
@@ -2273,172 +1774,120 @@ mod symbolic_sum_materializations {
                 ..sum_layout()
             },
         );
-        let error = reject_inner_layout_materialization(
-            &layout,
-            &[oversized],
-            std::slice::from_ref(&path),
-            "a sum interior may not exceed its enclosing element",
-        );
-        assert!(
-            error.contains(
-                "interior layout for `choice` exceeds the enclosing 40-byte record extent"
+        for (carriers, fields, expected) in [
+            (
+                vec![carrier],
+                vec![flat],
+                "no symbolic field path traverses the supplied inner layout for `choice`",
             ),
-            "{}",
-            error
-        );
+            (
+                vec![nested_under_sum],
+                vec![path.clone()],
+                "inner layout for `choice` binds a sum interior; its case payload fields carry no nested record carriers",
+            ),
+            (
+                vec![escaping],
+                vec![path.clone()],
+                "inner layout for `choice` places payload field `clock` of case `Run` outside the sum's 24-byte extent",
+            ),
+            (
+                vec![oversized],
+                vec![path],
+                "interior layout for `choice` exceeds the enclosing 40-byte record extent",
+            ),
+        ] {
+            assert_reject_inner(&layout, &carriers, &fields, expected);
+        }
 
         let (array_layout, _) = sum_array_layout();
-        let zero_count = SymbolicFieldInnerLayout::new_sum_array("sums", sum_layout(), 0, 24);
         let indexed_path = SymbolicFieldValue::new_indexed("sums", 0, 64, entry())
             .expect("repeated sum field")
             .with_inner_segment(symbolic_path(&["Run", "callback"]));
-        let error = reject_inner_layout_materialization(
-            &array_layout,
-            &[zero_count],
-            std::slice::from_ref(&indexed_path),
-            "indexing a zero-element repeated sum interior must reject",
-        );
-        assert!(
-            error.contains("element index 0 is outside its 0 element placements"),
-            "{}",
-            error
-        );
-
-        let overlapping = SymbolicFieldInnerLayout::new_sum_array("sums", sum_layout(), 2, 16);
-        let error = reject_inner_layout_materialization(
-            &array_layout,
-            &[overlapping],
-            std::slice::from_ref(&indexed_path),
-            "a stride smaller than the element extent would overlap elements",
-        );
-        assert!(
-            error.contains(
-                "inner layout for `sums` strides repeated sum elements by 16 bytes inside their 24-byte extent"
+        for (bad_carrier, expected) in [
+            (
+                SymbolicFieldInnerLayout::new_sum_array("sums", sum_layout(), 0, 24),
+                "element index 0 is outside its 0 element placements",
             ),
-            "{}",
-            error
-        );
+            (
+                SymbolicFieldInnerLayout::new_sum_array("sums", sum_layout(), 2, 16),
+                "inner layout for `sums` strides repeated sum elements by 16 bytes inside their 24-byte extent",
+            ),
+        ] {
+            assert_reject_inner(
+                &array_layout,
+                &[bad_carrier],
+                std::slice::from_ref(&indexed_path),
+                expected,
+            );
+        }
     }
 
     #[test]
     fn symbolic_sum_array_materialization_rejects_malformed_element_hops() {
         let (layout, carrier) = sum_array_layout();
-
-        let unindexed = SymbolicFieldValue::new("sums", 64, entry())
-            .expect("repeated sum field")
-            .with_inner_segment(symbolic_path(&["Run", "callback"]));
-        let error = reject_inner_layout_materialization(
+        assert_reject_inner(
             &layout,
             std::slice::from_ref(&carrier),
-            std::slice::from_ref(&unindexed),
-            "a repeated sum path requires an element index",
+            &[sym_path("sums", &["Run", "callback"], entry())],
+            "requires an element index into the repeated sum field `sums`",
         );
-        assert!(
-            error.contains("requires an element index into the repeated sum field `sums`"),
-            "{}",
-            error
-        );
-
         let out_of_range = SymbolicFieldValue::new_indexed("sums", 2, 64, entry())
             .expect("repeated sum field")
             .with_inner_segment(symbolic_path(&["Run", "callback"]));
-        let error = reject_inner_layout_materialization(
+        assert_reject_inner(
             &layout,
             std::slice::from_ref(&carrier),
-            std::slice::from_ref(&out_of_range),
-            "an element index beyond the repeated extent must reject",
-        );
-        assert!(
-            error.contains("element index 2 is outside its 2 element placements"),
-            "{}",
-            error
+            &[out_of_range],
+            "element index 2 is outside its 2 element placements",
         );
 
-        let mut per_element = layout.clone();
-        per_element.entries = (0..2)
-            .map(|index| {
-                layout_field_entry(
-                    "sums",
-                    LayoutPlacementReport::At {
-                        offset: 8 + index * 24,
-                    },
-                )
-            })
-            .collect();
+        let sums_at = |offsets: &[u64]| LayoutPlanReport {
+            entries: offsets
+                .iter()
+                .map(|&offset| layout_field_entry("sums", LayoutPlacementReport::At { offset }))
+                .collect(),
+            ..layout.clone()
+        };
         let indexed = SymbolicFieldValue::new_indexed("sums", 1, 64, entry())
             .expect("repeated sum field")
             .with_inner_segment(symbolic_path(&["Run", "callback"]));
         let materialization = derive_symbolic_materialization_with_inner_layouts(
-            &per_element,
+            &sums_at(&[8, 32]),
             std::slice::from_ref(&carrier),
             std::slice::from_ref(&indexed),
             post_handoff_context(),
             |_| None,
         )
         .expect("per-element `At` placements carry the same repeated boundary");
-        let offsets = writer_field_offsets(&materialization);
-        assert_eq!(offsets, [("sums[1].Run.callback", 40)]);
-
-        let mut surplus = layout.clone();
-        surplus.entries = (0..3)
-            .map(|index| {
-                layout_field_entry(
-                    "sums",
-                    LayoutPlacementReport::At {
-                        offset: 8 + index * 16,
-                    },
-                )
-            })
-            .collect();
-        let error = reject_inner_layout_materialization(
-            &surplus,
-            std::slice::from_ref(&carrier),
-            std::slice::from_ref(&indexed),
-            "more element placements than the carrier's count is drift",
+        assert_eq!(
+            writer_field_offsets(&materialization),
+            [("sums[1].Run.callback", 40)]
         );
-        assert!(
-            error.contains(
-                "inner layout for `sums` element placements drift from its count or stride"
+
+        for (bad_layout, expected) in [
+            (
+                sums_at(&[8, 24, 40]),
+                "inner layout for `sums` element placements drift from its count or stride",
             ),
-            "{}",
-            error
-        );
-
-        let mut drifted = layout.clone();
-        drifted.entries = vec![
-            layout_field_entry("sums", LayoutPlacementReport::At { offset: 8 }),
-            layout_field_entry("sums", LayoutPlacementReport::At { offset: 30 }),
-        ];
-        let error = reject_inner_layout_materialization(
-            &drifted,
-            std::slice::from_ref(&carrier),
-            std::slice::from_ref(&indexed),
-            "element placements drifting from the carrier's stride must reject",
-        );
-        assert!(
-            error.contains(
-                "inner layout for `sums` element placements drift from its count or stride"
+            (
+                sums_at(&[8, 30]),
+                "inner layout for `sums` element placements drift from its count or stride",
             ),
-            "{}",
-            error
-        );
-
-        let shrunken_outer = LayoutPlanReport {
-            size: Some(40),
-            ..layout.clone()
-        };
-        let error = reject_inner_layout_materialization(
-            &shrunken_outer,
-            std::slice::from_ref(&carrier),
-            std::slice::from_ref(&indexed),
-            "a repeated interior escaping the record extent must reject",
-        );
-        assert!(
-            error
-                .contains("interior layout for `sums` exceeds the enclosing 40-byte record extent"),
-            "{}",
-            error
-        );
+            (
+                LayoutPlanReport {
+                    size: Some(40),
+                    ..layout
+                },
+                "interior layout for `sums` exceeds the enclosing 40-byte record extent",
+            ),
+        ] {
+            assert_reject_inner(
+                &bad_layout,
+                std::slice::from_ref(&carrier),
+                std::slice::from_ref(&indexed),
+                expected,
+            );
+        }
     }
 
     #[test]
@@ -2503,31 +1952,33 @@ mod symbolic_sum_materializations {
             Some(8)
         );
 
+        let numbered_chain = |target, segs: &[(&str, u64)]| {
+            let mut iter = segs.iter().rev();
+            let &(last_name, last_id) = iter.next().unwrap();
+            let tail = iter.fold(
+                SymbolicFieldPathSegment::new_numbered(last_name, last_id),
+                |acc, &(name, id)| {
+                    SymbolicFieldPathSegment::new_numbered(name, id).with_inner_segment(acc)
+                },
+            );
+            SymbolicFieldValue::new_numbered("middle", 5, 64, target)
+                .expect("numbered outer record field")
+                .with_inner_segment(tail)
+        };
         let symbolic = [
-            SymbolicFieldValue::new_numbered("middle", 5, 64, entry())
-                .expect("numbered outer record field")
-                .with_inner_segment(
-                    SymbolicFieldPathSegment::new_numbered("inner", 6).with_inner_segment(
-                        SymbolicFieldPathSegment::new_numbered("choice", 8).with_inner_segment(
-                            SymbolicFieldPathSegment::new_numbered("RenamedCase", 11)
-                                .with_inner_segment(SymbolicFieldPathSegment::new_numbered(
-                                    "RenamedPayload",
-                                    21,
-                                )),
-                        ),
-                    ),
-                ),
-            SymbolicFieldValue::new_numbered("middle", 5, 64, data())
-                .expect("numbered outer record field")
-                .with_inner_segment(
-                    SymbolicFieldPathSegment::new_numbered("route", 10).with_inner_segment(
-                        SymbolicFieldPathSegment::new_numbered("RenamedCase", 13)
-                            .with_inner_segment(SymbolicFieldPathSegment::new_numbered(
-                                "RenamedPayload",
-                                23,
-                            )),
-                    ),
-                ),
+            numbered_chain(
+                entry(),
+                &[
+                    ("inner", 6),
+                    ("choice", 8),
+                    ("RenamedCase", 11),
+                    ("RenamedPayload", 21),
+                ],
+            ),
+            numbered_chain(
+                data(),
+                &[("route", 10), ("RenamedCase", 13), ("RenamedPayload", 23)],
+            ),
         ];
         let plan = derive_symbolic_materialization_with_inner_layouts(
             &report.outer_layout,
@@ -2537,9 +1988,8 @@ mod symbolic_sum_materializations {
             |_| None,
         )
         .expect("numbered recursive boundaries join on stable identities");
-        let writes = writer_field_offsets(&plan);
         assert_eq!(
-            writes,
+            writer_field_offsets(&plan),
             vec![
                 ("middle.inner.choice.RenamedCase.RenamedPayload", 16),
                 ("middle.route.RenamedCase.RenamedPayload", 64),
@@ -2559,24 +2009,19 @@ mod symbolic_sum_materializations {
             },
             children: Vec::new(),
         };
-        let wrap = |inner| ConventionalRecursiveRecordSumPathsLayoutReport {
-            outer_layout: LayoutPlanReport {
-                schema_report_fingerprint: 9,
-                entries: vec![layout_field_entry(
-                    "sub",
-                    LayoutPlacementReport::At { offset: 0 },
-                )],
-                offsets: Some(vec![0]),
-                size: Some(8),
-                align: 8,
-            },
-            children: vec![ConventionalRecordSumChildLayoutReport {
-                field: "sub".into(),
-                member_identity: None,
-                hop: ConventionalRecordSumChildHop::Field,
-                interior: ConventionalRecordSumChildInterior::Record(inner),
-            }],
-        };
+        fn wrap(
+            inner: ConventionalRecursiveRecordSumPathsLayoutReport,
+        ) -> ConventionalRecursiveRecordSumPathsLayoutReport {
+            ConventionalRecursiveRecordSumPathsLayoutReport {
+                outer_layout: record_layout(9, &[("sub", 0)], 8),
+                children: vec![ConventionalRecordSumChildLayoutReport {
+                    field: "sub".into(),
+                    member_identity: None,
+                    hop: ConventionalRecordSumChildHop::Field,
+                    interior: ConventionalRecordSumChildInterior::Record(inner),
+                }],
+            }
+        }
         let mut at_bound = leaf();
         for _ in 1..CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT - 1 {
             at_bound = wrap(at_bound);
@@ -2617,98 +2062,74 @@ mod symbolic_sum_materializations {
                 )
         };
         let cover_rest = || {
-            [
-                SymbolicFieldValue::new("middle", 64, data())
-                    .expect("outer record field")
-                    .with_inner_segment(symbolic_path(&["inner", "choice", "Run", "clock"])),
-                SymbolicFieldValue::new("middle", 64, data())
-                    .expect("outer record field")
-                    .with_inner_segment(symbolic_path(&["route", "Run", "callback"])),
+            vec![
+                sym_path("middle", &["inner", "choice", "Run", "clock"], data()),
+                sym_path("middle", &["route", "Run", "callback"], data()),
             ]
         };
-
-        let error = derive_symbolic_materialization_with_inner_layouts(
-            &report.outer_layout,
-            &carriers,
-            &std::iter::once(neighbors_choice(None))
+        let with_neighbor = |index: Option<u64>| {
+            std::iter::once(neighbors_choice(index))
                 .chain(cover_rest())
-                .collect::<Vec<_>>(),
-            post_handoff_context(),
-            |_| None,
-        )
-        .expect_err("an unindexed hop into a repeated record interior cannot name one element");
-        assert!(
-            error.0.contains(
-                "requires an element index into the repeated record field `middle.neighbors`"
-            ),
-            "{}",
-            error.0
-        );
-
-        let error = derive_symbolic_materialization_with_inner_layouts(
-            &report.outer_layout,
-            &carriers,
-            &std::iter::once(neighbors_choice(Some(2)))
-                .chain(cover_rest())
-                .collect::<Vec<_>>(),
-            post_handoff_context(),
-            |_| None,
-        )
-        .expect_err("an element index beyond the repeated extent must reject");
-        assert!(
-            error
-                .0
-                .contains("element index 2 is outside its 2 element placements"),
-            "{}",
-            error.0
-        );
+                .collect::<Vec<_>>()
+        };
 
         let mut shrunken = carriers.clone();
-        let layout_plans::ConventionalRecordSumChildHop::Index { element_stride, .. } =
+        let ConventionalRecordSumChildHop::Index { element_stride, .. } =
             &mut shrunken[0].inner_layouts[2].inner_layout.hop
         else {
             unreachable!()
         };
         *element_stride = 16;
-        let error = derive_symbolic_materialization_with_inner_layouts(
-            &report.outer_layout,
-            &shrunken,
-            &std::iter::once(neighbors_choice(Some(1)))
-                .chain(cover_rest())
-                .collect::<Vec<_>>(),
-            post_handoff_context(),
-            |_| None,
-        )
-        .expect_err("a record array striding inside its element extent must reject");
-        assert!(
-            error.0.contains(
-                "strides repeated record elements by 16 bytes inside their 32-byte extent"
-            ),
-            "{}",
-            error.0
-        );
 
-        let error = derive_symbolic_materialization_with_inner_layouts(
-            &report.outer_layout,
-            &carriers,
-            &cover_rest().into_iter().collect::<Vec<_>>(),
-            post_handoff_context(),
-            |_| None,
-        )
-        .expect_err("an untraversed repeated record interior must reject");
-        assert!(
-            error.0.contains(
-                "no symbolic field path traverses the supplied inner layout for `middle.neighbors`"
+        for (case_carriers, fields, expected) in [
+            (
+                &carriers,
+                with_neighbor(None),
+                "requires an element index into the repeated record field `middle.neighbors`",
             ),
-            "{}",
-            error.0
-        );
+            (
+                &carriers,
+                with_neighbor(Some(2)),
+                "element index 2 is outside its 2 element placements",
+            ),
+            (
+                &shrunken,
+                with_neighbor(Some(1)),
+                "strides repeated record elements by 16 bytes inside their 32-byte extent",
+            ),
+            (
+                &carriers,
+                cover_rest(),
+                "no symbolic field path traverses the supplied inner layout for `middle.neighbors`",
+            ),
+        ] {
+            assert_reject_inner(&report.outer_layout, case_carriers, &fields, expected);
+        }
     }
 }
+
 mod writer_fragments {
+    use super::{entry, post_handoff_context, split_layout, stored_integer_layout};
+    use crate::derive_symbolic_materialization;
+    use layout_plans::test_support::post_handoff_context_with;
+    use layout_plans::{
+        ArtifactInstallationScopeId, ByteOrder, ConsumptionInstant, MachineRegimeId,
+        MaterializationAction, MaterializationContext, PlacementAddressRange, PlacementConstraints,
+        PlacementPhase, PlacementSite, SymbolicFieldValue,
+    };
+
+    fn load_context() -> MaterializationContext {
+        MaterializationContext {
+            consumption: ConsumptionInstant::BeforeOmegaEntry,
+            byte_order: ByteOrder::LittleEndian,
+            native_pointer_relocation_bits: Some(64),
+            placement: PlacementConstraints::unconstrained(PlacementPhase::Load),
+        }
+    }
+
     fn post_handoff_split_writer_plan() -> layout_plans::SymbolicMaterializationPlan {
         let symbolic = SymbolicFieldValue::new("address", 64, entry()).expect("symbolic field");
-        crate::derive_symbolic_materialization(
+        derive_symbolic_materialization(
             &split_layout(),
             &[symbolic],
             post_handoff_context(),
@@ -2736,7 +2157,7 @@ mod writer_fragments {
         let symbolic = SymbolicFieldValue::new("address", 64, entry()).expect("symbolic field");
         let mut layout = split_layout();
         layout.align = 16;
-        let plan = crate::derive_symbolic_materialization(
+        let plan = derive_symbolic_materialization(
             &layout,
             &[symbolic],
             post_handoff_context_with(constraints),
@@ -2745,30 +2166,15 @@ mod writer_fragments {
         .expect("constrained post-handoff plan");
         (plan, regime, scope)
     }
-    use super::{entry, post_handoff_context, split_layout, stored_integer_layout};
-    use crate::derive_symbolic_materialization;
-    use layout_plans::test_support::post_handoff_context_with;
-    use layout_plans::{ArtifactInstallationScopeId, MachineRegimeId, PlacementAddressRange};
-    use layout_plans::{
-        ByteOrder, ConsumptionInstant, MaterializationAction, MaterializationContext,
-        PlacementConstraints, PlacementPhase, PlacementSite, SymbolicFieldValue,
-    };
 
     #[test]
     fn fixed_entry_constant_folds_split_little_endian_bytes() {
         let symbolic = SymbolicFieldValue::new("address", 64, entry()).expect("symbolic field");
-        let plan = derive_symbolic_materialization(
-            &split_layout(),
-            &[symbolic],
-            MaterializationContext {
-                consumption: ConsumptionInstant::BeforeOmegaEntry,
-                byte_order: ByteOrder::LittleEndian,
-                native_pointer_relocation_bits: Some(64),
-                placement: PlacementConstraints::unconstrained(PlacementPhase::Load),
-            },
-            |_| Some(0x1122_3344_5566_7788),
-        )
-        .expect("fixed-address fragments constant-fold");
+        let plan =
+            derive_symbolic_materialization(&split_layout(), &[symbolic], load_context(), |_| {
+                Some(0x1122_3344_5566_7788)
+            })
+            .expect("fixed-address fragments constant-fold");
         let mut bytes = [0_u8; 16];
         crate::materialize_resolved_into(&plan, &mut bytes).expect("all writes resolved");
 
@@ -2780,12 +2186,7 @@ mod writer_fragments {
     fn symbolic_stored_integer_fit_is_enforced_before_each_consumption_phase() {
         let layout = stored_integer_layout();
         let symbolic = SymbolicFieldValue::new("address", 64, entry()).expect("symbolic field");
-        let context = MaterializationContext {
-            consumption: ConsumptionInstant::BeforeOmegaEntry,
-            byte_order: ByteOrder::LittleEndian,
-            native_pointer_relocation_bits: Some(64),
-            placement: PlacementConstraints::unconstrained(PlacementPhase::Load),
-        };
+        let context = load_context();
         let plan = derive_symbolic_materialization(
             &layout,
             std::slice::from_ref(&symbolic),
@@ -2804,10 +2205,7 @@ mod writer_fragments {
         let error = crate::materialize_resolved_into(&tampered, &mut bytes)
             .expect_err("resolved execution must replay retained stored-integer fit evidence");
         assert!(error.0.contains("does not fit"), "{}", error.0);
-        assert_eq!(
-            bytes, [0xa5; 4],
-            "tampered resolved values reject before destination mutation"
-        );
+        assert_eq!(bytes, [0xa5; 4]);
 
         crate::materialize_resolved_into(&plan, &mut bytes)
             .expect("the resolved value should use the exact stored width");
@@ -2843,19 +2241,9 @@ mod writer_fragments {
     #[test]
     fn unresolved_loader_consumed_fragments_reject() {
         let symbolic = SymbolicFieldValue::new("address", 64, entry()).expect("symbolic field");
-        let error = derive_symbolic_materialization(
-            &split_layout(),
-            &[symbolic],
-            MaterializationContext {
-                consumption: ConsumptionInstant::BeforeOmegaEntry,
-                byte_order: ByteOrder::LittleEndian,
-                native_pointer_relocation_bits: Some(64),
-                placement: PlacementConstraints::unconstrained(PlacementPhase::Load),
-            },
-            |_| None,
-        )
-        .expect_err("a loader cannot apply split pointer relocations");
-
+        let error =
+            derive_symbolic_materialization(&split_layout(), &[symbolic], load_context(), |_| None)
+                .expect_err("a loader cannot apply split pointer relocations");
         assert!(error.0.contains("before Omega entry"));
     }
 
@@ -2870,119 +2258,81 @@ mod writer_fragments {
     #[test]
     fn placement_constraints_join_layout_alignment_and_validate_all_axes() {
         let (plan, regime, scope) = constrained_post_handoff_plan();
-
         assert_eq!(plan.placement.alignment(), 4096);
+        let valid = PlacementSite {
+            base_address: 0x8000,
+            phase: PlacementPhase::PostHandoff,
+            machine_regime: Some(regime),
+            installation_scope: Some(scope),
+        };
         plan.placement
-            .validate_site(
-                plan.byte_len,
-                PlacementSite {
-                    base_address: 0x8000,
-                    phase: PlacementPhase::PostHandoff,
-                    machine_regime: Some(regime),
-                    installation_scope: Some(scope),
-                },
-            )
+            .validate_site(plan.byte_len, valid)
             .expect("all concrete placement facts match");
 
-        let wrong_phase = PlacementSite {
-            base_address: 0x8000,
-            phase: PlacementPhase::Load,
-            machine_regime: Some(regime),
-            installation_scope: Some(scope),
-        };
-        assert!(
-            plan.placement
-                .validate_site(plan.byte_len, wrong_phase)
-                .expect_err("phase is part of the normalized constraint")
-                .0
-                .contains("phase")
-        );
-
-        let misaligned = PlacementSite {
-            base_address: 0x8001,
-            phase: PlacementPhase::PostHandoff,
-            ..wrong_phase
-        };
-        assert!(
-            plan.placement
-                .validate_site(plan.byte_len, misaligned)
-                .expect_err("layout and policy alignment are mandatory")
-                .0
-                .contains("aligned")
-        );
-
-        let wrong_regime = PlacementSite {
-            phase: PlacementPhase::PostHandoff,
-            machine_regime: None,
-            ..wrong_phase
-        };
-        assert!(
-            plan.placement
-                .validate_site(plan.byte_len, wrong_regime)
-                .expect_err("machine regime is required")
-                .0
-                .contains("regime")
-        );
-
-        let wrong_scope = PlacementSite {
-            machine_regime: Some(regime),
-            installation_scope: None,
-            ..wrong_regime
-        };
-        assert!(
-            plan.placement
-                .validate_site(plan.byte_len, wrong_scope)
-                .expect_err("installation scope is required")
-                .0
-                .contains("scope")
-        );
-
-        let outside_range = PlacementSite {
-            base_address: 0x10_0000,
-            installation_scope: Some(scope),
-            ..wrong_scope
-        };
-        assert!(
-            plan.placement
-                .validate_site(plan.byte_len, outside_range)
-                .expect_err("complete placement must fit the range")
-                .0
-                .contains("outside")
-        );
+        for (site, expected) in [
+            (
+                PlacementSite {
+                    phase: PlacementPhase::Load,
+                    ..valid
+                },
+                "phase",
+            ),
+            (
+                PlacementSite {
+                    base_address: 0x8001,
+                    ..valid
+                },
+                "aligned",
+            ),
+            (
+                PlacementSite {
+                    machine_regime: None,
+                    ..valid
+                },
+                "regime",
+            ),
+            (
+                PlacementSite {
+                    installation_scope: None,
+                    ..valid
+                },
+                "scope",
+            ),
+            (
+                PlacementSite {
+                    base_address: 0x10_0000,
+                    ..valid
+                },
+                "outside",
+            ),
+        ] {
+            assert!(
+                plan.placement
+                    .validate_site(plan.byte_len, site)
+                    .expect_err(expected)
+                    .0
+                    .contains(expected)
+            );
+        }
     }
 }
 
 use layout_plans::{
     ConventionalRecordSumChildHop, ConventionalRecordSumChildInterior,
     ConventionalRecordSumChildLayoutReport, ConventionalRecursiveRecordSumPathsLayoutReport,
-    LayoutPlacementReport, LayoutPlanReport, SymbolicFieldInnerLayout, SymbolicFieldValue,
+    LayoutPlanReport, RelocationTarget, SymbolicFieldInnerLayout, SymbolicFieldValue,
 };
+
+fn sym_path(root: &str, segments: &[&str], target: RelocationTarget) -> SymbolicFieldValue {
+    SymbolicFieldValue::new(root, 64, target)
+        .expect("outer record field")
+        .with_inner_segment(symbolic_path(segments))
+}
 
 fn nested_layout() -> (LayoutPlanReport, SymbolicFieldInnerLayout) {
     (
-        LayoutPlanReport {
-            schema_report_fingerprint: 1,
-            entries: vec![
-                layout_field_entry("header", LayoutPlacementReport::At { offset: 0 }),
-                layout_field_entry("slot", LayoutPlacementReport::At { offset: 8 }),
-            ],
-            offsets: Some(vec![0, 8]),
-            size: Some(24),
-            align: 8,
-        },
-        SymbolicFieldInnerLayout::new(
-            "slot",
-            LayoutPlanReport {
-                schema_report_fingerprint: 2,
-                entries: vec![
-                    layout_field_entry("entry", LayoutPlacementReport::At { offset: 0 }),
-                    layout_field_entry("flags", LayoutPlacementReport::At { offset: 8 }),
-                ],
-                offsets: Some(vec![0, 8]),
-                size: Some(16),
-                align: 8,
-            },
-        ),
+        record_layout(1, &[("header", 0), ("slot", 8)], 24),
+        SymbolicFieldInnerLayout::new("slot", record_layout(2, &[("entry", 0), ("flags", 8)], 16)),
     )
 }
 
@@ -2995,96 +2345,68 @@ fn record_interior(carrier: &SymbolicFieldInnerLayout) -> LayoutPlanReport {
 
 fn sum_field_layout() -> (LayoutPlanReport, SymbolicFieldInnerLayout) {
     (
-        LayoutPlanReport {
-            schema_report_fingerprint: 1,
-            entries: vec![
-                layout_field_entry("header", LayoutPlacementReport::At { offset: 0 }),
-                layout_field_entry("choice", LayoutPlacementReport::At { offset: 8 }),
-                layout_field_entry("tail", LayoutPlacementReport::At { offset: 32 }),
-            ],
-            offsets: Some(vec![0, 8, 32]),
-            size: Some(40),
-            align: 8,
-        },
+        record_layout(1, &[("header", 0), ("choice", 8), ("tail", 32)], 40),
         SymbolicFieldInnerLayout::new_sum("choice", sum_layout()),
     )
 }
 
 fn recursive_sum_report() -> ConventionalRecursiveRecordSumPathsLayoutReport {
+    let field_child = |field: &str, interior| ConventionalRecordSumChildLayoutReport {
+        field: field.into(),
+        member_identity: None,
+        hop: ConventionalRecordSumChildHop::Field,
+        interior,
+    };
+    let innermost = ConventionalRecursiveRecordSumPathsLayoutReport {
+        outer_layout: record_layout(3, &[("choice", 0), ("pad", 24)], 32),
+        children: vec![field_child(
+            "choice",
+            ConventionalRecordSumChildInterior::Sum(sum_layout()),
+        )],
+    };
+    let mid = ConventionalRecursiveRecordSumPathsLayoutReport {
+        outer_layout: record_layout(2, &[("inner", 0), ("tag", 32), ("route", 40)], 64),
+        children: vec![
+            field_child(
+                "inner",
+                ConventionalRecordSumChildInterior::Record(innermost),
+            ),
+            field_child(
+                "route",
+                ConventionalRecordSumChildInterior::Sum(sum_layout()),
+            ),
+        ],
+    };
     ConventionalRecursiveRecordSumPathsLayoutReport {
         outer_layout: record_layout(1, &[("header", 0), ("middle", 8)], 72),
-        children: vec![ConventionalRecordSumChildLayoutReport {
-            field: "middle".into(),
-            member_identity: None,
-            hop: ConventionalRecordSumChildHop::Field,
-            interior: ConventionalRecordSumChildInterior::Record(
-                ConventionalRecursiveRecordSumPathsLayoutReport {
-                    outer_layout: record_layout(2, &[("inner", 0), ("tag", 32), ("route", 40)], 64),
-                    children: vec![
-                        ConventionalRecordSumChildLayoutReport {
-                            field: "inner".into(),
-                            member_identity: None,
-                            hop: ConventionalRecordSumChildHop::Field,
-                            interior: ConventionalRecordSumChildInterior::Record(
-                                ConventionalRecursiveRecordSumPathsLayoutReport {
-                                    outer_layout: record_layout(
-                                        3,
-                                        &[("choice", 0), ("pad", 24)],
-                                        32,
-                                    ),
-                                    children: vec![ConventionalRecordSumChildLayoutReport {
-                                        field: "choice".into(),
-                                        member_identity: None,
-                                        hop: ConventionalRecordSumChildHop::Field,
-                                        interior: ConventionalRecordSumChildInterior::Sum(
-                                            sum_layout(),
-                                        ),
-                                    }],
-                                },
-                            ),
-                        },
-                        ConventionalRecordSumChildLayoutReport {
-                            field: "route".into(),
-                            member_identity: None,
-                            hop: ConventionalRecordSumChildHop::Field,
-                            interior: ConventionalRecordSumChildInterior::Sum(sum_layout()),
-                        },
-                    ],
-                },
-            ),
-        }],
+        children: vec![field_child(
+            "middle",
+            ConventionalRecordSumChildInterior::Record(mid),
+        )],
     }
 }
 
 fn sum_array_layout() -> (LayoutPlanReport, SymbolicFieldInnerLayout) {
     (
-        LayoutPlanReport {
-            schema_report_fingerprint: 1,
-            entries: vec![
-                layout_field_entry("header", LayoutPlacementReport::At { offset: 0 }),
-                layout_field_entry("sums", LayoutPlacementReport::At { offset: 8 }),
-            ],
-            offsets: Some(vec![0, 8]),
-            size: Some(56),
-            align: 8,
-        },
+        record_layout(1, &[("header", 0), ("sums", 8)], 56),
         SymbolicFieldInnerLayout::new_sum_array("sums", sum_layout(), 2, 24),
     )
 }
 
-pub(super) fn reject_inner_layout_materialization(
+pub(super) fn assert_reject_inner(
     layout: &LayoutPlanReport,
     inner_layouts: &[SymbolicFieldInnerLayout],
     symbolic_fields: &[SymbolicFieldValue],
-    expectation: &str,
-) -> String {
-    crate::derive_symbolic_materialization_with_inner_layouts(
+    expected: &str,
+) {
+    let error = crate::derive_symbolic_materialization_with_inner_layouts(
         layout,
         inner_layouts,
         symbolic_fields,
         post_handoff_context(),
         |_| None,
     )
-    .expect_err(expectation)
-    .0
+    .expect_err(expected)
+    .0;
+    assert!(error.contains(expected), "{error}");
 }

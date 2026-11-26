@@ -1,3 +1,5 @@
+use main.omg as product;
+use {reviewed_service}/operations.omg;
 use {omega}/build/dependency.omg;
 
 machine build(builder: @mutable BuildPlan) {
@@ -5,17 +7,17 @@ machine build(builder: @mutable BuildPlan) {
     let mutable reviewed_service_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "../reviewed_service_rows_support" });
     |dependency|::with_alias(@mutable reviewed_service_dependency, "reviewed_service");
     let reviewed_service_registration: DependencyRegistration = Build::dependency(builder, reviewed_service_dependency);
-    Build::select_provider::<reviewed_service\Operations, Reader>(builder, linux_arm64);
-    Build::select_provider::<reviewed_service\Operations, Reader>(builder, linux_x86_64);
-    Build::select_provider::<reviewed_service\Operations, Reader>(builder, macos_arm64);
-    Build::select_provider::<reviewed_service\Operations, Reader>(builder, macos_x86_64);
-    Build::select_provider::<reviewed_service\Operations, Reader>(builder, windows_x86_64);
-    Build::select_provider::<reviewed_service\Operations, Reader>(builder, uefi_x86_64);
-    Build::select_provider::<reviewed_service\Operations, Reader>(builder, cross_platform_cli);
-    Build::select_provider::<reviewed_service\Operations, Reader>(builder, local_unchecked);
-    Build::select_provider::<reviewed_service\Operations, Reader>(builder, alpha_bootstrap);
-    Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
-    Build::bind(builder, linux_arm64::ProgramEntry, entry_start);
-    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
-    Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
+    Build::select_provider::<|operations|::Operations, |product|::Reader>(builder, linux_arm64);
+    Build::select_provider::<|operations|::Operations, |product|::Reader>(builder, linux_x86_64);
+    Build::select_provider::<|operations|::Operations, |product|::Reader>(builder, macos_arm64);
+    Build::select_provider::<|operations|::Operations, |product|::Reader>(builder, macos_x86_64);
+    Build::select_provider::<|operations|::Operations, |product|::Reader>(builder, windows_x86_64);
+    Build::select_provider::<|operations|::Operations, |product|::Reader>(builder, uefi_x86_64);
+    Build::select_provider::<|operations|::Operations, |product|::Reader>(builder, cross_platform_cli);
+    Build::select_provider::<|operations|::Operations, |product|::Reader>(builder, local_unchecked);
+    Build::select_provider::<|operations|::Operations, |product|::Reader>(builder, alpha_bootstrap);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |product|::entry_start);
+    Build::bind(builder, linux_arm64::ProgramEntry, |product|::entry_start);
+    Build::bind(builder, macos_arm64::ProgramEntry, |product|::entry_start);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |product|::entry_start);
 }

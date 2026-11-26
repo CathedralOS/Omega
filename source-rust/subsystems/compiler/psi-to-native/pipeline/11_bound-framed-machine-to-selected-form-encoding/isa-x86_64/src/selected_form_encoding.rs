@@ -989,6 +989,9 @@ mod scalar_forms {
                 }
                 bytes.extend([op2, modrm(3, reg, rm)]);
             }
+            // A copy whose source and destination got the same register is
+            // already complete; `mov r, r` would only spend a slot.
+            Kind::CopyI64 if regs[0] == regs[1] => {}
             Kind::CopyI64 => rr64(&mut bytes, 0x89, regs[0], regs[1]),
             Kind::CompareI64Zero => append_self_test(&mut bytes, regs[0]),
             Kind::CompareI64 => rr64(&mut bytes, 0x39, regs[1], regs[0]),
@@ -2322,10 +2325,11 @@ pub fn validate_x86_64_selected_form_encoding(
     let regs = request_validation::resolve_scalar_registers(physical, kind, operands)?;
     request_validation::validate_return_home(kind, &regs)?;
     request_validation::validate_alias_partition(kind, alternative, &regs)?;
-    if bytes.is_empty() {
+    let canonical = scalar_forms::encode_unchecked(kind, alternative, &regs)?;
+    // Only a same-register copy encodes to no bytes.
+    if bytes.is_empty() && !canonical.is_empty() {
         return Err(X86_64SelectedFormEncodingError::MalformedEncoding);
     }
-    let canonical = scalar_forms::encode_unchecked(kind, alternative, &regs)?;
     if bytes != canonical {
         return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
     }
@@ -2702,6 +2706,39 @@ mod tests {
                 &views(&p, &["rax"])
             ),
             Err(X86_64SelectedFormEncodingError::ImmediateOutsideU12)
+        );
+    }
+
+    #[test]
+    fn a_same_register_copy_encodes_to_nothing_and_admits_no_bytes() {
+        let p = phys();
+        let key = Key {
+            family: Family::CopyI64,
+            variant: 0,
+        };
+        let same = views(&p, &["r9", "r9"]);
+        let enc = encode_x86_64_selected_form(&p, Kind::CopyI64, key, &same).unwrap();
+        assert!(enc.bytes().is_empty());
+        assert_eq!(
+            validate_x86_64_selected_form_encoding(&p, Kind::CopyI64, key, &same, &[]).unwrap(),
+            enc
+        );
+        // `mov r9, r9` is still the wrong bytes for this row.
+        assert!(
+            validate_x86_64_selected_form_encoding(
+                &p,
+                Kind::CopyI64,
+                key,
+                &same,
+                &[0x4d, 0x89, 0xc9]
+            )
+            .is_err()
+        );
+        // A copy between different registers may not claim the empty encoding.
+        let different = views(&p, &["r8", "r15"]);
+        assert_eq!(
+            validate_x86_64_selected_form_encoding(&p, Kind::CopyI64, key, &different, &[]),
+            Err(X86_64SelectedFormEncodingError::MalformedEncoding)
         );
     }
 

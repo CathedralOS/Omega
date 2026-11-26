@@ -5,7 +5,7 @@ data Pair { first: u8; second: u8; }
 data Holder<'storage> { view: @'storage Pair; }
 machine probe() -> bool {
     let mutable bytes: [u8; 4] = [11, 23, 37, 41];
-    let original: addr = address_of(@bytes[1]);
+    let original: address = address_of(@bytes[1]);
     let formed: @Pair = @bytes[1] as @Pair;
     let holder: Holder = Holder { view: formed };
     bytes[2] = 99;

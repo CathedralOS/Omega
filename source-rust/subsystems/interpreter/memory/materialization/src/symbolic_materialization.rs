@@ -97,26 +97,15 @@ pub fn derive_symbolic_materialization_with_inner_layouts(
     let planned = planned_entries_by_key(layout);
     for symbolic in symbolic_fields {
         let key = materialization_field_key(&symbolic.field, symbolic.member_identity);
-        let Some(entries) = planned.get(&key) else {
-            let suffix = stable_identity_suffix(symbolic.member_identity);
-            return Err(MaterializationDiagnostic(format!(
-                "symbolic field `{}` has no entry in the validated layout plan{suffix}",
-                symbolic.field
-            )));
-        };
-        let entry_names = entries
-            .iter()
-            .map(|entry| entry.field.as_str())
-            .collect::<std::collections::BTreeSet<_>>();
-        if let Some(drifted) = layout.entries.iter().find(|entry| {
-            entry_names.contains(entry.field.as_str())
-                && materialization_field_key(&entry.field, entry.member_identity) != key
-        }) {
-            return Err(MaterializationDiagnostic(format!(
-                "layout field `{}` fragments do not retain one stable member identity",
-                drifted.field
-            )));
-        }
+        let _ = lookup_planned_entries(
+            layout,
+            &planned,
+            &key,
+            &symbolic.field,
+            symbolic.member_identity,
+            &symbolic.field,
+            true,
+        )?;
     }
 
     let mut carrier_nodes = Vec::new();
@@ -151,38 +140,15 @@ pub fn derive_symbolic_materialization_with_inner_layouts(
                 prefix.push_str(field);
                 prefix.push_str(&symbolic_index_display(element_index));
                 let key = materialization_field_key(field, member_identity);
-                let Some(entries) = current_planned.get(&key) else {
-                    let suffix = stable_identity_suffix(member_identity);
-                    return Err(MaterializationDiagnostic(if depth == 0 {
-                        format!(
-                            "symbolic field `{field}` has no entry in the validated layout plan{suffix}"
-                        )
-                    } else {
-                        format!(
-                            "symbolic field `{path_display}` has no entry in the inner layout plan{suffix}"
-                        )
-                    }));
-                };
-                let entry_names = entries
-                    .iter()
-                    .map(|entry| entry.field.as_str())
-                    .collect::<std::collections::BTreeSet<_>>();
-                if let Some(drifted) = current_layout.entries.iter().find(|entry| {
-                    entry_names.contains(entry.field.as_str())
-                        && materialization_field_key(&entry.field, entry.member_identity) != key
-                }) {
-                    return Err(MaterializationDiagnostic(if depth == 0 {
-                        format!(
-                            "layout field `{}` fragments do not retain one stable member identity",
-                            drifted.field
-                        )
-                    } else {
-                        format!(
-                            "inner layout field `{}` fragments do not retain one stable member identity",
-                            drifted.field
-                        )
-                    }));
-                }
+                let entries = lookup_planned_entries(
+                    current_layout,
+                    current_planned,
+                    &key,
+                    field,
+                    member_identity,
+                    &path_display,
+                    depth == 0,
+                )?;
                 if depth == last
                     && let Some(&node_id) = current_carriers.get(&key)
                     && carrier_nodes[node_id].has_no_storage()
@@ -197,25 +163,21 @@ pub fn derive_symbolic_materialization_with_inner_layouts(
                         element_index,
                         if depth == 0 { field } else { prefix.as_str() },
                     )?;
+                    let field_display = if depth == 0 {
+                        symbolic.field.as_str()
+                    } else {
+                        path_display.as_str()
+                    };
                     for entry in selected {
-                        let mut write = write_from_entry(
+                        let write = compose_relocated_write(
                             entry,
                             symbolic,
-                            if depth == 0 {
-                                symbolic.field.as_str()
-                            } else {
-                                path_display.as_str()
-                            },
+                            field_display,
+                            &path_display,
+                            base_offset,
+                            current_byte_len,
+                            byte_len,
                         )?;
-                        validate_write(current_byte_len, &write)?;
-                        write.container_byte_offset = base_offset
-                            .checked_add(write.container_byte_offset)
-                            .ok_or_else(|| {
-                                MaterializationDiagnostic(format!(
-                                    "symbolic field `{path_display}` composes an out-of-range destination offset"
-                                ))
-                            })?;
-                        validate_write(byte_len, &write)?;
                         writes.push((entry.placement, write));
                     }
                     continue;
@@ -246,54 +208,48 @@ pub fn derive_symbolic_materialization_with_inner_layouts(
                                 "symbolic field `{path_display}` element index {index} is outside its {element_count} element placements"
                             )));
                         }
-                        let base = entries.iter().filter_map(|entry| match entry.placement {
-                            LayoutPlacementReport::At { offset } => Some(offset),
-                            _ => None,
-                        }).min().ok_or_else(|| MaterializationDiagnostic(format!(
-                            "inner layout for `{prefix}` has no whole `At` placement"
-                        )))?;
-                        base.checked_add(
-                            index.checked_mul(element_stride).ok_or_else(|| {
+                        let base = entries
+                            .iter()
+                            .filter_map(|entry| match entry.placement {
+                                LayoutPlacementReport::At { offset } => Some(offset),
+                                _ => None,
+                            })
+                            .min()
+                            .ok_or_else(|| {
+                                MaterializationDiagnostic(format!(
+                                    "inner layout for `{prefix}` has no whole `At` placement"
+                                ))
+                            })?;
+                        index
+                            .checked_mul(element_stride)
+                            .and_then(|delta| base.checked_add(delta))
+                            .ok_or_else(|| {
                                 MaterializationDiagnostic(format!(
                                     "symbolic field `{path_display}` composes an out-of-range interior offset"
                                 ))
-                            })?,
-                        )
-                        .ok_or_else(|| {
-                            MaterializationDiagnostic(format!(
-                                "symbolic field `{path_display}` composes an out-of-range interior offset"
-                            ))
-                        })?
+                            })?
                     }
-                    _ => {
+                    None => {
+                        let scope_label = if depth == 0 {
+                            format!("outer field `{field}`")
+                        } else {
+                            format!("enclosing field `{prefix}`")
+                        };
                         let selected = select_materialization_entries(
                             entries,
                             element_index,
                             if depth == 0 { field } else { prefix.as_str() },
                         )?;
                         let [enclosing_entry] = selected.as_slice() else {
-                            return Err(MaterializationDiagnostic(if depth == 0 {
-                                format!(
-                                    "symbolic field `{path_display}` requires the outer field `{field}` to resolve to exactly one element placement, found {}",
-                                    selected.len()
-                                )
-                            } else {
-                                format!(
-                                    "symbolic field `{path_display}` requires the enclosing field `{prefix}` to resolve to exactly one element placement, found {}",
-                                    selected.len()
-                                )
-                            }));
+                            return Err(MaterializationDiagnostic(format!(
+                                "symbolic field `{path_display}` requires the {scope_label} to resolve to exactly one element placement, found {}",
+                                selected.len()
+                            )));
                         };
                         let LayoutPlacementReport::At { offset } = enclosing_entry.placement else {
-                            return Err(MaterializationDiagnostic(if depth == 0 {
-                                format!(
-                                    "symbolic field `{path_display}` requires the outer field `{field}` to use a whole `At` placement"
-                                )
-                            } else {
-                                format!(
-                                    "symbolic field `{path_display}` requires the enclosing field `{prefix}` to use a whole `At` placement"
-                                )
-                            }));
+                            return Err(MaterializationDiagnostic(format!(
+                                "symbolic field `{path_display}` requires the {scope_label} to use a whole `At` placement"
+                            )));
                         };
                         offset
                     }
@@ -425,17 +381,15 @@ pub fn derive_symbolic_materialization_with_inner_layouts(
                             member_identity: leaf.member_identity,
                             placement: LayoutPlacementReport::At { offset: leaf.offset },
                         };
-                        let mut write =
-                            write_from_entry(&leaf_entry, symbolic, &path_display)?;
-                        validate_write(node.byte_len, &write)?;
-                        write.container_byte_offset = base_offset
-                            .checked_add(write.container_byte_offset)
-                            .ok_or_else(|| {
-                                MaterializationDiagnostic(format!(
-                                    "symbolic field `{path_display}` composes an out-of-range destination offset"
-                                ))
-                            })?;
-                        validate_write(byte_len, &write)?;
+                        let write = compose_relocated_write(
+                            &leaf_entry,
+                            symbolic,
+                            &path_display,
+                            &path_display,
+                            base_offset,
+                            node.byte_len,
+                            byte_len,
+                        )?;
                         writes.push((leaf_entry.placement, write));
                         break;
                     }
@@ -528,6 +482,65 @@ pub fn derive_symbolic_materialization_with_inner_layouts(
     })
 }
 
+fn lookup_planned_entries<'a, 'b>(
+    layout: &LayoutPlanReport,
+    planned: &'b std::collections::BTreeMap<
+        MaterializationFieldKey,
+        Vec<&'a LayoutFieldEntryReport>,
+    >,
+    key: &MaterializationFieldKey,
+    field: &str,
+    member_identity: Option<u64>,
+    path_display: &str,
+    outermost: bool,
+) -> Result<&'b [&'a LayoutFieldEntryReport], MaterializationDiagnostic> {
+    let Some(entries) = planned.get(key) else {
+        let suffix = stable_identity_suffix(member_identity);
+        return Err(MaterializationDiagnostic(if outermost {
+            format!("symbolic field `{field}` has no entry in the validated layout plan{suffix}")
+        } else {
+            format!("symbolic field `{path_display}` has no entry in the inner layout plan{suffix}")
+        }));
+    };
+    let entry_names = entries
+        .iter()
+        .map(|entry| entry.field.as_str())
+        .collect::<std::collections::BTreeSet<_>>();
+    if let Some(drifted) = layout.entries.iter().find(|entry| {
+        entry_names.contains(entry.field.as_str())
+            && &materialization_field_key(&entry.field, entry.member_identity) != key
+    }) {
+        let prefix = if outermost { "layout" } else { "inner layout" };
+        return Err(MaterializationDiagnostic(format!(
+            "{prefix} field `{}` fragments do not retain one stable member identity",
+            drifted.field
+        )));
+    }
+    Ok(entries.as_slice())
+}
+
+fn compose_relocated_write(
+    entry: &LayoutFieldEntryReport,
+    symbolic: &SymbolicFieldValue,
+    field_display: &str,
+    path_display: &str,
+    base_offset: u64,
+    inner_byte_len: usize,
+    total_byte_len: usize,
+) -> Result<MaterializationWrite, MaterializationDiagnostic> {
+    let mut write = write_from_entry(entry, symbolic, field_display)?;
+    validate_write(inner_byte_len, &write)?;
+    write.container_byte_offset = base_offset
+        .checked_add(write.container_byte_offset)
+        .ok_or_else(|| {
+            MaterializationDiagnostic(format!(
+                "symbolic field `{path_display}` composes an out-of-range destination offset"
+            ))
+        })?;
+    validate_write(total_byte_len, &write)?;
+    Ok(write)
+}
+
 enum PreparedInterior<'a> {
     Record {
         layout: &'a LayoutPlanReport,
@@ -584,15 +597,14 @@ fn prepare_inner_layouts<'a>(
         let path_display = format!("{path_prefix}{}", carrier.field);
         let key = materialization_field_key(&carrier.field, carrier.member_identity);
         if !planned.contains_key(&key) {
-            return Err(MaterializationDiagnostic(if outermost {
-                format!(
-                    "inner layout for `{path_display}` binds to a field the validated layout plan does not contain"
-                )
+            let enclosing = if outermost {
+                "validated"
             } else {
-                format!(
-                    "inner layout for `{path_display}` binds to a field the enclosing interior layout plan does not contain"
-                )
-            }));
+                "enclosing interior"
+            };
+            return Err(MaterializationDiagnostic(format!(
+                "inner layout for `{path_display}` binds to a field the {enclosing} layout plan does not contain"
+            )));
         }
         if bound.contains_key(&key) {
             return Err(MaterializationDiagnostic(format!(
@@ -758,6 +770,28 @@ fn prepare_record_interior<'a>(
     ))
 }
 
+fn check_sum_extent(
+    offset: u64,
+    size: u64,
+    limit: u64,
+    path_display: &str,
+    overflow_label: &str,
+    outside_label: &str,
+    extent_owner: &str,
+) -> Result<(), MaterializationDiagnostic> {
+    let end = offset.checked_add(size).ok_or_else(|| {
+        MaterializationDiagnostic(format!(
+            "inner layout for `{path_display}` composes an out-of-range {overflow_label}"
+        ))
+    })?;
+    if end > limit {
+        return Err(MaterializationDiagnostic(format!(
+            "inner layout for `{path_display}` places {outside_label} outside {extent_owner} {limit}-byte extent"
+        )));
+    }
+    Ok(())
+}
+
 fn prepare_sum_interior(
     layout: &ConventionalSumLayoutReport,
     path_display: &str,
@@ -768,48 +802,37 @@ fn prepare_sum_interior(
             layout.size
         ))
     })?;
-    let tag_end = layout
-        .tag_offset
-        .checked_add(layout.tag_size)
-        .ok_or_else(|| {
-            MaterializationDiagnostic(format!(
-                "inner layout for `{path_display}` composes an out-of-range sum tag"
-            ))
-        })?;
-    if tag_end > layout.size {
-        return Err(MaterializationDiagnostic(format!(
-            "inner layout for `{path_display}` places the sum tag outside its {}-byte extent",
-            layout.size
-        )));
-    }
+    check_sum_extent(
+        layout.tag_offset,
+        layout.tag_size,
+        layout.size,
+        path_display,
+        "sum tag",
+        "the sum tag",
+        "its",
+    )?;
     for common in &layout.common_fields {
-        let common_end = common.offset.checked_add(common.size).ok_or_else(|| {
-            MaterializationDiagnostic(format!(
-                "inner layout for `{path_display}` composes an out-of-range sum common field `{}`",
-                common.field
-            ))
-        })?;
-        if common_end > layout.size {
-            return Err(MaterializationDiagnostic(format!(
-                "inner layout for `{path_display}` places common field `{}` outside the sum's {}-byte extent",
-                common.field, layout.size
-            )));
-        }
+        check_sum_extent(
+            common.offset,
+            common.size,
+            layout.size,
+            path_display,
+            &format!("sum common field `{}`", common.field),
+            &format!("common field `{}`", common.field),
+            "the sum's",
+        )?;
     }
     for case in &layout.cases {
         for payload in &case.payload_fields {
-            let payload_end = payload.offset.checked_add(payload.size).ok_or_else(|| {
-                MaterializationDiagnostic(format!(
-                    "inner layout for `{path_display}` composes an out-of-range sum payload field `{}`",
-                    payload.field
-                ))
-            })?;
-            if payload_end > layout.size {
-                return Err(MaterializationDiagnostic(format!(
-                    "inner layout for `{path_display}` places payload field `{}` of case `{}` outside the sum's {}-byte extent",
-                    payload.field, case.case, layout.size
-                )));
-            }
+            check_sum_extent(
+                payload.offset,
+                payload.size,
+                layout.size,
+                path_display,
+                &format!("sum payload field `{}`", payload.field),
+                &format!("payload field `{}` of case `{}`", payload.field, case.case),
+                "the sum's",
+            )?;
         }
     }
     validate_conventional_sum_materialization_identities(layout)?;

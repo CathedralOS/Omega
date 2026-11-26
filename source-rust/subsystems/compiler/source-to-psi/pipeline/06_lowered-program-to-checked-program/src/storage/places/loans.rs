@@ -137,8 +137,14 @@ struct CleanupCohort {
     surviving: std::collections::BTreeSet<DescriptorLocation>,
     authorized: std::collections::BTreeSet<DescriptorLocation>,
 }
-type CleanupCohorts =
-    std::collections::BTreeMap<(ObligationId, semantic_vocabulary::EdgeId, u32), CleanupCohort>;
+struct CleanupEntry {
+    obligation: ObligationId,
+    cohort: CleanupCohort,
+}
+struct CleanupCohorts {
+    by_loan: Vec<Vec<(usize, usize, EdgeId, u32, usize)>>,
+    by_action: std::collections::BTreeMap<(EdgeId, u32), Vec<CleanupEntry>>,
+}
 struct FormedLoans {
     loans: Vec<Formed>,
     header_ends: Vec<BorrowedHeaderEnd>,
@@ -157,7 +163,7 @@ pub(super) enum BorrowedResource {
     ViewPayload,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum LoanRegion {
     Storage(Backing),
     /// An admitted provider establishes a stable reference permission. Its input
@@ -1079,6 +1085,7 @@ impl<'a> Storage<'a> {
             >,
         >,
         predecessors: Option<&terminal_semantics::descriptor_lifetimes::FlowPredecessors<'_>>,
+        cutoff: Option<&terminal_semantics::descriptor_lifetimes::DeadTailCutoff>,
         claimed: &mut [bool],
         formed: &mut Vec<Formed>,
     ) -> Checked<()> {
@@ -1266,7 +1273,7 @@ impl<'a> Storage<'a> {
             descriptor_location_lifetime_indexed(
                 flow,
                 predecessors,
-                None,
+                cutoff,
                 at,
                 &DescriptorLocation::whole(result.place),
             )
@@ -1345,165 +1352,170 @@ impl<'a> Storage<'a> {
     /// liveness can propose a release, but cannot itself return custody.
     /// Only an authenticated transported descriptor may use an exclusive
     /// loan; a shared loan permits observation but no write through any alias.
+    #[allow(clippy::too_many_arguments)]
     fn uses_retained_loan(
         &self,
         references: &mut super::DescriptorAnalysis<'a>,
+        loan_idx: usize,
         loan: &Formed,
         formed: &[Formed],
+        post_loans: &PostRetentionLoanIndex<'_>,
         cleanup_cohorts: &CleanupCohorts,
+        prepared: &mut PreparedSiteEffects,
+        events: &mut Vec<(usize, u32, LoanCheckEvent)>,
     ) -> Checked<Option<(Construct, LoanConflict)>> {
         let Some(lifetime) = &loan.lifetime else {
             return Ok(None);
         };
-        for block in &self.lowered.blocks {
-            for (position, operation) in block.operations.iter().enumerate() {
-                let position = u32::try_from(position).map_err(|_| {
-                    self.foreign(
-                        Construct::Operation(operation.id),
-                        "reference observation position exceeds u32",
-                    )
-                })?;
-                let at = (block.id, position);
-                let concerns = Construct::Operation(operation.id);
-                if let terminal_psi::OperationKind::ReleaseReference { source, path } =
-                    &operation.kind
+        events.clear();
+        if prepared.release_ops.len() <= lifetime.authorized.len() {
+            for (release_idx, release) in prepared.release_ops.iter().enumerate() {
+                if lifetime
+                    .authorized
+                    .get(&release.at)
+                    .is_some_and(|names| names.contains(&release.descriptor))
                 {
-                    let descriptor = self
-                        .released_reference(*source, path, concerns)?
-                        .descriptor_location()
-                        .ok_or_else(|| {
-                            self.unsupported(
-                                concerns,
-                                "reference release has no exact descriptor identity",
-                            )
-                        })?;
-                    if lifetime
-                        .authorized
-                        .get(&at)
-                        .is_some_and(|names| names.contains(&descriptor))
-                    {
-                        for child in formed {
-                            if child.lifetime.as_ref().is_some_and(|life| holds(life, &at))
-                                && self.may_descend(child, loan, formed)?
-                            {
-                                return Ok(Some((concerns, LoanConflict::ReleaseBeforeChildren)));
-                            }
+                    events.push((
+                        release.block_idx,
+                        release.pos,
+                        LoanCheckEvent::Release { release_idx },
+                    ));
+                }
+            }
+        } else {
+            for (&at, names) in &lifetime.authorized {
+                if names.is_empty() {
+                    continue;
+                }
+                let Some(block_idx) = prepared.block_index(at.0) else {
+                    continue;
+                };
+                if let Ok(release_idx) = prepared
+                    .release_ops
+                    .binary_search_by_key(&(block_idx, at.1), |release| {
+                        (release.block_idx, release.pos)
+                    })
+                {
+                    let release = &prepared.release_ops[release_idx];
+                    if names.contains(&release.descriptor) {
+                        events.push((block_idx, at.1, LoanCheckEvent::Release { release_idx }));
+                    }
+                }
+            }
+        }
+        let push_position =
+            |at: terminal_semantics::descriptor_lifetimes::DescriptorPosition,
+             events: &mut Vec<(usize, u32, LoanCheckEvent)>| {
+                let Some(block_idx) = prepared.block_index(at.0) else {
+                    return;
+                };
+                let op_count = self.lowered.blocks[block_idx].operations.len();
+                let pos = at.1 as usize;
+                if pos < op_count {
+                    events.push((block_idx, at.1, LoanCheckEvent::Operation));
+                } else if pos == op_count {
+                    events.push((block_idx, at.1, LoanCheckEvent::Terminator));
+                }
+            };
+        for &at in &lifetime.live {
+            push_position(at, events);
+        }
+        for (&at, names) in &lifetime.surviving {
+            if !names.is_empty() {
+                push_position(at, events);
+            }
+        }
+        for &(block_idx, edge_pos, edge, ordinal, action_idx) in &cleanup_cohorts.by_loan[loan_idx]
+        {
+            let term_pos = crate::position(
+                self.lowered.blocks[block_idx].operations.len(),
+                self.machine,
+            )?;
+            events.push((
+                block_idx,
+                term_pos,
+                LoanCheckEvent::Cleanup {
+                    edge_pos,
+                    edge,
+                    ordinal,
+                    action_idx,
+                },
+            ));
+        }
+        events.sort_unstable();
+        events.dedup();
+        for &(block_idx, pos, event) in events.iter() {
+            let block = &self.lowered.blocks[block_idx];
+            let at = (block.id, pos);
+            match event {
+                LoanCheckEvent::Release { release_idx } => {
+                    let concerns = prepared.release_ops[release_idx].concerns;
+                    for &child_idx in post_loans.holding_at(at) {
+                        let child = &formed[child_idx];
+                        if self.may_descend(child, loan, formed, post_loans.by_obligation)? {
+                            return Ok(Some((concerns, LoanConflict::ReleaseBeforeChildren)));
                         }
                     }
                 }
-                if !holds(lifetime, &at) {
-                    continue;
-                }
-                let atomic_change = matches!(
-                    operation.kind,
-                    terminal_psi::OperationKind::AtomicAccess { .. }
-                );
-                let effects = self
-                    .operation_read_effects(operation)?
-                    .into_iter()
-                    .map(|effect| (effect, Touch::Read))
-                    .chain(
-                        self.operation_changes(operation)?
-                            .into_iter()
-                            .map(|effect| {
-                                (
-                                    effect,
-                                    if atomic_change {
-                                        Touch::AtomicChange
-                                    } else {
-                                        Touch::Change
-                                    },
-                                )
-                            }),
-                    );
-                for (effect, touch) in effects {
-                    if let Some(conflict) = self
-                        .retained_conflict(references, loan, formed, effect, touch, at, concerns)?
-                    {
-                        return Ok(Some((concerns, conflict)));
+                LoanCheckEvent::Operation => {
+                    let effects = prepared.operation_effects(self, references, block_idx, pos)?;
+                    let concerns = effects.concerns;
+                    for (place, backing, touch) in &effects.touches {
+                        if let Some(conflict) = self.prepared_conflict(
+                            references, loan, formed, post_loans, place, backing, *touch, at,
+                        )? {
+                            return Ok(Some((concerns, conflict)));
+                        }
                     }
                 }
-            }
-            // The block's terminator observes and relinquishes storage just
-            // as an operation does: a dispatch reads its subject, an owned
-            // edge or return argument leaves its home (ownership.md: an
-            // exclusive child suspends its parent branch).
-            let at = (
-                block.id,
-                crate::position(block.operations.len(), self.machine)?,
-            );
-            if holds(lifetime, &at) {
-                // A dispatch has one edge per case, so it is named by its
-                // block, as the place model names it.
-                let concerns = match &block.terminator {
-                    terminal_psi::Terminator::StructuralCase { .. } => Construct::Block(block.id),
-                    terminator => terminator
-                        .edges()
-                        .next()
-                        .map_or(Construct::Block(block.id), Construct::Edge),
-                };
-                let (reads, changes) = self.terminator_effects(block)?;
-                let effects = reads
-                    .into_iter()
-                    .map(|place| (place, Touch::Read))
-                    .chain(changes.into_iter().map(|place| (place, Touch::Change)));
-                for (place, touch) in effects {
-                    if let Some(conflict) = self.retained_conflict(
-                        references,
-                        loan,
-                        formed,
-                        super::StorageEffect::Storage(place),
-                        touch,
-                        at,
-                        concerns,
-                    )? {
-                        return Ok(Some((concerns, conflict)));
+                LoanCheckEvent::Terminator => {
+                    let effects = prepared.terminator_effects(self, references, block_idx, pos)?;
+                    let concerns = effects.concerns;
+                    for (place, backing, touch) in &effects.touches {
+                        if let Some(conflict) = self.prepared_conflict(
+                            references, loan, formed, post_loans, place, backing, *touch, at,
+                        )? {
+                            return Ok(Some((concerns, conflict)));
+                        }
                     }
                 }
-            }
-            for (edge, actions) in block.terminator.cleanup_rosters() {
-                let concerns = Construct::Edge(edge);
-                for (ordinal, action) in actions.iter().enumerate() {
-                    let ordinal = crate::position(ordinal, self.machine)?;
-                    if !cleanup_cohorts
-                        .get(&(loan.obligation, edge, ordinal))
-                        .is_some_and(|cohort| !cohort.surviving.is_empty())
-                    {
-                        continue;
-                    }
-                    let cleaned = self.stored_at(action.place(), action.path(), concerns)?;
-                    let backing = LoanRegion::Storage(
-                        self.cleanup_backing(references, &cleaned, edge, ordinal, concerns)?,
-                    );
+                LoanCheckEvent::Cleanup {
+                    edge_pos,
+                    edge,
+                    ordinal,
+                    action_idx,
+                } => {
+                    let concerns = Construct::Edge(edge);
+                    let effects = prepared.cleanup_effects(
+                        self, references, block_idx, edge_pos, edge, ordinal, action_idx,
+                    )?;
                     if competing_borrows(
                         loan.access,
                         &loan.lineage,
                         ReferenceAccess::Mutable,
-                        &backing,
+                        &effects.cleaned,
                     )
                     .is_some()
                     {
                         return Ok(Some((concerns, LoanConflict::ChangeWhileBorrowed)));
                     }
-                    if let terminal_psi::TerminalAffineCleanupAction::InvokeOwned(cleanup) = action
-                    {
-                        for (raw, backing, access) in
-                            self.cleanup_reference_accesses(references, edge, ordinal, cleanup)?
-                        {
+                    if let Some(accesses) = &effects.accesses {
+                        for (raw, backing, access) in accesses {
                             if competing_borrows(
                                 loan.access,
                                 &loan.lineage,
-                                access,
-                                &LoanRegion::Storage(backing),
+                                *access,
+                                &LoanRegion::Storage(backing.clone()),
                             )
                             .is_some()
                                 && ((access.is_exclusive() && !loan.access.is_exclusive())
                                     || !self.authorized_cleanup_reference(
                                         loan,
-                                        &raw,
+                                        raw,
                                         edge,
                                         ordinal,
                                         formed,
+                                        post_loans.by_obligation,
                                         cleanup_cohorts,
                                     )?)
                             {
@@ -1524,42 +1536,26 @@ impl<'a> Storage<'a> {
         Ok(None)
     }
 
-    /// Whether one storage effect at `at` conflicts with a retained loan:
-    /// a read of exclusively lent storage, or a change of lent storage, not
-    /// made through a descriptor the loan authorizes.
+    /// Whether one prepared storage effect at `at` conflicts with a retained
+    /// loan: a read of exclusively lent storage, or a change of lent storage,
+    /// not made through a descriptor the loan authorizes.
     #[allow(clippy::too_many_arguments)]
-    fn retained_conflict(
+    fn prepared_conflict(
         &self,
         references: &mut super::DescriptorAnalysis<'a>,
         loan: &Formed,
         formed: &[Formed],
-        effect: super::StorageEffect,
+        post_loans: &PostRetentionLoanIndex<'_>,
+        place: &super::Lineage,
+        backing: &LoanRegion,
         touch: Touch,
         at: terminal_semantics::descriptor_lifetimes::DescriptorPosition,
-        concerns: Construct,
     ) -> Checked<Option<LoanConflict>> {
-        let (place, backing) = match effect {
-            super::StorageEffect::Payload(place) => {
-                let backing = self.borrow_backing(
-                    references,
-                    &place,
-                    &[],
-                    BorrowedResource::ViewPayload,
-                    at,
-                    concerns,
-                )?;
-                (place, backing)
-            }
-            super::StorageEffect::Storage(place) => {
-                let backing = self.storage_loan_region(references, &place, at, concerns)?;
-                (place, backing)
-            }
-        };
         let access = match touch {
             Touch::Read | Touch::AtomicChange => ReferenceAccess::Shared,
             Touch::Change => ReferenceAccess::Mutable,
         };
-        if competing_borrows(loan.access, &loan.lineage, access, &backing).is_none() {
+        if competing_borrows(loan.access, &loan.lineage, access, backing).is_none() {
             return Ok(None);
         }
         let conflict = match touch {
@@ -1570,7 +1566,10 @@ impl<'a> Storage<'a> {
         if touch == Touch::Change && !loan.access.is_exclusive() {
             return Ok(Some(conflict));
         }
-        Ok((!self.authorized_reference(references, loan, &place, at, formed)?).then_some(conflict))
+        Ok(
+            (!self.authorized_reference(references, loan, place, at, formed, post_loans)?)
+                .then_some(conflict),
+        )
     }
 
     fn cleanup_cohorts(
@@ -1580,12 +1579,12 @@ impl<'a> Storage<'a> {
         header_ends: &[BorrowedHeaderEnd],
     ) -> Checked<CleanupCohorts> {
         let mut rosters = Vec::new();
-        for block in &self.lowered.blocks {
+        for (block_idx, block) in self.lowered.blocks.iter().enumerate() {
             let at = (
                 block.id,
                 crate::position(block.operations.len(), self.machine)?,
             );
-            for (edge, actions) in block.terminator.cleanup_rosters() {
+            for (edge_pos, (edge, actions)) in block.terminator.cleanup_rosters().enumerate() {
                 if actions.is_empty() {
                     continue;
                 }
@@ -1602,16 +1601,18 @@ impl<'a> Storage<'a> {
                             })?,
                     );
                 }
-                rosters.push((edge, at, killed));
+                rosters.push((block_idx, edge_pos, edge, at, killed));
             }
         }
-        let mut result = CleanupCohorts::new();
-        for (edge, at, killed) in &rosters {
+        let mut by_loan = vec![Vec::new(); formed.len()];
+        let mut by_action: std::collections::BTreeMap<(EdgeId, u32), Vec<CleanupEntry>> =
+            std::collections::BTreeMap::new();
+        for (block_idx, edge_pos, edge, at, killed) in &rosters {
             let ended = header_ends
                 .binary_search_by_key(edge, |end| end.edge)
                 .ok()
                 .map(|position| &header_ends[position]);
-            for loan in formed {
+            for (loan_idx, loan) in formed.iter().enumerate() {
                 let Some(life) = &loan.lifetime else {
                     continue;
                 };
@@ -1625,18 +1626,24 @@ impl<'a> Storage<'a> {
                     surviving.retain(live);
                     authorized.retain(live);
                 }
-                for (ordinal, consumed) in killed.iter().enumerate() {
+                for (action_idx, consumed) in killed.iter().enumerate() {
                     if surviving.is_empty() && authorized.is_empty() {
                         break;
                     }
-                    let ordinal = crate::position(ordinal, self.machine)?;
-                    result.insert(
-                        (loan.obligation, *edge, ordinal),
-                        CleanupCohort {
-                            surviving: surviving.clone(),
-                            authorized: authorized.clone(),
-                        },
-                    );
+                    let ordinal = crate::position(action_idx, self.machine)?;
+                    if !surviving.is_empty() {
+                        by_loan[loan_idx].push((*block_idx, *edge_pos, *edge, ordinal, action_idx));
+                    }
+                    by_action
+                        .entry((*edge, ordinal))
+                        .or_default()
+                        .push(CleanupEntry {
+                            obligation: loan.obligation,
+                            cohort: CleanupCohort {
+                                surviving: surviving.clone(),
+                                authorized: authorized.clone(),
+                            },
+                        });
                     if let Some(step) = flow.get(&(*edge, ordinal)) {
                         // A payload formation is not a carrier transfer. Both
                         // rosters follow authority derivations, with MAY union
@@ -1649,9 +1656,10 @@ impl<'a> Storage<'a> {
                 }
             }
         }
-        Ok(result)
+        Ok(CleanupCohorts { by_loan, by_action })
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn authorized_cleanup_reference(
         &self,
         loan: &Formed,
@@ -1659,6 +1667,7 @@ impl<'a> Storage<'a> {
         edge: semantic_vocabulary::EdgeId,
         ordinal: u32,
         formed: &[Formed],
+        by_obligation: &[Option<usize>],
         cohorts: &CleanupCohorts,
     ) -> Checked<bool> {
         let Some(crossing) = raw
@@ -1675,16 +1684,23 @@ impl<'a> Storage<'a> {
                     "cleanup access has no retained descriptor identity",
                 )
             })?;
-        for candidate in formed {
-            if candidate.obligation != loan.obligation && !self.descends(candidate, loan, formed)? {
+        let Some(entries) = cohorts.by_action.get(&(edge, ordinal)) else {
+            return Ok(false);
+        };
+        for entry in entries {
+            if entry.cohort.surviving.is_empty() || !entry.cohort.authorized.contains(&descriptor) {
                 continue;
             }
-            if cohorts
-                .get(&(candidate.obligation, edge, ordinal))
-                .is_some_and(|cohort| {
-                    !cohort.surviving.is_empty() && cohort.authorized.contains(&descriptor)
-                })
-            {
+            if entry.obligation == loan.obligation {
+                return Ok(true);
+            }
+            let candidate = self.loan_parent(
+                entry.obligation,
+                formed,
+                by_obligation,
+                Construct::Edge(edge),
+            )?;
+            if self.descends(candidate, loan, formed, by_obligation)? {
                 return Ok(true);
             }
         }
@@ -1765,6 +1781,7 @@ impl<'a> Storage<'a> {
         place: &super::Lineage,
         at: terminal_semantics::descriptor_lifetimes::DescriptorPosition,
         formed: &[Formed],
+        post_loans: &PostRetentionLoanIndex<'_>,
     ) -> Checked<bool> {
         let crossing = place
             .segments
@@ -1811,10 +1828,9 @@ impl<'a> Storage<'a> {
                 "reference authorization has no exact descriptor path",
             )
         })?;
-        for candidate in formed {
-            if candidate.obligation != loan.obligation && !self.descends(candidate, loan, formed)? {
-                continue;
-            }
+        let holding = post_loans.holding_at(at);
+        for &candidate_idx in holding {
+            let candidate = &formed[candidate_idx];
             if candidate.lifetime.as_ref().is_some_and(|life| {
                 life.surviving
                     .get(&at)
@@ -1823,13 +1839,16 @@ impl<'a> Storage<'a> {
                         .authorized
                         .get(&at)
                         .is_some_and(|names| names.contains(&descriptor))
-            }) {
+            }) && (candidate.obligation == loan.obligation
+                || self.descends(candidate, loan, formed, post_loans.by_obligation)?)
+            {
                 return Ok(true);
             }
         }
-        let candidates = formed
-            .iter()
-            .filter_map(|loan| loan.lifetime.as_ref().map(|life| (loan.obligation, life)));
+        let candidates = holding.iter().filter_map(|&idx| {
+            let loan = &formed[idx];
+            loan.lifetime.as_ref().map(|life| (loan.obligation, life))
+        });
         // Most accesses have one loan authorized on every incoming edge.
         // Ask which borrow the value carries only when those edges differ.
         if !candidates.clone().any(|(_, life)| {
@@ -1854,7 +1873,8 @@ impl<'a> Storage<'a> {
         let concerns = Construct::Obligation(loan.obligation);
         let mut relevant = false;
         for identity in choice.loans() {
-            let candidate = self.loan_parent(identity, formed, concerns)?;
+            let candidate =
+                self.loan_parent(identity, formed, post_loans.by_obligation, concerns)?;
             if choice.includes_incoming() && candidate.lender != Lender::Incoming {
                 return Ok(false);
             }
@@ -1865,7 +1885,9 @@ impl<'a> Storage<'a> {
                 continue;
             }
             relevant = true;
-            if candidate.obligation != loan.obligation && !self.descends(candidate, loan, formed)? {
+            if candidate.obligation != loan.obligation
+                && !self.descends(candidate, loan, formed, post_loans.by_obligation)?
+            {
                 return Ok(false);
             }
         }
@@ -1959,6 +1981,7 @@ impl<'a> Storage<'a> {
                             return Err(self.successor_conflict(concerns, conflict));
                         }
                     }
+                    let mut pre_loans: Option<PostRetentionLoanIndex<'_>> = None;
                     for loan in formed {
                         if loan
                             .lifetime
@@ -1966,9 +1989,15 @@ impl<'a> Storage<'a> {
                             .is_some_and(|life| life.live.contains(&at))
                             && let Some(conflict) =
                                 competing_borrows(loan.access, &loan.lineage, access, &backing)
-                            && !self.authorized_reference(references, loan, &raw, at, formed)?
                         {
-                            return Err(self.successor_conflict(concerns, conflict));
+                            let index = pre_loans.get_or_insert_with(|| {
+                                PostRetentionLoanIndex::build(formed, active_loans.by_obligation())
+                            });
+                            if !self
+                                .authorized_reference(references, loan, &raw, at, formed, index)?
+                            {
+                                return Err(self.successor_conflict(concerns, conflict));
+                            }
                         }
                     }
                     captured.push((access, backing));
@@ -2068,7 +2097,13 @@ impl<'a> Storage<'a> {
                     let mut parents = choice.loans().collect::<Vec<_>>();
                     parents.sort_unstable();
                     parents.dedup();
-                    self.check_selected_parents(loan, &parents, choice.includes_incoming(), formed)?;
+                    self.check_selected_parents(
+                        loan,
+                        &parents,
+                        choice.includes_incoming(),
+                        formed,
+                        active_loans.by_obligation(),
+                    )?;
                     selections.push((position, parents));
                     Lender::Selected
                 }
@@ -2088,7 +2123,8 @@ impl<'a> Storage<'a> {
                 ));
             }
             if let Lender::Loan(parent) = claimed {
-                let owner = self.loan_parent(parent, formed, concerns)?;
+                let owner =
+                    self.loan_parent(parent, formed, active_loans.by_obligation(), concerns)?;
                 let preserves_backing = match (&loan.lineage, &owner.lineage) {
                     (LoanRegion::Storage(child), LoanRegion::Storage(parent))
                         if owner.lender == Lender::Selected =>
@@ -2118,11 +2154,14 @@ impl<'a> Storage<'a> {
         &self,
         identity: ObligationId,
         formed: &'loans [Formed],
+        by_obligation: &[Option<usize>],
         concerns: Construct,
     ) -> Checked<&'loans Formed> {
-        formed
-            .iter()
-            .find(|loan| loan.obligation == identity)
+        by_obligation
+            .get(index(identity.get()))
+            .copied()
+            .flatten()
+            .and_then(|slot| formed.get(slot))
             .ok_or_else(|| {
                 self.foreign(concerns, "loan ancestry names no actual parent occurrence")
             })
@@ -2134,11 +2173,12 @@ impl<'a> Storage<'a> {
         parents: &[ObligationId],
         includes_incoming: bool,
         formed: &[Formed],
+        by_obligation: &[Option<usize>],
     ) -> Checked<()> {
         let concerns = Construct::Obligation(child.obligation);
         let mut owners = Vec::with_capacity(parents.len());
         for &identity in parents {
-            let parent = self.loan_parent(identity, formed, concerns)?;
+            let parent = self.loan_parent(identity, formed, by_obligation, concerns)?;
             // A caller/local join is proved for the one recurring view whose
             // initial lender is this input. Its descendants can only assume a
             // relationship to that local parent while the occurrence exists.
@@ -2177,19 +2217,49 @@ impl<'a> Storage<'a> {
 
     /// Every possible parent that overlaps the competing loan must descend
     /// from it. A parent of another possible address grants no permission.
-    fn descends(&self, child: &Formed, parent: &Formed, formed: &[Formed]) -> Checked<bool> {
-        self.ancestry(child, parent, formed, formed.len(), false, &mut Vec::new())
+    fn descends(
+        &self,
+        child: &Formed,
+        parent: &Formed,
+        formed: &[Formed],
+        by_obligation: &[Option<usize>],
+    ) -> Checked<bool> {
+        self.ancestry(
+            child,
+            parent,
+            formed,
+            by_obligation,
+            formed.len(),
+            false,
+            &mut Vec::new(),
+        )
     }
 
-    fn may_descend(&self, child: &Formed, parent: &Formed, formed: &[Formed]) -> Checked<bool> {
-        self.ancestry(child, parent, formed, formed.len(), true, &mut Vec::new())
+    fn may_descend(
+        &self,
+        child: &Formed,
+        parent: &Formed,
+        formed: &[Formed],
+        by_obligation: &[Option<usize>],
+    ) -> Checked<bool> {
+        self.ancestry(
+            child,
+            parent,
+            formed,
+            by_obligation,
+            formed.len(),
+            true,
+            &mut Vec::new(),
+        )
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn ancestry<'loans>(
         &self,
         mut child: &'loans Formed,
         target: &Formed,
         formed: &'loans [Formed],
+        by_obligation: &[Option<usize>],
         mut remaining: usize,
         any: bool,
         cache: &mut Vec<Option<Ancestry>>,
@@ -2201,7 +2271,7 @@ impl<'a> Storage<'a> {
                 if identity == target.obligation {
                     return Ok(true);
                 }
-                child = self.loan_parent(identity, formed, concerns)?;
+                child = self.loan_parent(identity, formed, by_obligation, concerns)?;
                 continue;
             }
             if child.selected_parents.is_empty() {
@@ -2224,7 +2294,7 @@ impl<'a> Storage<'a> {
             let mut decisive = None;
             let mut relevant = false;
             for &identity in child.immediate_parents() {
-                let choice = self.loan_parent(identity, formed, concerns)?;
+                let choice = self.loan_parent(identity, formed, by_obligation, concerns)?;
                 if !any
                     && let (LoanRegion::Storage(choice), LoanRegion::Storage(target)) =
                         (&choice.lineage, &target.lineage)
@@ -2234,7 +2304,15 @@ impl<'a> Storage<'a> {
                 }
                 relevant = true;
                 let related = identity == target.obligation
-                    || self.ancestry(choice, target, formed, remaining, any, cache)?;
+                    || self.ancestry(
+                        choice,
+                        target,
+                        formed,
+                        by_obligation,
+                        remaining,
+                        any,
+                        cache,
+                    )?;
                 if related == any {
                     decisive = Some(any);
                     break;
@@ -2488,6 +2566,17 @@ impl<'a> Storage<'a> {
         let flow_predecessors = flow
             .as_ref()
             .map(terminal_semantics::descriptor_lifetimes::FlowPredecessors::new);
+        let tail_cutoff =
+            flow.as_ref()
+                .zip(flow_predecessors.as_ref())
+                .map(|(flow, predecessors)| {
+                    terminal_semantics::reference_ends::dead_tail_cutoff(
+                        module,
+                        self.lowered,
+                        flow,
+                        predecessors,
+                    )
+                });
         for block in &self.lowered.blocks {
             let mut before = ProgramPoint::BlockEntry(block.id);
             for (position, operation) in block.operations.iter().enumerate() {
@@ -2500,6 +2589,7 @@ impl<'a> Storage<'a> {
                     before,
                     flow.as_ref(),
                     flow_predecessors.as_ref(),
+                    tail_cutoff.as_ref(),
                     &mut claimed,
                     &mut formed,
                 )?;
@@ -2514,7 +2604,7 @@ impl<'a> Storage<'a> {
                         references,
                         terminal_semantics::CallLifetimeIndex {
                             predecessors,
-                            cutoff: None,
+                            cutoff: tail_cutoff.as_ref(),
                             at: (block.id, pos_u32),
                             include_surviving: true,
                         },
@@ -2640,7 +2730,7 @@ impl<'a> Storage<'a> {
                         terminal_semantics::descriptor_lifetimes::descriptor_successor_lifetime_indexed(
                             flow_steps,
                             predecessors,
-                            None,
+                            tail_cutoff.as_ref(),
                             at,
                             (target, 0),
                             &terminal_semantics::descriptor_lifetimes::DescriptorLocation::whole(
@@ -3065,11 +3155,12 @@ impl<'a> Storage<'a> {
             }
         }
 
-        let active_loans = ActiveLoanIndex::build(&formed);
+        let active_loans = ActiveLoanIndex::build(&formed, tables.obligations.len());
         self.parents(references, module, &mut formed, &active_loans)?;
         self.successor_borrows(references, &formed, &active_loans)?;
         self.reference_completions(references, module, &formed, flow.as_ref())?;
         self.retain_ancestors(&mut formed)?;
+        let post_loans = PostRetentionLoanIndex::build(&formed, active_loans.by_obligation());
         let mut cleanup_flow = std::collections::BTreeMap::new();
         if formed.iter().any(|loan| loan.lifetime.is_some()) {
             for block in &self.lowered.blocks {
@@ -3106,10 +3197,23 @@ impl<'a> Storage<'a> {
             }
         }
         let cleanup_cohorts = self.cleanup_cohorts(&formed, &cleanup_flow, &header_ends)?;
+        let mut prepared =
+            PreparedSiteEffects::new(self, formed.iter().any(|loan| loan.lifetime.is_some()))?;
+        let mut events = Vec::new();
+        let mut earlier_candidates = Vec::new();
         let mut verdicts = Vec::with_capacity(formed.len());
         let mut conflicts = Vec::new();
         for (at, loan) in formed.iter().enumerate() {
-            let used = self.uses_retained_loan(references, loan, &formed, &cleanup_cohorts)?;
+            let used = self.uses_retained_loan(
+                references,
+                at,
+                loan,
+                &formed,
+                &post_loans,
+                &cleanup_cohorts,
+                &mut prepared,
+                &mut events,
+            )?;
             let site = used.map_or(Construct::Obligation(loan.obligation), |(at, _)| at);
             let exclusive = loan.access.is_exclusive();
             let mut found = used.map(|(_, conflict)| (None, conflict));
@@ -3123,27 +3227,19 @@ impl<'a> Storage<'a> {
                 // The later listed loan reports the conflict. Retained
                 // lifetimes determine overlap across calls and block order;
                 // arena ordering is not lifetime ordering.
-                for earlier in formed[..at].iter().filter(|earlier| {
+                post_loans.concurrent_earlier(at, loan, &mut earlier_candidates);
+                for &earlier_idx in &earlier_candidates {
+                    let earlier = &formed[earlier_idx];
                     // A retained region and the loans of the call that
                     // returned it: those loans end as the region begins.
                     let returned = |region: &Formed, call: &Formed| {
                         region.returned_by.is_some() && region.returned_by == call.invocation
                     };
                     if returned(loan, earlier) || returned(earlier, loan) {
-                        return false;
+                        continue;
                     }
-                    (earlier.invocation.is_some() && earlier.invocation == loan.invocation)
-                        || earlier
-                            .lifetime
-                            .as_ref()
-                            .is_some_and(|life| holds(life, &loan.at))
-                        || loan
-                            .lifetime
-                            .as_ref()
-                            .is_some_and(|life| holds(life, &earlier.at))
-                }) {
-                    if self.descends(loan, earlier, &formed)?
-                        || self.descends(earlier, loan, &formed)?
+                    if self.descends(loan, earlier, &formed, post_loans.by_obligation)?
+                        || self.descends(earlier, loan, &formed, post_loans.by_obligation)?
                     {
                         continue;
                     }
@@ -3231,12 +3327,18 @@ struct ActiveLoanIndex {
         terminal_semantics::descriptor_lifetimes::DescriptorPosition,
         usize,
     )>,
+    by_obligation: Vec<Option<usize>>,
 }
 
 impl ActiveLoanIndex {
-    fn build(formed: &[Formed]) -> Self {
+    fn build(formed: &[Formed], obligation_count: usize) -> Self {
         let mut entries = Vec::new();
+        let mut by_obligation = vec![None; obligation_count];
         for (idx, loan) in formed.iter().enumerate() {
+            let slot = index(loan.obligation.get());
+            if slot < by_obligation.len() {
+                by_obligation[slot] = Some(idx);
+            }
             let Some(life) = &loan.lifetime else {
                 continue;
             };
@@ -3253,7 +3355,14 @@ impl ActiveLoanIndex {
         }
         entries.sort_unstable();
         entries.dedup();
-        Self { entries }
+        Self {
+            entries,
+            by_obligation,
+        }
+    }
+
+    fn by_obligation(&self) -> &[Option<usize>] {
+        &self.by_obligation
     }
 
     fn at(
@@ -3268,6 +3377,422 @@ impl ActiveLoanIndex {
             .partition_point(|(entry_pos, _)| *entry_pos <= pos);
         self.entries[start..end].iter().map(|&(_, idx)| idx)
     }
+}
+
+struct PostRetentionLoanIndex<'a> {
+    holding_positions: Vec<terminal_semantics::descriptor_lifetimes::DescriptorPosition>,
+    holding_ranges: Vec<(usize, usize)>,
+    holding_indices: Vec<usize>,
+    formed_positions: Vec<terminal_semantics::descriptor_lifetimes::DescriptorPosition>,
+    formed_ranges: Vec<(usize, usize)>,
+    formed_indices: Vec<usize>,
+    by_invocation: Vec<(InvocationId, usize)>,
+    by_obligation: &'a [Option<usize>],
+}
+
+fn build_position_buckets(
+    mut pairs: Vec<(
+        terminal_semantics::descriptor_lifetimes::DescriptorPosition,
+        usize,
+    )>,
+) -> (
+    Vec<terminal_semantics::descriptor_lifetimes::DescriptorPosition>,
+    Vec<(usize, usize)>,
+    Vec<usize>,
+) {
+    pairs.sort_unstable();
+    pairs.dedup();
+    let mut positions = Vec::new();
+    let mut ranges = Vec::new();
+    let mut indices = Vec::with_capacity(pairs.len());
+    let mut cursor = 0;
+    while cursor < pairs.len() {
+        let pos = pairs[cursor].0;
+        let start = indices.len();
+        while cursor < pairs.len() && pairs[cursor].0 == pos {
+            indices.push(pairs[cursor].1);
+            cursor += 1;
+        }
+        positions.push(pos);
+        ranges.push((start, indices.len()));
+    }
+    (positions, ranges, indices)
+}
+
+impl<'a> PostRetentionLoanIndex<'a> {
+    fn build(formed: &[Formed], by_obligation: &'a [Option<usize>]) -> Self {
+        let mut holding_pairs = Vec::new();
+        let mut formed_pairs = Vec::with_capacity(formed.len());
+        let mut by_invocation = Vec::new();
+        for (idx, loan) in formed.iter().enumerate() {
+            formed_pairs.push((loan.at, idx));
+            if let Some(invocation) = loan.invocation {
+                by_invocation.push((invocation, idx));
+            }
+            let Some(life) = &loan.lifetime else {
+                continue;
+            };
+            for &pos in &life.live {
+                holding_pairs.push((pos, idx));
+            }
+            for (&pos, names) in &life.surviving {
+                if !names.is_empty() {
+                    holding_pairs.push((pos, idx));
+                }
+            }
+        }
+        by_invocation.sort_unstable();
+        let (holding_positions, holding_ranges, holding_indices) =
+            build_position_buckets(holding_pairs);
+        let (formed_positions, formed_ranges, formed_indices) =
+            build_position_buckets(formed_pairs);
+        Self {
+            holding_positions,
+            holding_ranges,
+            holding_indices,
+            formed_positions,
+            formed_ranges,
+            formed_indices,
+            by_invocation,
+            by_obligation,
+        }
+    }
+
+    fn holding_at(
+        &self,
+        pos: terminal_semantics::descriptor_lifetimes::DescriptorPosition,
+    ) -> &[usize] {
+        match self.holding_positions.binary_search(&pos) {
+            Ok(slot) => {
+                let (start, end) = self.holding_ranges[slot];
+                &self.holding_indices[start..end]
+            }
+            Err(_) => &[],
+        }
+    }
+
+    fn formed_at(
+        &self,
+        pos: terminal_semantics::descriptor_lifetimes::DescriptorPosition,
+    ) -> &[usize] {
+        match self.formed_positions.binary_search(&pos) {
+            Ok(slot) => {
+                let (start, end) = self.formed_ranges[slot];
+                &self.formed_indices[start..end]
+            }
+            Err(_) => &[],
+        }
+    }
+
+    fn concurrent_earlier(&self, at: usize, loan: &Formed, out: &mut Vec<usize>) {
+        out.clear();
+        if let Some(invocation) = loan.invocation {
+            let start = self
+                .by_invocation
+                .partition_point(|(inv, _)| *inv < invocation);
+            for &(inv, idx) in &self.by_invocation[start..] {
+                if inv != invocation || idx >= at {
+                    break;
+                }
+                out.push(idx);
+            }
+        }
+        for &idx in self.holding_at(loan.at) {
+            if idx >= at {
+                break;
+            }
+            out.push(idx);
+        }
+        if let Some(life) = &loan.lifetime {
+            for &pos in &life.live {
+                for &idx in self.formed_at(pos) {
+                    if idx >= at {
+                        break;
+                    }
+                    out.push(idx);
+                }
+            }
+            for (&pos, names) in &life.surviving {
+                if !names.is_empty() {
+                    for &idx in self.formed_at(pos) {
+                        if idx >= at {
+                            break;
+                        }
+                        out.push(idx);
+                    }
+                }
+            }
+        }
+        out.sort_unstable();
+        out.dedup();
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum LoanCheckEvent {
+    Release {
+        release_idx: usize,
+    },
+    Operation,
+    Terminator,
+    Cleanup {
+        edge_pos: usize,
+        edge: EdgeId,
+        ordinal: u32,
+        action_idx: usize,
+    },
+}
+
+struct PreparedReleaseOp {
+    block_idx: usize,
+    pos: u32,
+    at: terminal_semantics::descriptor_lifetimes::DescriptorPosition,
+    concerns: Construct,
+    descriptor: DescriptorLocation,
+}
+
+struct PreparedOperationEffects {
+    concerns: Construct,
+    touches: Vec<(super::Lineage, LoanRegion, Touch)>,
+}
+
+struct PreparedCleanupEffects {
+    cleaned: LoanRegion,
+    accesses: Option<Vec<(super::Lineage, Backing, ReferenceAccess)>>,
+}
+
+struct PreparedSiteEffects {
+    block_slot: Vec<Option<usize>>,
+    block_op_offsets: Vec<usize>,
+    release_ops: Vec<PreparedReleaseOp>,
+    op_effects: Vec<Option<PreparedOperationEffects>>,
+    term_effects: Vec<Option<PreparedOperationEffects>>,
+    cleanup_effects: std::collections::BTreeMap<(EdgeId, u32), PreparedCleanupEffects>,
+}
+
+impl PreparedSiteEffects {
+    fn new(storage: &super::Storage<'_>, has_retained_loans: bool) -> Checked<Self> {
+        let mut max_block_slot = 0usize;
+        for block in &storage.lowered.blocks {
+            max_block_slot = max_block_slot.max(index(block.id.get()) + 1);
+        }
+        let mut block_slot = vec![None; max_block_slot];
+        let mut block_op_offsets = Vec::with_capacity(storage.lowered.blocks.len());
+        let mut total_ops = 0usize;
+        let mut release_ops = Vec::new();
+        for (block_idx, block) in storage.lowered.blocks.iter().enumerate() {
+            block_slot[index(block.id.get())] = Some(block_idx);
+            block_op_offsets.push(total_ops);
+            total_ops += block.operations.len();
+            if !has_retained_loans {
+                continue;
+            }
+            for (position, operation) in block.operations.iter().enumerate() {
+                if let terminal_psi::OperationKind::ReleaseReference { source, path } =
+                    &operation.kind
+                {
+                    let pos = crate::position(position, storage.machine)?;
+                    let concerns = Construct::Operation(operation.id);
+                    let descriptor = storage
+                        .released_reference(*source, path, concerns)?
+                        .descriptor_location()
+                        .ok_or_else(|| {
+                            storage.unsupported(
+                                concerns,
+                                "reference release has no exact descriptor identity",
+                            )
+                        })?;
+                    release_ops.push(PreparedReleaseOp {
+                        block_idx,
+                        pos,
+                        at: (block.id, pos),
+                        concerns,
+                        descriptor,
+                    });
+                }
+            }
+        }
+        Ok(Self {
+            block_slot,
+            block_op_offsets,
+            release_ops,
+            op_effects: (0..total_ops).map(|_| None).collect(),
+            term_effects: (0..storage.lowered.blocks.len()).map(|_| None).collect(),
+            cleanup_effects: std::collections::BTreeMap::new(),
+        })
+    }
+
+    fn block_index(&self, block: semantic_vocabulary::BlockId) -> Option<usize> {
+        self.block_slot.get(index(block.get())).copied().flatten()
+    }
+
+    fn operation_effects<'a>(
+        &mut self,
+        storage: &super::Storage<'a>,
+        references: &mut super::DescriptorAnalysis<'a>,
+        block_idx: usize,
+        pos: u32,
+    ) -> Checked<&PreparedOperationEffects> {
+        let slot = self.block_op_offsets[block_idx] + pos as usize;
+        if self.op_effects[slot].is_none() {
+            let block = &storage.lowered.blocks[block_idx];
+            let operation = &block.operations[pos as usize];
+            let at = (block.id, pos);
+            let concerns = Construct::Operation(operation.id);
+            let atomic_change = matches!(
+                operation.kind,
+                terminal_psi::OperationKind::AtomicAccess { .. }
+            );
+            let mut touches = Vec::new();
+            for effect in storage.operation_read_effects(operation)? {
+                touches.push(resolve_effect(
+                    storage,
+                    references,
+                    effect,
+                    Touch::Read,
+                    at,
+                    concerns,
+                )?);
+            }
+            let change_touch = if atomic_change {
+                Touch::AtomicChange
+            } else {
+                Touch::Change
+            };
+            for effect in storage.operation_changes(operation)? {
+                touches.push(resolve_effect(
+                    storage,
+                    references,
+                    effect,
+                    change_touch,
+                    at,
+                    concerns,
+                )?);
+            }
+            self.op_effects[slot] = Some(PreparedOperationEffects { concerns, touches });
+        }
+        Ok(self.op_effects[slot].as_ref().expect("just initialized"))
+    }
+
+    fn terminator_effects<'a>(
+        &mut self,
+        storage: &super::Storage<'a>,
+        references: &mut super::DescriptorAnalysis<'a>,
+        block_idx: usize,
+        pos: u32,
+    ) -> Checked<&PreparedOperationEffects> {
+        if self.term_effects[block_idx].is_none() {
+            let block = &storage.lowered.blocks[block_idx];
+            let at = (block.id, pos);
+            let concerns = match &block.terminator {
+                terminal_psi::Terminator::StructuralCase { .. } => Construct::Block(block.id),
+                terminator => terminator
+                    .edges()
+                    .next()
+                    .map_or(Construct::Block(block.id), Construct::Edge),
+            };
+            let (reads, changes) = storage.terminator_effects(block)?;
+            let mut touches = Vec::with_capacity(reads.len() + changes.len());
+            for place in reads {
+                touches.push(resolve_effect(
+                    storage,
+                    references,
+                    super::StorageEffect::Storage(place),
+                    Touch::Read,
+                    at,
+                    concerns,
+                )?);
+            }
+            for place in changes {
+                touches.push(resolve_effect(
+                    storage,
+                    references,
+                    super::StorageEffect::Storage(place),
+                    Touch::Change,
+                    at,
+                    concerns,
+                )?);
+            }
+            self.term_effects[block_idx] = Some(PreparedOperationEffects { concerns, touches });
+        }
+        Ok(self.term_effects[block_idx]
+            .as_ref()
+            .expect("just initialized"))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn cleanup_effects<'a>(
+        &mut self,
+        storage: &super::Storage<'a>,
+        references: &mut super::DescriptorAnalysis<'a>,
+        block_idx: usize,
+        edge_pos: usize,
+        edge: EdgeId,
+        ordinal: u32,
+        action_idx: usize,
+    ) -> Checked<&PreparedCleanupEffects> {
+        let key = (edge, ordinal);
+        Ok(match self.cleanup_effects.entry(key) {
+            std::collections::btree_map::Entry::Occupied(entry) => entry.into_mut(),
+            std::collections::btree_map::Entry::Vacant(entry) => {
+                let concerns = Construct::Edge(edge);
+                let (_, actions) = storage.lowered.blocks[block_idx]
+                    .terminator
+                    .cleanup_rosters()
+                    .nth(edge_pos)
+                    .ok_or_else(|| {
+                        storage.foreign(concerns, "cleanup cohort references missing roster")
+                    })?;
+                let action = &actions[action_idx];
+                let cleaned = storage.stored_at(action.place(), action.path(), concerns)?;
+                let cleaned_region = LoanRegion::Storage(
+                    storage.cleanup_backing(references, &cleaned, edge, ordinal, concerns)?,
+                );
+                let accesses =
+                    if let terminal_psi::TerminalAffineCleanupAction::InvokeOwned(cleanup) = action
+                    {
+                        Some(
+                            storage
+                                .cleanup_reference_accesses(references, edge, ordinal, cleanup)?,
+                        )
+                    } else {
+                        None
+                    };
+                entry.insert(PreparedCleanupEffects {
+                    cleaned: cleaned_region,
+                    accesses,
+                })
+            }
+        })
+    }
+}
+
+fn resolve_effect<'a>(
+    storage: &super::Storage<'a>,
+    references: &mut super::DescriptorAnalysis<'a>,
+    effect: super::StorageEffect,
+    touch: Touch,
+    at: terminal_semantics::descriptor_lifetimes::DescriptorPosition,
+    concerns: Construct,
+) -> Checked<(super::Lineage, LoanRegion, Touch)> {
+    let (place, backing) = match effect {
+        super::StorageEffect::Payload(place) => {
+            let backing = storage.borrow_backing(
+                references,
+                &place,
+                &[],
+                BorrowedResource::ViewPayload,
+                at,
+                concerns,
+            )?;
+            (place, backing)
+        }
+        super::StorageEffect::Storage(place) => {
+            let backing = storage.storage_loan_region(references, &place, at, concerns)?;
+            (place, backing)
+        }
+    };
+    Ok((place, backing, touch))
 }
 
 fn holds(

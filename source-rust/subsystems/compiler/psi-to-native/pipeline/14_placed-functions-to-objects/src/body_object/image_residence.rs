@@ -1,7 +1,7 @@
 use super::{Error, ObjectFunctionLocation, find_object_function, refuse_symbol_collision};
 use crate::{
-    ObjectPlan, ObjectSymbolHandle, RelocationOrigin, RelocationPlan, RelocationRecord, SymbolKind,
-    SymbolPlan, SymbolSection,
+    ObjectPlan, ObjectSymbolHandle, RelocationOrigin, RelocationRecord, SymbolKind, SymbolPlan,
+    SymbolSection,
 };
 use machine_code::{ImageAddressFields, PlacedImageAddress};
 use selected_instructions::SelectedImageAddressReference;
@@ -39,18 +39,6 @@ pub fn declare_symbol(object: &mut ObjectPlan) -> Result<ObjectSymbolHandle, Err
         kind: SymbolKind::Object,
         import_library: String::new(),
     }))
-}
-
-pub(super) fn publish_relocations(
-    addresses: &[PlacedImageAddress],
-    destination: ObjectSymbolHandle,
-    functions: &[impl AsRef<ObjectFunctionLocation>],
-    relocations: &mut RelocationPlan,
-) -> Result<(), Error> {
-    for record in records(addresses, destination, functions)? {
-        relocations.push_record(record);
-    }
-    Ok(())
 }
 
 pub fn records(

@@ -1696,36 +1696,51 @@ pub(crate) mod integer_order_rules {
         backward: &Proposition,
         conclusion: &Proposition,
     ) -> Result<(), ProofError> {
-        let Proposition::LessOrEqual(left, right) = forward else {
-            return Err(ProofError::RulePremiseMismatch(
-                "integer order antisymmetry",
-            ));
-        };
-        let Some(carrier) = left.scalar_type().as_integer() else {
-            return Err(ProofError::RulePremiseMismatch(
-                "integer order antisymmetry carrier",
-            ));
-        };
-        if carrier.is_address() || right.scalar_type() != ScalarType::Integer(carrier) {
-            return Err(ProofError::RulePremiseMismatch(
-                "integer order antisymmetry carrier",
-            ));
-        }
-        let Proposition::LessOrEqual(backward_left, backward_right) = backward else {
-            return Err(ProofError::RulePremiseMismatch(
-                "integer order antisymmetry",
-            ));
-        };
-        if backward_left != right || backward_right != left {
-            return Err(ProofError::IntegerOrderMiddleMismatch);
-        }
-        match conclusion {
-            Proposition::Equal(actual_left, actual_right)
-                if actual_left == left && actual_right == right =>
-            {
-                Ok(())
+        fn endpoints<T: PartialEq>(
+            forward: (&T, &T),
+            backward: (&T, &T),
+            conclusion: Option<(&T, &T)>,
+        ) -> Result<(), ProofError> {
+            if backward != (forward.1, forward.0) {
+                return Err(ProofError::IntegerOrderMiddleMismatch);
             }
-            _ => Err(ProofError::IntegerOrderConclusionMismatch),
+            if conclusion != Some(forward) {
+                return Err(ProofError::IntegerOrderConclusionMismatch);
+            }
+            Ok(())
+        }
+
+        match (forward, backward) {
+            (Proposition::LessOrEqual(a, b), Proposition::LessOrEqual(c, d)) => {
+                let Some(carrier) = a.scalar_type().as_integer() else {
+                    return Err(ProofError::RulePremiseMismatch(
+                        "integer order antisymmetry carrier",
+                    ));
+                };
+                if carrier.is_address() || b.scalar_type() != ScalarType::Integer(carrier) {
+                    return Err(ProofError::RulePremiseMismatch(
+                        "integer order antisymmetry carrier",
+                    ));
+                }
+                let result = match conclusion {
+                    Proposition::Equal(x, y) => Some((x, y)),
+                    _ => None,
+                };
+                endpoints((a, b), (c, d), result)
+            }
+            (
+                Proposition::IntegerMathLessOrEqual(a, b),
+                Proposition::IntegerMathLessOrEqual(c, d),
+            ) => {
+                let result = match conclusion {
+                    Proposition::IntegerMathEqual(x, y) => Some((x, y)),
+                    _ => None,
+                };
+                endpoints((a, b), (c, d), result)
+            }
+            _ => Err(ProofError::RulePremiseMismatch(
+                "integer order antisymmetry",
+            )),
         }
     }
 

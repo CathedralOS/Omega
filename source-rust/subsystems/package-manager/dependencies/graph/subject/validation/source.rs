@@ -122,6 +122,7 @@ pub(in super::super) fn validate_source_lineage(
             check(lineage.host())?;
             check(lineage.repository_path())
         }
+        SourceLineage::Bundled { directory, .. } => check(directory.as_str()),
         SourceLineage::Workspace(lineage) => check(lineage.member_path().as_str()),
         SourceLineage::ExternalLocal(lineage) => {
             check(lineage.canonical_absolute_path().to_str().ok_or_else(|| {

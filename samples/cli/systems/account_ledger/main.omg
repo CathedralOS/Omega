@@ -1,6 +1,6 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // account_ledger: event-sourced account simulation.
 //
 // Exercises: multi-field case payload dispatch (3 payload variants + 3 no-payload
@@ -78,7 +78,6 @@ use omega\language\core\ProcessExit;
 //
 // Expected exit: 70.
 
-use system\Console;
 
 data Transaction {
     case Deposit(amount: i32 in Wrapping);
@@ -282,7 +281,7 @@ machine total(main: @mutable Main) -> i32 in Wrapping {
 }
 
 // ── case dispatcher: apply a transaction to an account index ──────────────────
-machine apply(main: @mutable Main, idx: i32 in Wrapping, tx: Transaction) reaches ProcessExit + StandardInput + StandardOutput {
+machine apply(main: @mutable Main, idx: i32 in Wrapping, tx: Transaction) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     transition tx {
         Transaction::Deposit { amount } -> check_frozen_dep(main, idx, amount),
         Transaction::Withdraw { amount } -> check_frozen_wd(main, idx, amount),
@@ -329,10 +328,10 @@ machine apply(main: @mutable Main, idx: i32 in Wrapping, tx: Transaction) reache
     }
 
     machine xfer_bad_idx(main: @mutable Main) {
-        Console::write_line("FAIL: Transfer sub-state src idx != 0 -- probe arm (exit 91)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(91);
+        |console|::Console::write_line("FAIL: Transfer sub-state src idx != 0 -- probe arm (exit 91)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(91);
     }
 
     machine xfer_check_to(main: @mutable Main, to: i32 in Wrapping, amount: i32 in Wrapping) {
@@ -344,10 +343,10 @@ machine apply(main: @mutable Main, idx: i32 in Wrapping, tx: Transaction) reache
     }
 
     machine xfer_bad_to(main: @mutable Main) {
-        Console::write_line("FAIL: Transfer payload field to != 3 -- probe arm (exit 92)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(92);
+        |console|::Console::write_line("FAIL: Transfer payload field to != 3 -- probe arm (exit 92)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(92);
     }
 
     machine xfer_check_amount(main: @mutable Main, to: i32 in Wrapping, amount: i32 in Wrapping) {
@@ -360,10 +359,10 @@ machine apply(main: @mutable Main, idx: i32 in Wrapping, tx: Transaction) reache
     }
 
     machine xfer_bad_amount(main: @mutable Main) {
-        Console::write_line("FAIL: Transfer payload field amount != 40 -- historical miscompile tripwire (exit 93)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(93);
+        |console|::Console::write_line("FAIL: Transfer payload field amount != 40 -- historical miscompile tripwire (exit 93)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(93);
     }
 
     machine xfer_do(main: @mutable Main, to: i32 in Wrapping, amount: i32 in Wrapping) {
@@ -387,8 +386,8 @@ machine apply(main: @mutable Main, idx: i32 in Wrapping, tx: Transaction) reache
 }
 
 // ── main: scripted transaction sequence + multi-layer verification ─────────────
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("account_ledger: event-sourced account ledger -- case-payload dispatch, frozen gates, value-call checksums");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("account_ledger: event-sourced account ledger -- case-payload dispatch, frozen gates, value-call checksums");
     // 10 apply calls. `apply` acknowledges `block` transitively (its failure
     // arms call `block console.read_line`), so each call site repeats it.
     block apply(main, 0 as +Wrapping, Transaction::Deposit { amount: 100 as +Wrapping });
@@ -409,10 +408,10 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
 
     machine bad_raw0(main: @mutable Main) {
-        Console::write_line("FAIL: raw acc[0].balance wrong -- expected 40 (exit 71)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(71);
+        |console|::Console::write_line("FAIL: raw acc[0].balance wrong -- expected 40 (exit 71)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(71);
     }
 
     machine raw_check_acc2(main: @mutable Main) {
@@ -423,10 +422,10 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
 
     machine bad_raw2(main: @mutable Main) {
-        Console::write_line("FAIL: raw acc[2].balance wrong -- expected 30 (exit 72)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(72);
+        |console|::Console::write_line("FAIL: raw acc[2].balance wrong -- expected 30 (exit 72)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(72);
     }
 
     machine raw_check_acc1(main: @mutable Main) {
@@ -437,10 +436,10 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
 
     machine bad_raw1(main: @mutable Main) {
-        Console::write_line("FAIL: raw acc[1].balance wrong -- expected 120 (exit 73)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(73);
+        |console|::Console::write_line("FAIL: raw acc[1].balance wrong -- expected 120 (exit 73)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(73);
     }
 
     machine raw_check_acc3(main: @mutable Main) {
@@ -451,10 +450,10 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
 
     machine bad_raw3(main: @mutable Main) {
-        Console::write_line("FAIL: raw acc[3].balance wrong -- expected 40 (exit 74)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(74);
+        |console|::Console::write_line("FAIL: raw acc[3].balance wrong -- expected 40 (exit 74)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(74);
     }
 
     // Layer 2: value-call reads (balance_of captures+mutates+returns).
@@ -467,10 +466,10 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
 
     machine bad_vcall0(main: @mutable Main) {
-        Console::write_line("FAIL: balance_of(0) value-call read wrong -- expected 40 (exit 75)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(75);
+        |console|::Console::write_line("FAIL: balance_of(0) value-call read wrong -- expected 40 (exit 75)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(75);
     }
 
     machine vcall_check_b2(main: @mutable Main, b0: i32 in Wrapping) {
@@ -482,10 +481,10 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
 
     machine bad_vcall2(main: @mutable Main) {
-        Console::write_line("FAIL: balance_of(2) value-call read wrong -- expected 30 (exit 76)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(76);
+        |console|::Console::write_line("FAIL: balance_of(2) value-call read wrong -- expected 30 (exit 76)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(76);
     }
 
     // Layer 3: two sequential value-call results combined in arithmetic.
@@ -501,10 +500,10 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
 
     machine bad_sum(main: @mutable Main) {
-        Console::write_line("FAIL: balance_of(0)+balance_of(2) checksum wrong -- expected 70 (exit 77)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(77);
+        |console|::Console::write_line("FAIL: balance_of(0)+balance_of(2) checksum wrong -- expected 70 (exit 77)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(77);
     }
 
     // Layer 4: total() value-call.
@@ -517,22 +516,22 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
 
     machine bad_total(main: @mutable Main) {
-        Console::write_line("FAIL: total() wrong -- expected 230 (exit 78)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(78);
+        |console|::Console::write_line("FAIL: total() wrong -- expected 230 (exit 78)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(78);
     }
 
     machine good(main: @mutable Main) {
-        Console::write_line("PASS: all 4 balances + value-call checksum 70 + total 230 verified (exit 70)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(70);
+        |console|::Console::write_line("PASS: all 4 balances + value-call checksum 70 + total 230 verified (exit 70)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(70);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

@@ -1,9 +1,9 @@
-use omega\language\core\ProgramImage;
+use {omega}/language/core/program_image.omg;
 
 boundary trait Unprovided {
-    machine value() -> addr reaches none crashes none;
+    machine value() -> address reaches none crashes none;
 }
 
-public Selected satisfies ProgramImage {
-    machine retained_suffix_start() -> addr { Unprovided::value() }
+public Selected satisfies |program_image|::ProgramImage {
+    machine retained_suffix_start() -> address { Unprovided::value() }
 }

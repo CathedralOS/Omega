@@ -1,11 +1,11 @@
 use super::ObjectFunctionLocation;
-use super::{Error, host, refuse_symbol_collision};
+use super::{Error, refuse_symbol_collision};
 use crate::{
-    ObjectPlan, ObjectSymbolHandle, RelocationKind, RelocationOrigin, RelocationPlan,
-    RelocationRecord, SectionKind, SectionPlan, SymbolKind, SymbolPlan, SymbolSection,
+    ObjectPlan, ObjectSymbolHandle, RelocationKind, RelocationOrigin, RelocationRecord,
+    SectionKind, SectionPlan, SymbolKind, SymbolPlan, SymbolSection,
 };
+use machine_code::PlacedImageAddress;
 use machine_code::code_layout::NativeCodeLayout;
-use machine_code::{ImageAddressFields, PlacedImageAddress};
 use selected_instructions::SelectedImageAddressReference;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -189,46 +189,12 @@ pub fn records(
             function_symbol_handle: function.symbol,
             operation_identity: address.operation.get(),
         };
-        let mut pointer = |offset, kind| -> Result<(), Error> {
-            rows.push(RelocationRecord {
-                origin,
-                section: SectionKind::Text,
-                offset: host(offset)?,
-                byte_width: 4,
-                symbol_handle: descriptor.symbol,
-                addend: 0,
-                kind,
-            });
-            Ok(())
-        };
-        match address.fields {
-            ImageAddressFields::X86_64Relative32 { patch_offset } => {
-                pointer(patch_offset, RelocationKind::X86_64Relative32)?
-            }
-            ImageAddressFields::Aarch64PageAddress {
-                page_patch_offset,
-                page_offset_patch_offset,
-            } => {
-                pointer(page_patch_offset, RelocationKind::Aarch64Page21)?;
-                pointer(
-                    page_offset_patch_offset,
-                    RelocationKind::Aarch64PageOffset12,
-                )?;
-            }
-        }
+        rows.extend(super::image_addresses::records(
+            address.fields,
+            origin,
+            descriptor.symbol,
+            0,
+        )?);
     }
     Ok(rows)
-}
-
-pub(super) fn publish_relocations(
-    pool: Option<&NativeCodeLayoutPool>,
-    functions: &[impl AsRef<ObjectFunctionLocation>],
-    plan: &mut RelocationPlan,
-) -> Result<(), Error> {
-    if let Some(pool) = pool {
-        for row in records(pool, functions)? {
-            plan.push_record(row);
-        }
-    }
-    Ok(())
 }

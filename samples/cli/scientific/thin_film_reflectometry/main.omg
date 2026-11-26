@@ -1,27 +1,17 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use domain/complex/complex.omg as complex_complex;
+use domain/input/input.omg;
+use domain/report/report.omg;
+use {omega}/language/core/complex/complex.omg;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/math.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Expected exit: 0 with input.txt; malformed or out-of-domain stdin exits 10.
 // Numerical output oracle: fixtures.json (both engines).
-use domain\input;
-use domain\input\Reader;
-use domain\input\Number;
-use domain\input\number;
-use domain\input\ended;
-use domain\report;
-use domain\report\field;
-use domain\complex;
-use domain\complex\norm;
-use domain\complex\quotient;
-use omega\language\core\complex\Complex;
-use omega\language\core\F64::from_i32;
-use omega\language\core\I32::from_f64;
-use omega\language\core\cos;
-use omega\language\core\sin;
-use system\Console;
 
 data Application {
-    reader: Reader;
+    reader: |input|::Reader;
     indices: [f64; 8]; thicknesses: [f64; 8]; wavelengths: [f64; 32];
     ambient: f64; substrate: f64; layers: i32 in Wrapping; count: i32 in Wrapping;
     index: i32 in Wrapping; layer: i32 in Wrapping;
@@ -29,20 +19,20 @@ data Application {
     a: f64; b: f64; c: f64; d: f64;
     minimum: f64; minimum_wavelength: f64;
 }
-machine main(application: @mutable Application) reaches ProcessExit + StandardInput + StandardOutput crashes Trap {
-    let ambient: Number = block number(@mutable application.reader);
-    let substrate: Number = block number(@mutable application.reader);
-    let layers: Number = block number(@mutable application.reader);
-    let count: Number = block number(@mutable application.reader);
+machine main(application: @mutable Application) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput crashes Trap {
+    let ambient: |input|::Number = block |input|::number(@mutable application.reader);
+    let substrate: |input|::Number = block |input|::number(@mutable application.reader);
+    let layers: |input|::Number = block |input|::number(@mutable application.reader);
+    let count: |input|::Number = block |input|::number(@mutable application.reader);
     transition ambient.valid && substrate.valid && layers.valid && count.valid {
         true -> block options(application, ambient.value, substrate.value, layers.value, count.value),
         _ -> invalid(application)
     }
-    machine invalid(application: @mutable Application) { Console::write_line("ERROR input or domain"); ProcessExit::exit_process(10); }
+    machine invalid(application: @mutable Application) { |console|::Console::write_line("ERROR input or domain"); |process_exit|::ProcessExit::exit_process(10); }
     machine options(application: @mutable Application, ambient: f64, substrate: f64, layers: f64, count: f64) {
-        let layer_integer: i32 in Saturating = I32::from_f64(layers);
-        let count_integer: i32 in Saturating = I32::from_f64(count);
-        transition ambient >= 1.0 && ambient <= 4.0 && substrate >= 1.0 && substrate <= 4.0 && layers >= 0.0 && layers <= 8.0 && count >= 1.0 && count <= 32.0 && layers == F64::from_i32(layer_integer as i32) && count == F64::from_i32(count_integer as i32) {
+        let layer_integer: i32 in Saturating = |float_operations|::I32::from_f64(layers);
+        let count_integer: i32 in Saturating = |float_operations|::I32::from_f64(count);
+        transition ambient >= 1.0 && ambient <= 4.0 && substrate >= 1.0 && substrate <= 4.0 && layers >= 0.0 && layers <= 8.0 && count >= 1.0 && count <= 32.0 && layers == |float_operations|::F64::from_i32(layer_integer as i32) && count == |float_operations|::F64::from_i32(count_integer as i32) {
             true -> block configure(application, ambient, substrate, layer_integer as -Saturating +Wrapping, count_integer as -Saturating +Wrapping),
             _ -> invalid(application)
         }
@@ -56,8 +46,8 @@ machine main(application: @mutable Application) reaches ProcessExit + StandardIn
         transition application.index >= 0 && application.index < application.layers && application.index < 8 { true -> block layer_tokens(application), _ -> block start_wavelengths(application) }
     }
     machine layer_tokens(application: @mutable Application) {
-        let index: Number = block number(@mutable application.reader);
-        let thickness: Number = block number(@mutable application.reader);
+        let index: |input|::Number = block |input|::number(@mutable application.reader);
+        let thickness: |input|::Number = block |input|::number(@mutable application.reader);
         transition index.valid && thickness.valid && index.value >= 1.0 && index.value <= 4.0 && thickness.value >= 0.0 && thickness.value <= 2000.0 {
             true -> block store_layer(application, index.value, thickness.value),
             _ -> invalid(application)
@@ -73,7 +63,7 @@ machine main(application: @mutable Application) reaches ProcessExit + StandardIn
         transition application.index >= 0 && application.index < application.count && application.index < 32 { true -> block wavelength_token(application), _ -> block finish_input(application) }
     }
     machine wavelength_token(application: @mutable Application) {
-        let wavelength: Number = block number(@mutable application.reader);
+        let wavelength: |input|::Number = block |input|::number(@mutable application.reader);
         transition wavelength.valid && wavelength.value >= 200.0 && wavelength.value <= 2000.0 { true -> block store_wavelength(application, wavelength.value), _ -> invalid(application) }
     }
     machine store_wavelength(application: @mutable Application, wavelength: f64) {
@@ -81,7 +71,7 @@ machine main(application: @mutable Application) reaches ProcessExit + StandardIn
         transition { _ -> block read_wavelength(application) }
     }
     machine finish_input(application: @mutable Application) {
-        let complete: bool = block ended(@mutable application.reader);
+        let complete: bool = block |input|::ended(@mutable application.reader);
         transition complete { true -> initialize(application), _ -> invalid(application) }
     }
     machine initialize(application: @mutable Application) {
@@ -101,7 +91,7 @@ machine main(application: @mutable Application) reaches ProcessExit + StandardIn
     machine matrix(application: @mutable Application) {
         let index: f64 = application.indices[application.layer];
         let phase: f64 = 6.283185307179586 * index * application.thicknesses[application.layer] / application.wavelengths[application.index];
-        let cosine: f64 = cos(phase); let sine: f64 = sin(phase);
+        let cosine: f64 = |math|::cos(phase); let sine: f64 = |math|::sin(phase);
         let a: f64 = application.a * cosine + application.b * index * sine;
         let b: f64 = -application.a * sine / index + application.b * cosine;
         let c: f64 = application.c * cosine - application.d * index * sine;
@@ -115,24 +105,24 @@ machine main(application: @mutable Application) reaches ProcessExit + StandardIn
         let denominator_imaginary: f64 = application.ambient * application.substrate * application.b + application.c;
         let numerator_real: f64 = application.ambient * application.a - application.substrate * application.d;
         let numerator_imaginary: f64 = application.ambient * application.substrate * application.b - application.c;
-        let denominator: Complex<f64> = Complex { real: denominator_real, imaginary: denominator_imaginary };
-        let reflection: Complex<f64> = quotient::<f64, Double>(
-            Complex { real: numerator_real, imaginary: numerator_imaginary }, denominator);
-        let transmission: Complex<f64> = quotient::<f64, Double>(
-            Complex { real: 2.0 * application.ambient, imaginary: 0.0 }, denominator);
+        let denominator: |complex|::Complex<f64> = |complex|::Complex { real: denominator_real, imaginary: denominator_imaginary };
+        let reflection: |complex|::Complex<f64> = |complex_complex|::quotient::<f64, |complex_complex|::Double>(
+            |complex|::Complex { real: numerator_real, imaginary: numerator_imaginary }, denominator);
+        let transmission: |complex|::Complex<f64> = |complex_complex|::quotient::<f64, |complex_complex|::Double>(
+            |complex|::Complex { real: 2.0 * application.ambient, imaginary: 0.0 }, denominator);
         let reflection_real: f64 = reflection.real;
         let reflection_imaginary: f64 = reflection.imaginary;
         let transmission_real: f64 = transmission.real;
         let transmission_imaginary: f64 = transmission.imaginary;
-        let reflectance: f64 = norm::<f64, Double>(reflection);
-        let transmittance: f64 = application.substrate / application.ambient * norm::<f64, Double>(transmission);
-        field(@mutable application.reader, "wavelength_pico_nm=", application.wavelengths[application.index] * 1000000000000.0);
-        field(@mutable application.reader, "r_real_pico=", reflection_real * 1000000000000.0);
-        field(@mutable application.reader, "r_imaginary_pico=", reflection_imaginary * 1000000000000.0);
-        field(@mutable application.reader, "t_real_pico=", transmission_real * 1000000000000.0);
-        field(@mutable application.reader, "t_imaginary_pico=", transmission_imaginary * 1000000000000.0);
-        field(@mutable application.reader, "R_pico=", reflectance * 1000000000000.0);
-        field(@mutable application.reader, "T_pico=", transmittance * 1000000000000.0);
+        let reflectance: f64 = |complex_complex|::norm::<f64, |complex_complex|::Double>(reflection);
+        let transmittance: f64 = application.substrate / application.ambient * |complex_complex|::norm::<f64, |complex_complex|::Double>(transmission);
+        |report|::field(@mutable application.reader, "wavelength_pico_nm=", application.wavelengths[application.index] * 1000000000000.0);
+        |report|::field(@mutable application.reader, "r_real_pico=", reflection_real * 1000000000000.0);
+        |report|::field(@mutable application.reader, "r_imaginary_pico=", reflection_imaginary * 1000000000000.0);
+        |report|::field(@mutable application.reader, "t_real_pico=", transmission_real * 1000000000000.0);
+        |report|::field(@mutable application.reader, "t_imaginary_pico=", transmission_imaginary * 1000000000000.0);
+        |report|::field(@mutable application.reader, "R_pico=", reflectance * 1000000000000.0);
+        |report|::field(@mutable application.reader, "T_pico=", transmittance * 1000000000000.0);
         transition reflectance < application.minimum { true -> minimum(application, reflectance), _ -> next(application) }
     }
     machine minimum(application: @mutable Application, reflectance: f64) {
@@ -141,14 +131,14 @@ machine main(application: @mutable Application) reaches ProcessExit + StandardIn
     }
     machine next(application: @mutable Application) { application.index = application.index + 1; transition { _ -> wavelength(application) } }
     machine done(application: @mutable Application) {
-        field(@mutable application.reader, "minimum_R_pico=", application.minimum * 1000000000000.0);
-        field(@mutable application.reader, "minimum_wavelength_pico_nm=", application.minimum_wavelength * 1000000000000.0);
-        ProcessExit::exit_process(0);
+        |report|::field(@mutable application.reader, "minimum_R_pico=", application.minimum * 1000000000000.0);
+        |report|::field(@mutable application.reader, "minimum_wavelength_pico_nm=", application.minimum_wavelength * 1000000000000.0);
+        |process_exit|::ProcessExit::exit_process(0);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput crashes Trap {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput crashes Trap {
     let mutable entry_storage: Application;
     block main(@mutable entry_storage);
 }

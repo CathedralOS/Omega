@@ -12,36 +12,15 @@ In our representation:
   precolored split requirements (`FixedPrecoloredSplitRequirementPlan`).
 - `RegisterHomePlan` and `FixedPrecoloredSegmentHomePlan` own per-function
   physical-view assignments (`VirtualRegisterHome` and
-  `FixedPrecoloredSourceSegmentHome`), framed on the wire under `OMGRAH\0\0`
-  version 7.
+  `FixedPrecoloredSourceSegmentHome`).
 - `AllocatedCalleeSavedRequirementPlan` records allocation-visible ABI
   preservation requirements and modification witnesses
   (`CalleeSavedModificationWitness`) without choosing stack frames or save/restore
   instructions.
 - `recovery` owns pressure-recovery classifications, spill choices, and
-  authenticated `FixedViewCopyPlan` rewrite artifacts (`OMGFCV\0\0`).
+  `FixedViewCopyPlan` rewrite records.
 - `post_allocation_manifest` owns the structured report
-  (`PostAllocationOptimizationManifest`, `OMGPAO\0\0` version 16) at the first
-  independently validated physical-home boundary.
-*/
-
-/*
-Why we separate physical-home data from allocation and validation authority:
-
-A register-home plan or recovery artifact on the wire is a candidate record,
-not proof that interference, fixed-view constraints, or live-range preservation
-succeeded. Keeping the data tables, canonical SHA-256 identities, and wire
-envelopes in `register-homes` lets the allocation pipeline, replay harnesses,
-and independent validators exchange and authenticate artifacts without coupling
-data custody to the graph-coloring or spill-recovery algorithms.
-*/
-
-/*
-Provenance and version boundaries:
-
-Every artifact envelope in this crate verifies its magic header, exact wire
-version, and 32-byte domain-separated SHA-256 identity before returning a
-decoded record, and rejects trailing bytes or out-of-vocabulary tags closed.
+  (`PostAllocationOptimizationManifest`) at the physical-home boundary.
 */
 
 pub(crate) use ::wire::digest_encoder;
@@ -56,17 +35,6 @@ macro_rules! decode_error_display {
         }
 
         impl std::error::Error for $error {}
-    };
-}
-
-#[macro_export]
-macro_rules! decode_error {
-    ($error:ty, $description:literal) => {
-        $crate::decode_error_display!($error, $description);
-
-        ::wire::truncated_from_adapter!($error);
-
-        ::wire::take_error_from_adapter!($error);
     };
 }
 
@@ -90,8 +58,6 @@ macro_rules! identity_newtype {
 }
 
 pub(crate) mod codec_bytes {
-    #[cfg(test)]
-    pub(crate) use ::wire::codec_bytes::patch_encoded;
     pub(crate) use ::wire::codec_bytes::push_encoded;
 
     pub(crate) fn length(bytes: &mut Vec<u8>, value: usize, artifact: &'static str) {
@@ -150,86 +116,10 @@ pub(crate) mod codec_bytes {
         }
     }
 
-    pub(crate) struct Envelope {
-        magic: &'static [u8; 8], // 8-byte wire magic header
-        version: u32,            // Exact wire format version
-    }
-
-    impl Envelope {
-        pub(crate) const fn new(magic: &'static [u8; 8], version: u32) -> Self {
-            Self { magic, version }
-        }
-
-        pub(crate) fn frame(&self, identity: [u8; 32], content: &[u8]) -> Vec<u8> {
-            let mut encoded =
-                Vec::with_capacity(self.magic.len() + 4 + identity.len() + content.len());
-            encoded.extend_from_slice(self.magic);
-            encoded.extend_from_slice(&self.version.to_le_bytes());
-            encoded.extend_from_slice(&identity);
-            encoded.extend_from_slice(content);
-            encoded
-        }
-
-        pub(crate) fn open<'a, E>(
-            &self,
-            encoded: &'a [u8],
-            wrong_magic: impl FnOnce() -> E,
-            unsupported_version: impl FnOnce(u32) -> E,
-        ) -> Result<(crate::cursor::Cursor<'a>, [u8; 32]), E>
-        where
-            E: From<crate::cursor::Truncated> + From<crate::cursor::TakeError>,
-        {
-            let mut cursor = crate::cursor::Cursor::new(encoded);
-            if cursor.take(self.magic.len())? != self.magic.as_slice() {
-                return Err(wrong_magic());
-            }
-            let version = cursor.u32()?;
-            if version != self.version {
-                return Err(unsupported_version(version));
-            }
-            let identity = cursor.array()?;
-            Ok((cursor, identity))
-        }
-    }
-
-    pub(crate) fn decode_list<T, E>(
-        cursor: &mut crate::cursor::Cursor<'_>,
-        mut decode: impl FnMut(&mut crate::cursor::Cursor<'_>) -> Result<T, E>,
-    ) -> Result<Vec<T>, E>
-    where
-        E: From<crate::cursor::Truncated> + From<crate::cursor::TakeError>,
-    {
-        let count = cursor.length()?;
-        let mut values = Vec::with_capacity(count.min(cursor.remaining()));
-        for _ in 0..count {
-            values.push(decode(cursor)?);
-        }
-        Ok(values)
-    }
-
     pub(crate) fn domain_identity(domain: &[u8], content: &[u8]) -> [u8; 32] {
         let mut digest = crate::digest_encoder::DomainDigestEncoder::new(domain);
         digest.raw(content);
         digest.finish()
-    }
-}
-
-pub(crate) mod cursor {
-    pub(crate) use ::wire::cursor::{Cursor, TakeError, Truncated};
-
-    pub(crate) fn optional<T, E>(
-        cursor: &mut Cursor<'_>,
-        read: impl FnOnce(&mut Cursor<'_>) -> Result<T, E>,
-        unknown_tag: impl FnOnce(u8) -> E,
-    ) -> Result<Option<T>, E>
-    where
-        E: From<Truncated>,
-    {
-        match cursor.byte()? {
-            0 => Ok(None),
-            1 => Ok(Some(read(cursor)?)),
-            tag => Err(unknown_tag(tag)),
-        }
     }
 }
 
@@ -258,18 +148,16 @@ pub use constraints::{
 };
 pub use post_allocation_manifest::{
     PostAllocationManifestStage, PostAllocationOptimizationManifest,
-    PostAllocationOptimizationManifestDecodeError, PostAllocationOptimizationManifestError,
-    PostAllocationSelectedTransformation, PostAllocationSpillStatus, PostAllocationStatistics,
-    PostAllocationUnavailableData,
+    PostAllocationOptimizationManifestError, PostAllocationSelectedTransformation,
+    PostAllocationSpillStatus, PostAllocationStatistics, PostAllocationUnavailableData,
 };
 pub use recovery::{
-    FixedViewCopy, FixedViewCopyDecodeError, FixedViewCopyDestination, FixedViewCopyPlan,
-    FixedViewCopyPolicy, FixedViewCopySourceEvidence, FunctionRecoveryClassification,
-    FunctionSpillChoices, NoAdmittedRecoveryReason, PressureContender,
-    PressureRecoveryClassification, PressureRematerializationPolicy, PressureResident,
-    RecoveryClassification, RecoveryClassificationDecodeError, RecoveryClassificationIdentity,
-    RecoveryClassificationPlan, RecoveryClassificationPolicy, RecoveryFutureUse,
-    RecoveryVictimRole, SpillChoice, SpillChoiceDecodeError, SpillChoiceIdentity, SpillChoicePlan,
+    FixedViewCopy, FixedViewCopyDestination, FixedViewCopyPlan, FixedViewCopyPolicy,
+    FixedViewCopySourceEvidence, FunctionRecoveryClassification, FunctionSpillChoices,
+    NoAdmittedRecoveryReason, PressureContender, PressureRecoveryClassification,
+    PressureRematerializationPolicy, PressureResident, RecoveryClassification,
+    RecoveryClassificationIdentity, RecoveryClassificationPlan, RecoveryClassificationPolicy,
+    RecoveryFutureUse, RecoveryVictimRole, SpillChoice, SpillChoiceIdentity, SpillChoicePlan,
     SpillChoicePolicy, classification, fixed_view_copy, fixed_view_copy_identity,
     recovery_classification_identity, spill_choice, spill_choice_identity,
 };
@@ -293,9 +181,7 @@ use selected_instructions::{
 use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
 use target::NativeTarget;
 
-use crate::codec_bytes::{Envelope, domain_identity, length, push_encoded};
-
-const REGISTER_HOME_ENVELOPE: Envelope = Envelope::new(b"OMGRAH\0\0", 7);
+use crate::codec_bytes::{domain_identity, length, push_encoded};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AllocatedProgram {
@@ -404,59 +290,6 @@ impl RegisterHomePlan {
             .iter()
             .find(|function| function.machine == machine)
     }
-
-    pub fn encode(&self) -> Vec<u8> {
-        let content = encode_terminal_register_home_content(self);
-        let identity = register_home_identity(self);
-        REGISTER_HOME_ENVELOPE.frame(identity.bytes(), &content)
-    }
-
-    pub fn decode(encoded: &[u8]) -> Result<Self, RegisterHomeDecodeError> {
-        let (mut cursor, identity) = REGISTER_HOME_ENVELOPE.open(
-            encoded,
-            || RegisterHomeDecodeError::WrongMagic,
-            RegisterHomeDecodeError::UnsupportedVersion,
-        )?;
-        let identity = RegisterHomeIdentity::from_bytes(identity);
-        let legality = AllocationLegalityIdentity::from_bytes(cursor.array()?);
-        let ranges = LiveRangeIdentity::from_bytes(cursor.array()?);
-        let register_environment = TargetRegisterEnvironmentIdentity::from_bytes(cursor.array()?);
-        let allocator_availability = AllocatorAvailabilityIdentity::from_bytes(cursor.array()?);
-        let functions =
-            crate::codec_bytes::decode_list::<_, RegisterHomeDecodeError>(&mut cursor, |cursor| {
-                let raw_machine = cursor.u64()?;
-                let machine = MachineId::new(raw_machine)
-                    .ok_or(RegisterHomeDecodeError::InvalidMachineId(raw_machine))?;
-                let assignments = crate::codec_bytes::decode_list::<_, RegisterHomeDecodeError>(
-                    &mut *cursor,
-                    |cursor| {
-                        Ok(VirtualRegisterHome {
-                            virtual_register: VirtualRegisterId(cursor.u32()?),
-                            class: RegisterClassId(cursor.u16()?),
-                            view: RegisterViewId(cursor.u16()?),
-                        })
-                    },
-                )?;
-                Ok(FunctionRegisterHomes {
-                    machine,
-                    assignments,
-                })
-            })?;
-        if cursor.remaining() != 0 {
-            return Err(RegisterHomeDecodeError::TrailingBytes);
-        }
-        let plan = Self {
-            legality,
-            ranges,
-            register_environment,
-            allocator_availability,
-            functions,
-        };
-        if register_home_identity(&plan) != identity {
-            return Err(RegisterHomeDecodeError::IdentityMismatch);
-        }
-        Ok(plan)
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -471,19 +304,6 @@ pub struct VirtualRegisterHome {
     pub class: RegisterClassId,              // Physical register class
     pub view: RegisterViewId,                // Assigned physical register view
 }
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RegisterHomeDecodeError {
-    Truncated,
-    WrongMagic,
-    UnsupportedVersion(u32),
-    InvalidMachineId(u64),
-    LengthOverflow,
-    IdentityMismatch,
-    TrailingBytes,
-}
-
-decode_error! { RegisterHomeDecodeError, "invalid Terminal register-home encoding" }
 
 identity_newtype! { pub struct FixedPrecoloredSegmentHomePlanIdentity(pub(crate) [u8; 32]); }
 
@@ -722,10 +542,6 @@ pub fn allocated_callee_saved_requirement_identity(
     AllocatedCalleeSavedRequirementIdentity::from_bytes(hasher.finish())
 }
 
-pub mod codec {
-    pub use crate::RegisterHomeDecodeError;
-}
-
 pub mod identity {
     pub use crate::{
         AbstractSpillAccessConstraintPlanIdentity, RegisterHomeIdentity, register_home_identity,
@@ -773,7 +589,7 @@ mod tests {
     use super::register_home_identity;
     use crate::{
         AllocationLegalityIdentity, AllocatorAvailabilityIdentity, CalleeSavedModificationWitness,
-        FunctionRegisterHomes, RegisterHomeDecodeError, RegisterHomePlan, VirtualRegisterHome,
+        FunctionRegisterHomes, RegisterHomePlan, VirtualRegisterHome,
     };
     use register_model::{
         RegisterClassId, RegisterViewId, RegisterWriteSemantics, TargetRegisterEnvironmentIdentity,
@@ -810,32 +626,6 @@ mod tests {
     }
 
     #[test]
-    fn retired_split_roster_wire_rejects_before_identity_comparison() {
-        let identity = [
-            0xe0, 0x14, 0x35, 0x59, 0x35, 0x00, 0xd5, 0x03, 0x6e, 0x3e, 0xad, 0x06, 0xff, 0xc8,
-            0xc9, 0xcb, 0x96, 0xb1, 0x1b, 0x73, 0x9f, 0x35, 0x01, 0xc2, 0xd2, 0x65, 0xcd, 0x4e,
-            0x8b, 0x55, 0x9a, 0xba,
-        ];
-        let mut expected = b"OMGRAH\0\0\x06\0\0\0".to_vec();
-        expected.extend_from_slice(&identity);
-        for value in [1, 2, 3, 4] {
-            expected.extend_from_slice(&[value; 32]);
-        }
-        for value in [1_u64, 1, 1] {
-            crate::codec_bytes::push_encoded(&mut expected, value.to_le_bytes());
-        }
-        expected.extend_from_slice(&[0, 0, 0, 0, 1, 0, 2, 0]);
-        for value in [1_u64, 2, 0] {
-            crate::codec_bytes::push_encoded(&mut expected, value.to_le_bytes());
-        }
-        assert_eq!(expected.len(), 228);
-        assert_eq!(
-            RegisterHomePlan::decode(&expected),
-            Err(RegisterHomeDecodeError::UnsupportedVersion(6))
-        );
-    }
-
-    #[test]
     fn identity_binds_every_home_domain() {
         let baseline = register_home_identity(&plan());
         assert_eq!(baseline, register_home_identity(&plan()));
@@ -862,53 +652,6 @@ mod tests {
             mutate(&mut changed);
             assert_ne!(baseline, register_home_identity(&changed));
         }
-    }
-
-    #[test]
-    fn canonical_home_codec_rejects_framing_and_identity_corruption() {
-        let plan = plan();
-        let encoded = plan.encode();
-        assert_eq!(RegisterHomePlan::decode(&encoded), Ok(plan));
-
-        let mut identity_tamper = encoded.clone();
-        identity_tamper[12] ^= 1;
-        assert_eq!(
-            RegisterHomePlan::decode(&identity_tamper),
-            Err(RegisterHomeDecodeError::IdentityMismatch)
-        );
-        let mut trailing = encoded.clone();
-        trailing.push(0);
-        assert_eq!(
-            RegisterHomePlan::decode(&trailing),
-            Err(RegisterHomeDecodeError::TrailingBytes)
-        );
-        assert_eq!(
-            RegisterHomePlan::decode(&encoded[..encoded.len() - 1]),
-            Err(RegisterHomeDecodeError::Truncated)
-        );
-        let mut wrong_magic = encoded.clone();
-        wrong_magic[0] ^= 1;
-        assert_eq!(
-            RegisterHomePlan::decode(&wrong_magic),
-            Err(RegisterHomeDecodeError::WrongMagic)
-        );
-        let mut wrong_version = encoded.clone();
-        crate::codec_bytes::patch_encoded(&mut wrong_version, 8, 4_u32.to_le_bytes());
-        assert_eq!(
-            RegisterHomePlan::decode(&wrong_version),
-            Err(RegisterHomeDecodeError::UnsupportedVersion(4))
-        );
-        let mut invalid_machine = encoded;
-        let machine_offset = 8 + 4 + 32 + (4 * 32) + 8;
-        crate::codec_bytes::patch_encoded(
-            &mut invalid_machine,
-            machine_offset,
-            0_u64.to_le_bytes(),
-        );
-        assert_eq!(
-            RegisterHomePlan::decode(&invalid_machine),
-            Err(RegisterHomeDecodeError::InvalidMachineId(0))
-        );
     }
 
     fn witness_digest(witness: CalleeSavedModificationWitness) -> [u8; 32] {
@@ -972,8 +715,8 @@ mod tests {
 mod pressure_rematerialization;
 pub use pressure_rematerialization::{
     FunctionPressureRematerialization, PressureRematerializationAction,
-    PressureRematerializationDecodeError, PressureRematerializationPlan,
-    PressureRematerializationRewrite, pressure_rematerialization_identity,
+    PressureRematerializationPlan, PressureRematerializationRewrite,
+    pressure_rematerialization_identity,
 };
 
 pub mod literal_fold;

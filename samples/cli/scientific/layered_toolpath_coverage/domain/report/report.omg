@@ -1,43 +1,42 @@
-use omega\language\core\StandardOutput;
-use domain\model;
-use domain\model\Job;
-use system\Console;
+use domain/model/model.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 // All values in this bounded model fit four decimal digits.
-machine number(value: i32 in Wrapping) reaches StandardOutput {
-    Console::write_byte(((value / 1000) % 10 + 48) as i32);
-    Console::write_byte(((value / 100) % 10 + 48) as i32);
-    Console::write_byte(((value / 10) % 10 + 48) as i32);
-    Console::write_byte((value % 10 + 48) as i32);
+machine number(value: i32 in Wrapping) reaches |process_authority|::StandardOutput {
+    |console|::Console::write_byte(((value / 1000) % 10 + 48) as i32);
+    |console|::Console::write_byte(((value / 100) % 10 + 48) as i32);
+    |console|::Console::write_byte(((value / 10) % 10 + 48) as i32);
+    |console|::Console::write_byte((value % 10 + 48) as i32);
 }
-machine coordinate(x: i32 in Wrapping, y: i32 in Wrapping, z: i32 in Wrapping) reaches StandardOutput {
-    number(x); Console::write(" "); number(y); Console::write(" "); number(z);
+machine coordinate(x: i32 in Wrapping, y: i32 in Wrapping, z: i32 in Wrapping) reaches |process_authority|::StandardOutput {
+    number(x); |console|::Console::write(" "); number(y); |console|::Console::write(" "); number(z);
 }
 public machine segment(kind: bool, x: i32 in Wrapping, y: i32 in Wrapping, z: i32 in Wrapping,
-    end_x: i32 in Wrapping, end_y: i32 in Wrapping, end_z: i32 in Wrapping) reaches StandardOutput {
+    end_x: i32 in Wrapping, end_y: i32 in Wrapping, end_z: i32 in Wrapping) reaches |process_authority|::StandardOutput {
     transition kind {
         true -> deposition(x, y, z, end_x, end_y, end_z),
         _ -> travel(x, y, z, end_x, end_y, end_z)
     }
     machine deposition(x: i32 in Wrapping, y: i32 in Wrapping, z: i32 in Wrapping,
         end_x: i32 in Wrapping, end_y: i32 in Wrapping, end_z: i32 in Wrapping) {
-        Console::write("D ");
-        coordinate(x, y, z); Console::write(" "); coordinate(end_x, end_y, end_z); Console::write_line("");
+        |console|::Console::write("D ");
+        coordinate(x, y, z); |console|::Console::write(" "); coordinate(end_x, end_y, end_z); |console|::Console::write_line("");
     }
     machine travel(x: i32 in Wrapping, y: i32 in Wrapping, z: i32 in Wrapping,
         end_x: i32 in Wrapping, end_y: i32 in Wrapping, end_z: i32 in Wrapping) {
-        Console::write("T ");
-        coordinate(x, y, z); Console::write(" "); coordinate(end_x, end_y, end_z); Console::write_line("");
+        |console|::Console::write("T ");
+        coordinate(x, y, z); |console|::Console::write(" "); coordinate(end_x, end_y, end_z); |console|::Console::write_line("");
     }
 }
-public machine audit(job: @Job) reaches StandardOutput {
-    Console::write("AUDIT region="); number(job.region);
-    Console::write(" covered="); number(job.covered_count);
-    Console::write(" missed="); number(job.missed);
-    Console::write(" waste="); number(job.waste);
-    Console::write(" duplicate="); number(job.duplicate);
-    Console::write(" deposition="); number(job.deposition);
-    Console::write(" travel="); number(job.travel);
-    Console::write(" D="); number(job.deposition_segments);
-    Console::write(" T="); number(job.travel_segments);
-    Console::write_line("");
+public machine audit(job: @|model|::Job) reaches |process_authority|::StandardOutput {
+    |console|::Console::write("AUDIT region="); number(job.region);
+    |console|::Console::write(" covered="); number(job.covered_count);
+    |console|::Console::write(" missed="); number(job.missed);
+    |console|::Console::write(" waste="); number(job.waste);
+    |console|::Console::write(" duplicate="); number(job.duplicate);
+    |console|::Console::write(" deposition="); number(job.deposition);
+    |console|::Console::write(" travel="); number(job.travel);
+    |console|::Console::write(" D="); number(job.deposition_segments);
+    |console|::Console::write(" T="); number(job.travel_segments);
+    |console|::Console::write_line("");
 }

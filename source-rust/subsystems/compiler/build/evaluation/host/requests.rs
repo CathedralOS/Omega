@@ -556,6 +556,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
         let returns_structural = matches!(
             call.action,
             Operation::PathDependency
+                | Operation::BundledDependency
                 | Operation::GitDependency
                 | Operation::InputBinding
                 | Operation::AddBinding
@@ -598,7 +599,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             Operation::InputBinding | Operation::ValidateBinding | Operation::CopyBytes => (0, 2),
             Operation::AddBinding => (0, 3),
             Operation::ExtendReach | Operation::ExtendWorkspace => (0, 3),
-            Operation::PathDependency => (1, 4),
+            Operation::PathDependency | Operation::BundledDependency => (1, 4),
             Operation::GitDependency => (2, 6),
             Operation::ForwardProgram { .. }
             | Operation::ConfigureTestFixture
@@ -686,7 +687,10 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
         }
         let (max_reach, forwarded_programs) = if matches!(
             call.action,
-            Operation::PathDependency | Operation::GitDependency | Operation::AddBinding
+            Operation::PathDependency
+                | Operation::BundledDependency
+                | Operation::GitDependency
+                | Operation::AddBinding
         ) {
             self.host.options.get(
                 structural_arguments
@@ -728,7 +732,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             }
         };
         match call.action {
-            Operation::PathDependency | Operation::GitDependency => {
+            Operation::PathDependency | Operation::BundledDependency | Operation::GitDependency => {
                 if flag(0)? {
                     let alias = text(1)?;
                     if !ProjectName::is_valid(alias) {
@@ -760,6 +764,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             retained_text.extend(alias.as_ref().map(ProjectName::as_str));
             match source {
                 BuildDependencySource::Path(path) => retained_text.push(path),
+                BuildDependencySource::Bundled(name) => retained_text.push(name.as_str()),
                 BuildDependencySource::Git {
                     repository,
                     revision,
@@ -835,28 +840,32 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                     source: source.clone(),
                 }
             }
-            Operation::PathDependency | Operation::GitDependency => BuildRequest::Dependency {
-                max_reach,
-                purpose: DependencyPurpose::Product,
-                alias: if flag(0)? {
-                    Some(project_name(text(1)?)?)
-                } else {
-                    None
-                },
-                source: if call.action == Operation::PathDependency {
-                    BuildDependencySource::Path(copy(text(2)?)?)
-                } else {
-                    BuildDependencySource::Git {
-                        repository: copy(text(2)?)?,
-                        revision: copy(text(3)?)?,
-                        package: if flag(1)? {
-                            Some(project_name(text(4)?)?)
-                        } else {
-                            None
-                        },
-                    }
-                },
-            },
+            Operation::PathDependency | Operation::BundledDependency | Operation::GitDependency => {
+                BuildRequest::Dependency {
+                    max_reach,
+                    purpose: DependencyPurpose::Product,
+                    alias: if flag(0)? {
+                        Some(project_name(text(1)?)?)
+                    } else {
+                        None
+                    },
+                    source: if call.action == Operation::PathDependency {
+                        BuildDependencySource::Path(copy(text(2)?)?)
+                    } else if call.action == Operation::BundledDependency {
+                        BuildDependencySource::Bundled(project_name(text(2)?)?)
+                    } else {
+                        BuildDependencySource::Git {
+                            repository: copy(text(2)?)?,
+                            revision: copy(text(3)?)?,
+                            package: if flag(1)? {
+                                Some(project_name(text(4)?)?)
+                            } else {
+                                None
+                            },
+                        }
+                    },
+                }
+            }
         };
         let mut requests = self
             .host

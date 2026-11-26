@@ -1,41 +1,33 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use domain/input/input.omg;
+use domain/report/report.omg;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/math.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Expected exit: 0 (valid input).
-use domain\input;
-use domain\input\Reader;
-use domain\input\Number;
-use domain\input\number;
-use domain\input\ended;
-use domain\report;
-use domain\report\field;
-use omega\language\core\F64::from_i32;
-use omega\language\core\I32::from_f64;
-use omega\language\core\cos;
-use omega\language\core\sin;
-use system\Console;
 
 data Application {
-    reader: Reader;
+    reader: |input|::Reader;
     samples: [f64; 64]; real: [f64; 64]; imaginary: [f64; 64]; density: [f64; 64];
     length: i32 in Wrapping; size: i32 in Wrapping; overlap: i32 in Wrapping; window: i32;
     sampling: f64; gain: f64; offset: f64;
     index: i32 in Wrapping; start: i32 in Wrapping; segments: i32 in Wrapping;
     energy: f64; width: i32 in Wrapping; group: i32 in Wrapping; butterfly: i32 in Wrapping;
 }
-machine main(application: @mutable Application) reaches ProcessExit + StandardInput + StandardOutput crashes Trap {
-    let sampling: Number = block number(@mutable application.reader);
-    let gain: Number = block number(@mutable application.reader);
-    let offset: Number = block number(@mutable application.reader);
-    let size: Number = block number(@mutable application.reader);
-    let overlap: Number = block number(@mutable application.reader);
-    let window: Number = block number(@mutable application.reader);
-    let length: Number = block number(@mutable application.reader);
+machine main(application: @mutable Application) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput crashes Trap {
+    let sampling: |input|::Number = block |input|::number(@mutable application.reader);
+    let gain: |input|::Number = block |input|::number(@mutable application.reader);
+    let offset: |input|::Number = block |input|::number(@mutable application.reader);
+    let size: |input|::Number = block |input|::number(@mutable application.reader);
+    let overlap: |input|::Number = block |input|::number(@mutable application.reader);
+    let window: |input|::Number = block |input|::number(@mutable application.reader);
+    let length: |input|::Number = block |input|::number(@mutable application.reader);
     transition sampling.valid && gain.valid && offset.valid && size.valid && overlap.valid && window.valid && length.valid {
         true -> block options(application, sampling.value, gain.value, offset.value, size.value, overlap.value, window.value, length.value),
         _ -> invalid(application)
     }
-    machine invalid(application: @mutable Application) { Console::write_line("ERROR input or options"); ProcessExit::exit_process(10); }
+    machine invalid(application: @mutable Application) { |console|::Console::write_line("ERROR input or options"); |process_exit|::ProcessExit::exit_process(10); }
     machine options(application: @mutable Application, sampling: f64, gain: f64, offset: f64, size: f64, overlap: f64, window: f64, length: f64) {
         transition sampling > 0.0 && gain > 0.0 && gain <= 10000.0 && (size == 8.0 || size == 16.0 || size == 32.0 || size == 64.0) && overlap >= 0.0 && overlap < size && (window == 0.0 || window == 1.0) && length >= size && length <= 64.0 {
             true -> block configure(application, sampling, gain, offset, size, overlap, window, length),
@@ -46,10 +38,10 @@ machine main(application: @mutable Application) reaches ProcessExit + StandardIn
         application.sampling = sampling; application.gain = gain * 0.001; application.offset = offset * 0.001;
         // The preceding options state rejects every value outside these ranges.
         // Explicit conversion domains also make this state's standalone contract clear.
-        let converted_size: i32 in Saturating = I32::from_f64(size);
-        let converted_overlap: i32 in Saturating = I32::from_f64(overlap);
-        let converted_window: i32 in Saturating = I32::from_f64(window);
-        let converted_length: i32 in Saturating = I32::from_f64(length);
+        let converted_size: i32 in Saturating = |float_operations|::I32::from_f64(size);
+        let converted_overlap: i32 in Saturating = |float_operations|::I32::from_f64(overlap);
+        let converted_window: i32 in Saturating = |float_operations|::I32::from_f64(window);
+        let converted_length: i32 in Saturating = |float_operations|::I32::from_f64(length);
         application.size = converted_size as -Saturating +Wrapping;
         application.overlap = converted_overlap as -Saturating +Wrapping;
         application.window = converted_window as i32;
@@ -61,7 +53,7 @@ machine main(application: @mutable Application) reaches ProcessExit + StandardIn
         transition application.index < application.length && application.index >= 0 && application.index < 64 { true -> block sample(application), _ -> block finish(application) }
     }
     machine sample(application: @mutable Application) {
-        let value: Number = block number(@mutable application.reader);
+        let value: |input|::Number = block |input|::number(@mutable application.reader);
         transition value.valid { true -> block store(application, value.value), _ -> invalid(application) }
     }
     machine store(application: @mutable Application, value: f64) {
@@ -70,7 +62,7 @@ machine main(application: @mutable Application) reaches ProcessExit + StandardIn
         transition { _ -> block read(application) }
     }
     machine finish(application: @mutable Application) {
-        let complete: bool = block ended(@mutable application.reader);
+        let complete: bool = block |input|::ended(@mutable application.reader);
         transition complete { true -> initialize(application), _ -> invalid(application) }
     }
     machine initialize(application: @mutable Application) {
@@ -99,9 +91,9 @@ machine main(application: @mutable Application) reaches ProcessExit + StandardIn
     machine weighted(application: @mutable Application, source: i32 in Wrapping)
     requires source >= 0 && source < 64
     {
-        let position: f64 = F64::from_i32(application.index as i32);
-        let size: f64 = F64::from_i32(application.size as i32);
-        let weight: f64 = match application.window == 0 { true -> 1.0, _ -> 0.5 - 0.5 * cos(6.283185307179586 * position / size) };
+        let position: f64 = |float_operations|::F64::from_i32(application.index as i32);
+        let size: f64 = |float_operations|::F64::from_i32(application.size as i32);
+        let weight: f64 = match application.window == 0 { true -> 1.0, _ -> 0.5 - 0.5 * |math|::cos(6.283185307179586 * position / size) };
         application.real[application.index] = application.samples[source] * weight;
         application.imaginary[application.index] = 0.0;
         application.energy = application.energy + weight * weight;
@@ -152,8 +144,8 @@ machine main(application: @mutable Application) reaches ProcessExit + StandardIn
     machine combine(application: @mutable Application, first: i32 in Wrapping, second: i32 in Wrapping)
     requires first >= 0 && first < 64 && second >= 0 && second < 64
     {
-        let angle: f64 = -6.283185307179586 * F64::from_i32(application.butterfly as i32) / F64::from_i32(application.width as i32);
-        let cosine: f64 = cos(angle); let sine: f64 = sin(angle);
+        let angle: f64 = -6.283185307179586 * |float_operations|::F64::from_i32(application.butterfly as i32) / |float_operations|::F64::from_i32(application.width as i32);
+        let cosine: f64 = |math|::cos(angle); let sine: f64 = |math|::sin(angle);
         let real: f64 = application.real[second] * cosine - application.imaginary[second] * sine;
         let imaginary: f64 = application.real[second] * sine + application.imaginary[second] * cosine;
         let before_real: f64 = application.real[first]; let before_imaginary: f64 = application.imaginary[first];
@@ -181,7 +173,7 @@ machine main(application: @mutable Application) reaches ProcessExit + StandardIn
         transition { _ -> segment(application) }
     }
     machine report(application: @mutable Application) {
-        field(@mutable application.reader, "segments=", F64::from_i32(application.segments as i32));
+        |report|::field(@mutable application.reader, "segments=", |float_operations|::F64::from_i32(application.segments as i32));
         application.index = 0;
         transition { _ -> bin(application) }
     }
@@ -189,12 +181,12 @@ machine main(application: @mutable Application) reaches ProcessExit + StandardIn
         transition application.index >= 0 && application.index <= application.size / 2 && application.index < 64 { true -> output(application), _ -> done(application) }
     }
     machine output(application: @mutable Application) {
-        field(@mutable application.reader, "frequency_microhz=", 1000000.0 * application.sampling * F64::from_i32(application.index as i32) / F64::from_i32(application.size as i32));
-        field(@mutable application.reader, "density_nano=", 1000000000.0 * application.density[application.index] / F64::from_i32(application.segments as i32));
+        |report|::field(@mutable application.reader, "frequency_microhz=", 1000000.0 * application.sampling * |float_operations|::F64::from_i32(application.index as i32) / |float_operations|::F64::from_i32(application.size as i32));
+        |report|::field(@mutable application.reader, "density_nano=", 1000000000.0 * application.density[application.index] / |float_operations|::F64::from_i32(application.segments as i32));
         application.index = application.index + 1;
         transition { _ -> bin(application) }
     }
-    machine done(application: @mutable Application) { ProcessExit::exit_process(0); }
+    machine done(application: @mutable Application) { |process_exit|::ProcessExit::exit_process(0); }
 }
 machine reverse_bits(value: i32 in Wrapping, size: i32 in Wrapping) -> i32 in Wrapping {
     transition { _ -> bits(value, size, 0) }
@@ -204,7 +196,7 @@ machine reverse_bits(value: i32 in Wrapping, size: i32 in Wrapping) -> i32 in Wr
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput crashes Trap {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput crashes Trap {
     let mutable entry_storage: Application;
     block main(@mutable entry_storage);
 }

@@ -1,11 +1,9 @@
 // Runtime numerical acceptance against independently frozen Decimal expectations.
 // This check makes Terminal exit agreement exercise all calculated values, even
 // though the supported CLI compares termination rather than captured stdout.
-use mechanics\model;
-use mechanics\model\Laminate;
-use mechanics\model\absolute;
+use mechanics/model/model.omg;
 data Expected { values: [f64;81]; }
-public machine matches(actual: @Laminate,mode: u8) -> bool {
+public machine matches(actual: @|model|::Laminate,mode: u8) -> bool {
     let mutable computed: [f64;81];
     let mutable expected: Expected;
     computed[0] = actual.stiffness[0][0][0];
@@ -124,7 +122,7 @@ public machine matches(actual: @Laminate,mode: u8) -> bool {
     }
     machine compare(computed: @[f64;81],expected: @[f64;81],index: u64) -> bool
     requires index <= 80 {
-        transition absolute(computed[index]-expected[index]) <= 0.00000001 {
+        transition |model|::absolute(computed[index]-expected[index]) <= 0.00000001 {
             true -> advance(computed,expected,index),
             false -> invalid()
         }

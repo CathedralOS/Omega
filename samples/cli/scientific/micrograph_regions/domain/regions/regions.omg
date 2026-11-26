@@ -1,19 +1,18 @@
-use domain\input;
-use domain\input\Image;
+use domain/input/input.omg;
 
 // Row-major seeds, FIFO flood, mark before enqueue: a pixel enters the
 // private 64-slot queue at most once. Bounds guards prove every array access.
 // Coordinates are checked before linearization, preventing row wrapping.
-public machine label_regions(image: @mutable Image) -> bool {
+public machine label_regions(image: @mutable |input|::Image) -> bool {
     image.components = 0;
     transition { _ -> scan(image, 0) }
-    machine scan(image: @mutable Image, position: i32 in Wrapping) -> bool {
+    machine scan(image: @mutable |input|::Image, position: i32 in Wrapping) -> bool {
         transition position >= 0 && position < 64 && position < image.length {
             true -> candidate(image, position),
             false -> true
         }
     }
-    machine candidate(image: @mutable Image, position: i32 in Wrapping) -> bool {
+    machine candidate(image: @mutable |input|::Image, position: i32 in Wrapping) -> bool {
         let intensity: i32 in Wrapping = image.pixels[position] as i32 +Wrapping;
         let label: i32 = image.labels[position];
         transition intensity >= image.threshold && label == 0 {
@@ -21,7 +20,7 @@ public machine label_regions(image: @mutable Image) -> bool {
             false -> scan(image, position + 1)
         }
     }
-    machine seed(image: @mutable Image, position: i32 in Wrapping) -> bool {
+    machine seed(image: @mutable |input|::Image, position: i32 in Wrapping) -> bool {
         image.components = image.components + 1;
         image.labels[position] = image.components as i32;
         image.queue[0] = position as i32;
@@ -29,30 +28,30 @@ public machine label_regions(image: @mutable Image) -> bool {
         image.tail = 1;
         transition { _ -> dequeue(image, position) }
     }
-    machine dequeue(image: @mutable Image, seed: i32 in Wrapping) -> bool {
+    machine dequeue(image: @mutable |input|::Image, seed: i32 in Wrapping) -> bool {
         transition image.head >= 0 && image.head < 64 && image.head < image.tail {
             true -> cell(image, seed),
             false -> scan(image, seed + 1)
         }
     }
-    machine cell(image: @mutable Image, seed: i32 in Wrapping) -> bool {
+    machine cell(image: @mutable |input|::Image, seed: i32 in Wrapping) -> bool {
         let cell: i32 in Wrapping = image.queue[image.head] as i32 +Wrapping;
         image.head = image.head + 1;
         transition { _ -> offsets(image, seed, cell, 0) }
     }
-    machine offsets(image: @mutable Image, seed: i32 in Wrapping, cell: i32 in Wrapping, direction: i32 in Wrapping) -> bool {
+    machine offsets(image: @mutable |input|::Image, seed: i32 in Wrapping, cell: i32 in Wrapping, direction: i32 in Wrapping) -> bool {
         transition direction < 9 {
             true -> coordinates(image, seed, cell, direction),
             false -> dequeue(image, seed)
         }
     }
-    machine coordinates(image: @mutable Image, seed: i32 in Wrapping, cell: i32 in Wrapping, direction: i32 in Wrapping) -> bool {
+    machine coordinates(image: @mutable |input|::Image, seed: i32 in Wrapping, cell: i32 in Wrapping, direction: i32 in Wrapping) -> bool {
         transition image.width > 0 {
             true -> coordinates_valid(image, seed, cell, direction),
             false -> false
         }
     }
-    machine coordinates_valid(image: @mutable Image, seed: i32 in Wrapping, cell: i32 in Wrapping, direction: i32 in Wrapping) -> bool {
+    machine coordinates_valid(image: @mutable |input|::Image, seed: i32 in Wrapping, cell: i32 in Wrapping, direction: i32 in Wrapping) -> bool {
         let horizontal: i32 in Wrapping = direction % 3 - 1;
         let vertical: i32 in Wrapping = direction / 3 - 1;
         let column: i32 in Wrapping = cell % image.width + horizontal;
@@ -64,13 +63,13 @@ public machine label_regions(image: @mutable Image) -> bool {
             false -> offsets(image, seed, cell, direction + 1)
         }
     }
-    machine index(image: @mutable Image, seed: i32 in Wrapping, cell: i32 in Wrapping, direction: i32 in Wrapping, neighbour: i32 in Wrapping) -> bool {
+    machine index(image: @mutable |input|::Image, seed: i32 in Wrapping, cell: i32 in Wrapping, direction: i32 in Wrapping, neighbour: i32 in Wrapping) -> bool {
         transition neighbour >= 0 && neighbour < 64 {
             true -> inspect(image, seed, cell, direction, neighbour),
             false -> false
         }
     }
-    machine inspect(image: @mutable Image, seed: i32 in Wrapping, cell: i32 in Wrapping, direction: i32 in Wrapping, neighbour: i32 in Wrapping) -> bool {
+    machine inspect(image: @mutable |input|::Image, seed: i32 in Wrapping, cell: i32 in Wrapping, direction: i32 in Wrapping, neighbour: i32 in Wrapping) -> bool {
         let intensity: i32 in Wrapping = image.pixels[neighbour] as i32 +Wrapping;
         let label: i32 = image.labels[neighbour];
         transition intensity >= image.threshold && label == 0 {
@@ -78,13 +77,13 @@ public machine label_regions(image: @mutable Image) -> bool {
             false -> offsets(image, seed, cell, direction + 1)
         }
     }
-    machine capacity(image: @mutable Image, seed: i32 in Wrapping, cell: i32 in Wrapping, direction: i32 in Wrapping, neighbour: i32 in Wrapping) -> bool {
+    machine capacity(image: @mutable |input|::Image, seed: i32 in Wrapping, cell: i32 in Wrapping, direction: i32 in Wrapping, neighbour: i32 in Wrapping) -> bool {
         transition image.tail >= 0 && image.tail < 64 {
             true -> enqueue(image, seed, cell, direction, neighbour),
             false -> false
         }
     }
-    machine enqueue(image: @mutable Image, seed: i32 in Wrapping, cell: i32 in Wrapping, direction: i32 in Wrapping, neighbour: i32 in Wrapping) -> bool {
+    machine enqueue(image: @mutable |input|::Image, seed: i32 in Wrapping, cell: i32 in Wrapping, direction: i32 in Wrapping, neighbour: i32 in Wrapping) -> bool {
         image.labels[neighbour] = image.components as i32;
         image.queue[image.tail] = neighbour as i32;
         image.tail = image.tail + 1;
@@ -101,77 +100,77 @@ public data Region {
     max_x: i32 in Wrapping;
     max_y: i32 in Wrapping;
 }
-public machine measure(image: @Image, label: i32 in Wrapping, region: @mutable Region) {
+public machine measure(image: @|input|::Image, label: i32 in Wrapping, region: @mutable Region) {
     region.area = 0; region.sum_x = 0; region.sum_y = 0;
     region.min_x = 8; region.min_y = 8; region.max_x = 0; region.max_y = 0;
     transition { _ -> scan(image, label, region, 0) }
-    machine scan(image: @Image, label: i32 in Wrapping, region: @mutable Region, position: i32 in Wrapping) {
+    machine scan(image: @|input|::Image, label: i32 in Wrapping, region: @mutable Region, position: i32 in Wrapping) {
         transition position >= 0 && position < 64 && position < image.length {
             true -> inspect(image, label, region, position),
             false -> stopped()
         }
     }
-    machine inspect(image: @Image, label: i32 in Wrapping, region: @mutable Region, position: i32 in Wrapping) {
+    machine inspect(image: @|input|::Image, label: i32 in Wrapping, region: @mutable Region, position: i32 in Wrapping) {
         let found: i32 in Wrapping = image.labels[position] as i32 +Wrapping;
         transition found == label {
             true -> add(image, label, region, position),
             false -> scan(image, label, region, position + 1)
         }
     }
-    machine add(image: @Image, label: i32 in Wrapping, region: @mutable Region, position: i32 in Wrapping) {
+    machine add(image: @|input|::Image, label: i32 in Wrapping, region: @mutable Region, position: i32 in Wrapping) {
         transition image.width > 0 {
             true -> accumulate(image, label, region, position),
             false -> stopped()
         }
     }
-    machine accumulate(image: @Image, label: i32 in Wrapping, region: @mutable Region, position: i32 in Wrapping) {
+    machine accumulate(image: @|input|::Image, label: i32 in Wrapping, region: @mutable Region, position: i32 in Wrapping) {
         let column: i32 in Wrapping = position % image.width;
         let row: i32 in Wrapping = position / image.width;
         region.area = region.area + 1;
         region.sum_x = region.sum_x + column; region.sum_y = region.sum_y + row;
         transition { _ -> minimum_x(image, label, region, position, column, row) }
     }
-    machine minimum_x(image: @Image, label: i32 in Wrapping, region: @mutable Region, position: i32 in Wrapping, column: i32 in Wrapping, row: i32 in Wrapping) {
+    machine minimum_x(image: @|input|::Image, label: i32 in Wrapping, region: @mutable Region, position: i32 in Wrapping, column: i32 in Wrapping, row: i32 in Wrapping) {
         transition column < region.min_x {
             true -> set_min_x(image, label, region, position, column, row),
             false -> minimum_y(image, label, region, position, column, row)
         }
     }
-    machine set_min_x(image: @Image, label: i32 in Wrapping, region: @mutable Region, position: i32 in Wrapping, column: i32 in Wrapping, row: i32 in Wrapping) {
+    machine set_min_x(image: @|input|::Image, label: i32 in Wrapping, region: @mutable Region, position: i32 in Wrapping, column: i32 in Wrapping, row: i32 in Wrapping) {
         region.min_x = column;
         transition { _ -> minimum_y(image, label, region, position, column, row) }
     }
-    machine minimum_y(image: @Image, label: i32 in Wrapping, region: @mutable Region, position: i32 in Wrapping, column: i32 in Wrapping, row: i32 in Wrapping) {
+    machine minimum_y(image: @|input|::Image, label: i32 in Wrapping, region: @mutable Region, position: i32 in Wrapping, column: i32 in Wrapping, row: i32 in Wrapping) {
         transition row < region.min_y {
             true -> set_min_y(image, label, region, position, column, row),
             false -> maximum_x(image, label, region, position, column, row)
         }
     }
-    machine set_min_y(image: @Image, label: i32 in Wrapping, region: @mutable Region, position: i32 in Wrapping, column: i32 in Wrapping, row: i32 in Wrapping) {
+    machine set_min_y(image: @|input|::Image, label: i32 in Wrapping, region: @mutable Region, position: i32 in Wrapping, column: i32 in Wrapping, row: i32 in Wrapping) {
         region.min_y = row;
         transition { _ -> maximum_x(image, label, region, position, column, row) }
     }
-    machine maximum_x(image: @Image, label: i32 in Wrapping, region: @mutable Region, position: i32 in Wrapping, column: i32 in Wrapping, row: i32 in Wrapping) {
+    machine maximum_x(image: @|input|::Image, label: i32 in Wrapping, region: @mutable Region, position: i32 in Wrapping, column: i32 in Wrapping, row: i32 in Wrapping) {
         transition column > region.max_x {
             true -> set_max_x(image, label, region, position, column, row),
             false -> maximum_y(image, label, region, position, column, row)
         }
     }
-    machine set_max_x(image: @Image, label: i32 in Wrapping, region: @mutable Region, position: i32 in Wrapping, column: i32 in Wrapping, row: i32 in Wrapping) {
+    machine set_max_x(image: @|input|::Image, label: i32 in Wrapping, region: @mutable Region, position: i32 in Wrapping, column: i32 in Wrapping, row: i32 in Wrapping) {
         region.max_x = column;
         transition { _ -> maximum_y(image, label, region, position, column, row) }
     }
-    machine maximum_y(image: @Image, label: i32 in Wrapping, region: @mutable Region, position: i32 in Wrapping, column: i32 in Wrapping, row: i32 in Wrapping) {
+    machine maximum_y(image: @|input|::Image, label: i32 in Wrapping, region: @mutable Region, position: i32 in Wrapping, column: i32 in Wrapping, row: i32 in Wrapping) {
         transition row > region.max_y {
             true -> set_max_y(image, label, region, position, column, row),
             false -> step(image, label, region, position, column, row)
         }
     }
-    machine set_max_y(image: @Image, label: i32 in Wrapping, region: @mutable Region, position: i32 in Wrapping, column: i32 in Wrapping, row: i32 in Wrapping) {
+    machine set_max_y(image: @|input|::Image, label: i32 in Wrapping, region: @mutable Region, position: i32 in Wrapping, column: i32 in Wrapping, row: i32 in Wrapping) {
         region.max_y = row;
         transition { _ -> step(image, label, region, position, column, row) }
     }
-    machine step(image: @Image, label: i32 in Wrapping, region: @mutable Region, position: i32 in Wrapping, column: i32 in Wrapping, row: i32 in Wrapping) {
+    machine step(image: @|input|::Image, label: i32 in Wrapping, region: @mutable Region, position: i32 in Wrapping, column: i32 in Wrapping, row: i32 in Wrapping) {
         transition { _ -> scan(image, label, region, position + 1) }
     }
     machine stopped() {}

@@ -1,29 +1,22 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use domain/input/input.omg;
+use domain/report/report.omg;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Expected exit: 0 for input.txt; numerical oracle: fixtures.json.
-use domain\input;
-use domain\input\Reader;
-use domain\input\Number;
-use domain\input\number;
-use domain\input\ended;
-use domain\report;
-use domain\report\field;
-use omega\language\core\F64::from_i32;
-use omega\language\core\I32::from_f64;
-use system\Console;
 
 data Application {
-    reader: Reader;
+    reader: |input|::Reader;
     original: [f64; 64]; retained: [f64; 64]; scratch: [[f64; 2]; 32];
     length: i32 in Wrapping; levels: i32 in Wrapping; depth: i32 in Wrapping;
     width: i32 in Wrapping; index: i32 in Wrapping; cutoff: i32 in Wrapping;
     threshold: f64; input_energy: f64; coefficient_energy: f64; retained_energy: f64;
 }
-machine main(application: @mutable Application) reaches ProcessExit + StandardInput + StandardOutput crashes Trap {
-    let length: Number = block number(@mutable application.reader);
-    let threshold: Number = block number(@mutable application.reader);
-    let levels: Number = block number(@mutable application.reader);
+machine main(application: @mutable Application) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput crashes Trap {
+    let length: |input|::Number = block |input|::number(@mutable application.reader);
+    let threshold: |input|::Number = block |input|::number(@mutable application.reader);
+    let levels: |input|::Number = block |input|::number(@mutable application.reader);
     transition length.valid && threshold.valid && levels.valid && threshold.value >= 0.0 &&
         (length.value == 8.0 || length.value == 16.0 || length.value == 32.0 || length.value == 64.0) &&
         (levels.value == 0.0 || levels.value == 1.0 || levels.value == 2.0 || levels.value == 3.0 || levels.value == 4.0 || levels.value == 5.0 || levels.value == 6.0) {
@@ -31,15 +24,15 @@ machine main(application: @mutable Application) reaches ProcessExit + StandardIn
         _ -> invalid(application)
     }
     machine invalid(application: @mutable Application) {
-        Console::write_line("ERROR input or options"); ProcessExit::exit_process(10);
+        |console|::Console::write_line("ERROR input or options"); |process_exit|::ProcessExit::exit_process(10);
     }
     machine options(application: @mutable Application, length: f64, threshold: f64, levels: f64) {
         let depth: i32 in Wrapping = match length == 8.0 { true -> 3, _ -> match length == 16.0 { true -> 4, _ -> match length == 32.0 { true -> 5, _ -> 6 } } };
-        transition levels <= F64::from_i32(depth as i32) { true -> block configure(application, length, threshold, levels, depth), _ -> invalid(application) }
+        transition levels <= |float_operations|::F64::from_i32(depth as i32) { true -> block configure(application, length, threshold, levels, depth), _ -> invalid(application) }
     }
     machine configure(application: @mutable Application, length: f64, threshold: f64, levels: f64, depth: i32 in Wrapping) {
-        let size: i32 in Saturating = I32::from_f64(length);
-        let selected: i32 in Saturating = I32::from_f64(levels);
+        let size: i32 in Saturating = |float_operations|::I32::from_f64(length);
+        let selected: i32 in Saturating = |float_operations|::I32::from_f64(levels);
         application.length = size as -Saturating +Wrapping; application.levels = selected as -Saturating +Wrapping;
         application.depth = depth; application.threshold = threshold;
         application.index = 0; application.input_energy = 0.0;
@@ -51,7 +44,7 @@ machine main(application: @mutable Application) reaches ProcessExit + StandardIn
         }
     }
     machine sample(application: @mutable Application) {
-        let value: Number = block number(@mutable application.reader);
+        let value: |input|::Number = block |input|::number(@mutable application.reader);
         transition value.valid { true -> block store(application, value.value), _ -> invalid(application) }
     }
     machine store(application: @mutable Application, value: f64) {
@@ -61,7 +54,7 @@ machine main(application: @mutable Application) reaches ProcessExit + StandardIn
         transition { _ -> block read(application) }
     }
     machine finish(application: @mutable Application) {
-        let complete: bool = block ended(@mutable application.reader);
+        let complete: bool = block |input|::ended(@mutable application.reader);
         application.width = application.length;
         transition complete { true -> forward_stage(application), _ -> invalid(application) }
     }
@@ -141,8 +134,8 @@ machine main(application: @mutable Application) reaches ProcessExit + StandardIn
         application.retained[application.index] = retained;
         application.coefficient_energy = application.coefficient_energy + value * value;
         application.retained_energy = application.retained_energy + retained * retained;
-        field(@mutable application.reader, "original_pico=", value * 1000000000000.0);
-        field(@mutable application.reader, "retained_pico=", retained * 1000000000000.0);
+        |report|::field(@mutable application.reader, "original_pico=", value * 1000000000000.0);
+        |report|::field(@mutable application.reader, "retained_pico=", retained * 1000000000000.0);
         application.index = application.index + 1; transition { _ -> shrink(application) }
     }
     machine inverse_start(application: @mutable Application) { application.width = 2; transition { _ -> inverse_stage(application) } }
@@ -200,14 +193,14 @@ machine main(application: @mutable Application) reaches ProcessExit + StandardIn
         transition application.index >= 0 && application.index < application.length && application.index < 64 { true -> reconstruction(application), _ -> done(application) }
     }
     machine reconstruction(application: @mutable Application) {
-        field(@mutable application.reader, "reconstruction_pico=", application.retained[application.index] * 1000000000000.0);
+        |report|::field(@mutable application.reader, "reconstruction_pico=", application.retained[application.index] * 1000000000000.0);
         application.index = application.index + 1; transition { _ -> report(application) }
     }
     machine done(application: @mutable Application) {
-        field(@mutable application.reader, "input_energy_nano=", application.input_energy * 1000000000.0);
-        field(@mutable application.reader, "coefficient_energy_nano=", application.coefficient_energy * 1000000000.0);
-        field(@mutable application.reader, "removed_energy_nano=", (application.coefficient_energy - application.retained_energy) * 1000000000.0);
-        ProcessExit::exit_process(0);
+        |report|::field(@mutable application.reader, "input_energy_nano=", application.input_energy * 1000000000.0);
+        |report|::field(@mutable application.reader, "coefficient_energy_nano=", application.coefficient_energy * 1000000000.0);
+        |report|::field(@mutable application.reader, "removed_energy_nano=", (application.coefficient_energy - application.retained_energy) * 1000000000.0);
+        |process_exit|::ProcessExit::exit_process(0);
     }
 }
 machine soft_threshold(value: f64, threshold: f64) -> f64 {
@@ -227,7 +220,7 @@ requires index < 32
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput crashes Trap {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput crashes Trap {
     let mutable entry_storage: Application;
     block main(@mutable entry_storage);
 }

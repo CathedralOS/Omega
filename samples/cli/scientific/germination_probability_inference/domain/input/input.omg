@@ -1,25 +1,24 @@
 // Unsigned decimal integer tokens (1-3 digits), ASCII whitespace and EOF.
 // The complete stream is bounded to 4096 bytes, including trailing whitespace.
-use omega\language\core\StandardInput;
-use system\ByteRead;
-use system\Console;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 
 public data Reader { consumed: i32; }
 public data Number [copy] { valid: bool; value: i32 in Wrapping; }
 public data Input { values: [i32 in Wrapping; 20]; count: i32 in Wrapping; }
 machine whitespace(value: i32) -> bool { transition { _ -> (value == 32 || value == 9 || value == 10 || value == 13) } }
-machine character(reader: @mutable Reader) -> i32 reaches StandardInput {
+machine character(reader: @mutable Reader) -> i32 reaches |process_authority|::StandardInput {
     transition reader.consumed >= 0 && reader.consumed < 4096 { true -> read(reader), _ -> -2 }
     machine read(reader: @mutable Reader) -> i32 requires reader.consumed >= 0 && reader.consumed < 4096 {
-        let byte: ByteRead = block Console::read_byte();
-        transition byte { ByteRead::Error -> -2, ByteRead::Eof -> -1, ByteRead::Byte { value } -> counted(reader, value) }
+        let byte: |console|::ByteRead = block |console|::Console::read_byte();
+        transition byte { |console|::ByteRead::Error -> -2, |console|::ByteRead::Eof -> -1, |console|::ByteRead::Byte { value } -> counted(reader, value) }
     }
     machine counted(reader: @mutable Reader, value: i32) -> i32 requires reader.consumed >= 0 && reader.consumed < 4096 {
         reader.consumed = reader.consumed + 1;
         transition { _ -> value }
     }
 }
-machine number(reader: @mutable Reader) -> Number reaches StandardInput {
+machine number(reader: @mutable Reader) -> Number reaches |process_authority|::StandardInput {
     transition { _ -> start(reader) }
     machine start(reader: @mutable Reader) -> Number {
         let byte: i32 = block character(reader);
@@ -43,15 +42,15 @@ machine number(reader: @mutable Reader) -> Number reaches StandardInput {
         }
     }
 }
-machine ended(reader: @mutable Reader) -> bool reaches StandardInput {
+machine ended(reader: @mutable Reader) -> bool reaches |process_authority|::StandardInput {
     let byte: i32 = block character(reader);
     transition byte == -1 { true -> true, _ -> space(reader, byte) }
     machine space(reader: @mutable Reader, byte: i32) -> bool {
         transition whitespace(byte) { true -> block ended(reader), _ -> false }
     }
 }
-public machine read_input(reader: @mutable Reader, input: @mutable Input) -> bool reaches StandardInput
-invokes Console
+public machine read_input(reader: @mutable Reader, input: @mutable Input) -> bool reaches |process_authority|::StandardInput
+invokes |console|::Console
 blocks
 crashes Trap
 {

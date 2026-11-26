@@ -14,9 +14,9 @@ pub(crate) mod imports {
     use calling_conventions::{DARWIN_LIBOBJC_PATH, darwin_import_library};
     use diagnostics::Diagnostic;
     use image::{
-        FinalDataRegion, FinalDataRegionOrigin, FinalExecutableRegion, FinalExecutableRegionOrigin,
-        FinalImage, FinalImageImportPlan, FinalImageLayout, FinalImageSection,
-        FinalImageSymbolHandle, PlacedDataRegionInventory, PlacedExecutableRegionInventory,
+        FinalDataRegion, FinalDataRegionOrigin, FinalExecutableRegionOrigin, FinalImage,
+        FinalImageImportPlan, FinalImageLayout, FinalImageSection, FinalImageSymbolHandle,
+        PlacedDataRegionInventory, PlacedExecutableRegionInventory,
     };
     use object_file::SymbolKind;
     use target::{ForeignLocatorCandidate, NormalizedImportLocator};
@@ -215,7 +215,6 @@ pub(crate) mod imports {
         for prepared_import in prepared {
             let symbol_handle = prepared_import.symbol_handle;
             let symbol = prepared_import.symbol;
-            let text_offset = image.memory.text.len();
             let unpadded_data_len = image.memory.data.len();
             image.memory.data.resize(align_to(unpadded_data_len, 8), 0);
             if image.memory.data.len() != unpadded_data_len {
@@ -227,53 +226,8 @@ pub(crate) mod imports {
                 });
             }
             let data_offset = image.memory.data.len();
-            let thunk_size = isa.import_thunk_size();
-            let body = image.encoded_import_body(symbol_handle)?;
-            use machine_code::import_code::{
-                ImportOperand, ImportOperandKind as Kind, ImportOperandTarget as Target,
-            };
-            let expected = match isa {
-                MachoIsa::X86_64 => vec![ImportOperand {
-                    offset: 2,
-                    kind: Kind::X86Relative32,
-                    target: Target::BindingSlot,
-                }],
-                MachoIsa::Aarch64 => vec![
-                    ImportOperand {
-                        offset: 0,
-                        kind: Kind::Aarch64Page21,
-                        target: Target::BindingSlot,
-                    },
-                    ImportOperand {
-                        offset: 4,
-                        kind: Kind::Aarch64PageOffset12 { scale: 3 },
-                        target: Target::BindingSlot,
-                    },
-                ],
-            };
-            if body.bytes.len() != thunk_size || body.operands != expected {
-                return Err(Diagnostic::error(
-                    "Mach-O import body has a different encoded operand contract",
-                ));
-            }
-            let footprint = body.resources.effects.footprint().clone();
-            let bytes = body.bytes.clone();
-            image.memory.text.extend(bytes);
+            let text_offset = image.install_slot_thunk("Mach-O", symbol_handle)?;
             image.memory.data.extend([0u8; 8]);
-
-            let image_symbol = image.symbol_table.symbols.get_mut(symbol_handle);
-            image_symbol.section = FinalImageSection::Text;
-            image_symbol.offset = text_offset;
-            image_symbol.size = thunk_size;
-
-            image.executable_regions.push(FinalExecutableRegion {
-                origin: FinalExecutableRegionOrigin::ImportThunk,
-                section_offset: text_offset,
-                byte_count: thunk_size,
-                symbol: symbol.clone(),
-                footprint: Some(footprint),
-                entry_effects: None,
-            });
             image.data_regions.push(FinalDataRegion {
                 origin: FinalDataRegionOrigin::ImportBindingSlot,
                 section_offset: data_offset,
@@ -303,65 +257,16 @@ pub(crate) mod imports {
         image: &mut FinalImage,
         layout: &FinalImageLayout,
         thunks: &[MachoImportThunk],
-        isa: MachoIsa,
     ) -> Result<(), Diagnostic> {
         for thunk in thunks {
-            let instruction_address = layout.text_address + thunk.text_offset as u64;
-            let pointer_address = layout.data_address + thunk.data_offset as u64;
-            match isa {
-                MachoIsa::Aarch64 => {
-                    let end = thunk.text_offset + isa.import_thunk_size();
-                    let bytes = image
-                        .memory
-                        .text
-                        .get_mut(thunk.text_offset..end)
-                        .ok_or_else(|| {
-                            thunk_diagnostic(&thunk.symbol, "patch offset is out of bounds")
-                        })?;
-                    target_aarch64::import_thunk::patch_aarch64_import_thunk(
-                        bytes,
-                        instruction_address,
-                        pointer_address,
-                    )
-                    .map_err(|reason| thunk_diagnostic(&thunk.symbol, reason))?;
-                }
-                MachoIsa::X86_64 => {
-                    let displacement = i64::try_from(pointer_address)
-                        .ok()
-                        .zip(i64::try_from(instruction_address + 6).ok())
-                        .and_then(|(target, next)| target.checked_sub(next))
-                        .ok_or_else(|| {
-                            Diagnostic::error(format!(
-                                "Mach-O x86-64 import thunk `{}` pointer address overflows",
-                                thunk.symbol
-                            ))
-                        })?;
-                    let displacement = i32::try_from(displacement).map_err(|_| {
-                        Diagnostic::error(format!(
-                            "Mach-O x86-64 import thunk `{}` binding slot is out of disp32 range",
-                            thunk.symbol
-                        ))
-                    })?;
-                    let Some(slot) = image
-                        .memory
-                        .text
-                        .get_mut(thunk.text_offset..thunk.text_offset + 6)
-                    else {
-                        return Err(Diagnostic::error(format!(
-                            "Mach-O x86-64 import thunk `{}` patch offset is out of bounds",
-                            thunk.symbol
-                        )));
-                    };
-                    if slot[..2] != [0xff, 0x25] || slot[2..] != [0; 4] {
-                        return Err(Diagnostic::error(
-                            "Mach-O import displacement is not an encoded zero placeholder",
-                        ));
-                    }
-                    crate::codec_bytes::patch_encoded(slot, 2, displacement.to_le_bytes());
-                }
-            }
+            image.patch_slot_thunk(
+                "Mach-O",
+                &thunk.symbol,
+                thunk.text_offset,
+                layout.text_address + thunk.text_offset as u64,
+                layout.data_address + thunk.data_offset as u64,
+            )?;
         }
-
         Ok(())
     }
 
@@ -370,53 +275,11 @@ pub(crate) mod imports {
     }
 
     pub(crate) fn validate_import_thunk_footprints(
-        image: &mut FinalImage,
+        image: &FinalImage,
         thunks: &[MachoImportThunk],
-        isa: MachoIsa,
     ) -> Result<(), Diagnostic> {
-        let thunk_size = isa.import_thunk_size();
         for thunk in thunks {
-            let end = thunk
-                .text_offset
-                .checked_add(thunk_size)
-                .ok_or_else(|| thunk_diagnostic(&thunk.symbol, "range overflows"))?;
-            let bytes = image
-                .memory
-                .text
-                .get(thunk.text_offset..end)
-                .ok_or_else(|| thunk_diagnostic(&thunk.symbol, "is out of final .text bounds"))?;
-            let canonical = match isa {
-                MachoIsa::Aarch64 => {
-                    target_aarch64::import_thunk::decode_aarch64_import_thunk(bytes)
-                }
-                MachoIsa::X86_64 => {
-                    target_x86_64::import_thunk::decode_x86_64_import_thunk(bytes).is_some()
-                }
-            };
-            if !canonical {
-                return Err(thunk_diagnostic(
-                    &thunk.symbol,
-                    "does not match the ISA's canonical binding-slot branch",
-                ));
-            }
-            let region = image
-                .executable_regions
-                .iter_mut()
-                .find(|region| {
-                    region.origin == FinalExecutableRegionOrigin::ImportThunk
-                        && region.section_offset == thunk.text_offset
-                        && region.byte_count == thunk_size
-                        && region.symbol == thunk.symbol
-                })
-                .ok_or_else(|| {
-                    thunk_diagnostic(&thunk.symbol, "is missing its executable-region record")
-                })?;
-            if region.footprint.as_ref() != Some(&isa.thunk_footprint()) {
-                return Err(thunk_diagnostic(
-                    &thunk.symbol,
-                    "effects differ from the encoded program",
-                ));
-            }
+            image.validate_slot_thunk("Mach-O", &thunk.symbol, thunk.text_offset)?;
         }
         Ok(())
     }
@@ -663,7 +526,7 @@ pub(crate) mod imports {
         }
 
         fn patch_test_thunks(image: &mut FinalImage, thunks: &[super::MachoImportThunk]) {
-            patch_import_thunks(image, &TEST_LAYOUT, thunks, MachoIsa::Aarch64)
+            patch_import_thunks(image, &TEST_LAYOUT, thunks)
                 .expect("test Mach-O thunk should patch");
         }
 
@@ -689,7 +552,7 @@ pub(crate) mod imports {
             let imports = install_import_thunks(&mut image, MachoIsa::Aarch64)
                 .expect("valid bootstrap import");
             patch_test_thunks(&mut image, &imports.thunks);
-            validate_import_thunk_footprints(&mut image, &imports.thunks, MachoIsa::Aarch64)
+            validate_import_thunk_footprints(&image, &imports.thunks)
                 .expect("patched Mach-O thunk bytes should validate");
 
             assert_eq!(imports.thunks.len(), 1);
@@ -719,10 +582,9 @@ pub(crate) mod imports {
             patch_test_thunks(&mut image, &imports.thunks);
             image.memory.text[9] = 0;
 
-            let diagnostic =
-                validate_import_thunk_footprints(&mut image, &imports.thunks, MachoIsa::Aarch64)
-                    .expect_err("mutated Mach-O thunk opcode must reject");
-            assert!(diagnostic.message.contains("canonical binding-slot branch"));
+            let diagnostic = validate_import_thunk_footprints(&image, &imports.thunks)
+                .expect_err("mutated Mach-O thunk opcode must reject");
+            assert!(diagnostic.message.contains("canonical slot branch"));
         }
 
         #[test]
@@ -738,11 +600,11 @@ pub(crate) mod imports {
             assert_eq!(image.memory.text.len(), 6);
             assert_eq!(image.memory.data.len(), 8);
 
-            patch_import_thunks(&mut image, &TEST_LAYOUT, &imports.thunks, MachoIsa::X86_64)
+            patch_import_thunks(&mut image, &TEST_LAYOUT, &imports.thunks)
                 .expect("x86-64 Mach-O thunk should patch");
             assert_eq!(&image.memory.text[..], &[0xff, 0x25, 0xfa, 0x0f, 0, 0]);
 
-            validate_import_thunk_footprints(&mut image, &imports.thunks, MachoIsa::X86_64)
+            validate_import_thunk_footprints(&image, &imports.thunks)
                 .expect("patched x86-64 thunk bytes should validate");
             let footprint = image.executable_regions[0]
                 .footprint
@@ -763,15 +625,11 @@ pub(crate) mod imports {
             insert_write_import(&mut image);
             let imports = install_import_thunks(&mut image, MachoIsa::X86_64)
                 .expect("valid x86-64 bootstrap import");
-            patch_import_thunks(&mut image, &TEST_LAYOUT, &imports.thunks, MachoIsa::X86_64)
-                .expect("patch");
+            patch_import_thunks(&mut image, &TEST_LAYOUT, &imports.thunks).expect("patch");
             image.memory.text[0] = 0xff;
             image.memory.text[1] = 0x24;
 
-            assert!(
-                validate_import_thunk_footprints(&mut image, &imports.thunks, MachoIsa::X86_64)
-                    .is_err()
-            );
+            assert!(validate_import_thunk_footprints(&image, &imports.thunks).is_err());
         }
 
         #[test]

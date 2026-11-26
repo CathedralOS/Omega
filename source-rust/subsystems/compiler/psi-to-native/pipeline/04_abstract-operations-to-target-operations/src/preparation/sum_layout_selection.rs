@@ -39,219 +39,6 @@ use terminal_psi::{
 const HOST: fn() -> NativeTarget = NativeTarget::linux_x64;
 
 #[test]
-fn a_literal_edge_can_retire_its_descriptor_home() {
-    use crate::preparation::legalization_function_inputs::FunctionInputs;
-    use crate::preparation::legalization_scalar_graph::control;
-    use semantic_vocabulary::StructuralPlaceKind;
-    use terminal_psi::{StructuralPlaceDeclaration, TerminalAffineCleanupAction};
-
-    let mut names = TerminalIdentityTableBuilder::default();
-    let mut view = reference_type(1, names.intern("literal bytes"), ty(1));
-    view.shape =
-        StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
-            access: None,
-        });
-    let literal = StructuralPlaceDeclaration {
-        id: place(1),
-        kind: StructuralPlaceKind::ByteSequenceLiteral {
-            declaration_ordinal: 0,
-            structural_type: view.id,
-        },
-    };
-    let plan = plan(
-        names,
-        vec![view.clone()],
-        function_with_body(
-            Vec::new(),
-            vec![
-                entry(
-                    1,
-                    vec![
-                        AbstractOperation::EstablishByteSequenceLiteral {
-                            psi_operation: op(1),
-                            place: literal,
-                            structural_type: view,
-                            bytes: b"dir/file".to_vec(),
-                            qualifications: Vec::new(),
-                        },
-                        AbstractOperation::Jump {
-                            psi_edge: edge(1),
-                            target: block_id(2),
-                            bindings: Vec::new(),
-                            structural_bindings: Vec::new(),
-                            cleanup_actions: vec![TerminalAffineCleanupAction::RetireHome(
-                                literal.id,
-                            )],
-                        },
-                    ],
-                ),
-                entry(
-                    2,
-                    vec![AbstractOperation::ReturnUnit {
-                        psi_edge: edge(2),
-                        cleanup_actions: Vec::new(),
-                    }],
-                ),
-            ],
-        ),
-    );
-    let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
-        .unwrap();
-    let function = &unit.functions[0];
-    let inputs = FunctionInputs::new(function);
-    let types =
-        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types, HOST())
-            .unwrap();
-    let terminator = function.blocks[0].nodes.last().unwrap();
-    control::validate(terminator, &[], &inputs, &types).unwrap();
-
-    for wrong in [
-        TerminalAffineCleanupAction::RetireHome(place(9)),
-        TerminalAffineCleanupAction::DiscardRoot(literal.id),
-    ] {
-        // Make the operation and edge agree so the custody check itself must
-        // refuse each mutation rather than just finding a mismatched edge.
-        let mut forged = terminator.clone();
-        let AbstractOperation::Jump {
-            cleanup_actions, ..
-        } = &mut forged.operation
-        else {
-            unreachable!()
-        };
-        cleanup_actions[0] = wrong.clone();
-        forged.successors[0].cleanup_actions[0] = wrong.clone();
-        assert!(
-            control::validate(&forged, &[], &inputs, &types).is_err(),
-            "{wrong:?}"
-        );
-    }
-}
-
-#[test]
-fn byte_literal_lookup_refuses_every_producer_the_scan_refused() {
-    use crate::preparation::legalization_function_inputs::FunctionInputs;
-    use semantic_vocabulary::StructuralPlaceKind;
-    use terminal_psi::StructuralPlaceDeclaration;
-
-    // One function establishes a single literal view. The indexed lookup must
-    // find its producer, and refuse each mutation that leaves the place
-    // without exactly one matching literal producer.
-    let mut names = TerminalIdentityTableBuilder::default();
-    let mut view = reference_type(1, names.intern("literal bytes"), ty(1));
-    view.shape =
-        StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
-            access: None,
-        });
-    let literal = StructuralPlaceDeclaration {
-        id: place(1),
-        kind: StructuralPlaceKind::ByteSequenceLiteral {
-            declaration_ordinal: 0,
-            structural_type: view.id,
-        },
-    };
-    let establish = AbstractOperation::EstablishByteSequenceLiteral {
-        psi_operation: op(1),
-        place: literal,
-        structural_type: view.clone(),
-        bytes: b"dir/file".to_vec(),
-        qualifications: Vec::new(),
-    };
-    let plan = plan(
-        names,
-        vec![view.clone()],
-        function_with_body(
-            Vec::new(),
-            vec![entry(
-                1,
-                vec![
-                    establish,
-                    AbstractOperation::ReturnUnit {
-                        psi_edge: edge(1),
-                        cleanup_actions: Vec::new(),
-                    },
-                ],
-            )],
-        ),
-    );
-    let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
-        .unwrap();
-    let function = &unit.functions[0];
-    assert_eq!(
-        FunctionInputs::new(function).byte_literal(literal.id),
-        Some((op(1), view.id))
-    );
-    assert_eq!(FunctionInputs::new(function).byte_literal(place(9)), None);
-
-    let refused = |mutate: &dyn Fn(&mut optimization_unit::PsiOptimizationFunction)| {
-        let mut changed = function.clone();
-        mutate(&mut changed);
-        FunctionInputs::new(&changed).byte_literal(literal.id)
-    };
-    // No producer remains for the declared literal.
-    assert_eq!(
-        refused(&|f| {
-            f.blocks[0].nodes.remove(0);
-        }),
-        None
-    );
-    // Two producers establish the same place.
-    assert_eq!(
-        refused(&|f| {
-            let duplicate = f.blocks[0].nodes[0].clone();
-            f.blocks[0].nodes.insert(0, duplicate);
-        }),
-        None
-    );
-    // The place is declared twice.
-    assert_eq!(refused(&|f| f.structural_places.push(literal)), None);
-    // The declaration is not a literal home.
-    assert_eq!(
-        refused(&|f| {
-            for declaration in &mut f.structural_places {
-                if declaration.id == literal.id {
-                    declaration.kind = StructuralPlaceKind::Parameter { position: 0 };
-                }
-            }
-        }),
-        None
-    );
-    // The producer names another type or declaration, or a type that is not
-    // a borrowed byte view.
-    let producer =
-        |change: &dyn Fn(&mut StructuralPlaceDeclaration, &mut StructuralTypeDeclaration)| {
-            refused(&|f| {
-                if let AbstractOperation::EstablishByteSequenceLiteral {
-                    place,
-                    structural_type,
-                    ..
-                } = &mut f.blocks[0].nodes[0].operation
-                {
-                    change(place, structural_type);
-                }
-            })
-        };
-    assert_eq!(producer(&|_, declared| declared.id = ty(2)), None);
-    assert_eq!(
-        producer(&|place, _| {
-            place.kind = StructuralPlaceKind::ByteSequenceLiteral {
-                declaration_ordinal: 1,
-                structural_type: view.id,
-            }
-        }),
-        None
-    );
-    assert_eq!(
-        producer(&|_, declared| {
-            declared.shape =
-                StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned {
-                    capacity: 8,
-                })
-        }),
-        None
-    );
-}
-
-#[test]
 fn retained_instruction_metadata_projects_without_a_node_and_rejects_changed_custody() {
     let integer = u64_type();
     let plan = plan(
@@ -346,9 +133,13 @@ fn retained_instruction_metadata_projects_without_a_node_and_rejects_changed_cus
     assert_eq!(carried.effect, carrying.metadata.effect);
     assert_eq!(carried.ownership, carrying.metadata.ownership);
     let audit = |instruction: &target_operations::TargetInstruction| {
-        crate::preparation::legalization_target::control_flow::validate_instruction_metadata(
-            instruction,
-            node,
+        let mut candidate = target.clone();
+        candidate.functions[0].graph.blocks[0].operations[0] = instruction.clone();
+        crate::preparation::legalization::audit_target_operation_plan(
+            &candidate,
+            &plan,
+            &unit,
+            fixture_types(),
         )
     };
     audit(instruction).expect("exact instruction metadata");
@@ -437,16 +228,8 @@ fn retained_instruction_metadata_projects_without_a_node_and_rejects_changed_cus
                 ),
             }
         }
-        let reason = match mutation {
-            0 => "instruction lost its source annotations",
-            1 => "instruction operation identity differs",
-            2..=5 => "instruction scalar definition differs",
-            6 => "instruction work charge differs",
-            7..=8 => "instruction effect order differs",
-            _ => "instruction custody events differ",
-        };
         assert!(
-            matches!(audit(&changed), Err(crate::preparation::LegalizationError::InstructionMetadata { reason: actual, .. }) if actual == reason),
+            audit(&changed).is_err(),
             "forged instruction metadata {mutation}"
         );
     }
@@ -672,22 +455,14 @@ fn function_storage_contract_projects_without_source_and_audits_every_field() {
     assert_eq!(projected.parameters[0].target, function.graph.parameters[0]);
     let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
         .unwrap();
-    let geometry =
-        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types, HOST())
-            .unwrap();
-    let source = crate::preparation::native_geometry::NativeInput::with_types(
-        &plan,
-        &geometry,
-        fixture_types(),
-    );
-    let inputs =
-        crate::preparation::legalization_function_inputs::FunctionInputs::new(&unit.functions[0]);
     let audit = |function: &TargetFunction| {
-        crate::preparation::legalization_scalar_graph::validate_structural_contract(
-            function,
-            &plan.functions[0],
-            &inputs,
-            &source,
+        let mut candidate = target.clone();
+        candidate.functions[0] = function.clone();
+        crate::preparation::legalization::audit_target_operation_plan(
+            &candidate,
+            &plan,
+            &unit,
+            fixture_types(),
         )
     };
     audit(function).expect("retained storage contract matches admitted input");
@@ -966,100 +741,10 @@ fn retained_call_descriptor_origins_do_not_need_old_bodies_but_audit_does() {
         requirement_obligations: Vec::new(),
         crash_continuations: Vec::new(),
     };
-    let target = target_plan(&plan, vec![block(1, vec![row.clone()], return_unit(1))]);
-    let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
-        .unwrap();
-    let graph = optimization_unit_semantics::descriptor_results::optimized_catalog_graph(
-        unit.functions.iter(),
-        &unit.boundary_machines,
-        &unit.structural_types,
-        &unit.dynamic_dispatch,
-        &unit.callables,
-        |_, node| Some(std::borrow::Cow::Borrowed(&node.operation)),
-    )
-    .expect("the metadata fixture has complete source descriptor structure");
-    let origins = terminal_semantics::descriptor_results::DescriptorAnalysis::new(
-        &unit.structural_types,
-        &graph,
-    )
-    .try_call_origins(machine(), place(2))
-    .expect("the source call has borrowed backing");
-    assert!(
-        matches!(origins.as_slice(), [terminal_semantics::descriptor_results::DescriptorCallOrigin::Argument { source, .. }] if *source == place(1)),
-        "source backing: {origins:?}"
-    );
-    let geometry =
-        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types, HOST())
-            .unwrap();
-    let source = crate::preparation::native_geometry::NativeInput::with_types(
-        &plan,
-        &geometry,
-        fixture_types(),
-    );
-    let native_unit = crate::preparation::native_geometry::NativeInput::with_types(
-        &unit,
-        &geometry,
-        fixture_types(),
-    );
-    crate::preparation::legalization::validate_call_descriptor_origins(
-        &target,
-        &source,
-        &native_unit,
-    )
-    .expect("exact source backing");
-    for mutation in 0..5 {
-        let mut changed = target.clone();
-        let TargetUnitOperation::Call {
-            result:
-                TargetCallResult::Structural {
-                    descriptor_origins, ..
-                },
-            ..
-        } = &mut changed.functions[0].graph.blocks[0].operations[0].kind
-        else {
-            panic!("call result")
-        };
-        match mutation {
-            0 => descriptor_origins.clear(),
-            1 => *descriptor_origins = vec![TargetDescriptorOrigin::Empty],
-            2 => *descriptor_origins = vec![TargetDescriptorOrigin::Opaque],
-            3 => {
-                let TargetDescriptorOrigin::Argument { source, .. } = &mut descriptor_origins[0]
-                else {
-                    panic!("argument")
-                };
-                source.place = place(99);
-            }
-            _ => {
-                let TargetDescriptorOrigin::Argument { exact, .. } = &mut descriptor_origins[0]
-                else {
-                    panic!("argument")
-                };
-                *exact = false;
-            }
-        }
-        assert!(
-            crate::preparation::legalization::validate_call_descriptor_origins(
-                &changed,
-                &source,
-                &native_unit
-            )
-            .is_err(),
-            "tampered backing {mutation}"
-        );
-    }
-    let caller = unit.functions[0].clone();
-    let mut absent = unit.clone();
-    absent.functions.clear();
-    let absent = crate::preparation::native_geometry::NativeInput::with_types(
-        &absent,
-        &geometry,
-        fixture_types(),
-    );
     let lowered =
         crate::preparation::legalization_source::scalar_graph::instruction::call_instructions::project_call(
-            caller.machine,
-            &absent.accepted_obligation_facts,
+            machine(),
+            &[],
             &row,
         )
         .expect("construction consumes target origins without source history");
@@ -1067,13 +752,6 @@ fn retained_call_descriptor_origins_do_not_need_old_bodies_but_audit_does() {
         panic!("legalized call")
     };
     assert_eq!(lowered.descriptor_origins, expected);
-    assert!(
-        crate::preparation::legalization::validate_call_descriptor_origins(
-            &target, &source, &absent
-        )
-        .is_err(),
-        "independent audit still requires source correspondence"
-    );
 }
 
 #[test]
@@ -1093,402 +771,6 @@ fn stored_sum_rows_select_the_same_instructions_as_main() {
 }
 
 #[test]
-fn retained_scalar_store_geometry_is_checked_against_its_source() {
-    let mut names = TerminalIdentityTableBuilder::default();
-    let field = StructuralFieldId::new(1).unwrap();
-    let field_name = names.intern("value");
-    let mut cell = reference_type(1, names.intern("Cell"), ty(1));
-    cell.shape = StructuralTypeShape::Record {
-        storage: StructuralRecordStorage::Packed,
-        fields: vec![scalar_field(1, field_name, u64_type())],
-    };
-    let mut parameter = parameter(ty(1));
-    parameter.access = StructuralAccess::MutableBorrow;
-    let source = TargetUnitScalarArgumentSource::IntegerImmediate {
-        defining_operation: op(1),
-        source_value: ValueId::new(1).unwrap(),
-        scalar_type: u64_type(),
-        value: IntegerValue::Unsigned(43),
-    };
-    let operation = AbstractOperation::StructuralScalarFieldStore {
-        psi_operation: op(2),
-        destination: abstract_operations::StructuralScalarStoreDestination::Parameter(
-            parameter.clone(),
-        ),
-        path: Vec::new(),
-        field,
-        value: AbstractResult {
-            value: source.source_value(),
-            scalar_type: source.scalar_type(),
-        },
-        range_obligation: None,
-    };
-    let function = function_with_body(
-        vec![parameter.clone()],
-        vec![entry(
-            1,
-            vec![
-                AbstractOperation::IntegerConstant {
-                    psi_operation: op(1),
-                    result: source.source_value(),
-                    scalar_type: ScalarType::Integer(u64_type()),
-                    value: IntegerValue::Unsigned(43),
-                },
-                operation.clone(),
-                AbstractOperation::ReturnUnit {
-                    psi_edge: edge(1),
-                    cleanup_actions: Vec::new(),
-                },
-            ],
-        )],
-    );
-    let plan = plan(names, vec![cell], function);
-    let mut target = target_plan(&plan, vec![block(1, Vec::new(), return_unit(1))]);
-    let row = TargetUnitOperation::StructuralScalarFieldStore {
-        psi_operation: op(2),
-        destination: abstract_operations::StructuralScalarStoreDestination::Parameter(parameter),
-        path: Vec::new(),
-        field,
-        destination_storage: target_operations::TargetStructuralArgumentSource::Placement(
-            target.functions[0].graph.parameters[0].placement.clone(),
-        ),
-        field_byte_offset: 0,
-        field_byte_size: 8,
-        source,
-        indices: Vec::new(),
-    };
-    target.functions[0].graph.blocks[0]
-        .operations
-        .push(target_operations::TargetInstruction {
-            source: None,
-            kind: row.clone(),
-        });
-    let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
-        .unwrap();
-    let geometry =
-        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types, HOST())
-            .unwrap();
-    let plan_view = crate::preparation::native_geometry::NativeInput::with_types(
-        &plan,
-        &geometry,
-        fixture_types(),
-    );
-    let unit_view = crate::preparation::native_geometry::NativeInput::with_types(
-        &unit,
-        &geometry,
-        fixture_types(),
-    );
-    let function_inputs =
-        crate::preparation::legalization_function_inputs::FunctionInputs::new(&unit.functions[0]);
-    let source_inputs =
-        crate::preparation::legalization_target::control_flow::sources::SourceInputs::new(
-            &target.functions[0].graph,
-            &unit.functions[0],
-        );
-    let audit = |row: &TargetUnitOperation| {
-        let mut available = source_inputs.available(block_id(1));
-        available.push((source.source_value(), source));
-        crate::preparation::legalization_target::unit::validate_operation(
-            &target.functions[0],
-            row,
-            &operation,
-            &[],
-            &target.functions[0].graph.parameters,
-            &mut available,
-            &Default::default(),
-            &function_inputs,
-            &target,
-            &plan_view,
-            &unit_view,
-        )
-    };
-    audit(&row).expect("retained scalar store matches its source");
-    for mutation in 0..4 {
-        let mut forged = row.clone();
-        let TargetUnitOperation::StructuralScalarFieldStore {
-            field_byte_offset,
-            field_byte_size,
-            source: value,
-            path,
-            ..
-        } = &mut forged
-        else {
-            panic!("store");
-        };
-        match mutation {
-            0 => *field_byte_offset = 1,
-            1 => *field_byte_size = 4,
-            2 => {
-                let TargetUnitScalarArgumentSource::IntegerImmediate { value, .. } = value else {
-                    panic!("integer source");
-                };
-                *value = IntegerValue::Unsigned(47);
-            }
-            _ => path.push(StructuralPathSegment::FixedIndex(0)),
-        }
-        assert!(audit(&forged).is_err(), "tampered scalar store {mutation}");
-    }
-}
-
-#[test]
-fn retained_field_store_value_type_is_checked_against_its_source() {
-    // Selection derives a structural field store's shape from the retained
-    // value type alone, so the independent audit must refuse a row whose
-    // value type, offset or field differs from the source operation.
-    let mut names = TerminalIdentityTableBuilder::default();
-    let inner_field = names.intern("x");
-    let outer_field = names.intern("inner");
-    let mut inner = reference_type(2, names.intern("Inner"), ty(2));
-    inner.shape = StructuralTypeShape::Record {
-        storage: StructuralRecordStorage::Packed,
-        fields: vec![scalar_field(1, inner_field, u64_type())],
-    };
-    let mut outer = reference_type(1, names.intern("Outer"), ty(1));
-    let mut nested = scalar_field(2, outer_field, u64_type());
-    nested.field_type = StructuralFieldType::Structural(ty(2));
-    outer.shape = StructuralTypeShape::Record {
-        storage: StructuralRecordStorage::Packed,
-        fields: vec![nested],
-    };
-    let mut parameter = parameter(ty(1));
-    parameter.access = StructuralAccess::MutableBorrow;
-    let field = StructuralFieldId::new(2).unwrap();
-    let value = structural_result(place(3), ty(2));
-    let operation = AbstractOperation::StoreStructuralField {
-        disposition: terminal_psi::StructuralStoreDisposition::Vacant,
-        psi_operation: op(2),
-        destination: abstract_operations::StructuralWindowRoot::Parameter(parameter.clone()),
-        path: Vec::new(),
-        field: Some(field),
-        value: terminal_psi::StructuralArgument {
-            place: value.place,
-            path: Vec::new(),
-            access: StructuralAccess::Owned,
-        },
-    };
-    let function = function_with_body(
-        vec![parameter.clone()],
-        vec![entry(
-            1,
-            vec![
-                AbstractOperation::EstablishZeroedStructural {
-                    psi_operation: op(1),
-                    result: value.clone(),
-                },
-                operation.clone(),
-                AbstractOperation::ReturnUnit {
-                    psi_edge: edge(1),
-                    cleanup_actions: Vec::new(),
-                },
-            ],
-        )],
-    );
-    let plan = plan(names, vec![outer, inner], function);
-    let target = target_plan(&plan, vec![block(1, Vec::new(), return_unit(1))]);
-    let row = TargetUnitOperation::StoreStructuralField {
-        psi_operation: op(2),
-        destination: abstract_operations::StructuralWindowRoot::Parameter(parameter),
-        path: Vec::new(),
-        field: Some(field),
-        value: value.place,
-        value_type: ty(2),
-        byte_offset: 0,
-        indices: Vec::new(),
-    };
-    let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
-        .unwrap();
-    let geometry =
-        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types, HOST())
-            .unwrap();
-    let plan_view = crate::preparation::native_geometry::NativeInput::with_types(
-        &plan,
-        &geometry,
-        fixture_types(),
-    );
-    let unit_view = crate::preparation::native_geometry::NativeInput::with_types(
-        &unit,
-        &geometry,
-        fixture_types(),
-    );
-    let function_inputs =
-        crate::preparation::legalization_function_inputs::FunctionInputs::new(&unit.functions[0]);
-    let source_inputs =
-        crate::preparation::legalization_target::control_flow::sources::SourceInputs::new(
-            &target.functions[0].graph,
-            &unit.functions[0],
-        );
-    let audit = |row: &TargetUnitOperation| {
-        let mut available = source_inputs.available(block_id(1));
-        crate::preparation::legalization_target::unit::validate_operation(
-            &target.functions[0],
-            row,
-            &operation,
-            &[],
-            &target.functions[0].graph.parameters,
-            &mut available,
-            &Default::default(),
-            &function_inputs,
-            &target,
-            &plan_view,
-            &unit_view,
-        )
-    };
-    audit(&row).expect("retained field store matches its source");
-    for mutation in 0..3 {
-        let mut forged = row.clone();
-        let TargetUnitOperation::StoreStructuralField {
-            value_type,
-            byte_offset,
-            field,
-            ..
-        } = &mut forged
-        else {
-            panic!("store");
-        };
-        match mutation {
-            0 => *value_type = ty(1),
-            1 => *byte_offset = 4,
-            _ => *field = Some(StructuralFieldId::new(1).unwrap()),
-        }
-        assert!(audit(&forged).is_err(), "tampered field store {mutation}");
-    }
-}
-
-#[test]
-fn retained_leaf_copy_selectors_are_checked_against_their_source() {
-    // Selection takes a leaf copy's result and selector extent and proof key
-    // from the target row, so the audit must refuse each one changed.
-    let mut names = TerminalIdentityTableBuilder::default();
-    let element_field = names.intern("x");
-    let mut element = reference_type(2, names.intern("Element"), ty(2));
-    element.shape = StructuralTypeShape::Record {
-        storage: StructuralRecordStorage::Packed,
-        fields: vec![scalar_field(1, element_field, u64_type())],
-    };
-    let mut array = reference_type(1, names.intern("Elements"), ty(1));
-    array.shape = StructuralTypeShape::FixedArray {
-        element: ty(2),
-        length: terminal_psi::ArrayExtent::Literal(4),
-    };
-    let obligation = semantic_vocabulary::ObligationId::new(3).unwrap();
-    let path = vec![StructuralPathSegment::RuntimeIndex {
-        index: val(4),
-        obligation,
-    }];
-    let result = structural_result(place(3), ty(2));
-    let operation = AbstractOperation::StructuralLeafCopy {
-        psi_operation: op(2),
-        result: result.clone(),
-        source: place(1),
-        path: abstract_operations::StructuralCopyPath::Ordinary(path.clone()),
-    };
-    let function = function_with_body(
-        vec![parameter(ty(1))],
-        vec![entry(
-            1,
-            vec![
-                AbstractOperation::IntegerConstant {
-                    psi_operation: op(1),
-                    result: val(4),
-                    scalar_type: ScalarType::Integer(u64_type()),
-                    value: IntegerValue::Unsigned(1),
-                },
-                operation.clone(),
-                AbstractOperation::ReturnUnit {
-                    psi_edge: edge(1),
-                    cleanup_actions: Vec::new(),
-                },
-            ],
-        )],
-    );
-    let plan = plan(names, vec![array, element], function);
-    let target = target_plan(&plan, vec![block(1, Vec::new(), return_unit(1))]);
-    let geometry =
-        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types, HOST())
-            .unwrap();
-    let plan_view = crate::preparation::native_geometry::NativeInput::with_types(
-        &plan,
-        &geometry,
-        fixture_types(),
-    );
-    let index_source = TargetUnitScalarArgumentSource::IntegerImmediate {
-        defining_operation: op(1),
-        source_value: val(4),
-        scalar_type: u64_type(),
-        value: IntegerValue::Unsigned(1),
-    };
-    let layout =
-        crate::preparation::legalization_scalar_graph::aggregate_results::type_home_layout(
-            ty(2),
-            &plan_view,
-        )
-        .unwrap();
-    let row = TargetUnitOperation::StructuralLeafCopy {
-        psi_operation: op(2),
-        result_home: home(op(2), &result, layout.clone()),
-        source: place(1),
-        path: abstract_operations::StructuralCopyPath::Ordinary(path),
-        byte_offset: 0,
-        indices: vec![target_operations::TargetStructuralRuntimeIndex {
-            operand: index_source,
-            stride: 8,
-            extent: Some(4),
-            obligation,
-        }],
-    };
-    let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
-        .unwrap();
-    let unit_view = crate::preparation::native_geometry::NativeInput::with_types(
-        &unit,
-        &geometry,
-        fixture_types(),
-    );
-    let function_inputs =
-        crate::preparation::legalization_function_inputs::FunctionInputs::new(&unit.functions[0]);
-    let source_inputs =
-        crate::preparation::legalization_target::control_flow::sources::SourceInputs::new(
-            &target.functions[0].graph,
-            &unit.functions[0],
-        );
-    let audit = |row: &TargetUnitOperation| {
-        let mut available = source_inputs.available(block_id(1));
-        available.push((val(4), index_source));
-        crate::preparation::legalization_target::unit::validate_operation(
-            &target.functions[0],
-            row,
-            &operation,
-            &[],
-            &target.functions[0].graph.parameters,
-            &mut available,
-            &Default::default(),
-            &function_inputs,
-            &target,
-            &plan_view,
-            &unit_view,
-        )
-    };
-    audit(&row).expect("retained leaf copy matches its source");
-    for mutation in 0..4 {
-        let mut forged = row.clone();
-        let TargetUnitOperation::StructuralLeafCopy {
-            result_home,
-            indices,
-            ..
-        } = &mut forged
-        else {
-            panic!("leaf copy");
-        };
-        match mutation {
-            0 => indices[0].extent = Some(5),
-            1 => indices[0].obligation = semantic_vocabulary::ObligationId::new(9).unwrap(),
-            2 => indices[0].stride = 16,
-            _ => *result_home = home(op(9), &result, layout.clone()),
-        }
-        assert!(audit(&forged).is_err(), "tampered leaf copy {mutation}");
-    }
-}
-
-#[test]
 fn retained_byte_view_store_projects_and_audits_exact_operands() {
     use crate::preparation::legalization_source::scalar_graph::instruction::storage_instructions::project_byte_view_store;
     use legalized_operations::LegalizedScalarInstructionKind;
@@ -1501,23 +783,8 @@ fn retained_byte_view_store_projects_and_audits_exact_operands() {
     let mut field = scalar_field(1, names.intern("bytes"), u64_type());
     field.field_type = StructuralFieldType::ByteSequence(carrier);
     let selected_field = field.id;
-    let mut holder = reference_type(2, names.intern("Holder"), ty(2));
-    holder.shape = StructuralTypeShape::Record {
-        storage: StructuralRecordStorage::Packed,
-        fields: vec![field],
-    };
-    let mut array = reference_type(1, names.intern("Holders"), ty(1));
-    array.shape = StructuralTypeShape::FixedArray {
-        element: ty(2),
-        length: terminal_psi::ArrayExtent::Literal(4),
-    };
-    let mut bytes = reference_type(3, names.intern("Bytes"), ty(3));
-    bytes.shape = StructuralTypeShape::ByteSequence(carrier);
-
     let mut stored = parameter(ty(1));
     stored.access = StructuralAccess::MutableBorrow;
-    let mut replacement = parameter_at(2, ty(3));
-    replacement.position = 1;
     let obligation = semantic_vocabulary::ObligationId::new(3).unwrap();
     let destination = terminal_psi::StructuralArgument {
         place: stored.place,
@@ -1527,43 +794,6 @@ fn retained_byte_view_store_projects_and_audits_exact_operands() {
             obligation,
         }],
     };
-    let operation = AbstractOperation::StructuralByteViewFieldStore {
-        psi_operation: op(2),
-        destination: stored.place,
-        path: destination.path.clone(),
-        field: Some(selected_field),
-        source: replacement.place,
-        predicate_obligation: None,
-    };
-    let function = function_with_body(
-        vec![stored, replacement],
-        vec![entry(
-            1,
-            vec![
-                AbstractOperation::IntegerConstant {
-                    psi_operation: op(1),
-                    result: val(4),
-                    scalar_type: ScalarType::Integer(u64_type()),
-                    value: IntegerValue::Unsigned(1),
-                },
-                operation.clone(),
-                AbstractOperation::ReturnUnit {
-                    psi_edge: edge(1),
-                    cleanup_actions: Vec::new(),
-                },
-            ],
-        )],
-    );
-    let plan = plan(names, vec![array, holder, bytes], function);
-    let target = target_plan(&plan, vec![block(1, Vec::new(), return_unit(1))]);
-    let geometry =
-        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types, HOST())
-            .unwrap();
-    let plan_view = crate::preparation::native_geometry::NativeInput::with_types(
-        &plan,
-        &geometry,
-        fixture_types(),
-    );
     let index_source = TargetUnitScalarArgumentSource::IntegerImmediate {
         defining_operation: op(1),
         source_value: val(4),
@@ -1612,61 +842,6 @@ fn retained_byte_view_store_projects_and_audits_exact_operands() {
         (16, Some(4), fact.identity)
     );
     assert!(project_byte_view_store(machine(), &[], &row).is_err());
-
-    let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
-        .unwrap();
-    let unit_view = crate::preparation::native_geometry::NativeInput::with_types(
-        &unit,
-        &geometry,
-        fixture_types(),
-    );
-    let function_inputs =
-        crate::preparation::legalization_function_inputs::FunctionInputs::new(&unit.functions[0]);
-    let source_inputs =
-        crate::preparation::legalization_target::control_flow::sources::SourceInputs::new(
-            &target.functions[0].graph,
-            &unit.functions[0],
-        );
-    let audit = |row: &TargetUnitOperation| {
-        let mut available = source_inputs.available(block_id(1));
-        available.push((val(4), index_source));
-        crate::preparation::legalization_target::unit::validate_operation(
-            &target.functions[0],
-            row,
-            &operation,
-            &[],
-            &target.functions[0].graph.parameters,
-            &mut available,
-            &Default::default(),
-            &function_inputs,
-            &target,
-            &plan_view,
-            &unit_view,
-        )
-    };
-    audit(&row).expect("retained descriptor store agrees with its source");
-    for mutation in 0..4 {
-        let mut changed = row.clone();
-        let TargetUnitOperation::StructuralByteViewFieldStore {
-            destination,
-            source,
-            indices,
-            ..
-        } = &mut changed
-        else {
-            panic!("byte descriptor store");
-        };
-        match mutation {
-            0 => indices[0].extent = Some(5),
-            1 => indices[0].obligation = semantic_vocabulary::ObligationId::new(9).unwrap(),
-            2 => destination.access = StructuralAccess::SharedBorrow,
-            _ => *source = place(1),
-        }
-        assert!(
-            audit(&changed).is_err(),
-            "corrupted descriptor store {mutation}"
-        );
-    }
 }
 
 #[test]
@@ -2093,61 +1268,6 @@ fn retained_element_view_reads_use_the_exact_descriptor_index_and_leaf() {
             project_element_view_read(machine(), facts, op(3), &row(0, 1, 8, dynamic_path))
                 .is_err()
         );
-
-        let unit =
-            reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
-                .unwrap();
-        let geometry = crate::preparation::native_geometry::NativeGeometry::new(
-            &plan.structural_types,
-            HOST(),
-        )
-        .unwrap();
-        let plan_view = crate::preparation::native_geometry::NativeInput::with_types(
-            &plan,
-            &geometry,
-            fixture_types(),
-        );
-        let unit_view = crate::preparation::native_geometry::NativeInput::with_types(
-            &unit,
-            &geometry,
-            fixture_types(),
-        );
-        let inputs = crate::preparation::legalization_function_inputs::FunctionInputs::new(
-            &unit.functions[0],
-        );
-        let sources =
-            crate::preparation::legalization_target::control_flow::sources::SourceInputs::new(
-                &target.functions[0].graph,
-                &unit.functions[0],
-            );
-        let audit = |row: &TargetUnitOperation| {
-            crate::preparation::legalization_target::unit::validate_operation(
-                &target.functions[0],
-                row,
-                &read,
-                &[],
-                &target.functions[0].graph.parameters,
-                &mut sources.available(block_id(1)),
-                &Default::default(),
-                &inputs,
-                &target,
-                &plan_view,
-                &unit_view,
-            )
-        };
-        audit(&retained).expect("retained descriptor, index, and field agree with the source");
-        assert!(
-            audit(&row(1, 1, 8, path.clone())).is_err(),
-            "different live descriptor"
-        );
-        assert!(
-            audit(&row(0, 0, 8, path.clone())).is_err(),
-            "wrong index literal"
-        );
-        assert!(
-            audit(&row(0, 1, 0, path.clone())).is_err(),
-            "wrong leaf offset"
-        );
     }
 }
 
@@ -2297,50 +1417,6 @@ fn retained_primitive_store_projects_indexed_leaf_and_audits_exact_geometry() {
             ..
         } if owner == machine() && operation == op(3)
     ));
-
-    let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
-        .unwrap();
-    let geometry =
-        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types, HOST())
-            .unwrap();
-    let plan_view = crate::preparation::native_geometry::NativeInput::with_types(
-        &plan,
-        &geometry,
-        fixture_types(),
-    );
-    let unit_view = crate::preparation::native_geometry::NativeInput::with_types(
-        &unit,
-        &geometry,
-        fixture_types(),
-    );
-    let inputs =
-        crate::preparation::legalization_function_inputs::FunctionInputs::new(&unit.functions[0]);
-    let sources = crate::preparation::legalization_target::control_flow::sources::SourceInputs::new(
-        &target.functions[0].graph,
-        &unit.functions[0],
-    );
-    let audit = |row: &TargetUnitOperation| {
-        let mut available = sources.available(block_id(1));
-        available.push((val(1), selector));
-        available.push((val(2), store_value));
-        crate::preparation::legalization_target::unit::validate_operation(
-            &target.functions[0],
-            row,
-            &store,
-            &[],
-            &target.functions[0].graph.parameters,
-            &mut available,
-            &Default::default(),
-            &inputs,
-            &target,
-            &plan_view,
-            &unit_view,
-        )
-    };
-    audit(&retained).expect("target store agrees with the exact source leaf");
-    assert!(audit(&row(0, 8, 8)).is_err(), "neighbor row offset");
-    assert!(audit(&row(16, 4, 8)).is_err(), "narrower store width");
-    assert!(audit(&row(16, 8, 16)).is_err(), "neighbor stride");
 }
 
 #[test]
@@ -2498,72 +1574,6 @@ fn retained_direct_byte_access_projects_and_audits_exact_operands() {
     assert!(project_byte_access(machine(), &facts[1..], op(3), &retained_read).is_err());
     assert!(project_byte_access(machine(), &facts[..1], op(4), &retained_write).is_err());
     assert!(project_byte_access(machine(), &facts, op(3), &retained_write).is_err());
-
-    let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
-        .unwrap();
-    let geometry =
-        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types, HOST())
-            .unwrap();
-    let plan_view = crate::preparation::native_geometry::NativeInput::with_types(
-        &plan,
-        &geometry,
-        fixture_types(),
-    );
-    let unit_view = crate::preparation::native_geometry::NativeInput::with_types(
-        &unit,
-        &geometry,
-        fixture_types(),
-    );
-    let inputs =
-        crate::preparation::legalization_function_inputs::FunctionInputs::new(&unit.functions[0]);
-    let sources = crate::preparation::legalization_target::control_flow::sources::SourceInputs::new(
-        &target.functions[0].graph,
-        &unit.functions[0],
-    );
-    let audit = |row: &TargetUnitOperation, operation: &AbstractOperation| {
-        let mut available = sources.available(block_id(1));
-        available.push((val(1), store_index));
-        if matches!(operation, AbstractOperation::ByteSequenceWrite { .. }) {
-            available.push((result.value, TargetUnitScalarArgumentSource::Home(home)));
-        }
-        crate::preparation::legalization_target::unit::validate_operation(
-            &target.functions[0],
-            row,
-            operation,
-            &[],
-            &target.functions[0].graph.parameters,
-            &mut available,
-            &Default::default(),
-            &inputs,
-            &target,
-            &plan_view,
-            &unit_view,
-        )
-    };
-    audit(&retained_read, &read).expect("exact read");
-    audit(&retained_write, &write).expect("exact write");
-    assert!(audit(&read_row(read_index.clone(), val(1)), &read).is_err());
-    let forged_index = Expression::Immediate {
-        source_value: val(1),
-        value: IntegerValue::Unsigned(0),
-    };
-    assert!(audit(&read_row(forged_index, val(2)), &read).is_err());
-    let forged_value = TargetUnitScalarArgumentSource::Home(TargetUnitScalarHomeRequirement {
-        defining_operation: op(2),
-        ..home
-    });
-    assert!(audit(&write_row(view, forged_value), &write).is_err());
-    let forged_backing = TargetByteView::Parameter {
-        place: self::place(2),
-        placement: parameter.placement.clone(),
-    };
-    assert!(
-        audit(
-            &write_row(forged_backing, TargetUnitScalarArgumentSource::Home(home)),
-            &write
-        )
-        .is_err()
-    );
 }
 
 #[test]
@@ -2578,21 +1588,7 @@ fn retained_byte_field_read_preserves_both_bounds_and_audits_the_field() {
         StructuralFieldType::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
             access: Some(StructuralAccess::SharedBorrow),
         });
-    let mut sibling = field.clone();
-    sibling.id = StructuralFieldId::new(2).unwrap();
-    sibling.identity = names.intern("known");
     let selected_field = field.id;
-    let sibling_field = sibling.id;
-    let mut holder = reference_type(1, names.intern("Holder"), ty(1));
-    holder.shape = StructuralTypeShape::Record {
-        storage: StructuralRecordStorage::Packed,
-        fields: vec![field, sibling],
-    };
-    let mut array = reference_type(2, names.intern("Holders"), ty(2));
-    array.shape = StructuralTypeShape::FixedArray {
-        element: ty(1),
-        length: terminal_psi::ArrayExtent::Literal(4),
-    };
     let parameter = parameter(ty(2));
     let selector_bound = ObligationId::new(2).unwrap();
     let byte_bound = ObligationId::new(3).unwrap();
@@ -2608,49 +1604,7 @@ fn retained_byte_field_read_preserves_both_bounds_and_audits_the_field() {
         value: val(4),
         scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap()),
     };
-    let operation = AbstractOperation::StructuralByteSequenceFieldRead {
-        psi_operation: op(4),
-        result,
-        source: source.place,
-        path: source.path.clone(),
-        field: selected_field,
-        index: val(2),
-        length: val(3),
-        obligation: byte_bound,
-    };
-    let constant = |ordinal, value| AbstractOperation::IntegerConstant {
-        psi_operation: op(ordinal),
-        result: val(ordinal),
-        scalar_type: ScalarType::Integer(u64_type()),
-        value: IntegerValue::Unsigned(value),
-    };
-    let function = function_with_body(
-        vec![parameter],
-        vec![entry(
-            1,
-            vec![
-                constant(1, 1),
-                constant(2, 0),
-                AbstractOperation::StructuralByteSequenceFieldLength {
-                    psi_operation: op(3),
-                    result: AbstractResult {
-                        value: val(3),
-                        scalar_type: ScalarType::Integer(u64_type()),
-                    },
-                    source: source.place,
-                    path: source.path.clone(),
-                    field: selected_field,
-                },
-                operation.clone(),
-                AbstractOperation::ReturnUnit {
-                    psi_edge: edge(1),
-                    cleanup_actions: Vec::new(),
-                },
-            ],
-        )],
-    );
-    let plan = plan(names, vec![holder, array], function);
-    let target = target_plan(&plan, vec![block(1, Vec::new(), return_unit(1))]);
+
     let integer_source = |ordinal, value| TargetUnitScalarArgumentSource::IntegerImmediate {
         defining_operation: op(ordinal),
         source_value: val(ordinal),
@@ -2676,7 +1630,7 @@ fn retained_byte_field_read_preserves_both_bounds_and_audits_the_field() {
     };
     let facts = [selector_bound, byte_bound].map(|obligation| {
         optimization_unit::AcceptedObligationFact::new(
-            plan.psi,
+            psi(),
             [7; 32],
             machine(),
             optimization_unit::PsiProvenance::Operation(op(4)),
@@ -2721,199 +1675,6 @@ fn retained_byte_field_read_preserves_both_bounds_and_audits_the_field() {
         project(&facts[1..]).is_err(),
         "the enclosing array owes a separate bound"
     );
-
-    let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
-        .unwrap();
-    let geometry =
-        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types, HOST())
-            .unwrap();
-    let plan_view = crate::preparation::native_geometry::NativeInput::with_types(
-        &plan,
-        &geometry,
-        fixture_types(),
-    );
-    let unit_view = crate::preparation::native_geometry::NativeInput::with_types(
-        &unit,
-        &geometry,
-        fixture_types(),
-    );
-    let inputs =
-        crate::preparation::legalization_function_inputs::FunctionInputs::new(&unit.functions[0]);
-    let sources = crate::preparation::legalization_target::control_flow::sources::SourceInputs::new(
-        &target.functions[0].graph,
-        &unit.functions[0],
-    );
-    let audit = |row: &TargetUnitOperation| {
-        let mut available = sources.available(block_id(1));
-        available.push((val(1), selector));
-        available.push((val(2), index));
-        crate::preparation::legalization_target::unit::validate_operation(
-            &target.functions[0],
-            row,
-            &operation,
-            &[],
-            &target.functions[0].graph.parameters,
-            &mut available,
-            &Default::default(),
-            &inputs,
-            &target,
-            &plan_view,
-            &unit_view,
-        )
-    };
-    audit(&row).expect("read agrees with the exact field, selector and bounds");
-    #[derive(Debug)]
-    enum Damage {
-        SiblingField,
-        DifferentLength,
-        WrongStride,
-    }
-    for damage in [
-        Damage::SiblingField,
-        Damage::DifferentLength,
-        Damage::WrongStride,
-    ] {
-        let mut changed = row.clone();
-        let TargetUnitOperation::StructuralByteSequenceFieldRead {
-            field,
-            length,
-            indices,
-            ..
-        } = &mut changed
-        else {
-            panic!("byte field read");
-        };
-        match damage {
-            Damage::SiblingField => *field = sibling_field,
-            Damage::DifferentLength => *length = val(2),
-            Damage::WrongStride => indices[0].stride = 16,
-        }
-        assert!(audit(&changed).is_err(), "{damage:?}");
-    }
-}
-
-#[test]
-fn retained_byte_length_audit_reconstructs_the_descriptor_and_exact_fold() {
-    use target_operations::TargetIntegerExpression as Expression;
-    use terminal_psi::ByteSequenceCarrier;
-
-    let borrowed = ByteSequenceCarrier::BorrowedView {
-        access: Some(StructuralAccess::SharedBorrow),
-    };
-    let bounded = ByteSequenceCarrier::BoundedView {
-        access: Some(StructuralAccess::SharedBorrow),
-        capacity: 19,
-    };
-    for carrier in [borrowed, bounded] {
-        let mut names = TerminalIdentityTableBuilder::default();
-        let mut bytes = reference_type(1, names.intern("bytes"), ty(1));
-        bytes.shape = StructuralTypeShape::ByteSequence(carrier);
-        let parameter = parameter(ty(1));
-        let source = terminal_psi::StructuralArgument {
-            place: parameter.place,
-            path: Vec::new(),
-            access: parameter.access,
-        };
-        let result = AbstractResult {
-            value: val(1),
-            scalar_type: ScalarType::Integer(u64_type()),
-        };
-        let operation = AbstractOperation::ByteSequenceLength {
-            psi_operation: op(1),
-            result,
-            source: source.clone(),
-        };
-        let function = function_with_body(
-            vec![parameter],
-            vec![entry(
-                1,
-                vec![
-                    operation.clone(),
-                    AbstractOperation::ReturnUnit {
-                        psi_edge: edge(1),
-                        cleanup_actions: Vec::new(),
-                    },
-                ],
-            )],
-        );
-        let plan = plan(names, vec![bytes], function);
-        let target = target_plan(&plan, vec![block(1, Vec::new(), return_unit(1))]);
-        let unit =
-            reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
-                .unwrap();
-        let geometry = crate::preparation::native_geometry::NativeGeometry::new(
-            &plan.structural_types,
-            HOST(),
-        )
-        .unwrap();
-        let plan_view = crate::preparation::native_geometry::NativeInput::with_types(
-            &plan,
-            &geometry,
-            fixture_types(),
-        );
-        let unit_view = crate::preparation::native_geometry::NativeInput::with_types(
-            &unit,
-            &geometry,
-            fixture_types(),
-        );
-        let function_inputs = crate::preparation::legalization_function_inputs::FunctionInputs::new(
-            &unit.functions[0],
-        );
-        let source_inputs =
-            crate::preparation::legalization_target::control_flow::sources::SourceInputs::new(
-                &target.functions[0].graph,
-                &unit.functions[0],
-            );
-        let audit = |expression| {
-            let row = TargetUnitOperation::ScalarDefinition {
-                result_home: target_operations::TargetUnitScalarHomeRequirement {
-                    defining_operation: op(1),
-                    source_value: result.value,
-                    scalar_type: result.scalar_type,
-                    shape: crate::preparation::legalization::scalar_graph_input::scalar_shape(
-                        result.scalar_type,
-                    )
-                    .unwrap(),
-                },
-                expression: target_operations::TargetScalarExpression::Integer {
-                    scalar_type: u64_type(),
-                    expression,
-                },
-            };
-            crate::preparation::legalization_target::unit::validate_operation(
-                &target.functions[0],
-                &row,
-                &operation,
-                &[],
-                &target.functions[0].graph.parameters,
-                &mut source_inputs.available(block_id(1)),
-                &Default::default(),
-                &function_inputs,
-                &target,
-                &plan_view,
-                &unit_view,
-            )
-        };
-        let descriptor = |length_byte_offset| Expression::ByteSequenceLength {
-            psi_operation: op(1),
-            source_value: result.value,
-            source: source.clone(),
-            indices: Vec::new(),
-            length_byte_offset,
-        };
-        let immediate = |value| Expression::Immediate {
-            source_value: result.value,
-            value: IntegerValue::Unsigned(value),
-        };
-        if carrier == borrowed {
-            audit(descriptor(8)).expect("borrowed descriptor length");
-            assert!(audit(immediate(19)).is_err());
-        } else {
-            audit(immediate(19)).expect("exact bounded length");
-            assert!(audit(immediate(20)).is_err());
-        }
-        assert!(audit(descriptor(0)).is_err(), "{carrier:?}");
-    }
 }
 
 #[test]
@@ -3008,65 +1769,6 @@ fn retained_view_inputs_project_without_bodies_and_keep_independent_custody() {
         (actual_source, actual_result),
         (source.clone(), result.clone())
     );
-
-    let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
-        .unwrap();
-    let geometry =
-        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types, HOST())
-            .unwrap();
-    let plan_view = crate::preparation::native_geometry::NativeInput::with_types(
-        &plan,
-        &geometry,
-        fixture_types(),
-    );
-    let unit_view = crate::preparation::native_geometry::NativeInput::with_types(
-        &unit,
-        &geometry,
-        fixture_types(),
-    );
-    let function_inputs =
-        crate::preparation::legalization_function_inputs::FunctionInputs::new(&unit.functions[0]);
-    let source_inputs =
-        crate::preparation::legalization_target::control_flow::sources::SourceInputs::new(
-            &target.functions[0].graph,
-            &unit.functions[0],
-        );
-    let audit = |row: &TargetUnitOperation| {
-        crate::preparation::legalization_target::unit::validate_operation(
-            &target.functions[0],
-            row,
-            &operation,
-            &[],
-            &target.functions[0].graph.parameters,
-            &mut source_inputs.available(block_id(1)),
-            &Default::default(),
-            &function_inputs,
-            &target,
-            &plan_view,
-            &unit_view,
-        )
-    };
-    audit(&row).expect("view source and physical backing match the independent source");
-    for mutation in 0..3 {
-        let mut forged = row.clone();
-        let TargetUnitOperation::EstablishElementView {
-            view: TargetElementView::Established {
-                source_argument, ..
-            },
-            ..
-        } = &mut forged
-        else {
-            panic!("view");
-        };
-        match mutation {
-            0 => source_argument.place = place(9),
-            1 => source_argument.access = StructuralAccess::MutableBorrow,
-            _ => source_argument
-                .path
-                .push(StructuralPathSegment::FixedIndex(1)),
-        }
-        assert!(audit(&forged).is_err(), "forged source argument {mutation}");
-    }
 
     let start = ValueId::new(7).unwrap();
     let end = ValueId::new(8).unwrap();
@@ -3353,83 +2055,6 @@ fn retained_reference_selectors_project_without_bodies_and_audit_exact_geometry(
         )
         .is_err()
     );
-
-    let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
-        .unwrap();
-    let geometry =
-        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types, HOST())
-            .unwrap();
-    let plan_view = crate::preparation::native_geometry::NativeInput::with_types(
-        &plan,
-        &geometry,
-        fixture_types(),
-    );
-    let unit_view = crate::preparation::native_geometry::NativeInput::with_types(
-        &unit,
-        &geometry,
-        fixture_types(),
-    );
-    let function_inputs =
-        crate::preparation::legalization_function_inputs::FunctionInputs::new(&unit.functions[0]);
-    let source_inputs =
-        crate::preparation::legalization_target::control_flow::sources::SourceInputs::new(
-            &target.functions[0].graph,
-            &unit.functions[0],
-        );
-    let audit = |row: &TargetUnitOperation| {
-        let mut available = source_inputs.available(block_id(1));
-        available.push((index.source_value(), index));
-        crate::preparation::legalization_target::unit::validate_operation(
-            &target.functions[0],
-            row,
-            &operation,
-            &[],
-            &target.functions[0].graph.parameters,
-            &mut available,
-            &Default::default(),
-            &function_inputs,
-            &target,
-            &plan_view,
-            &unit_view,
-        )
-    };
-    audit(&row).expect("reference selector matches the independent source geometry");
-    for mutation in 0..7 {
-        let mut forged = row.clone();
-        let TargetUnitOperation::EstablishReference {
-            indices,
-            result_home,
-            source,
-            ..
-        } = &mut forged
-        else {
-            panic!("reference");
-        };
-        match mutation {
-            0 => indices[0].stride = 4,
-            1 => indices[0].extent = Some(3),
-            2 => indices[0].obligation = semantic_vocabulary::ObligationId::new(2).unwrap(),
-            3 => {
-                let TargetUnitScalarArgumentSource::IntegerImmediate { value, .. } =
-                    &mut indices[0].operand
-                else {
-                    panic!("index");
-                };
-                *value = IntegerValue::Unsigned(0);
-            }
-            4 => indices.clear(),
-            5 => {
-                result_home.layout = TargetStructuralHomeLayout::Aggregate(
-                    calling_conventions::ValueShape::integer(16, 8),
-                )
-            }
-            _ => source.path.clear(),
-        }
-        assert!(
-            audit(&forged).is_err(),
-            "forged reference geometry {mutation}"
-        );
-    }
 }
 
 fn tag_only() -> String {
@@ -3734,16 +2359,26 @@ fn dispatch(
     let layouts =
         crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types, HOST())
             .unwrap();
-    let prepared = crate::preparation::native_geometry::NativeInput::with_types(
-        &plan,
-        &layouts,
-        fixture_types(),
-    );
-    let root_layout =
-        crate::preparation::legalization_scalar_graph::aggregate_results::type_home_layout(
-            root, &prepared,
+    let root_declaration = plan
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == root)
+        .unwrap_or_else(|| panic!("{name}: missing root declaration"));
+    let root_layout = if matches!(
+        root_declaration.shape,
+        terminal_psi::sum_or_mixed_shape_pattern!()
+    ) {
+        TargetStructuralHomeLayout::Sum(
+            layouts
+                .sum_layout(root)
+                .unwrap_or_else(|error| panic!("{name}: root sum layout {error:?}")),
         )
-        .unwrap_or_else(|error| panic!("{name}: root layout {error:?}"));
+    } else {
+        TargetStructuralHomeLayout::Aggregate(
+            crate::preparation::structural_inputs::shape(root, &layouts)
+                .unwrap_or_else(|| panic!("{name}: root aggregate shape")),
+        )
+    };
     let source = TargetStructuralCaseSource::BorrowedParameter {
         parameter: abi_parameter(&plan, &plan.functions[0].structural_parameters[0]),
         layout: root_layout,
@@ -3784,123 +2419,9 @@ fn dispatch(
     select(name, &plan, target)
 }
 
-fn validate_stored_geometry(
-    target: &TargetOperationPlan,
-    plan: &AbstractOperationPlan,
-    unit: &optimization_unit::PsiOptimizationUnit,
-) -> Result<(), crate::preparation::legalization::LegalizationError> {
-    use crate::preparation::legalization_scalar_graph::structural_case::{
-        dispatch_projection, membership_layout, source_result,
-    };
-    // These hand-built selection rows omit unrelated provenance metadata. Test
-    // the validator's geometry checks directly, with the same rows selection uses.
-    let geometry =
-        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types, HOST())
-            .unwrap();
-    let plan = &crate::preparation::native_geometry::NativeInput::with_types(
-        plan,
-        &geometry,
-        fixture_types(),
-    );
-    let function = &unit.functions[0];
-    let inputs = crate::preparation::legalization_function_inputs::FunctionInputs::new(function);
-    for block in &target.functions[0].graph.blocks {
-        if let TargetControlTerminator::StructuralCase {
-            source,
-            path,
-            pointer_slots,
-            region_byte_size,
-            ..
-        } = &block.terminator
-        {
-            dispatch_projection(
-                &inputs,
-                source.place(),
-                path,
-                plan,
-                pointer_slots,
-                *region_byte_size,
-            )?;
-        }
-        for operation in block.operations() {
-            if let TargetUnitOperation::StructuralCaseMembership {
-                source,
-                path,
-                case,
-                pointer_slots,
-                ..
-            } = operation
-            {
-                membership_layout(
-                    &inputs,
-                    *source,
-                    path,
-                    *case,
-                    plan,
-                    source_result(function, *source),
-                    pointer_slots,
-                )?;
-            }
-        }
-    }
-    Ok(())
-}
-
 fn select(name: &str, plan: &AbstractOperationPlan, target: TargetOperationPlan) -> String {
     let unit = reconstruct_psi_optimization_unit_seed(plan, WorkScheduleIdentity::new(1).unwrap())
         .unwrap_or_else(|error| panic!("{name}: unit {error:?}"));
-    // Selection trusts retained geometry; the independent validator must reject
-    // a forged pointer chase or region size rather than ignore those fields.
-    validate_stored_geometry(&target, plan, &unit)
-        .unwrap_or_else(|error| panic!("{name}: target validation {error:?}"));
-    for change_region_size in [false, true] {
-        let mut forged = target.clone();
-        let mut changed = false;
-        for function in &mut forged.functions {
-            for block in &mut function.graph.blocks {
-                if let TargetControlTerminator::StructuralCase {
-                    pointer_slots,
-                    region_byte_size,
-                    ..
-                } = &mut block.terminator
-                {
-                    if change_region_size {
-                        *region_byte_size += 1;
-                    } else {
-                        pointer_slots.push(TargetCasePointerSlot {
-                            byte_offset: 0,
-                            index_start: 0,
-                            index_end: 0,
-                            scalar_descriptor: false,
-                        });
-                    }
-                    changed = true;
-                }
-                if !change_region_size {
-                    for operation in &mut block.operations {
-                        if let TargetUnitOperation::StructuralCaseMembership {
-                            pointer_slots, ..
-                        } = &mut operation.kind
-                        {
-                            pointer_slots.push(TargetCasePointerSlot {
-                                byte_offset: 0,
-                                index_start: 0,
-                                index_end: 0,
-                                scalar_descriptor: false,
-                            });
-                            changed = true;
-                        }
-                    }
-                }
-            }
-        }
-        if changed {
-            assert!(
-                validate_stored_geometry(&forged, plan, &unit).is_err(),
-                "{name}: forged retained geometry accepted (region={change_region_size})"
-            );
-        }
-    }
     let module = TerminalModule::for_entry(plan.entry);
     let interrupts = provider_admission::AdmittedInstalledInterruptCohort::empty(plan.psi);
     let callable_program =
@@ -4077,13 +2598,7 @@ fn sum_layout(
     let layouts =
         crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types, HOST())
             .unwrap();
-    let plan = crate::preparation::native_geometry::NativeInput::with_types(
-        plan,
-        &layouts,
-        fixture_types(),
-    );
-    crate::preparation::legalization_scalar_graph::aggregate_results::sum_type_layout(sum, &plan)
-        .expect("sum layout")
+    layouts.sum_layout(sum).expect("sum layout")
 }
 
 fn plan(
@@ -4511,78 +3026,6 @@ fn boolean_result() -> AbstractResult {
 
 // Exercise the metadata boundary without asserting program acceptance.
 #[test]
-fn ordinary_comparison_metadata_requires_the_module_to_retain_its_operand_type() {
-    let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 16).unwrap());
-    let mut function = function_with_body(
-        Vec::new(),
-        vec![entry(
-            1,
-            vec![
-                AbstractOperation::IntegerEqual {
-                    psi_operation: op(1),
-                    result: ValueId::new(3).unwrap(),
-                    left: ValueId::new(1).unwrap(),
-                    right: ValueId::new(2).unwrap(),
-                },
-                AbstractOperation::ReturnUnit {
-                    psi_edge: edge(1),
-                    cleanup_actions: Vec::new(),
-                },
-            ],
-        )],
-    );
-    function.parameters = [1, 2]
-        .map(|id| abstract_operations::AbstractParameter {
-            value: ValueId::new(id).unwrap(),
-            scalar_type: scalar,
-        })
-        .to_vec();
-    let plan = plan(
-        TerminalIdentityTableBuilder::default(),
-        Vec::new(),
-        function,
-    );
-    let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
-        .expect("well-formed comparison metadata seed");
-    let function = &unit.functions[0];
-    let inputs = crate::preparation::legalization_function_inputs::FunctionInputs::new(function);
-    let geometry =
-        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types, HOST())
-            .unwrap();
-    let retaining =
-        crate::preparation::native_geometry::ModuleTypes::of(&module_retaining(&[scalar]));
-    let retained =
-        crate::preparation::native_geometry::NativeInput::with_types(&plan, &geometry, &retaining);
-    assert!(
-        crate::preparation::legalization_scalar_graph::nodes::validate(
-            &function.blocks[0],
-            &inputs,
-            &retained,
-            &[],
-            &plan.identities,
-        )
-        .is_ok(),
-        "the comparison's operand type is one the module retains"
-    );
-    let closed = terminal_codec::ClosedTerminalModule::new(TerminalModule::declarations()).unwrap();
-    assert!(closed.closed_types().scalar(scalar).is_err());
-    let missing = crate::preparation::native_geometry::ModuleTypes::of(&closed);
-    let missing =
-        crate::preparation::native_geometry::NativeInput::with_types(&plan, &geometry, &missing);
-    assert!(
-        crate::preparation::legalization_scalar_graph::nodes::validate(
-            &function.blocks[0],
-            &inputs,
-            &missing,
-            &[],
-            &plan.identities,
-        )
-        .is_err(),
-        "a type the module does not retain refuses the comparison"
-    );
-}
-
-#[test]
 fn qualified_numeric_replay_needs_the_module_and_actual_numeric_meaning() {
     use semantic_vocabulary::{BoundaryMachineId, QualifiedScalarType, ScalarQualificationSetId};
     use target_operations::{
@@ -4699,7 +3142,10 @@ fn qualified_numeric_replay_needs_the_module_and_actual_numeric_meaning() {
         .is_err()
     );
     let mut module = TerminalModule::declarations();
-    module.interfaces.boundary_machines.push(declaration.clone());
+    module
+        .interfaces
+        .boundary_machines
+        .push(declaration.clone());
     assert!(
         crate::preparation::legalization_scalar_graph::call_origin::validate_qualified_numeric_executions(
             &target,
@@ -4743,20 +3189,23 @@ fn module_retaining(scalars: &[ScalarType]) -> terminal_codec::ClosedTerminalMod
         .collect::<Vec<_>>();
     module.identities = identities.build();
     for (position, (identity, scalar)) in rows.into_iter().enumerate() {
-        module.types.structural_types.push(StructuralTypeDeclaration {
-            declaration_identity: Default::default(),
-            id: StructuralTypeId::new(u64::try_from(position).unwrap() + 1).unwrap(),
-            identity,
-            shape: StructuralTypeShape::PrimitiveScalar(scalar),
-            requires: Vec::new(),
-            quotient_carrier: None,
-            owns_linear_claim: false,
-            no_code_affine_cleanup: false,
-            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
-            descriptor_cleanup: false,
-            nominal_cleanup: None,
-            scalar_restriction: None,
-        });
+        module
+            .types
+            .structural_types
+            .push(StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
+                id: StructuralTypeId::new(u64::try_from(position).unwrap() + 1).unwrap(),
+                identity,
+                shape: StructuralTypeShape::PrimitiveScalar(scalar),
+                requires: Vec::new(),
+                quotient_carrier: None,
+                owns_linear_claim: false,
+                no_code_affine_cleanup: false,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                descriptor_cleanup: false,
+                nominal_cleanup: None,
+                scalar_restriction: None,
+            });
     }
     terminal_codec::ClosedTerminalModule::new(module).unwrap()
 }

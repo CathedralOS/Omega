@@ -6,13 +6,10 @@ use super::super::{
     CanonicalDependencySourceSelection, CanonicalSourceClosureSubject,
     CanonicalSourceClosureSubjectError as Error, CanonicalSourceClosureSubjectLimits as Limits,
 };
-use super::super::{
-    CanonicalSourceClosureSubjectRecoveryUsage as Usage, request_view::Request, usage::Budget,
-};
+use super::super::{CanonicalSourceClosureSubjectRecoveryUsage as Usage, usage::Budget};
 use super::framing::{Reader, Writer};
 use super::requests::{
-    into_authored, read_navigation, read_request, read_root, write_navigation, write_request,
-    write_root,
+    read_navigation, read_request, read_root, write_navigation, write_request, write_root,
 };
 use super::source::{
     read_key, read_lineage, read_resolution, read_source, write_key, write_lineage,
@@ -69,7 +66,7 @@ impl CanonicalSourceClosureSubject {
             ] {
                 writer.number(label, scope.authored_dependencies().len())?;
                 for request in scope.authored_dependencies() {
-                    write_request(writer, Request::from(&request.source))?;
+                    write_request(writer, &request.source)?;
                     write_reach(writer, &request.max_reach)?;
                 }
             }
@@ -81,7 +78,7 @@ impl CanonicalSourceClosureSubject {
             write_key(writer, edge.requester())?;
             writer.row("purpose", &[edge.purpose().name().as_bytes()])?;
             writer.number("ordinal", edge.dependency_index())?;
-            write_request(writer, Request::from(edge.request()))?;
+            write_request(writer, edge.request())?;
             writer.row("resolved-alias", &[edge.alias().as_str().as_bytes()])?;
             writer.row("selected", &[])?;
             write_source(writer, edge.selected())?;
@@ -112,7 +109,7 @@ impl CanonicalSourceClosureSubject {
             }
             writer.number("ordinal", dependency.ordinal)?;
             writer.row("purpose", &[dependency.purpose.name().as_bytes()])?;
-            write_request(writer, Request::from(&dependency.request))?;
+            write_request(writer, &dependency.request)?;
             write_reach(writer, &dependency.max_reach)?;
             dependency.provider.write_text(writer)?;
         }
@@ -289,7 +286,7 @@ fn read_authored_scope(
     }
     let mut authored = reader.budget.reserve(authored_count)?;
     for _ in 0..authored_count {
-        let source = into_authored(read_request(reader, limits)?);
+        let source = read_request(reader, limits)?;
         authored.push(DependencyUse {
             source,
             max_reach: read_reach(reader, limits)?,

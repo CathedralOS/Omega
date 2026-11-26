@@ -49,7 +49,6 @@ pub(crate) struct BuildEvaluationSponsorConsumption {
     pub(crate) work_units: u64,
     pub(crate) build_log_bytes: u64,
     pub(crate) filesystem_operation_attempts: u64,
-    pub(crate) live_filesystem_handles: u64,
     pub(crate) peak_live_filesystem_handles: u64,
     pub(crate) live_storage_cells: u64,
     pub(crate) peak_live_storage_cells: u64,
@@ -105,14 +104,6 @@ impl BuildEvaluationSponsor {
         self.consumption().work_units
     }
 
-    pub fn live_filesystem_handles(&self) -> u64 {
-        self.consumption().live_filesystem_handles
-    }
-
-    pub fn peak_live_filesystem_handles(&self) -> u64 {
-        self.consumption().peak_live_filesystem_handles
-    }
-
     pub fn live_storage_cells(&self) -> u64 {
         self.consumption().live_storage_cells
     }
@@ -139,42 +130,6 @@ impl BuildEvaluationSponsor {
 
     pub fn peak_live_cells(&self) -> u64 {
         self.peak_live_storage_cells()
-    }
-
-    pub fn peak_live_text_bytes(&self) -> u64 {
-        self.peak_live_payload_bytes()
-    }
-
-    pub fn charge_build_log_bytes(&self, bytes: u64) -> Result<(), String> {
-        let maximum = self.account.limits.maximum_build_log_bytes();
-        let mut consumed = self.account.consumed.lock().map_err(|_| {
-            "build-evaluation aggregate BuildLog sponsor account is unavailable".to_owned()
-        })?;
-        let Some(candidate) = consumed.build_log_bytes.checked_add(bytes) else {
-            return Err("build-evaluation aggregate BuildLog accounting overflowed".to_owned());
-        };
-        if candidate > maximum {
-            return Err(format!(
-                "build-evaluation aggregate BuildLog sponsor exhausted at {maximum} bytes"
-            ));
-        }
-        consumed.build_log_bytes = candidate;
-        Ok(())
-    }
-
-    pub fn charge_filesystem_operation_attempt(&self) -> Result<(), String> {
-        let maximum = self.account.limits.maximum_filesystem_operation_attempts();
-        let mut consumed = self.account.consumed.lock().map_err(|_| {
-            "build-evaluation aggregate filesystem-attempt sponsor account is unavailable"
-                .to_owned()
-        })?;
-        if consumed.filesystem_operation_attempts >= maximum {
-            return Err(format!(
-                "build-evaluation aggregate filesystem-attempt sponsor exhausted at {maximum} attempts"
-            ));
-        }
-        consumed.filesystem_operation_attempts += 1;
-        Ok(())
     }
 
     pub fn charge_pure_usage(

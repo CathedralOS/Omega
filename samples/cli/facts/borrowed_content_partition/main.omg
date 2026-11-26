@@ -1,14 +1,14 @@
 // Expected exit: 0
 // A brief exclusive borrow returns detached owned content and restores its source.
 // Numeric custody only; this does not supply physical backing.
-use omega\language\core\Content;
-use omega\language\core\CountedQuantity;
+use {omega}/language/core/content.omg;
+use {omega}/language/core/foundation.omg as proof;
 data ByteUnit {}
 data Region [linear] dropped by drop_region { length: u64; }
 domain Region::Owned established by issue;
-machine Owned::content(region: @Region) -> CountedQuantity<ByteUnit>
-satisfies Content<Region, CountedQuantity<ByteUnit>>::project {
-    CountedQuantity { magnitude: embed(region.length) as Nat }
+machine Owned::content(region: @Region) -> |content|::CountedQuantity<ByteUnit>
+satisfies |content|::Content<Region, |content|::CountedQuantity<ByteUnit>>::project {
+    |content|::CountedQuantity { magnitude: embed(region.length) as Nat }
 }
 machine issue() -> Region in Owned ensures result.length == 48 {
     Region { length: 48 }
@@ -20,7 +20,7 @@ machine partition(whole: Region in Owned, requested: u64) -> Parts
 requires requested <= whole.length
 ensures result.taken.length == requested,
     result.rest.length == whole.length - requested,
-    core\Identity::<CountedQuantity<ByteUnit>>(
+    |proof|::Identity::<|content|::CountedQuantity<ByteUnit>>(
         Owned::content(old(@whole)),
         separate(Owned::content(@result.taken), Owned::content(@result.rest))
     )

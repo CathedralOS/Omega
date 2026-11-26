@@ -3,9 +3,10 @@ use platform_custody::temporary_directory::TemporaryDirectory;
 use std::path::Path;
 use std::process::{Command, Output, Stdio};
 
-const BUILD: &str = r#"machine build(builder: @mutable BuildPlan) {
+const BUILD: &str = r#"use main.omg as app;
+machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "named_entry" };
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
 }
 "#;
 const MAIN: &str = "machine main() {}\n";

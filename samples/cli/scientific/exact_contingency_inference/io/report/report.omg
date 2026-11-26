@@ -1,8 +1,7 @@
-use omega\language\core\StandardOutput;
-use system\Console;
-use domain\tables;
-use domain\tables\Inference;
-machine decimal(value: u64 in Wrapping) reaches StandardOutput {
+use domain/tables/tables.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
+machine decimal(value: u64 in Wrapping) reaches |process_authority|::StandardOutput {
     transition { _ -> scale(value, 1) }
     machine scale(value: u64 in Wrapping, divisor: u64 in Wrapping) {
         transition divisor <= value / 10 {
@@ -15,20 +14,20 @@ machine decimal(value: u64 in Wrapping) reaches StandardOutput {
     }
     machine digit(value: u64 in Wrapping, divisor: u64 in Wrapping)
     requires divisor > 0 {
-        Console::write_byte((value / divisor % 10 + 48) as i32);
+        |console|::Console::write_byte((value / divisor % 10 + 48) as i32);
         transition { _ -> emit(value % divisor, divisor / 10) }
     }
     machine done() {}
 }
-machine field(name: @[u8], value: u64 in Wrapping) reaches StandardOutput {
-    Console::write(name);
+machine field(name: @[u8], value: u64 in Wrapping) reaches |process_authority|::StandardOutput {
+    |console|::Console::write(name);
     decimal(value);
-    Console::write_line("");
+    |console|::Console::write_line("");
 }
-public machine report(result: @Inference) reaches StandardOutput
-invokes Console
+public machine report(result: @|tables|::Inference) reaches |process_authority|::StandardOutput
+invokes |console|::Console
 {
-    Console::write_line("exact_contingency_inference model=fixed_margins_factorial structural_zeros=conditioned");
+    |console|::Console::write_line("exact_contingency_inference model=fixed_margins_factorial structural_zeros=conditioned");
     field("feasible=", result.count);
     field("partition=", result.partition);
     field("observed_weight=", result.observed_weight);

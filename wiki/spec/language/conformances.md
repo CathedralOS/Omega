@@ -45,7 +45,7 @@ public data Counter { value: i32; }
 
 public SaturatingIncrement satisfies Incrementable<Counter> {
     machine increment(counter: @mutable Counter) {
-        transition counter.value < integer\max::<i32>() {
+        transition counter.value < |integer|::max::<i32>() {
             true -> raise(counter),
             false -> hold(),
         }
@@ -203,8 +203,8 @@ these values under their declaration spelling.
 
 ```omega
 const WireCodec: Codec<Message> = Codec {
-    encode: (lib_a\encode satisfies Codec<Message>::encode),
-    decode: (lib_b\decode satisfies Codec<Message>::decode),
+    encode: (|lib_a|::encode satisfies Codec<Message>::encode),
+    decode: (|lib_b|::decode satisfies Codec<Message>::decode),
 };
 ```
 
@@ -286,7 +286,7 @@ bodies; an inline member still declares a new machine. Evidence identity follows
 its actual type: strict proofs of the same complete proposition are irrelevant,
 relevant mathematical witnesses retain their identities even when erased, and
 callable selections retain their declaration/application and requirement-binding
-identities. Proof-relevant `core\Identity` evidence is not silently made strict;
+identities. Proof-relevant `Identity` evidence is not silently made strict;
 neither does it automatically store the machine that established it. Value
 identity, artifact dependencies and admission provenance remain separate.
 Canonicalizing equal values cannot discard the dependencies of evidence actually
@@ -578,7 +578,7 @@ parameter, a field or any other value that was handed in rejects, as does a
 declared conformer, which is already bound and is used as it is. There is no
 rebinding. Code that must present a handed selection under another requirement
 writes an ordinary adapter machine that calls it and binds the adapter, which
-makes the new identity visible. `reflect\callable` takes the same operands.
+makes the new identity visible. `|reflect|::callable` takes the same operands.
 
 **One declared requirement per body.** A machine declares at most one
 requirement, and an inline member has one. A machine that should serve several

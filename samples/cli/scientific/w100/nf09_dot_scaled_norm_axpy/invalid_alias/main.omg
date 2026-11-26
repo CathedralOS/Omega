@@ -1,8 +1,8 @@
-use omega\language\core\linear_algebra\try_axpy_f64;
+use {omega}/language/core/linear_algebra/linear_algebra.omg;
 
 // Intended rejection: simultaneous shared/exclusive loans of one backing.
 // The permitted exact self-alias operation is try_axpy_self_f64.
 machine main() {
     let mutable values: [f64; 2] = [3.0, 4.0];
-    let accepted: bool = try_axpy_f64(2.0, @values[..], @mutable values[..]);
+    let accepted: bool = |linear_algebra|::try_axpy_f64(2.0, @values[..], @mutable values[..]);
 }

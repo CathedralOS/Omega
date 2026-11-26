@@ -299,26 +299,13 @@ fn callback_address_custody(
         {
             return Err(invalid());
         }
-        let destination = match placed.destination.clone() {
-            machine_code::CallbackAddressDestination::Register(register) => {
-                machine_code::CallbackAddressDestination::Register(register)
-            }
-            machine_code::CallbackAddressDestination::OutgoingStack { byte_offset } => {
-                machine_code::CallbackAddressDestination::OutgoingStack { byte_offset }
-            }
-            machine_code::CallbackAddressDestination::RecordField {
-                root_register,
-                placements,
-            } => {
-                if callback.field_placements.as_ref() != Some(&placements) {
-                    return Err(invalid());
-                }
-                machine_code::CallbackAddressDestination::RecordField {
-                    root_register,
-                    placements,
-                }
-            }
-        };
+        if let machine_code::CallbackAddressDestination::RecordField { placements, .. } =
+            &placed.destination
+            && callback.field_placements.as_ref() != Some(placements)
+        {
+            return Err(invalid());
+        }
+        let destination = placed.destination.clone();
         let encoding = match placed.encoding {
             machine_code::PlacedCallbackAddressEncoding::X86_64Relative32 {
                 relocation_function_offset,

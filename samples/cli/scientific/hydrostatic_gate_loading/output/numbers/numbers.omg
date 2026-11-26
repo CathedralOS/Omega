@@ -1,18 +1,18 @@
 // Artifacts use decimal integers in micro-units, rounded half away from zero.
 // Maximum model bounds keep scaled loads below 2e18, within signed i64.
-use omega\language\core\StandardOutput;
-use system\Console;
-use omega\language\core\I64::from_f64;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 
-public machine write_integer(value: i64 in Wrapping) reaches StandardOutput
-invokes Console
+public machine write_integer(value: i64 in Wrapping) reaches |process_authority|::StandardOutput
+invokes |console|::Console
 {
     transition value < 0 {
         true -> negative(value),
         false -> magnitude(value)
     }
     machine negative(value: i64 in Wrapping) {
-        Console::write("-");
+        |console|::Console::write("-");
         transition { _ -> magnitude(0 - value) }
     }
     machine magnitude(value: i64 in Wrapping) {
@@ -36,7 +36,7 @@ invokes Console
     requires divisor > 0
     {
         let digit: i32 = ((value / divisor) % 10) as i32;
-        Console::write_byte(digit + 48);
+        |console|::Console::write_byte(digit + 48);
         transition divisor >= 10 {
             true -> emit(value, divisor / 10),
             false -> done()
@@ -45,20 +45,20 @@ invokes Console
     machine done() { }
 }
 
-public machine write_scaled(value: f64) reaches StandardOutput
-invokes Console
+public machine write_scaled(value: f64) reaches |process_authority|::StandardOutput
+invokes |console|::Console
 {
     transition value < 0.0 {
         true -> negative(value),
         false -> positive(value)
     }
     machine negative(value: f64) {
-        Console::write("-");
-        let rounded: i64 in Saturating = I64::from_f64((0.0 - value) * 1000000.0 + 0.5);
+        |console|::Console::write("-");
+        let rounded: i64 in Saturating = |float_operations|::I64::from_f64((0.0 - value) * 1000000.0 + 0.5);
         write_integer(rounded as -Saturating +Wrapping);
     }
     machine positive(value: f64) {
-        let rounded: i64 in Saturating = I64::from_f64(value * 1000000.0 + 0.5);
+        let rounded: i64 in Saturating = |float_operations|::I64::from_f64(value * 1000000.0 + 0.5);
         write_integer(rounded as -Saturating +Wrapping);
     }
 }

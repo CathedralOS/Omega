@@ -8,14 +8,14 @@ use super::*;
 
 const ADDRESS_CAST: &str = "expression cast to or from an address";
 
-/// Each helper casts an integer to `addr`, which the reader refuses:
+/// Each helper casts an integer to `address`, which the reader refuses:
 /// counts_and_addresses.md, "neither arbitrary value-to-address conversions
 /// nor the inverse ... follow". The entry calls all three so the grouped
 /// reader encounters every body.
 const THREE_HELPERS: &str = r#"
-machine first() -> u32 { let value: u64 = 1; let address: addr = value as addr; 1 }
-machine second() -> u32 { let value: u64 = 2; let address: addr = value as addr; 2 }
-machine third() -> u32 { let value: u64 = 3; let address: addr = value as addr; 3 }
+machine first() -> u32 { let value: u64 = 1; let address: address = value as address; 1 }
+machine second() -> u32 { let value: u64 = 2; let address: address = value as address; 2 }
+machine third() -> u32 { let value: u64 = 3; let address: address = value as address; 3 }
 machine entry() -> u32 {
     let a: u32 = first();
     let b: u32 = second();
@@ -87,7 +87,7 @@ fn going_on_after_a_refusal_reports_what_each_machine_meets_alone() {
         for (index, value) in ["1", "2", "3"].into_iter().enumerate() {
             if index != number {
                 alone = alone.replace(
-                    &format!("let value: u64 = {value}; let address: addr = value as addr; "),
+                    &format!("let value: u64 = {value}; let address: address = value as address; "),
                     "",
                 );
             }

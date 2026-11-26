@@ -5,7 +5,7 @@ compiler-intrinsic integer and IEEE floating-point comparisons across ordinary
 and fragment-published object routes.
 */
 
-use super::derivation::hashing::sha256;
+use crate::digest_encoder::content_identity as sha256;
 use boundary_applications::BoundaryApplicationRealization;
 use object_file::{RelocationKind, RelocationOrigin, RelocationRecord, SectionKind};
 use target::{Architecture, NativeTarget};

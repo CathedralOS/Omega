@@ -8,6 +8,9 @@ use std::path::PathBuf;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum PackageRootSourceRequest {
+    Bundled {
+        name: crate::declarations::PackageName,
+    },
     Git(GitPackageSourceRequest),
     ExternalLocal {
         requested_root: PathBuf,

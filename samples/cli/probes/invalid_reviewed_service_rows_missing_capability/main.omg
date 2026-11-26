@@ -1,8 +1,8 @@
-use reviewed_service\Operations;
+use {reviewed_service}/operations.omg;
 // An invoked interface does not grant its read method's capability.
 public machine omitted(value: i32) -> i32
 reaches none
-invokes Operations
+invokes |operations|::Operations
 {
-    Operations::read(value)
+    |operations|::Operations::read(value)
 }

@@ -1,4 +1,4 @@
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_exit.omg;
 // Intended-invalid control: calling find on an out-of-range
 // element (64, violating element < 64) must be rejected at compile time.
 
@@ -18,13 +18,13 @@ ensures result < 64
     sets.parent[element]
 }
 
-machine main(main: @mutable Main) reaches ProcessExit {
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit {
     let invalid_rep: u64 = find(@mutable main.sets, 64);
-    ProcessExit::exit_process(invalid_rep as i32);
+    |process_exit|::ProcessExit::exit_process(invalid_rep as i32);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit {
+machine entry_start() reaches |process_exit|::ProcessExit {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }

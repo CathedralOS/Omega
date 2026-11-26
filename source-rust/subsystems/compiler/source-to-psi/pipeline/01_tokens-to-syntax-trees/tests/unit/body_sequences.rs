@@ -1,5 +1,3 @@
-use crate::frontend_fixture::Lexer;
-use crate::parse_syntax_trees;
 use syntax_trees::item::Item;
 use syntax_trees::statement::StatementNode;
 use syntax_trees::statement::TransitionGuardNode;
@@ -13,7 +11,7 @@ fn final_values_are_completion_edges_but_semicolon_expressions_are_not() {
         "42 machine helper() {}",
     ] {
         let source = format!("machine run() -> u64 {{ {body} }}");
-        let trees = crate::tests::parse_source(&source, "final value");
+        let trees = crate::tests::parse_source(&source);
         let machine = crate::tests::root_machine(&trees, "machine");
         let state = crate::tests::entry_state(&trees, machine);
         let statements = trees.items.statements(state.statements);
@@ -29,8 +27,7 @@ fn final_values_are_completion_edges_but_semicolon_expressions_are_not() {
             syntax_trees::statement::TransitionTargetNode::Value(_)
         ));
     }
-    let trees =
-        crate::tests::parse_source("machine run() { callee(); 42; }", "ordinary statements");
+    let trees = crate::tests::parse_source("machine run() { callee(); 42; }");
     let machine = crate::tests::root_machine(&trees, "machine");
     let state = crate::tests::entry_state(&trees, machine);
     let statements = trees.items.statements(state.statements);
@@ -48,7 +45,7 @@ fn final_values_are_completion_edges_but_semicolon_expressions_are_not() {
 fn nested_machine_declarations_and_copies_retain_direct_child_cohorts() {
     let source =
         "machine outer() -> u64 { 42 machine first() { machine inner() {} } machine second() {} }";
-    let trees = crate::tests::parse_source(source, "nested declarations after a value completion");
+    let trees = crate::tests::parse_source(source);
     let outer = crate::tests::root_machine(&trees, "outer machine");
     assert_eq!(trees.root_items().count(), 1);
     assert_eq!(outer.nested_machines.len(), 2);
@@ -95,8 +92,7 @@ fn nested_machine_layout_rejects_resumed_statements_and_package_exports() {
         ),
     ] {
         for declaration in [source.to_owned(), format!("trait Parent {{ {source} }}")] {
-            let tokens = Lexer::new(&declaration).tokenize().unwrap();
-            let error = parse_syntax_trees(&tokens).unwrap_err();
+            let error = crate::tests::parse_error(&declaration);
             assert!(error.message.contains(expected), "{}", error.message);
         }
     }
@@ -110,8 +106,7 @@ fn entry_and_nested_bodies_preserve_expanded_statement_order_and_boundaries() {
         format!("machine process() {{ {body} machine done() {{}} }}"),
         format!("machine process() {{ machine begin() {{ {body} }} machine done() {{}} }}"),
     ] {
-        let tokens = Lexer::new(&source).tokenize().unwrap();
-        let trees = parse_syntax_trees(&tokens).unwrap();
+        let trees = crate::tests::parse_source(&source);
         let Item::Machine(machine) = trees.root_items().next().unwrap() else {
             panic!("machine root")
         };
@@ -175,8 +170,7 @@ fn every_machine_body_rejects_bare_arrows() {
             "machine entry bodies",
         ),
     ] {
-        let tokens = Lexer::new(source).tokenize().unwrap();
-        let error = parse_syntax_trees(&tokens).unwrap_err();
+        let error = crate::tests::parse_error(source);
         assert!(error.message.starts_with(expected), "{}", error.message);
         assert_eq!(error.source_span.span.start, source.find("->").unwrap());
     }

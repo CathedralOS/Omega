@@ -1,6 +1,5 @@
-use domain\model;
-use domain\model\Problem;
-public machine load(problem: @mutable Problem, variant: u64 in Wrapping) {
+use domain/model/model.omg;
+public machine load(problem: @mutable |model|::Problem, variant: u64 in Wrapping) {
     problem.sites[0].x = 0; problem.sites[0].y = 0;
     problem.sites[0].cost = 2; problem.sites[0].capacity = 2; problem.sites[0].radius = 2;
     problem.sites[1].x = 3; problem.sites[1].y = 0;
@@ -23,12 +22,12 @@ public machine load(problem: @mutable Problem, variant: u64 in Wrapping) {
         7 -> boundary(problem),
         _ -> done()
     }
-    machine unreachable(problem: @mutable Problem) { problem.minimum = 14; }
-    machine tied(problem: @mutable Problem) { problem.sites[1].x = 0; problem.sites[1].cost = 2; }
-    machine capacity(problem: @mutable Problem) { problem.sites[0].capacity = 1; }
-    machine redundant(problem: @mutable Problem) { problem.sites[2].y = 0; problem.sites[2].capacity = 2; }
-    machine empty(problem: @mutable Problem) { problem.budget = 0; }
-    machine threshold(problem: @mutable Problem) { problem.minimum = 12; }
-    machine boundary(problem: @mutable Problem) { problem.sites[0].radius = 1; problem.budget = 5; }
+    machine unreachable(problem: @mutable |model|::Problem) { problem.minimum = 14; }
+    machine tied(problem: @mutable |model|::Problem) { problem.sites[1].x = 0; problem.sites[1].cost = 2; }
+    machine capacity(problem: @mutable |model|::Problem) { problem.sites[0].capacity = 1; }
+    machine redundant(problem: @mutable |model|::Problem) { problem.sites[2].y = 0; problem.sites[2].capacity = 2; }
+    machine empty(problem: @mutable |model|::Problem) { problem.budget = 0; }
+    machine threshold(problem: @mutable |model|::Problem) { problem.minimum = 12; }
+    machine boundary(problem: @mutable |model|::Problem) { problem.sites[0].radius = 1; problem.budget = 5; }
     machine done() { }
 }

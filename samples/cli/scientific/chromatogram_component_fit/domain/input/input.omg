@@ -1,9 +1,7 @@
-use omega\language\core\StandardInput;
-use system\ByteRead;
-use system\Console;
-use omega\language\core\F64::from_i32;
-use domain\model;
-use domain\model\Chromatogram;
+use domain/model/model.omg;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 
 public data InputReader {
     remaining: i32 in Wrapping;
@@ -16,18 +14,18 @@ data Token {
 }
 // A 512-byte budget includes trailing whitespace. Budget exhaustion is an
 // input error, distinct from the real EOF required after exactly 15 tokens.
-machine next_byte(reader: @mutable InputReader) -> ByteRead reaches StandardInput
-invokes Console
+machine next_byte(reader: @mutable InputReader) -> |console|::ByteRead reaches |process_authority|::StandardInput
+invokes |console|::Console
 blocks
 crashes Trap
 {
-    let byte: ByteRead = block Console::read_byte();
+    let byte: |console|::ByteRead = block |console|::Console::read_byte();
     transition byte {
-        ByteRead::Error -> ByteRead::Error,
-        ByteRead::Eof -> ByteRead::Eof,
-        ByteRead::Byte { value } -> capacity(reader, value)
+        |console|::ByteRead::Error -> |console|::ByteRead::Error,
+        |console|::ByteRead::Eof -> |console|::ByteRead::Eof,
+        |console|::ByteRead::Byte { value } -> capacity(reader, value)
     }
-    machine capacity(reader: @mutable InputReader, value: i32) -> ByteRead
+    machine capacity(reader: @mutable InputReader, value: i32) -> |console|::ByteRead
     requires value >= 0 && value <= 255
     {
         transition reader.remaining > 0 {
@@ -35,29 +33,29 @@ crashes Trap
             _ -> limit(reader)
         }
     }
-    machine consume(reader: @mutable InputReader, value: i32) -> ByteRead
+    machine consume(reader: @mutable InputReader, value: i32) -> |console|::ByteRead
     requires value >= 0 && value <= 255
     {
         reader.remaining = reader.remaining - 1;
-        ByteRead::Byte { value: value }
+        |console|::ByteRead::Byte { value: value }
     }
-    machine limit(reader: @mutable InputReader) -> ByteRead {
+    machine limit(reader: @mutable InputReader) -> |console|::ByteRead {
         reader.exhausted = true;
-        ByteRead::Eof
+        |console|::ByteRead::Eof
     }
 }
-machine token(reader: @mutable InputReader) -> Token reaches StandardInput
-invokes Console
+machine token(reader: @mutable InputReader) -> Token reaches |process_authority|::StandardInput
+invokes |console|::Console
 blocks
 crashes Trap
 {
     transition { _ -> block skip(reader) }
     machine skip(reader: @mutable InputReader) -> Token {
-        let byte: ByteRead = block next_byte(reader);
+        let byte: |console|::ByteRead = block next_byte(reader);
         transition byte {
-            ByteRead::Error -> Token::Invalid,
-            ByteRead::Eof -> Token::End,
-            ByteRead::Byte { value } -> block first(reader, value)
+            |console|::ByteRead::Error -> Token::Invalid,
+            |console|::ByteRead::Eof -> Token::End,
+            |console|::ByteRead::Byte { value } -> block first(reader, value)
         }
     }
     machine first(reader: @mutable InputReader, byte: i32) -> Token {
@@ -89,11 +87,11 @@ crashes Trap
     }
     machine next(reader: @mutable InputReader, magnitude: i32 in Wrapping,
                digits: i32 in Wrapping, negative: bool) -> Token {
-        let byte: ByteRead = block next_byte(reader);
+        let byte: |console|::ByteRead = block next_byte(reader);
         transition byte {
-            ByteRead::Error -> Token::Invalid,
-            ByteRead::Eof -> finish(magnitude, digits, negative),
-            ByteRead::Byte { value } -> block delimiter(reader, value, magnitude, digits, negative)
+            |console|::ByteRead::Error -> Token::Invalid,
+            |console|::ByteRead::Eof -> finish(magnitude, digits, negative),
+            |console|::ByteRead::Byte { value } -> block delimiter(reader, value, magnitude, digits, negative)
         }
     }
     machine delimiter(reader: @mutable InputReader, byte: i32, magnitude: i32 in Wrapping,
@@ -116,13 +114,13 @@ crashes Trap
         }
     }
 }
-public machine read_input(reader: @mutable InputReader, chromatogram: @mutable Chromatogram) -> bool reaches StandardInput
-invokes Console
+public machine read_input(reader: @mutable InputReader, chromatogram: @mutable |model|::Chromatogram) -> bool reaches |process_authority|::StandardInput
+invokes |console|::Console
 blocks
 crashes Trap
 {
     transition { _ -> block scan(reader, chromatogram, 0) }
-    machine scan(reader: @mutable InputReader, chromatogram: @mutable Chromatogram,
+    machine scan(reader: @mutable InputReader, chromatogram: @mutable |model|::Chromatogram,
                position: i32 in Wrapping) -> bool {
         let item: Token = block token(reader);
         transition item {
@@ -131,45 +129,45 @@ crashes Trap
             _ -> false
         }
     }
-    machine validate(reader: @mutable InputReader, chromatogram: @mutable Chromatogram,
+    machine validate(reader: @mutable InputReader, chromatogram: @mutable |model|::Chromatogram,
                    position: i32 in Wrapping, value: i32) -> bool {
         transition position >= 0 && position < 15 && (position >= 10 || value >= 0) {
-            true -> block select(reader, chromatogram, position, F64::from_i32(value)),
+            true -> block select(reader, chromatogram, position, |float_operations|::F64::from_i32(value)),
             _ -> false
         }
     }
-    machine select(reader: @mutable InputReader, chromatogram: @mutable Chromatogram,
+    machine select(reader: @mutable InputReader, chromatogram: @mutable |model|::Chromatogram,
                  position: i32 in Wrapping, value: f64) -> bool {
         transition position >= 0 && position < 5 {
             true -> block a(reader, chromatogram, position, value),
             _ -> block select_b(reader, chromatogram, position, value, position - 5)
         }
     }
-    machine a(reader: @mutable InputReader, chromatogram: @mutable Chromatogram,
+    machine a(reader: @mutable InputReader, chromatogram: @mutable |model|::Chromatogram,
             position: i32 in Wrapping, value: f64) -> bool {
         chromatogram.profile_a[position] = value;
         transition { _ -> block scan(reader, chromatogram, position + 1) }
     }
-    machine select_b(reader: @mutable InputReader, chromatogram: @mutable Chromatogram,
+    machine select_b(reader: @mutable InputReader, chromatogram: @mutable |model|::Chromatogram,
                    position: i32 in Wrapping, value: f64, index: i32 in Wrapping) -> bool {
         transition index >= 0 && index < 5 {
             true -> block b(reader, chromatogram, position, value, index),
             _ -> block select_y(reader, chromatogram, position, value, position - 10)
         }
     }
-    machine b(reader: @mutable InputReader, chromatogram: @mutable Chromatogram,
+    machine b(reader: @mutable InputReader, chromatogram: @mutable |model|::Chromatogram,
             position: i32 in Wrapping, value: f64, index: i32 in Wrapping) -> bool {
         chromatogram.profile_b[index] = value;
         transition { _ -> block scan(reader, chromatogram, position + 1) }
     }
-    machine select_y(reader: @mutable InputReader, chromatogram: @mutable Chromatogram,
+    machine select_y(reader: @mutable InputReader, chromatogram: @mutable |model|::Chromatogram,
                    position: i32 in Wrapping, value: f64, index: i32 in Wrapping) -> bool {
         transition index >= 0 && index < 5 {
             true -> block y(reader, chromatogram, position, value, index),
             _ -> false
         }
     }
-    machine y(reader: @mutable InputReader, chromatogram: @mutable Chromatogram,
+    machine y(reader: @mutable InputReader, chromatogram: @mutable |model|::Chromatogram,
             position: i32 in Wrapping, value: f64, index: i32 in Wrapping) -> bool {
         chromatogram.observed[index] = value;
         transition { _ -> block scan(reader, chromatogram, position + 1) }

@@ -63,10 +63,11 @@ fn check_product(name: &str, product: &str, bindings: &str) -> Result<(), String
     std::fs::write(
         root.join("build.omg"),
         format!(
-            "use {{omega}}/language/core/external_binding.omg as native;
+            "use main.omg as app;
+use {{omega}}/language/core/external_binding.omg as native;
 machine build(builder: @mutable BuildPlan) {{
     builder.product = BuildProduct::Application {{ name: \"bound\" }};
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
 {bindings}}}
 "
         ),
@@ -107,7 +108,7 @@ fn two_places_for_one_requirement_on_one_target_are_refused() {
         ),
         "{stderr}"
     );
-    assert!(stderr.contains("build.omg:7:"), "{stderr}");
+    assert!(stderr.contains("build.omg:8:"), "{stderr}");
 }
 
 /// The same two places for two targets do not conflict.
@@ -136,7 +137,7 @@ fn a_binding_that_names_no_requirement_is_refused() {
             .contains("Product requirement `Host::missing` does not name one visible declaration"),
         "{stderr}"
     );
-    assert!(stderr.contains("build.omg:6:"), "{stderr}");
+    assert!(stderr.contains("build.omg:7:"), "{stderr}");
 }
 
 /// A package's own bindings are judged with the package, even when no
@@ -199,13 +200,14 @@ machine build(builder: @mutable BuildPlan) {{
     .expect("staged program");
     std::fs::write(
         root.join("build.omg"),
-        "use {omega}/build/dependency.omg;
+        "use main.omg as app;
+use {omega}/build/dependency.omg;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: \"bound_user\" };
     let mutable library: DependencyDescription = |dependency|::from_source(Source::Path { location: \"bound_library\" });
     |dependency|::with_alias(@mutable library, \"bound\");
     let registration: DependencyRegistration = Build::dependency(builder, library);
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
 }
 ",
     )

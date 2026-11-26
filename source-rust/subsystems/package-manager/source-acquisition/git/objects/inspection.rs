@@ -12,13 +12,13 @@ use std::ffi::OsStr;
 use crate::error::SourceResolveError;
 use crate::error::cache_invalid;
 use crate::git::cache::repository::VerifiedGitRepository;
-use crate::git::executable::executor::GitExecutor;
+use crate::git::executable::GitExecutor;
 use crate::limits::LocalSourceLimits;
 
+use super::AuthenticatedGitTreeGraph;
 use super::GitTreeEntry;
 use super::authentication::{authenticate_git_tree_graph, authenticate_git_tree_payloads};
 use super::batch::read_git_blobs_batch;
-use super::graph::AuthenticatedGitTreeGraph;
 use super::identity::is_object_id;
 use super::projection::AuthenticatedGitTreeProjection;
 use super::projection::{GitTreeProjectionPlan, GitTreeProjectionRequest, select_regular_files};

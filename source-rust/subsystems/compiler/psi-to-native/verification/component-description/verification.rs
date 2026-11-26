@@ -225,10 +225,6 @@ impl VerifiedComponent {
         self.artifact.view().identity()
     }
 
-    pub const fn description_identity(&self) -> &[u8; 32] {
-        &self.description_identity
-    }
-
     pub const fn closure(&self) -> &[u8; 32] {
         &self.closure
     }

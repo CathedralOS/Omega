@@ -1,7 +1,7 @@
 // Bounded recovery for calling-plan opaque representation uses and movement occurrences.
 
 use super::{Error, Reader};
-use crate::encoding::recovery::policy::physical_calling_policy::placement::value_placement;
+use crate::encoding::recovery::policy::physical_calling_policy::value_placement;
 use crate::record::{
     PackagePolicyCallingOpaqueUse, PackageReviewOpaqueRepresentationMovementRole,
     PackageReviewOpaqueRepresentationOccurrence, PackageReviewOpaqueRepresentationPathElement,

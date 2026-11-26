@@ -3,10 +3,10 @@
 // that result, and the caller reads the record.
 // Place: target_body.
 // Expected exit: 0
-use marks;
+use marks/marks.omg;
 
 domain bool::Held
-requires marks\project(self).kept;
+requires |marks|::project(self).kept;
 
 machine hold(direct: bool) -> bool
 requires direct == true

@@ -38,6 +38,7 @@ fn source_target(
 
 pub fn source_targets(
     packages: Option<&crate::PackageCompilationInputs>,
+    profiles: &[target::TargetProfile],
 ) -> Result<Vec<SourceTarget>, Vec<diagnostics::Diagnostic>> {
     let root = super::entry_contract_seed::entry_contract_root()?;
     let package_owner = if let Some(inputs) = packages {
@@ -59,7 +60,13 @@ pub fn source_targets(
     } else {
         None
     };
-    Ok(target::TargetProfile::ALL
+    let mut selected = Vec::with_capacity(profiles.len());
+    for &profile in profiles {
+        if !selected.contains(&profile) {
+            selected.push(profile);
+        }
+    }
+    Ok(selected
         .into_iter()
         .map(|profile| source_target(profile, &root, package_owner))
         .collect())

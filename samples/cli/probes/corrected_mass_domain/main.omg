@@ -1,13 +1,13 @@
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // A corrected gravimetric mass is an f64 predicate, not only a runtime status.
 // gross - tare is NonnegativeMass when both readings are finite and gross is
 // at least tare. The caller observes that result as a local, a field, a
 // parameter, and a call result, then divides it by an admissible total.
 // Expected exit: 0
 // Expected output contains: MASS 2
-use system\Console;
-use omega\language\core\F64::is_finite;
 
 domain f64::NonnegativeMass
 requires self >= 0.0;
@@ -16,7 +16,7 @@ domain f64::AdmissibleTotal
 requires self >= 0.01;
 
 machine corrected(gross: f64, tare: f64) -> f64 in NonnegativeMass
-requires F64::is_finite(gross) && F64::is_finite(tare) && gross >= tare
+requires |float_operations|::F64::is_finite(gross) && |float_operations|::F64::is_finite(tare) && gross >= tare
 {
     gross - tare
 }
@@ -35,7 +35,7 @@ data Reading {
 
 data Main { }
 
-machine Main::main(main: @mutable Main) reaches ProcessExit + StandardOutput {
+machine Main::main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     let literal_total: f64 in AdmissibleTotal = 6.0;
     let mass: f64 in NonnegativeMass = corrected(3.0, 1.0);
     let stored: Reading = Reading { mass: mass };
@@ -48,14 +48,14 @@ machine Main::main(main: @mutable Main) reaches ProcessExit + StandardOutput {
         false -> bad(main)
     }
     machine ok(main: @mutable Main) {
-        Console::write_line("MASS 2");
-        ProcessExit::exit_process(0);
+        |console|::Console::write_line("MASS 2");
+        |process_exit|::ProcessExit::exit_process(0);
     }
-    machine bad(main: @mutable Main) { ProcessExit::exit_process(1); }
+    machine bad(main: @mutable Main) { |process_exit|::ProcessExit::exit_process(1); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     Main::main(@mutable entry_storage);
 }

@@ -1,22 +1,21 @@
 // Tokens are bounded signed decimal integers. 2001 = malformed, 2002 = EOF.
 // Neither sentinel is an admitted physical setting or sample.
-use omega\language\core\StandardInput;
-use system\ByteRead;
-use system\Console;
-use omega\language\core\widen_i32_to_i64;
+use {omega}/language/core/numeric_conversion.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 
-public machine number() -> i64 in Wrapping reaches StandardInput
-invokes Console
+public machine number() -> i64 in Wrapping reaches |process_authority|::StandardInput
+invokes |console|::Console
 blocks
 crashes Trap
 {
     transition { _ -> block scan(0, false, false, false) }
     machine scan(magnitude: i64 in Wrapping, negative: bool, started: bool, digits: bool) -> i64 in Wrapping {
-        let byte: ByteRead = block Console::read_byte();
+        let byte: |console|::ByteRead = block |console|::Console::read_byte();
         transition byte {
-            ByteRead::Error -> (2001),
-            ByteRead::Eof -> finish(magnitude, negative, digits),
-            ByteRead::Byte { value } -> block classify(magnitude, negative, started, digits, value)
+            |console|::ByteRead::Error -> (2001),
+            |console|::ByteRead::Eof -> finish(magnitude, negative, digits),
+            |console|::ByteRead::Byte { value } -> block classify(magnitude, negative, started, digits, value)
         }
     }
     machine classify(magnitude: i64 in Wrapping, negative: bool, started: bool, digits: bool, character: i32) -> i64 in Wrapping {
@@ -41,7 +40,7 @@ crashes Trap
         }
     }
     machine accumulate(magnitude: i64 in Wrapping, negative: bool, character: i32) -> i64 in Wrapping {
-        let next: i64 in Wrapping = magnitude * 10 + (widen_i32_to_i64(character) as i64 +Wrapping) - 48;
+        let next: i64 in Wrapping = magnitude * 10 + (|numeric_conversion|::widen_i32_to_i64(character) as i64 +Wrapping) - 48;
         transition next <= 1000 { true -> block scan(next, negative, true, true), _ -> (2001) }
     }
     machine finish(magnitude: i64 in Wrapping, negative: bool, digits: bool) -> i64 in Wrapping {

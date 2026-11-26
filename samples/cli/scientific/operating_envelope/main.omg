@@ -1,50 +1,49 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use geometry/mod.omg as geometry_mod;
+use input/mod.omg;
+use output/mod.omg as output_mod;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Runtime operating envelope: one stdin packet, one fully certified polygon.
 // The generic sample harness supplies EOF; it must reject a missing packet.
 // Expected exit: 2.
 // Expected output contains: invalid input
-use system\Console;
-use input;
-use geometry;
-use output;
 
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable bytes: [u8; 256];
-    _ = block Console::read_line(@mutable bytes[..]);
-    let mutable packet: input\Packet;
-    input\parse(@mutable packet, @bytes);
-    let mutable envelope: geometry\Envelope;
-    let admitted: bool = geometry\load(@mutable envelope, @packet);
+    _ = block |console|::Console::read_line(@mutable bytes[..]);
+    let mutable packet: |mod|::Packet;
+    |mod|::parse(@mutable packet, @bytes);
+    let mutable envelope: |geometry_mod|::Envelope;
+    let admitted: bool = |geometry_mod|::load(@mutable envelope, @packet);
     transition admitted {
         true -> calculate(main, @mutable envelope),
         _ -> invalid(main)
     }
-    machine calculate(main: @mutable Main, envelope: @mutable geometry\Envelope) {
-        geometry\solve(envelope);
+    machine calculate(main: @mutable Main, envelope: @mutable |geometry_mod|::Envelope) {
+        |geometry_mod|::solve(envelope);
         transition envelope.valid {
             true -> emit(main, envelope),
             _ -> failure(main)
         }
     }
-    machine emit(main: @mutable Main, envelope: @geometry\Envelope) {
-        output\report(envelope);
-        ProcessExit::exit_process(0);
+    machine emit(main: @mutable Main, envelope: @|geometry_mod|::Envelope) {
+        |output_mod|::report(envelope);
+        |process_exit|::ProcessExit::exit_process(0);
     }
     machine invalid(main: @mutable Main) {
-        Console::write_line("invalid input");
-        ProcessExit::exit_process(2);
+        |console|::Console::write_line("invalid input");
+        |process_exit|::ProcessExit::exit_process(2);
     }
     machine failure(main: @mutable Main) {
-        Console::write_line("internal capacity failure");
-        ProcessExit::exit_process(3);
+        |console|::Console::write_line("internal capacity failure");
+        |process_exit|::ProcessExit::exit_process(3);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

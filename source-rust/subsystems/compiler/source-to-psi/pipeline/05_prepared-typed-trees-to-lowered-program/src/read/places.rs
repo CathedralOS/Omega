@@ -336,6 +336,9 @@ impl Program<'_> {
         if self.mathematical && data.quotient.is_some() && self.is_mathematical_data(data) {
             return self.quotient_record(id, symbol, data);
         }
+        if data.quotient.is_some() {
+            return self.executable_quotient_record(id, symbol, data);
+        }
         // Data indexed by values is one type of the signature at every
         // application (`families`).
         if self.mathematical && self.is_family(data) {
@@ -344,24 +347,19 @@ impl Program<'_> {
         let members = typed.data_members(data);
         // Admission precedes cache reuse: descriptor-only records cannot
         // become executable body types through a shared storage row.
-        record_shape_for(
-            id,
-            data,
-            application.as_ref(),
-            self.type_purpose,
-            members,
-        )
-        .map_err(|mut refusal| {
-            // The caller may not yet have a machine body to locate this
-            // refusal. Keep the declaration whose shape was actually read.
-            if refusal.source_span.is_none() {
-                refusal.source_span = typed
-                    .symbols
-                    .symbol_provenance_source_span(symbol)
-                    .filter(|span| *span != source_text::SourceSpan::default());
-            }
-            refusal
-        })?;
+        record_shape_for(id, data, application.as_ref(), self.type_purpose, members).map_err(
+            |mut refusal| {
+                // The caller may not yet have a machine body to locate this
+                // refusal. Keep the declaration whose shape was actually read.
+                if refusal.source_span.is_none() {
+                    refusal.source_span = typed
+                        .symbols
+                        .symbol_provenance_source_span(symbol)
+                        .filter(|span| *span != source_text::SourceSpan::default());
+                }
+                refusal
+            },
+        )?;
         let known = self.record_sources.iter().find_map(|(record, source)| {
             (source.constant_input_owner.is_none_or(|owner| owner == id)
                 && same(source.declaration, &source.application))
@@ -453,9 +451,7 @@ impl Program<'_> {
                 ));
             }
             let record = self.records.push(RecordType {
-                multiplicity: crate::body::source_multiplicity(
-                    data.properties.multiplicity,
-                ),
+                multiplicity: crate::body::source_multiplicity(data.properties.multiplicity),
                 cleanup: None,
                 identity: identity.clone(),
                 shape: crate::StorageShape::Sum(Vec::new()),
@@ -670,8 +666,7 @@ impl Program<'_> {
         // The declaration's `requires`, read once the fields and cases it
         // names have their identities, by the clause reader the machine
         // contracts use.
-        let root =
-            crate::body::self_place().ok_or_else(|| unserved("self place identity"))?;
+        let root = crate::body::self_place().ok_or_else(|| unserved("self place identity"))?;
         let scope = ClauseScope {
             slots: &[],
             values: &[],
@@ -896,7 +891,12 @@ impl Program<'_> {
                     let mut payload_symbols = Vec::new();
                     for (position, field) in typed.data_payload_fields(variant).iter().enumerate() {
                         if is_erased(field) {
-                            erased.push(self.declared_erased(id, field, Some(cases.len()), position)?);
+                            erased.push(self.declared_erased(
+                                id,
+                                field,
+                                Some(cases.len()),
+                                position,
+                            )?);
                             continue;
                         }
                         payload.push(self.declared_field(id, field)?);
@@ -1346,9 +1346,7 @@ impl Program<'_> {
         if owned && (nominal || noncopy) {
             // The consuming event retains the exact qualified operand. Its
             // independent content remains an obligation of the custody checker.
-            Ok(Some(crate::body::Statement::Decompose {
-                subject,
-            }))
+            Ok(Some(crate::body::Statement::Decompose { subject }))
         } else {
             Ok(None)
         }
@@ -2146,8 +2144,7 @@ impl Program<'_> {
                     Unserved::Spelling("pattern field without a symbol"),
                 ));
             }
-            if let Some(position) =
-                self.erased_member(id, record.record(), field.field_symbol)?
+            if let Some(position) = self.erased_member(id, record.record(), field.field_symbol)?
                 && let Some(slot) = erased.iter().position(|candidate| *candidate == position)
                 && matches!(field.action, MatchFieldAction::Waive)
             {
@@ -2350,10 +2347,7 @@ pub(super) fn literal_value_type(written: ValueType, expected: Option<ValueType>
 
 /// `value_type` at `regions`, when it is a record type; a record row is the
 /// same whatever regions a value of it holds (`regions`).
-pub(super) fn with_regions(
-    value_type: ValueType,
-    regions: crate::body::Regions,
-) -> ValueType {
+pub(super) fn with_regions(value_type: ValueType, regions: crate::body::Regions) -> ValueType {
     match value_type {
         ValueType::Record(record, qualification, _) => {
             ValueType::Record(record, qualification, regions)
@@ -2618,24 +2612,15 @@ mod tests {
     #[test]
     fn each_data_declaration_outside_the_slice_is_refused_by_name() {
         let (data, members) = plain();
-        assert_eq!(
-            record_shape(machine(), &data, None, &members),
-            Ok(())
-        );
+        assert_eq!(record_shape(machine(), &data, None, &members), Ok(()));
         let mut affine = data.clone();
         affine.properties.multiplicity = language_core::Multiplicity::Affine;
-        assert_eq!(
-            record_shape(machine(), &affine, None, &members),
-            Ok(())
-        );
+        assert_eq!(record_shape(machine(), &affine, None, &members), Ok(()));
         // Lifetime parameters select nothing a value is made of, so the
         // shape is served with them; a type parameter beside them is not.
         let mut borrowing = data.clone();
         borrowing.lifetime_parameters = vec![Identifier::generated("buffer")];
-        assert_eq!(
-            record_shape(machine(), &borrowing, None, &members),
-            Ok(())
-        );
+        assert_eq!(record_shape(machine(), &borrowing, None, &members), Ok(()));
         borrowing.type_parameters = HandleSpan::from_parts(Handle::from_parts(1, 1), 1);
         assert_eq!(detail(&borrowing, &members), "type generic data");
         // A declaration-level `requires` is no longer refused here: its

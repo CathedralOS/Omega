@@ -1,9 +1,8 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
-use omega\language\core\clamp_f64;
-use omega\language\core\max_f64;
-use omega\language\core\min_f64;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/math.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 
 // Running min/max/range over a stream of float readings -- the everyday shape
 // of sensor telemetry (thermostat, ADC, gauge). It exercises the numeric
@@ -23,8 +22,6 @@ use omega\language\core\min_f64;
 // float clamp changes it: range + banded = 8 + 25 = 33.
 // Expected exit: 33.
 
-use omega\language\core\I32::from_f64;
-use system\Console;
 
 data Main
 requires self.i >= 0 && self.i <= 6
@@ -41,8 +38,8 @@ requires self.i >= 0 && self.i <= 6
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("sensor_min_max: track running min/max/range over [20.5, 18, 24.5, 22, 19.5, 26]");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("sensor_min_max: track running min/max/range over [20.5, 18, 24.5, 22, 19.5, 26]");
     main.nums[0] = 20.5;
     main.nums[1] = 18.0;
     main.nums[2] = 24.5;
@@ -71,8 +68,8 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     // straight to floats (the minsd/maxsd path, not an abs/clamp desugar).
     machine body(main: @mutable Main) {
         main.cur = main.nums[main.i];
-        main.lo = min_f64(main.lo, main.cur);
-        main.hi = max_f64(main.hi, main.cur);
+        main.lo = |math|::min_f64(main.lo, main.cur);
+        main.hi = |math|::max_f64(main.hi, main.cur);
         transition {
             _ -> block advance(main)
         }
@@ -98,22 +95,22 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         // range = hi - lo = 26 - 18 = 8.
         main.range = main.hi - main.lo;
         // A float clamp with float bounds: clamp(26, 0, 25) = 25 (clamps down).
-        main.banded = clamp_f64(main.hi, 0.0, 25.0);
+        main.banded = |math|::clamp_f64(main.hi, 0.0, 25.0);
         // Sum both so the exit reflects the min/max fold AND the float clamp.
         main.total = main.range + main.banded;
         // A named saturating conversion truncates the float, then the policy erases.
-        let converted: i32 in Saturating = I32::from_f64(main.total);
+        let converted: i32 in Saturating = |float_operations|::I32::from_f64(main.total);
         main.result = converted as i32;
 
-        Console::write_line("result: range(8) + clamp(peak,0,25)=25 -> 33 (the exit code)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(main.result);
+        |console|::Console::write_line("result: range(8) + clamp(peak,0,25)=25 -> 33 (the exit code)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(main.result);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

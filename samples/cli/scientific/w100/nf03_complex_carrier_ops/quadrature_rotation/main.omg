@@ -1,44 +1,40 @@
-use omega\language\core\ProcessExit;
+use {omega}/language/core/complex/complex.omg;
+use {omega}/language/core/float/float.omg;
+use {omega}/language/core/float_accuracy/float_accuracy.omg;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/process_exit.omg;
 // Expected exit: 0
-use omega\language\core\float;
-use omega\language\core\F32::is_finite;
-use omega\language\core\complex\Complex;
-use omega\language\core\complex\ComplexF32;
-use omega\language\core\complex\ComplexMagnitude;
-use omega\language\core\float_accuracy\AccuracyComparison;
-use omega\language\core\float_accuracy\ReferenceAdditiveTolerance32;
-use omega\language\core\float_accuracy\compare_reference_additive_f32;
 // Four quarter-turns and their zero sum. Every destination is a separate carrier.
 data Main {
-    point: Complex<f32>;
-    rotation: Complex<f32>;
-    first: Complex<f32>;
-    second: Complex<f32>;
-    third: Complex<f32>;
-    fourth: Complex<f32>;
-    pair: Complex<f32>;
-    triple: Complex<f32>;
-    total: Complex<f32>;
-    conjugated: Complex<f32>;
-    large: Complex<f32>;
-    zero: Complex<f32>;
-    exceptional: Complex<f32>;
+    point: |complex|::Complex<f32>;
+    rotation: |complex|::Complex<f32>;
+    first: |complex|::Complex<f32>;
+    second: |complex|::Complex<f32>;
+    third: |complex|::Complex<f32>;
+    fourth: |complex|::Complex<f32>;
+    pair: |complex|::Complex<f32>;
+    triple: |complex|::Complex<f32>;
+    total: |complex|::Complex<f32>;
+    conjugated: |complex|::Complex<f32>;
+    large: |complex|::Complex<f32>;
+    zero: |complex|::Complex<f32>;
+    exceptional: |complex|::Complex<f32>;
 }
-machine main(main: @mutable Main) reaches ProcessExit {
-    main.point = Complex { real: 1.0, imaginary: 0.0 };
-    main.rotation = Complex { real: 0.0, imaginary: 1.0 };
-    ComplexF32::multiply(@mutable main.first, @main.point, @main.rotation);
-    ComplexF32::multiply(@mutable main.second, @main.first, @main.rotation);
-    ComplexF32::multiply(@mutable main.third, @main.second, @main.rotation);
-    ComplexF32::multiply(@mutable main.fourth, @main.third, @main.rotation);
-    ComplexF32::add(@mutable main.pair, @main.first, @main.second);
-    ComplexF32::add(@mutable main.triple, @main.pair, @main.third);
-    ComplexF32::add(@mutable main.total, @main.triple, @main.fourth);
-    ComplexF32::conjugate(@mutable main.conjugated, @main.first);
-    let first_norm: f32 = ComplexF32::norm_squared(@main.first);
-    let second_norm: f32 = ComplexF32::norm_squared(@main.second);
-    let third_norm: f32 = ComplexF32::norm_squared(@main.third);
-    let fourth_norm: f32 = ComplexF32::norm_squared(@main.fourth);
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit {
+    main.point = |complex|::Complex { real: 1.0, imaginary: 0.0 };
+    main.rotation = |complex|::Complex { real: 0.0, imaginary: 1.0 };
+    |complex|::ComplexF32::multiply(@mutable main.first, @main.point, @main.rotation);
+    |complex|::ComplexF32::multiply(@mutable main.second, @main.first, @main.rotation);
+    |complex|::ComplexF32::multiply(@mutable main.third, @main.second, @main.rotation);
+    |complex|::ComplexF32::multiply(@mutable main.fourth, @main.third, @main.rotation);
+    |complex|::ComplexF32::add(@mutable main.pair, @main.first, @main.second);
+    |complex|::ComplexF32::add(@mutable main.triple, @main.pair, @main.third);
+    |complex|::ComplexF32::add(@mutable main.total, @main.triple, @main.fourth);
+    |complex|::ComplexF32::conjugate(@mutable main.conjugated, @main.first);
+    let first_norm: f32 = |complex|::ComplexF32::norm_squared(@main.first);
+    let second_norm: f32 = |complex|::ComplexF32::norm_squared(@main.second);
+    let third_norm: f32 = |complex|::ComplexF32::norm_squared(@main.third);
+    let fourth_norm: f32 = |complex|::ComplexF32::norm_squared(@main.fourth);
     transition main.first.real == 0.0 && main.first.imaginary == 1.0
         && main.second.real == -1.0 && main.second.imaginary == 0.0
         && main.third.real == 0.0 && main.third.imaginary == -1.0
@@ -50,23 +46,23 @@ machine main(main: @mutable Main) reaches ProcessExit {
         true -> large(main), _ -> bad(main)
     }
     machine large(main: @mutable Main) {
-        main.large = Complex { real: 3.0e20, imaginary: 4.0e20 };
-        let direct: f32 = ComplexF32::norm_squared(@main.large);
-        let direct_finite: bool = F32::is_finite(direct);
-        let outcome: ComplexMagnitude<f32> = ComplexF32::try_magnitude(@main.large);
+        main.large = |complex|::Complex { real: 3.0e20, imaginary: 4.0e20 };
+        let direct: f32 = |complex|::ComplexF32::norm_squared(@main.large);
+        let direct_finite: bool = |float_operations|::F32::is_finite(direct);
+        let outcome: |complex|::ComplexMagnitude<f32> = |complex|::ComplexF32::try_magnitude(@main.large);
         transition direct_finite { false -> magnitude(main, outcome), _ -> bad(main) }
     }
-    machine magnitude(main: @mutable Main, outcome: ComplexMagnitude<f32>) {
+    machine magnitude(main: @mutable Main, outcome: |complex|::ComplexMagnitude<f32>) {
         transition outcome {
-            ComplexMagnitude::Value { value } -> check_magnitude(main, value),
+            |complex|::ComplexMagnitude::Value { value } -> check_magnitude(main, value),
             _ -> bad(main)
         }
     }
     machine check_magnitude(main: @mutable Main, value: f32) {
-        let comparison: AccuracyComparison = compare_reference_additive_f32(value, 5.0e20,
-            ReferenceAdditiveTolerance32 { atol: 0.0, rtol: 2.0e-7 });
+        let comparison: |float_accuracy|::AccuracyComparison = |float_accuracy|::compare_reference_additive_f32(value, 5.0e20,
+            |float_accuracy|::ReferenceAdditiveTolerance32 { atol: 0.0, rtol: 2.0e-7 });
         transition comparison {
-            AccuracyComparison::Close -> frozen_interval(main, value),
+            |float_accuracy|::AccuracyComparison::Close -> frozen_interval(main, value),
             _ -> bad(main)
         }
     }
@@ -75,9 +71,9 @@ machine main(main: @mutable Main) reaches ProcessExit {
         transition value >= 4.999999e20 && value <= 5.000001e20 { true -> zero(main), _ -> bad(main) }
     }
     machine zero(main: @mutable Main) {
-        main.zero = Complex { real: 0.0, imaginary: 0.0 };
-        let outcome: ComplexMagnitude<f32> = ComplexF32::try_magnitude(@main.zero);
-        transition outcome { ComplexMagnitude::Value { value } -> check_zero(main, value), _ -> bad(main) }
+        main.zero = |complex|::Complex { real: 0.0, imaginary: 0.0 };
+        let outcome: |complex|::ComplexMagnitude<f32> = |complex|::ComplexF32::try_magnitude(@main.zero);
+        transition outcome { |complex|::ComplexMagnitude::Value { value } -> check_zero(main, value), _ -> bad(main) }
     }
     machine check_zero(main: @mutable Main, value: f32) {
         transition value == 0.0 { true -> nonfinite(main, 0.0), _ -> bad(main) }
@@ -85,25 +81,25 @@ machine main(main: @mutable Main) reaches ProcessExit {
     machine nonfinite(main: @mutable Main, zero: f32) {
         main.exceptional.real = 1.0 / zero;
         main.exceptional.imaginary = 0.0;
-        let outcome: ComplexMagnitude<f32> = ComplexF32::try_magnitude(@main.exceptional);
-        transition outcome { ComplexMagnitude::NonFiniteInput -> nan(main, zero), _ -> bad(main) }
+        let outcome: |complex|::ComplexMagnitude<f32> = |complex|::ComplexF32::try_magnitude(@main.exceptional);
+        transition outcome { |complex|::ComplexMagnitude::NonFiniteInput -> nan(main, zero), _ -> bad(main) }
     }
     machine nan(main: @mutable Main, zero: f32) {
         main.exceptional.real = zero / zero;
-        let outcome: ComplexMagnitude<f32> = ComplexF32::try_magnitude(@main.exceptional);
-        transition outcome { ComplexMagnitude::NonFiniteInput -> overflow(main), _ -> bad(main) }
+        let outcome: |complex|::ComplexMagnitude<f32> = |complex|::ComplexF32::try_magnitude(@main.exceptional);
+        transition outcome { |complex|::ComplexMagnitude::NonFiniteInput -> overflow(main), _ -> bad(main) }
     }
     machine overflow(main: @mutable Main) {
-        main.exceptional = Complex { real: float\max::<f32>(), imaginary: float\max::<f32>() };
-        let outcome: ComplexMagnitude<f32> = ComplexF32::try_magnitude(@main.exceptional);
-        transition outcome { ComplexMagnitude::Overflow -> good(main), _ -> bad(main) }
+        main.exceptional = |complex|::Complex { real: |float|::max::<f32>(), imaginary: |float|::max::<f32>() };
+        let outcome: |complex|::ComplexMagnitude<f32> = |complex|::ComplexF32::try_magnitude(@main.exceptional);
+        transition outcome { |complex|::ComplexMagnitude::Overflow -> good(main), _ -> bad(main) }
     }
-    machine good(main: @mutable Main) { ProcessExit::exit_process(0); }
-    machine bad(main: @mutable Main) { ProcessExit::exit_process(1); }
+    machine good(main: @mutable Main) { |process_exit|::ProcessExit::exit_process(0); }
+    machine bad(main: @mutable Main) { |process_exit|::ProcessExit::exit_process(1); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit {
+machine entry_start() reaches |process_exit|::ProcessExit {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }

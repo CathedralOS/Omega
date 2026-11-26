@@ -7,6 +7,11 @@ A folder or catalog label neither admits a package nor claims it works on every
 target. The specification defines the required behavior; owning tasks record
 unfinished implementation.
 
+The distribution lists ordinary packages in `packages.tsv`, one declared name
+and relative directory per tab-separated row. A `Source::Bundled` registration
+reads that catalog and the selected package from the same verified library
+snapshot. The selected Build must return the listed package name.
+
 Build programs can import the installed files under `build/` by their exact
 logical paths. For example, `use {omega}/build/dependency.omg;` makes
 `|dependency|::from_source` available in that file. Relative imports inside
@@ -34,8 +39,10 @@ The standard distribution ships the ordinary packages in this directory.
 Build source selects them by declared package name. See
 [selecting a bundled package](../../wiki/spec/packages/toolchain.md#selecting-a-bundled-package).
 
-The numeric laws use five mathematical declarations supplied by the compiler.
-Their spelling under file imports awaits an [owner decision](../../OWNER_QUESTIONS.md#sealed-mathematical-source-names).
+The specified import for the numeric laws is
+`use {omega}/language/core/foundation.omg as proof;`. The resolver and
+library migration is tracked under `PROOF-KERNEL-CORE` in [TASKS.md](../../TASKS.md).
+[Mathematical declarations](../../wiki/spec/proofs/mathematical_bindings.md#importing-the-mathematical-foundation)
 
 ## Core integer and float APIs
 

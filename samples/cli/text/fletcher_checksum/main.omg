@@ -1,6 +1,6 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Fletcher-16 checksum over a byte sequence. Two running sums mod 255: sum1
 // accumulates the bytes, sum2 accumulates sum1 (so position-sensitive, unlike a
 // plain sum). The 16-bit checksum is sum2 * 256 + sum1; here we report sum2, the
@@ -16,7 +16,6 @@ use omega\language\core\ProcessExit;
 // NEW value, so `(sum1 + s[0]) % 255` appears in both tail arguments.
 // Expected exit: 56.
 
-use system\Console;
 
 data Adder {
     bytes: [i32 in Wrapping; 6];
@@ -38,8 +37,8 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("fletcher_checksum: fletcher-16 position-sensitive checksum over [1..6]");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("fletcher_checksum: fletcher-16 position-sensitive checksum over [1..6]");
     main.adder.bytes[0] = 1 as +Wrapping;
     main.adder.bytes[1] = 2 as +Wrapping;
     main.adder.bytes[2] = 3 as +Wrapping;
@@ -49,14 +48,14 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
 
     let s: @[i32 in Wrapping] = @main.adder.bytes[..];
     let checksum: i32 = fletcher(s, 0, 0);
-    Console::write_line("result: the checksum high byte sum2, 56 for this data (the exit code)");
-    Console::write_line("[press Enter to close]");
-    _ = block Console::read_line(@mutable main.pause[..]);
-    ProcessExit::exit_process(checksum);
+    |console|::Console::write_line("result: the checksum high byte sum2, 56 for this data (the exit code)");
+    |console|::Console::write_line("[press Enter to close]");
+    _ = block |console|::Console::read_line(@mutable main.pause[..]);
+    |process_exit|::ProcessExit::exit_process(checksum);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

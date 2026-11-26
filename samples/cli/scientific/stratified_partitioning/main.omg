@@ -1,71 +1,60 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
-use system\Console;
-use input\parser;
-use input\parser\Tokens;
-use input\parser\tokens_read;
-use data\dataset;
-use data\dataset\Dataset;
-use data\dataset\load;
-use partition\allocation;
-use partition\allocation\Allocation;
-use partition\allocation\allocation_solve;
-use partition\audit;
-use partition\audit\Audit;
-use partition\audit\check;
-use report\output;
-use report\output\number;
-use report\output\report;
+use data/dataset/dataset.omg;
+use input/parser/parser.omg;
+use partition/allocation/allocation.omg;
+use partition/audit/audit.omg;
+use report/output/output.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 
 data Main {
-    tokens: Tokens;
-    data: Dataset;
-    allocation: Allocation;
-    audit: Audit;
+    tokens: |parser|::Tokens;
+    data: |dataset|::Dataset;
+    allocation: |allocation|::Allocation;
+    audit: |audit|::Audit;
 }
-machine main(context: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    block tokens_read(@mutable context.tokens);
-    load(@mutable context.data, @context.tokens);
+machine main(context: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    block |parser|::tokens_read(@mutable context.tokens);
+    |dataset|::load(@mutable context.data, @context.tokens);
     transition context.data.valid {
         true -> solve(context),
         _ -> invalid(context)
     }
     machine solve(context: @mutable Main) {
-        allocation_solve(@mutable context.allocation, @context.data);
+        |allocation|::allocation_solve(@mutable context.allocation, @context.data);
         transition context.allocation.found {
             true -> audit(context),
             _ -> infeasible(context)
         }
     }
     machine audit(context: @mutable Main) {
-        check(@mutable context.audit, @context.data, @context.allocation);
+        |audit|::check(@mutable context.audit, @context.data, @context.allocation);
         transition context.audit.valid {
             true -> output(context),
             _ -> corrupt(context)
         }
     }
     machine corrupt(context: @mutable Main) {
-        Console::write_line("ERROR audit_failed");
-        ProcessExit::exit_process(66);
+        |console|::Console::write_line("ERROR audit_failed");
+        |process_exit|::ProcessExit::exit_process(66);
     }
     machine output(context: @mutable Main) {
-        report(@context.data, @context.allocation, @context.audit);
-        Console::write("leakage "); number(context.audit.leakage); Console::write_line("");
-        ProcessExit::exit_process(0);
+        |output|::report(@context.data, @context.allocation, @context.audit);
+        |console|::Console::write("leakage "); |output|::number(context.audit.leakage); |console|::Console::write_line("");
+        |process_exit|::ProcessExit::exit_process(0);
     }
     machine invalid(context: @mutable Main) {
-        Console::write_line("ERROR invalid_input");
-        ProcessExit::exit_process(64);
+        |console|::Console::write_line("ERROR invalid_input");
+        |process_exit|::ProcessExit::exit_process(64);
     }
     machine infeasible(context: @mutable Main) {
-        Console::write_line("ERROR indivisible_single_group");
-        ProcessExit::exit_process(65);
+        |console|::Console::write_line("ERROR indivisible_single_group");
+        |process_exit|::ProcessExit::exit_process(65);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

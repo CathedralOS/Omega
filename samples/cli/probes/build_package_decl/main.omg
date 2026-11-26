@@ -1,4 +1,6 @@
-use build_package_decl;
+use main.omg as local;
+
+machine zero() -> i32 { 0 }
 public machine w() -> i32 {
-    0
+    |local|::zero()
 }

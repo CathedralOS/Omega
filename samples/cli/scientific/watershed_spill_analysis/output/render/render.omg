@@ -1,23 +1,23 @@
-use omega\language\core\StandardOutput;
-use system\Console;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 
 // Values are 0..81, so two decimal digits cover every emitted quantity.
 // Output uses the existing console provider and no numerics package.
-public machine number(value: i32 in Wrapping) reaches StandardOutput {
+public machine number(value: i32 in Wrapping) reaches |process_authority|::StandardOutput {
     transition value >= 10 {
         true -> higher(value),
         _ -> digit(value)
     }
     machine higher(value: i32 in Wrapping) {
-        Console::write_byte(((value / 10) + 48) as i32);
+        |console|::Console::write_byte(((value / 10) + 48) as i32);
         transition { _ -> digit(value % 10) }
     }
     machine digit(value: i32 in Wrapping) {
-        Console::write_byte((value + 48) as i32);
+        |console|::Console::write_byte((value + 48) as i32);
     }
 }
 
-public machine grid(values: @[i32 in Wrapping; 25]) reaches StandardOutput {
+public machine grid(values: @[i32 in Wrapping; 25]) reaches |process_authority|::StandardOutput {
     transition { _ -> cell(values, 0) }
     machine cell(values: @[i32 in Wrapping; 25], index: i32 in Wrapping) {
         transition index >= 0 && index < 25 {
@@ -33,11 +33,11 @@ public machine grid(values: @[i32 in Wrapping; 25]) reaches StandardOutput {
         }
     }
     machine newline(values: @[i32 in Wrapping; 25], index: i32 in Wrapping) {
-        Console::write_byte(10);
+        |console|::Console::write_byte(10);
         transition { _ -> cell(values, index + 1) }
     }
     machine space(values: @[i32 in Wrapping; 25], index: i32 in Wrapping) {
-        Console::write_byte(32);
+        |console|::Console::write_byte(32);
         transition { _ -> cell(values, index + 1) }
     }
     machine done() {}

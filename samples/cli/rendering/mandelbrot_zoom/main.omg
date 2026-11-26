@@ -1,15 +1,14 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/clock.omg;
+use {system}/console.omg;
 // Animated Mandelbrot zoom -- a real-time software-rendered fractal that zooms into
 // a seahorse-valley boundary point, redrawn in place via an ANSI cursor-home escape
 // and paced by Clock.sleep. Combines the per-pixel f64 renderer, the carrier
 // framebuffer, in-place console redraw, and timed animation -- the full stack.
 // Expected exit: 0.
 // Expected output contains: #
-use omega\language\core\F64::from_i32;
-use system\Console;
-use system\Clock;
 
 
 data Main
@@ -38,8 +37,8 @@ requires self.frame >= 0 && self.frame <= 12,
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Clock + StandardInput + StandardOutput {
-    Console::write_line("mandelbrot_zoom: 12 animated frames zooming into seahorse valley");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |clock|::Clock + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("mandelbrot_zoom: 12 animated frames zooming into seahorse valley");
     main.palette = " .:-=+*#";
     main.row = "................................................";
     main.home = "XXX";
@@ -54,7 +53,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Clock + StandardInput + 
         transition main.frame < 12 { true -> block frame_init(main), _ -> block finish(main) }
     }
     machine frame_init(main: @mutable Main) {
-        Console::write(@main.home[..]);
+        |console|::Console::write(@main.home[..]);
         main.y = 0;
         transition { _ -> block row_loop(main) }
     }
@@ -66,8 +65,8 @@ machine main(main: @mutable Main) reaches ProcessExit + Clock + StandardInput + 
         transition main.x >= 0 && main.x < 48 { true -> block pixel_init(main), _ -> block emit_row(main) }
     }
     machine pixel_init(main: @mutable Main) {
-        main.cr = (F64::from_i32(main.x) / 48.0 - 0.5) * main.span - 0.743644;
-        main.ci = (F64::from_i32(main.y) / 22.0 - 0.5) * main.span * 0.5 + 0.131826;
+        main.cr = (|float_operations|::F64::from_i32(main.x) / 48.0 - 0.5) * main.span - 0.743644;
+        main.ci = (|float_operations|::F64::from_i32(main.y) / 22.0 - 0.5) * main.span * 0.5 + 0.131826;
         main.zr = 0.0;
         main.zi = 0.0;
         main.k = 0;
@@ -113,7 +112,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Clock + StandardInput + 
     // Re-guard so the increment's direct edge proves `y + 1` lands in
     // [1..=22] under the standing owner domain.
     machine emit_row(main: @mutable Main) {
-        Console::write_line(@main.row[..]);
+        |console|::Console::write_line(@main.row[..]);
         transition main.y >= 0 && main.y < 22 { true -> block row_advance(main), _ -> block frame_end(main) }
     }
     machine row_advance(main: @mutable Main) {
@@ -123,7 +122,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Clock + StandardInput + 
     // Re-guard so the increment's direct edge proves `frame + 1` lands in
     // [1..=12] under the standing owner domain.
     machine frame_end(main: @mutable Main) {
-        block Clock::sleep(70);
+        block |clock|::Clock::sleep(70);
         main.span = main.span * 0.62;
         transition main.frame >= 0 && main.frame < 12 { true -> block frame_advance(main), _ -> block finish(main) }
     }
@@ -132,21 +131,21 @@ machine main(main: @mutable Main) reaches ProcessExit + Clock + StandardInput + 
         transition { _ -> block frame_loop(main) }
     }
     machine finish(main: @mutable Main) {
-        Console::write_line("PASS: 12 zoom frames rendered (exit 0)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(0);
+        |console|::Console::write_line("PASS: 12 zoom frames rendered (exit 0)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(0);
     }
     machine bad(main: @mutable Main) {
-        Console::write_line("FAIL: internal bounds check failed (exit 1)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(1);
+        |console|::Console::write_line("FAIL: internal bounds check failed (exit 1)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(1);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Clock + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |clock|::Clock + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

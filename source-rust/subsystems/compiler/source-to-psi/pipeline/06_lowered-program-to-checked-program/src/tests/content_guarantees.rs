@@ -193,7 +193,7 @@ fn checked_conservation_follows_the_owned_input_through_an_explicit_erasure() {
         matches!(clause.proposition, Proposition::ContentConservation(_))
     )).unwrap();
     let returns = terminal_semantics::content_transformations::forwarding::checked_returns(module, machine).unwrap();
-    assert_eq!(returns, [(0, machine.entry_claims[0].claim)]);
+    assert_eq!(returns, [(0, vec![machine.entry_claims[0].claim])]);
     let mut changed = module.clone();
     let candidate = changed.machines.iter_mut().find(|body| body.id == machine.id).unwrap();
     for block in &mut candidate.blocks {
@@ -289,7 +289,7 @@ fn independently_qualified_intervals_cover_the_consumed_range_on_every_return() 
         let machine = module.machines.iter().find(|machine| !machine.content_entry_claims.is_empty()).unwrap();
         let claim = machine.content_entry_claims[0].claim;
         let returns = terminal_semantics::content_transformations::forwarding::checked_returns(module, machine)?;
-        assert_eq!(returns, [(0, claim), (1, claim)]);
+        assert_eq!(returns, [(0, vec![claim]), (1, vec![claim])]);
         terminal_semantics::structural_qualifications::validate_shape_for_bodies(module, &[machine.id])
             .map_err(|error| error.detail.to_owned())
     };
@@ -307,5 +307,175 @@ fn independently_qualified_intervals_cover_the_consumed_range_on_every_return() 
         assert!(verify(&corrupted).unwrap_err().contains("overlap or leave an unproved gap"));
     }
     let short = SOURCE.replace("length: length - requested", "length: length - requested - 1");
-    assert!(verify(&short).unwrap_err().contains("do not reach the input endpoint"));
+    assert!(
+        verify(&short)
+            .unwrap_err()
+            .contains("do not reach the whole endpoint")
+    );
+}
+
+#[test]
+fn joining_owned_intervals_keeps_every_constituent_claim_for_each_domain() {
+    let split = include_str!(
+        "../../../../../../../../samples/cli/facts/independent_content_partition/local/main.omg"
+    );
+    let declarations = split.split_once("data Parts").unwrap().0;
+    let join = r#"
+machine join(left: Region in First & Second, right: Region in First & Second) -> Region in First & Second
+requires
+    embed(left.length) + embed(right.length) <= 18446744073709551615,
+    left.length == 0 || right.length == 0 || embed(right.base) == embed(left.base) + embed(left.length)
+ensures
+    core\Identity::<IntervalSet<Nat>>(
+        separate(First::content(old(@left)), First::content(old(@right))), First::content(@result)),
+    core\Identity::<IntervalSet<Nat>>(
+        separate(Second::content(old(@left)), Second::content(old(@right))), Second::content(@result))
+{
+    let { base as a, length as x } = left;
+    let { base as b, length as y } = right;
+    let start: u64 = match x == 0 { true -> b, false -> a, };
+    Region { base: start, length: x + y } as +First +Second
+}
+"#;
+    let verify = |body: &str| -> Result<(), String> {
+        let typed = with_content(&format!("{declarations}{body}"));
+        let entry = symbol(&typed, "join");
+        let prepared = crate::prepare_fixture(typed);
+        let lowered = crate::lowering::elaborate_for(
+            prepared.trees(),
+            roster(&[entry], &[], DependencyScope::Product),
+            terminal_codec::TerminalPublication::Portable,
+        )
+        .map_err(|err| err.detail.to_string())?;
+        let module = &lowered.module;
+        let machine = module
+            .machines
+            .iter()
+            .find(|machine| machine.content_entry_claims.len() == 2)
+            .unwrap();
+        let mut claims: Vec<_> = machine
+            .content_entry_claims
+            .iter()
+            .map(|binding| binding.claim)
+            .collect();
+        claims.sort();
+        assert_ne!(claims[0], claims[1]);
+        let returns = terminal_semantics::content_transformations::forwarding::checked_returns(
+            module, machine,
+        )?;
+        assert_eq!(returns, [(0, claims.clone()), (1, claims)]);
+        terminal_semantics::structural_qualifications::validate_shape_for_bodies(
+            module,
+            &[machine.id],
+        )
+        .map_err(|err| err.detail.to_owned())?;
+        let verdict =
+            crate::verdict::judge(Ok(lowered)).map_err(|failure| failure.detail.to_string())?;
+        let RouteVerdict::Accepted(accepted) = verdict else {
+            return Err(format!("{verdict:?}"));
+        };
+        let artifact = accepted
+            .publish()
+            .map_err(|failure| format!("{failure:?}"))?
+            .artifact;
+        let bytes = artifact.to_bytes();
+        let restored = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes)
+            .map_err(|failure| format!("{failure:?}"))?;
+        assert_eq!(restored.to_bytes(), bytes);
+        Ok(())
+    };
+    verify(join).unwrap();
+    assert!(verify(&join.replace("length: x + y", "length: x")).is_err());
+    assert!(verify(&join.replace("true -> b", "true -> a")).is_err());
+    assert!(
+        verify(&join.replace(
+            "Second::content(old(@right))",
+            "Second::content(old(@left))"
+        ))
+        .is_err()
+    );
+    assert!(
+        verify(&join.replace(
+            " || embed(right.base) == embed(left.base) + embed(left.length)",
+            " || right.length > 0"
+        ))
+        .is_err()
+    );
+}
+
+#[test]
+fn a_qualified_local_receives_the_content_of_the_value_stored_in_it() {
+    let (declarations, _) = include_str!(
+        "../../../../../../../../samples/cli/facts/independent_content_partition/local/main.omg"
+    )
+    .split_once("data Parts")
+    .unwrap();
+    let check = |incoming: &str| {
+        let source = format!(
+            "{declarations}
+machine identity(input: Region in {incoming}) -> Region in {incoming} {{ input }}
+machine hold(input: Region in {incoming}) -> Region in First & Second {{
+    let held: Region in First & Second = identity(input);
+    held
+}}"
+        );
+        let typed = with_content(&source);
+        let entry = symbol(&typed, "hold");
+        let prepared = crate::prepare_fixture(typed);
+        let lowered = crate::lowering::elaborate_for(
+            prepared.trees(),
+            roster(&[entry], &[], DependencyScope::Product),
+            terminal_codec::TerminalPublication::Invocation,
+        );
+        crate::verdict::judge(lowered)
+    };
+    let accepted = check("First & Second").unwrap();
+    assert!(matches!(accepted, RouteVerdict::Accepted(_)), "{accepted:?}");
+    let missing = check("First");
+    assert!(!matches!(missing, Ok(RouteVerdict::Accepted(_))), "{missing:?}");
+}
+
+#[test]
+fn a_returned_record_retires_after_its_qualified_fields_move() {
+    let (partition, _) = include_str!(
+        "../../../../../../../../samples/cli/facts/independent_content_partition/local/main.omg"
+    )
+    .split_once("machine exercise(")
+    .unwrap();
+    let check = |body| {
+        let typed = with_content(&format!(
+            "{partition}
+machine consume(a: Region in First & Second, b: Region in First & Second) {{
+    drop_region(a as -First -Second);
+    drop_region(b as -First -Second);
+}}
+machine run(whole: Region in First & Second)
+requires whole.base == 10 && whole.length == 48 {{
+    let parts: Parts = partition(whole, 16);
+    {body}
+}}"
+        ));
+        let entry = symbol(&typed, "run");
+        let prepared = crate::prepare_fixture(typed);
+        crate::verdict::judge(crate::lowering::elaborate_for(
+            prepared.trees(),
+            roster(&[entry], &[], DependencyScope::Product),
+            terminal_codec::TerminalPublication::Invocation,
+        ))
+    };
+    let RouteVerdict::Accepted(checked) = check("consume(parts.left, parts.right);").unwrap()
+    else {
+        panic!("both qualified components have moved to the callee");
+    };
+    checked.publish_invocation().unwrap();
+    for invalid in [
+        "consume(parts.left, parts.left);",
+        "drop_region(parts.left as -First -Second);",
+    ] {
+        let verdict = check(invalid);
+        assert!(
+            !matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+            "{verdict:?}"
+        );
+    }
 }

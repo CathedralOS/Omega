@@ -1,6 +1,9 @@
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
-// elapsed_timer: times a real workload with system\time -- the first full
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
+use {system}/time.omg;
+use {system}/time_host.omg;
+// elapsed_timer: times a real workload with {system}/time.omg -- the first full
 // consumer of the Instant and clock-read surface (TASKS_TIME.md rung 8).
 //
 // Chain: instant_now() captures a start Instant; sleep_for sleeps a
@@ -17,34 +20,25 @@ use omega\language\core\ProcessExit;
 //
 // Expected exit: 70.
 
-use system\Console;
-use system\Duration;
-use system\Instant;
-use system\TimeHost;
-use system\TotalResult;
-use system\duration_checked_as_milliseconds;
-use system\elapsed_since;
-use system\instant_now;
-use system\sleep_for;
 
 data Main {
 }
 
-machine main(context: @mutable Main) reaches ProcessExit + StandardOutput + TimeHost {
-    Console::write_line("elapsed_timer: times a 50ms workload with system::time");
-    let start: Instant = instant_now();
-    let pause: Duration = Duration { seconds: 0, subsecond_nanoseconds: 50000000 };
-    let slept: u32 = block sleep_for(pause);
+machine main(context: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput + |time_host|::TimeHost {
+    |console|::Console::write_line("elapsed_timer: times a 50ms workload with system::time");
+    let start: |time|::Instant = |time|::instant_now();
+    let pause: |time|::Duration = |time|::Duration { seconds: 0, subsecond_nanoseconds: 50000000 };
+    let slept: u32 = block |time|::sleep_for(pause);
     transition slept == 50 {
         true -> read_elapsed(context, start),
         false -> fail_request(context)
     }
-    machine read_elapsed(context: @mutable Main, start: Instant) {
-        let elapsed: Duration = elapsed_since(start);
-        let total_result: TotalResult = duration_checked_as_milliseconds(@elapsed);
+    machine read_elapsed(context: @mutable Main, start: |time|::Instant) {
+        let elapsed: |time|::Duration = |time|::elapsed_since(start);
+        let total_result: |time|::TotalResult = |time|::duration_checked_as_milliseconds(@elapsed);
         transition total_result {
-            TotalResult::Ok { total } -> render(context, total),
-            TotalResult::Overflow -> fail_overflow(context)
+            |time|::TotalResult::Ok { total } -> render(context, total),
+            |time|::TotalResult::Overflow -> fail_overflow(context)
         }
     }
     machine render(context: @mutable Main, milliseconds: u64) {
@@ -60,20 +54,20 @@ machine main(context: @mutable Main) reaches ProcessExit + StandardOutput + Time
         line[24] = digits[hundreds];
         line[25] = digits[tens];
         line[26] = digits[ones];
-        Console::write_line(@line[..]);
+        |console|::Console::write_line(@line[..]);
         transition milliseconds >= 50 {
             true -> good(context),
             false -> fail_elapsed(context)
         }
     }
-    machine good(context: @mutable Main) { ProcessExit::exit_process(70); }
-    machine fail_request(context: @mutable Main) { ProcessExit::exit_process(1); }
-    machine fail_elapsed(context: @mutable Main) { ProcessExit::exit_process(2); }
-    machine fail_overflow(context: @mutable Main) { ProcessExit::exit_process(3); }
+    machine good(context: @mutable Main) { |process_exit|::ProcessExit::exit_process(70); }
+    machine fail_request(context: @mutable Main) { |process_exit|::ProcessExit::exit_process(1); }
+    machine fail_elapsed(context: @mutable Main) { |process_exit|::ProcessExit::exit_process(2); }
+    machine fail_overflow(context: @mutable Main) { |process_exit|::ProcessExit::exit_process(3); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardOutput + TimeHost {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput + |time_host|::TimeHost {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

@@ -1,17 +1,17 @@
 // One owned root may be partitioned and reconstructed from its complete live descendant claims; equal geometry alone supplies no ownership.
 // Expected exit: 0
-use omega\language\core\Content;
-use omega\language\core\IntervalSet;
-use omega\language\core\Nat;
+use {omega}/language/core/content.omg;
+use {omega}/language/core/foundation.omg as proof;
+use {omega}/language/core/nat.omg;
 
 data Region [linear] dropped by drop_region { base: u64; length: u64; }
 
 domain Region::Owned established by issue;
 
-machine Owned::content(region: @Region) -> IntervalSet<Nat>
-satisfies Content<Region, IntervalSet<Nat>>::project {
-    IntervalSet { start: embed(region.base) as Nat,
-        end: (embed(region.base) + embed(region.length)) as Nat }
+machine Owned::content(region: @Region) -> |content|::IntervalSet<|nat|::Nat>
+satisfies |content|::Content<Region, |content|::IntervalSet<|nat|::Nat>>::project {
+    |content|::IntervalSet { start: embed(region.base) as |nat|::Nat,
+        end: (embed(region.base) + embed(region.length)) as |nat|::Nat }
 }
 
 machine issue() -> Region in Owned
@@ -25,7 +25,7 @@ data Parts { left: Region in Owned; right: Region in Owned; }
 machine rebuild_region(region: Region in Owned) -> Region in Owned
 requires region.base <= 58 && region.length <= 58 - region.base
 ensures result.base == region.base, result.length == region.length,
-    core\Identity::<IntervalSet<Nat>>(Owned::content(old(@region)), Owned::content(@result))
+    |proof|::Identity::<|content|::IntervalSet<|nat|::Nat>>(Owned::content(old(@region)), Owned::content(@result))
 {
     let { base, length } = region;
     Region { base: base, length: length }
@@ -35,7 +35,7 @@ machine retire_empty_tail(left: Region in Owned, right: Region in Owned) -> Regi
 requires left.base <= 58 && left.length <= 58 - left.base
     && right.base == left.base + left.length && right.length == 0
 ensures result.base == left.base, result.length == left.length,
-    core\Identity::<IntervalSet<Nat>>(
+    |proof|::Identity::<|content|::IntervalSet<|nat|::Nat>>(
         separate(Owned::content(old(@left)), Owned::content(old(@right))),
         Owned::content(@result)
     )
@@ -48,7 +48,7 @@ ensures result.base == left.base, result.length == left.length,
 machine finish_reunion(whole: Region in Owned) -> Region in Owned
 requires whole.base == 10 && whole.length == 48
 ensures result.base == whole.base, result.length == whole.length,
-    core\Identity::<IntervalSet<Nat>>(Owned::content(old(@whole)), Owned::content(@result))
+    |proof|::Identity::<|content|::IntervalSet<|nat|::Nat>>(Owned::content(old(@whole)), Owned::content(@result))
 {
     let parts: Parts = partition(whole, 48);
     let joined: Region in Owned = retire_empty_tail(parts.left, parts.right);
@@ -60,7 +60,7 @@ machine merge(left: Region in Owned, right: Region in Owned) -> Region in Owned
 requires left.base <= 58 && left.length <= 58 - left.base
     && right.base == left.base + left.length && right.length <= 58 - right.base
 ensures result.base == left.base, result.length == left.length + right.length,
-    core\Identity::<IntervalSet<Nat>>(
+    |proof|::Identity::<|content|::IntervalSet<|nat|::Nat>>(
         separate(Owned::content(old(@left)), Owned::content(old(@right))),
         Owned::content(@result)
     )
@@ -77,7 +77,7 @@ ensures
     result.left.length == requested,
     result.right.length == whole.length - requested,
     result.right.base == whole.base + requested,
-    core\Identity::<IntervalSet<Nat>>(
+    |proof|::Identity::<|content|::IntervalSet<|nat|::Nat>>(
         Owned::content(old(@whole)),
         separate(Owned::content(@result.left), Owned::content(@result.right))
     )
@@ -109,7 +109,7 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 
 boundary trait SelectedRejoin {
     machine rejoin(whole: Region in Owned, requested: u64) -> Region in Owned
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires whole.base == 10 && whole.length == 48 && requested <= whole.length ensures result in Owned, result.base == whole.base, result.length == whole.length, core\Identity::<IntervalSet<Nat>>(
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires whole.base == 10 && whole.length == 48 && requested <= whole.length ensures result in Owned, result.base == whole.base, result.length == whole.length, |proof|::Identity::<|content|::IntervalSet<|nat|::Nat>>(
             Owned::content(old(@whole)),
             Owned::content(@result)
         );
@@ -117,7 +117,7 @@ boundary trait SelectedRejoin {
 
 X86Rejoin satisfies SelectedRejoin {
     machine rejoin(whole: Region in Owned, requested: u64) -> Region in Owned
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires whole.base == 10 && whole.length == 48 && requested <= whole.length ensures result in Owned, result.base == whole.base, result.length == whole.length, core\Identity::<IntervalSet<Nat>>(
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires whole.base == 10 && whole.length == 48 && requested <= whole.length ensures result in Owned, result.base == whole.base, result.length == whole.length, |proof|::Identity::<|content|::IntervalSet<|nat|::Nat>>(
             Owned::content(old(@whole)),
             Owned::content(@result)
         )
@@ -136,7 +136,7 @@ X86Rejoin satisfies SelectedRejoin {
 
 ArmRejoin satisfies SelectedRejoin {
     machine rejoin(whole: Region in Owned, requested: u64) -> Region in Owned
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires whole.base == 10 && whole.length == 48 && requested <= whole.length ensures result in Owned, result.base == whole.base, result.length == whole.length, core\Identity::<IntervalSet<Nat>>(
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires whole.base == 10 && whole.length == 48 && requested <= whole.length ensures result in Owned, result.base == whole.base, result.length == whole.length, |proof|::Identity::<|content|::IntervalSet<|nat|::Nat>>(
             Owned::content(old(@whole)),
             Owned::content(@result)
         )

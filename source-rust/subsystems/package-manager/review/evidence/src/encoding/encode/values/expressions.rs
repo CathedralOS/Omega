@@ -2,24 +2,25 @@
 
 use super::super::declarations::encode_type_identity;
 use super::super::encoder::Encoder;
-use crate::encoding::PackageReviewEncodingError;
-use crate::record::{PackageReviewContractExpression, PackageReviewContractOperatorMeaning};
-
 use super::declarations::encode_operator_coordinate;
+use crate::encoding::PackageReviewEncodingError;
+use crate::encoding::encode::values::identity::encode_nominal;
+use crate::record::{
+    PackageReviewArithmeticDomain, PackageReviewAtomicLoadOrdering,
+    PackageReviewByteSequencePredicate, PackageReviewCastForm, PackageReviewContractBinaryOperator,
+    PackageReviewContractCallTarget, PackageReviewContractEvidenceArgument,
+    PackageReviewContractExpression, PackageReviewContractKind,
+    PackageReviewContractOperatorMeaning, PackageReviewContractStaticArgument,
+    PackageReviewContractUnaryOperator, PackageReviewFloatLiteral, PackageReviewLayoutQueryKind,
+    PackageReviewReferenceAccess,
+};
 
 pub(crate) fn encode_contract_expression(
     encoder: &mut Encoder,
     expression: &PackageReviewContractExpression,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.nested(|encoder| body::encode_contract_expression_body(encoder, expression))
+    encoder.nested(|encoder| encode_contract_expression_body(encoder, expression))
 }
-
-mod body;
-mod evidence;
-mod static_arguments;
-
-use evidence::encode_contract_evidence_argument;
-pub(crate) use static_arguments::encode_contract_static_argument;
 
 pub(crate) fn encode_contract_operator_meaning(
     encoder: &mut Encoder,
@@ -30,6 +31,455 @@ pub(crate) fn encode_contract_operator_meaning(
         PackageReviewContractOperatorMeaning::Declared(coordinate) => {
             encoder.tag("declared", 1);
             encoder.field_by("coordinate", coordinate, encode_operator_coordinate)?;
+        }
+    }
+    Ok(())
+}
+
+// Canonical encoding for contract expression bodies across literals, constructors, references, casts, and calls.
+// Call-target tag `3` is retired (the former receiver collection views) and must never be reused.
+
+fn encode_contract_expression_body(
+    encoder: &mut Encoder,
+    expression: &PackageReviewContractExpression,
+) -> Result<(), PackageReviewEncodingError> {
+    match expression {
+        PackageReviewContractExpression::LayoutQuery { kind, operand } => {
+            encoder.tag("layout_query", 27);
+            encoder.field("kind", |encoder| {
+                match kind {
+                    PackageReviewLayoutQueryKind::Size => encoder.tag("size", 0),
+                    PackageReviewLayoutQueryKind::Alignment => encoder.tag("alignment", 1),
+                };
+                Ok(())
+            })?;
+            encoder.field_by("operand", operand, encode_type_identity)?;
+        }
+        PackageReviewContractExpression::TypeEquality {
+            left,
+            right,
+            negated,
+        } => {
+            encoder.tag("type_equality", 26);
+            encoder.field_by("left", left, encode_type_identity)?;
+            encoder.field_by("right", right, encode_type_identity)?;
+            encoder.boolean_field("negated", *negated)?;
+        }
+        PackageReviewContractExpression::Boolean(value) => {
+            encoder.tag("boolean", 0);
+            encoder.boolean_field("value", *value)?;
+        }
+        PackageReviewContractExpression::Integer(value) => {
+            encoder.tag("integer", 1);
+            encoder.field("value", |encoder| encoder.string(value))?;
+        }
+        PackageReviewContractExpression::Float(value) => {
+            encoder.tag("float", 19);
+            encoder.field("literal", |encoder| {
+                match value {
+                    PackageReviewFloatLiteral::F32(bits) => {
+                        encoder.tag("f32", 0);
+                        encoder.u32_field("bits", *bits)?;
+                    }
+                    PackageReviewFloatLiteral::F64(bits) => {
+                        encoder.tag("f64", 1);
+                        encoder.u64_field("bits", *bits)?;
+                    }
+                };
+                Ok(())
+            })?;
+        }
+        PackageReviewContractExpression::Array(values) => {
+            encoder.tag("array", 14);
+            encoder.sequence_field("values", values, encode_contract_expression)?;
+        }
+        PackageReviewContractExpression::Constructor { data, case, fields } => {
+            encoder.tag("constructor", 15);
+            encoder.field("data", |encoder| encode_nominal(encoder, data))?;
+            encoder.option_field("case", case.as_ref(), encode_nominal)?;
+            encoder.field("fields", |encoder| {
+                encoder.sequence(fields, |encoder, field| {
+                    encoder.field("field", |encoder| encode_nominal(encoder, &field.field))?;
+                    encoder.field_by("value", &field.value, encode_contract_expression)
+                })
+            })?;
+        }
+        PackageReviewContractExpression::Indexed {
+            meaning,
+            collection,
+            index,
+        } => {
+            encoder.tag("indexed", 16);
+            encoder.field_by("meaning", meaning, encode_contract_operator_meaning)?;
+            encoder.field_by("collection", &**collection, encode_contract_expression)?;
+            encoder.field_by("index", &**index, encode_contract_expression)?;
+        }
+        PackageReviewContractExpression::Range {
+            start,
+            end,
+            end_inclusive,
+        } => {
+            encoder.tag("range", 17);
+            encoder.option_field("start", start.as_deref(), encode_contract_expression)?;
+            encoder.option_field("end", end.as_deref(), encode_contract_expression)?;
+            encoder.boolean_field("end_inclusive", *end_inclusive)?;
+        }
+        PackageReviewContractExpression::ByteSequence(value) => {
+            encoder.tag("byte_sequence", 12);
+            encoder.field("value", |encoder| encoder.bytes(value))?;
+        }
+        PackageReviewContractExpression::DomainSubject => encoder.tag("domain_subject", 10),
+        PackageReviewContractExpression::Parameter(position) => {
+            encoder.tag("parameter", 2);
+            encoder.u32_field("position", *position)?;
+        }
+        PackageReviewContractExpression::Result => encoder.tag("result", 3),
+        PackageReviewContractExpression::GenericBinder(position) => {
+            encoder.tag("generic_binder", 4);
+            encoder.u32_field("position", *position)?;
+        }
+        PackageReviewContractExpression::Nominal(identity) => {
+            encoder.tag("nominal", 5);
+            encoder.field("identity", |encoder| encode_nominal(encoder, identity))?;
+        }
+        PackageReviewContractExpression::BuiltinTypeMember(member) => {
+            encoder.tag("builtin_type_member", 25);
+            encoder.field("member", |encoder| {
+                match member {
+                    symbols::BuiltinTypeMember::AddressBound => encoder.tag("address_bound", 0),
+                };
+                Ok(())
+            })?;
+        }
+        PackageReviewContractExpression::CaseMembership { subject, case } => {
+            encoder.tag("case_membership", 22);
+            encoder.field_by("subject", &**subject, encode_contract_expression)?;
+            encoder.field("case", |encoder| encode_nominal(encoder, case))?;
+        }
+        PackageReviewContractExpression::Reference { access, target } => {
+            encoder.tag("reference", 20);
+            encoder.field("access", |encoder| {
+                match access {
+                    PackageReviewReferenceAccess::Shared => encoder.tag("shared", 0),
+                    PackageReviewReferenceAccess::Mutable => encoder.tag("mutable", 1),
+                    PackageReviewReferenceAccess::WriteOnly => encoder.tag("write_only", 2),
+                };
+                Ok(())
+            })?;
+            encoder.field_by("target", &**target, encode_contract_expression)?;
+        }
+        PackageReviewContractExpression::AtomicLoad { value, ordering } => {
+            encoder.tag("atomic_load", 21);
+            encoder.field("ordering", |encoder| {
+                match ordering {
+                    PackageReviewAtomicLoadOrdering::NoOrdering => encoder.tag("no_ordering", 0),
+                    PackageReviewAtomicLoadOrdering::Receive => encoder.tag("receive", 1),
+                    PackageReviewAtomicLoadOrdering::GlobalOrder => encoder.tag("global_order", 2),
+                };
+                Ok(())
+            })?;
+            encoder.field_by("value", &**value, encode_contract_expression)?;
+        }
+        PackageReviewContractExpression::ZeroValue(type_identity) => {
+            encoder.tag("zero_value", 13);
+            encoder.field_by("type_identity", type_identity, encode_type_identity)?;
+        }
+        PackageReviewContractExpression::CollectionLength { collection } => {
+            encoder.tag("collection_length", 18);
+            encoder.field_by("collection", &**collection, encode_contract_expression)?;
+        }
+        PackageReviewContractExpression::CollectionCapacity { collection } => {
+            encoder.tag("collection_capacity", 23);
+            encoder.field_by("collection", &**collection, encode_contract_expression)?;
+        }
+        PackageReviewContractExpression::Member {
+            receiver,
+            member,
+            case_variant,
+        } => {
+            encoder.tag("member", 8);
+            encoder.field_by("receiver", &**receiver, encode_contract_expression)?;
+            encoder.field("member", |encoder| encode_nominal(encoder, member))?;
+            encoder.option_field("case_variant", case_variant.as_ref(), encode_nominal)?;
+        }
+        PackageReviewContractExpression::Cast {
+            value,
+            target,
+            arithmetic_domain,
+            semantic_domain,
+            semantic_domain_arguments,
+            form,
+        } => {
+            encoder.tag("cast", 9);
+            encoder.field_by("value", &**value, encode_contract_expression)?;
+            encoder.field("target", |encoder| encode_type_identity(encoder, target))?;
+            encoder.field("arithmetic_domain", |encoder| {
+                match arithmetic_domain {
+                    PackageReviewArithmeticDomain::Exact => encoder.tag("exact", 0),
+                    PackageReviewArithmeticDomain::Wrapping => encoder.tag("wrapping", 1),
+                    PackageReviewArithmeticDomain::Saturating => encoder.tag("saturating", 2),
+                    PackageReviewArithmeticDomain::Trapping => encoder.tag("trapping", 3),
+                };
+                Ok(())
+            })?;
+            encoder.option_field("semantic_domain", semantic_domain.as_ref(), encode_nominal)?;
+            encoder.field("semantic_domain_arguments", |encoder| {
+                encoder.sequence(semantic_domain_arguments, encode_type_identity)
+            })?;
+            encoder.field("form", |encoder| {
+                match form {
+                    PackageReviewCastForm::Value => encoder.tag("value", 0),
+                    PackageReviewCastForm::Recast(access) => match access {
+                        PackageReviewReferenceAccess::Shared => encoder.tag("recast_shared", 1),
+                        PackageReviewReferenceAccess::Mutable => encoder.tag("recast_mutable", 2),
+                        PackageReviewReferenceAccess::WriteOnly => {
+                            encoder.tag("recast_write_only", 3)
+                        }
+                    },
+                    PackageReviewCastForm::KeepDomain => encoder.tag("keep_domain", 4),
+                    PackageReviewCastForm::RemoveDomain => encoder.tag("remove_domain", 5),
+                    PackageReviewCastForm::AddDomain => encoder.tag("add_domain", 6),
+                };
+                Ok(())
+            })?;
+        }
+        PackageReviewContractExpression::Call {
+            receiver,
+            target,
+            static_arguments,
+            evidence_arguments,
+            arguments,
+        } => {
+            encoder.tag("call", 11);
+            encoder.option_field("receiver", receiver.as_deref(), encode_contract_expression)?;
+            encoder.field("target", |encoder| {
+                match target {
+                    PackageReviewContractCallTarget::Nominal(identity) => {
+                        encoder.tag("nominal", 0);
+                        encoder.field("identity", |encoder| encode_nominal(encoder, identity))?;
+                    }
+                    PackageReviewContractCallTarget::BuiltinFunction(function) => {
+                        encoder.tag("builtin_function", 2);
+                        encoder.field("u16", |encoder| {
+                            encoder.u16(u16::try_from(function.ordinal()).map_err(|_| {
+                        PackageReviewEncodingError::new(
+                            "compiler builtin-function ordinal exceeds the portable encoding range",
+                        )
+                    })?);
+                            Ok(())
+                        })?;
+                    }
+                    PackageReviewContractCallTarget::ByteSequencePredicate(predicate) => {
+                        encoder.tag("byte_sequence_predicate", 1);
+                        encoder.field("predicate", |encoder| {
+                            match predicate {
+                                PackageReviewByteSequencePredicate::ValidUtf8 => {
+                                    encoder.tag("valid_utf8", 0)
+                                }
+                                PackageReviewByteSequencePredicate::NoNul => {
+                                    encoder.tag("no_nul", 1)
+                                }
+                                PackageReviewByteSequencePredicate::AsciiOnly => {
+                                    encoder.tag("ascii_only", 2)
+                                }
+                                PackageReviewByteSequencePredicate::NonEmpty => {
+                                    encoder.tag("non_empty", 3)
+                                }
+                            };
+                            Ok(())
+                        })?;
+                    }
+                    PackageReviewContractCallTarget::ProofView { name } => {
+                        encoder.tag("proof_view", 4);
+                        encoder.field("name", |encoder| encoder.string(name))?;
+                    }
+                };
+                Ok(())
+            })?;
+            encoder.field("static_arguments", |encoder| {
+                encoder.sequence(static_arguments, encode_contract_static_argument)
+            })?;
+            encoder.field("evidence_arguments", |encoder| {
+                encoder.sequence(evidence_arguments, encode_contract_evidence_argument)
+            })?;
+            encoder.sequence_field("arguments", arguments, encode_contract_expression)?;
+        }
+        PackageReviewContractExpression::Binary {
+            meaning,
+            operator,
+            left,
+            right,
+        } => {
+            encoder.tag("binary", 6);
+            encoder.field_by("meaning", meaning, encode_contract_operator_meaning)?;
+            encoder.field("operator", |encoder| {
+                match operator {
+                    PackageReviewContractBinaryOperator::Add => encoder.tag("add", 0),
+                    PackageReviewContractBinaryOperator::And => encoder.tag("and", 1),
+                    PackageReviewContractBinaryOperator::BitwiseAnd => {
+                        encoder.tag("bitwise_and", 2)
+                    }
+                    PackageReviewContractBinaryOperator::BitwiseOr => encoder.tag("bitwise_or", 3),
+                    PackageReviewContractBinaryOperator::BitwiseXor => {
+                        encoder.tag("bitwise_xor", 4)
+                    }
+                    PackageReviewContractBinaryOperator::Divide => encoder.tag("divide", 5),
+                    PackageReviewContractBinaryOperator::Equal => encoder.tag("equal", 6),
+                    PackageReviewContractBinaryOperator::Greater => encoder.tag("greater", 7),
+                    PackageReviewContractBinaryOperator::GreaterOrEqual => {
+                        encoder.tag("greater_or_equal", 8)
+                    }
+                    PackageReviewContractBinaryOperator::Less => encoder.tag("less", 9),
+                    PackageReviewContractBinaryOperator::LessOrEqual => {
+                        encoder.tag("less_or_equal", 10)
+                    }
+                    PackageReviewContractBinaryOperator::Modulo => encoder.tag("modulo", 11),
+                    PackageReviewContractBinaryOperator::Multiply => encoder.tag("multiply", 12),
+                    PackageReviewContractBinaryOperator::NotEqual => encoder.tag("not_equal", 13),
+                    PackageReviewContractBinaryOperator::Or => encoder.tag("or", 14),
+                    PackageReviewContractBinaryOperator::ShiftLeft => encoder.tag("shift_left", 15),
+                    PackageReviewContractBinaryOperator::ShiftRight => {
+                        encoder.tag("shift_right", 16)
+                    }
+                    PackageReviewContractBinaryOperator::Subtract => encoder.tag("subtract", 17),
+                };
+                Ok(())
+            })?;
+            encoder.field("left", |encoder| encode_contract_expression(encoder, left))?;
+            encoder.field_by("right", &**right, encode_contract_expression)?;
+        }
+        PackageReviewContractExpression::Unary { operator, operand } => {
+            encoder.tag("unary", 7);
+            encoder.field("operator", |encoder| {
+                match operator {
+                    PackageReviewContractUnaryOperator::BitwiseNot => encoder.tag("bitwise_not", 0),
+                    PackageReviewContractUnaryOperator::LogicalNot => encoder.tag("logical_not", 1),
+                };
+                Ok(())
+            })?;
+            encoder.field_by("operand", &**operand, encode_contract_expression)?;
+        }
+        PackageReviewContractExpression::Match { subject, arms } => {
+            encoder.tag("match", 24);
+            encoder.field_by("subject", &**subject, encode_contract_expression)?;
+            encoder.field("arms", |encoder| {
+                encoder.sequence(arms, |encoder, arm| {
+                    encoder.option_field(
+                        "pattern",
+                        arm.pattern.as_ref(),
+                        encode_contract_expression,
+                    )?;
+                    encoder.field_by("value", &arm.value, encode_contract_expression)
+                })
+            })?;
+        }
+    }
+    Ok(())
+}
+
+// Canonical encoding for contract evidence arguments and their source/parameter lane coordinates.
+
+fn encode_contract_evidence_argument(
+    encoder: &mut Encoder,
+    argument: &PackageReviewContractEvidenceArgument,
+) -> Result<(), PackageReviewEncodingError> {
+    encoder.u32_field("lane_position", argument.lane_position())?;
+    for (field, term) in [
+        ("source", argument.source()),
+        ("parameter", argument.parameter()),
+    ] {
+        encoder.field(field, |encoder| {
+            encoder.field("owner", |encoder| encode_nominal(encoder, term.owner()))?;
+            encoder.field("kind", |encoder| {
+                match term.kind() {
+                    PackageReviewContractKind::Requires => encoder.tag("requires", 0),
+                    PackageReviewContractKind::Ensures => encoder.tag("ensures", 1),
+                };
+                Ok(())
+            })?;
+            encoder.u32_field("lane_position", term.lane_position())?;
+            Ok(())
+        })?;
+    }
+    Ok(())
+}
+
+// Canonical encoding for contract static arguments (types, generic binders, constants, machines, and conformances).
+
+pub(crate) fn encode_contract_static_argument(
+    encoder: &mut Encoder,
+    argument: &PackageReviewContractStaticArgument,
+) -> Result<(), PackageReviewEncodingError> {
+    encoder.nested(|encoder| encode_contract_static_argument_body(encoder, argument))
+}
+
+pub(in crate::encoding::encode::values::expressions) fn encode_contract_static_argument_body(
+    encoder: &mut Encoder,
+    argument: &PackageReviewContractStaticArgument,
+) -> Result<(), PackageReviewEncodingError> {
+    match argument {
+        PackageReviewContractStaticArgument::Type(identity) => {
+            encoder.tag("type", 0);
+            encoder.field_by("identity", identity, encode_type_identity)?;
+        }
+        PackageReviewContractStaticArgument::GenericTypeBinder(position) => {
+            encoder.tag("generic_type_binder", 5);
+            encoder.u32_field("position", *position)?;
+        }
+        PackageReviewContractStaticArgument::GenericType {
+            base,
+            lifetime_arguments,
+            arguments,
+        } => {
+            encoder.tag("generic_type", 1);
+            encoder.field("base", |encoder| encode_type_identity(encoder, base))?;
+            encoder.field("lifetime_arguments", |encoder| {
+                encoder.sequence(lifetime_arguments, |encoder, argument| {
+                    encoder.u32_field("argument", *argument)?;
+                    Ok(())
+                })
+            })?;
+            encoder.sequence_field("arguments", arguments, encode_contract_static_argument)?;
+        }
+        PackageReviewContractStaticArgument::ConstInteger(value) => {
+            encoder.tag("const_integer", 2);
+            encoder.field("value", |encoder| encoder.string(value))?;
+        }
+        PackageReviewContractStaticArgument::ConstBoolean(value) => {
+            encoder.tag("const_boolean", 7);
+            encoder.boolean_field("value", *value)?;
+        }
+        PackageReviewContractStaticArgument::ConstStructured {
+            declared_type,
+            canonical_value_encoding,
+        } => {
+            encoder.tag("const_structured", 9);
+            encoder.field_by("declared_type", declared_type, encode_type_identity)?;
+            encoder.string_field("canonical_value_encoding", canonical_value_encoding)?;
+        }
+        PackageReviewContractStaticArgument::GenericConstBinder(position) => {
+            encoder.tag("generic_const_binder", 6);
+            encoder.u32_field("position", *position)?;
+        }
+        PackageReviewContractStaticArgument::GenericMachineBinder(position) => {
+            encoder.tag("generic_machine_binder", 3);
+            encoder.u32_field("position", *position)?;
+        }
+        PackageReviewContractStaticArgument::ConcreteMachine(identity) => {
+            encoder.tag("concrete_machine", 4);
+            encoder.field("identity", |encoder| encode_nominal(encoder, identity))?;
+        }
+        PackageReviewContractStaticArgument::ConformanceApplication {
+            declaration,
+            arguments,
+            trait_identity,
+            trait_arguments,
+        } => {
+            encoder.tag("conformance_application", 8);
+            encoder.field_by("declaration", declaration, encode_nominal)?;
+            encoder.sequence_field("arguments", arguments, encode_contract_static_argument)?;
+            encoder.field_by("trait_identity", trait_identity, encode_nominal)?;
+            encoder.sequence_field("trait_arguments", trait_arguments, encode_type_identity)?;
         }
     }
     Ok(())
@@ -93,7 +543,7 @@ mod codec_tests {
         let expression =
             PackageReviewContractExpression::Nominal(crate::record::PackageReviewNominalIdentity {
                 owner: crate::record::PackageReviewNominalOwner::Unresolved,
-                path: "addr::Bound".to_owned(),
+                path: "address::Bound".to_owned(),
             });
         let mut encoder = Encoder::bounded(64);
         assert!(encode_contract_expression(&mut encoder, &expression).is_err());

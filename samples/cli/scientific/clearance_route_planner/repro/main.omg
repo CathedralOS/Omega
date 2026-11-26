@@ -1,8 +1,8 @@
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_exit.omg;
 // Complete current-main witness: static bounded-byte loans on conditional edges.
 // Expected exit: 70.
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit {
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit {
     let bytes: [u8; 2] = [65,66];
     transition bytes[0] == 65 {
         true -> read(main, @bytes),
@@ -14,12 +14,12 @@ machine main(main: @mutable Main) reaches ProcessExit {
             false -> bad(main)
         }
     }
-    machine good(main: @mutable Main) { ProcessExit::exit_process(70); }
-    machine bad(main: @mutable Main) { ProcessExit::exit_process(71); }
+    machine good(main: @mutable Main) { |process_exit|::ProcessExit::exit_process(70); }
+    machine bad(main: @mutable Main) { |process_exit|::ProcessExit::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit {
+machine entry_start() reaches |process_exit|::ProcessExit {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }

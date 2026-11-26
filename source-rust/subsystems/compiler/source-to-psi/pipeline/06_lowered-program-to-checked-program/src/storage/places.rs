@@ -673,9 +673,16 @@ impl Reached {
     }
 }
 
-/// A read or block entry observes a value without writing or restoring it.
-struct Observation {
-    point: ProgramPoint,
+/// A block entry has one fallback value per backing place. Later reads are
+/// ordered by their position so a write can invalidate an earlier read.
+#[derive(Default)]
+struct BlockObservations {
+    at_entry: BTreeMap<Lineage, ValueId>,
+    reads: BTreeMap<Lineage, Vec<ObservedRead>>,
+}
+
+struct ObservedRead {
+    operation: OperationId,
     position: usize,
     value: ValueId,
 }
@@ -1244,7 +1251,7 @@ pub(crate) struct Storage<'a> {
     block_log_ranges: Vec<std::ops::Range<usize>>,
     arrivals: Vec<Vec<arrivals::Arrival>>,
     cleanup_writes: Vec<crate::owned_cleanup::Write>,
-    observations: Vec<BTreeMap<Lineage, Vec<Observation>>>,
+    observations: Vec<BlockObservations>,
     /// The `requires` clauses of each data type, by its identity
     /// (`Elaboration::domains`).
     domains: &'a IdTable<StructuralTypeId, Vec<Proposition>>,
@@ -1398,14 +1405,14 @@ impl<'a> Storage<'a> {
                 })
                 .collect(),
             cleanup_writes: Vec::new(),
-            observations: (0..graph.block_count()).map(|_| BTreeMap::new()).collect(),
+            observations: (0..graph.block_count())
+                .map(|_| BlockObservations::default())
+                .collect(),
             domains,
             defaults,
             default_operations,
             routed_write,
         };
-        // Entry observations occupy position zero. Install them before the
-        // operation loop appends reads in position order for binary search.
         storage.initial_contents_are_declared(references, tables)?;
         storage.log = storage.stores(references, tables, value_types)?;
         storage.cleanup_writes = crate::owned_cleanup::writes(module, lowered, references)?;
@@ -1482,10 +1489,11 @@ impl<'a> Storage<'a> {
                     })?
                     .id;
                 storage.observations[index(block.id.get())]
+                    .reads
                     .entry(leaf.place)
                     .or_default()
-                    .push(Observation {
-                        point: ProgramPoint::AfterOperation(operation.id),
+                    .push(ObservedRead {
+                        operation: operation.id,
                         position: before + 1,
                         value,
                     });
@@ -4378,16 +4386,15 @@ impl<'a> Storage<'a> {
                 if budget.initialization == Initialization::NotAsked
                     && budget.observations == Observations::All
                     && let Asked::Contents(leaf) = asked
-                    && let Some(observations) = self.observations[index(block.get())].get(leaf)
+                    && let Some(observations) = self.observations[index(block.get())].reads.get(leaf)
                 {
                     let end =
                         observations.partition_point(|observation| observation.position <= up_to);
                     if let Some(observation) = end.checked_sub(1).map(|last| &observations[last])
-                        && !matches!(observation.point, ProgramPoint::BlockEntry(_))
                         && last.is_none_or(|(_, row)| row.position < observation.position)
                         && !budget.crossed_entries[index(block.get())]
                         && self.graph.dominates(
-                            observation.point,
+                            ProgramPoint::AfterOperation(observation.operation),
                             budget.used.ok_or_else(|| {
                                 self.foreign(concerns, "a storage trace has no use point")
                             })?,
@@ -4410,12 +4417,9 @@ impl<'a> Storage<'a> {
                     && budget.observations == Observations::All
                     && let Asked::Contents(leaf) = asked
                     && !budget.crossed_entries[index(block.get())]
-                    && let Some(observation) = self.observations[index(block.get())]
-                        .get(leaf)
-                        .and_then(|rows| rows.first())
-                        .filter(|row| matches!(row.point, ProgramPoint::BlockEntry(_)))
+                    && let Some(&entry) = self.observations[index(block.get())].at_entry.get(leaf)
                     && self.graph.dominates(
-                        observation.point,
+                        ProgramPoint::BlockEntry(block),
                         budget.used.ok_or_else(|| {
                             self.foreign(concerns, "a storage trace has no use point")
                         })?,
@@ -4427,7 +4431,7 @@ impl<'a> Storage<'a> {
                     if self.cuts_incoming_facts(block)? {
                         budget.add_supply(
                             destination,
-                            Supply::Direct(Reached::Value(observation.value)),
+                            Supply::Direct(Reached::Value(entry)),
                         );
                         continue;
                     }
@@ -4439,7 +4443,7 @@ impl<'a> Storage<'a> {
                     budget.fallbacks.push(EntryFallback {
                         upstream,
                         destination,
-                        value: observation.value,
+                        value: entry,
                     });
                     destination = upstream;
                 }

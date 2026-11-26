@@ -1,22 +1,23 @@
-use omega\language\core\ProcessExit;
+use {omega}/language/core/foundation.omg as proof;
+use {omega}/language/core/process_exit.omg;
+use {omega}/language/core/relation.omg;
 // Expected exit: 70
 // Checked quotient operations over custody-free copy representatives.
 
-use omega\language\core\Equivalence;
 
 data Representative [copy] { value: i32; }
 
-proposition equivalent(a: Representative, b: Representative) = core\Identity::<Representative>(a, b);
+proposition equivalent(a: Representative, b: Representative) = |proof|::Identity::<Representative>(a, b);
 
 machine equivalent_reflexive(a: Representative)
-ensures core\Identity::<Representative>(a, a)
+ensures |proof|::Identity::<Representative>(a, a)
 {
 }
 
 machine equivalent_symmetric(a: Representative, b: Representative)
 requires
-    core\Identity::<Representative>(a, b)
-ensures core\Identity::<Representative>(b, a)
+    |proof|::Identity::<Representative>(a, b)
+ensures |proof|::Identity::<Representative>(b, a)
 {
 }
 
@@ -26,13 +27,13 @@ machine equivalent_transitive(
     c: Representative
 )
 requires
-    core\Identity::<Representative>(a, b),
-    core\Identity::<Representative>(b, c)
-ensures core\Identity::<Representative>(a, c)
+    |proof|::Identity::<Representative>(a, b),
+    |proof|::Identity::<Representative>(b, c)
+ensures |proof|::Identity::<Representative>(a, c)
 {
 }
 
-RepresentativeEquivalence satisfies Equivalence<Representative, equivalent> {
+RepresentativeEquivalence satisfies |relation|::Equivalence<Representative, equivalent> {
     machine reflexive(value: Representative) ensures equivalent(value, value) { equivalent_reflexive(value) }
     machine symmetric(left: Representative, right: Representative) requires equivalent(left, right) ensures equivalent(right, left) { equivalent_symmetric(left, right) }
     machine transitive(left: Representative, middle: Representative, right: Representative) requires equivalent(left, middle), equivalent(middle, right) ensures equivalent(left, right) { equivalent_transitive(left, middle, right) }
@@ -40,7 +41,7 @@ RepresentativeEquivalence satisfies Equivalence<Representative, equivalent> {
 
 data EquivalenceClass [copy] = Representative % equivalent
 requires equivalent satisfies
-    Equivalence<Representative, equivalent>
+    |relation|::Equivalence<Representative, equivalent>
     as RepresentativeEquivalence;
 
 machine representative(value: Representative) -> Representative {
@@ -90,7 +91,7 @@ machine computed_result() -> i32 in Trapping crashes Trap {
 
 data Main { }
 
-machine Main::main(main: @mutable Main) reaches ProcessExit crashes Trap {
+machine Main::main(main: @mutable Main) reaches |process_exit|::ProcessExit crashes Trap {
     let local: EquivalenceClass = Representative { value: 11 } as EquivalenceClass;
     let field: Holder = Holder { item: Representative { value: 13 } as EquivalenceClass };
     let local_result: i32 = observe(admitted(local));
@@ -102,12 +103,12 @@ machine Main::main(main: @mutable Main) reaches ProcessExit crashes Trap {
         true -> matched(main),
         false -> mismatched(main)
     }
-    machine matched(main: @mutable Main) { ProcessExit::exit_process(70); }
-    machine mismatched(main: @mutable Main) { ProcessExit::exit_process(71); }
+    machine matched(main: @mutable Main) { |process_exit|::ProcessExit::exit_process(70); }
+    machine mismatched(main: @mutable Main) { |process_exit|::ProcessExit::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit crashes Trap {
+machine entry_start() reaches |process_exit|::ProcessExit crashes Trap {
     let mutable entry_storage: Main;
     Main::main(@mutable entry_storage);
 }

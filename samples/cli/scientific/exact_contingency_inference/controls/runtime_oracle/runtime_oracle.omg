@@ -1,90 +1,86 @@
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use domain/inference/inference.omg;
+use domain/tables/tables.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Numeric execution control frozen from the independent Cartesian oracle before execution.
 // The real application remains stdin-driven; this opcode also checks Terminal's calculations,
 // since the shipped --both route compares termination rather than stdout.
-use system\Console;
-use domain\tables;
-use domain\tables\Table;
-use domain\tables\Model;
-use domain\tables\Inference;
-use domain\inference;
-use domain\inference\analyze;
-machine snapshot(model: @Model, expected: @Inference) -> bool {
-    let actual: Inference = analyze(model);
+machine snapshot(model: @|tables|::Model, expected: @|tables|::Inference) -> bool {
+    let actual: |tables|::Inference = |inference|::analyze(model);
     actual.status == expected.status && actual.count == expected.count &&
     actual.partition == expected.partition && actual.observed_weight == expected.observed_weight &&
     actual.score == expected.score && actual.denominator == expected.denominator &&
     actual.probability_tail == expected.probability_tail && actual.association_tail == expected.association_tail &&
     actual.ties == expected.ties
 }
-public machine frozen_numerical_control() reaches ProcessExit + StandardOutput
-invokes Console
+public machine frozen_numerical_control() reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput
+invokes |console|::Console
 {
     transition { _ -> case_0() }
     machine case_0() {
-        let model: Model = Model { rows: [3, 3], columns: [2, 2, 2],
-            observed: Table { cells: [1, 1, 1, 1, 1, 1] }, zeros: [0, 0, 0, 0, 0, 0] };
-        let expected: Inference = Inference { status: 0, count: 7, partition: 1800, observed_weight: 720, score: 0, denominator: 432, probability_tail: 1800, association_tail: 1800, ties: 1 };
+        let model: |tables|::Model = |tables|::Model { rows: [3, 3], columns: [2, 2, 2],
+            observed: |tables|::Table { cells: [1, 1, 1, 1, 1, 1] }, zeros: [0, 0, 0, 0, 0, 0] };
+        let expected: |tables|::Inference = |tables|::Inference { status: 0, count: 7, partition: 1800, observed_weight: 720, score: 0, denominator: 432, probability_tail: 1800, association_tail: 1800, ties: 1 };
         transition snapshot(@model, @expected) {
             true -> case_1(),
             false -> failed()
         }
     }
     machine case_1() {
-        let model: Model = Model { rows: [3, 3], columns: [2, 2, 2],
-            observed: Table { cells: [2, 1, 0, 0, 1, 2] }, zeros: [0, 0, 0, 0, 0, 0] };
-        let expected: Inference = Inference { status: 0, count: 7, partition: 1800, observed_weight: 180, score: 1728, denominator: 432, probability_tail: 1080, association_tail: 1080, ties: 6 };
+        let model: |tables|::Model = |tables|::Model { rows: [3, 3], columns: [2, 2, 2],
+            observed: |tables|::Table { cells: [2, 1, 0, 0, 1, 2] }, zeros: [0, 0, 0, 0, 0, 0] };
+        let expected: |tables|::Inference = |tables|::Inference { status: 0, count: 7, partition: 1800, observed_weight: 180, score: 1728, denominator: 432, probability_tail: 1080, association_tail: 1080, ties: 6 };
         transition snapshot(@model, @expected) {
             true -> case_2(),
             false -> failed()
         }
     }
     machine case_2() {
-        let model: Model = Model { rows: [2, 6], columns: [1, 2, 5],
-            observed: Table { cells: [0, 0, 2, 1, 2, 3] }, zeros: [0, 0, 0, 0, 0, 0] };
-        let expected: Inference = Inference { status: 0, count: 5, partition: 4704, observed_weight: 1680, score: 1536, denominator: 960, probability_tail: 4704, association_tail: 3024, ties: 1 };
+        let model: |tables|::Model = |tables|::Model { rows: [2, 6], columns: [1, 2, 5],
+            observed: |tables|::Table { cells: [0, 0, 2, 1, 2, 3] }, zeros: [0, 0, 0, 0, 0, 0] };
+        let expected: |tables|::Inference = |tables|::Inference { status: 0, count: 5, partition: 4704, observed_weight: 1680, score: 1536, denominator: 960, probability_tail: 4704, association_tail: 3024, ties: 1 };
         transition snapshot(@model, @expected) {
             true -> case_3(),
             false -> failed()
         }
     }
     machine case_3() {
-        let model: Model = Model { rows: [3, 5], columns: [3, 3, 2],
-            observed: Table { cells: [2, 0, 1, 1, 3, 1] }, zeros: [0, 0, 0, 0, 0, 0] };
-        let expected: Inference = Inference { status: 0, count: 9, partition: 31360, observed_weight: 3360, score: 6528, denominator: 2160, probability_tail: 11200, association_tail: 11200, ties: 2 };
+        let model: |tables|::Model = |tables|::Model { rows: [3, 5], columns: [3, 3, 2],
+            observed: |tables|::Table { cells: [2, 0, 1, 1, 3, 1] }, zeros: [0, 0, 0, 0, 0, 0] };
+        let expected: |tables|::Inference = |tables|::Inference { status: 0, count: 9, partition: 31360, observed_weight: 3360, score: 6528, denominator: 2160, probability_tail: 11200, association_tail: 11200, ties: 2 };
         transition snapshot(@model, @expected) {
             true -> case_4(),
             false -> failed()
         }
     }
     machine case_4() {
-        let model: Model = Model { rows: [3, 3], columns: [2, 2, 2],
-            observed: Table { cells: [0, 1, 2, 2, 1, 0] }, zeros: [1, 0, 0, 0, 0, 0] };
-        let expected: Inference = Inference { status: 0, count: 2, partition: 360, observed_weight: 180, score: 1728, denominator: 432, probability_tail: 360, association_tail: 360, ties: 2 };
+        let model: |tables|::Model = |tables|::Model { rows: [3, 3], columns: [2, 2, 2],
+            observed: |tables|::Table { cells: [0, 1, 2, 2, 1, 0] }, zeros: [1, 0, 0, 0, 0, 0] };
+        let expected: |tables|::Inference = |tables|::Inference { status: 0, count: 2, partition: 360, observed_weight: 180, score: 1728, denominator: 432, probability_tail: 360, association_tail: 360, ties: 2 };
         transition snapshot(@model, @expected) {
             true -> case_5(),
             false -> failed()
         }
     }
     machine case_5() {
-        let model: Model = Model { rows: [1, 2], columns: [1, 1, 1],
-            observed: Table { cells: [1, 0, 0, 0, 1, 1] }, zeros: [0, 1, 1, 1, 0, 0] };
-        let expected: Inference = Inference { status: 0, count: 1, partition: 6, observed_weight: 6, score: 18, denominator: 6, probability_tail: 6, association_tail: 6, ties: 1 };
+        let model: |tables|::Model = |tables|::Model { rows: [1, 2], columns: [1, 1, 1],
+            observed: |tables|::Table { cells: [1, 0, 0, 0, 1, 1] }, zeros: [0, 1, 1, 1, 0, 0] };
+        let expected: |tables|::Inference = |tables|::Inference { status: 0, count: 1, partition: 6, observed_weight: 6, score: 18, denominator: 6, probability_tail: 6, association_tail: 6, ties: 1 };
         transition snapshot(@model, @expected) {
             true -> case_6(),
             false -> failed()
         }
     }
     machine case_6() {
-        let model: Model = Model { rows: [3, 3], columns: [2, 2, 2],
-            observed: Table { cells: [2, 1, 0, 0, 1, 2] }, zeros: [0, 0, 0, 0, 0, 0] };
-        let expected: Inference = Inference { status: 0, count: 7, partition: 1800, observed_weight: 180, score: 1728, denominator: 432, probability_tail: 1080, association_tail: 1080, ties: 6 };
+        let model: |tables|::Model = |tables|::Model { rows: [3, 3], columns: [2, 2, 2],
+            observed: |tables|::Table { cells: [2, 1, 0, 0, 1, 2] }, zeros: [0, 0, 0, 0, 0, 0] };
+        let expected: |tables|::Inference = |tables|::Inference { status: 0, count: 7, partition: 1800, observed_weight: 180, score: 1728, denominator: 432, probability_tail: 1080, association_tail: 1080, ties: 6 };
         transition snapshot(@model, @expected) {
             true -> passed(),
             false -> failed()
         }
     }
-    machine passed() { Console::write_line("PASS frozen_numerical_control"); ProcessExit::exit_process(0); }
-    machine failed() { Console::write_line("FAIL frozen_numerical_control"); ProcessExit::exit_process(71); }
+    machine passed() { |console|::Console::write_line("PASS frozen_numerical_control"); |process_exit|::ProcessExit::exit_process(0); }
+    machine failed() { |console|::Console::write_line("FAIL frozen_numerical_control"); |process_exit|::ProcessExit::exit_process(71); }
 }

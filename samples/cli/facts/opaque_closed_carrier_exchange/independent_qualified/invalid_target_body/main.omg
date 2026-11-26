@@ -1,33 +1,33 @@
 // Expected exit: 0
 // Routed opaque input membership survives transport and an independent installed call, preserving libc host numbers 66051 and 513 and replacement 1027 while retaining the disjoint sibling.
-use producer\main;
-public data AddressBox { value: InternetAddress in Classified; }
-public data AddressPair { first: InternetAddress in Classified; second: InternetAddress; }
+use {producer}/main.omg as producer;
+public data AddressBox { value: |producer|::InternetAddress in |producer|::InternetAddress::Classified; }
+public data AddressPair { first: |producer|::InternetAddress in |producer|::InternetAddress::Classified; second: |producer|::InternetAddress; }
 
-machine consume(first: InternetAddress in Classified, second: InternetAddress) -> bool reaches AddressParts, AddressBridge {
+machine consume(first: |producer|::InternetAddress in |producer|::InternetAddress::Classified, second: |producer|::InternetAddress) -> bool reaches |producer|::AddressParts, |producer|::AddressBridge {
     let mutable pair: AddressPair = AddressPair { first: first, second: second };
-    let old_host: u32 = AddressBridge::classified_host(pair.first);
-    pair.first = classify(AddressBridge::make(10, 1027));
-    let sibling_host: u32 = AddressBridge::host(pair.second);
-    let replacement_host: u32 = AddressBridge::host(pair.first as InternetAddress);
+    let old_host: u32 = |producer|::AddressBridge::classified_host(pair.first);
+    pair.first = |producer|::classify(|producer|::AddressBridge::make(10, 1027));
+    let sibling_host: u32 = |producer|::AddressBridge::host(pair.second);
+    let replacement_host: u32 = |producer|::AddressBridge::host(pair.first as |producer|::InternetAddress);
     old_host == 66051 && sibling_host == 513 && replacement_host == 1027
 }
 
 boundary trait ExchangeObservation {
-    machine observe() -> bool reaches AddressParts, AddressBridge crashes none;
+    machine observe() -> bool reaches |producer|::AddressParts, |producer|::AddressBridge crashes none;
 }
 UnissuedExchangeObservationCode satisfies ExchangeObservation {
-    machine observe() -> bool reaches AddressParts, AddressBridge {
-        consume(AddressBridge::make(10, 66051), AddressBridge::make(44048, 513))
+    machine observe() -> bool reaches |producer|::AddressParts, |producer|::AddressBridge {
+        consume(|producer|::AddressBridge::make(10, 66051), |producer|::AddressBridge::make(44048, 513))
     }
 }
 ClassifiedExchangeObservationCode satisfies ExchangeObservation {
-    machine observe() -> bool reaches AddressParts, AddressBridge {
-        consume(classify(AddressBridge::make(10, 66051)), AddressBridge::make(44048, 513))
+    machine observe() -> bool reaches |producer|::AddressParts, |producer|::AddressBridge {
+        consume(|producer|::classify(|producer|::AddressBridge::make(10, 66051)), |producer|::AddressBridge::make(44048, 513))
     }
 }
 
-machine main() reaches AddressParts, AddressBridge, ExchangeObservation crashes Trap {
+machine main() reaches |producer|::AddressParts, |producer|::AddressBridge, ExchangeObservation crashes Trap {
  transition ExchangeObservation::observe() { true -> done(), _ -> failed() }
  machine done() {}
  machine failed() { crash Trap; }

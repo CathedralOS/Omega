@@ -1,10 +1,10 @@
 // Expected exit: 0.
 // A failed realpath reports ENOENT through the admitted thread-local reference.
-use omega\language\core\FilesystemMetadataQuery;
+use {omega}/language/core/filesystem_authority.omg;
 
 boundary trait HostRealpath {
     machine resolve(path: @[u8; 4096], output: @mutable [u8; 4096]) -> u64
-    reaches FilesystemMetadataQuery
+    reaches |filesystem_authority|::FilesystemMetadataQuery
     crashes none;
 }
 boundary trait HostErrno {
@@ -15,7 +15,7 @@ boundary trait HostErrno {
 
 machine read_errno(slot: @i32) -> i32 { $slot }
 
-machine main() reaches FilesystemMetadataQuery {
+machine main() reaches |filesystem_authority|::FilesystemMetadataQuery {
     let mutable missing: [u8; 4096];
     missing[0] = 113u8;
     let mutable output: [u8; 4096];

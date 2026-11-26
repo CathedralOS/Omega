@@ -635,7 +635,7 @@ separate binder species are types:
 | --- | --- | --- |
 | Structural callable | `const F: Transform` | Static calls under the contract of the named callable alias. |
 | Nominal callable | `const Handler: HookProcedure::call` | Static calls or contextual realization under that exact requirement. |
-| Declaration identity | `const Requirement: reflect\CallableInfo` | Identity relationships only; no invocation. |
+| Declaration identity | `const Requirement: \|reflect\|::CallableInfo` | Identity relationships only; no invocation. |
 | Implementation | `const Order: Ranked<T>` | Calls to its exact selections, written `Order::member(...)`. |
 | Inferred callable | `const F: machine` | As inferred under [inferred callable parameter types](#inferred-callable-parameter-types). |
 
@@ -709,10 +709,10 @@ as `Step: Alias`. Its argument supplies checked evidence of that contract.
 
 ### Declaration identity
 
-`reflect\CallableInfo` is the type of a parameter that identifies a machine or
+`|reflect|::CallableInfo` is the type of a parameter that identifies a machine or
 requirement without permission to call it. It accepts one exact free-machine or
 signature-free trait-requirement description from
-[`reflect\callable`](reflection.md#typed-declaration-selectors). Types,
+[`|reflect|::callable`](reflection.md#typed-declaration-selectors). Types,
 conformances, runtime values and overloaded requirement families reject. No
 default, law or consumer may invoke through it. This role expresses
 relationships such as a private callback slot's selected requirement; it is not
@@ -753,7 +753,7 @@ relocation; an exposed numeric address cannot replace that relationship.
 structural contract. `<machine F>` with
 `requires machine F satisfies Trait::member;` is written
 `<const F: Trait::member>`. A `machine Requirement` binder with no clause is
-written `<const Requirement: reflect\CallableInfo>`. `<Order satisfies Ranked<T>>`
+written `<const Requirement: |reflect|::CallableInfo>`. `<Order satisfies Ranked<T>>`
 is written `<const Order: Ranked<T>>`. `satisfies` remains the spelling of
 declarations and of the binding expression. For a logical hypothesis, write
 `<Step: Alias>` in the theorem header and supply its proof at the citation.
@@ -896,7 +896,7 @@ function/predicate [term binders](../proofs/mathematical_bindings.md).
 Those elaborate to the [selected foundation](../proofs/foundation.md), whose
 mathematical universes and conversion are not defined by machine-symbol lookup.
 
-`u: core\Level` adds the checked universe-level binder category to generic
+`u: |proof|::Level` adds the checked universe-level binder category to generic
 telescopes; it is not a runtime integer parameter. Mathematical function values
 can appear as ordinary parameters and appropriate generic value indices under
 their declared staging rules. Logical applications of machine-shaped hypotheses
@@ -910,7 +910,7 @@ declaration supply, full level telescopes and constraints.
 
 A public callable parameter's identity is its complete normalized type: a
 recursively alpha-normalized structural contract, one exact nominal
-requirement, or the noncallable `reflect\CallableInfo`. Inferred types carry
+requirement, or the noncallable `|reflect|::CallableInfo`. Inferred types carry
 the same identity obligations as authored ones; structural constraints from
 several uses are retained without signature-based merging. Closed applications
 retain exact selections.
@@ -927,7 +927,7 @@ owns those grants; specialization never launders admitted premises into proofs.
 ## Source spelling
 
 An expression supplies explicit generic arguments with `::<…>`, as in
-`id::<u32>(value)` and `integer\max::<u32>()`. The same rule applies when
+`id::<u32>(value)` and `|integer|::max::<u32>()`. The same rule applies when
 an applied name qualifies a member in an expression, as in
 `Sensor::<29u64>::read()`. A type application uses `Buffer<8>`, and a
 declaration introduces its parameters with `machine id<T>(value: T)`.

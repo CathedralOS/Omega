@@ -1,21 +1,18 @@
 // Signed micro-units avoid dependence on a floating-point text library.
 // Values truncate toward zero; validation allows one micro-unit quantization.
-use omega\language\core\StandardOutput;
-use system\Console;
-use omega\language\core\I64::from_f64;
-use domain\model;
-use domain\model\Problem;
-use domain\model\Fit;
-use domain\model\residual;
+use domain/model/model.omg;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 public data Output { }
-public machine write_scaled(output: @mutable Output, value: f64) reaches StandardOutput
-invokes Console
+public machine write_scaled(output: @mutable Output, value: f64) reaches |process_authority|::StandardOutput
+invokes |console|::Console
 {
-    let converted: i64 in Saturating = I64::from_f64(value * 1000000.0);
+    let converted: i64 in Saturating = |float_operations|::I64::from_f64(value * 1000000.0);
     let units: i64 = (converted as i64) % 2000000000000000;
     transition units < 0 { true -> negative(output, units), false -> positive(output, units) }
     machine negative(output: @mutable Output, units: i64) requires units > -2000000000000000 requires units < 0 {
-        Console::write("-");
+        |console|::Console::write("-");
         transition { _ -> digits(output, 0 - units, 1000000000000000, false) }
     }
     machine positive(output: @mutable Output, units: i64) requires units >= 0 requires units < 2000000000000000 {
@@ -31,76 +28,76 @@ invokes Console
     }
     machine emit(output: @mutable Output, units: i64, divisor: i64, digit: i64)
     requires units >= 0 requires units < 2000000000000000 requires divisor >= 1 requires divisor <= 1000000000000000 requires digit >= 0 requires digit <= 9 {
-        Console::write_byte((digit as i32) + 48);
+        |console|::Console::write_byte((digit as i32) + 48);
         transition { _ -> advance(output, units, divisor, true) }
     }
     machine advance(output: @mutable Output, units: i64, divisor: i64, started: bool)
     requires units >= 0 requires units < 2000000000000000 requires divisor >= 1 requires divisor <= 1000000000000000 {
         transition divisor >= 10 { true -> digits(output, units, divisor / 10, started), false -> done(output) }
     }
-    machine done(output: @mutable Output) { Console::write_line(""); }
+    machine done(output: @mutable Output) { |console|::Console::write_line(""); }
 }
-public machine report(output: @mutable Output, problem: @Problem, fit: @Fit) reaches StandardOutput
-invokes Console
+public machine report(output: @mutable Output, problem: @|model|::Problem, fit: @|model|::Fit) reaches |process_authority|::StandardOutput
+invokes |console|::Console
 {
-    Console::write_line("travel_time_tomography synthetic two-cell model; numeric fields in micro-units");
-    Console::write("cell_first_micro="); write_scaled(output, fit.first);
-    Console::write("cell_second_micro="); write_scaled(output, fit.second);
-    Console::write("residual_0_micro="); write_scaled(output, residual(@problem.rays[0], fit.first, fit.second));
-    Console::write("residual_1_micro="); write_scaled(output, residual(@problem.rays[1], fit.first, fit.second));
-    Console::write("residual_2_micro="); write_scaled(output, residual(@problem.rays[2], fit.first, fit.second));
-    Console::write("sse_micro="); write_scaled(output, fit.objective);
-    Console::write("null_first_micro="); write_scaled(output, fit.null_first);
-    Console::write("null_second_micro="); write_scaled(output, fit.null_second);
+    |console|::Console::write_line("travel_time_tomography synthetic two-cell model; numeric fields in micro-units");
+    |console|::Console::write("cell_first_micro="); write_scaled(output, fit.first);
+    |console|::Console::write("cell_second_micro="); write_scaled(output, fit.second);
+    |console|::Console::write("residual_0_micro="); write_scaled(output, |model|::residual(@problem.rays[0], fit.first, fit.second));
+    |console|::Console::write("residual_1_micro="); write_scaled(output, |model|::residual(@problem.rays[1], fit.first, fit.second));
+    |console|::Console::write("residual_2_micro="); write_scaled(output, |model|::residual(@problem.rays[2], fit.first, fit.second));
+    |console|::Console::write("sse_micro="); write_scaled(output, fit.objective);
+    |console|::Console::write("null_first_micro="); write_scaled(output, fit.null_first);
+    |console|::Console::write("null_second_micro="); write_scaled(output, fit.null_second);
     transition fit.rank == 2 { true -> full(output, problem, fit), false -> deficient(output, problem, fit) }
-    machine full(output: @mutable Output, problem: @Problem, fit: @Fit) {
-        Console::write_line("rank=2; nullity=0; identifiable=yes");
+    machine full(output: @mutable Output, problem: @|model|::Problem, fit: @|model|::Fit) {
+        |console|::Console::write_line("rank=2; nullity=0; identifiable=yes");
         transition { _ -> first_bound(output, problem, fit) }
     }
-    machine deficient(output: @mutable Output, problem: @Problem, fit: @Fit) {
+    machine deficient(output: @mutable Output, problem: @|model|::Problem, fit: @|model|::Fit) {
         transition fit.rank == 1 { true -> one(output, problem, fit), false -> zero(output, problem, fit) }
     }
-    machine one(output: @mutable Output, problem: @Problem, fit: @Fit) {
-        Console::write_line("rank=1; nullity=1; identifiable=no; null vector reported above");
+    machine one(output: @mutable Output, problem: @|model|::Problem, fit: @|model|::Fit) {
+        |console|::Console::write_line("rank=1; nullity=1; identifiable=no; null vector reported above");
         transition { _ -> first_bound(output, problem, fit) }
     }
-    machine zero(output: @mutable Output, problem: @Problem, fit: @Fit) {
-        Console::write_line("rank=0; nullity=2; identifiable=no; second null vector=(0,1)");
+    machine zero(output: @mutable Output, problem: @|model|::Problem, fit: @|model|::Fit) {
+        |console|::Console::write_line("rank=0; nullity=2; identifiable=no; second null vector=(0,1)");
         transition { _ -> first_bound(output, problem, fit) }
     }
-    machine first_bound(output: @mutable Output, problem: @Problem, fit: @Fit) {
+    machine first_bound(output: @mutable Output, problem: @|model|::Problem, fit: @|model|::Fit) {
         transition fit.first == problem.low_first { true -> first_low(output, problem, fit), false -> first_upper_test(output, problem, fit) }
     }
-    machine first_low(output: @mutable Output, problem: @Problem, fit: @Fit) {
-        Console::write_line("active_first=lower"); transition { _ -> second_bound(output, problem, fit) }
+    machine first_low(output: @mutable Output, problem: @|model|::Problem, fit: @|model|::Fit) {
+        |console|::Console::write_line("active_first=lower"); transition { _ -> second_bound(output, problem, fit) }
     }
-    machine first_upper_test(output: @mutable Output, problem: @Problem, fit: @Fit) {
+    machine first_upper_test(output: @mutable Output, problem: @|model|::Problem, fit: @|model|::Fit) {
         transition fit.first == problem.high_first { true -> first_high(output, problem, fit), false -> first_free(output, problem, fit) }
     }
-    machine first_high(output: @mutable Output, problem: @Problem, fit: @Fit) {
-        Console::write_line("active_first=upper"); transition { _ -> second_bound(output, problem, fit) }
+    machine first_high(output: @mutable Output, problem: @|model|::Problem, fit: @|model|::Fit) {
+        |console|::Console::write_line("active_first=upper"); transition { _ -> second_bound(output, problem, fit) }
     }
-    machine first_free(output: @mutable Output, problem: @Problem, fit: @Fit) {
-        Console::write_line("active_first=free"); transition { _ -> second_bound(output, problem, fit) }
+    machine first_free(output: @mutable Output, problem: @|model|::Problem, fit: @|model|::Fit) {
+        |console|::Console::write_line("active_first=free"); transition { _ -> second_bound(output, problem, fit) }
     }
-    machine second_bound(output: @mutable Output, problem: @Problem, fit: @Fit) {
+    machine second_bound(output: @mutable Output, problem: @|model|::Problem, fit: @|model|::Fit) {
         transition fit.second == problem.low_second { true -> second_low(output, fit), false -> second_upper_test(output, problem, fit) }
     }
-    machine second_low(output: @mutable Output, fit: @Fit) {
-        Console::write_line("active_second=lower"); transition { _ -> consistency(output, fit) }
+    machine second_low(output: @mutable Output, fit: @|model|::Fit) {
+        |console|::Console::write_line("active_second=lower"); transition { _ -> consistency(output, fit) }
     }
-    machine second_upper_test(output: @mutable Output, problem: @Problem, fit: @Fit) {
+    machine second_upper_test(output: @mutable Output, problem: @|model|::Problem, fit: @|model|::Fit) {
         transition fit.second == problem.high_second { true -> second_high(output, fit), false -> second_free(output, fit) }
     }
-    machine second_high(output: @mutable Output, fit: @Fit) {
-        Console::write_line("active_second=upper"); transition { _ -> consistency(output, fit) }
+    machine second_high(output: @mutable Output, fit: @|model|::Fit) {
+        |console|::Console::write_line("active_second=upper"); transition { _ -> consistency(output, fit) }
     }
-    machine second_free(output: @mutable Output, fit: @Fit) {
-        Console::write_line("active_second=free"); transition { _ -> consistency(output, fit) }
+    machine second_free(output: @mutable Output, fit: @|model|::Fit) {
+        |console|::Console::write_line("active_second=free"); transition { _ -> consistency(output, fit) }
     }
-    machine consistency(output: @mutable Output, fit: @Fit) {
+    machine consistency(output: @mutable Output, fit: @|model|::Fit) {
         transition fit.objective < 0.000000000001 { true -> exact(output), false -> inconsistent(output) }
     }
-    machine exact(output: @mutable Output) { Console::write_line("fit=consistent_within_1e-12_sse"); }
-    machine inconsistent(output: @mutable Output) { Console::write_line("fit=inconsistent_or_bound_limited"); }
+    machine exact(output: @mutable Output) { |console|::Console::write_line("fit=consistent_within_1e-12_sse"); }
+    machine inconsistent(output: @mutable Output) { |console|::Console::write_line("fit=inconsistent_or_bound_limited"); }
 }

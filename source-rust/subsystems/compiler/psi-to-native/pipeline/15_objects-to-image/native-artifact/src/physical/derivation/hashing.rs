@@ -8,8 +8,6 @@ pub(crate) use crate::NormalizedForeignCallbackRelocation;
 use machine_code::{BoundaryExecutionRecord, PortEffectRecord};
 use object_file::{RelocationOrigin, relocation_kind_tag};
 use semantic_vocabulary::{IntegerSign, ScalarType};
-use sha2::Digest;
-use sha2::Sha256;
 use target::NativeTarget;
 use target_vocabulary::{
     BoundaryRealization, CallSiteOwner, CompilerBuiltinExecution, CompletionClaimSource,
@@ -107,37 +105,16 @@ pub(crate) fn hash_port_effect_record(
     digest.raw(&effect.service.get().to_le_bytes());
     digest.raw(&effect.port.to_le_bytes());
     digest.byte(effect.value);
-    digest.raw(&canonical_usize(effect.operation_ordinal));
-    digest.raw(&canonical_usize(effect.code_offset));
-    digest.raw(&canonical_usize(effect.byte_count));
+    digest.len(effect.operation_ordinal);
+    digest.len(effect.code_offset);
+    digest.len(effect.byte_count);
 }
 
 pub(crate) fn hash_boundary_settlement_record(
     digest: &mut crate::digest_encoder::DomainDigestEncoder,
     settlement: &machine_code::BoundarySettlementRecord,
 ) -> Result<(), &'static str> {
-    match settlement.invocation_site {
-        semantic_vocabulary::InvocationSite::Operation(operation) => {
-            digest.byte(0);
-            digest.raw(&operation.get().to_le_bytes());
-        }
-        semantic_vocabulary::InvocationSite::ExternalCompletion(edge) => {
-            digest.byte(1);
-            digest.raw(&edge.get().to_le_bytes());
-        }
-        semantic_vocabulary::InvocationSite::InvokeNoNormal(edge) => {
-            digest.byte(2);
-            digest.raw(&edge.get().to_le_bytes());
-        }
-        semantic_vocabulary::InvocationSite::Cleanup {
-            edge,
-            action_ordinal,
-        } => {
-            digest.byte(3);
-            digest.raw(&edge.get().to_le_bytes());
-            digest.raw(&action_ordinal.to_le_bytes());
-        }
-    }
+    hash_invocation_site(digest, settlement.invocation_site);
     digest.raw(&settlement.boundary.get().to_le_bytes());
     match settlement.execution {
         BoundaryExecutionRecord::NativeBinding(native) => {
@@ -148,11 +125,7 @@ pub(crate) fn hash_boundary_settlement_record(
         }
         BoundaryExecutionRecord::AdmittedProvider(record) => {
             digest.byte(1);
-            digest.raw(&record.provider_plan_report_identity.to_le_bytes());
-            digest.raw(&record.provider_execution_report_identity.to_le_bytes());
-            digest.raw(&record.provider_execution_report_fingerprint.to_le_bytes());
-            digest.raw(&record.normalized_root_report_identity.to_le_bytes());
-            digest.raw(&record.boundary_contract_report_fingerprint.to_le_bytes());
+            hash_provider_execution_record(digest, &record);
         }
         BoundaryExecutionRecord::CompilerBuiltin(execution) => {
             digest.byte(2);
@@ -173,26 +146,26 @@ pub(crate) fn hash_boundary_settlement_record(
         }
     }
     hash_boundary_realization(digest, &settlement.realization);
-    digest.raw(&canonical_usize(settlement.scalar_arguments.len()));
+    digest.len(settlement.scalar_arguments.len());
     for argument in &settlement.scalar_arguments {
         digest.raw(&argument.source_value.get().to_le_bytes());
         hash_scalar_type(digest, argument.scalar_type);
         hash_integer_value(digest, argument.immediate);
         hash_machine_register(digest, argument.destination);
     }
-    digest.raw(&canonical_usize(settlement.runtime_scalar_arguments.len()));
+    digest.len(settlement.runtime_scalar_arguments.len());
     for argument in &settlement.runtime_scalar_arguments {
         digest.raw(&argument.parameter_index.to_le_bytes());
         hash_internal_scalar_argument_source(digest, &argument.source);
         hash_value_placement(digest, &argument.placement);
-        digest.raw(&canonical_usize(argument.code_offset));
-        digest.raw(&canonical_usize(argument.byte_count));
+        digest.len(argument.code_offset);
+        digest.len(argument.byte_count);
     }
-    digest.raw(&canonical_usize(settlement.arguments.len()));
+    digest.len(settlement.arguments.len());
     for argument in &settlement.arguments {
         hash_structural_argument(digest, argument);
     }
-    digest.raw(&canonical_usize(settlement.byte_sequence_arguments.len()));
+    digest.len(settlement.byte_sequence_arguments.len());
     for custody in &settlement.byte_sequence_arguments {
         hash_structural_argument(digest, &custody.argument);
         digest.raw(&custody.literal_operation.get().to_le_bytes());
@@ -200,45 +173,34 @@ pub(crate) fn hash_boundary_settlement_record(
             &custody.structural_type,
         )
         .map_err(|_| "installed D41 byte-sequence declaration cannot be encoded canonically")?;
-        hash_bytes(digest, &declaration);
-        hash_bytes(digest, &custody.bytes);
-        digest.raw(&canonical_usize(custody.code_offset));
-        digest.raw(&canonical_usize(custody.code_byte_count));
-        digest.raw(&canonical_usize(custody.data_offset));
-        digest.raw(&canonical_usize(custody.data_byte_count));
+        digest.bytes(&declaration);
+        digest.bytes(&custody.bytes);
+        digest.len(custody.code_offset);
+        digest.len(custody.code_byte_count);
+        digest.len(custody.data_offset);
+        digest.len(custody.data_byte_count);
     }
-    digest.raw(&canonical_usize(settlement.completion_claim_sources.len()));
+    digest.len(settlement.completion_claim_sources.len());
     for source in &settlement.completion_claim_sources {
         hash_claim_source(digest, source);
     }
-    digest.raw(&canonical_usize(settlement.completion_receipts.len()));
+    digest.len(settlement.completion_receipts.len());
     for receipt in &settlement.completion_receipts {
         digest.raw(&receipt.claim.get().to_le_bytes());
         digest.raw(&receipt.argument_index.to_le_bytes());
         hash_structural_path(digest, &receipt.path);
     }
-    digest.raw(&canonical_usize(
-        settlement.completion_provider_custody.len(),
-    ));
+    digest.len(settlement.completion_provider_custody.len());
     for binding in &settlement.completion_provider_custody {
         hash_claim_source(digest, &binding.source);
         digest.raw(&binding.receipt.claim.get().to_le_bytes());
         digest.raw(&binding.receipt.argument_index.to_le_bytes());
-        let execution = binding.provider_execution;
-        digest.raw(&execution.provider_plan_report_identity.to_le_bytes());
-        digest.raw(&execution.provider_execution_report_identity.to_le_bytes());
-        digest.raw(
-            &execution
-                .provider_execution_report_fingerprint
-                .to_le_bytes(),
-        );
-        digest.raw(&execution.normalized_root_report_identity.to_le_bytes());
-        digest.raw(&execution.boundary_contract_report_fingerprint.to_le_bytes());
+        hash_provider_execution_record(digest, &binding.provider_execution);
     }
     hash_boundary_result_record(digest, &settlement.native_result)?;
-    digest.raw(&canonical_usize(settlement.operation_ordinal));
-    digest.raw(&canonical_usize(settlement.code_offset));
-    digest.raw(&canonical_usize(settlement.byte_count));
+    digest.len(settlement.operation_ordinal);
+    digest.len(settlement.code_offset);
+    digest.len(settlement.byte_count);
     Ok(())
 }
 
@@ -355,27 +317,19 @@ pub(super) fn hash_boundary_structural_result(
     digest.raw(&result.defining_operation.get().to_le_bytes());
     digest.raw(&result.result.place.get().to_le_bytes());
     digest.raw(&result.result.structural_type.get().to_le_bytes());
-    digest.byte(match result.result.multiplicity {
-        terminal_psi::StructuralMultiplicity::Unrestricted => 1,
-        terminal_psi::StructuralMultiplicity::Affine => 2,
-        terminal_psi::StructuralMultiplicity::Linear => 3,
-    });
-    digest.u64(result.result.qualifications.len() as u64);
-    for domain in &result.result.qualifications {
-        digest.raw(&domain.get().to_le_bytes());
-    }
-    digest.u64(result.result.projected_qualifications.len() as u64);
-    for qualification in &result.result.projected_qualifications {
-        hash_structural_path(digest, &qualification.path);
-        digest.raw(&qualification.domain.get().to_le_bytes());
-    }
+    digest.byte(structural_multiplicity_tag(result.result.multiplicity));
+    hash_qualifications(
+        digest,
+        &result.result.qualifications,
+        &result.result.projected_qualifications,
+    );
     digest.u64(result.result.claims.len() as u64);
     for claim in &result.result.claims {
         digest.raw(&claim.claim.get().to_le_bytes());
         hash_structural_path(digest, &claim.path);
     }
     let declaration = terminal_codec::encode_structural_type_declaration(&result.declaration)?;
-    hash_bytes(digest, &declaration);
+    digest.bytes(&declaration);
     hash_sum_layout(digest, &result.layout);
     digest.raw(&result.home_byte_offset.to_le_bytes());
     Ok(())
@@ -471,7 +425,7 @@ fn hash_value_placement(
     placement: &calling_conventions::ValuePlacement,
 ) {
     hash_value_shape(digest, placement.shape);
-    digest.raw(&canonical_usize(placement.locations.len()));
+    digest.len(placement.locations.len());
     for location in &placement.locations {
         match location {
             calling_conventions::ValueLocation::Register {
@@ -564,12 +518,7 @@ pub(crate) fn hash_structural_argument(
     argument: &terminal_psi::StructuralArgument,
 ) {
     digest.raw(&argument.place.get().to_le_bytes());
-    digest.byte(match argument.access {
-        terminal_psi::StructuralAccess::Owned => 1,
-        terminal_psi::StructuralAccess::SharedBorrow => 2,
-        terminal_psi::StructuralAccess::MutableBorrow => 3,
-        terminal_psi::StructuralAccess::WriteOnlyBorrow => 4,
-    });
+    digest.byte(structural_access_tag(argument.access));
     hash_structural_path(digest, &argument.path);
 }
 
@@ -580,23 +529,43 @@ pub(crate) fn hash_structural_parameter_declaration(
     digest.raw(&parameter.place.get().to_le_bytes());
     digest.raw(&parameter.position.to_le_bytes());
     digest.raw(&parameter.structural_type.get().to_le_bytes());
-    digest.byte(match parameter.multiplicity {
+    digest.byte(structural_multiplicity_tag(parameter.multiplicity));
+    digest.byte(structural_access_tag(parameter.access));
+    hash_qualifications(
+        digest,
+        &parameter.qualifications,
+        &parameter.projected_qualifications,
+    );
+}
+
+fn structural_multiplicity_tag(multiplicity: terminal_psi::StructuralMultiplicity) -> u8 {
+    match multiplicity {
         terminal_psi::StructuralMultiplicity::Unrestricted => 1,
         terminal_psi::StructuralMultiplicity::Affine => 2,
         terminal_psi::StructuralMultiplicity::Linear => 3,
-    });
-    digest.byte(match parameter.access {
+    }
+}
+
+fn structural_access_tag(access: terminal_psi::StructuralAccess) -> u8 {
+    match access {
         terminal_psi::StructuralAccess::Owned => 1,
         terminal_psi::StructuralAccess::SharedBorrow => 2,
         terminal_psi::StructuralAccess::MutableBorrow => 3,
         terminal_psi::StructuralAccess::WriteOnlyBorrow => 4,
-    });
-    digest.raw(&canonical_usize(parameter.qualifications.len()));
-    for domain in &parameter.qualifications {
+    }
+}
+
+fn hash_qualifications(
+    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    qualifications: &[semantic_vocabulary::StructuralDomainId],
+    projected: &[terminal_psi::StructuralPathQualification],
+) {
+    digest.len(qualifications.len());
+    for domain in qualifications {
         digest.raw(&domain.get().to_le_bytes());
     }
-    digest.raw(&canonical_usize(parameter.projected_qualifications.len()));
-    for qualification in &parameter.projected_qualifications {
+    digest.len(projected.len());
+    for qualification in projected {
         hash_structural_path(digest, &qualification.path);
         digest.raw(&qualification.domain.get().to_le_bytes());
     }
@@ -626,16 +595,16 @@ pub(super) fn hash_claim_source(
                 semantic_vocabulary::ContentPlaceVersion::Current => 2,
             });
             digest.raw(&content.input.root.get().to_le_bytes());
-            digest.raw(&canonical_usize(content.input.segments.len()));
+            digest.len(content.input.segments.len());
             for segment in &content.input.segments {
                 match segment {
                     semantic_vocabulary::ContentPlaceSegment::Case(identity) => {
                         digest.byte(1);
-                        hash_bytes(digest, identity.as_bytes());
+                        digest.bytes(identity.as_bytes());
                     }
                     semantic_vocabulary::ContentPlaceSegment::Field(identity) => {
                         digest.byte(2);
-                        hash_bytes(digest, identity.as_bytes());
+                        digest.bytes(identity.as_bytes());
                     }
                     semantic_vocabulary::ContentPlaceSegment::FixedIndex(index) => {
                         digest.byte(3);
@@ -643,7 +612,7 @@ pub(super) fn hash_claim_source(
                     }
                 }
             }
-            digest.raw(&canonical_usize(content.projections.len()));
+            digest.len(content.projections.len());
             for projection in &content.projections {
                 digest.raw(&projection.projection.domain.get().to_le_bytes());
                 digest.raw(
@@ -656,7 +625,7 @@ pub(super) fn hash_claim_source(
                     semantic_vocabulary::ContentAlgebraKind::IntervalSet => 1,
                     semantic_vocabulary::ContentAlgebraKind::CountedQuantity => 2,
                 });
-                hash_bytes(digest, projection.algebra.parameter.as_bytes());
+                digest.bytes(projection.algebra.parameter.as_bytes());
             }
         }
     }
@@ -748,10 +717,6 @@ pub(super) fn hash_internal_scalar_argument_source(
     }
 }
 
-pub(crate) fn sha256(bytes: &[u8]) -> [u8; 32] {
-    Sha256::digest(bytes).into()
-}
-
 pub(crate) fn hash_target(
     digest: &mut crate::digest_encoder::DomainDigestEncoder,
     target: NativeTarget,
@@ -781,8 +746,8 @@ pub(crate) fn hash_callback_relocation(
 ) {
     hash_object_symbol(digest, relocation.object_symbol());
     hash_relocation_origin(digest, relocation.origin());
-    digest.raw(&canonical_usize(relocation.offset()));
-    digest.raw(&canonical_usize(relocation.byte_width()));
+    digest.len(relocation.offset());
+    digest.len(relocation.byte_width());
     digest.raw(&relocation.addend().to_le_bytes());
     digest.byte(relocation_kind_tag(relocation.kind()));
 }
@@ -805,17 +770,6 @@ pub(crate) fn hash_relocation_origin(
     };
     digest.byte(tag);
     digest.raw(&coordinate.to_le_bytes());
-}
-
-pub(crate) fn hash_bytes(digest: &mut crate::digest_encoder::DomainDigestEncoder, bytes: &[u8]) {
-    digest.raw(&canonical_usize(bytes.len()));
-    digest.raw(bytes);
-}
-
-pub(crate) fn canonical_usize(value: usize) -> [u8; 8] {
-    u64::try_from(value)
-        .expect("native physical evidence field fits u64")
-        .to_le_bytes()
 }
 
 pub(crate) fn hash_call_site_owner(
@@ -997,4 +951,124 @@ mod tag_tests {
         release_then_fields.byte(operation.code());
         assert_ne!(interrupt.finish(), release_then_fields.finish());
     }
+}
+
+/// Hashes the selected normalized-foreign mechanism. Import and Component
+/// mechanisms return their same-stack contribution so each caller can append
+/// the contribution fields its own identity covers.
+pub(crate) fn hash_normalized_foreign_mechanism<'a>(
+    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    mechanism: &'a target_vocabulary::NormalizedForeignCallMechanism,
+) -> Option<&'a provider_stack_contribution::AdmittedSameStackContribution> {
+    use target_vocabulary::NormalizedForeignCallMechanism as Mechanism;
+    match mechanism {
+        Mechanism::CompilerImport {
+            import,
+            requirement_identity,
+            selected_plan,
+        } => {
+            digest.byte(6);
+            digest.byte(import.tag());
+            digest.raw(selected_plan);
+            digest.bytes(requirement_identity.as_bytes());
+            None
+        }
+        Mechanism::BuildImport {
+            stack,
+            locator,
+            receipt,
+            requirement_identity,
+        } => {
+            digest.byte(5);
+            digest.raw(&locator.identity_digest().as_bytes());
+            digest.raw(&stack.commitment());
+            digest.raw(receipt);
+            digest.bytes(requirement_identity.as_bytes());
+            None
+        }
+        Mechanism::Table {
+            target,
+            byte_offset,
+            table_operand,
+            dispatch_only,
+            source,
+        } => {
+            digest.byte(3);
+            digest.bytes(target.target_name().as_bytes());
+            digest.raw(&byte_offset.to_le_bytes());
+            digest.raw(&table_operand.to_le_bytes());
+            digest.byte(u8::from(*dispatch_only));
+            digest.raw(&source.commitment());
+            None
+        }
+        Mechanism::Import {
+            locator,
+            same_stack_contribution,
+        } => {
+            digest.byte(1);
+            digest.raw(&locator.identity_digest().as_bytes());
+            Some(same_stack_contribution)
+        }
+        Mechanism::Component {
+            locator,
+            provider,
+            candidate,
+            application_commitment,
+            same_stack_contribution,
+        } => {
+            digest.byte(4);
+            digest.raw(locator.identity_digest());
+            digest.raw(&provider.vocabulary_marker.get().to_le_bytes());
+            digest.raw(provider.program_fingerprint.as_bytes());
+            digest.raw(&candidate.get().to_le_bytes());
+            digest.raw(application_commitment);
+            Some(same_stack_contribution)
+        }
+        Mechanism::SystemCall(kernel) => {
+            digest.byte(2);
+            digest.bytes(kernel.target.target_name().as_bytes());
+            digest.raw(&kernel.number.to_le_bytes());
+            match kernel.execution {
+                target_vocabulary::NormalizedForeignExecution::ProviderPlan {
+                    report,
+                    commitment,
+                } => {
+                    digest.byte(0);
+                    digest.raw(&report.to_le_bytes());
+                    digest.raw(&commitment);
+                }
+                target_vocabulary::NormalizedForeignExecution::NativeBinding(binding) => {
+                    digest.byte(1);
+                    digest.raw(&binding);
+                }
+            }
+            digest.bytes(kernel.requirement_identity.as_bytes());
+            None
+        }
+    }
+}
+
+/// Hashes the five provider report coordinates in their canonical order.
+pub(crate) fn hash_provider_execution_record(
+    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    record: &machine_code::ProviderExecutionRecord,
+) {
+    for coordinate in [
+        record.provider_plan_report_identity,
+        record.provider_execution_report_identity,
+        record.provider_execution_report_fingerprint,
+        record.normalized_root_report_identity,
+        record.boundary_contract_report_fingerprint,
+    ] {
+        digest.u64(coordinate);
+    }
+}
+
+pub(crate) fn hash_invocation_site(
+    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    site: semantic_vocabulary::InvocationSite,
+) {
+    let mut canonical = Vec::with_capacity(9);
+    crate::physical::identity_bytes::append_invocation_site(&mut canonical, site);
+    digest.raw(&canonical);
 }

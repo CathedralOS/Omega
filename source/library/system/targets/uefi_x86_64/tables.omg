@@ -7,7 +7,7 @@
 // recorded commitments rather than keeping a second field catalog.
 //
 // EFI_LOADED_IMAGE_PROTOCOL: handle and pointer members are u64 address
-// carriers (schema materialization has no `addr` carrier; member kind stays in
+// carriers (schema materialization has no `address` carrier; member kind stays in
 // the Rust field vocabulary), and `unload` is a function-pointer carrier. The
 // implicit four-byte pads after `revision` and `load_options_size` are ABI
 // alignment the report encodes as gaps between declared members.

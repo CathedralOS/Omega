@@ -1,35 +1,19 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use domain/math/math.omg;
+use domain/model/model.omg;
+use io/protocol/protocol.omg;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Expected exit: 0 for admitted data; explicit row exclusions are reported.
-use system\Console;
-use omega\language\core\F64::square_root;
-use io\protocol;
-use io\protocol\Protocol;
-use io\protocol\protocol_read;
-use io\protocol\integer;
-use io\protocol\number;
-use domain\model;
-use domain\model\Study;
-use domain\model\count;
-use domain\model\factor;
-use domain\model\normalize;
-use domain\model\average;
-use domain\model\dispersion;
-use domain\model\fit;
-use domain\model\information;
-use domain\model\log_likelihood;
-use domain\math;
-use domain\math\logarithm;
-use domain\math\probability;
 
-data Main { protocol: Protocol; study: Study; }
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    let parsed: bool = block protocol_read(@mutable main.protocol);
+data Main { protocol: |protocol|::Protocol; study: |model|::Study; }
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    let parsed: bool = block |protocol|::protocol_read(@mutable main.protocol);
     transition parsed {
  true -> metadata(main, 0, 0),
  false -> syntax(main) }
-    machine syntax(main: @mutable Main) { Console::write_line("INVALID syntax"); ProcessExit::exit_process(64); }
+    machine syntax(main: @mutable Main) { |console|::Console::write_line("INVALID syntax"); |process_exit|::ProcessExit::exit_process(64); }
     machine metadata(main: @mutable Main, index: i32 in Wrapping, cases: i32 in Wrapping) {
         transition index >= 0 && index < 6 {
  true -> label(main, index, cases),
@@ -50,7 +34,7 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
  true -> counts(main, 0),
  false -> invalid(main) }
     }
-    machine invalid(main: @mutable Main) { Console::write_line("INVALID metadata_or_count_range"); ProcessExit::exit_process(65); }
+    machine invalid(main: @mutable Main) { |console|::Console::write_line("INVALID metadata_or_count_range"); |process_exit|::ProcessExit::exit_process(65); }
     machine counts(main: @mutable Main, index: i32 in Wrapping) {
         let field: i32 in Wrapping = index + 6;
         transition index >= 0 && index < 48 && field >= 0 && field < 54 {
@@ -68,20 +52,20 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         transition { _ -> counts(main, index + 1) }
     }
     machine normalization(main: @mutable Main) {
-        let valid: bool = normalize(@mutable main.study);
+        let valid: bool = |model|::normalize(@mutable main.study);
         transition valid {
  true -> factors(main, 0),
  false -> absent(main) }
     }
-    machine absent(main: @mutable Main) { Console::write_line("EXCLUDED normalization_no_positive_gene"); ProcessExit::exit_process(66); }
+    machine absent(main: @mutable Main) { |console|::Console::write_line("EXCLUDED normalization_no_positive_gene"); |process_exit|::ProcessExit::exit_process(66); }
     machine factors(main: @mutable Main, index: i32 in Wrapping) {
         transition index < 6 {
  true -> factor_line(main, index),
  false -> gene(main, 0) }
     }
     machine factor_line(main: @mutable Main, index: i32 in Wrapping) {
-        Console::write("factor,"); integer(@mutable main.protocol, index); Console::write(",");
-        number(@mutable main.protocol, factor(@main.study, index)); Console::write_line("");
+        |console|::Console::write("factor,"); |protocol|::integer(@mutable main.protocol, index); |console|::Console::write(",");
+        |protocol|::number(@mutable main.protocol, |model|::factor(@main.study, index)); |console|::Console::write_line("");
         transition { _ -> factors(main, index + 1) }
     }
     machine gene(main: @mutable Main, index: i32 in Wrapping) {
@@ -90,7 +74,7 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
  false -> adjust(main, 0) }
     }
     machine moments(main: @mutable Main, index: i32 in Wrapping) requires index >= 0 && index < 8 {
-        let a: f64 = average(@main.study, index, 0); let b: f64 = average(@main.study, index, 1);
+        let a: f64 = |model|::average(@main.study, index, 0); let b: f64 = |model|::average(@main.study, index, 1);
         main.study.base[index] = base_mean(@main.study, index);
         transition a + b == 0.0 {
  true -> exclude(main, index, 1),
@@ -111,18 +95,18 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         transition { _ -> gene(main, index + 1) }
     }
     machine disperse(main: @mutable Main, index: i32 in Wrapping, a: f64, b: f64) requires index >= 0 && index < 8 {
-        let alpha: f64 = dispersion(@main.study, index, a, b);
+        let alpha: f64 = |model|::dispersion(@main.study, index, a, b);
         transition { _ -> estimate(main, index, alpha) }
     }
     machine estimate(main: @mutable Main, index: i32 in Wrapping, alpha: f64) requires index >= 0 && index < 8 {
-        let a: f64 = fit(@main.study, index, 0, alpha); let b: f64 = fit(@main.study, index, 1, alpha);
-        let first: f64 = information(@main.study, index, 0, a, alpha); let second: f64 = information(@main.study, index, 1, b, alpha);
-        let fold: f64 = logarithm(b / a) / 0.6931471805599453;
-        let error: f64 = F64::square_root(1.0 / first + 1.0 / second) / 0.6931471805599453;
+        let a: f64 = |model|::fit(@main.study, index, 0, alpha); let b: f64 = |model|::fit(@main.study, index, 1, alpha);
+        let first: f64 = |model|::information(@main.study, index, 0, a, alpha); let second: f64 = |model|::information(@main.study, index, 1, b, alpha);
+        let fold: f64 = |math|::logarithm(b / a) / 0.6931471805599453;
+        let error: f64 = |float_operations|::F64::square_root(1.0 / first + 1.0 / second) / 0.6931471805599453;
         main.study.dispersion[index] = alpha; main.study.mean_a[index] = a; main.study.mean_b[index] = b;
         main.study.fold[index] = fold; main.study.error[index] = error;
-        main.study.likelihood[index] = log_likelihood(@main.study, index, a, b, alpha);
-        main.study.p[index] = probability(fold / error); main.study.reason[index] = 0;
+        main.study.likelihood[index] = |model|::log_likelihood(@main.study, index, a, b, alpha);
+        main.study.p[index] = |math|::probability(fold / error); main.study.reason[index] = 0;
         transition { _ -> gene(main, index + 1) }
     }
     machine adjust(main: @mutable Main, index: i32 in Wrapping) {
@@ -140,7 +124,7 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
  false -> done(main) }
     }
     machine row(main: @mutable Main, index: i32 in Wrapping) requires index >= 0 && index < 8 {
-        Console::write("gene,"); integer(@mutable main.protocol, index); Console::write(",");
+        |console|::Console::write("gene,"); |protocol|::integer(@mutable main.protocol, index); |console|::Console::write(",");
         transition main.study.reason[index] == 0 {
  true -> result(main, index),
  false -> reason(main, index) }
@@ -150,76 +134,76 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
  true -> zero(main, index),
  false -> other(main, index) }
     }
-    machine zero(main: @mutable Main, index: i32 in Wrapping) { Console::write_line("all_zero"); transition { _ -> report(main, index + 1) } }
+    machine zero(main: @mutable Main, index: i32 in Wrapping) { |console|::Console::write_line("all_zero"); transition { _ -> report(main, index + 1) } }
     machine other(main: @mutable Main, index: i32 in Wrapping) requires index >= 0 && index < 8 {
         transition main.study.reason[index] == 2 {
  true -> low_count(main, index),
  false -> boundary(main, index) }
     }
-    machine low_count(main: @mutable Main, index: i32 in Wrapping) { Console::write_line("low_total_count"); transition { _ -> report(main, index + 1) } }
-    machine boundary(main: @mutable Main, index: i32 in Wrapping) { Console::write_line("group_zero_boundary"); transition { _ -> report(main, index + 1) } }
+    machine low_count(main: @mutable Main, index: i32 in Wrapping) { |console|::Console::write_line("low_total_count"); transition { _ -> report(main, index + 1) } }
+    machine boundary(main: @mutable Main, index: i32 in Wrapping) { |console|::Console::write_line("group_zero_boundary"); transition { _ -> report(main, index + 1) } }
     machine result(main: @mutable Main, index: i32 in Wrapping) requires index >= 0 && index < 8 {
-        Console::write("tested,");
-        number(@mutable main.protocol, main.study.base[index]); Console::write(",");
-        number(@mutable main.protocol, main.study.dispersion[index]); Console::write(",");
-        number(@mutable main.protocol, main.study.mean_a[index]); Console::write(",");
-        number(@mutable main.protocol, main.study.mean_b[index]); Console::write(",");
-        number(@mutable main.protocol, main.study.fold[index]); Console::write(",");
-        number(@mutable main.protocol, main.study.error[index]); Console::write(",");
-        number(@mutable main.protocol, main.study.likelihood[index]); Console::write(",");
-        number(@mutable main.protocol, main.study.p[index]); Console::write(",");
-        number(@mutable main.protocol, main.study.q[index]); Console::write_line("");
+        |console|::Console::write("tested,");
+        |protocol|::number(@mutable main.protocol, main.study.base[index]); |console|::Console::write(",");
+        |protocol|::number(@mutable main.protocol, main.study.dispersion[index]); |console|::Console::write(",");
+        |protocol|::number(@mutable main.protocol, main.study.mean_a[index]); |console|::Console::write(",");
+        |protocol|::number(@mutable main.protocol, main.study.mean_b[index]); |console|::Console::write(",");
+        |protocol|::number(@mutable main.protocol, main.study.fold[index]); |console|::Console::write(",");
+        |protocol|::number(@mutable main.protocol, main.study.error[index]); |console|::Console::write(",");
+        |protocol|::number(@mutable main.protocol, main.study.likelihood[index]); |console|::Console::write(",");
+        |protocol|::number(@mutable main.protocol, main.study.p[index]); |console|::Console::write(",");
+        |protocol|::number(@mutable main.protocol, main.study.q[index]); |console|::Console::write_line("");
         transition { _ -> report(main, index + 1) }
     }
-    machine done(main: @mutable Main) { ProcessExit::exit_process(0); }
+    machine done(main: @mutable Main) { |process_exit|::ProcessExit::exit_process(0); }
 }
-machine total_count(study: @Study, gene: i32 in Wrapping) -> f64 {
-    count(study, gene, 0) + count(study, gene, 1) + count(study, gene, 2) + count(study, gene, 3) + count(study, gene, 4) + count(study, gene, 5)
+machine total_count(study: @|model|::Study, gene: i32 in Wrapping) -> f64 {
+    |model|::count(study, gene, 0) + |model|::count(study, gene, 1) + |model|::count(study, gene, 2) + |model|::count(study, gene, 3) + |model|::count(study, gene, 4) + |model|::count(study, gene, 5)
 }
-machine base_mean(study: @Study, gene: i32 in Wrapping) -> f64 {
+machine base_mean(study: @|model|::Study, gene: i32 in Wrapping) -> f64 {
     transition { _ -> scan(study, gene, 0, 0.0) }
-    machine scan(study: @Study, gene: i32 in Wrapping, sample: i32 in Wrapping, total: f64) -> f64 {
+    machine scan(study: @|model|::Study, gene: i32 in Wrapping, sample: i32 in Wrapping, total: f64) -> f64 {
         transition sample < 6 {
- true -> scan(study, gene, sample + 1, total + count(study, gene, sample) / factor(study, sample)),
+ true -> scan(study, gene, sample + 1, total + |model|::count(study, gene, sample) / |model|::factor(study, sample)),
  false -> (total / 6.0) }
     }
 }
-machine rank(study: @Study, gene: i32 in Wrapping) -> f64 {
+machine rank(study: @|model|::Study, gene: i32 in Wrapping) -> f64 {
     transition gene >= 0 && gene < 8 {
  true -> scan(study, gene, 0, 1.0),
  false -> 1.0 }
-    machine scan(study: @Study, gene: i32 in Wrapping, other: i32 in Wrapping, position: f64) -> f64 requires gene >= 0 && gene < 8 {
+    machine scan(study: @|model|::Study, gene: i32 in Wrapping, other: i32 in Wrapping, position: f64) -> f64 requires gene >= 0 && gene < 8 {
         transition other >= 0 && other < 8 {
  true -> compare(study, gene, other, position),
  false -> position }
     }
-    machine compare(study: @Study, gene: i32 in Wrapping, other: i32 in Wrapping, position: f64) -> f64 requires gene >= 0 && gene < 8 && other >= 0 && other < 8 {
+    machine compare(study: @|model|::Study, gene: i32 in Wrapping, other: i32 in Wrapping, position: f64) -> f64 requires gene >= 0 && gene < 8 && other >= 0 && other < 8 {
         transition study.reason[other] == 0 && (study.p[other] < study.p[gene] || (study.p[other] == study.p[gene] && other < gene)) {
  true -> scan(study, gene, other + 1, position + 1.0),
  false -> scan(study, gene, other + 1, position) }
     }
 }
-machine tested(study: @Study) -> f64 {
+machine tested(study: @|model|::Study) -> f64 {
     transition { _ -> scan(study, 0, 0.0) }
-    machine scan(study: @Study, index: i32 in Wrapping, total: f64) -> f64 {
+    machine scan(study: @|model|::Study, index: i32 in Wrapping, total: f64) -> f64 {
         transition index >= 0 && index < 8 {
  true -> add(study, index, total),
  false -> total }
     }
-    machine add(study: @Study, index: i32 in Wrapping, total: f64) -> f64 requires index >= 0 && index < 8 {
+    machine add(study: @|model|::Study, index: i32 in Wrapping, total: f64) -> f64 requires index >= 0 && index < 8 {
         transition study.reason[index] == 0 {
  true -> scan(study, index + 1, total + 1.0),
  false -> scan(study, index + 1, total) }
     }
 }
-machine adjustment(study: @Study, gene: i32 in Wrapping) -> f64 {
+machine adjustment(study: @|model|::Study, gene: i32 in Wrapping) -> f64 {
     transition { _ -> scan(study, rank(study, gene), tested(study), 0, 1.0) }
-    machine scan(study: @Study, position: f64, size: f64, other: i32 in Wrapping, best: f64) -> f64 {
+    machine scan(study: @|model|::Study, position: f64, size: f64, other: i32 in Wrapping, best: f64) -> f64 {
         transition other >= 0 && other < 8 {
  true -> consider(study, position, size, other, best),
  false -> best }
     }
-    machine consider(study: @Study, position: f64, size: f64, other: i32 in Wrapping, best: f64) -> f64 requires other >= 0 && other < 8 {
+    machine consider(study: @|model|::Study, position: f64, size: f64, other: i32 in Wrapping, best: f64) -> f64 requires other >= 0 && other < 8 {
         let other_rank: f64 = rank(study, other);
         let candidate: f64 = study.p[other] * size / other_rank;
         transition study.reason[other] == 0 && other_rank >= position && candidate < best {
@@ -229,7 +213,7 @@ machine adjustment(study: @Study, gene: i32 in Wrapping) -> f64 {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

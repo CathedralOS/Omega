@@ -11,7 +11,7 @@ machine build(plan: @mutable BuildPlan) {
         Build::service::<|authority|::FilesystemMetadataMutation>(plan),
         Build::service::<|authority|::FilesystemNamespaceMutation>(plan)
     ];
-    let system: DependencyDescription = |dependency|::from_source(Source::Path { location: "../../../../../../../../source/library/system" });
+    let system: DependencyDescription = |dependency|::from_source(Source::Bundled { name: "system" });
     _ = |dependency|::add(plan, system, @allowed[..]);
     plan.product = BuildProduct::InterpretedBuild { entry: "outputs.omg" };
 }

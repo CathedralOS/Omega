@@ -3,7 +3,7 @@
 // for the caller.
 // Place: const_name.
 // Expected exit: 0
-use lib\ops;
+use {lib}/ops/ops.omg;
 
 machine hold(total: u64) -> bool
 requires total == 260
@@ -11,13 +11,13 @@ requires total == 260
     true
 }
 
-const LEFT: lib\ops\Wrapped = lib\ops\Wrapped { value: 250u16 };
-const RIGHT: lib\ops\Wrapped = lib\ops\Wrapped { value: 10u16 };
+const LEFT: |ops|::Wrapped = |ops|::Wrapped { value: 250u16 };
+const RIGHT: |ops|::Wrapped = |ops|::Wrapped { value: 10u16 };
 
 machine main() crashes Trap {
-    let left: lib\ops\Wrapped = LEFT;
-    let right: lib\ops\Wrapped = RIGHT;
-    let total: u64 = lib\ops\Wrapped::describe(@left, @right);
+    let left: |ops|::Wrapped = LEFT;
+    let right: |ops|::Wrapped = RIGHT;
+    let total: u64 = |ops|::Wrapped::describe(@left, @right);
     transition hold(total) && total == 260 {
         true -> done(),
         _ -> bad()

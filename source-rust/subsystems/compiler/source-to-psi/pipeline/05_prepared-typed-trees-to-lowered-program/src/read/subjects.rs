@@ -46,8 +46,8 @@ use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct};
 
 use super::Program;
-use crate::{Unserved, refuse};
 use crate::source_state::trait_definition::AppliedTraitScope;
+use crate::{Unserved, refuse};
 
 /// Whose declaration a symbol is, for one compilation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -231,11 +231,7 @@ impl Program<'_> {
     /// rows are. A supply the route cannot read this way is refused by name,
     /// so a provider is never accepted without having been judged against
     /// what it provides.
-    pub fn supplied_slots(
-        &mut self,
-        entry: MachineId,
-        supplies: &[crate::Supply],
-    ) -> Checked<()> {
+    pub fn supplied_slots(&mut self, entry: MachineId, supplies: &[crate::Supply]) -> Checked<()> {
         let typed = self.typed;
         let unserved = |what| {
             Err(refuse(
@@ -1105,11 +1101,15 @@ impl Program<'_> {
                 TypeParameterKind::Type => true,
                 TypeParameterKind::Const { type_reference } => {
                     parameter.bounds == crate::source_state::data::DataProperties::default()
-                        && crate::source_state::canonical_const_carrier_is_supported(typed, type_reference)
+                        && crate::source_state::canonical_const_carrier_is_supported(
+                            typed,
+                            type_reference,
+                        )
                 }
                 _ => false,
             };
-            !supported || !typed.symbols.symbols().nodes().is_valid(parameter.symbol)
+            !supported
+                || !typed.symbols.symbols().nodes().is_valid(parameter.symbol)
                 || typed.symbols.get(parameter.symbol).parent != alias.symbol
         }) || !alias.conformance_bounds.is_empty()
         {
@@ -1274,6 +1274,7 @@ fn served_trait_parameters(
                     typed,
                     type_reference,
                 ) => {}
+            TypeParameterKind::Proposition { .. } => {}
             TypeParameterKind::Implementation => {
                 implementations += 1;
                 let mut bounds = declared

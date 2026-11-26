@@ -1,8 +1,8 @@
-use omega\language\core\abs_f64;
+use {omega}/language/core/math.omg;
 
 data Probe {value:f64;observed:i32;}
 machine main(probe:@mutable Probe) {
- transition abs_f64(probe.value) <= 0.000000001 {true -> good(probe), _ -> fail(probe)}
+ transition |math|::abs_f64(probe.value) <= 0.000000001 {true -> good(probe), _ -> fail(probe)}
  machine good(probe:@mutable Probe) {probe.observed=1;}
  machine fail(probe:@mutable Probe) {probe.observed=-1;}
 }

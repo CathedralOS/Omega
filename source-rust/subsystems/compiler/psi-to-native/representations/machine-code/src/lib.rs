@@ -33,7 +33,6 @@ importing producer transformation passes. Constructing or decoding a record chec
 digest consistency only; it never grants lowering, optimization, or publication authority.
 */
 
-pub(crate) use ::wire::cursor;
 pub(crate) use ::wire::digest_encoder;
 
 use register_model::RegisterViewId;
@@ -49,20 +48,6 @@ pub(crate) mod codec_bytes {
     #[cfg(test)]
     pub(crate) use ::wire::codec_bytes::patch_encoded;
     pub(crate) use ::wire::codec_bytes::push_encoded;
-
-    pub(crate) fn encode_manifest_envelope(
-        magic: &[u8],
-        version: u32,
-        identity: &[u8],
-        content: &[u8],
-    ) -> Vec<u8> {
-        let mut encoded = Vec::with_capacity(44 + content.len());
-        encoded.extend_from_slice(magic);
-        push_encoded(&mut encoded, version.to_le_bytes());
-        encoded.extend_from_slice(identity);
-        encoded.extend_from_slice(content);
-        encoded
-    }
 }
 
 pub(crate) mod identity_encoding {
@@ -461,12 +446,11 @@ pub use fragments::{
     FunctionFragmentCallbackMaterialization, FunctionFragmentCallbackMaterializationEncoding,
     FunctionFragmentConditionalBranchEvidence, FunctionFragmentConditionalBranchPredicate,
     FunctionFragmentControlProvenance, FunctionFragmentEmissionManifest,
-    FunctionFragmentEmissionManifestDecodeError, FunctionFragmentEmissionPlan,
-    FunctionFragmentEmissionStage, FunctionFragmentEmissionStatistics,
-    FunctionFragmentEmissionUnavailableData, FunctionFragmentInstructionSpan,
-    FunctionFragmentInternalMachineFixup, FunctionFragmentInternalMachineFixupKind,
-    FunctionFragmentInternalMachineFixupState, FunctionFragmentNormalizedForeignCallFixup,
-    FunctionFragmentNormalizedForeignCallFixupKind,
+    FunctionFragmentEmissionPlan, FunctionFragmentEmissionStage,
+    FunctionFragmentEmissionStatistics, FunctionFragmentEmissionUnavailableData,
+    FunctionFragmentInstructionSpan, FunctionFragmentInternalMachineFixup,
+    FunctionFragmentInternalMachineFixupKind, FunctionFragmentInternalMachineFixupState,
+    FunctionFragmentNormalizedForeignCallFixup, FunctionFragmentNormalizedForeignCallFixupKind,
     FunctionFragmentNormalizedForeignCallFixupState, FunctionFragmentSuccessorProvenance, fixups,
     identity, publication,
 };
@@ -484,15 +468,15 @@ pub use image_addresses::{
 };
 pub use instructions::*;
 pub use layout::text_section::{
-    FunctionFragmentTextSectionManifest, FunctionFragmentTextSectionManifestDecodeError,
-    FunctionFragmentTextSectionStage, FunctionFragmentTextSectionStatistics,
-    FunctionFragmentTextSectionUnavailableData, InternalMachineCallResolutionKind,
-    InternalMachineCallResolutionState, NormalizedForeignCallResolutionKind,
-    NormalizedForeignCallResolutionState, PlacedBlockSpan, PlacedCallbackAddressEncoding,
-    PlacedCallbackAddressMaterialization, PlacedFunctionFragment, PlacedInstructionSpan,
-    PlacedInternalMachineCallResolution, PlacedNormalizedForeignCallResolution,
-    RelocationFreeTextSectionPlacement, TextSectionPlacementPolicy,
-    TextSectionRelocationRequirements, relocation_free_text_section_identity,
+    FunctionFragmentTextSectionManifest, FunctionFragmentTextSectionStage,
+    FunctionFragmentTextSectionStatistics, FunctionFragmentTextSectionUnavailableData,
+    InternalMachineCallResolutionKind, InternalMachineCallResolutionState,
+    NormalizedForeignCallResolutionKind, NormalizedForeignCallResolutionState, PlacedBlockSpan,
+    PlacedCallbackAddressEncoding, PlacedCallbackAddressMaterialization, PlacedFunctionFragment,
+    PlacedInstructionSpan, PlacedInternalMachineCallResolution,
+    PlacedNormalizedForeignCallResolution, RelocationFreeTextSectionPlacement,
+    TextSectionPlacementPolicy, TextSectionRelocationRequirements,
+    relocation_free_text_section_identity,
 };
 pub use layout::{
     EncodedMachineProgram, FramedMachineProgram, OptimizedMachineLayout, ResolvedBranchEvidence,

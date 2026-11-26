@@ -38,7 +38,7 @@ use image::FinalImage;
 use crate::bytes::write_u32;
 use crate::constants::TEXT_RVA;
 use crate::imports::PeIsa;
-use crate::layout::align_to;
+use image::align_to;
 
 /// `.xdata` followed by the sorted `.pdata` table, ready to place at `base_rva`.
 pub(crate) struct PeUnwindTables {

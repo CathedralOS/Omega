@@ -1,21 +1,16 @@
 // Library C layout preserves scalar values with C ABI field offsets, trailing padding and transparent alias identity.
 // Expected exit: 0
-use omega\language\core\FixedLayout;
-use omega\language\core\LayoutPlan;
-use omega\language\core\LayoutStorage;
-use omega\language\core\LayoutTarget;
-use omega\language\core\Schema;
-use omega\language\core\CAbiPolicy;
-use omega\language\core\CLayout;
+use {omega}/language/core/c_layout.omg;
+use {omega}/language/core/layout.omg;
 data Record [copy] { first: u8; second: u64; last: u16; }
-OtherPolicy satisfies FixedLayout<Record> {
-    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches none terminates {
-        CAbiPolicy::<Record>::plan(schema, target)
+OtherPolicy satisfies |layout|::FixedLayout<Record> {
+    machine plan(schema: |layout|::Schema, target: |layout|::LayoutTarget) -> |layout|::LayoutPlan reaches none terminates {
+        |c_layout|::CAbiPolicy::<Record>::plan(schema, target)
     }
 }
-machine explicit(value: CLayout<Record>) -> LayoutStorage<Record, CAbiPolicy<Record>> { value }
-machine make() -> CLayout<Record> {
-    let mutable record: CLayout<Record>;
+machine explicit(value: |c_layout|::CLayout<Record>) -> |layout|::LayoutStorage<Record, |c_layout|::CAbiPolicy<Record>> { value }
+machine make() -> |c_layout|::CLayout<Record> {
+    let mutable record: |c_layout|::CLayout<Record>;
     record.first = 17u8;
     record.second = 42u64;
     record.last = 9u16;
@@ -23,14 +18,14 @@ machine make() -> CLayout<Record> {
 }
 machine main() crashes Trap {
     transition { _ -> inspect(explicit(make())) }
-    machine inspect(record: LayoutStorage<Record, OtherPolicy>) crashes Trap {
-    let value: CLayout<Record> = record;
+    machine inspect(record: |layout|::LayoutStorage<Record, OtherPolicy>) crashes Trap {
+    let value: |c_layout|::CLayout<Record> = record;
     let mutable words: [u64; 3];
     words[0] = 17u64;
     words[1] = 42u64;
     words[2] = 9u64;
-    let mapped: @CLayout<Record> = @words as @CLayout<Record>;
-    transition value.first == 17u8 && value.second == 42u64 && value.last == 9u16 && mapped.first == 17u8 && mapped.second == 42u64 && mapped.last == 9u16 && size_of::<CLayout<Record>>() == 24u64 && align_of::<CLayout<Record>>() == 8u64 { true -> done(), _ -> bad() }
+    let mapped: @|c_layout|::CLayout<Record> = @words as @|c_layout|::CLayout<Record>;
+    transition value.first == 17u8 && value.second == 42u64 && value.last == 9u16 && mapped.first == 17u8 && mapped.second == 42u64 && mapped.last == 9u16 && size_of::<|c_layout|::CLayout<Record>>() == 24u64 && align_of::<|c_layout|::CLayout<Record>>() == 8u64 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
     }

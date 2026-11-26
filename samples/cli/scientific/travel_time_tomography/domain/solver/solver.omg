@@ -4,11 +4,7 @@
 // this also includes all corners. Rank-one ties prefer the minimum norm.
 // Integer input gives exact Gram products within f64's integer range. A nonzero
 // two-column determinant is an integer >= 1, so the 0.5 rank cutoff is exact.
-use domain\model;
-use domain\model\Ray;
-use domain\model\Problem;
-use domain\model\Fit;
-use domain\model\objective;
+use domain/model/model.omg;
 
 public data Normal [copy] { aa: f64; ab: f64; bb: f64; at: f64; bt: f64; }
 machine clamp(value: f64, low: f64, high: f64) -> f64 {
@@ -20,20 +16,20 @@ machine clamp(value: f64, low: f64, high: f64) -> f64 {
     machine capped(high: f64) -> f64 { high }
     machine kept(value: f64) -> f64 { value }
 }
-machine accumulate(normal: @mutable Normal, ray: @Ray) {
+machine accumulate(normal: @mutable Normal, ray: @|model|::Ray) {
     normal.aa = normal.aa + ray.first * ray.first;
     normal.ab = normal.ab + ray.first * ray.second;
     normal.bb = normal.bb + ray.second * ray.second;
     normal.at = normal.at + ray.first * ray.time;
     normal.bt = normal.bt + ray.second * ray.time;
 }
-machine consider(problem: @Problem, fit: @mutable Fit, first: f64, second: f64) {
+machine consider(problem: @|model|::Problem, fit: @mutable |model|::Fit, first: f64, second: f64) {
     transition first >= problem.low_first && first <= problem.high_first && second >= problem.low_second && second <= problem.high_second {
         true -> feasible(problem, fit, first, second),
         false -> skip()
     }
-    machine feasible(problem: @Problem, fit: @mutable Fit, first: f64, second: f64) {
-        let cost: f64 = objective(problem, first, second);
+    machine feasible(problem: @|model|::Problem, fit: @mutable |model|::Fit, first: f64, second: f64) {
+        let cost: f64 = |model|::objective(problem, first, second);
         let norm: f64 = first * first + second * second;
         let previous_norm: f64 = fit.first * fit.first + fit.second * fit.second;
         transition cost < fit.objective || (cost == fit.objective && norm < previous_norm) {
@@ -41,73 +37,73 @@ machine consider(problem: @Problem, fit: @mutable Fit, first: f64, second: f64) 
             false -> skip()
         }
     }
-    machine replace(fit: @mutable Fit, first: f64, second: f64, cost: f64) {
+    machine replace(fit: @mutable |model|::Fit, first: f64, second: f64, cost: f64) {
         fit.first = first; fit.second = second; fit.objective = cost;
     }
     machine skip() {}
 }
-machine fixed_first(problem: @Problem, normal: @Normal, fit: @mutable Fit, first: f64) {
+machine fixed_first(problem: @|model|::Problem, normal: @Normal, fit: @mutable |model|::Fit, first: f64) {
     transition normal.bb > 0.5 { true -> varying(problem, normal, fit, first), false -> flat(problem, fit, first) }
-    machine varying(problem: @Problem, normal: @Normal, fit: @mutable Fit, first: f64) {
+    machine varying(problem: @|model|::Problem, normal: @Normal, fit: @mutable |model|::Fit, first: f64) {
         let second: f64 = clamp((normal.bt - normal.ab * first) / normal.bb, problem.low_second, problem.high_second);
         consider(problem, fit, first, second);
     }
-    machine flat(problem: @Problem, fit: @mutable Fit, first: f64) { consider(problem, fit, first, problem.low_second); }
+    machine flat(problem: @|model|::Problem, fit: @mutable |model|::Fit, first: f64) { consider(problem, fit, first, problem.low_second); }
 }
-machine fixed_second(problem: @Problem, normal: @Normal, fit: @mutable Fit, second: f64) {
+machine fixed_second(problem: @|model|::Problem, normal: @Normal, fit: @mutable |model|::Fit, second: f64) {
     transition normal.aa > 0.5 { true -> varying(problem, normal, fit, second), false -> flat(problem, fit, second) }
-    machine varying(problem: @Problem, normal: @Normal, fit: @mutable Fit, second: f64) {
+    machine varying(problem: @|model|::Problem, normal: @Normal, fit: @mutable |model|::Fit, second: f64) {
         let first: f64 = clamp((normal.at - normal.ab * second) / normal.aa, problem.low_first, problem.high_first);
         consider(problem, fit, first, second);
     }
-    machine flat(problem: @Problem, fit: @mutable Fit, second: f64) { consider(problem, fit, problem.low_first, second); }
+    machine flat(problem: @|model|::Problem, fit: @mutable |model|::Fit, second: f64) { consider(problem, fit, problem.low_first, second); }
 }
-public machine solve(problem: @Problem) -> Fit {
+public machine solve(problem: @|model|::Problem) -> |model|::Fit {
     let mutable normal: Normal;
     accumulate(@mutable normal, @problem.rays[0]);
     accumulate(@mutable normal, @problem.rays[1]);
     accumulate(@mutable normal, @problem.rays[2]);
-    let mutable fit: Fit;
+    let mutable fit: |model|::Fit;
     fit.first = problem.low_first; fit.second = problem.low_second;
-    fit.objective = objective(problem, fit.first, fit.second);
+    fit.objective = |model|::objective(problem, fit.first, fit.second);
     let determinant: f64 = normal.aa * normal.bb - normal.ab * normal.ab;
     transition determinant > 0.5 {
         true -> full(problem, @normal, @mutable fit, determinant),
         false -> deficient(problem, @normal, @mutable fit)
     }
-    machine full(problem: @Problem, normal: @Normal, fit: @mutable Fit, determinant: f64) -> Fit {
+    machine full(problem: @|model|::Problem, normal: @Normal, fit: @mutable |model|::Fit, determinant: f64) -> |model|::Fit {
         fit.rank = 2;
         let first: f64 = (normal.at * normal.bb - normal.bt * normal.ab) / determinant;
         let second: f64 = (normal.bt * normal.aa - normal.at * normal.ab) / determinant;
         consider(problem, fit, first, second);
         transition { _ -> edges(problem, normal, fit) }
     }
-    machine deficient(problem: @Problem, normal: @Normal, fit: @mutable Fit) -> Fit {
+    machine deficient(problem: @|model|::Problem, normal: @Normal, fit: @mutable |model|::Fit) -> |model|::Fit {
         let trace: f64 = normal.aa + normal.bb;
         transition trace > 0.5 { true -> rank_one(problem, normal, fit, trace), false -> rank_zero(problem, normal, fit) }
     }
-    machine rank_one(problem: @Problem, normal: @Normal, fit: @mutable Fit, trace: f64) -> Fit {
+    machine rank_one(problem: @|model|::Problem, normal: @Normal, fit: @mutable |model|::Fit, trace: f64) -> |model|::Fit {
         fit.rank = 1;
         consider(problem, fit, normal.at / trace, normal.bt / trace);
         transition normal.aa > 0.5 { true -> null_first(problem, normal, fit), false -> null_second(problem, normal, fit) }
     }
-    machine null_first(problem: @Problem, normal: @Normal, fit: @mutable Fit) -> Fit {
+    machine null_first(problem: @|model|::Problem, normal: @Normal, fit: @mutable |model|::Fit) -> |model|::Fit {
         fit.null_first = normal.ab; fit.null_second = 0.0 - normal.aa;
         transition { _ -> edges(problem, normal, fit) }
     }
-    machine null_second(problem: @Problem, normal: @Normal, fit: @mutable Fit) -> Fit {
+    machine null_second(problem: @|model|::Problem, normal: @Normal, fit: @mutable |model|::Fit) -> |model|::Fit {
         fit.null_first = 1.0; fit.null_second = 0.0;
         transition { _ -> edges(problem, normal, fit) }
     }
-    machine rank_zero(problem: @Problem, normal: @Normal, fit: @mutable Fit) -> Fit {
+    machine rank_zero(problem: @|model|::Problem, normal: @Normal, fit: @mutable |model|::Fit) -> |model|::Fit {
         fit.rank = 0; fit.null_first = 1.0; fit.null_second = 0.0;
         transition { _ -> edges(problem, normal, fit) }
     }
-    machine edges(problem: @Problem, normal: @Normal, fit: @mutable Fit) -> Fit {
+    machine edges(problem: @|model|::Problem, normal: @Normal, fit: @mutable |model|::Fit) -> |model|::Fit {
         fixed_first(problem, normal, fit, problem.low_first);
         fixed_first(problem, normal, fit, problem.high_first);
         fixed_second(problem, normal, fit, problem.low_second);
         fixed_second(problem, normal, fit, problem.high_second);
-        Fit { first: fit.first, second: fit.second, objective: fit.objective, rank: fit.rank, null_first: fit.null_first, null_second: fit.null_second }
+        |model|::Fit { first: fit.first, second: fit.second, objective: fit.objective, rank: fit.rank, null_first: fit.null_first, null_second: fit.null_second }
     }
 }

@@ -18,9 +18,8 @@ object-relocation coordinates for object construction.
 mod publication;
 
 pub use publication::{
-    FunctionFragmentTextSectionManifest, FunctionFragmentTextSectionManifestDecodeError,
-    FunctionFragmentTextSectionStage, FunctionFragmentTextSectionStatistics,
-    FunctionFragmentTextSectionUnavailableData,
+    FunctionFragmentTextSectionManifest, FunctionFragmentTextSectionStage,
+    FunctionFragmentTextSectionStatistics, FunctionFragmentTextSectionUnavailableData,
 };
 
 use optimization_core::{
