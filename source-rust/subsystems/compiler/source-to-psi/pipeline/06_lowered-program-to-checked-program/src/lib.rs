@@ -239,8 +239,8 @@ pub enum Discharged {
     RetainedMembership,
     /// A typed source Identity checked against its actual mathematical term.
     Identity(equality::Judgment),
-    /// The declared closed projection follows this unchanged owned entry claim on every normal return.
-    ConservedContent(semantic_vocabulary::ClaimId),
+    /// The result conserves the declared projection of every listed owned entry claim on all normal returns.
+    ConservedContent(Vec<semantic_vocabulary::ClaimId>),
     /// A certificate the kernel accepted.
     Certificate(Evidence),
     /// A `NormalGuarantee` of a theorem over data indexed by values. The
@@ -1128,7 +1128,7 @@ fn check_prepared_machine(
         if let ObligationKind::NormalGuarantee { clause, .. } = row.kind
             && let Ok(index_in_returns) = content_returns.binary_search_by_key(&(clause as usize), |&(ordinal, _)| ordinal)
         {
-            decided[index] = Some(Ok(Discharged::ConservedContent(content_returns[index_in_returns].1)));
+            decided[index] = Some(Ok(Discharged::ConservedContent(content_returns[index_in_returns].1.clone())));
             continue;
         }
         // A theorem over indexed data: the signature proved this clause.

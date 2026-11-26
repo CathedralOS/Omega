@@ -123,6 +123,19 @@ enum Boolean {
 }
 
 impl Boolean {
+    fn known(&self, bounds: &Bounds) -> Checked<Option<bool>> {
+        use std::cmp::Ordering;
+        Ok(match self {
+            Self::Literal(value) => Some(*value),
+            Self::Equal(a, b) => bounds.compare(a, b)?.map(|order| order == Ordering::Equal),
+            Self::Less(a, b) => bounds.compare(a, b)?.map(|order| order == Ordering::Less),
+            Self::AtMost(a, b) => bounds
+                .compare(a, b)?
+                .map(|order| order != Ordering::Greater),
+            Self::Not(inner) => inner.known(bounds)?.map(|value| !value),
+        })
+    }
+
     fn assume(&self, value: bool, bounds: &mut Bounds) {
         match (self, value) {
             (Self::Not(inner), value) => inner.assume(!value, bounds),
@@ -143,7 +156,7 @@ struct Flow {
     booleans: Rows<ValueId, Boolean>,
     storage: Rows<PlaceId, Record>,
     bounds: Bounds,
-    opened: bool,
+    opened: BTreeSet<PlaceId>,
     // Exact arrivals of constructed children, including the destination of a
     // qualification-changing edge. Construction identity survives owned moves.
     arrivals: BTreeMap<(EdgeId, PlaceId), PlaceId>,
@@ -180,7 +193,7 @@ impl Flow {
         &mut self,
         module: &TerminalModule,
         op: &Operation,
-        input: PlaceId,
+        inputs: &BTreeSet<PlaceId>,
     ) -> Checked<()> {
         let scalar = |flow: &mut Self, value| -> Checked<()> {
             let result = op
@@ -205,9 +218,8 @@ impl Flow {
         };
         match &op.kind {
             Op::DecomposeStructuralValue { subject }
-                if subject.place == input && subject.path.is_empty() && !self.opened =>
+                if inputs.contains(&subject.place) && subject.path.is_empty() && self.opened.insert(subject.place) =>
             {
-                self.opened = true;
                 Ok(())
             }
             Op::PrimitiveScalarRead { source, path } => {
@@ -303,7 +315,7 @@ impl Flow {
         }
     }
 
-    fn requires(&mut self, p: &Proposition) {
+    fn assume_requirement(&mut self, p: &Proposition) {
         match p {
             Proposition::LessOrEqual(a, b) | Proposition::LessThan(a, b) => {
                 if let (Ok(a), Ok(b)) = (embed(a.clone()), embed(b.clone())) {
@@ -315,6 +327,13 @@ impl Flow {
                     self.bounds.order(a.clone(), b.clone());
                     self.bounds.order(b, a);
                 }
+            }
+            Proposition::IntegerMathLessOrEqual(a, b) | Proposition::IntegerMathLessThan(a, b) => {
+                self.bounds.order(a.clone(), b.clone());
+            }
+            Proposition::IntegerMathEqual(a, b) => {
+                self.bounds.order(a.clone(), b.clone());
+                self.bounds.order(b.clone(), a.clone());
             }
             _ => {}
         }
@@ -393,10 +412,48 @@ impl Flow {
     }
 }
 
+/// Check each alternative of a disjunctive precondition separately. Other
+/// preconditions may be weakened: every remaining case must prove the law.
+fn assume(mut flow: Flow, p: &Proposition, remaining: &mut usize) -> Checked<Vec<Flow>> {
+    *remaining = remaining
+        .checked_sub(1 + flow.bounds.len() + flow.storage.0.len())
+        .ok_or("interval partition exceeds its receiving work budget")?;
+    match p {
+        Proposition::Falsehood => Ok(Vec::new()),
+        Proposition::Disjunction(arms) => {
+            let mut cases = Vec::new();
+            for arm in arms {
+                cases.extend(assume(flow.clone(), arm, remaining)?);
+            }
+            Ok(cases)
+        }
+        Proposition::Conjunction(parts) => assume_all(vec![flow], parts, remaining),
+        _ => {
+            flow.assume_requirement(p);
+            Ok(vec![flow])
+        }
+    }
+}
+
+fn assume_all(
+    mut flows: Vec<Flow>,
+    predicates: &[Proposition],
+    remaining: &mut usize,
+) -> Checked<Vec<Flow>> {
+    for p in predicates {
+        let mut next = Vec::new();
+        for flow in flows {
+            next.extend(assume(flow, p, remaining)?);
+        }
+        flows = next;
+    }
+    Ok(flows)
+}
+
 pub(super) fn check(
     module: &TerminalModule,
     machine: &TerminalMachine,
-    input: PlaceId,
+    inputs: &BTreeSet<PlaceId>,
     paths: &[Vec<Path>],
     shape: &(ContentProjectionScalar, ContentProjectionScalar),
 ) -> Checked<BTreeSet<(EdgeId, PlaceId)>> {
@@ -423,16 +480,19 @@ pub(super) fn check(
             },
         )?;
     }
-    for requirement in &machine.requires {
-        initial.requires(requirement);
+    let mut originals = Vec::new();
+    for input in inputs {
+        let record = initial.record(module, *input, &[])?;
+        originals.push(initial.interval(module, &record, shape)?);
     }
-    let parent = initial.record(module, input, &[])?;
-    let original = initial.interval(module, &parent, shape)?;
-    let mut pending = vec![(machine.entry, initial, BTreeSet::<BlockId>::new())];
+    let mut remaining = 65_536usize;
+    let mut pending = assume_all(vec![initial], &machine.requires, &mut remaining)?
+        .into_iter()
+        .map(|flow| (machine.entry, flow, BTreeSet::<BlockId>::new()))
+        .collect::<Vec<_>>();
     let mut returned = false;
     let mut retained = BTreeSet::new();
     let mut lost = BTreeSet::new();
-    let mut remaining = 65_536usize;
     while let Some((current, mut flow, mut visited)) = pending.pop() {
         if !visited.insert(current) {
             return Err("interval partition requires a loop invariant");
@@ -444,7 +504,7 @@ pub(super) fn check(
             .checked_sub(block.operations.len() + 1)
             .ok_or("interval partition exceeds its receiving work budget")?;
         for op in &block.operations {
-            flow.operation(module, op, input)?;
+            flow.operation(module, op, inputs)?;
         }
         if block
             .terminator
@@ -459,7 +519,7 @@ pub(super) fn check(
                 returned_claims,
                 ..
             } => {
-                if !flow.opened {
+                if &flow.opened != inputs {
                     return Err("interval partition did not consume its promised original input");
                 }
                 let mut pieces = Vec::new();
@@ -479,7 +539,11 @@ pub(super) fn check(
                     }
                     pieces.push(flow.interval(module, &record, shape)?);
                 }
-                flow.bounds.partition(original.clone(), pieces)?;
+                match (&originals[..], &pieces[..]) {
+                    ([whole], _) => flow.bounds.partition(whole.clone(), pieces)?,
+                    (_, [whole]) => flow.bounds.partition(whole.clone(), originals.clone())?,
+                    _ => return Err("partition requires a single whole on one side"),
+                }
                 for (arrival, origin) in &flow.arrivals {
                     if origins.contains(origin) {
                         retained.insert(*arrival);
@@ -540,7 +604,7 @@ pub(super) fn check(
                     {
                         let truth = when_true.edge == edge;
                         if let Some(test) = flow.booleans.get(condition) {
-                            if matches!(test,Boolean::Literal(value) if *value!=truth) {
+                            if test.known(&flow.bounds)?.is_some_and(|value| value != truth) {
                                 continue;
                             }
                             test.assume(truth, &mut next.bounds);

@@ -120,91 +120,13 @@ ensures
         Vacant::content(@result)
     )
 {
-    transition left.length == 0 {
-        true -> empty_left(left, right),
-        false -> nonempty_left(left, right)
-    }
-
-    machine empty_left(left: Extent in Granted & Vacant, right: Extent in Granted & Vacant) -> Extent in Granted & Vacant
-    requires left.length == 0
-    ensures
-        result.base == right.base,
-        embed(result.length) == embed(left.length) + embed(right.length),
-        core\Identity::<IntervalSet<Nat>>(
-            separate(Granted::content(old(@left)), Granted::content(old(@right))),
-            Granted::content(@result)
-        ),
-        core\Identity::<IntervalSet<Nat>>(
-            separate(Vacant::content(old(@left)), Vacant::content(old(@right))),
-            Vacant::content(@result)
-        )
-    {
-        let { base as left_base, length as left_length } = left;
-        let { base as right_base, length as right_length } = right;
-        Extent { base: right_base, length: right_length }
-    }
-
-    machine nonempty_left(left: Extent in Granted & Vacant, right: Extent in Granted & Vacant) -> Extent in Granted & Vacant
-    requires
-        embed(left.length) + embed(right.length) <= 18446744073709551615,
-        right.length == 0 || embed(right.base) == embed(left.base) + embed(left.length)
-    ensures
-        result.base == left.base,
-        embed(result.length) == embed(left.length) + embed(right.length),
-        core\Identity::<IntervalSet<Nat>>(
-            separate(Granted::content(old(@left)), Granted::content(old(@right))),
-            Granted::content(@result)
-        ),
-        core\Identity::<IntervalSet<Nat>>(
-            separate(Vacant::content(old(@left)), Vacant::content(old(@right))),
-            Vacant::content(@result)
-        )
-    {
-        transition right.length == 0 {
-            true -> empty_right(left, right),
-            false -> adjacent(left, right)
-        }
-    }
-
-    machine empty_right(left: Extent in Granted & Vacant, right: Extent in Granted & Vacant) -> Extent in Granted & Vacant
-    requires right.length == 0
-    ensures
-        result.base == left.base,
-        embed(result.length) == embed(left.length) + embed(right.length),
-        core\Identity::<IntervalSet<Nat>>(
-            separate(Granted::content(old(@left)), Granted::content(old(@right))),
-            Granted::content(@result)
-        ),
-        core\Identity::<IntervalSet<Nat>>(
-            separate(Vacant::content(old(@left)), Vacant::content(old(@right))),
-            Vacant::content(@result)
-        )
-    {
-        let { base as left_base, length as left_length } = left;
-        let { base as right_base, length as right_length } = right;
-        Extent { base: left_base, length: left_length }
-    }
-
-    machine adjacent(left: Extent in Granted & Vacant, right: Extent in Granted & Vacant) -> Extent in Granted & Vacant
-    requires
-        embed(left.length) + embed(right.length) <= 18446744073709551615,
-        embed(right.base) == embed(left.base) + embed(left.length)
-    ensures
-        result.base == left.base,
-        embed(result.length) == embed(left.length) + embed(right.length),
-        core\Identity::<IntervalSet<Nat>>(
-            separate(Granted::content(old(@left)), Granted::content(old(@right))),
-            Granted::content(@result)
-        ),
-        core\Identity::<IntervalSet<Nat>>(
-            separate(Vacant::content(old(@left)), Vacant::content(old(@right))),
-            Vacant::content(@result)
-        )
-    {
-        let { base as left_base, length as left_length } = left;
-        let { base as right_base, length as right_length } = right;
-        Extent { base: left_base, length: left_length + right_length }
-    }
+    let { base as left_base, length as left_length } = left;
+    let { base as right_base, length as right_length } = right;
+    let base: addr = match left_length == 0 {
+        true -> right_base,
+        false -> left_base,
+    };
+    Extent { base: base, length: left_length + right_length } as +Granted +Vacant
 }
 
 // Import already-established resident content from an admitted provider.
