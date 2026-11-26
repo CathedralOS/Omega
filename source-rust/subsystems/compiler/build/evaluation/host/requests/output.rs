@@ -1,11 +1,9 @@
 //! Output retained by one Build across dependency waits and released on normal return.
 use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
-use package_compilation::BuildSourcePublications;
 
 #[derive(Default)]
 pub(crate) struct BuildRequestOutput {
     pub(crate) log: BuildLog,
-    pub(crate) sources: BuildSourcePublications,
     stream_bytes: u64,
 }
 

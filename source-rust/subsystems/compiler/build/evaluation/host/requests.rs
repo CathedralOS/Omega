@@ -574,28 +574,6 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                 "project requests require the original compiler-issued Build receiver",
             ));
         }
-        if call.action == Operation::PublishSource {
-            let [None, Some(name), Some(source)] = byte_sequence_arguments.as_slice() else {
-                return Err(refuse(
-                    "Build source publication requires a filename and source bytes",
-                ));
-            };
-            if !arguments.is_empty() {
-                return Err(refuse(
-                    "Build source publication does not accept scalar arguments",
-                ));
-            }
-            let account = self.host.account.as_ref().ok_or_else(|| {
-                refuse("Build source publication requires the activation's evaluation account")
-            })?;
-            self.host
-                .output()
-                .map_err(TerminalEffectRejection::new)?
-                .sources
-                .publish(account, name, source)
-                .map_err(TerminalEffectRejection::new)?;
-            return Ok(TerminalEffectResult::Unit);
-        }
         let text = |position: usize| -> Result<&str, TerminalEffectRejection> {
             let bytes = byte_sequence_arguments
                 .get(position)
@@ -628,8 +606,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             | Operation::SandboxWrite
             | Operation::LogLine
             | Operation::PrepareDependency
-            | Operation::ValidateDependency
-            | Operation::PublishSource => {
+            | Operation::ValidateDependency => {
                 return Err(refuse("Build request did not complete its host request"));
             }
         };
@@ -819,8 +796,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             | Operation::SandboxWrite
             | Operation::LogLine
             | Operation::PrepareDependency
-            | Operation::ValidateDependency
-            | Operation::PublishSource => {
+            | Operation::ValidateDependency => {
                 return Err(refuse("Build request did not complete its host request"));
             }
             Operation::ArtifactOnly => BuildRequest::ArtifactOnly,
