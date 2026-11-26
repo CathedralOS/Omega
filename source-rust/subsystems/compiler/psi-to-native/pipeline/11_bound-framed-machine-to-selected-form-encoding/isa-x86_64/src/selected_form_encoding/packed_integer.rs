@@ -89,11 +89,28 @@ fn spec(
     operands: &[RegisterViewId],
 ) -> Result<PackedSpec, X86_64SelectedFormEncodingError> {
     match kind {
-        SelectedInstructionKind::PackedAddI16x8 | SelectedInstructionKind::PackedSubI16x8 => {
-            let family = if kind == SelectedInstructionKind::PackedAddI16x8 {
-                MachineAlternativeFamily::PackedAddI16x8
-            } else {
-                MachineAlternativeFamily::PackedSubI16x8
+        SelectedInstructionKind::PackedAddI16x8
+        | SelectedInstructionKind::PackedSubI16x8
+        | SelectedInstructionKind::PackedAddU8x16
+        | SelectedInstructionKind::PackedMinI16x8
+        | SelectedInstructionKind::PackedCmpGtI16x8
+        | SelectedInstructionKind::PackedBitAndI16x8
+        | SelectedInstructionKind::PackedBitAndNotI16x8 => {
+            let family = match kind {
+                SelectedInstructionKind::PackedAddI16x8 => MachineAlternativeFamily::PackedAddI16x8,
+                SelectedInstructionKind::PackedSubI16x8 => MachineAlternativeFamily::PackedSubI16x8,
+                SelectedInstructionKind::PackedAddU8x16 => MachineAlternativeFamily::PackedAddU8x16,
+                SelectedInstructionKind::PackedMinI16x8 => MachineAlternativeFamily::PackedMinI16x8,
+                SelectedInstructionKind::PackedCmpGtI16x8 => {
+                    MachineAlternativeFamily::PackedCmpGtI16x8
+                }
+                SelectedInstructionKind::PackedBitAndI16x8 => {
+                    MachineAlternativeFamily::PackedBitAndI16x8
+                }
+                SelectedInstructionKind::PackedBitAndNotI16x8 => {
+                    MachineAlternativeFamily::PackedBitAndNotI16x8
+                }
+                _ => unreachable!(),
             };
             let [left, right, destination] = super::request_validation::byte_loop_registers(
                 physical,
@@ -102,16 +119,38 @@ fn spec(
                 operands,
                 3,
             )?;
-            let op = if kind == SelectedInstructionKind::PackedAddI16x8 {
-                Instruction::AddWords {
+            let op = match kind {
+                SelectedInstructionKind::PackedAddI16x8 => Instruction::AddWords {
                     destination_xmm: 0,
                     source_xmm: 1,
-                }
-            } else {
-                Instruction::SubWords {
+                },
+                SelectedInstructionKind::PackedSubI16x8 => Instruction::SubWords {
                     destination_xmm: 0,
                     source_xmm: 1,
+                },
+                SelectedInstructionKind::PackedAddU8x16 => Instruction::AddBytes {
+                    destination_xmm: 0,
+                    source_xmm: 1,
+                },
+                SelectedInstructionKind::PackedMinI16x8 => Instruction::MinWordsSigned {
+                    destination_xmm: 0,
+                    source_xmm: 1,
+                },
+                SelectedInstructionKind::PackedCmpGtI16x8 => {
+                    Instruction::CompareGreaterWordsSigned {
+                        destination_xmm: 0,
+                        source_xmm: 1,
+                    }
                 }
+                SelectedInstructionKind::PackedBitAndI16x8 => Instruction::BitwiseAndPacked {
+                    destination_xmm: 0,
+                    source_xmm: 1,
+                },
+                SelectedInstructionKind::PackedBitAndNotI16x8 => Instruction::BitwiseAndNotPacked {
+                    destination_xmm: 0,
+                    source_xmm: 1,
+                },
+                _ => unreachable!(),
             };
             Ok(PackedSpec {
                 instructions: vec![
@@ -329,6 +368,41 @@ fn spec(
                         base: source,
                     },
                     Instruction::ShiftRightArithmeticWords { xmm: 0, count },
+                    Instruction::StoreUnaligned {
+                        base: destination,
+                        source_xmm: 0,
+                    },
+                ],
+                register_reads: operands.to_vec(),
+                register_writes: Vec::new(),
+                external_operand_reads: vec![0, 1],
+                external_operand_writes: Vec::new(),
+                clobbers: vec!["xmm0"],
+                memory: MachineEncodedMemoryEffect::PackedUnary16To16BytesV1 {
+                    source_pointer_operand: 0,
+                    destination_pointer_operand: 1,
+                },
+                trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+            })
+        }
+        SelectedInstructionKind::PackedAbsI16x8 => {
+            let [source, destination] = super::request_validation::byte_loop_registers(
+                physical,
+                alternative,
+                MachineAlternativeFamily::PackedAbsI16x8,
+                operands,
+                2,
+            )?;
+            Ok(PackedSpec {
+                instructions: vec![
+                    Instruction::LoadUnaligned {
+                        destination_xmm: 0,
+                        base: source,
+                    },
+                    Instruction::AbsWordsSigned {
+                        destination_xmm: 0,
+                        source_xmm: 0,
+                    },
                     Instruction::StoreUnaligned {
                         base: destination,
                         source_xmm: 0,
@@ -696,11 +770,36 @@ fn spec(
                 2,
             ))
         }
-        SelectedInstructionKind::PackedAddI16x8Reg | SelectedInstructionKind::PackedSubI16x8Reg => {
-            let family = if kind == SelectedInstructionKind::PackedAddI16x8Reg {
-                MachineAlternativeFamily::PackedAddI16x8Reg
-            } else {
-                MachineAlternativeFamily::PackedSubI16x8Reg
+        SelectedInstructionKind::PackedAddI16x8Reg
+        | SelectedInstructionKind::PackedSubI16x8Reg
+        | SelectedInstructionKind::PackedAddU8x16Reg
+        | SelectedInstructionKind::PackedMinI16x8Reg
+        | SelectedInstructionKind::PackedCmpGtI16x8Reg
+        | SelectedInstructionKind::PackedBitAndI16x8Reg
+        | SelectedInstructionKind::PackedBitAndNotI16x8Reg => {
+            let family = match kind {
+                SelectedInstructionKind::PackedAddI16x8Reg => {
+                    MachineAlternativeFamily::PackedAddI16x8Reg
+                }
+                SelectedInstructionKind::PackedSubI16x8Reg => {
+                    MachineAlternativeFamily::PackedSubI16x8Reg
+                }
+                SelectedInstructionKind::PackedAddU8x16Reg => {
+                    MachineAlternativeFamily::PackedAddU8x16Reg
+                }
+                SelectedInstructionKind::PackedMinI16x8Reg => {
+                    MachineAlternativeFamily::PackedMinI16x8Reg
+                }
+                SelectedInstructionKind::PackedCmpGtI16x8Reg => {
+                    MachineAlternativeFamily::PackedCmpGtI16x8Reg
+                }
+                SelectedInstructionKind::PackedBitAndI16x8Reg => {
+                    MachineAlternativeFamily::PackedBitAndI16x8Reg
+                }
+                SelectedInstructionKind::PackedBitAndNotI16x8Reg => {
+                    MachineAlternativeFamily::PackedBitAndNotI16x8Reg
+                }
+                _ => unreachable!(),
             };
             check_canonical_alternative(physical, alternative, family)?;
             let &[lhs_id, rhs_id, dst_id] = operands else {
@@ -709,20 +808,65 @@ fn spec(
             let left_xmm = resolve_xmm(physical, lhs_id)?;
             let right_xmm = resolve_xmm(physical, rhs_id)?;
             let destination_xmm = resolve_xmm(physical, dst_id)?;
-            let instruction = if kind == SelectedInstructionKind::PackedAddI16x8Reg {
-                Instruction::Vpaddw {
+            let instruction = match kind {
+                SelectedInstructionKind::PackedAddI16x8Reg => Instruction::Vpaddw {
                     destination_xmm,
                     left_xmm,
                     right_xmm,
-                }
-            } else {
-                Instruction::Vpsubw {
+                },
+                SelectedInstructionKind::PackedSubI16x8Reg => Instruction::Vpsubw {
                     destination_xmm,
                     left_xmm,
                     right_xmm,
-                }
+                },
+                SelectedInstructionKind::PackedAddU8x16Reg => Instruction::Vpaddb {
+                    destination_xmm,
+                    left_xmm,
+                    right_xmm,
+                },
+                SelectedInstructionKind::PackedMinI16x8Reg => Instruction::Vpminsw {
+                    destination_xmm,
+                    left_xmm,
+                    right_xmm,
+                },
+                SelectedInstructionKind::PackedCmpGtI16x8Reg => Instruction::Vpcmpgtw {
+                    destination_xmm,
+                    left_xmm,
+                    right_xmm,
+                },
+                SelectedInstructionKind::PackedBitAndI16x8Reg => Instruction::Vpand {
+                    destination_xmm,
+                    left_xmm,
+                    right_xmm,
+                },
+                SelectedInstructionKind::PackedBitAndNotI16x8Reg => Instruction::Vpandn {
+                    destination_xmm,
+                    left_xmm,
+                    right_xmm,
+                },
+                _ => unreachable!(),
             };
             Ok(pure_spec(vec![instruction], operands, 2))
+        }
+        SelectedInstructionKind::PackedAbsI16x8Reg => {
+            check_canonical_alternative(
+                physical,
+                alternative,
+                MachineAlternativeFamily::PackedAbsI16x8Reg,
+            )?;
+            let &[src_id, dst_id] = operands else {
+                return Err(X86_64SelectedFormEncodingError::OperandCountMismatch);
+            };
+            let source_xmm = resolve_xmm(physical, src_id)?;
+            let destination_xmm = resolve_xmm(physical, dst_id)?;
+            Ok(pure_spec(
+                vec![Instruction::Vpabsw {
+                    destination_xmm,
+                    source_xmm,
+                }],
+                operands,
+                1,
+            ))
         }
         SelectedInstructionKind::PackedShiftRightArithmeticI16x8Reg { count } => {
             if count >= 16 {
@@ -1051,6 +1195,36 @@ mod tests {
                 &ops3,
             ),
             (
+                SelectedInstructionKind::PackedAddU8x16,
+                MachineSemanticKind::PackedAddU8x16,
+                &ops3,
+            ),
+            (
+                SelectedInstructionKind::PackedMinI16x8,
+                MachineSemanticKind::PackedMinI16x8,
+                &ops3,
+            ),
+            (
+                SelectedInstructionKind::PackedCmpGtI16x8,
+                MachineSemanticKind::PackedCmpGtI16x8,
+                &ops3,
+            ),
+            (
+                SelectedInstructionKind::PackedBitAndI16x8,
+                MachineSemanticKind::PackedBitAndI16x8,
+                &ops3,
+            ),
+            (
+                SelectedInstructionKind::PackedBitAndNotI16x8,
+                MachineSemanticKind::PackedBitAndNotI16x8,
+                &ops3,
+            ),
+            (
+                SelectedInstructionKind::PackedAbsI16x8,
+                MachineSemanticKind::PackedAbsI16x8,
+                &ops2,
+            ),
+            (
                 SelectedInstructionKind::PackedShuffleI16x8 {
                     lanes: [0, 8, 1, 9, 2, 10, 3, 11],
                 },
@@ -1247,6 +1421,36 @@ mod tests {
             (
                 SelectedInstructionKind::PackedNarrowI16x8ToU8x8SaturatingReg,
                 MachineSemanticKind::PackedNarrowI16x8ToU8x8SaturatingReg,
+                &xmm2[..],
+            ),
+            (
+                SelectedInstructionKind::PackedAddU8x16Reg,
+                MachineSemanticKind::PackedAddU8x16Reg,
+                &xmm3[..],
+            ),
+            (
+                SelectedInstructionKind::PackedMinI16x8Reg,
+                MachineSemanticKind::PackedMinI16x8Reg,
+                &xmm3[..],
+            ),
+            (
+                SelectedInstructionKind::PackedCmpGtI16x8Reg,
+                MachineSemanticKind::PackedCmpGtI16x8Reg,
+                &xmm3[..],
+            ),
+            (
+                SelectedInstructionKind::PackedBitAndI16x8Reg,
+                MachineSemanticKind::PackedBitAndI16x8Reg,
+                &xmm3[..],
+            ),
+            (
+                SelectedInstructionKind::PackedBitAndNotI16x8Reg,
+                MachineSemanticKind::PackedBitAndNotI16x8Reg,
+                &xmm3[..],
+            ),
+            (
+                SelectedInstructionKind::PackedAbsI16x8Reg,
+                MachineSemanticKind::PackedAbsI16x8Reg,
                 &xmm2[..],
             ),
         ]);

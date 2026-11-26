@@ -1,6 +1,15 @@
-use posix_filesystem_host.omg as raw_fs;
 use macos_image.omg as image;
-use omega\language\core\byte_observation;
+use posix_filesystem_host.omg as raw_fs;
+use {omega}/language/core/byte_observation/byte_observation.omg as bytes;
+use {omega}/language/core/filesystem_authority.omg as authority;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/native_execution_authority.omg as native_execution;
+use {omega}/language/core/numeric_conversion.omg as numeric;
+use {omega}/language/core/presentation_authority.omg as presentation;
+use {omega}/language/core/process_authority.omg as process;
+use {omega}/language/core/process_exit.omg;
+use {omega}/language/core/time_authority.omg as time;
+
 // Explicit application-owned macOS window state and stateless operations.
 // Named provider maps select these machines; selection creates no hidden state.
 // Cocoa calls use the raw Objective-C/Core Graphics seams below. Window owns
@@ -9,44 +18,22 @@ use omega\language\core\byte_observation;
 // create subtracts 16/39 from outer dimensions, while blit stretches 64x64 pixels.
 // Class/style inputs do not select Cocoa classes or grant foreign authority.
 
-use omega\language\core\narrow_u64_to_u32_wrapping;
-use omega\language\core\narrow_u32_to_i32_wrapping;
-use omega\language\core\F64;
-use omega\language\core\F64::from_i32;
-use omega\language\core\F64::from_u32;
-use omega\language\core\WindowManagement;
-use omega\language\core\SurfacePresentation;
-use omega\language\core\WindowEventObservation;
-use omega\language\core\WindowEventDispatch;
-use omega\language\core\GlobalInputObservation;
-use omega\language\core\ClockObservation;
-use omega\language\core\ExecutionDelay;
-use omega\language\core\NativeCodeExecution;
-use omega\language\core\FilesystemContentRead;
-use omega\language\core\FilesystemContentWrite;
-use omega\language\core\FilesystemMetadataQuery;
-use omega\language\core\FilesystemMetadataMutation;
-use omega\language\core\DirectoryEnumeration;
-use omega\language\core\FilesystemNamespaceMutation;
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
 
 public domain [u8]::CString
 requires
-    byte_observation\no_nul(@self[..]);
+    |bytes|::no_nul(@self[..]);
 
 // AppKit must be loaded before looking up Cocoa classes through libobjc.
 // The explicit import owns that dependency; class names do not select libraries.
 public boundary trait AppKit {
     machine load() -> bool
     reaches
-        NativeCodeExecution + WindowManagement + SurfacePresentation +
-        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-        ClockObservation + ExecutionDelay + FilesystemContentRead +
-        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-        DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-        StandardOutput + ProcessExit
+        |native_execution|::NativeCodeExecution + |presentation|::WindowManagement + |presentation|::SurfacePresentation +
+        |presentation|::WindowEventObservation + |presentation|::WindowEventDispatch + |presentation|::GlobalInputObservation +
+        |time|::ClockObservation + |time|::ExecutionDelay + |authority|::FilesystemContentRead +
+        |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation +
+        |authority|::DirectoryEnumeration + |authority|::FilesystemNamespaceMutation + |process|::StandardInput +
+        |process|::StandardOutput + |process_exit|::ProcessExit
     crashes none;
 }
 
@@ -56,12 +43,12 @@ public boundary trait ObjectiveC {
     machine get_class(name: @[u8; 256]) -> u64
     requires name[255] == 0
     reaches
-        NativeCodeExecution + WindowManagement + SurfacePresentation +
-        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-        ClockObservation + ExecutionDelay + FilesystemContentRead +
-        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-        DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-        StandardOutput + ProcessExit
+        |native_execution|::NativeCodeExecution + |presentation|::WindowManagement + |presentation|::SurfacePresentation +
+        |presentation|::WindowEventObservation + |presentation|::WindowEventDispatch + |presentation|::GlobalInputObservation +
+        |time|::ClockObservation + |time|::ExecutionDelay + |authority|::FilesystemContentRead +
+        |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation +
+        |authority|::DirectoryEnumeration + |authority|::FilesystemNamespaceMutation + |process|::StandardInput +
+        |process|::StandardOutput + |process_exit|::ProcessExit
     crashes none;
     machine register_selector(name: @[u8; 256]) -> u64
     requires name[255] == 0
@@ -69,59 +56,59 @@ public boundary trait ObjectiveC {
     crashes none;
     machine send(recv: u64, sel: u64) -> u64
     reaches
-        NativeCodeExecution + WindowManagement + SurfacePresentation +
-        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-        ClockObservation + ExecutionDelay + FilesystemContentRead +
-        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-        DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-        StandardOutput + ProcessExit
+        |native_execution|::NativeCodeExecution + |presentation|::WindowManagement + |presentation|::SurfacePresentation +
+        |presentation|::WindowEventObservation + |presentation|::WindowEventDispatch + |presentation|::GlobalInputObservation +
+        |time|::ClockObservation + |time|::ExecutionDelay + |authority|::FilesystemContentRead +
+        |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation +
+        |authority|::DirectoryEnumeration + |authority|::FilesystemNamespaceMutation + |process|::StandardInput +
+        |process|::StandardOutput + |process_exit|::ProcessExit
     crashes none;
     machine send_scalar(recv: u64, sel: u64, arg: u64) -> u64
     reaches
-        NativeCodeExecution + WindowManagement + SurfacePresentation +
-        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-        ClockObservation + ExecutionDelay + FilesystemContentRead +
-        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-        DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-        StandardOutput + ProcessExit
+        |native_execution|::NativeCodeExecution + |presentation|::WindowManagement + |presentation|::SurfacePresentation +
+        |presentation|::WindowEventObservation + |presentation|::WindowEventDispatch + |presentation|::GlobalInputObservation +
+        |time|::ClockObservation + |time|::ExecutionDelay + |authority|::FilesystemContentRead +
+        |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation +
+        |authority|::DirectoryEnumeration + |authority|::FilesystemNamespaceMutation + |process|::StandardInput +
+        |process|::StandardOutput + |process_exit|::ProcessExit
     crashes none;
     machine send_delayed(recv: u64, sel: u64, action: u64, object: u64, delay: f64)
     reaches
-        NativeCodeExecution + WindowManagement + SurfacePresentation +
-        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-        ClockObservation + ExecutionDelay + FilesystemContentRead +
-        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-        DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-        StandardOutput + ProcessExit
+        |native_execution|::NativeCodeExecution + |presentation|::WindowManagement + |presentation|::SurfacePresentation +
+        |presentation|::WindowEventObservation + |presentation|::WindowEventDispatch + |presentation|::GlobalInputObservation +
+        |time|::ClockObservation + |time|::ExecutionDelay + |authority|::FilesystemContentRead +
+        |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation +
+        |authority|::DirectoryEnumeration + |authority|::FilesystemNamespaceMutation + |process|::StandardInput +
+        |process|::StandardOutput + |process_exit|::ProcessExit
     crashes none;
     machine send_rect(recv: u64, sel: u64, x: f64, y: f64, w: f64, h: f64, a: u64, b: u64, c: u64) -> u64
     reaches
-        NativeCodeExecution + WindowManagement + SurfacePresentation +
-        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-        ClockObservation + ExecutionDelay + FilesystemContentRead +
-        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-        DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-        StandardOutput + ProcessExit
+        |native_execution|::NativeCodeExecution + |presentation|::WindowManagement + |presentation|::SurfacePresentation +
+        |presentation|::WindowEventObservation + |presentation|::WindowEventDispatch + |presentation|::GlobalInputObservation +
+        |time|::ClockObservation + |time|::ExecutionDelay + |authority|::FilesystemContentRead +
+        |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation +
+        |authority|::DirectoryEnumeration + |authority|::FilesystemNamespaceMutation + |process|::StandardInput +
+        |process|::StandardOutput + |process_exit|::ProcessExit
     crashes none;
     machine send_image_size(recv: u64, sel: u64, image: u64, w: f64, h: f64) -> u64
     reaches
-        NativeCodeExecution + WindowManagement + SurfacePresentation +
-        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-        ClockObservation + ExecutionDelay + FilesystemContentRead +
-        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-        DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-        StandardOutput + ProcessExit
+        |native_execution|::NativeCodeExecution + |presentation|::WindowManagement + |presentation|::SurfacePresentation +
+        |presentation|::WindowEventObservation + |presentation|::WindowEventDispatch + |presentation|::GlobalInputObservation +
+        |time|::ClockObservation + |time|::ExecutionDelay + |authority|::FilesystemContentRead +
+        |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation +
+        |authority|::DirectoryEnumeration + |authority|::FilesystemNamespaceMutation + |process|::StandardInput +
+        |process|::StandardOutput + |process_exit|::ProcessExit
     crashes none;
     machine send_string<const Count: u64>(recv: u64, sel: u64, text: @[u8; Count]) -> u64
     requires Count > 0
     requires text[Count - 1] == 0
     reaches
-        NativeCodeExecution + WindowManagement + SurfacePresentation +
-        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-        ClockObservation + ExecutionDelay + FilesystemContentRead +
-        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-        DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-        StandardOutput + ProcessExit
+        |native_execution|::NativeCodeExecution + |presentation|::WindowManagement + |presentation|::SurfacePresentation +
+        |presentation|::WindowEventObservation + |presentation|::WindowEventDispatch + |presentation|::GlobalInputObservation +
+        |time|::ClockObservation + |time|::ExecutionDelay + |authority|::FilesystemContentRead +
+        |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation +
+        |authority|::DirectoryEnumeration + |authority|::FilesystemNamespaceMutation + |process|::StandardInput +
+        |process|::StandardOutput + |process_exit|::ProcessExit
     crashes none;
     // RUNTIME byte-buffer string arg (`initWithUTF8String:` over the samples'
     // title bytes). The complete borrowed extent includes its terminating NUL. Earlier NULs
@@ -130,21 +117,21 @@ public boundary trait ObjectiveC {
     requires Count > 0
     requires text[Count - 1] == 0
     reaches
-        NativeCodeExecution + WindowManagement + SurfacePresentation +
-        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-        ClockObservation + ExecutionDelay + FilesystemContentRead +
-        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-        DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-        StandardOutput + ProcessExit
+        |native_execution|::NativeCodeExecution + |presentation|::WindowManagement + |presentation|::SurfacePresentation +
+        |presentation|::WindowEventObservation + |presentation|::WindowEventDispatch + |presentation|::GlobalInputObservation +
+        |time|::ClockObservation + |time|::ExecutionDelay + |authority|::FilesystemContentRead +
+        |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation +
+        |authority|::DirectoryEnumeration + |authority|::FilesystemNamespaceMutation + |process|::StandardInput +
+        |process|::StandardOutput + |process_exit|::ProcessExit
     crashes none;
     machine send_scalar4(recv: u64, sel: u64, a: u64, b: u64, c: u64, d: u64) -> u64
     reaches
-        NativeCodeExecution + WindowManagement + SurfacePresentation +
-        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-        ClockObservation + ExecutionDelay + FilesystemContentRead +
-        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-        DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-        StandardOutput + ProcessExit
+        |native_execution|::NativeCodeExecution + |presentation|::WindowManagement + |presentation|::SurfacePresentation +
+        |presentation|::WindowEventObservation + |presentation|::WindowEventDispatch + |presentation|::GlobalInputObservation +
+        |time|::ClockObservation + |time|::ExecutionDelay + |authority|::FilesystemContentRead +
+        |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation +
+        |authority|::DirectoryEnumeration + |authority|::FilesystemNamespaceMutation + |process|::StandardInput +
+        |process|::StandardOutput + |process_exit|::ProcessExit
     crashes none;
     // Autorelease-pool scope (objc_autoreleasePoolPush/Pop). The event pump runs
     // outside any Cocoa-managed pool, so dequeued autoreleased NSEvents would
@@ -153,12 +140,12 @@ public boundary trait ObjectiveC {
     machine pool_push() -> u64 reaches none crashes none;
     machine pool_pop(pool: u64) -> u64
     reaches
-        NativeCodeExecution + WindowManagement + SurfacePresentation +
-        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-        ClockObservation + ExecutionDelay + FilesystemContentRead +
-        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-        DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-        StandardOutput + ProcessExit
+        |native_execution|::NativeCodeExecution + |presentation|::WindowManagement + |presentation|::SurfacePresentation +
+        |presentation|::WindowEventObservation + |presentation|::WindowEventDispatch + |presentation|::GlobalInputObservation +
+        |time|::ClockObservation + |time|::ExecutionDelay + |authority|::FilesystemContentRead +
+        |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation +
+        |authority|::DirectoryEnumeration + |authority|::FilesystemNamespaceMutation + |process|::StandardInput +
+        |process|::StandardOutput + |process_exit|::ProcessExit
     crashes none;
 }
 
@@ -169,7 +156,7 @@ public boundary trait CoreGraphics {
     // `CGEventSourceKeyState(state_id, keycode) -> bool` — is a physical key down?
     // The macOS backing for `Input.key_state` (see macos_key_state below).
     machine event_source_key_state(state_id: u64, keycode: u64) -> u64
-    reaches GlobalInputObservation
+    reaches |presentation|::GlobalInputObservation
     crashes none;
 }
 
@@ -179,12 +166,12 @@ public boundary trait CoreGraphics {
 // looks up nothing and gives 0, which Objective-C uses for "no such name".
 machine macos_objc_class(name: @[u8]) -> u64
 reaches
-    NativeCodeExecution + WindowManagement + SurfacePresentation +
-    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-    ClockObservation + ExecutionDelay + FilesystemContentRead +
-    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-    StandardOutput + ProcessExit
+    |native_execution|::NativeCodeExecution + |presentation|::WindowManagement + |presentation|::SurfacePresentation +
+    |presentation|::WindowEventObservation + |presentation|::WindowEventDispatch + |presentation|::GlobalInputObservation +
+    |time|::ClockObservation + |time|::ExecutionDelay + |authority|::FilesystemContentRead +
+    |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation +
+    |authority|::DirectoryEnumeration + |authority|::FilesystemNamespaceMutation + |process|::StandardInput +
+    |process|::StandardOutput + |process_exit|::ProcessExit
 invokes ObjectiveC
 {
     let mutable terminated: [u8; 256];
@@ -227,21 +214,21 @@ public machine macos_window_create<const Count: u64>(class_name: [u8; 7], title:
 requires Count > 0
 requires title[Count - 1] == 0
 reaches
-    NativeCodeExecution + WindowManagement + SurfacePresentation +
-    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-    ClockObservation + ExecutionDelay + FilesystemContentRead +
-    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-    StandardOutput + ProcessExit
+    |native_execution|::NativeCodeExecution + |presentation|::WindowManagement + |presentation|::SurfacePresentation +
+    |presentation|::WindowEventObservation + |presentation|::WindowEventDispatch + |presentation|::GlobalInputObservation +
+    |time|::ClockObservation + |time|::ExecutionDelay + |authority|::FilesystemContentRead +
+    |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation +
+    |authority|::DirectoryEnumeration + |authority|::FilesystemNamespaceMutation + |process|::StandardInput +
+    |process|::StandardOutput + |process_exit|::ProcessExit
 invokes ObjectiveC
 invokes AppKit
 invokes CoreGraphics
 {
     let loaded: bool = AppKit::load();
-    let rx: f64 = F64::from_i32(x);
-    let ry: f64 = F64::from_i32(y);
-    let mutable rw: f64 = F64::from_i32(width);
-    let mutable rh: f64 = F64::from_i32(height);
+    let rx: f64 = |float_operations|::F64::from_i32(x);
+    let ry: f64 = |float_operations|::F64::from_i32(y);
+    let mutable rw: f64 = |float_operations|::F64::from_i32(width);
+    let mutable rh: f64 = |float_operations|::F64::from_i32(height);
     rw = rw - 16.0;
     rh = rh - 39.0;
     let cbuf1: [u8; 14] = "NSApplication\0";
@@ -359,12 +346,12 @@ invokes CoreGraphics
 }
 public machine macos_window_destroy(window: Window)
 reaches
-    NativeCodeExecution + WindowManagement + SurfacePresentation +
-    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-    ClockObservation + ExecutionDelay + FilesystemContentRead +
-    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-    StandardOutput + ProcessExit
+    |native_execution|::NativeCodeExecution + |presentation|::WindowManagement + |presentation|::SurfacePresentation +
+    |presentation|::WindowEventObservation + |presentation|::WindowEventDispatch + |presentation|::GlobalInputObservation +
+    |time|::ClockObservation + |time|::ExecutionDelay + |authority|::FilesystemContentRead +
+    |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation +
+    |authority|::DirectoryEnumeration + |authority|::FilesystemNamespaceMutation + |process|::StandardInput +
+    |process|::StandardOutput + |process_exit|::ProcessExit
 invokes ObjectiveC
 invokes CoreGraphics
 {
@@ -384,12 +371,12 @@ public machine macos_window_get_dc(window_state: @Window, window: u64) -> u64
 }
 public machine macos_window_msg_peek(window_state: @mutable Window, message: [u64; 6]) -> u32
 reaches
-    NativeCodeExecution + WindowManagement + SurfacePresentation +
-    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-    ClockObservation + ExecutionDelay + FilesystemContentRead +
-    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-    StandardOutput + ProcessExit
+    |native_execution|::NativeCodeExecution + |presentation|::WindowManagement + |presentation|::SurfacePresentation +
+    |presentation|::WindowEventObservation + |presentation|::WindowEventDispatch + |presentation|::GlobalInputObservation +
+    |time|::ClockObservation + |time|::ExecutionDelay + |authority|::FilesystemContentRead +
+    |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation +
+    |authority|::DirectoryEnumeration + |authority|::FilesystemNamespaceMutation + |process|::StandardInput +
+    |process|::StandardOutput + |process_exit|::ProcessExit
 invokes ObjectiveC
 {
     // Cycle the rolling autorelease pool opened at window_create: the pop
@@ -412,12 +399,12 @@ public machine macos_window_msg_translate(window_state: @Window, message: [u64; 
 }
 public machine macos_window_msg_dispatch(window_state: @Window, message: [u64; 6]) -> u64
 reaches
-    NativeCodeExecution + WindowManagement + SurfacePresentation +
-    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-    ClockObservation + ExecutionDelay + FilesystemContentRead +
-    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-    StandardOutput + ProcessExit
+    |native_execution|::NativeCodeExecution + |presentation|::WindowManagement + |presentation|::SurfacePresentation +
+    |presentation|::WindowEventObservation + |presentation|::WindowEventDispatch + |presentation|::GlobalInputObservation +
+    |time|::ClockObservation + |time|::ExecutionDelay + |authority|::FilesystemContentRead +
+    |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation +
+    |authority|::DirectoryEnumeration + |authority|::FilesystemNamespaceMutation + |process|::StandardInput +
+    |process|::StandardOutput + |process_exit|::ProcessExit
 invokes ObjectiveC
 {
     let rc: u64 = ObjectiveC::send_scalar(window_state.app, window_state.dsel, window_state.evt);
@@ -425,26 +412,26 @@ invokes ObjectiveC
 }
 public machine macos_window_is_window(window_state: @Window, window: u64) -> u32
 reaches
-    NativeCodeExecution + WindowManagement + SurfacePresentation +
-    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-    ClockObservation + ExecutionDelay + FilesystemContentRead +
-    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-    StandardOutput + ProcessExit
+    |native_execution|::NativeCodeExecution + |presentation|::WindowManagement + |presentation|::SurfacePresentation +
+    |presentation|::WindowEventObservation + |presentation|::WindowEventDispatch + |presentation|::GlobalInputObservation +
+    |time|::ClockObservation + |time|::ExecutionDelay + |authority|::FilesystemContentRead +
+    |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation +
+    |authority|::DirectoryEnumeration + |authority|::FilesystemNamespaceMutation + |process|::StandardInput +
+    |process|::StandardOutput + |process_exit|::ProcessExit
 invokes ObjectiveC
 {
     let rc: u64 = ObjectiveC::send(window, window_state.vsel);
-    let r32: u32 = narrow_u64_to_u32_wrapping(rc);
+    let r32: u32 = |numeric|::narrow_u64_to_u32_wrapping(rc);
     r32
 }
 public machine macos_window_blit(window_state: @Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32
 reaches
-    NativeCodeExecution + WindowManagement + SurfacePresentation +
-    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-    ClockObservation + ExecutionDelay + FilesystemContentRead +
-    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-    StandardOutput + ProcessExit
+    |native_execution|::NativeCodeExecution + |presentation|::WindowManagement + |presentation|::SurfacePresentation +
+    |presentation|::WindowEventObservation + |presentation|::WindowEventDispatch + |presentation|::GlobalInputObservation +
+    |time|::ClockObservation + |time|::ExecutionDelay + |authority|::FilesystemContentRead +
+    |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation +
+    |authority|::DirectoryEnumeration + |authority|::FilesystemNamespaceMutation + |process|::StandardInput +
+    |process|::StandardOutput + |process_exit|::ProcessExit
 invokes ObjectiveC invokes |image|::MacosImageData invokes |image|::MacosImageObjects
 {
     macos_window_present(window_state, source_width, source_height, @pixels[0..4096])
@@ -452,12 +439,12 @@ invokes ObjectiveC invokes |image|::MacosImageData invokes |image|::MacosImageOb
 
 public machine macos_window_present(window_state: @Window, source_width: u32, source_height: u32, pixels: @[i32]) -> u32
 reaches
-    NativeCodeExecution + WindowManagement + SurfacePresentation +
-    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-    ClockObservation + ExecutionDelay + FilesystemContentRead +
-    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-    StandardOutput + ProcessExit
+    |native_execution|::NativeCodeExecution + |presentation|::WindowManagement + |presentation|::SurfacePresentation +
+    |presentation|::WindowEventObservation + |presentation|::WindowEventDispatch + |presentation|::GlobalInputObservation +
+    |time|::ClockObservation + |time|::ExecutionDelay + |authority|::FilesystemContentRead +
+    |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation +
+    |authority|::DirectoryEnumeration + |authority|::FilesystemNamespaceMutation + |process|::StandardInput +
+    |process|::StandardOutput + |process_exit|::ProcessExit
 invokes ObjectiveC invokes |image|::MacosImageData invokes |image|::MacosImageObjects
 {
     let count: u64 = (source_width as u64) * (source_height as u64);
@@ -482,8 +469,8 @@ invokes ObjectiveC invokes |image|::MacosImageData invokes |image|::MacosImageOb
     requires cgimg != 0
     invokes ObjectiveC invokes |image|::MacosImageObjects
     {
-        let fbwf: f64 = F64::from_u32(source_width);
-        let fbhf: f64 = F64::from_u32(source_height);
+        let fbwf: f64 = |float_operations|::F64::from_u32(source_width);
+        let fbhf: f64 = |float_operations|::F64::from_u32(source_height);
         let cbuf30: [u8; 8] = "NSImage\0";
         let cls: u64 = macos_objc_class(@cbuf30[..]);
         let cbuf31: [u8; 6] = "alloc\0";
@@ -525,12 +512,12 @@ invokes ObjectiveC invokes |image|::MacosImageData invokes |image|::MacosImageOb
 // Global key polling is meaningful only while this application's window is key.
 public machine macos_window_foreground_window(window_state: @Window) -> u64
 reaches
-    NativeCodeExecution + WindowManagement + SurfacePresentation +
-    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-    ClockObservation + ExecutionDelay + FilesystemContentRead +
-    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-    StandardOutput + ProcessExit
+    |native_execution|::NativeCodeExecution + |presentation|::WindowManagement + |presentation|::SurfacePresentation +
+    |presentation|::WindowEventObservation + |presentation|::WindowEventDispatch + |presentation|::GlobalInputObservation +
+    |time|::ClockObservation + |time|::ExecutionDelay + |authority|::FilesystemContentRead +
+    |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation +
+    |authority|::DirectoryEnumeration + |authority|::FilesystemNamespaceMutation + |process|::StandardInput +
+    |process|::StandardOutput + |process_exit|::ProcessExit
 invokes ObjectiveC
 {
     let current: u64 = ObjectiveC::send(window_state.app, window_state.ksel);
@@ -604,7 +591,7 @@ public machine macos_map_keycode(virtual_key: u32) -> u64 {
 }
 
 public machine macos_key_state(virtual_key: u32) -> u64
-reaches GlobalInputObservation
+reaches |presentation|::GlobalInputObservation
 invokes CoreGraphics
 {
     let keycode: u64 = macos_map_keycode(virtual_key);
@@ -615,10 +602,10 @@ invokes CoreGraphics
 }
 
 public boundary trait DarwinClock {
-    machine clock_ns(clock_id: u32) -> u64 reaches ClockObservation crashes none;
-    machine mach_absolute_time() -> u64 reaches ClockObservation crashes none;
+    machine clock_ns(clock_id: u32) -> u64 reaches |time|::ClockObservation crashes none;
+    machine mach_absolute_time() -> u64 reaches |time|::ClockObservation crashes none;
     machine poll(fds: u64, nfds: u64, timeout_ms: i32) -> i32
-    reaches ExecutionDelay
+    reaches |time|::ExecutionDelay
     requires fds == 0 && nfds == 0
     crashes none;
 }
@@ -626,25 +613,25 @@ public boundary trait DarwinClock {
 // Millisecond pacing through poll(NULL, 0, timeout). The conversion retains
 // the former u32-to-i32 wrapping contract.
 public machine macos_sleep(milliseconds: u32)
-reaches ExecutionDelay
+reaches |time|::ExecutionDelay
 invokes DarwinClock
 {
-    let timeout: i32 = narrow_u32_to_i32_wrapping(milliseconds);
+    let timeout: i32 = |numeric|::narrow_u32_to_i32_wrapping(milliseconds);
     let result: i32 = DarwinClock::poll(0, 0, timeout);
 }
 
 // CLOCK_MONOTONIC milliseconds since boot, retaining the low 32 bits.
 public machine macos_get_tick_count() -> u32
-reaches ClockObservation
+reaches |time|::ClockObservation
 invokes DarwinClock
 {
     let nanoseconds: u64 = DarwinClock::clock_ns(6);
     let milliseconds: u64 = nanoseconds / 1000000;
-    narrow_u64_to_u32_wrapping(milliseconds)
+    |numeric|::narrow_u64_to_u32_wrapping(milliseconds)
 }
 
 public machine macos_perf_counter() -> u64
-reaches ClockObservation
+reaches |time|::ClockObservation
 invokes DarwinClock
 {
     DarwinClock::clock_ns(6)

@@ -1,17 +1,17 @@
 use targets/windows_x86_64/windows_filesystem_control.omg as control;
-use targets/windows_x86_64/windows_filesystem_transfer.omg as transfer;
 use targets/windows_x86_64/windows_filesystem_position_native.omg as position_io;
 use targets/windows_x86_64/windows_filesystem_position_pins.omg as pins;
+use targets/windows_x86_64/windows_filesystem_transfer.omg as transfer;
+use {omega}/language/core/filesystem_authority.omg as authority;
+use {omega}/language/core/numeric_conversion.omg as numeric;
+
 // Offset operations never seek a caller's shared file object. Reopen a pinned
 // original into an independent synchronous object, after checking its existing
 // data and SYNCHRONIZE rights. In particular an append-only handle cannot gain
 // FILE_WRITE_DATA merely because the current ACL would allow ReOpenFile to do so.
-use omega\language\core\FilesystemContentRead;
-use omega\language\core\FilesystemContentWrite;
-use omega\language\core\narrow_u64_to_i64_wrapping;
 
 machine windows_filesystem_native_read_at(handle: u64, buffer: @mutable [u8], count: u64, offset: i64) -> i64
-reaches FilesystemContentRead {
+reaches |authority|::FilesystemContentRead {
     transition offset >= 0 && count <= buffer.length && count <= 4294967295 {
         true -> block pin(handle, buffer, count, offset),
         false -> (-87)
@@ -34,7 +34,7 @@ reaches FilesystemContentRead {
         -5
     }
     machine reopen(handle: u64, buffer: @mutable [u8], count: u64, offset: i64) -> i64 {
-        let raw: i64 = block |position_io|::WindowsFilesystemPositionIo::reopen_read(narrow_u64_to_i64_wrapping(handle), 1048577, 7, 0);
+        let raw: i64 = block |position_io|::WindowsFilesystemPositionIo::reopen_read(|numeric|::narrow_u64_to_i64_wrapping(handle), 1048577, 7, 0);
         let opened: |pins|::WindowsPositionedFile = block |pins|::windows_positioned_reopened(handle, raw);
         transition opened {
             |pins|::WindowsPositionedFile::Error { code } -> (|pins|::windows_positioned_error(code)),
@@ -56,7 +56,7 @@ reaches FilesystemContentRead {
 }
 
 machine windows_filesystem_native_write_at(handle: u64, bytes: @[u8], offset: i64) -> i64
-reaches FilesystemContentWrite {
+reaches |authority|::FilesystemContentWrite {
     transition offset >= 0 && bytes.length <= 4294967295 {
         true -> block pin(handle, bytes, offset),
         false -> (-87)
@@ -79,7 +79,7 @@ reaches FilesystemContentWrite {
         -5
     }
     machine reopen(handle: u64, bytes: @[u8], offset: i64) -> i64 {
-        let raw: i64 = block |position_io|::WindowsFilesystemPositionIo::reopen_write(narrow_u64_to_i64_wrapping(handle), 1048578, 7, 0);
+        let raw: i64 = block |position_io|::WindowsFilesystemPositionIo::reopen_write(|numeric|::narrow_u64_to_i64_wrapping(handle), 1048578, 7, 0);
         let opened: |pins|::WindowsPositionedFile = block |pins|::windows_positioned_reopened(handle, raw);
         transition opened {
             |pins|::WindowsPositionedFile::Error { code } -> (|pins|::windows_positioned_error(code)),

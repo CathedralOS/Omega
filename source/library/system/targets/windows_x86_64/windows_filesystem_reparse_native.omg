@@ -1,10 +1,11 @@
 use targets/windows_x86_64/windows_filesystem_private_handles.omg as private_handle;
+use {omega}/language/core/filesystem_authority.omg as authority;
+
 // One metadata query, not an arbitrary DeviceIoControl escape. A fresh private
 // synchronous no-follow object owns the output loan through terminal completion.
 // MAXIMUM_REPARSE_DATA_BUFFER_SIZE is 16384, including the common header.
 // https://learn.microsoft.com/windows/win32/api/winioctl/ni-winioctl-fsctl_get_reparse_point
 // https://learn.microsoft.com/windows/win32/api/ioapiset/nf-ioapiset-deviceiocontrol
-use omega\language\core\FilesystemMetadataQuery;
 
 // Native common header and the two link kinds' shared offset/length fields.
 // The remaining aligned WCHAR storage starts at byte16: mount-point path data
@@ -27,6 +28,6 @@ boundary trait WindowsFilesystemReparseIo {
         returned: @mutable u32, overlapped: u64) -> i32
     requires (handle as - |private_handle|::WindowsPrivateNonalertFileOrAbsent) != 0 && control == 589992 && input == 0 && input_size == 0
         && capacity == 16384 && overlapped == 0
-    reaches FilesystemMetadataQuery blocks
+    reaches |authority|::FilesystemMetadataQuery blocks
     crashes none;
 }

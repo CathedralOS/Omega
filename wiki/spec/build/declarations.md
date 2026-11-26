@@ -62,16 +62,34 @@ author API for manufacturing trusted plan rows.
 
 ## Project role
 
-A selected build file has exactly one free entry, `machine build(build: @mutable Build)`.
-The invoker supplies the plan and installs the activation's [sandbox
-bindings](scoped_execution.md#build-sandbox-bindings) before entry. Filesystem
-and network use follow normal service calls and reach accounting. A parent
-can [choose its child's filesystem](scoped_execution.md#supplying-a-filesystem-to-a-child-build)
-without changing the child's entry signature.
+A selected build file has one free entry. The invoker owns the plan and
+passes it by mutable borrow. The public API direction is:
 
-The Build declares its project role through one of the following operations.
+```omega
+machine build(plan: @mutable BuildPlan) {
+    plan.product = BuildProduct::InterpretedBuild { entry: "configure.omg" };
+}
+```
 
-| Build result | Role |
+The example uses the package already supplied to this invocation. The
+constructor and entry field illustrate the product shape. A helper edits the
+same plan. When the driver runs the selected successor, it supplies that
+activation with a fresh plan of its own.
+
+The invoker installs the activation's [sandbox bindings](scoped_execution.md#build-sandbox-bindings)
+before entry. Filesystem and console use ordinary provider selection. Selection
+identifies the implementation. The caller supplies its admitted backing, such
+as a confined disk directory or a bounded output sink. The first filesystem
+implementation may use disk throughout. A Git package that performs a live
+fetch declares its network and filesystem effects and runs within its
+invocation's grants. A later consumer of the fetched package has its own grants.
+[Dependency-use ceilings](../packages/staged_inputs.md#dependency-reach)
+
+The current compiler spells the parameter type `Build` and records the product
+through the operations below. These spellings identify the migration points
+for `BuildPlan` and its `product` field.
+
+| Current operation | Product described |
 | --- | --- |
 | `Build::package(builder, "name")` | Package |
 | `Build::application(builder, "name")` | Application |
@@ -83,7 +101,7 @@ noncanonical results reject. A helper passed the current mutable Build edits
 this same plan. A successor receives a fresh Build. After the current entry
 returns successfully and its dependency join completes, the driver freezes
 the selected source view, resolves the named file within it, and checks its
-free `machine build(build: @mutable Build)` against the registered package
+free Build entry against the registered package
 inputs for the interpreter target. Missing or invalid entries reject. The
 driver admits the successor before running it and follows its plan to the
 project's final result. Any failed stage fails that chain. A dependency still

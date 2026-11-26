@@ -3880,6 +3880,46 @@ pub(crate) mod packed_integer {
                             )
                         }
                     }
+                    PackedIntegerBinaryOperation::WrappingAddU8x16 => (
+                        SelectedInstructionKind::PackedAddU8x16,
+                        builder
+                            .constraints
+                            .keys
+                            .packed_add_u8x16
+                            .ok_or_else(invalid)?,
+                    ),
+                    PackedIntegerBinaryOperation::MinI16x8 => (
+                        SelectedInstructionKind::PackedMinI16x8,
+                        builder
+                            .constraints
+                            .keys
+                            .packed_min_i16x8
+                            .ok_or_else(invalid)?,
+                    ),
+                    PackedIntegerBinaryOperation::CmpGtI16x8 => (
+                        SelectedInstructionKind::PackedCmpGtI16x8,
+                        builder
+                            .constraints
+                            .keys
+                            .packed_cmpgt_i16x8
+                            .ok_or_else(invalid)?,
+                    ),
+                    PackedIntegerBinaryOperation::BitAndI16x8 => (
+                        SelectedInstructionKind::PackedBitAndI16x8,
+                        builder
+                            .constraints
+                            .keys
+                            .packed_bit_and_i16x8
+                            .ok_or_else(invalid)?,
+                    ),
+                    PackedIntegerBinaryOperation::BitAndNotI16x8 => (
+                        SelectedInstructionKind::PackedBitAndNotI16x8,
+                        builder
+                            .constraints
+                            .keys
+                            .packed_bit_andnot_i16x8
+                            .ok_or_else(invalid)?,
+                    ),
                 };
                 (result, vec![(left, 16), (right, 16)], kind, key)
             }
@@ -3948,6 +3988,15 @@ pub(crate) mod packed_integer {
                             .constraints
                             .keys
                             .packed_narrow_i16x8_to_u8x4_saturating
+                            .ok_or_else(invalid)?,
+                    ),
+                    PackedIntegerUnaryOperation::AbsI16x8 => (
+                        16,
+                        SelectedInstructionKind::PackedAbsI16x8,
+                        builder
+                            .constraints
+                            .keys
+                            .packed_abs_i16x8
                             .ok_or_else(invalid)?,
                     ),
                 };

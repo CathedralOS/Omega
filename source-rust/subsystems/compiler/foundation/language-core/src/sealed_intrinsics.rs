@@ -96,18 +96,32 @@ pub enum PackedIntegerPrimitive {
     LoadI16x4ZeroExtend,
     WidenU8x4ToI16x8,
     NarrowI16x8ToU8x4Saturating,
+    WrappingAddU8x16,
+    MinI16x8,
+    CmpGtI16x8,
+    BitAndI16x8,
+    BitAndNotI16x8,
+    AbsI16x8,
 }
 
 impl PackedIntegerPrimitive {
     pub fn inputs(self) -> usize {
         match self {
-            Self::WrappingAddI16x8 | Self::WrappingSubI16x8 | Self::ShuffleI16x8 => 2,
+            Self::WrappingAddI16x8
+            | Self::WrappingSubI16x8
+            | Self::ShuffleI16x8
+            | Self::WrappingAddU8x16
+            | Self::MinI16x8
+            | Self::CmpGtI16x8
+            | Self::BitAndI16x8
+            | Self::BitAndNotI16x8 => 2,
             Self::ShiftRightI16x8
             | Self::WidenU8x8ToI16x8
             | Self::NarrowI16x8ToU8x8Saturating
             | Self::LoadI16x4ZeroExtend
             | Self::WidenU8x4ToI16x8
-            | Self::NarrowI16x8ToU8x4Saturating => 1,
+            | Self::NarrowI16x8ToU8x4Saturating
+            | Self::AbsI16x8 => 1,
         }
     }
 
@@ -121,7 +135,13 @@ impl PackedIntegerPrimitive {
             | Self::NarrowI16x8ToU8x8Saturating
             | Self::LoadI16x4ZeroExtend
             | Self::WidenU8x4ToI16x8
-            | Self::NarrowI16x8ToU8x4Saturating => 0,
+            | Self::NarrowI16x8ToU8x4Saturating
+            | Self::WrappingAddU8x16
+            | Self::MinI16x8
+            | Self::CmpGtI16x8
+            | Self::BitAndI16x8
+            | Self::BitAndNotI16x8
+            | Self::AbsI16x8 => 0,
         }
     }
 }
@@ -348,6 +368,54 @@ const ROWS: &[SealedIntrinsicRow] = &[
         BundledFile::CorePackedInteger,
         SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::PackedInteger(
             PackedIntegerPrimitive::NarrowI16x8ToU8x4Saturating,
+        )),
+    ),
+    row(
+        "packed_integer/packed_integer.omg",
+        "wrapping_add_u8x16",
+        BundledFile::CorePackedInteger,
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::PackedInteger(
+            PackedIntegerPrimitive::WrappingAddU8x16,
+        )),
+    ),
+    row(
+        "packed_integer/packed_integer.omg",
+        "min_i16x8",
+        BundledFile::CorePackedInteger,
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::PackedInteger(
+            PackedIntegerPrimitive::MinI16x8,
+        )),
+    ),
+    row(
+        "packed_integer/packed_integer.omg",
+        "cmpgt_i16x8",
+        BundledFile::CorePackedInteger,
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::PackedInteger(
+            PackedIntegerPrimitive::CmpGtI16x8,
+        )),
+    ),
+    row(
+        "packed_integer/packed_integer.omg",
+        "bit_and_i16x8",
+        BundledFile::CorePackedInteger,
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::PackedInteger(
+            PackedIntegerPrimitive::BitAndI16x8,
+        )),
+    ),
+    row(
+        "packed_integer/packed_integer.omg",
+        "bit_andnot_i16x8",
+        BundledFile::CorePackedInteger,
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::PackedInteger(
+            PackedIntegerPrimitive::BitAndNotI16x8,
+        )),
+    ),
+    row(
+        "packed_integer/packed_integer.omg",
+        "abs_i16x8",
+        BundledFile::CorePackedInteger,
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::PackedInteger(
+            PackedIntegerPrimitive::AbsI16x8,
         )),
     ),
     row(

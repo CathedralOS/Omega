@@ -27,9 +27,9 @@ use semantic_vocabulary::{BlockId, MachineId, OperationId};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use target_vocabulary::CallSiteOwner;
 
-const MAX_INLINED_CALLEE_INSTRUCTIONS: usize = 4096;
-const MAX_INLINED_CALLEE_BLOCKS: usize = 256;
-const MAX_CALLER_INSTRUCTIONS_AFTER_INLINE: usize = 16384;
+const MAX_INLINED_CALLEE_INSTRUCTIONS: usize = 16384;
+const MAX_INLINED_CALLEE_BLOCKS: usize = 1024;
+const MAX_CALLER_INSTRUCTIONS_AFTER_INLINE: usize = 65536;
 
 pub(crate) fn inline_and_simplify(
     functions: &mut [SelectedFunction],

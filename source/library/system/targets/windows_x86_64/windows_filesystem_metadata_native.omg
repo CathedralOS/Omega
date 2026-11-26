@@ -1,8 +1,9 @@
-use targets/windows_x86_64/windows_filesystem_native.omg as win_io;
-use {omega}/language/core/layout.omg as layout;
-use {omega}/language/core/access/access.omg as access;
-use {omega}/language/core/reflect/reflect.omg as reflect;
 use targets/windows_x86_64/windows_filesystem_metadata.omg as classifier;
+use targets/windows_x86_64/windows_filesystem_native.omg as win_io;
+use {omega}/language/core/access/access.omg as access;
+use {omega}/language/core/filesystem_authority.omg as authority;
+use {omega}/language/core/layout.omg as layout;
+use {omega}/language/core/reflect/reflect.omg as reflect;
 
 // GetFileInformationByHandleEx owns synchronous output completion. Its class
 // selects the complete record, not an untyped byte-count promise. The x64 SDK
@@ -15,7 +16,6 @@ use targets/windows_x86_64/windows_filesystem_metadata.omg as classifier;
 // https://learn.microsoft.com/windows/win32/api/winbase/ns-winbase-file_basic_info
 // https://learn.microsoft.com/windows/win32/api/winbase/ns-winbase-file_standard_info
 // https://learn.microsoft.com/windows/win32/api/winbase/ns-winbase-file_attribute_tag_info
-use omega\language\core\FilesystemMetadataQuery;
 
 // A pinned disk-file classification, not ownership of arbitrary integers.
 // Zero is the failed classifier result; queries also require nonzero.
@@ -50,22 +50,22 @@ data WindowsNativeFileStandardInfo {
 data WindowsNativeFileAttributeTagInfo { attributes: u32; reparse_tag: u32; }
 
 boundary trait WindowsFilesystemMetadataIo {
-    machine file_type(handle: i64) -> u32 reaches FilesystemMetadataQuery blocks crashes none;
+    machine file_type(handle: i64) -> u32 reaches |authority|::FilesystemMetadataQuery blocks crashes none;
     machine open_attributes(path: @[u16; 32768] in |win_io|::WindowsNativePath, desired_access: u32, sharing: u32, security: u64, disposition: u32, flags: u32, template: u64) -> i64
     requires desired_access == 128 && sharing == 7 && security == 0 && disposition == 3
         && (flags == 34603008 || flags == 36700160) && template == 0
-    reaches FilesystemMetadataQuery blocks
+    reaches |authority|::FilesystemMetadataQuery blocks
     crashes none;
     machine basic(handle: i64 in WindowsDiskFileOrAbsent, information_class: u32, output: @mutable WindowsNativeFileBasicInfo, size: u32) -> i32
     requires (handle as -WindowsDiskFileOrAbsent) != 0 && information_class == 0 && size == 40
-    reaches FilesystemMetadataQuery blocks
+    reaches |authority|::FilesystemMetadataQuery blocks
     crashes none;
     machine standard(handle: i64 in WindowsDiskFileOrAbsent, information_class: u32, output: @mutable WindowsNativeFileStandardInfo, size: u32) -> i32
     requires (handle as -WindowsDiskFileOrAbsent) != 0 && information_class == 1 && size == 24
-    reaches FilesystemMetadataQuery blocks
+    reaches |authority|::FilesystemMetadataQuery blocks
     crashes none;
     machine attribute_tag(handle: i64 in WindowsDiskFileOrAbsent, information_class: u32, output: @mutable WindowsNativeFileAttributeTagInfo, size: u32) -> i32
     requires (handle as -WindowsDiskFileOrAbsent) != 0 && information_class == 9 && size == 8
-    reaches FilesystemMetadataQuery blocks
+    reaches |authority|::FilesystemMetadataQuery blocks
     crashes none;
 }

@@ -4,9 +4,7 @@
 // Return the unit count, or -1 for NUL input, malformed UTF-8 or insufficient
 // output. A written prefix never authorizes an OS call after failure.
 // The full Win32 path spans at most 32767 UTF-16 units plus the terminator.
-use omega\language\core\widen_u8_to_u32;
-use omega\language\core\narrow_u32_to_u16_wrapping;
-use omega\language\core\narrow_u64_to_i64_wrapping;
+use {omega}/language/core/numeric_conversion.omg as numeric;
 
 data WindowsPathCharacter {
     valid: bool;
@@ -36,7 +34,7 @@ terminates by remaining
     }
     machine settle(step: WindowsPathStep) -> i64 {
         transition step.status == 1 {
-            true -> (narrow_u64_to_i64_wrapping(step.next_output)),
+            true -> (|numeric|::narrow_u64_to_i64_wrapping(step.next_output)),
             false -> (-1)
         }
     }
@@ -71,7 +69,7 @@ machine windows_path_step(path: @[u8], output: @mutable [u16; 32768], input_offs
     }
     machine single(output: @mutable [u16; 32768], character: WindowsPathCharacter, output_offset: u64) -> WindowsPathStep
     requires output_offset < output.length {
-        output[output_offset] = narrow_u32_to_u16_wrapping(character.point);
+        output[output_offset] = |numeric|::narrow_u32_to_u16_wrapping(character.point);
         WindowsPathStep { status: 0, next_input: character.next_input, next_output: output_offset + 1 }
     }
     machine pair(output: @mutable [u16; 32768], character: WindowsPathCharacter, output_offset: u64) -> WindowsPathStep
@@ -85,8 +83,8 @@ machine windows_path_step(path: @[u8], output: @mutable [u16; 32768], input_offs
     machine emit_pair(output: @mutable [u16; 32768], character: WindowsPathCharacter, output_offset: u64, next_output: u64) -> WindowsPathStep
     requires output_offset < output.length && next_output < output.length && character.point >= 65536 {
         let above: u32 = character.point - 65536;
-        output[output_offset] = narrow_u32_to_u16_wrapping(55296 + (above / 1024));
-        output[next_output] = narrow_u32_to_u16_wrapping(56320 + (above % 1024));
+        output[output_offset] = |numeric|::narrow_u32_to_u16_wrapping(55296 + (above / 1024));
+        output[next_output] = |numeric|::narrow_u32_to_u16_wrapping(56320 + (above % 1024));
         WindowsPathStep { status: 0, next_input: character.next_input, next_output: next_output + 1 }
     }
     machine terminate(output: @mutable [u16; 32768], output_offset: u64) -> WindowsPathStep
@@ -107,7 +105,7 @@ machine windows_path_character(path: @[u8], offset: u64) -> WindowsPathCharacter
     requires offset < path.length {
         let first: u8 = path[offset];
         transition first > 0 && first < 128 {
-            true -> valid(widen_u8_to_u32(first), offset + 1),
+            true -> valid(|numeric|::widen_u8_to_u32(first), offset + 1),
             false -> multibyte(path, offset, first)
         }
     }
@@ -128,7 +126,7 @@ machine windows_path_character(path: @[u8], offset: u64) -> WindowsPathCharacter
     }
     machine width(path: @[u8], first: u8, second: u8, next: u64) -> WindowsPathCharacter {
         transition first < 224 {
-            true -> valid((widen_u8_to_u32(first & 31) << 6) | widen_u8_to_u32(second & 63), next),
+            true -> valid((|numeric|::widen_u8_to_u32(first & 31) << 6) | |numeric|::widen_u8_to_u32(second & 63), next),
             false -> third_room(path, first, second, next)
         }
     }
@@ -150,8 +148,8 @@ machine windows_path_character(path: @[u8], offset: u64) -> WindowsPathCharacter
         }
     }
     machine three(first: u8, second: u8, third: u8, next: u64) -> WindowsPathCharacter {
-        let point: u32 = (widen_u8_to_u32(first & 15) << 12)
-            | (widen_u8_to_u32(second & 63) << 6) | widen_u8_to_u32(third & 63);
+        let point: u32 = (|numeric|::widen_u8_to_u32(first & 15) << 12)
+            | (|numeric|::widen_u8_to_u32(second & 63) << 6) | |numeric|::widen_u8_to_u32(third & 63);
         transition point >= 2048 && (point < 55296 || point > 57343) {
             true -> valid(point, next),
             false -> bad()
@@ -163,9 +161,9 @@ machine windows_path_character(path: @[u8], offset: u64) -> WindowsPathCharacter
     machine fourth(path: @[u8], first: u8, second: u8, third: u8, offset: u64) -> WindowsPathCharacter
     requires offset < path.length {
         let fourth: u8 = path[offset];
-        let point: u32 = (widen_u8_to_u32(first & 7) << 18)
-            | (widen_u8_to_u32(second & 63) << 12)
-            | (widen_u8_to_u32(third & 63) << 6) | widen_u8_to_u32(fourth & 63);
+        let point: u32 = (|numeric|::widen_u8_to_u32(first & 7) << 18)
+            | (|numeric|::widen_u8_to_u32(second & 63) << 12)
+            | (|numeric|::widen_u8_to_u32(third & 63) << 6) | |numeric|::widen_u8_to_u32(fourth & 63);
         transition fourth >= 128 && fourth < 192 && point >= 65536 && point <= 1114111 {
             true -> valid(point, offset + 1),
             false -> bad()

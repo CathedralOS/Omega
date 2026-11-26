@@ -781,6 +781,12 @@ fn encoded_effects(
         | S::PackedLoadI16x4ZeroExtend
         | S::PackedWidenU8x4ToI16x8
         | S::PackedNarrowI16x8ToU8x4Saturating
+        | S::PackedAddU8x16
+        | S::PackedMinI16x8
+        | S::PackedCmpGtI16x8
+        | S::PackedBitAndI16x8
+        | S::PackedBitAndNotI16x8
+        | S::PackedAbsI16x8
         | S::PackedLoad128
         | S::PackedStore128
         | S::PackedLoad64ZeroExtend
@@ -796,6 +802,12 @@ fn encoded_effects(
         | S::PackedShuffleI16x8Reg
         | S::PackedWidenU8x8ToI16x8Reg
         | S::PackedNarrowI16x8ToU8x8SaturatingReg
+        | S::PackedAddU8x16Reg
+        | S::PackedMinI16x8Reg
+        | S::PackedCmpGtI16x8Reg
+        | S::PackedBitAndI16x8Reg
+        | S::PackedBitAndNotI16x8Reg
+        | S::PackedAbsI16x8Reg
         | S::PrivilegedCrash
         | S::PortRegisterRead
         | S::PortRegisterWrite

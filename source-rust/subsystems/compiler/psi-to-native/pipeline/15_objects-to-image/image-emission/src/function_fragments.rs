@@ -5893,6 +5893,12 @@ mod source {
                                 | Kind::PackedLoadI16x4ZeroExtend
                                 | Kind::PackedWidenU8x4ToI16x8
                                 | Kind::PackedNarrowI16x8ToU8x4Saturating
+                                | Kind::PackedAddU8x16
+                                | Kind::PackedMinI16x8
+                                | Kind::PackedCmpGtI16x8
+                                | Kind::PackedBitAndI16x8
+                                | Kind::PackedBitAndNotI16x8
+                                | Kind::PackedAbsI16x8
                                 | Kind::PackedStore128 { .. }
                                 | Kind::PackedStore64 { .. }
                                 | Kind::PackedStore32 { .. }
@@ -20611,7 +20617,8 @@ mod structural {
                         },
                     ],
                     actual,
-                ) if !opaque && *pointer == actual
+                ) if !opaque
+                    && *pointer == actual
                     && *byte_size == placement.shape.byte_size
                     && *alignment == placement.shape.alignment
                     && match pointer {

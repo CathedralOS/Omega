@@ -178,11 +178,16 @@ mod constraint_catalog {
         X86_64_LOAD_ENCODED_SCALAR, X86_64_LOAD8, X86_64_LOAD8_INDEXED, X86_64_LOAD16,
         X86_64_LOAD32, X86_64_LOAD64, X86_64_MATERIALIZE_BOOLEAN, X86_64_MATERIALIZE_I64,
         X86_64_MICROSOFT_CALL, X86_64_MICROSOFT_RETURN, X86_64_MICROSOFT_RETURN_UNIT,
-        X86_64_MULTIPLY_I64, X86_64_PACKED_ADD_I16X8, X86_64_PACKED_ADD_I16X8_REG,
-        X86_64_PACKED_FROM_GPR64_PAIR, X86_64_PACKED_FROM_GPR64_ZERO_EXTEND,
-        X86_64_PACKED_LOAD_32_ZERO_EXTEND, X86_64_PACKED_LOAD_64_ZERO_EXTEND,
-        X86_64_PACKED_LOAD_128, X86_64_PACKED_LOAD_I16X4_ZERO_EXTEND,
-        X86_64_PACKED_MATERIALIZE_ZERO, X86_64_PACKED_NARROW_I16X8_TO_U8X4_SATURATING,
+        X86_64_MULTIPLY_I64, X86_64_PACKED_ABS_I16X8, X86_64_PACKED_ABS_I16X8_REG,
+        X86_64_PACKED_ADD_I16X8, X86_64_PACKED_ADD_I16X8_REG, X86_64_PACKED_ADD_U8X16,
+        X86_64_PACKED_ADD_U8X16_REG, X86_64_PACKED_BIT_AND_I16X8, X86_64_PACKED_BIT_AND_I16X8_REG,
+        X86_64_PACKED_BIT_ANDNOT_I16X8, X86_64_PACKED_BIT_ANDNOT_I16X8_REG,
+        X86_64_PACKED_CMPGT_I16X8, X86_64_PACKED_CMPGT_I16X8_REG, X86_64_PACKED_FROM_GPR64_PAIR,
+        X86_64_PACKED_FROM_GPR64_ZERO_EXTEND, X86_64_PACKED_LOAD_32_ZERO_EXTEND,
+        X86_64_PACKED_LOAD_64_ZERO_EXTEND, X86_64_PACKED_LOAD_128,
+        X86_64_PACKED_LOAD_I16X4_ZERO_EXTEND, X86_64_PACKED_MATERIALIZE_ZERO,
+        X86_64_PACKED_MIN_I16X8, X86_64_PACKED_MIN_I16X8_REG,
+        X86_64_PACKED_NARROW_I16X8_TO_U8X4_SATURATING,
         X86_64_PACKED_NARROW_I16X8_TO_U8X8_SATURATING,
         X86_64_PACKED_NARROW_I16X8_TO_U8X8_SATURATING_REG, X86_64_PACKED_SHIFT_RIGHT_I16X8,
         X86_64_PACKED_SHIFT_RIGHT_I16X8_REG, X86_64_PACKED_SHUFFLE_GENERAL_I16X8,
@@ -1281,13 +1286,39 @@ mod constraint_catalog {
             (
                 X86_64_PACKED_WIDEN_U8X4_TO_I16X8,
                 super::operand_lane(2, 2),
-                xmm0_xmm1,
+                xmm0_xmm1.clone(),
             ),
             (
                 X86_64_PACKED_NARROW_I16X8_TO_U8X4_SATURATING,
                 super::operand_lane(2, 2),
-                xmm0,
+                xmm0.clone(),
             ),
+            (
+                X86_64_PACKED_ADD_U8X16,
+                super::operand_lane(3, 3),
+                xmm0_xmm1.clone(),
+            ),
+            (
+                X86_64_PACKED_MIN_I16X8,
+                super::operand_lane(3, 3),
+                xmm0_xmm1.clone(),
+            ),
+            (
+                X86_64_PACKED_CMPGT_I16X8,
+                super::operand_lane(3, 3),
+                xmm0_xmm1.clone(),
+            ),
+            (
+                X86_64_PACKED_BIT_AND_I16X8,
+                super::operand_lane(3, 3),
+                xmm0_xmm1.clone(),
+            ),
+            (
+                X86_64_PACKED_BIT_ANDNOT_I16X8,
+                super::operand_lane(3, 3),
+                xmm0_xmm1,
+            ),
+            (X86_64_PACKED_ABS_I16X8, super::operand_lane(2, 2), xmm0),
         ] {
             constraints.push(RegisterInstructionConstraint {
                 id: RegisterConstraintId(0),
@@ -1400,6 +1431,53 @@ mod constraint_catalog {
             ),
             (
                 X86_64_PACKED_NARROW_I16X8_TO_U8X8_SATURATING_REG,
+                vec![
+                    allocatable(0, Access::Use, VECTOR128),
+                    allocatable(1, Access::Def, VECTOR128),
+                ],
+            ),
+            (
+                X86_64_PACKED_ADD_U8X16_REG,
+                vec![
+                    allocatable(0, Access::Use, VECTOR128),
+                    allocatable(1, Access::Use, VECTOR128),
+                    allocatable(2, Access::Def, VECTOR128),
+                ],
+            ),
+            (
+                X86_64_PACKED_MIN_I16X8_REG,
+                vec![
+                    allocatable(0, Access::Use, VECTOR128),
+                    allocatable(1, Access::Use, VECTOR128),
+                    allocatable(2, Access::Def, VECTOR128),
+                ],
+            ),
+            (
+                X86_64_PACKED_CMPGT_I16X8_REG,
+                vec![
+                    allocatable(0, Access::Use, VECTOR128),
+                    allocatable(1, Access::Use, VECTOR128),
+                    allocatable(2, Access::Def, VECTOR128),
+                ],
+            ),
+            (
+                X86_64_PACKED_BIT_AND_I16X8_REG,
+                vec![
+                    allocatable(0, Access::Use, VECTOR128),
+                    allocatable(1, Access::Use, VECTOR128),
+                    allocatable(2, Access::Def, VECTOR128),
+                ],
+            ),
+            (
+                X86_64_PACKED_BIT_ANDNOT_I16X8_REG,
+                vec![
+                    allocatable(0, Access::Use, VECTOR128),
+                    allocatable(1, Access::Use, VECTOR128),
+                    allocatable(2, Access::Def, VECTOR128),
+                ],
+            ),
+            (
+                X86_64_PACKED_ABS_I16X8_REG,
                 vec![
                     allocatable(0, Access::Use, VECTOR128),
                     allocatable(1, Access::Def, VECTOR128),
@@ -2366,6 +2444,18 @@ mod operation_keys {
     pub const X86_64_PACKED_SHUFFLE_I16X8_REG: Key = Key::instruction(833);
     pub const X86_64_PACKED_WIDEN_U8X8_TO_I16X8_REG: Key = Key::instruction(834);
     pub const X86_64_PACKED_NARROW_I16X8_TO_U8X8_SATURATING_REG: Key = Key::instruction(835);
+    pub const X86_64_PACKED_ADD_U8X16: Key = Key::instruction(836);
+    pub const X86_64_PACKED_MIN_I16X8: Key = Key::instruction(837);
+    pub const X86_64_PACKED_CMPGT_I16X8: Key = Key::instruction(838);
+    pub const X86_64_PACKED_BIT_AND_I16X8: Key = Key::instruction(839);
+    pub const X86_64_PACKED_BIT_ANDNOT_I16X8: Key = Key::instruction(840);
+    pub const X86_64_PACKED_ABS_I16X8: Key = Key::instruction(841);
+    pub const X86_64_PACKED_ADD_U8X16_REG: Key = Key::instruction(842);
+    pub const X86_64_PACKED_MIN_I16X8_REG: Key = Key::instruction(843);
+    pub const X86_64_PACKED_CMPGT_I16X8_REG: Key = Key::instruction(844);
+    pub const X86_64_PACKED_BIT_AND_I16X8_REG: Key = Key::instruction(845);
+    pub const X86_64_PACKED_BIT_ANDNOT_I16X8_REG: Key = Key::instruction(846);
+    pub const X86_64_PACKED_ABS_I16X8_REG: Key = Key::instruction(847);
     pub const X86_64_COPY_BYTES: Key = Key::instruction(736);
 
     pub const X86_64_LOAD_ENCODED_SCALAR: Key = Key::instruction(758);
@@ -2478,7 +2568,7 @@ mod operation_keys {
 
     pub const X86_64_JUMP: Key = Key::instruction(9);
 
-    pub const X86_64_ORDINARY_REGISTER_CONSTRAINTS: [Key; 128] = [
+    pub const X86_64_ORDINARY_REGISTER_CONSTRAINTS: [Key; 140] = [
         X86_64_PACKED_ADD_I16X8,
         X86_64_PACKED_SUB_I16X8,
         X86_64_PACKED_SHUFFLE_I16X8,
@@ -2504,6 +2594,18 @@ mod operation_keys {
         X86_64_PACKED_SHUFFLE_I16X8_REG,
         X86_64_PACKED_WIDEN_U8X8_TO_I16X8_REG,
         X86_64_PACKED_NARROW_I16X8_TO_U8X8_SATURATING_REG,
+        X86_64_PACKED_ADD_U8X16,
+        X86_64_PACKED_MIN_I16X8,
+        X86_64_PACKED_CMPGT_I16X8,
+        X86_64_PACKED_BIT_AND_I16X8,
+        X86_64_PACKED_BIT_ANDNOT_I16X8,
+        X86_64_PACKED_ABS_I16X8,
+        X86_64_PACKED_ADD_U8X16_REG,
+        X86_64_PACKED_MIN_I16X8_REG,
+        X86_64_PACKED_CMPGT_I16X8_REG,
+        X86_64_PACKED_BIT_AND_I16X8_REG,
+        X86_64_PACKED_BIT_ANDNOT_I16X8_REG,
+        X86_64_PACKED_ABS_I16X8_REG,
         X86_64_SYSTEM_V_CALL,
         X86_64_MICROSOFT_CALL,
         X86_64_SYSTEM_V_RETURN,
@@ -3949,12 +4051,16 @@ pub use operation_keys::{
     X86_64_INTERRUPT_CONTROL, X86_64_JUMP, X86_64_LOAD_ENCODED_SCALAR, X86_64_LOAD8,
     X86_64_LOAD8_INDEXED, X86_64_LOAD16, X86_64_LOAD32, X86_64_LOAD64, X86_64_MATERIALIZE_BOOLEAN,
     X86_64_MATERIALIZE_I64, X86_64_MEMORY_FENCE, X86_64_MODEL_SPECIFIC_READ,
-    X86_64_MODEL_SPECIFIC_WRITE, X86_64_MULTIPLY_I64, X86_64_PACKED_ADD_I16X8,
-    X86_64_PACKED_ADD_I16X8_REG, X86_64_PACKED_FROM_GPR64_PAIR,
-    X86_64_PACKED_FROM_GPR64_ZERO_EXTEND, X86_64_PACKED_LOAD_32_ZERO_EXTEND,
-    X86_64_PACKED_LOAD_64_ZERO_EXTEND, X86_64_PACKED_LOAD_128,
-    X86_64_PACKED_LOAD_I16X4_ZERO_EXTEND, X86_64_PACKED_MATERIALIZE_ZERO,
-    X86_64_PACKED_NARROW_I16X8_TO_U8X4_SATURATING, X86_64_PACKED_NARROW_I16X8_TO_U8X8_SATURATING,
+    X86_64_MODEL_SPECIFIC_WRITE, X86_64_MULTIPLY_I64, X86_64_PACKED_ABS_I16X8,
+    X86_64_PACKED_ABS_I16X8_REG, X86_64_PACKED_ADD_I16X8, X86_64_PACKED_ADD_I16X8_REG,
+    X86_64_PACKED_ADD_U8X16, X86_64_PACKED_ADD_U8X16_REG, X86_64_PACKED_BIT_AND_I16X8,
+    X86_64_PACKED_BIT_AND_I16X8_REG, X86_64_PACKED_BIT_ANDNOT_I16X8,
+    X86_64_PACKED_BIT_ANDNOT_I16X8_REG, X86_64_PACKED_CMPGT_I16X8, X86_64_PACKED_CMPGT_I16X8_REG,
+    X86_64_PACKED_FROM_GPR64_PAIR, X86_64_PACKED_FROM_GPR64_ZERO_EXTEND,
+    X86_64_PACKED_LOAD_32_ZERO_EXTEND, X86_64_PACKED_LOAD_64_ZERO_EXTEND, X86_64_PACKED_LOAD_128,
+    X86_64_PACKED_LOAD_I16X4_ZERO_EXTEND, X86_64_PACKED_MATERIALIZE_ZERO, X86_64_PACKED_MIN_I16X8,
+    X86_64_PACKED_MIN_I16X8_REG, X86_64_PACKED_NARROW_I16X8_TO_U8X4_SATURATING,
+    X86_64_PACKED_NARROW_I16X8_TO_U8X8_SATURATING,
     X86_64_PACKED_NARROW_I16X8_TO_U8X8_SATURATING_REG, X86_64_PACKED_SHIFT_RIGHT_I16X8,
     X86_64_PACKED_SHIFT_RIGHT_I16X8_REG, X86_64_PACKED_SHUFFLE_GENERAL_I16X8,
     X86_64_PACKED_SHUFFLE_I16X8, X86_64_PACKED_SHUFFLE_I16X8_REG, X86_64_PACKED_STORE_32,

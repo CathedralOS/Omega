@@ -379,7 +379,11 @@ pub(super) fn encode(
                     push_bytes!(bytes, capacity_obligation.get().to_le_bytes());
                     bytes.extend_from_slice(&accepted_fact.bytes());
                 }
-                LegalizedScalarInstructionKind::PackedIntegerUnary { result, operation, source } => {
+                LegalizedScalarInstructionKind::PackedIntegerUnary {
+                    result,
+                    operation,
+                    source,
+                } => {
                     bytes.push(238);
                     match operation {
                         semantic_vocabulary::PackedIntegerUnaryOperation::ShiftRightArithmeticI16x8 { count } => {
@@ -391,18 +395,45 @@ pub(super) fn encode(
                         semantic_vocabulary::PackedIntegerUnaryOperation::LoadI16x4ZeroExtend => bytes.push(3),
                         semantic_vocabulary::PackedIntegerUnaryOperation::WidenU8x4ToI16x8 => bytes.push(4),
                         semantic_vocabulary::PackedIntegerUnaryOperation::NarrowI16x8ToU8x4Saturating => bytes.push(5),
+                        semantic_vocabulary::PackedIntegerUnaryOperation::AbsI16x8 => bytes.push(6),
                     }
                     super::structural::encode_operation_result(bytes, result);
                     super::structural_types::encode_structural_argument(bytes, source);
                 }
-                LegalizedScalarInstructionKind::PackedIntegerBinary { result, operation, left, right } => {
+                LegalizedScalarInstructionKind::PackedIntegerBinary {
+                    result,
+                    operation,
+                    left,
+                    right,
+                } => {
                     bytes.push(237);
                     match operation {
-                        semantic_vocabulary::PackedIntegerBinaryOperation::WrappingAddI16x8 => bytes.push(0),
-                        semantic_vocabulary::PackedIntegerBinaryOperation::WrappingSubI16x8 => bytes.push(1),
-                        semantic_vocabulary::PackedIntegerBinaryOperation::ShuffleI16x8 { lanes } => {
+                        semantic_vocabulary::PackedIntegerBinaryOperation::WrappingAddI16x8 => {
+                            bytes.push(0)
+                        }
+                        semantic_vocabulary::PackedIntegerBinaryOperation::WrappingSubI16x8 => {
+                            bytes.push(1)
+                        }
+                        semantic_vocabulary::PackedIntegerBinaryOperation::ShuffleI16x8 {
+                            lanes,
+                        } => {
                             bytes.push(2);
                             bytes.extend_from_slice(lanes);
+                        }
+                        semantic_vocabulary::PackedIntegerBinaryOperation::WrappingAddU8x16 => {
+                            bytes.push(3)
+                        }
+                        semantic_vocabulary::PackedIntegerBinaryOperation::MinI16x8 => {
+                            bytes.push(4)
+                        }
+                        semantic_vocabulary::PackedIntegerBinaryOperation::CmpGtI16x8 => {
+                            bytes.push(5)
+                        }
+                        semantic_vocabulary::PackedIntegerBinaryOperation::BitAndI16x8 => {
+                            bytes.push(6)
+                        }
+                        semantic_vocabulary::PackedIntegerBinaryOperation::BitAndNotI16x8 => {
+                            bytes.push(7)
                         }
                     }
                     super::structural::encode_operation_result(bytes, result);
@@ -754,7 +785,10 @@ pub(super) fn encode(
                     indices,
                 } => {
                     bytes.push(122);
-                    bytes.push(match query { terminal_psi::StorageLocationQuery::Address => 0, terminal_psi::StorageLocationQuery::Alignment => 1 });
+                    bytes.push(match query {
+                        terminal_psi::StorageLocationQuery::Address => 0,
+                        terminal_psi::StorageLocationQuery::Alignment => 1,
+                    });
                     crate::codec_bytes::push_encoded(bytes, source.get().to_le_bytes());
                     super::structural_types::encode_structural_path(bytes, path);
                     encode_runtime_indices(bytes, indices);

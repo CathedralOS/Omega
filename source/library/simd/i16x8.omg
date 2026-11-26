@@ -1,0 +1,84 @@
+use simd.omg as simd;
+use {omega}/language/core/packed_integer/packed_integer.omg as packed_integer;
+
+public machine load(source: @[i16; 8]) -> |simd|::Lanes<i16, 8> {
+    |simd|::Lanes { values: $source }
+}
+
+public machine load_low4(source: @[i16; 4]) -> |simd|::Lanes<i16, 8> {
+    let values: [i16; 8] = |packed_integer|::load_i16x4_zero_extend(source);
+    |simd|::Lanes { values: values }
+}
+
+public machine store(destination: @mutable [i16; 8], value: @|simd|::Lanes<i16, 8>) {
+    $destination = value.values;
+}
+
+public machine wrapping_add(left: @|simd|::Lanes<i16, 8>, right: @|simd|::Lanes<i16, 8>) -> |simd|::Lanes<i16, 8> {
+    let values: [i16; 8] = |packed_integer|::wrapping_add_i16x8(@left.values, @right.values);
+    |simd|::Lanes { values: values }
+}
+
+public machine wrapping_sub(left: @|simd|::Lanes<i16, 8>, right: @|simd|::Lanes<i16, 8>) -> |simd|::Lanes<i16, 8> {
+    let values: [i16; 8] = |packed_integer|::wrapping_sub_i16x8(@left.values, @right.values);
+    |simd|::Lanes { values: values }
+}
+
+public machine wrapping_abs(input: @|simd|::Lanes<i16, 8>) -> |simd|::Lanes<i16, 8> {
+    let values: [i16; 8] = |packed_integer|::abs_i16x8(@input.values);
+    |simd|::Lanes { values: values }
+}
+
+public machine min(left: @|simd|::Lanes<i16, 8>, right: @|simd|::Lanes<i16, 8>) -> |simd|::Lanes<i16, 8> {
+    let values: [i16; 8] = |packed_integer|::min_i16x8(@left.values, @right.values);
+    |simd|::Lanes { values: values }
+}
+
+public machine gt_mask(left: @|simd|::Lanes<i16, 8>, right: @|simd|::Lanes<i16, 8>) -> |simd|::Lanes<i16, 8> {
+    let values: [i16; 8] = |packed_integer|::cmpgt_i16x8(@left.values, @right.values);
+    |simd|::Lanes { values: values }
+}
+
+public machine bit_and(left: @|simd|::Lanes<i16, 8>, right: @|simd|::Lanes<i16, 8>) -> |simd|::Lanes<i16, 8> {
+    let values: [i16; 8] = |packed_integer|::bit_and_i16x8(@left.values, @right.values);
+    |simd|::Lanes { values: values }
+}
+
+public machine bit_and_not(mask: @|simd|::Lanes<i16, 8>, value: @|simd|::Lanes<i16, 8>) -> |simd|::Lanes<i16, 8> {
+    let values: [i16; 8] = |packed_integer|::bit_andnot_i16x8(@mask.values, @value.values);
+    |simd|::Lanes { values: values }
+}
+
+public machine shift_right_arithmetic<const Count: u64>(input: @|simd|::Lanes<i16, 8>) -> |simd|::Lanes<i16, 8>
+requires Count < 16u64 {
+    let values: [i16; 8] = |packed_integer|::shift_right_i16x8::<Count>(@input.values);
+    |simd|::Lanes { values: values }
+}
+
+public machine widen_u8x8(input: @[u8; 8]) -> |simd|::Lanes<i16, 8> {
+    let values: [i16; 8] = |packed_integer|::widen_u8x8_to_i16x8(input);
+    |simd|::Lanes { values: values }
+}
+
+public machine widen_u8x4(input: @[u8; 4]) -> |simd|::Lanes<i16, 8> {
+    let values: [i16; 8] = |packed_integer|::widen_u8x4_to_i16x8(input);
+    |simd|::Lanes { values: values }
+}
+
+public machine saturating_narrow_u8x8(input: @|simd|::Lanes<i16, 8>) -> [u8; 8] {
+    |packed_integer|::narrow_i16x8_to_u8x8_saturating(@input.values)
+}
+
+public machine saturating_narrow_u8x4(input: @|simd|::Lanes<i16, 8>) -> [u8; 4] {
+    |packed_integer|::narrow_i16x8_to_u8x4_saturating(@input.values)
+}
+
+public machine concat_low4(low: @|simd|::Lanes<i16, 8>, high: @|simd|::Lanes<i16, 8>) -> |simd|::Lanes<i16, 8> {
+    let values: [i16; 8] = |packed_integer|::shuffle_i16x8::<0, 1, 2, 3, 8, 9, 10, 11>(@low.values, @high.values);
+    |simd|::Lanes { values: values }
+}
+
+public machine high4(input: @|simd|::Lanes<i16, 8>) -> |simd|::Lanes<i16, 8> {
+    let values: [i16; 8] = |packed_integer|::shuffle_i16x8::<4, 5, 6, 7, 12, 13, 14, 15>(@input.values, @input.values);
+    |simd|::Lanes { values: values }
+}

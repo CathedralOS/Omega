@@ -1,13 +1,13 @@
 use targets/windows_x86_64/filesystem_removal/native.omg as removal_io;
 use targets/windows_x86_64/windows_filesystem_native.omg as win_io;
-use targets\windows_x86_64;
+use targets/windows_x86_64/windows_filesystem_private_handles.omg as private_handle;
+use {omega}/language/core/filesystem_authority.omg as authority;
+use {omega}/language/core/numeric_conversion.omg as numeric;
+
 // Dispose the exact opened object, then release that handle once. Namespace
 // mutation includes the close which commits a pending disposition; ordinary
 // empty-release authority is neither assumed nor manufactured here. The first
 // error wins over later unwind errors, and CloseHandle is never retried.
-use omega\language\core\FilesystemNamespaceMutation;
-use omega\language\core\narrow_i64_to_i32_wrapping;
-use omega\language\core\widen_u32_to_i64;
 
 machine windows_removal_error(code: u32) -> u32 {
     transition code != 0 { true -> (code), false -> 31 }
@@ -17,16 +17,16 @@ machine windows_removal_status(code: u32) -> i32 {
     transition code == 0 { true -> 0, false -> failed(code) }
     machine failed(code: u32) -> i32 {
         transition code <= 2147483647 {
-            true -> (narrow_i64_to_i32_wrapping(0 - widen_u32_to_i64(code))),
+            true -> (|numeric|::narrow_i64_to_i32_wrapping(0 - |numeric|::widen_u32_to_i64(code))),
             false -> (-31)
         }
     }
 }
 
-machine windows_removal_close(handle: i64 in WindowsPrivateNonalertFileOrAbsent,
+machine windows_removal_close(handle: i64 in |private_handle|::WindowsPrivateNonalertFileOrAbsent,
     original: u32) -> u32
-requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0
-reaches FilesystemNamespaceMutation {
+requires (handle as - |private_handle|::WindowsPrivateNonalertFileOrAbsent) != 0
+reaches |authority|::FilesystemNamespaceMutation {
     let closed: i32 = block |removal_io|::WindowsFilesystemRemovalIo::close(handle);
     transition original != 0 {
         true -> (original),
@@ -40,16 +40,16 @@ reaches FilesystemNamespaceMutation {
     }
 }
 
-machine windows_removal_dispose(handle: i64 in WindowsPrivateNonalertFileOrAbsent) -> u32
-requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0
-reaches FilesystemNamespaceMutation {
+machine windows_removal_dispose(handle: i64 in |private_handle|::WindowsPrivateNonalertFileOrAbsent) -> u32
+requires (handle as - |private_handle|::WindowsPrivateNonalertFileOrAbsent) != 0
+reaches |authority|::FilesystemNamespaceMutation {
     let disposition: |removal_io|::WindowsNativeFileDisposition = |removal_io|::WindowsNativeFileDisposition { delete: 1 };
     let succeeded: i32 = block |removal_io|::WindowsFilesystemRemovalIo::dispose(handle, 4, @disposition, 1);
     transition succeeded != 0 {
         true -> block windows_removal_close(handle, 0),
         false -> block failed(handle)
     }
-    machine failed(handle: i64 in WindowsPrivateNonalertFileOrAbsent) -> u32 requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 {
+    machine failed(handle: i64 in |private_handle|::WindowsPrivateNonalertFileOrAbsent) -> u32 requires (handle as - |private_handle|::WindowsPrivateNonalertFileOrAbsent) != 0 {
         let code: u32 = windows_removal_error(|win_io|::WindowsFilesystemIo::c_get_last_error());
         block windows_removal_close(handle, code)
     }
