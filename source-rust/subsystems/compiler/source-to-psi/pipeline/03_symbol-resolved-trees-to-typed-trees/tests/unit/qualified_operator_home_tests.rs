@@ -209,7 +209,7 @@ fn bundled_core_fixtures_resolve_their_authored_imports() {
         .iter()
         .find(|signature| signature.name.as_str() == "profile")
         .expect("ResourceProfileSupply declares profile");
-    let [storage] = program.state_signature_parameters(profile) else {
+    let Some([storage]) = program.state_signature_parameters(profile).as_array() else {
         panic!("profile takes only its storage parameter");
     };
     let types = &program.type_reference_table;
