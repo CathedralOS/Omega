@@ -1437,13 +1437,23 @@ fn a_product_dependency_is_not_selectable_from_the_build() {
         line.strip_prefix("at ")
             .and_then(|position| position.strip_suffix(":15:22"))
     });
-    let expected_path = std::path::PathBuf::from(format!(
-        "omega-build-staged-dependency-calls-{}-product-dependency",
-        std::process::id()
-    ))
-    .join("build.omg");
+    // `project::stage` names the directory `omega-<name>-<pid>-<sequence>`.
+    let staged = format!("omega-product-dependency-{}-", std::process::id());
+    let in_staged_project = |path: &str| {
+        let path = std::path::Path::new(path);
+        path.file_name() == Some("build.omg".as_ref())
+            && path
+                .parent()
+                .and_then(std::path::Path::file_name)
+                .and_then(std::ffi::OsStr::to_str)
+                .is_some_and(|directory| {
+                    directory
+                        .strip_prefix(&staged)
+                        .is_some_and(|sequence| sequence.parse::<u64>().is_ok())
+                })
+    };
     assert!(
-        location.is_some_and(|path| std::path::Path::new(path).ends_with(&expected_path)),
+        location.is_some_and(in_staged_project),
         "the refusal identifies the call through a Product-only dependency: {stderr}"
     );
 }

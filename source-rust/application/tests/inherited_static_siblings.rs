@@ -1,7 +1,7 @@
 //! Sibling helpers retain their enclosing static arguments.
 
-#[path = "support/build_fixture.rs"]
-mod build_fixture;
+#[path = "support/program.rs"]
+mod program;
 mod support;
 
 fn fixture_path(tier: &str, fixture_name: &str) -> std::path::PathBuf {
@@ -27,12 +27,13 @@ fn selected_maps_pass_their_own_private_callback() {
 }
 
 fn assert_runs_in_both_engines(fixture: &str) {
-    build_fixture::assert_silent_return(&fixture_path("run", fixture));
+    program::assert_fixture_silent_return(&fixture_path("run", fixture));
 }
 
 #[test]
 fn a_const_argument_still_owes_its_declared_requirement() {
-    let (output, report) = build_fixture::check(&fixture_path("fail", "inherited_static_siblings"));
+    let (output, report) =
+        program::check_fixture(&fixture_path("fail", "inherited_static_siblings"));
     assert!(!output.status.success(), "{report}");
     assert!(
         report.contains("cannot prove requires contract for call forward from main")
@@ -43,7 +44,7 @@ fn a_const_argument_still_owes_its_declared_requirement() {
 
 #[test]
 fn default_helpers_cannot_capture_an_enclosing_value() {
-    let (output, report) = build_fixture::check(&fixture_path("fail", "trait_default_helpers"));
+    let (output, report) = program::check_fixture(&fixture_path("fail", "trait_default_helpers"));
     assert!(!output.status.success(), "{report}");
     assert!(
         report.contains("cannot capture enclosing runtime binding `value`"),
@@ -53,7 +54,7 @@ fn default_helpers_cannot_capture_an_enclosing_value() {
 
 #[test]
 fn a_private_map_callback_must_accept_every_input_its_binder_allows() {
-    let (output, report) = build_fixture::check(&fixture_path("fail", "private_map_callback"));
+    let (output, report) = program::check_fixture(&fixture_path("fail", "private_map_callback"));
     assert!(!output.status.success(), "{report}");
     assert!(
         report

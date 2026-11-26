@@ -1,7 +1,7 @@
 //! Selecting a callback keeps the wrapper's lifetime and entry contract.
 
-#[path = "support/build_fixture.rs"]
-mod build_fixture;
+#[path = "support/program.rs"]
+mod program;
 mod support;
 
 fn fixture_path(tier: &str) -> std::path::PathBuf {
@@ -13,12 +13,12 @@ fn fixture_path(tier: &str) -> std::path::PathBuf {
 
 #[test]
 fn lifetime_callback_contracts_run_in_both_engines() {
-    build_fixture::assert_silent_return(&fixture_path("run"));
+    program::assert_fixture_silent_return(&fixture_path("run"));
 }
 
 #[test]
 fn a_callback_does_not_supply_a_missing_scalar_requirement() {
-    let (output, report) = build_fixture::check(&fixture_path("fail"));
+    let (output, report) = program::check_fixture(&fixture_path("fail"));
     assert!(!output.status.success(), "{report}");
     assert!(
         report.contains("cannot prove requires contract for call checked_remaining from forward"),
