@@ -81,13 +81,13 @@ impl fmt::Display for DependencyProjectionError {
                 "dependency alias `{alias}` must use snake_case Omega identifier spelling"
             ),
             Self::SourceNotLiteral => formatter.write_str(
-                "dependency source must be a direct `Source::Path` or `Source::Git` literal",
+                "dependency source must be a direct `Source::Bundled`, `Source::Path`, or `Source::Git` literal",
             ),
             Self::WrongSourceType => {
                 formatter.write_str("dependency source literal must construct `Source`")
             }
             Self::MissingSourceCase => formatter.write_str(
-                "dependency source must select the `Source::Path` or `Source::Git` case",
+                "dependency source must select the `Source::Bundled`, `Source::Path`, or `Source::Git` case",
             ),
             Self::UnsupportedSourceCase { case_name } => {
                 write!(formatter, "unsupported dependency source case `Source::{case_name}`")

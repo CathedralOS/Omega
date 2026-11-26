@@ -58,7 +58,8 @@ pub struct BuildSourceAcquisitions<'operation> {
     locked_activations: bool,
     pub(crate) local_members: Option<Arc<LocalWorkspaceMembers>>,
     git_sources: Vec<(GitSourceRequest, ResolvedGitSource)>,
-    sources: Vec<AcquiredBuildSource>,
+    pub(super) sources: Vec<AcquiredBuildSource>,
+    pub(super) bundled: Option<super::bundled::BundledPackages>,
     pub(super) workspaces: Vec<super::workspace_acquisition::ExecutedWorkspace>,
 }
 
@@ -96,6 +97,7 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
             local_members: None,
             git_sources: Vec::new(),
             sources: Vec::new(),
+            bundled: None,
             workspaces: Vec::new(),
         }
     }
@@ -310,6 +312,19 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
         request: &DependencySourceRequest,
     ) -> Result<AcquiredSourceSelection, String> {
         let acquired = match request {
+            DependencySourceRequest::Bundled { name, .. } => {
+                self.acquire_bundled(name, requester.limits)?
+            }
+            DependencySourceRequest::Path { location, .. }
+                if let SourceLineage::Bundled { library, directory } = requester.lineage =>
+            {
+                let catalog = self
+                    .bundled
+                    .as_ref()
+                    .ok_or("bundled source has no installed package catalog")?;
+                let name = catalog.relative_name(library, directory, location)?;
+                self.acquire_bundled(&name, requester.limits)?
+            }
             DependencySourceRequest::Path { location, .. } => {
                 if let SourceLineage::ExternalLocal(lineage) = requester.lineage {
                     let root = super::external_local_dependency_root(
@@ -756,6 +771,18 @@ impl AcquiredBuildSource {
                 return Err("a workspace declaration does not name a Product source owner".into());
             }
         };
+        if let PackageRootSourceRequest::Bundled { name: requested } = &self.root_request
+            && (!matches!(
+                declaration,
+                build_declarations::BuildDeclaration::Package(_)
+            ) || name.as_str() != requested.as_str())
+        {
+            return Err(format!(
+                "bundled package requested as {} must return a Package with that name; its Build declared {}",
+                requested.as_str(),
+                name.as_str()
+            ));
+        }
         if let super::PackageSourceSelectionEvidence::GitWorkspace(evidence) = &self.selection
             && name != evidence.plan().selected_member().package_name()
         {
@@ -774,7 +801,11 @@ impl AcquiredBuildSource {
             requests,
         )
         .with_captured_source(std::sync::Arc::clone(self.source_capture().tree()))
-        .with_preparing_source(self.successor_capture.as_ref().map(|_| self.capture.clone()));
+        .with_preparing_source(
+            self.successor_capture
+                .as_ref()
+                .map(|_| self.capture.clone()),
+        );
         Ok(DeclaredBuildSource {
             backings: Default::default(),
             custody,

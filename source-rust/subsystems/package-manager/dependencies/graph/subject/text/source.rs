@@ -43,6 +43,10 @@ pub(super) fn write_resolution(
                 ],
             )
         }
+        ImmutableSourceResolution::Bundled { content } => {
+            writer.budget.charge(64)?;
+            writer.row("resolution bundled", &[content.to_hex().as_bytes()])
+        }
         ImmutableSourceResolution::Workspace { content } => {
             writer.budget.charge(64)?;
             writer.row("resolution workspace", &[content.to_hex().as_bytes()])
@@ -84,6 +88,9 @@ pub(super) fn read_resolution(reader: &mut Reader<'_>) -> Result<ImmutableSource
             }
             resolution
         }
+        "bundled" => ImmutableSourceResolution::Bundled {
+            content: read_content(reader)?,
+        },
         "workspace" => ImmutableSourceResolution::workspace(read_content(reader)?),
         "external-local" => ImmutableSourceResolution::external_local(read_content(reader)?),
         _ => return Err(Error::new("unknown text source resolution")),
@@ -141,6 +148,13 @@ pub(super) fn write_lineage(writer: &mut Writer, lineage: &SourceLineage) -> Res
                     &digits[start..],
                     lineage.repository_path().as_bytes(),
                 ],
+            )
+        }
+        SourceLineage::Bundled { library, directory } => {
+            writer.budget.charge(64)?;
+            writer.row(
+                "lineage bundled",
+                &[library.to_hex().as_bytes(), directory.as_str().as_bytes()],
             )
         }
         SourceLineage::Workspace(lineage) => {
@@ -232,6 +246,12 @@ pub(super) fn read_lineage(
                 }
                 _ => return Err(Error::new("invalid text Git transport")),
             }
+        }
+        "bundled" => {
+            return Ok(SourceLineage::Bundled {
+                library: read_content(reader)?,
+                directory: reader.relative_path(maximum)?,
+            });
         }
         "workspace" => {
             let workspace = WorkspaceLineageIdentity::parse_hex(&reader.hex_string(64)?)

@@ -6,7 +6,7 @@
 use super::super::{
     CanonicalDependencySourceSelection, CanonicalRootSourceSelection,
     CanonicalSourceClosureSubjectError as Error, CanonicalSourceClosureSubjectLimits as Limits,
-    request_view::Request, usage::Budget,
+    usage::Budget,
 };
 use super::dependency::{validate_dependency_request, validate_dependency_selection_kind};
 use super::root::validate_root_request;
@@ -51,10 +51,7 @@ pub(in super::super) fn validate_subject(
             })?;
         for purpose in DependencyPurpose::ALL {
             for request in projection.requests(purpose) {
-                validate_dependency_request(
-                    Request::from(&request.source),
-                    limits.maximum_request_bytes,
-                )?;
+                validate_dependency_request(&request.source, limits.maximum_request_bytes)?;
             }
         }
     }
@@ -81,7 +78,7 @@ pub(in super::super) fn validate_subject(
     let mut previous: Option<&CanonicalDependencySourceSelection> = None;
     for edge in edges {
         validate_source_identity(&edge.selected, limits.maximum_identity_bytes)?;
-        validate_dependency_request(Request::from(&edge.request), limits.maximum_request_bytes)?;
+        validate_dependency_request(&edge.request, limits.maximum_request_bytes)?;
         let requester = ResolvedSourceIdentity::index_in(packages, &edge.requester)
             .ok_or_else(|| Error::new("dependency request names an unknown requester"))?;
         let projected = projections[requester]
@@ -90,7 +87,7 @@ pub(in super::super) fn validate_subject(
             .ok_or_else(|| {
                 Error::new("active dependency selection names an unknown authored occurrence")
             })?;
-        if Request::from(&projected.source) != Request::from(&edge.request) {
+        if &projected.source != &edge.request {
             return Err(Error::new(
                 "active dependency selection disagrees with its complete projection",
             ));

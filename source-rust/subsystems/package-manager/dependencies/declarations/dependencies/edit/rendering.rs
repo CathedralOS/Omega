@@ -20,12 +20,17 @@ pub(crate) fn canonical_dependency_statement(
     let base = match request.explicit_alias() {
         Some(alias) => alias.as_str().to_owned(),
         None => local_base(match request {
+            DependencySourceRequest::Bundled { name, .. } => name.as_str(),
             DependencySourceRequest::Path { location, .. } => location,
             DependencySourceRequest::Git { repository, .. } => repository,
         }),
     };
     let registration = fresh_local(build_source, &format!("{base}_registration"));
     let source = match request {
+        DependencySourceRequest::Bundled { name, .. } => format!(
+            "Source::Bundled {{ name: {} }}",
+            source_text::display_literal_bytes(name.as_str().as_bytes())
+        ),
         DependencySourceRequest::Path { location, .. } => format!(
             "Source::Path {{ location: {} }}",
             source_text::display_literal_bytes(location.as_bytes())

@@ -28,6 +28,10 @@ pub enum SourceLineage {
     GitLab(GitLabRepositoryLineage),
     Git(GenericGitLineage),
     Workspace(WorkspaceMemberLineage),
+    Bundled {
+        library: super::SourceContentDigest,
+        directory: super::SourceRelativePath,
+    },
     ExternalLocal(ExternalLocalLineage),
 }
 
@@ -60,6 +64,7 @@ impl SourceLineage {
     pub(super) fn family(&self) -> SourceLineageFamily {
         match self {
             Self::GitHub(_) | Self::GitLab(_) | Self::Git(_) => SourceLineageFamily::Git,
+            Self::Bundled { .. } => SourceLineageFamily::Bundled,
             Self::Workspace(_) => SourceLineageFamily::Workspace,
             Self::ExternalLocal(_) => SourceLineageFamily::ExternalLocal,
         }
@@ -84,6 +89,11 @@ impl SourceLineage {
                 hash_field(hasher, lineage.host.as_bytes());
                 hash_optional_field(hasher, lineage.port.as_ref().map(|port| port.as_bytes()));
                 hash_field(hasher, lineage.repository_path.as_bytes());
+            }
+            Self::Bundled { library, directory } => {
+                hash_field(hasher, b"bundled");
+                hash_field(hasher, library.digest());
+                hash_field(hasher, directory.as_str().as_bytes());
             }
             Self::Workspace(lineage) => {
                 hash_field(hasher, b"workspace");

@@ -32,6 +32,7 @@ public machine prepare_dependency(builder: @mutable BuildPlan, registered: Depen
 
 machine request_dependency(builder: @BuildPlan, explicit_alias: bool, alias: @[u8], source: Source, max_reach: DependencyOptions) -> DependencyRegistration reaches BuildRequestOperations {
     transition source {
+        Source::Bundled { name } -> BuildRequestOperations::register_bundled_dependency(builder, explicit_alias, alias, name, max_reach),
         Source::Path { location } -> Build::request_path(builder, explicit_alias, alias, location, max_reach),
         Source::Git { repository, revision, selection } -> Build::request_git(builder, explicit_alias, alias, repository, revision, selection, max_reach),
     }
