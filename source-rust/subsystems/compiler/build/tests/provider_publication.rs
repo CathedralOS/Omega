@@ -157,7 +157,7 @@ fn one_portable_program_carries_the_four_selected_entry_contracts() {
         false,
     )
     .unwrap();
-    let root = temp.path();
+    let root = temp.path().canonicalize().unwrap();
     std::fs::copy(fixture.join("build.omg"), root.join("build.omg")).unwrap();
     // The application owns an unrelated source at the exact relative path of
     // the Linux contract. It remains an ordinary declaration of this package.
