@@ -96,15 +96,16 @@ fn a_chosen_dependency_default_with_an_invalid_layout_is_refused() {
     let main = std::fs::read_to_string(fixture().join("main.omg")).expect("kept program");
     let root = default_only("reached", &main);
     // The authored Windows row must be valid even when the requested output is Linux.
-    let report = omega(
-        &["--check", "--target", "linux_x86_64", "build.omg"],
+    let (accepted, diagnostic) = project::status(project::omega(
         root.path(),
-    );
+        &["--check", "--target", "linux_x86_64", "build.omg"],
+    ));
+    assert!(!accepted, "the Windows provider has overlapping fields");
     assert!(
-        report.contains(
+        diagnostic.contains(
             "layout policy for `Overlapping` on `windows_x86_64`: layout placements of field keys 1 and 2 overlap"
         ),
-        "{report}"
+        "{diagnostic}"
     );
 }
 
