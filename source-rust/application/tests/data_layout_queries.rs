@@ -33,6 +33,19 @@ fn layout_queries_observe_the_selected_c_layout_in_native_and_psi() {
     let project =
         fixture("source-rust/application/tests/fixtures/layouts/run/c_layout_size_alignment_query");
     declared_exit::assert_declared_exit(&project, "main.omg");
+
+    let scratch = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "saved-c-layout-query", false,
+    ).unwrap();
+    let saved = scratch.path().join("query.psi");
+    let output = project::omega(
+        &project,
+        &["--emit-psi", saved.to_str().unwrap(), "--target", "linux_x86_64", "build.omg"],
+    );
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let artifact = std::fs::read(saved).unwrap();
+    terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact)
+        .expect("the saved schema reconstructs the target's address field geometry");
 }
 
 #[test]
