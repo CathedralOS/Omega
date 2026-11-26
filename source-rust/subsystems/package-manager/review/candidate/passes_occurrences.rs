@@ -19,6 +19,7 @@ use package_compilation::{
     PackageCompilationInputs, derive_source_consumption_commitment,
 };
 use provider_acceptance::AcceptedSemanticBinding;
+use source_acquisition::ImmutableSourceResolution;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -78,6 +79,7 @@ pub(super) struct PackageReviewPass<'pass> {
 
 struct ReviewPackage<'pass> {
     scope: PackageCompilationScope<'pass>,
+    resolution: &'pass ImmutableSourceResolution,
     position: usize,
     purposes: Vec<(DependencyPurpose, target::TargetProfile)>,
 }
@@ -135,6 +137,7 @@ impl<'pass> PackageReviewPass<'pass> {
             }
             packages.push(ReviewPackage {
                 scope: PackageCompilationScope::new(closure, custody.key()),
+                resolution: custody.resolution(),
                 position,
                 purposes,
             });
@@ -160,6 +163,7 @@ impl<'pass> PackageReviewPass<'pass> {
                     PackageReviewOccurrence {
                         key,
                         scope: &package.scope,
+                        resolution: package.resolution,
                         position: package.position,
                         purpose,
                         checked_target,
@@ -230,6 +234,7 @@ struct PackageReviewRound<'pass> {
 struct PackageReviewOccurrence<'occurrence> {
     key: &'occurrence PackageKey,
     scope: &'occurrence PackageCompilationScope<'occurrence>,
+    resolution: &'occurrence ImmutableSourceResolution,
     _timing: Option<crate::review::timings::StageTiming>,
     position: usize,
     purpose: DependencyPurpose,
@@ -437,7 +442,8 @@ impl<'pass> PackageReviewRound<'pass> {
         let evaluated = product.evaluated();
         // Source and snapshot identity can match even if this Build's restricted
         // grants, observations, generated source or provider decisions changed.
-        if evaluated.restricted_build_requests != review.restricted_build_requests()
+        if occurrence.resolution != review.resolution()
+            || evaluated.restricted_build_requests != review.restricted_build_requests()
             || evaluated.configuration.evaluation_usage != review.build_evaluation_usage()
             || evaluated.configuration.observation_summary.as_ref()
                 != review.build_observation_summary()

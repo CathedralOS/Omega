@@ -80,7 +80,7 @@ impl PackageReviewRound<'_> {
         let review = CompilerIssuedPackageReview {
             preparations: checked.preparations,
             key: key.clone(),
-            resolution: occurrence.custody.resolution().clone(),
+            resolution: occurrence.resolution.clone(),
             source_consumption_commitment,
             selected_build_machine_identity: checked.selected_build_machine_identity,
             build_evaluation_usage: build.evaluation_usage,
