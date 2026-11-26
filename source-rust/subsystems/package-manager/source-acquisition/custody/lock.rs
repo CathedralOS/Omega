@@ -78,16 +78,9 @@ impl CacheEntryLock {
 
     #[cfg(all(test, unix))]
     pub(crate) fn acquire(path: &Path) -> Result<Self, SourceResolveError> {
-        let (file, parent, lock_name) = Self::open_retained(CacheCustodyKind::Git, path)?;
-        file.lock().at(path)?;
-        verify_cache_lock_path_identity(CacheCustodyKind::Git, path, &parent, &lock_name, &file)?;
-        Ok(Self {
-            file,
-            parent,
-            kind: CacheCustodyKind::Git,
-            path: path.to_path_buf(),
-            lock_name,
-        })
+        let opened = Self::open_retained(CacheCustodyKind::Git, path)?;
+        opened.0.lock().at(path)?;
+        Self::verified(CacheCustodyKind::Git, path.to_path_buf(), opened)
     }
 
     #[cfg(all(test, unix))]
@@ -95,32 +88,9 @@ impl CacheEntryLock {
         path: &Path,
         budget: &impl CacheLockBudget,
     ) -> Result<Self, SourceResolveError> {
-        let (file, parent, lock_name) = Self::open_retained(CacheCustodyKind::Git, path)?;
-        loop {
-            budget.verify_cache_lock_budget()?;
-            match file.try_lock() {
-                Ok(()) => break,
-                Err(std::fs::TryLockError::WouldBlock) => {
-                    let remaining = budget.remaining_cache_lock_time()?;
-                    std::thread::sleep(PROCESS_POLL_INTERVAL.min(remaining));
-                }
-                Err(std::fs::TryLockError::Error(error)) => {
-                    return Err(io_error(path, error));
-                }
-            }
-        }
-        if let Err(error) = budget.verify_cache_lock_budget() {
-            let _ = file.unlock();
-            return Err(error);
-        }
-        verify_cache_lock_path_identity(CacheCustodyKind::Git, path, &parent, &lock_name, &file)?;
-        Ok(Self {
-            file,
-            parent,
-            kind: CacheCustodyKind::Git,
-            path: path.to_path_buf(),
-            lock_name,
-        })
+        let opened = Self::open_retained(CacheCustodyKind::Git, path)?;
+        wait_within_budget(&opened.0, path, budget)?;
+        Self::verified(CacheCustodyKind::Git, path.to_path_buf(), opened)
     }
 
     pub(crate) fn acquire_from_parent(
@@ -129,38 +99,12 @@ impl CacheEntryLock {
         lock_name: &OsStr,
         budget: &impl CacheLockBudget,
     ) -> Result<Self, SourceResolveError> {
+        let kind = CacheCustodyKind::Git;
         let path = parent_path.join(lock_name);
-        let (file, parent, lock_name) = Self::open_from_retained_parent(
-            CacheCustodyKind::Git,
-            parent_path,
-            retained_parent,
-            lock_name,
-        )?;
-        loop {
-            budget.verify_cache_lock_budget()?;
-            match file.try_lock() {
-                Ok(()) => break,
-                Err(std::fs::TryLockError::WouldBlock) => {
-                    let remaining = budget.remaining_cache_lock_time()?;
-                    std::thread::sleep(PROCESS_POLL_INTERVAL.min(remaining));
-                }
-                Err(std::fs::TryLockError::Error(error)) => {
-                    return Err(io_error(&path, error));
-                }
-            }
-        }
-        if let Err(error) = budget.verify_cache_lock_budget() {
-            let _ = file.unlock();
-            return Err(error);
-        }
-        verify_cache_lock_path_identity(CacheCustodyKind::Git, &path, &parent, &lock_name, &file)?;
-        Ok(Self {
-            file,
-            parent,
-            kind: CacheCustodyKind::Git,
-            path,
-            lock_name,
-        })
+        let opened =
+            Self::open_from_retained_parent(kind, parent_path, retained_parent, lock_name)?;
+        wait_within_budget(&opened.0, &path, budget)?;
+        Self::verified(kind, path, opened)
     }
 
     #[cfg(test)]
@@ -168,43 +112,9 @@ impl CacheEntryLock {
         path: &Path,
         timeout: Duration,
     ) -> Result<Self, SourceResolveError> {
-        let (file, parent, lock_name) = Self::open_retained(CacheCustodyKind::LocalSnapshot, path)?;
-        let started = Instant::now();
-        loop {
-            match file.try_lock() {
-                Ok(()) => break,
-                Err(std::fs::TryLockError::WouldBlock) => {
-                    let Some(remaining) = timeout.checked_sub(started.elapsed()) else {
-                        return Err(local_snapshot_lock_timed_out(path, timeout));
-                    };
-                    if remaining.is_zero() {
-                        return Err(local_snapshot_lock_timed_out(path, timeout));
-                    }
-                    std::thread::sleep(PROCESS_POLL_INTERVAL.min(remaining));
-                }
-                Err(std::fs::TryLockError::Error(error)) => {
-                    return Err(io_error(path, error));
-                }
-            }
-        }
-        if started.elapsed() >= timeout {
-            let _ = file.unlock();
-            return Err(local_snapshot_lock_timed_out(path, timeout));
-        }
-        verify_cache_lock_path_identity(
-            CacheCustodyKind::LocalSnapshot,
-            path,
-            &parent,
-            &lock_name,
-            &file,
-        )?;
-        Ok(Self {
-            file,
-            parent,
-            kind: CacheCustodyKind::LocalSnapshot,
-            path: path.to_path_buf(),
-            lock_name,
-        })
+        let opened = Self::open_retained(CacheCustodyKind::LocalSnapshot, path)?;
+        wait_within_timeout(&opened.0, path, timeout)?;
+        Self::verified(CacheCustodyKind::LocalSnapshot, path.to_path_buf(), opened)
     }
 
     pub(crate) fn acquire_local_from_parent(
@@ -213,46 +123,25 @@ impl CacheEntryLock {
         lock_name: &OsStr,
         timeout: Duration,
     ) -> Result<Self, SourceResolveError> {
+        let kind = CacheCustodyKind::LocalSnapshot;
         let path = parent_path.join(lock_name);
-        let (file, parent, lock_name) = Self::open_from_retained_parent(
-            CacheCustodyKind::LocalSnapshot,
-            parent_path,
-            retained_parent,
-            lock_name,
-        )?;
-        let started = Instant::now();
-        loop {
-            match file.try_lock() {
-                Ok(()) => break,
-                Err(std::fs::TryLockError::WouldBlock) => {
-                    let Some(remaining) = timeout.checked_sub(started.elapsed()) else {
-                        return Err(local_snapshot_lock_timed_out(&path, timeout));
-                    };
-                    if remaining.is_zero() {
-                        return Err(local_snapshot_lock_timed_out(&path, timeout));
-                    }
-                    std::thread::sleep(PROCESS_POLL_INTERVAL.min(remaining));
-                }
-                Err(std::fs::TryLockError::Error(error)) => {
-                    return Err(io_error(&path, error));
-                }
-            }
-        }
-        if started.elapsed() >= timeout {
-            let _ = file.unlock();
-            return Err(local_snapshot_lock_timed_out(&path, timeout));
-        }
-        verify_cache_lock_path_identity(
-            CacheCustodyKind::LocalSnapshot,
-            &path,
-            &parent,
-            &lock_name,
-            &file,
-        )?;
+        let opened =
+            Self::open_from_retained_parent(kind, parent_path, retained_parent, lock_name)?;
+        wait_within_timeout(&opened.0, &path, timeout)?;
+        Self::verified(kind, path, opened)
+    }
+
+    // A held lock counts only while the parent still names the locked inode.
+    fn verified(
+        kind: CacheCustodyKind,
+        path: PathBuf,
+        (file, parent, lock_name): (File, CapabilityDirectory, OsString),
+    ) -> Result<Self, SourceResolveError> {
+        verify_cache_lock_path_identity(kind, &path, &parent, &lock_name, &file)?;
         Ok(Self {
             file,
             parent,
-            kind: CacheCustodyKind::LocalSnapshot,
+            kind,
             path,
             lock_name,
         })
@@ -450,4 +339,62 @@ mod file_identity_tests {
         }
         std::fs::remove_dir_all(root).expect("remove fixture");
     }
+}
+
+// Git acquisition shares one budget across the whole resolution, so the lock
+// is refused once that budget expires, even when it was just acquired.
+fn wait_within_budget(
+    file: &File,
+    path: &Path,
+    budget: &impl CacheLockBudget,
+) -> Result<(), SourceResolveError> {
+    loop {
+        budget.verify_cache_lock_budget()?;
+        match file.try_lock() {
+            Ok(()) => break,
+            Err(std::fs::TryLockError::WouldBlock) => {
+                let remaining = budget.remaining_cache_lock_time()?;
+                std::thread::sleep(PROCESS_POLL_INTERVAL.min(remaining));
+            }
+            Err(std::fs::TryLockError::Error(error)) => {
+                return Err(io_error(path, error));
+            }
+        }
+    }
+    if let Err(error) = budget.verify_cache_lock_budget() {
+        let _ = file.unlock();
+        return Err(error);
+    }
+    Ok(())
+}
+
+// A local snapshot waits at most `timeout` for its entry lock.
+fn wait_within_timeout(
+    file: &File,
+    path: &Path,
+    timeout: Duration,
+) -> Result<(), SourceResolveError> {
+    let started = Instant::now();
+    loop {
+        match file.try_lock() {
+            Ok(()) => break,
+            Err(std::fs::TryLockError::WouldBlock) => {
+                let Some(remaining) = timeout.checked_sub(started.elapsed()) else {
+                    return Err(local_snapshot_lock_timed_out(path, timeout));
+                };
+                if remaining.is_zero() {
+                    return Err(local_snapshot_lock_timed_out(path, timeout));
+                }
+                std::thread::sleep(PROCESS_POLL_INTERVAL.min(remaining));
+            }
+            Err(std::fs::TryLockError::Error(error)) => {
+                return Err(io_error(path, error));
+            }
+        }
+    }
+    if started.elapsed() >= timeout {
+        let _ = file.unlock();
+        return Err(local_snapshot_lock_timed_out(path, timeout));
+    }
+    Ok(())
 }

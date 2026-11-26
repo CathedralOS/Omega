@@ -4,22 +4,22 @@
 use super::{
     MAXIMUM_POLICY_TEXT_BYTES,
     budget::Budget,
-    framing::{Reader, Writer},
+    framing::{LOCK, Reader, Writer},
 };
 use crate::hex_digest;
 use crate::lock::{AcceptedPackageCompilation, PackageCheckedContext, PackageLockError as Error};
-use semantic_vocabulary::provider_identity::{ProviderPlanDigest, ServiceSchemaDigest};
 use provider_acceptance::ServiceTerminalAuthorityPermission;
-use semantic_vocabulary::{TerminalAuthorityClass, TerminalAuthorityDisposition};
 use provider_acceptance::{AcceptedSemanticBinding, AcceptedSemanticBindingRole};
 use semantic_vocabulary::PackageKeyIdentity;
+use semantic_vocabulary::provider_identity::{ProviderPlanDigest, ServiceSchemaDigest};
+use semantic_vocabulary::{TerminalAuthorityClass, TerminalAuthorityDisposition};
 
 pub(super) fn write(
     value: &AcceptedPackageCompilation,
     package: PackageKeyIdentity,
     context: PackageCheckedContext,
 ) -> Result<String, Error> {
-    let mut writer = Writer::new(MAXIMUM_POLICY_TEXT_BYTES);
+    let mut writer = Writer::new(&LOCK, MAXIMUM_POLICY_TEXT_BYTES);
     writer.row("compiler", hexadecimal(value.compiler_identity()))?;
     writer.row("package", hexadecimal(package.digest()))?;
     writer.row("purpose", context.purpose().name())?;
@@ -94,7 +94,7 @@ pub(super) fn read(
     budget: &mut Budget,
 ) -> Result<AcceptedPackageCompilation, Error> {
     budget.owned(text.len())?;
-    let mut reader = Reader::new(text);
+    let mut reader = Reader::new(&LOCK, text);
     let compiler = digest(reader.field("compiler")?).map_err(|_| Error::CompilerIdentity)?;
     if digest(reader.field("package")?)? != package.digest()
         || reader.field("purpose")? != context.purpose().name()
@@ -117,8 +117,8 @@ pub(super) fn read(
     crate::reserve!(bindings, count, Error);
     for _ in 0..count {
         let role = reader.count("role", u8::MAX as usize)? as u8;
-        let role = AcceptedSemanticBindingRole::from_canonical_tag(role)
-            .ok_or(Error::InvalidFraming)?;
+        let role =
+            AcceptedSemanticBindingRole::from_canonical_tag(role).ok_or(Error::InvalidFraming)?;
         let owner = PackageKeyIdentity::from_digest(digest(reader.field("owner")?)?)
             .ok_or(Error::InvalidFraming)?;
         let path = reader.section("declaration", MAXIMUM_POLICY_TEXT_BYTES)?;
@@ -305,6 +305,39 @@ mod tests {
             recover(&text.replace(&"05".repeat(32), &"06".repeat(32))).unwrap(),
             original
         );
+    }
+
+    // Existing locks must keep verifying, so the shared framing has to write
+    // exactly the bytes the lock-only writer wrote before it.
+    #[test]
+    fn compilation_text_keeps_its_canonical_bytes() {
+        let expected = concat!(
+            "compiler 0909090909090909090909090909090909090909090909090909090909090909\n",
+            "package 0707070707070707070707070707070707070707070707070707070707070707\n",
+            "purpose product\n",
+            "target omega.target-profile.v1:windows_x86_64\n",
+            "execution omega.target-profile.v1:windows_x86_64\n",
+            "bindings 2\n",
+            "role 10\n",
+            "owner 0707070707070707070707070707070707070707070707070707070707070707\n",
+            "declaration 12\n",
+            "std::Consoleschema 0303030303030303030303030303030303030303030303030303030303030303\n",
+            "plan 0505050505050505050505050505050505050505050505050505050505050505\n",
+            "permissions 1\n",
+            "schema 0303030303030303030303030303030303030303030303030303030303030303\n",
+            "requirement 21\n",
+            "write_byte(byte: I32)classes 1\n",
+            "class 6\n",
+            "role 3\n",
+            "owner 0707070707070707070707070707070707070707070707070707070707070707\n",
+            "declaration 10\n",
+            "std::Clockschema 0404040404040404040404040404040404040404040404040404040404040404\n",
+            "plan none\n",
+            "permissions 0\n",
+            "end_compilation\n",
+        );
+        assert_eq!(write(&sample(), package(), context()).unwrap(), expected);
+        assert_eq!(recover(expected).unwrap(), sample());
     }
 
     #[test]

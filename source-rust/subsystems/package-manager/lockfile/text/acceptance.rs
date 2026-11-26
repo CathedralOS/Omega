@@ -3,7 +3,7 @@
 
 use super::{
     MAXIMUM_POLICY_TEXT_BYTES,
-    framing::{Reader, Writer},
+    framing::{LOCK, Reader, Writer},
 };
 use crate::hex_digest;
 use crate::lock::{PackageAcceptanceRow, PackageLockError as Error, PackagePolicyAcceptance};
@@ -13,7 +13,7 @@ use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;
 
 pub(in crate::lockfile) fn write(policy: &PackagePolicyAcceptance) -> Result<String, Error> {
-    let mut writer = Writer::new(MAXIMUM_POLICY_TEXT_BYTES);
+    let mut writer = Writer::new(&LOCK, MAXIMUM_POLICY_TEXT_BYTES);
     writer.row("acceptance_schema", PACKAGE_POLICY_ROW_VERSION)?;
     writer.row("rows", policy.rows.len())?;
     for row in &policy.rows {
@@ -32,7 +32,7 @@ pub(in crate::lockfile) fn read(
     maximum_rows: usize,
     maximum_owned: usize,
 ) -> Result<(PackagePolicyAcceptance, usize), Error> {
-    let mut reader = Reader::new(text);
+    let mut reader = Reader::new(&LOCK, text);
     let schema_version = reader.count("acceptance_schema", usize::MAX)?;
     if schema_version != usize::from(PACKAGE_POLICY_ROW_VERSION) {
         return Err(Error::UnsupportedVersion);
