@@ -516,6 +516,7 @@ impl PlanningSource {
                 inputs,
                 &evaluated.configuration.root_binding_requests,
                 &evaluated.configuration.declared_product_selections,
+                &evaluated.interpreter_providers,
                 &mut self.timings,
                 &mut *self.preparation.catalogue()?,
             )
