@@ -307,11 +307,11 @@ fn aliased_row(
 #[cfg(test)]
 mod tests {
     use super::super::project_build_entry_syntax;
-    use crate::declarations::dependencies::read::DependencyProjectionError;
     use super::{
         DependencyOperation, DependencyPurpose, DependencyRow, DependencyRowError,
         project_dependency_rows,
     };
+    use crate::declarations::dependencies::read::DependencyProjectionError;
     use syntax_trees::SyntaxTrees;
     use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 

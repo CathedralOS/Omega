@@ -12,6 +12,8 @@ pub(crate) use dependency_rows::{
     DEPENDENCY_DESCRIPTION_TYPE_NAME, DependencyRowError, FROM_SOURCE_HELPER_NAME,
     WITH_ALIAS_HELPER_NAME, project_dependency_rows,
 };
-pub(crate) use entry::{BuildEntrySyntaxProjection, package_authored_type_name, project_build_entry_syntax};
+pub(crate) use entry::{
+    BuildEntrySyntaxProjection, package_authored_type_name, project_build_entry_syntax,
+};
 
 pub(crate) const BUILD_MACHINE_NAME: &str = "build";

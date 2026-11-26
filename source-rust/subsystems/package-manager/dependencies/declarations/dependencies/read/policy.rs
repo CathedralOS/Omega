@@ -16,22 +16,22 @@ pub(crate) fn reject_authored_toolchain_vocabulary(
     syntax_trees: &SyntaxTrees,
 ) -> Result<(), DependencyProjectionError> {
     for item in syntax_trees.root_items() {
-        match package_authored_type_name(syntax_trees, item) {
-            Some(name)
-                if matches!(
-                    machine_leaf_name(name),
-                    BUILD_TYPE_NAME
-                        | SOURCE_TYPE_NAME
-                        | PACKAGE_SELECTION_TYPE_NAME
-                        | DEPENDENCY_DESCRIPTION_TYPE_NAME
-                        | REGISTRATION_TYPE_NAME
-                ) =>
+        if let Some(declaration) = package_authored_type_name(syntax_trees, item) {
+            let name = machine_leaf_name(declaration);
+            if [
+                BUILD_MODULE_NAME,
+                BUILD_TYPE_NAME,
+                SOURCE_TYPE_NAME,
+                PACKAGE_SELECTION_TYPE_NAME,
+                DEPENDENCY_DESCRIPTION_TYPE_NAME,
+                REGISTRATION_TYPE_NAME,
+            ]
+            .contains(&name)
             {
                 return Err(DependencyProjectionError::AuthoredToolchainVocabulary {
-                    name: machine_leaf_name(name).to_owned(),
+                    name: name.to_owned(),
                 });
             }
-            _ => {}
         }
         if let Item::Machine(machine) = item
             && let Some(owner) = machine.attached_data.as_ref()

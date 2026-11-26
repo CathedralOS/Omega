@@ -3,14 +3,14 @@
 use std::fmt;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum DependencyProjectionError {
+pub enum DependencyProjectionError {
     Lex { message: String },
     Parse { message: String },
-    MissingBuildMachine,
     AuthoredToolchainVocabulary { name: String },
     ScopedBuildMachine { scope: String },
     DuplicateBuildMachines { count: usize },
     InvalidBuildMachine,
+    MissingBuildMachine,
     MissingBuildEntry,
     InvalidBuildParameter,
     UnsupportedDependencyShape,
@@ -56,8 +56,10 @@ impl fmt::Display for DependencyProjectionError {
             Self::MissingBuildEntry => {
                 formatter.write_str("package build machine has no callable entry")
             }
-            Self::InvalidBuildParameter => formatter.write_str(
-                "package build machine requires one parameter of type `@mutable Build`",
+            Self::InvalidBuildParameter => write!(
+                formatter,
+                "package build machine requires one parameter of type `@mutable {}`",
+                build_declarations::BUILD_TYPE_NAME
             ),
             Self::UnsupportedDependencyShape => formatter.write_str(
                 "automatic dependency editing requires unconditional direct `_ = Build::dependency(builder, |dependency|::from_source(Source::...));` registrations, or a `let mutable name: DependencyDescription = |dependency|::from_source(Source::...);` local directly followed by `|dependency|::with_alias(@mutable name, \"alias\");` and `_ = Build::dependency(builder, name);`, in the root build entry; dependency helpers, conditional registrations, state transitions, and reused descriptions are not editable dependency declaration forms",
