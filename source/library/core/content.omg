@@ -1,3 +1,5 @@
+use {omega}/language/core/nat.omg;
+
 // Compiler-owned resource-content projection surface.
 //
 // Ordinary linear claims remain whole claims. An exact semantic
@@ -10,12 +12,12 @@
 // lifts it into the canonical finite interval-set term used by `separate` and
 // residual difference; this proof-only carrier never acquires runtime layout.
 public data IntervalSet<CoordinateSpace> {
-    start: Nat;
-    end: Nat;
+    start: |nat|::Nat;
+    end: |nat|::Nat;
 }
 
 public data CountedQuantity<Unit> {
-    magnitude: Nat;
+    magnitude: |nat|::Nat;
 }
 
 public trait Content<Owner, A> {
