@@ -1,24 +1,26 @@
 // The invocation supplies one exact target; these are root bindings rather
 // than a source-declared support set.
 
+use main.omg as program;
 use {omega}/build/dependency.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
 
 machine build(builder: @mutable Build) {
     Build::application(builder, "omega_compiler_request");
-    Build::select_provider::<system\Console, system\LinuxArm64Console>(builder, linux_arm64);
-    Build::select_provider::<system\Console, system\LinuxX86Console>(builder, linux_x86_64);
-    Build::select_provider::<system\Console, system\DarwinArm64Console>(builder, macos_arm64);
-    Build::select_provider::<system\Console, system\DarwinX86Console>(builder, macos_x86_64);
-    Build::select_provider::<system\Console, system\WindowsConsole>(builder, windows_x86_64);
-    Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
-    Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
-    Build::bind(builder, linux_arm64::ProgramEntry, entry_start);
-    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
-    Build::bind(builder, alpha_bootstrap\ProgramEntry, entry_start);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |program|::entry_start);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |program|::entry_start);
+    Build::bind(builder, linux_arm64::ProgramEntry, |program|::entry_start);
+    Build::bind(builder, macos_arm64::ProgramEntry, |program|::entry_start);
+    Build::bind(builder, alpha_bootstrap::ProgramEntry, |program|::entry_start);
     let request_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {
         location: "../../subsystems/compiler/request"
     }));
-    let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {
-        location: "../../library/system"
-    }));
+    let streams: [BoundaryServiceReference; 3] = [
+        Build::service::<|process_authority|::StandardInput>(builder),
+        Build::service::<|process_authority|::StandardOutput>(builder),
+        Build::service::<|process_exit|::ProcessExit>(builder)
+    ];
+    let system: DependencyDescription = |dependency|::from_source(Source::Path { location: "../../library/system" });
+    _ = |dependency|::add(builder, system, @streams[..]);
 }
