@@ -6,7 +6,7 @@ machine build(builder: @mutable Build) {
     let registration: DependencyRegistration = Build::dependency(builder,
         |dependency|::from_source(Source::Path { location: "../reading" }));
     Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
-    Build::bind_native::<ReadParent::read>(builder, linux_x86_64,
+    Build::bind_native::<|app|::ReadParent::read>(builder, linux_x86_64,
         ForeignBinding::DllImport { import: DllImport::ElfVersioned {
             object: "libc.so.6", symbol: "getppid", version: "GLIBC_2.2.5"
         } });
