@@ -444,9 +444,7 @@ pub(crate) fn declare<'a, 'b>(
         field_identities.push(indexes);
         payload_identities.push(case_indexes);
         let shape = match &record.shape {
-            crate::StorageShape::AtomicCell(cell) => {
-                StructuralTypeShape::AtomicCell(*cell)
-            }
+            crate::StorageShape::AtomicCell(cell) => StructuralTypeShape::AtomicCell(*cell),
             crate::StorageShape::Opaque => StructuralTypeShape::Opaque,
             crate::StorageShape::TypeParameter(_) => StructuralTypeShape::TypeParameter,
             crate::StorageShape::Record(_) => {
@@ -768,13 +766,9 @@ pub(crate) fn declare<'a, 'b>(
             source_span: None,
             detail: format!("byte domain source identity: {detail}"),
         })?;
-        let declaration = crate::qualifications::domain_identity(
-            typed,
-            &sources,
-            source.source,
-            &mut identities,
-        )
-        .map_err(unavailable)?;
+        let declaration =
+            crate::qualifications::domain_identity(typed, &sources, source.source, &mut identities)
+                .map_err(unavailable)?;
         let semantic_domain = match semantic_domains
             .iter()
             .find(|(known, _)| *known == declaration)
@@ -1070,8 +1064,7 @@ fn statement_homes<'b>(
                 homes(value_type, home.as_ref(), None);
             }
         }
-        Statement::Witness { .. }
-        | Statement::CaptureReference { .. } => {}
+        Statement::Witness { .. } | Statement::CaptureReference { .. } => {}
         Statement::Dispatch {
             subject,
             arms,
@@ -1205,7 +1198,11 @@ fn expression_homes<'b>(
                 expression_homes(arm, slots, homes);
             }
         }
-        ExpressionKind::TestMembership { subject: left, predicate: right, .. }
+        ExpressionKind::TestMembership {
+            subject: left,
+            predicate: right,
+            ..
+        }
         | ExpressionKind::Strict { left, right, .. }
         | ExpressionKind::ShortCircuit { left, right, .. } => {
             expression_homes(left, slots, homes);
@@ -1956,11 +1953,7 @@ impl<'a> Lowering<'a> {
         .ok_or_else(|| self.internal("a field is past its declaration"))
     }
 
-    fn case_of(
-        &self,
-        owner: StructuralTypeId,
-        case: usize,
-    ) -> Checked<&'a crate::body::CaseType> {
+    fn case_of(&self, owner: StructuralTypeId, case: usize) -> Checked<&'a crate::body::CaseType> {
         self.record_type(owner)?
             .cases()
             .get(case)
@@ -2116,11 +2109,7 @@ impl<'a> Lowering<'a> {
                 scalar_type,
                 qualification,
             } => ValueType::Scalar(scalar_type, qualification),
-            _ => ValueType::Record(
-                storage,
-                record_qualification,
-                crate::body::Regions::NONE,
-            ),
+            _ => ValueType::Record(storage, record_qualification, crate::body::Regions::NONE),
         })
     }
 
@@ -2332,16 +2321,15 @@ impl<'a> Lowering<'a> {
         if changes_memberships {
             let edge = semantic_vocabulary::EdgeId::new(edge_ordinal)
                 .ok_or_else(|| self.internal("qualification edge identity overflow"))?;
-            self.qualifications.structural_changes.push(
-                terminal_psi::StructuralQualificationChange {
+            self.structural_changes
+                .push(terminal_psi::StructuralQualificationChange {
                     machine: id,
                     edge,
                     argument_ordinal: 0,
                     source: value,
                     destination: place,
                     establishments,
-                },
-            );
+                });
         }
         self.enter(cast);
         Ok(Reached::Value(Located {
@@ -2477,8 +2465,7 @@ impl<'a> Lowering<'a> {
             return Ok(place);
         }
         let operation = self.operation_identity(source);
-        let value_type =
-            ValueType::Record(record, qualification, crate::body::Regions::NONE);
+        let value_type = ValueType::Record(record, qualification, crate::body::Regions::NONE);
         let (copy, exact) = self.produce(
             operation,
             value_type,
@@ -2554,7 +2541,11 @@ impl<'a> Lowering<'a> {
                     fresh: true,
                 }))
             }
-            ExpressionKind::TestMembership { subject, domain, predicate } => {
+            ExpressionKind::TestMembership {
+                subject,
+                domain,
+                predicate,
+            } => {
                 continuing!(self.observe_membership(subject, *domain, expression.source));
                 self.located(predicate)
             }
@@ -4445,7 +4436,13 @@ impl<'a> Lowering<'a> {
             return Err(self.internal("a scalar place has no scalar result"));
         };
         self.name_contents(leaf, ValueType::plain(carrier))?;
-        let value = match self.incoming_read(root, leaf, steps, (carrier, qualification), expression.source)? {
+        let value = match self.incoming_read(
+            root,
+            leaf,
+            steps,
+            (carrier, qualification),
+            expression.source,
+        )? {
             Some(joined) => joined,
             None => self.primitive_read(root, steps, carrier, expression.source)?,
         };
@@ -4465,16 +4462,14 @@ impl<'a> Lowering<'a> {
             operation,
             Some(scalar_type),
             OperationKind::PrimitiveScalarRead { source: root, path },
-        )? else {
+        )?
+        else {
             return Err(self.internal("a primitive read has no scalar result"));
         };
         Ok(value)
     }
 
-    pub(super) fn read_referent(
-        &mut self,
-        expression: &Expression,
-    ) -> Evaluation<Value> {
+    pub(super) fn read_referent(&mut self, expression: &Expression) -> Evaluation<Value> {
         let (root, steps, exact, _) = continuing!(self.capture_place(expression));
         self.read_projected_scalar(root, exact, &steps, expression)
             .map(Reached::Value)
@@ -5044,11 +5039,7 @@ impl<'a> Lowering<'a> {
     /// "`PrimitiveScalarRead` produces a fresh scalar observation of an
     /// established local ... A read is not equality with the initializer or
     /// a previous read: intervening stores and calls can change storage."
-    pub(super) fn read_home(
-        &mut self,
-        home: PlaceId,
-        expression: &Expression,
-    ) -> Checked<Value> {
+    pub(super) fn read_home(&mut self, home: PlaceId, expression: &Expression) -> Checked<Value> {
         // A borrowed scalar formal's place holds the caller's value at entry.
         let place = self.exact_root(home)?;
         self.read_primitive_leaf(home, place, &[], expression)
@@ -5858,8 +5849,7 @@ mod tests {
             assert_eq!(declared.identities.text(row.identity), Some(identity));
             assert_eq!(row.shape, StructuralTypeShape::PrimitiveScalar(scalar));
         }
-        let elaboration =
-            crate::lower_bodies(machine, &bodies, &signatures, &types).unwrap();
+        let elaboration = crate::lower_bodies(machine, &bodies, &signatures, &types).unwrap();
         let lowered = &elaboration.module.machines[0];
         assert_eq!(lowered.structural_parameters[0].structural_type, plain_id);
         let homes: Vec<_> = lowered

@@ -31,16 +31,31 @@ use terminal_semantics::plain_affine::AffineSummaries;
 ///
 /// `plan` receives the callee-summary table of the module it is given, which
 /// every plan against that same unchanged module shares.
+#[cfg(test)]
 pub(crate) fn plan_then_apply<Plan: Send, Error>(
     module: &mut TerminalModule,
+    plan: impl Fn(&TerminalModule, &AffineSummaries<'_>, &TerminalMachine) -> Plan + Sync,
+    reads: impl Fn(&Plan) -> Option<&[MachineId]>,
+    apply: impl FnMut(&mut TerminalMachine, Plan) -> Result<bool, Error>,
+) -> Result<(), Error> {
+    plan_then_apply_with(
+        module,
+        worker_budget::current_workers() > 1,
+        plan,
+        reads,
+        apply,
+    )
+}
+
+pub(crate) fn plan_then_apply_with<Plan: Send, Error>(
+    module: &mut TerminalModule,
+    parallel: bool,
     plan: impl Fn(&TerminalModule, &AffineSummaries<'_>, &TerminalMachine) -> Plan + Sync,
     reads: impl Fn(&Plan) -> Option<&[MachineId]>,
     mut apply: impl FnMut(&mut TerminalMachine, Plan) -> Result<bool, Error>,
 ) -> Result<(), Error> {
     let count = module.machines.len();
-    let mut advance: Vec<Option<Plan>> = if worker_budget::current_workers() == 1 || count < 2 {
-        std::iter::repeat_with(|| None).take(count).collect()
-    } else {
+    let advance: Vec<Option<Plan>> = if parallel && count >= 2 {
         use rayon::prelude::*;
         let module = &*module;
         let summaries = AffineSummaries::new(module);
@@ -50,7 +65,26 @@ pub(crate) fn plan_then_apply<Plan: Send, Error>(
             .with_max_len(1)
             .map(|machine| Some(plan(module, &summaries, machine)))
             .collect()
+    } else {
+        (0..count).map(|_| None).collect()
     };
+    plan_then_apply_from_advance(module, advance, plan, reads, |machine, _, planned| {
+        apply(machine, planned)
+    })
+}
+
+pub(crate) fn plan_then_apply_from_advance<Plan: Send, Error>(
+    module: &mut TerminalModule,
+    mut advance: Vec<Option<Plan>>,
+    plan: impl Fn(&TerminalModule, &AffineSummaries<'_>, &TerminalMachine) -> Plan + Sync,
+    reads: impl Fn(&Plan) -> Option<&[MachineId]>,
+    mut apply: impl FnMut(
+        &mut TerminalMachine,
+        &[terminal_psi::StructuralTypeDeclaration],
+        Plan,
+    ) -> Result<bool, Error>,
+) -> Result<(), Error> {
+    let count = module.machines.len();
     // The machines an application changed so far, sorted.
     let mut changed: Vec<MachineId> = Vec::new();
     let mut ordinal = 0;
@@ -74,8 +108,11 @@ pub(crate) fn plan_then_apply<Plan: Send, Error>(
                 .expect("usable advance entry is present");
             let id = machine.id;
             ordinal += 1;
-            if apply(&mut module.machines[ordinal - 1], next)?
-                && let Err(position) = changed.binary_search(&id)
+            if apply(
+                &mut module.machines[ordinal - 1],
+                &module.types.structural_types,
+                next,
+            )? && let Err(position) = changed.binary_search(&id)
             {
                 changed.insert(position, id);
             }
@@ -107,7 +144,7 @@ pub(crate) fn plan_then_apply<Plan: Send, Error>(
                     _ => plan(module, &summaries, machine),
                 };
                 let mut applied = machine.clone();
-                let mutated = apply(&mut applied, next)?;
+                let mutated = apply(&mut applied, &module.types.structural_types, next)?;
                 ordinal += 1;
                 if mutated {
                     break Some(applied);

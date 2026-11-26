@@ -47,9 +47,18 @@ fn write_frame_problem(machine: MachineId, concerns: Construct, detail: String) 
 /// canonical operations, publish the inferred frames and use those same
 /// effects in the existing write log. This changes which old contents are
 /// invalidated; it never supplies a new field value.
+#[cfg(test)]
 pub(crate) fn publish_write_frames(
     module: &mut terminal_psi::TerminalModule,
     tables: &mut terminal_check_tables::CheckTables,
+) -> Checked<()> {
+    publish_write_frames_with(module, tables, worker_budget::current_workers() > 1)
+}
+
+pub(crate) fn publish_write_frames_with(
+    module: &mut terminal_psi::TerminalModule,
+    tables: &mut terminal_check_tables::CheckTables,
+    parallel: bool,
 ) -> Checked<()> {
     let frames =
         terminal_semantics::borrowed_storage::inferred_write_frames(module).map_err(|error| {
@@ -81,7 +90,7 @@ pub(crate) fn publish_write_frames(
             .all(|(machine, table_id)| machine.id == table_id);
     if aligned {
         let module = &*module;
-        if worker_budget::current_workers() > 1 && module.machines.len() >= 2 {
+        if parallel && module.machines.len() >= 2 {
             use rayon::prelude::*;
             let pairs: Vec<(
                 &terminal_psi::TerminalMachine,

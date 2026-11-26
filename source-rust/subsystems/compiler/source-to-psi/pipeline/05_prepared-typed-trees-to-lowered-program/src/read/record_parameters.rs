@@ -954,9 +954,7 @@ mod tests {
                 .record_requirement(fixture.parameters[0], position, &signature, &[])
                 .unwrap();
             assert_ne!(ordinary, record);
-            let source = crate::SourceOrigin::Unpositioned(
-                crate::Unpositioned::SpanAbsent,
-            );
+            let source = crate::SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent);
             let call = |callee: MachineId| {
                 Statement::discard(Expression {
                     call_context: None,
@@ -1021,9 +1019,16 @@ mod tests {
                     terminal_psi::TerminalCallableTermination::NotGuaranteed
                 );
             }
-            let prepared =
-                crate::finish_reading(program, Some(caller), bodies, None, None, None)
-                    .unwrap();
+            let prepared = crate::finish_reading(
+                program,
+                Some(caller),
+                bodies,
+                None,
+                None,
+                None,
+                worker_budget::current_workers() > 1,
+            )
+            .unwrap();
             let entry = prepared
                 .program
                 .module
@@ -1040,13 +1045,19 @@ mod tests {
                 prepared
                     .program
                     .module
-                    .execution.callables
+                    .execution
+                    .callables
                     .machine_envelope(caller)
                     .is_some()
             );
             assert!(!entry.published_service_ceiling.is_empty());
             assert!(
-                !prepared.program.module.execution.declaration_contracts.is_empty(),
+                !prepared
+                    .program
+                    .module
+                    .execution
+                    .declaration_contracts
+                    .is_empty(),
                 "the requirement must follow a nonempty declaration-contract prefix"
             );
             for requirement in [ordinary, record] {
@@ -1066,7 +1077,8 @@ mod tests {
                     prepared
                         .program
                         .module
-                        .execution.callables
+                        .execution
+                        .callables
                         .machine_envelope(requirement)
                         .is_none(),
                     "retaining a source bound does not publish an executable requirement"
