@@ -985,6 +985,15 @@ fn infer(
                 None
             }
         }
+        ExpressionNode::Member(member) => infer(program, member.receiver, active)?.and_then(|receiver| {
+            crate::types::typing_queries::declared_field_type(
+                program,
+                receiver,
+                member.member.as_str(),
+                member.selection.field_symbol(),
+            )
+            .ok()
+        }),
         ExpressionNode::Borrow(borrow) => infer(program, borrow.target, active)?
             .map(|referee| reference_formation_type(program, referee, borrow.access)),
         ExpressionNode::ArrayLiteral(_) => infer_array(program, value, None, active)?,
@@ -2046,6 +2055,39 @@ mod tests {
             view_access(program.state_parameters(state)[0].type_reference),
             language_core::ReferenceAccess::Shared
         );
+    }
+
+    #[test]
+    fn fields_select_overloads_by_their_declared_type() {
+        let library = "public machine pick(value: u32) -> u32 { value } public machine pick(value: u64) -> u64 { value }";
+        let client = r#"
+            use choices.omg;
+            data Fields { small: u32; large: u64; }
+            data Outer { fields: Fields; }
+            machine small(input: @mutable Outer) -> u32 { |choices|::pick(input.fields.small) }
+            machine large(input: @Outer) -> u64 { |choices|::pick(input.fields.large) }
+        "#;
+        let program = checked(&[("choices.omg", library), ("main.omg", client)]).unwrap();
+        for (owner, expected) in [
+            (
+                "small",
+                BuiltinTypeAtom::Integer(numerics::integer_carrier::FixedInteger::unsigned(32)),
+            ),
+            ("large", BuiltinTypeAtom::U64),
+        ] {
+            let (symbol, _) = owned_call(&program, owner);
+            let declaration = program
+                .machine_by_symbol(symbol)
+                .expect("selected overload");
+            let state = &program.machine_states(declaration)[0];
+            let formal = program.state_parameters(state)[0].type_reference;
+            let TypeReferenceNode::Named { symbol, .. } =
+                program.type_reference_table.type_reference(formal)
+            else {
+                panic!("expected the selected integer carrier");
+            };
+            assert_eq!(program.symbols.builtin_type_atom(*symbol), Some(expected));
+        }
     }
 
     #[test]
