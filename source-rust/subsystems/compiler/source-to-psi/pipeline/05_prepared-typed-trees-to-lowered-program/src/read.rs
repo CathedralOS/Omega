@@ -303,6 +303,8 @@ pub(crate) struct Program<'t> {
     rigid: bool,
     /// The machines that are a requirement's contract with no body.
     pub requirements: Vec<MachineId>,
+    /// Stubbed requirement callees whose original body does not return normally.
+    pub(crate) non_returning_requirements: Vec<MachineId>,
     /// Only the ordinary/callable header reader allocates this family. Record
     /// member projections retain their separate receiver/member instance key.
     requirement_headers: Vec<(machine::RequirementHeaderOrigin, MachineId)>,
@@ -669,6 +671,7 @@ impl<'t> Program<'t> {
             block_slots: Vec::new(),
             block_slot_base: 0,
             block_floor: None,
+            non_returning_requirements: Vec::new(),
         }
     }
 

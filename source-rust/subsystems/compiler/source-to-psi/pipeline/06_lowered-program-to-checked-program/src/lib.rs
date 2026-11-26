@@ -490,7 +490,7 @@ pub fn discharge(
     elaboration: &mut Elaboration,
     activity: &mut ProofSearchActivity,
 ) -> Checked<Discharge> {
-    discharge_inner(elaboration, &[], &[], None, None, activity)
+    discharge_inner(elaboration, &[], &[], None, activity)
 }
 
 /// `discharge`, where each machine of `carried` is one stage 04 generated
@@ -509,7 +509,7 @@ pub fn discharge_carrying(
     carried: &[Carried<'_>],
     activity: &mut ProofSearchActivity,
 ) -> Checked<Discharge> {
-    discharge_inner(elaboration, carried, &[], None, None, activity)
+    discharge_inner(elaboration, carried, &[], None, activity)
 }
 
 /// Read-only fields of `Elaboration` needed while checking machines and
@@ -519,7 +519,6 @@ pub(crate) struct ElaborationView<'a> {
     pub(crate) domains: &'a IdTable<StructuralTypeId, Vec<Proposition>>,
     pub(crate) sources: &'a IdTable<MachineId, terminal_check_tables::program::MachineSources>,
     pub(crate) requirements: &'a [MachineId],
-    pub(crate) machines: &'a IdTable<MachineId, symbols::SymbolHandle>,
     pub(crate) nominal_calls: &'a [terminal_psi::generic_calls::NominalCallArgument],
     pub(crate) domain_sources: &'a IdTable<
         semantic_vocabulary::DomainSemanticId,
@@ -676,7 +675,6 @@ pub(crate) fn finish_discharge<'m>(
     prepared: PreparedDischarge<'_>,
     carried: &[Carried<'_>],
     verified_borrow_ends: Option<&VerifiedBorrowEnds>,
-    donors: Option<&reuse::Donors<'_>>,
     affine: &'m terminal_semantics::plain_affine::AffineSummaries<'m>,
     activity: &mut ProofSearchActivity,
 ) -> Checked<Discharge> {
@@ -737,9 +735,6 @@ pub(crate) fn finish_discharge<'m>(
             }
             let lowered = terminal_machine(&module.machines, id, id)?;
             let beyond = unreached.values(lowered, tables);
-            let donated = donors.and_then(|donors| {
-                donors.for_machine(*view.machines.get(id)?, lowered, tables)
-            });
             let proved = &theorems[theorems.partition_point(|(machine, _)| *machine < id)
                 ..theorems.partition_point(|(machine, _)| *machine <= id)];
             let borrow_ends = verified_borrow_ends.map(|ends| {
@@ -754,7 +749,6 @@ pub(crate) fn finish_discharge<'m>(
                 tables,
                 &beyond,
                 inputs.carried.map(|position| &carried[position]),
-                donated.as_ref(),
                 inputs.branches,
                 &law_instances,
                 proved,
@@ -794,7 +788,6 @@ pub(crate) fn discharge_inner(
     carried: &[Carried<'_>],
     laws: &[laws::LawJudgment],
     verified_borrow_ends: Option<&VerifiedBorrowEnds>,
-    donors: Option<&reuse::Donors<'_>>,
     activity: &mut ProofSearchActivity,
 ) -> Checked<Discharge> {
     let prepared = prepare_discharge(elaboration, laws, activity)?;
@@ -805,7 +798,6 @@ pub(crate) fn discharge_inner(
             domains: &elaboration.domains,
             sources: &elaboration.sources,
             requirements: &elaboration.requirements,
-            machines: &elaboration.machines,
             nominal_calls: &elaboration.nominal_calls,
             domain_sources: &elaboration.domain_sources,
         },
@@ -813,7 +805,6 @@ pub(crate) fn discharge_inner(
         prepared,
         carried,
         verified_borrow_ends,
-        donors,
         &summaries,
         activity,
     )?;
@@ -920,7 +911,6 @@ fn machine(
     tables: &mut MachineTables,
     unreached: &[ValueId],
     carried: Option<&Carried<'_>>,
-    donated: Option<&reuse::Donated<'_>>,
     branches: &[terminal_check_tables::program::Branch],
     law_instances: &[MachineId],
     proved: &[(MachineId, &laws::LawJudgment)],
@@ -953,7 +943,6 @@ fn machine(
                 tables,
                 unreached,
                 carried,
-                donated,
                 law_instances,
                 proved,
                 empty_contracts,
@@ -976,7 +965,6 @@ fn check_prepared_machine(
     tables: &mut MachineTables,
     unreached: &[ValueId],
     carried: Option<&Carried<'_>>,
-    donated: Option<&reuse::Donated<'_>>,
     law_instances: &[MachineId],
     proved: &[(MachineId, &laws::LawJudgment)],
     empty_contracts: &terminal_semantics::inhabitation::TerminalContracts<'_>,
@@ -1039,7 +1027,6 @@ fn check_prepared_machine(
             declared: &declared,
             unreached,
             law_instances,
-            donated,
         },
         tables,
         &mut decided,
@@ -1200,7 +1187,7 @@ fn check_prepared_machine(
             {
                 return Ok(Discharged::Certificate(evidence));
             }
-            decide_borrowing(
+            decide(
                 context,
                 graph,
                 tables,
@@ -1209,7 +1196,6 @@ fn check_prepared_machine(
                 row.created_at,
                 goal,
                 unreached,
-                donated,
                 activity,
             )
             .map(Discharged::Certificate)
@@ -1221,7 +1207,7 @@ fn check_prepared_machine(
         ranking_bindings,
         &mut decided,
         |obligation, edge, goal| {
-            decide_borrowing(
+            decide(
                 context,
                 graph,
                 tables,
@@ -1230,7 +1216,6 @@ fn check_prepared_machine(
                 ProgramPoint::Edge(edge),
                 goal,
                 unreached,
-                donated,
                 activity,
             )
         },
@@ -1379,7 +1364,7 @@ fn check_prepared_machine(
             )
         })?;
         let proved = consumption.goal.and_then(|goal| {
-            decide_borrowing(
+            decide(
                 context,
                 graph,
                 tables,
@@ -1388,7 +1373,6 @@ fn check_prepared_machine(
                 consumption.point,
                 goal,
                 unreached,
-                donated,
                 activity,
             )
         });
@@ -2752,49 +2736,11 @@ fn decide(
     unreached: &[ValueId],
     activity: &mut ProofSearchActivity,
 ) -> Checked<Evidence> {
-    decide_borrowing(
-        context, graph, tables, id, obligation, point, goal, unreached, None, activity,
-    )
-}
-
-/// `decide`, taking the certificate an earlier checked copy of this machine
-/// found when its search started from this obligation's inputs
-/// (`reuse::Donated::borrow`). The kernel decides a borrowed certificate
-/// against this machine's own goal and hypotheses; when there is none, or
-/// the kernel refuses it, the search runs as in `decide`.
-#[allow(clippy::too_many_arguments)]
-fn decide_borrowing(
-    context: &PropositionContext,
-    graph: &Graph,
-    tables: &MachineTables,
-    id: MachineId,
-    obligation: ObligationId,
-    point: ProgramPoint,
-    goal: Proposition,
-    unreached: &[ValueId],
-    donated: Option<&reuse::Donated<'_>>,
-    activity: &mut ProofSearchActivity,
-) -> Checked<Evidence> {
     let hypotheses = hypotheses(graph, tables, id, obligation, point)?;
     // Search and the kernel first see only the facts connected to the goal
     // (`connected`); the full set is tried only when that search fails, so
     // the narrowing never refuses an obligation the full set proves.
     let narrowed = connected(&goal, &hypotheses);
-    if let Some(borrowed) = donated
-        .and_then(|donated| donated.borrow(obligation, &goal, &hypotheses, narrowed.as_ref()))
-    {
-        let premises = match narrowed {
-            Some(narrowed) if borrowed.narrowed => narrowed,
-            _ => hypotheses,
-        };
-        return Ok(Evidence {
-            goal,
-            assumptions: premises.assumption_rows,
-            axioms: premises.axiom_rows,
-            certificate: borrowed.certificate,
-            fact: borrowed.fact,
-        });
-    }
     if let Some(narrowed) = narrowed
         && let Ok(certificate) = search_certificate(
             context,

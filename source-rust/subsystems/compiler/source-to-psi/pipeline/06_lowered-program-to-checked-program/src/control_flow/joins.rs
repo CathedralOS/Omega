@@ -1035,7 +1035,6 @@ pub(crate) struct Machine<'view, 'analysis> {
     /// (`crate::Unreached`).
     pub(crate) unreached: &'view [ValueId],
     pub(crate) law_instances: &'view [MachineId],
-    pub(crate) donated: Option<&'view crate::reuse::Donated<'view>>,
 }
 
 /// Decides every `ArrivalInvariant` obligation into `decided`. An inferred
@@ -1095,7 +1094,7 @@ pub(crate) fn check<'a>(
                     )
                     .map(Discharged::Identity);
                 }
-                crate::decide_borrowing(
+                crate::decide(
                     machine.context,
                     machine.graph,
                     tables,
@@ -1104,7 +1103,6 @@ pub(crate) fn check<'a>(
                     point,
                     goal,
                     machine.unreached,
-                    machine.donated,
                     activity,
                 )
                 .map(Discharged::Certificate)

@@ -222,7 +222,6 @@ fn describe_arrivals<'calls>(
             declared: &declared,
             unreached: &beyond,
             law_instances: &[],
-            donated: None,
         },
         tables,
         &mut decided,
