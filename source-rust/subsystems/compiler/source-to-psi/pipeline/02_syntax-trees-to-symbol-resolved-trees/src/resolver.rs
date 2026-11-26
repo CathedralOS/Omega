@@ -65,6 +65,60 @@ pub fn fixture_file_bindings(
         .collect()
 }
 
+/// Bind local and bundled-core imports to the files loaded by a stage fixture.
+/// External package edges are supplied explicitly by their owning tests.
+#[cfg(any(test, feature = "test-support"))]
+pub fn fixture_local_and_core_imports(
+    syntax: &SyntaxTrees,
+    sources: &SourceMap,
+    core_root: &std::path::Path,
+) -> Vec<crate::source_symbols::SourceScopedTopLevelBinding> {
+    syntax
+        .root_items()
+        .filter_map(|item| {
+            let syntax_trees::item::Item::Use(syntax_trees::item::UseItem::File {
+                root,
+                components,
+                alias,
+                span,
+                ..
+            }) = item
+            else {
+                return None;
+            };
+            let requester = sources.get(span.source_id)?;
+            let mut names = syntax
+                .items
+                .identifier_path_members(*components)
+                .iter()
+                .map(|name| name.as_str(syntax));
+            let package = match root.as_ref().map(|name| name.as_str(syntax)) {
+                None => requester.package_root.as_path(),
+                Some("omega")
+                    if names.next() == Some("language") && names.next() == Some("core") =>
+                {
+                    core_root
+                }
+                Some(_) => return None,
+            };
+            let mut path = package.join(names.collect::<std::path::PathBuf>());
+            path.set_extension("omg");
+            let target = sources.files().find(|file| {
+                file.path == path
+                    && file.package_root == package
+                    && file.dependency_scope == requester.dependency_scope
+            })?;
+            Some(
+                crate::source_symbols::SourceScopedTopLevelBinding::file_import(
+                    requester.source_id,
+                    target.source_id,
+                    alias.as_str(syntax),
+                ),
+            )
+        })
+        .collect()
+}
+
 /* Resolve every name in the forest to its exact declaration. */
 #[cfg(any(test, feature = "test-support"))]
 pub fn resolve(request: ResolutionRequest) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
