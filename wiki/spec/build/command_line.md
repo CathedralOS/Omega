@@ -98,6 +98,47 @@ A dependency receives its sealed package snapshot unless its caller supplies
 another filesystem view. [Build source capture](scoped_execution.md#snapshot-and-staging-protocol)
 and [local package capture](../packages/sources.md#local-source-capture).
 
+## Runtime directory mappings
+
+Named decision: `psi-run-directory-mappings`.
+
+A caller can give an interpreted Product access to live host directories.
+Each repeatable option takes one `host-directory::/guest-directory` mapping.
+The host path can be absolute or relative to the caller's working directory.
+The guest sees the right-hand path.
+
+```sh
+omega run --engine psi \
+  --run-directories-readonly ./documents::/input \
+  --run-directories-readwrite ./results::/out \
+  parser.omg -- /input/query.txt
+```
+
+Here the last argument is a path passed to the program. The first mapping lets
+it open `/input/query.txt` and list `/input`. The second also allows creation,
+modification, renaming and deletion within `/out`, subject to host permissions
+and the program's admitted operations. A run may mix mappings with different
+access modes. Program launch requires its own authority.
+
+The driver builds the Product up to Psi and retains these grants for its
+execution. A preparing Build, its dependencies and its successors gain no access
+from a run mapping. Before entering the Product the driver supplies the view to
+the admitted filesystem provider. Reads and writes stay within the granted
+roots, including during link traversal and concurrent path changes. A missing
+file in a mapped directory cannot trigger a lookup on a broader host filesystem.
+
+Mapped files are opened on demand. A fresh open can observe a host-side change
+even in a read-only mapping, and a permitted write updates the mapped
+directory. Startup requires no preload into RAM. Compilation uses the captured
+source bytes even if a later runtime read sees different contents.
+[Local Build inputs](#local-build-inputs)
+
+These options describe interpreted Product execution. Keep the existing
+[engine selection](embedding.md#standalone-execution-selection), including its
+native default. A mode that cannot enforce a requested mapping must report
+that before running the Product. See the separate
+[memory filesystem proposal](../../drafts/designs/run_memory_filesystem.md).
+
 ## Build-first entry selection
 
 `omega build <file>` and `omega run <file>` start from the file the caller names. Both use the same first-stage rule in `omega\core`.

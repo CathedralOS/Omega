@@ -65,14 +65,15 @@ it instantiates. A reviewer verifies those citations before the framing.
 ## Open questions
 
 <a id="interpreted-cli-filesystem-inputs"></a>
-### 1. How should a caller supply filesystem access to `omega run` and `omega build`?
+### 1. How should a caller supply filesystem access to an executing Build?
 
-A developer running a parser or a Build generator may want to expose a directory
-of inputs and choose where writes may go. Which parts of that invocation should
-the CLI expose, and which defaults and arguments should the two commands share?
-The [local Build input rules](wiki/spec/build/command_line.md#local-build-inputs)
-describe source capture, and the [default filesystem contract](wiki/spec/build/scoped_execution.md#inputs-and-default-filesystem)
-describes the executing program’s view. The CLI for supplying that view remains open.
+The [runtime directory mapping decision](wiki/spec/build/command_line.md#runtime-directory-mappings)
+settles grants for an interpreted Product. A Build generator may itself need
+input files and a writable destination before that Product exists. Which CLI
+inputs and defaults should apply to the Build activation? The
+[local Build input rules](wiki/spec/build/command_line.md#local-build-inputs)
+cover source capture, and the [default filesystem contract](wiki/spec/build/scoped_execution.md#inputs-and-default-filesystem)
+covers the executing Build's view. Product runtime mappings grant no Build access.
 
 <a id="build-product-source-view-selection"></a>
 ### 2. How can a parent supply a virtual filesystem to a dependency or successor?
