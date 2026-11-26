@@ -1,10 +1,11 @@
 //! A preparing Build has its own checked program, source address and host observations.
 use super::declarations::unavailable;
 use build_declarations::BuildEntryPath;
-use build_evaluation_result::ComputedBuildConfig;
+use build_evaluation_result::{ComputedBuildConfig, ExecutedBuildEntry};
 use diagnostics::Diagnostic;
 use package_compilation::BuildObservationSummary;
-use semantic_vocabulary::{ServiceId, TargetMachineCallable};
+use semantic_vocabulary::{MachineId, ServiceId, TargetMachineCallable};
+use terminal_psi::TerminalModule;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReviewedPreparation {
@@ -36,20 +37,7 @@ impl ReviewedPreparation {
             .executed_entry
             .as_ref()
             .ok_or_else(|| unavailable("the executed preparation declaration"))?;
-        let code = stage
-            .accepted_builds
-            .last()
-            .ok_or_else(|| unavailable("the preparation's checked program"))?;
-        let module = code.view().module();
-        let Some(TargetMachineCallable::Machine(entry)) = module.entry else {
-            return Err(unavailable("the preparation's checked entry"));
-        };
-        let callable = module
-            .machine(entry)
-            .and_then(|machine| machine.contract.declaration.as_ref())
-            .and_then(|declaration| module.identities.text(declaration.callable))
-            .filter(|&name| name == selected.callable_identity)
-            .ok_or_else(|| unavailable("the executed preparation's exact callable"))?;
+        let (module, _) = checked_program(stage, selected)?;
         let services = |ids: &[ServiceId]| {
             ids.iter()
                 .map(|&id| {
@@ -78,7 +66,7 @@ impl ReviewedPreparation {
                 .source()
                 .logical_filename()
                 .map_err(|message| vec![Diagnostic::error(message)])?,
-            callable: callable.to_owned(),
+            callable: selected.callable_identity.clone(),
             successor: successor.clone(),
             observation: stage
                 .observation_summary
@@ -88,4 +76,27 @@ impl ReviewedPreparation {
             installation_reach,
         })
     }
+}
+
+/// Review the machine the interpreter entered in this stage's published program.
+pub(super) fn checked_program<'a>(
+    stage: &'a ComputedBuildConfig,
+    selected: &ExecutedBuildEntry,
+) -> Result<(&'a TerminalModule, MachineId), Vec<Diagnostic>> {
+    let code = stage
+        .accepted_builds
+        .last()
+        .ok_or_else(|| unavailable("the selected Build's accepted code"))?;
+    let module = code.view().module();
+    let Some(TargetMachineCallable::Machine(entry)) = module.entry else {
+        return Err(unavailable("the selected Build's machine entry"));
+    };
+    let declaration = module
+        .machine(entry)
+        .and_then(|machine| machine.contract.declaration.as_ref())
+        .ok_or_else(|| unavailable("the selected Build's public callable contract"))?;
+    if module.identities.text(declaration.callable) != Some(selected.callable_identity.as_str()) {
+        return Err(unavailable("the exact selected Build/source association"));
+    }
+    Ok((module, entry))
 }

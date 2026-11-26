@@ -44,23 +44,7 @@ impl PolicySource<'_> {
             return Ok(None);
         };
         let symbol = selected.rejoin(self.typed())?;
-        let code = self
-            .build()
-            .accepted_builds
-            .last()
-            .ok_or_else(|| unavailable("the selected Build's accepted code"))?;
-        let module = code.view().module();
-        let Some(TargetMachineCallable::Machine(entry)) = module.entry else {
-            return Err(unavailable("the selected Build's machine entry"));
-        };
-        let declaration = module
-            .machine(entry)
-            .and_then(|machine| machine.contract.declaration.as_ref())
-            .ok_or_else(|| unavailable("the selected Build's public callable contract"))?;
-        if module.identities.text(declaration.callable) != Some(selected.callable_identity.as_str())
-        {
-            return Err(unavailable("the exact selected Build/source association"));
-        }
+        let (module, entry) = super::preparations::checked_program(self.build(), selected)?;
         let identity = self.nominal(symbol)?;
         if identity.owner != PackageReviewNominalOwner::Package(package) {
             return Err(unavailable(
