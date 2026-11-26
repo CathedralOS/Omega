@@ -3,6 +3,8 @@
 
 mod batch;
 mod parsed_files;
+mod import_advisories;
+pub use import_advisories::FileImportAdvisories;
 pub use parsed_files::{
     ParsedSourceBatch, ParsedSourceSummary, RetainedSourceParse, SourceDeclarations, SourceImport,
     SourceImportTarget, SourceItems, SourceSyntax,

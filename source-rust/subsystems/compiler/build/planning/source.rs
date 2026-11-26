@@ -57,6 +57,7 @@ pub struct PreparedPlanningStage {
 
 #[derive(Clone)]
 pub(super) struct PlanningSource {
+    pub(super) file_imports: source_compiler::FileImportAdvisories,
     query_authors: Option<Arc<SourceMap>>,
     query_declarations: Option<(ProductQueryInputs, ProductDeclarations)>,
     pub(super) deferred: DeferredProductSources,
@@ -69,6 +70,7 @@ pub(super) struct PlanningSource {
 
 /// The opened Product and the exact Build and package graph that admitted it.
 pub struct PlannedProduct {
+    file_imports: source_compiler::FileImportAdvisories,
     pub(super) supplied_build_libraries: Arc<[SuppliedBuildLibrary]>,
     pub(crate) evaluated: EvaluatedBuild,
     pub(crate) build_profile: TargetProfile,
@@ -170,6 +172,14 @@ impl PlannedProduct {
             &self.source.parsed.files,
             self.package_inputs(),
         );
+    }
+
+    /// Fold all prepared dependencies into the same invocation's import warnings.
+    pub fn collect_file_imports(&self, uses: &mut source_compiler::FileImportAdvisories) {
+        uses.extend(&self.file_imports);
+        for supplier in self.suppliers.values() {
+            supplier.collect_file_imports(uses);
+        }
     }
 
     pub fn preparation(&self) -> &SourcePreparation {
@@ -318,10 +328,13 @@ pub fn prepare(
         &mut timings,
     )
     .map_err(|failure| locate_failure(failure, &assembled.parsed.files, inputs))?;
+    let mut file_imports = std::mem::take(&mut preparations.file_imports);
+    file_imports.observe(&assembled.parsed, source_provenance::DependencyScope::Build);
     Ok(PreparedPlanningStage {
         preparations,
         evaluation,
         source: PlanningSource {
+            file_imports,
             supplied_libraries,
             query_authors: interval.program.symbols.source_map(),
             query_declarations: None,
@@ -559,7 +572,9 @@ impl PlanningSource {
                 )
             })?
             .1;
+        self.file_imports.observe(&source.parsed, source_provenance::DependencyScope::Product);
         Ok(PlannedProduct {
+            file_imports: self.file_imports,
             supplied_build_libraries: self.supplied_libraries,
             evaluated,
             build_profile: self.profile,

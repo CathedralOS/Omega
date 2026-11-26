@@ -1593,7 +1593,7 @@ machine build(builder: @mutable BuildPlan) suspends {
 }
 
 #[test]
-fn an_unused_unbound_import_is_refused_at_the_authored_name() {
+fn an_unused_unbound_import_warns_once_at_the_authored_name() {
     let build = "use {absent}/helper.omg as missing;\nmachine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Application { name: \"never_used\" }; Build::bind(builder, linux_x86_64::ProgramEntry, main); }\n";
     let (compiled, report) = check_project(
         "unused-deferred",
@@ -1603,8 +1603,8 @@ fn an_unused_unbound_import_is_refused_at_the_authored_name() {
         &["--check", "main.omg", "--target", "linux_x86_64"],
     );
     assert!(
-        !compiled
-            && report.contains("Build import `{absent}/helper.omg as missing` has no supplied source")
+        compiled
+            && report.matches("unused file import `missing`").count() == 1
             && report.contains("build.omg:1:5"),
         "{report}"
     );
@@ -1714,8 +1714,7 @@ machine build(builder: @mutable BuildPlan) suspends {
         let with_unused = format!("use {{absent}}/other.omg as unused;\n{build}");
         let (ok, report) = invoke(&with_unused, &["--check", "build.omg"]);
         assert!(
-            !ok && report
-                .contains("Build import `{absent}/other.omg as unused` has no supplied source")
+            ok && report.matches("unused file import `unused`").count() == 1
                 && !report
                     .contains("Build import `{kit}/entry.omg as selected` has no supplied source"),
             "{report}"
