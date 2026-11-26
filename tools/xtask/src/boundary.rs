@@ -61,7 +61,6 @@ const PACKAGE_MANAGER: &str = "source-rust/subsystems/package-manager";
 const PRODUCT_COORDINATOR: &str = "source-rust/subsystems/compiler";
 #[cfg(test)]
 const BUILD_COORDINATOR: &str = "source-rust/subsystems/compiler/build";
-#[cfg(test)]
 const CLI_APPLICATION: &str = "source-rust/application";
 const REVIEW_EVIDENCE: &str = "source-rust/subsystems/package-manager/review/evidence";
 #[cfg(test)]
@@ -191,13 +190,14 @@ pub fn forbidden_rules() -> Vec<Rule> {
         "portable provider selection reads the artifact and receiving installation",
     ));
     // Only the source driver runs the full numbered source pipeline. The text reader
-    // preserves authored spelling and trivia. The other readers take stage 07 records.
+    // owns single-file syntax for the parse command and package edits. The other readers take stage 07 records.
     rules.push(Rule {
         except_package: Some(SOURCE_DRIVER),
         except_owners: linear_pipeline::PSI_STAGES.to_vec(),
         forbidden_packages: vec![linear_pipeline::TEXT_READER],
         allowed: [
             (PACKAGE_MANAGER, linear_pipeline::TEXT_READER),
+            (CLI_APPLICATION, linear_pipeline::TEXT_READER),
             (linear_pipeline::TEXT_READER, linear_pipeline::PSI_STAGES[0]),
             (linear_pipeline::TEXT_READER, linear_pipeline::PSI_STAGES[1]),
             ("source-rust/subsystems/compiler/build/evaluation/result", linear_pipeline::PSI_STAGES[7]),
@@ -1388,6 +1388,14 @@ mod tests {
                     ],
                 ),
                 pkg(
+                    "omega",
+                    CLI_APPLICATION,
+                    &[
+                        ("parse-file", linear_pipeline::TEXT_READER, None),
+                        ("run-parser", stages[1], None),
+                    ],
+                ),
+                pkg(
                     "source-syntax",
                     linear_pipeline::TEXT_READER,
                     &[
@@ -1418,7 +1426,8 @@ mod tests {
             .filter(|rule| rule.reason.starts_with("source stages are consumed"))
             .collect();
         let violations = forbidden_dependency_violations(&metadata, &rules).unwrap();
-        assert_eq!(violations.len(), 4, "{violations:?}");
+        assert_eq!(violations.len(), 5, "{violations:?}");
+        assert!(violations.iter().any(|error| error.contains("omega -> 01_tokens-to-syntax-trees")));
         assert!(
             violations
                 .iter()
