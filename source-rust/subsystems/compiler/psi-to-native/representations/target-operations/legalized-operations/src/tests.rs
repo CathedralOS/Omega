@@ -25,9 +25,9 @@ use operation_evidence::provenance::PsiProvenance;
 use operation_evidence::provenance::WorkSettlement;
 pub(super) use optimization_core::OptimizationUnitIdentity;
 pub(super) use semantic_vocabulary::{
-    BoundaryMachineId, ClaimId, EdgeId, IntegerSign, IntegerType, IntegerValue, OperationId,
-    ScalarType, StructuralDomainId, StructuralFieldId, StructuralPlaceKind, StructuralTypeId,
-    ValueId, WorkScheduleIdentity,
+    BoundaryMachineId, EdgeId, IntegerSign, IntegerType, IntegerValue, OperationId, ScalarType,
+    StructuralDomainId, StructuralFieldId, StructuralPlaceKind, StructuralTypeId, ValueId,
+    WorkScheduleIdentity,
 };
 pub(super) use target::NativeTarget;
 pub(super) use target_vocabulary::TerminalPsiProvenance;
@@ -35,8 +35,8 @@ pub(super) use terminal_psi::{
     BindingRelevance, ClaimTransfer, CompletionReceipt, EntryClaim, ProviderCandidateConformance,
     SemanticFingerprint, StructuralAccess, StructuralArgument, StructuralFieldDeclaration,
     StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralPlaceDeclaration, StructuralTypeDeclaration,
-    StructuralTypeShape, TerminalPsiIdentity, VocabularyMarker,
+    StructuralPlaceDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
+    TerminalPsiIdentity, VocabularyMarker,
 };
 
 mod value_references;
@@ -57,21 +57,6 @@ pub(super) fn scalar_argument_mut(
         panic!("scalar argument fixture");
     };
     (&mut source.value, placement)
-}
-
-pub(super) fn structural_argument_mut(
-    argument: &mut LegalizedScalarArgument,
-) -> (
-    &mut StructuralArgument,
-    &mut target_vocabulary::TargetStructuralArgument,
-) {
-    let LegalizedScalarArgument::Structural {
-        semantic, target, ..
-    } = argument
-    else {
-        panic!("structural argument fixture");
-    };
-    (semantic, target)
 }
 
 pub(super) fn id<T>(raw: u64) -> T
@@ -1082,4 +1067,3 @@ fn fixed_integer_result_widths_reject_coherent_fragment_corruption() {
         }
     }
 }
-

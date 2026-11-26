@@ -1,11 +1,11 @@
 // Value-reference and plan-query tests for structural edges, access lifecycles, primitive
 // stores, custody-only decomposition and function ABI lookup.
 
+use super::super::LegalizedScalarSuccessor;
 use super::{
     EffectLink, IntegerSign, IntegerType, LegalizedOperationPlan, LegalizedScalarInstruction,
-    LegalizedScalarInstructionKind, LegalizedScalarSuccessor, LegalizedScalarTerminator,
-    ScalarType, StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration, id,
-    scalar_call_unit_plan,
+    LegalizedScalarInstructionKind, LegalizedScalarTerminator, ScalarType, StructuralAccess,
+    StructuralMultiplicity, StructuralParameterDeclaration, id, scalar_call_unit_plan,
 };
 use optimization_core::AcceptedObligationFactIdentity;
 

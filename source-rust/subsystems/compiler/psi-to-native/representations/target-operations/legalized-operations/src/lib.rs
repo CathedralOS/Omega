@@ -31,7 +31,6 @@ geometry and interrupt geometry have their own modules, and `validation`
 checks call and instruction shapes.
 */
 
-pub(crate) use ::wire::codec_bytes;
 use optimization_core::{OptimizationUnitIdentity, OptimizationValidatorIdentity};
 use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
 use target::NativeTarget;
@@ -188,7 +187,6 @@ impl PreparedExecutionPlan {
         }
         self.execution.callable_invocations_from(entry)
     }
-
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
