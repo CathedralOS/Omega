@@ -245,6 +245,24 @@ impl ReplayScope<'_> {
         crate::result_summaries::infer(self, unreached, inhabitation, activity)
     }
 
+    pub(crate) fn infer_crash_routes(
+        &mut self,
+        unreached: &mut crate::Unreached,
+        inhabitation: &terminal_semantics::inhabitation::Inhabitation,
+        activity: &mut crate::ProofSearchActivity,
+    ) -> Checked<()> {
+        crate::crashes::infer(self, unreached, inhabitation, activity)
+    }
+
+    pub(crate) fn publish_crash_routes(
+        &mut self,
+        machine: MachineId,
+        routes: Vec<terminal_psi::CrashRouteBucket>,
+        activity: &mut crate::ProofSearchActivity,
+    ) -> Checked<()> {
+        crate::crashes::publish(self.elaboration, machine, routes, activity)
+    }
+
     pub(crate) fn require(
         &mut self,
         callee: MachineId,

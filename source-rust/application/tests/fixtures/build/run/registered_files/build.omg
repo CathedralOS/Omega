@@ -10,7 +10,7 @@ machine build(builder: @mutable Build) {
     Build::bind_native::<FileCalls::write>(builder, linux_arm64, ForeignBinding::Syscall { number: 64 });
     Build::bind_native::<FileCalls::read>(builder, linux_arm64, ForeignBinding::Syscall { number: 63 });
     Build::bind_native::<FileCalls::close>(builder, linux_arm64, ForeignBinding::Syscall { number: 57 });
-    let group = builder.tests.group::<Checks::file>();
+    let group: TestGroup = builder.tests.group::<Checks::file>();
     group.inputs.private_filesystem = true;
     let mutable seed: [u8; 1] = [254u8];
     TestGroup::seed_file(group, "sub/seed", @seed[..]);

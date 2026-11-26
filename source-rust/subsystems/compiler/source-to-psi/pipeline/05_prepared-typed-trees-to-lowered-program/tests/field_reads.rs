@@ -210,11 +210,11 @@ fn joined(selection: &str) -> Program {
 fn a_field_of_a_joined_record_reads_the_record_the_chosen_arm_hands_over() {
     for (selection, on_true) in [
         (
-            "let chosen = match flag { true -> left, false -> right, }; chosen.w",
+            "let chosen: Cell = match flag { true -> left, false -> right, }; chosen.w",
             1,
         ),
         (
-            "let chosen = match flag { true -> right, false -> left, }; chosen.w",
+            "let chosen: Cell = match flag { true -> right, false -> left, }; chosen.w",
             2,
         ),
         ("(match flag { true -> left, false -> right, }).w", 1),

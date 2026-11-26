@@ -19,7 +19,7 @@ machine choose_projected64(pair: Wide, first: f64, second: f64) -> i64 {
     }
 }
 machine choose_computed32(a: f32, b: f32, first: f32, second: f32) -> i64 {
-    let sum = a + b;
+    let sum: f32 = a + b;
     transition {
         sum == first -> 7,
         sum == second -> 9,

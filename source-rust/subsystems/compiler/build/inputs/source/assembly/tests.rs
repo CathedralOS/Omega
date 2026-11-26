@@ -73,6 +73,15 @@ fn collection_catalog_keeps_its_build_product_and_query_source_cohorts() {
     let (_, product) = continuation
         .assemble(None, &[], &[], &mut timings, &mut catalogue)
         .expect("the final Product source assembly");
+    for sources in [query.parsed(), &product.parsed] {
+        assert!(
+            sources
+                .files
+                .selected_files()
+                .all(|file| file.origin != SourceOrigin::ToolchainContract),
+            "a declaration query or final Product without entry bindings should not acquire a physical entry package"
+        );
+    }
     let product_source =
         collection_source(&product.parsed, source_provenance::DependencyScope::Product);
     assert_ne!(build_source, product_source);

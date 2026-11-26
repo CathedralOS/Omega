@@ -16,7 +16,6 @@ use crate::build_session::PackageBuildSession;
 use crate::resolution::graph::ExactTargetPackageSourceClosure;
 use crate::review::timings;
 use artifacts::compile_timings::counters;
-use occurrences::TargetEntryDiscovery;
 use occurrences::{PackageReviewPass, RetainedPackageReviews};
 
 pub(crate) use crate::build_session::PackageSourceBindings;
@@ -75,7 +74,6 @@ fn review_candidate(
                 target_closure,
                 &[],
                 root_build_snapshot,
-                TargetEntryDiscovery::Dependencies,
                 None,
                 source_bindings,
                 builds,
@@ -108,7 +106,6 @@ fn review_candidate(
             target_closure,
             &discovered,
             root_build_snapshot,
-            TargetEntryDiscovery::Disabled,
             Some(&preliminary),
             source_bindings,
             builds,
@@ -144,7 +141,6 @@ fn review_pass(
     target_closure: &ExactTargetPackageSourceClosure<'_>,
     bindings: &[ConsumerScopedSemanticBindingReviewInput],
     root_build_snapshot: Option<&BuildSnapshotRequest>,
-    discovery: TargetEntryDiscovery,
     prior: Option<&RetainedPackageReviews>,
     source_bindings: &mut PackageSourceBindings,
     builds: &crate::project::PackageReviewBuilds,
@@ -176,7 +172,6 @@ fn review_pass(
         &roster,
         &bindings,
         root_build_snapshot,
-        discovery,
         prior,
     )?;
     plan.review(source_bindings, builds)

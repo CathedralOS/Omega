@@ -35,10 +35,12 @@ pub fn bundled_core_root() -> Result<PathBuf, Vec<Diagnostic>> {
 /// executing its Build. Its own package name selects that registered root, just
 /// as PackageCompilationInputs::package_name does for a reconciled package.
 pub(super) fn contract_package_prefix(root: &Path, first: &str) -> Result<usize, Vec<Diagnostic>> {
-    if first != "system" {
+    if first != super::entry_contract_seed::ENTRY_PACKAGE {
         return Ok(0);
     }
-    Ok(usize::from(root == bundled_omega_root()?.join("system")))
+    Ok(usize::from(
+        root == super::entry_contract_seed::entry_contract_root()?,
+    ))
 }
 
 #[cfg(test)]

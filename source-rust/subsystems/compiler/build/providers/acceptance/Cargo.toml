@@ -8,8 +8,6 @@ version.workspace = true
 path = "acceptance.rs"
 
 [dependencies]
-provider-plans = { path = "../plans" }
 record-storage = { path = "../../../../../foundation/record-storage" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
-target = { path = "../../../psi-to-native/targets/target" }
 terminal-psi = { path = "../../../psi" }

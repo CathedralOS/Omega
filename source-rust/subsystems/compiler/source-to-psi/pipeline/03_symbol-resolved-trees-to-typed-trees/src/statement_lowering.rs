@@ -557,7 +557,7 @@ pub(crate) mod statement {
                     let mut machine_substitutions = Vec::new();
                     let declared_return = declared_call_return(lowerer.source_trees, target_symbol);
                     let declared_return = declared_return
-                    .cloned()
+                    .map(|returned| (target_symbol, returned.clone()))
                     .or_else(|| {
                         static_conformance_requirement_return(lowerer, state, call)
                     })
@@ -602,17 +602,22 @@ pub(crate) mod statement {
                                                         })
                                                     }),
                                             );
-                                            contract.return_type.clone()
+                                            contract.return_type.clone().map(|returned| {
+                                                (contract.symbol, returned)
+                                            })
                                         }
                                         _ => None,
                                     })
                             })
                     });
-                    let Some(declared_return) = declared_return else {
+                    let Some((declaration, declared_return)) = declared_return else {
                         return Ok(None);
                     };
-                    let declared_return =
-                        lower_type_reference_into_table(lowerer, &declared_return)?;
+                    // The call supplies its operands here. Its declared return type can
+                    // name lifetimes bound only in the callee's signature.
+                    let declared_return = lowerer.with_source_owner(declaration, |lowerer| {
+                        lower_type_reference_into_table(lowerer, &declared_return)
+                    })?;
                     let machine_substitutions = machine_substitutions
                         .into_iter()
                         .map(|(parameter, symbol, name)| {
@@ -627,7 +632,7 @@ pub(crate) mod statement {
                         &mut lowerer.typed_trees,
                         declared_return,
                         &machine_substitutions,
-                        target_symbol,
+                        declaration,
                         state.symbol,
                     )?;
                     instantiate_declared_call_result(
@@ -635,7 +640,7 @@ pub(crate) mod statement {
                         state,
                         types,
                         call,
-                        target_symbol,
+                        declaration,
                         declared_return,
                     )?;
                     return Ok(Some(declared_return));
@@ -776,7 +781,7 @@ pub(crate) mod statement {
             lowerer: &Lowerer,
             state: &resolved::state::State,
             call: &resolved::expression::TableCallExpression,
-        ) -> Option<TypeReference> {
+        ) -> Option<(symbols::SymbolHandle, TypeReference)> {
             let ExpressionNode::Name(receiver) =
                 resolved_expressions(lowerer.source_trees).expression(call.receiver)
             else {
@@ -831,7 +836,10 @@ pub(crate) mod statement {
             let [requirement] = requirements.as_slice() else {
                 return None;
             };
-            requirement.storage.return_type.clone()
+            requirement
+                .return_type
+                .clone()
+                .map(|returned| (requirement.symbol, returned))
         }
 
         fn instantiate_declared_call_result(
@@ -883,7 +891,9 @@ pub(crate) mod statement {
                 else {
                     continue;
                 };
-                let formal = lower_type_reference_into_table(lowerer, &formal.type_reference)?;
+                let formal = lowerer.with_source_owner(target, |lowerer| {
+                    lower_type_reference_into_table(lowerer, &formal.type_reference)
+                })?;
                 infer_declared_type_arguments(
                     &lowerer.typed_trees.type_reference_table,
                     formal,
@@ -1745,7 +1755,42 @@ pub(crate) mod statement {
 }
 
 #[cfg(test)]
-mod boolean_result_tests {
+mod initializer_type_tests {
+    #[test]
+    fn a_dispatch_subject_uses_the_lifetimes_of_its_declared_return_type() {
+        let source = r#"
+            data Outcome<View, Backing> {
+                case Ready(view: View);
+                case Rejected(returned: Backing);
+            }
+            data Storage { value: u64; }
+            machine view<'storage, T>(storage: @'storage mutable T)
+                -> Outcome<@'storage mutable T, @'storage mutable T> {
+                Outcome::Ready { view: storage }
+            }
+            machine store(storage: @mutable Storage) {
+                transition view::<Storage>(storage) {
+                    Outcome::Ready { view } -> done(),
+                    Outcome::Rejected { returned } -> done()
+                }
+                machine done() {}
+            }
+        "#;
+        let type_source =
+            |source| crate::qualified_operator_home_tests::checked(&[("main.omg", source)]);
+        type_source(source).unwrap();
+
+        // A caller's binder cannot repair an unbound lifetime in the returned case.
+        let invalid = source
+            .replace("machine store(", "machine store<'foreign>(")
+            .replace("-> Outcome<@'storage", "-> Outcome<@'foreign");
+        assert!(
+            type_source(&invalid)
+                .unwrap_err()
+                .contains("lifetime argument `'foreign`")
+        );
+    }
+
     #[test]
     fn boolean_locals_and_inferred_dispatch_subjects_keep_their_real_type() {
         let source = r#"
@@ -1821,8 +1866,8 @@ mod scoped_field_tests {
 
     #[test]
     fn field_initializer_uses_the_explicit_receivers_package() {
-        let left = "data Packet { value: u32; } machine read_left(packet: @Packet) -> u32 { let from_left = packet.value; from_left }";
-        let right = "data Packet { value: u64; } machine read_right(packet: @Packet) -> u64 { let from_right = packet.value; from_right }";
+        let left = "data Packet { value: u32; } machine read_left(packet: @Packet) -> u32 { let from_left: u32 = packet.value; from_left }";
+        let right = "data Packet { value: u64; } machine read_right(packet: @Packet) -> u64 { let from_right: u64 = packet.value; from_right }";
         let program =
             packages(&[(1, "left.omg", left), (2, "right.omg", right)], &[], &[]).unwrap();
         let locals = program

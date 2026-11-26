@@ -16,7 +16,6 @@ use source_admission::SourceOrigin;
 use source_compiler::ParsedSourceBatch;
 use source_compiler::SourceSyntax;
 use source_compiler::representations::source_inputs::SourceMap;
-use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 #[derive(Clone, Default, record_storage::Record)]
@@ -540,11 +539,7 @@ impl SourceStorage {
                 root.display()
             ))]
         };
-        let root = self
-            .filesystem
-            .canonicalize(root)
-            .map_err(|error| refuse(error.to_string()))?;
-        let overlaps = |package: &Path| root.starts_with(package) || package.starts_with(&root);
+        let overlaps = |package: &Path| root.starts_with(package) || package.starts_with(root);
         if (!self.default_package_root.as_os_str().is_empty()
             && overlaps(&self.default_package_root))
             || self
@@ -556,24 +551,35 @@ impl SourceStorage {
                 "closed contract root overlaps an authored package owner".to_owned(),
             ));
         }
-        if self.filesystem.has_captured_namespace(&root) {
-            if !self.filesystem.is_dir(&root) {
-                return Err(refuse(
-                    "retained contract root is not a directory".to_owned(),
-                ));
-            }
-            return Ok(root);
+        if self.toolchain_contract_custody.root_for(root) == Some(root) {
+            return Ok(root.to_owned());
         }
+        self.capture_installed_tree(root)
+    }
+
+    pub(super) fn capture_installed_tree(
+        &mut self,
+        root: &Path,
+    ) -> Result<PathBuf, Vec<Diagnostic>> {
+        let refuse = |error: String| {
+            vec![Diagnostic::error(format!(
+                "cannot authenticate installed contract package {}: {error}",
+                root.display()
+            ))]
+        };
         let capture = source_acquisition::local::operations::capture_local_source_input(
             root,
             source_acquisition::LocalSourceLimits::default(),
         )
         .map_err(|error| refuse(error.to_string()))?;
-        let root = capture.canonical_live_root().to_path_buf();
+        let canonical = capture.canonical_live_root();
+        if canonical != root {
+            return Err(refuse("designated package directory is redirected".into()));
+        }
         self.filesystem
-            .add_capture(root.clone(), capture.tree().clone())
+            .mount_exact_capture(root.to_owned(), capture.tree().clone())
             .map_err(|error| refuse(error.to_string()))?;
-        Ok(root)
+        Ok(root.to_owned())
     }
 
     pub(crate) fn require_disjoint_contract_packages(
@@ -581,12 +587,7 @@ impl SourceStorage {
         inputs: &crate::PackageCompilationInputs,
     ) -> Result<(), Vec<Diagnostic>> {
         for (_, package) in inputs.packages() {
-            for contract in self
-                .toolchain_contract_custody
-                .roots
-                .values()
-                .chain(self.toolchain_contract_custody.dirs.iter())
-            {
+            for contract in &self.toolchain_contract_custody.dirs {
                 if package.starts_with(contract) || contract.starts_with(package) {
                     return Err(vec![Diagnostic::error(format!(
                         "package source {} overlaps already-issued closed contract {}",
@@ -597,18 +598,6 @@ impl SourceStorage {
             }
         }
         Ok(())
-    }
-
-    pub(crate) fn register_toolchain_contract_root(
-        &mut self,
-        path: PathBuf,
-        contract_root: PathBuf,
-    ) {
-        // These coordinates were issued by the retained source namespace;
-        // reopening a changed host symlink would replace that custody.
-        self.toolchain_contract_custody
-            .roots
-            .insert(path, contract_root);
     }
 
     pub(crate) fn register_toolchain_contract_dir(&mut self, root: PathBuf) {
@@ -775,18 +764,15 @@ fn normalize_directory(path: PathBuf) -> PathBuf {
 
 #[derive(Clone, Default, record_storage::Record)]
 pub(crate) struct ToolchainContractCustody {
-    roots: BTreeMap<PathBuf, PathBuf>,
     dirs: Vec<PathBuf>,
 }
 
 impl ToolchainContractCustody {
     pub(crate) fn root_for(&self, path: &Path) -> Option<&Path> {
-        self.roots.get(path).map(PathBuf::as_path).or_else(|| {
-            self.dirs
-                .iter()
-                .find(|dir| path.starts_with(dir.as_path()))
-                .map(PathBuf::as_path)
-        })
+        self.dirs
+            .iter()
+            .find(|dir| path.starts_with(dir.as_path()))
+            .map(PathBuf::as_path)
     }
 }
 

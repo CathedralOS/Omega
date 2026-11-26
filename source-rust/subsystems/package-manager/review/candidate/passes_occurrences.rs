@@ -17,11 +17,9 @@ use crate::resolution::source::PackageSourceCustody;
 use diagnostics::Diagnostic;
 use package_compilation::{
     ConsumedSourceUnit, IndependentComponentDescription, PackageCompilationInputError,
-    PackageCompilationInputs,
-    derive_source_consumption_commitment,
+    PackageCompilationInputs, derive_source_consumption_commitment,
 };
 use provider_acceptance::AcceptedSemanticBinding;
-use review_evidence::record::SemanticBindingReviewCandidate;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -55,7 +53,6 @@ impl RetainedPackageReviews {
 pub(super) struct OccurrenceFacts {
     consumed_units: Vec<ConsumedSourceUnit>,
     component_description: Option<IndependentComponentDescription>,
-    target_entry_candidate: Option<SemanticBindingReviewCandidate>,
 }
 
 #[derive(Debug, Clone)]
@@ -70,12 +67,6 @@ pub(super) struct RetainedOccurrenceCompile {
     pub(super) compilation: Arc<OccurrenceFacts>,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(super) enum TargetEntryDiscovery {
-    Disabled,
-    Dependencies,
-}
-
 pub(super) struct PackageReviewPass<'pass> {
     closure: &'pass ResolvedPackageSourceClosure,
     packages: Vec<ReviewPackage<'pass>>,
@@ -84,7 +75,6 @@ pub(super) struct PackageReviewPass<'pass> {
     semantic_bindings_by_consumer:
         &'pass BTreeMap<(PackageKey, DependencyPurpose), Vec<AcceptedSemanticBinding>>,
     root_build_snapshot: Option<&'pass BuildSnapshotRequest>,
-    discovery: TargetEntryDiscovery,
     prior: Option<&'pass RetainedPackageReviews>,
 }
 
@@ -106,7 +96,6 @@ impl<'pass> PackageReviewPass<'pass> {
             Vec<AcceptedSemanticBinding>,
         >,
         root_build_snapshot: Option<&'pass BuildSnapshotRequest>,
-        discovery: TargetEntryDiscovery,
         prior: Option<&'pass RetainedPackageReviews>,
     ) -> Result<Self, CompileResolvedPackageReviewsError> {
         let closure = target_closure.source_closure();
@@ -161,7 +150,6 @@ impl<'pass> PackageReviewPass<'pass> {
             roster,
             semantic_bindings_by_consumer,
             root_build_snapshot,
-            discovery,
             prior,
         })
     }
@@ -216,7 +204,6 @@ impl<'pass> PackageReviewPass<'pass> {
             execution_profile: self.execution_profile,
             semantic_bindings_by_consumer: self.semantic_bindings_by_consumer,
             root_build_snapshot: self.root_build_snapshot,
-            discovery: self.discovery,
             prior: self.prior,
             source_bindings,
             reviews: Vec::with_capacity(self.roster.occurrence_count()),
@@ -225,7 +212,6 @@ impl<'pass> PackageReviewPass<'pass> {
             carried_occurrences: 0,
             accounting: Default::default(),
             retained_policy_canonical_total: 0,
-            target_entry_candidates: Vec::new(),
         }
     }
 }
@@ -236,7 +222,6 @@ struct PackageReviewRound<'pass> {
     semantic_bindings_by_consumer:
         &'pass BTreeMap<(PackageKey, DependencyPurpose), Vec<AcceptedSemanticBinding>>,
     root_build_snapshot: Option<&'pass BuildSnapshotRequest>,
-    discovery: TargetEntryDiscovery,
     prior: Option<&'pass RetainedPackageReviews>,
     source_bindings: &'pass mut PackageSourceBindings,
     reviews: Vec<CompilerIssuedPackageReview>,
@@ -245,7 +230,6 @@ struct PackageReviewRound<'pass> {
     carried_occurrences: usize, // Occurrences carried forward instead of compiled.
     accounting: SourceCompletionAccounting,
     retained_policy_canonical_total: usize,
-    target_entry_candidates: Vec<(DependencyPurpose, SemanticBindingReviewCandidate)>,
 }
 
 struct PackageReviewOccurrence<'occurrence> {
@@ -325,32 +309,12 @@ impl<'pass> PackageReviewRound<'pass> {
             .compilation_inputs_reusing(&mut self.source_bindings.root_bindings[position])
             .and_then(|inputs| inputs.with_compilation_purpose(purpose))
             .map_err(refused)?;
-        let mut semantic_bindings = self
+        let semantic_bindings = self
             .semantic_bindings_by_consumer
             .get(&(key.clone(), purpose))
             .cloned()
             .unwrap_or_default();
-        if self.discovery == TargetEntryDiscovery::Dependencies
-            && inputs.root_role() == package_compilation::BuildDeclarationKind::Application
-        {
-            let candidates = self
-                .target_entry_candidates
-                .iter()
-                .filter(|(candidate_purpose, candidate)| {
-                    *candidate_purpose == purpose
-                        && inputs.package_root(candidate.binding().package()).is_some()
-                        && !semantic_bindings
-                            .iter()
-                            .any(|binding| binding.role() == candidate.binding().role())
-                })
-                .map(|(_, candidate)| candidate)
-                .collect::<Vec<_>>();
-            if let [candidate] = candidates.as_slice() {
-                semantic_bindings.push(candidate.binding().clone());
-            }
-        }
         let inputs = inputs
-            .with_semantic_role_discovery(self.discovery == TargetEntryDiscovery::Dependencies)
             .with_accepted_semantic_bindings(semantic_bindings)
             .map_err(refused)?;
         let required_instances = inputs.required_dependency_source_instances();
@@ -571,14 +535,6 @@ impl<'pass> PackageReviewRound<'pass> {
             )
                 },
             )?;
-        if self.discovery == TargetEntryDiscovery::Dependencies {
-            self.target_entry_candidates.extend(
-                compile
-                    .target_entry_candidate
-                    .clone()
-                    .map(|candidate| (purpose, candidate)),
-            );
-        }
         let review_position = self.reviews.len();
         self.review_positions[position][purpose_slot(purpose)] = Some(review_position);
         self.reviews.push(review);

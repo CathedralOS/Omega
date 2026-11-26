@@ -11,11 +11,11 @@ machine start() crashes Trap {
     sources.byte_count = 1;
     sources.units[0] = |files|::SourceRange { start: 0 as +Trapping, length: 1 as +Trapping };
     sources.unit_count = 1;
-    let good = span(0 as +Trapping, 0 as +Trapping, 1 as +Trapping);
-    let past = span(0 as +Trapping, 1 as +Trapping, 2 as +Trapping);
-    let empty = span(0 as +Trapping, 1 as +Trapping, 1 as +Trapping);
-    let missing = span(1 as +Trapping, 0 as +Trapping, 0 as +Trapping);
-    let reversed = span(0 as +Trapping, 1 as +Trapping, 0 as +Trapping);
+    let good: |files|::SourceSpan = span(0 as +Trapping, 0 as +Trapping, 1 as +Trapping);
+    let past: |files|::SourceSpan = span(0 as +Trapping, 1 as +Trapping, 2 as +Trapping);
+    let empty: |files|::SourceSpan = span(0 as +Trapping, 1 as +Trapping, 1 as +Trapping);
+    let missing: |files|::SourceSpan = span(1 as +Trapping, 0 as +Trapping, 0 as +Trapping);
+    let reversed: |files|::SourceSpan = span(0 as +Trapping, 1 as +Trapping, 0 as +Trapping);
     transition |files|::spans_equal(@sources, good, good)
         && |files|::spans_equal(@sources, empty, empty)
         && !|files|::spans_equal(@sources, good, past)

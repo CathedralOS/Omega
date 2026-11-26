@@ -604,6 +604,7 @@ pub(crate) fn prepare_discharge<'l>(
     scope.infer_results(&mut unreached, &inhabitation, activity)?;
     scope.infer_inputs(&mut unreached, &inhabitation, activity)?;
     scope.infer_results(&mut unreached, &inhabitation, activity)?;
+    scope.infer_crash_routes(&mut unreached, &inhabitation, activity)?;
     scope.finalize_callable_refinements(activity)?;
     let mut law_instances = scope
         .source()
@@ -1124,10 +1125,40 @@ fn check_prepared_machine(
             if let Proposition::DeclarationIdentity(clause) = &goal
                 && !clause.is_float_meaning()
             {
-                return equality::discharge(
-                    module, lowered, tables, graph, row.created_at, obligation, clause, law_instances,
-                    &mut storage.at_entry(references, tables),
-                ).map(Discharged::Identity);
+                return match row.kind {
+                    ObligationKind::NormalGuarantee { exit, .. } => {
+                        let mut at_exit = storage.at_return(
+                            references,
+                            tables,
+                            exit,
+                            Construct::Obligation(obligation),
+                        )?;
+                        equality::discharge(
+                            module,
+                            lowered,
+                            tables,
+                            graph,
+                            row.created_at,
+                            obligation,
+                            clause,
+                            law_instances,
+                            &mut at_exit,
+                        )
+                        .map(Discharged::Identity)
+                    }
+                    _ => equality::discharge(
+                        module,
+                        lowered,
+                        tables,
+                        graph,
+                        row.created_at,
+                        obligation,
+                        clause,
+                        law_instances,
+                        &mut storage.at_entry(references, tables),
+                    )
+                    .map(Discharged::Identity),
+                };
             }
             if let Some(carry) = &carrier
                 && let Ok(evidence) = carry.certify(

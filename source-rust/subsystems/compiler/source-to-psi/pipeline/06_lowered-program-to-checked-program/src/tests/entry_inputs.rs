@@ -268,7 +268,8 @@ fn a_complete_byte_check_does_not_become_a_helper_requirement() {
         "/../../../../../../source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/tests/fixtures/calls/run/inferred_branch_inputs/main.omg"
     ));
     let typed =
-        crate::preparation::prepare_typed_trees(super::boundary_calls::typed(source), &[], &[]).unwrap();
+        crate::preparation::prepare_typed_trees(super::boundary_calls::typed(source), &[], &[])
+            .unwrap();
     let entry = super::build_purpose::symbol(typed.trees(), "main");
     let prepared = crate::lowering::prepare_compilation(
         &typed,
@@ -1102,6 +1103,44 @@ fn an_uncovered_boundary_call_names_the_member_it_calls() {
                 "{unproved:?}"
             ),
             verdict => panic!("{requires:?} decides the boundary call: {verdict:?}"),
+        }
+    }
+}
+
+#[test]
+fn a_private_helper_omitting_crashes_publishes_its_guarded_call_route() {
+    // A private nested helper that omits `crashes` infers the guarded Trap
+    // route of its `maybe_zero` call rather than unconditional `Truth`. The
+    // public caller's `requires items[index] == 7` discharges that guard;
+    // dropping the requirement refuses the call at the uncovered Trap route.
+    for (requires, accepted) in [("requires items[index] == 7", true), ("", false)] {
+        let source = format!(
+            "machine maybe_zero(items: @[u64; 2], index: u64) -> u64
+            requires index < 2
+            crashes Trap items[index] == 0
+            {{
+                transition items[index] == 0 {{ true -> bad(), false -> (items[index]) }}
+                machine bad() -> u64 {{ crash Trap; }}
+            }}
+            public machine entry(items: @[u64; 2], index: u64) -> u64
+            requires index < 2
+            {requires}
+            {{
+                transition {{ _ -> consume(items, index) }}
+                machine consume(values: @[u64; 2], selected: u64) -> u64
+                requires selected < 2
+                {{ maybe_zero(values, selected) }}
+            }}"
+        );
+        match judge_source_arrivals(&source, &["bad"]) {
+            RouteVerdict::Accepted(_) if accepted => {}
+            RouteVerdict::Rejected { unproved, .. } if !accepted => assert!(
+                unproved.iter().any(|row| row
+                    .statement
+                    .contains("call from `entry` to `consume` has an uncovered Trap crash route")),
+                "{unproved:?}"
+            ),
+            verdict => panic!("{requires:?} decides the inferred private crash route: {verdict:?}"),
         }
     }
 }

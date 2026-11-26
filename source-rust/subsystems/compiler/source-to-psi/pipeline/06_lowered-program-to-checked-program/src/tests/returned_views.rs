@@ -698,8 +698,8 @@ boundary trait Registration {
 machine observe(group: @Group) -> bool { group.disabled }
 machine keep<'a>(group: @'a Group) -> @'a Group { group }
 machine entry() -> bool reaches Registration invokes Registration {
-    let facet = Facet {};
-    let setting = Registration::issue(@facet);
+    let facet: Facet = Facet {};
+    let setting: @mutable Group = Registration::issue(@facet);
     setting.disabled = true;
     observe(setting)
 }
@@ -708,17 +708,17 @@ machine entry() -> bool reaches Registration invokes Registration {
 #[test]
 fn mutable_provider_record_store_requires_its_own_live_permission() {
     assert_eq!(verdict(MUTABLE_PROVIDER_SETTING), "accepted");
-    let shared = MUTABLE_PROVIDER_SETTING.replace("-> @mutable Group", "-> @Group");
+    let shared = MUTABLE_PROVIDER_SETTING.replace("@mutable Group", "@Group");
     let shared_access = verdict(&shared);
     let borrowed = MUTABLE_PROVIDER_SETTING.replace(
         "setting.disabled = true;\n    observe(setting)",
-        "let held = keep(setting);\n    setting.disabled = true;\n    observe(held)",
+        "let held: @Group = keep(setting);\n    setting.disabled = true;\n    observe(held)",
     );
     assert_ne!(borrowed, MUTABLE_PROVIDER_SETTING);
     let retained_access = verdict(&borrowed);
     let exclusive_input = MUTABLE_PROVIDER_SETTING
         .replace("facet: @Facet", "facet: @mutable Facet")
-        .replace("let facet =", "let mutable facet =")
+        .replace("let facet: Facet =", "let mutable facet: Facet =")
         .replace("issue(@facet)", "issue(@mutable facet)");
     let exclusive_input = verdict(&exclusive_input);
     assert!(shared_access.starts_with("rejected:"), "{shared_access}");
@@ -739,7 +739,7 @@ boundary trait Source {
     machine configure(settings: @mutable Settings) reaches none crashes none;
 }
 machine entry() -> i32 reaches Source invokes Source {
-    let settings = Source::issue();
+    let settings: @mutable Settings = Source::issue();
     Source::configure(settings);
     settings.fields.value
 }

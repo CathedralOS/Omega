@@ -3,14 +3,13 @@ use super::*;
 const AUTHORED: &str =
     include_str!("../../../../../../../samples/cli/facts/fixed_layout_storage/local/main.omg");
 
-fn with_reflection(source: &str) -> TypedTrees {
+fn with_reflection(source: &str) -> Result<TypedTrees, String> {
     let library = crate::test_support::fixture_repository::root().join("source/library");
     crate::test_support::schema_customer_source::actual_library_source(
         &library,
         source,
         semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32]).unwrap(),
     )
-    .unwrap()
 }
 
 /// Evaluates the layouts `scopes` demand of `source`, the way source
@@ -56,7 +55,7 @@ fn query_machine(source: &TypedTrees, name: &str) -> SymbolHandle {
 fn an_empty_layout_scope_preserves_the_unrequested_application() {
     // The same kept application must remain a real deferred request when
     // no computation asks for its geometry; no successful plan is invented.
-    let mut source = with_reflection(AUTHORED);
+    let mut source = with_reflection(AUTHORED).unwrap();
     let entry = query_machine(&source, "main");
     let facts = layout_plans::LayoutTargetFacts {
         profile: "linux_x86_64".into(),
@@ -101,42 +100,42 @@ fn generic_layout_policy_retains_its_declared_machine_and_observed_geometry() {
         "PairLayout satisfies FixedLayout<Pair>",
         "public data OtherPair [copy] { lo: u64 in Delivered; hi: u64; }\nPairLayout<T> satisfies FixedLayout<T>",
     );
-    let evaluated = |argument: &str| {
-        let mut source = with_reflection(&authored.replace(
+    let subject = |argument: &str| {
+        with_reflection(&authored.replace(
             "LayoutStorage<Pair, PairLayout>",
             &format!("LayoutStorage<Pair, PairLayout<{argument}>>"),
-        ));
-        let root = query_machine(&source, "main");
-        let facts = layout_plans::LayoutTargetFacts {
-            profile: "linux_x86_64".into(),
-            pointer_size: 8,
-            pointer_alignment: 8,
-            case_tag_size: 4,
-            case_tag_alignment: 4,
-            little_endian: true,
-        };
-        let mut accounting = crate::compile_time_invocations::SourceCompletionAccounting::default();
-        let result = evaluate(&mut source, &[FixedLayoutTargetScope {
-                target: facts.profile.clone(),
-                facts: Some(facts),
-                entry_declarations: vec![root],
-                provider_declarations: Vec::new(),
-            }], &mut accounting);
-        (source, root, accounting, result)
+        ))
     };
-
-    // Geometry alone cannot identify a policy's semantic argument.
-    let (wrong, _, accounting, refusal) = evaluated("OtherPair");
-    let refusal = diagnostics::join_messages(&refusal.unwrap_err());
+    // Different records can have identical geometry. Typing must refuse the
+    // wrong FixedLayout application before its policy can be evaluated.
+    let refusal = subject("OtherPair").expect_err("wrong policy subject");
     assert!(
-        refusal.contains("selected layout policy belongs to another semantic type"),
+        refusal.contains("implementation `PairLayout<OtherPair>` does not supply the declared `FixedLayout` application of `LayoutStorage`"),
         "{refusal}"
     );
-    assert!(accounting.receipts().is_empty());
-    assert!(wrong.plan_laid_layouts.is_empty());
 
-    let (source, root, accounting, result) = evaluated("Pair");
-    result.unwrap();
+    let mut source = subject("Pair").unwrap();
+    let root = query_machine(&source, "main");
+    let facts = layout_plans::LayoutTargetFacts {
+        profile: "linux_x86_64".into(),
+        pointer_size: 8,
+        pointer_alignment: 8,
+        case_tag_size: 4,
+        case_tag_alignment: 4,
+        little_endian: true,
+    };
+    let mut accounting = crate::compile_time_invocations::SourceCompletionAccounting::default();
+    evaluate(
+        &mut source,
+        &[FixedLayoutTargetScope {
+            target: facts.profile.clone(),
+            facts: Some(facts),
+            entry_declarations: vec![root],
+            provider_declarations: Vec::new(),
+        }],
+        &mut accounting,
+    )
+    .unwrap();
     let [plan] = source.plan_laid_layouts.as_slice() else {
         panic!("one exact layout for Pair");
     };
@@ -177,13 +176,14 @@ fn authored_policy_observes_only_its_invocations_issued_target() {
             "use omega\\language\\core\\LayoutTarget;",
             r#"use omega\language\core\LayoutTarget;
 use omega\language\core\layout_target_facts;
-machine packet_size(target: @LayoutTarget) -> u64 reaches none terminates {
-    let facts = layout_target_facts(target);
+use omega\language\core\LayoutTargetFacts;
+machine packet_size<'target>(target: @'target LayoutTarget) -> u64 reaches none terminates {
+    let facts: LayoutTargetFacts<'target> = layout_target_facts(target);
     transition facts.profile.length == 12 { true -> 16u64, _ -> 24u64 }
 }"#,
         )
         .replace("size_fixed: 16", "size_fixed: packet_size(@target)");
-    let mut source = with_reflection(&program);
+    let mut source = with_reflection(&program).unwrap();
     let root = query_machine(&source, "main");
     let scopes = ["linux_x86_64", "windows_x86_64"].map(|name| FixedLayoutTargetScope {
         target: name.into(),

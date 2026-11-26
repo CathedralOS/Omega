@@ -165,7 +165,8 @@ fn a_structural_equation_machine_still_cannot_escape_as_a_plain_name() {
         data Buffer<Element, const N: u64> { items: [Element; N]; }
         machine inspect<Kind, Element, const N: u64>(value: @Buffer<Element, N>) -> u64
         requires Kind == Buffer<Element, N> { 1u64 }
-        machine caller() { let selected = inspect; }
+        data Reader = machine(value: @Buffer<u8, 2>) -> u64;
+        machine caller() { let selected: Reader = inspect; }
     "#;
     let tokens = Lexer::new(text).tokenize().unwrap();
     let mut sources = crate::source_inputs::SourceMap::default();

@@ -636,18 +636,9 @@ impl ProductQueryInputs {
 
     pub(crate) fn validate_frontier(
         &self,
-        frontier: Vec<(
-            PathBuf,
-            source_provenance::DependencyScope,
-        )>,
+        frontier: Vec<(PathBuf, source_provenance::DependencyScope)>,
         storage: &SourceStorage,
-    ) -> Result<
-        Vec<(
-            PathBuf,
-            source_provenance::DependencyScope,
-        )>,
-        Vec<Diagnostic>,
-    > {
+    ) -> Result<Vec<(PathBuf, source_provenance::DependencyScope)>, Vec<Diagnostic>> {
         let core = super::bundled_core_root()?;
         let mut validated = Vec::with_capacity(frontier.len());
         for (path, scope) in frontier {
@@ -683,16 +674,5 @@ impl ProductQueryInputs {
             validated.push((canonical, scope));
         }
         Ok(validated)
-    }
-
-    pub(crate) fn entry_contract_seeds(
-        &self,
-        storage: &SourceStorage,
-    ) -> Result<Vec<super::entry_contract_seed::EntryContractSeed>, Vec<Diagnostic>> {
-        super::entry_contract_seed::entry_contract_seeds_from_graphs(
-            self.original.as_ref(),
-            &self.graphs().collect::<Vec<_>>(),
-            storage,
-        )
     }
 }
