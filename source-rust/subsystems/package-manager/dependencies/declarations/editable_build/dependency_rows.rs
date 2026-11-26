@@ -179,8 +179,9 @@ fn registration(
     }
     let operands = direct_build_call_operands(syntax_trees, call, receiver).map_err(|error| {
         match error {
-        DirectBuildCallError::WrongReceiver => DependencyRowError::WrongReceiver,
-        DirectBuildCallError::WrongArguments => DependencyRowError::WrongArguments,
+            DirectBuildCallError::WrongReceiver => DependencyRowError::WrongReceiver,
+            DirectBuildCallError::WrongArguments => DependencyRowError::WrongArguments,
+        }
     })?;
     let [description] = operands else {
         return Err(DependencyRowError::WrongArguments);
