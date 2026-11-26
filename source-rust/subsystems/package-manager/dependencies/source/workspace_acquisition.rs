@@ -53,7 +53,7 @@ impl WorkspaceMemberObservation {
         inputs: Vec<CatalogInput>,
     ) -> Result<Self, String> {
         if Some(declaration.declaration()) != result.declaration() {
-            return Err("workspace observation lost a demanded dependency source graph".into());
+            return Err("workspace observation belongs to another returned declaration".into());
         }
         if acquired.source_capture() != declaration.source_capture() {
             return Err("workspace observation belongs to another source capture".into());
