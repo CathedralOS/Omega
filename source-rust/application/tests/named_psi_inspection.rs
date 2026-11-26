@@ -39,6 +39,51 @@ fn assert_reopened_inspection(name: &str, source: Output, reopened: Output) {
 }
 
 #[test]
+fn saved_generic_trait_defaults_keep_the_declared_method_arity() {
+    let project = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/calls/run/trait_default_helpers");
+    let scratch = TemporaryDirectory::create("saved-trait-defaults", false).unwrap();
+    let file = scratch.path().join("program.psi");
+    let emitted = omega(&project)
+        .arg("--emit-psi")
+        .arg(&file)
+        .args([
+            "--target",
+            "linux_x86_64",
+            "--build-input",
+            "main.omg",
+            "--build-input",
+            "build.omg",
+            "build.omg",
+        ])
+        .output()
+        .unwrap();
+    assert!(emitted.status.success(), "{emitted:?}");
+
+    let saved = CanonicalTerminalArtifact::from_bytes(&std::fs::read(file).unwrap()).unwrap();
+    let mut module = saved.semantic_module().clone();
+    let method = module
+        .proofs
+        .closed_conformance_applications
+        .iter_mut()
+        .flat_map(|application| &mut application.static_applications)
+        .find(|method| {
+            method.method_arguments.is_empty()
+                && matches!(method.callable, TargetMachineCallable::Machine(_))
+        })
+        .expect("fixture selects a method with no local arguments");
+    method
+        .method_arguments
+        .push(terminal_psi::ClosedReachArgument::Type(
+            method.source_callable_identity,
+        ));
+    assert_eq!(
+        terminal_semantics::closed_conformances::validate_closed_conformances(&module),
+        Err("static conformance method tuple differs from its independent telescope")
+    );
+}
+
+#[test]
 fn named_inspection_publishes_the_requested_reference_machine() {
     let project = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../tests/fixtures/ownership/run/incoming_record_reference_return");
@@ -295,12 +340,12 @@ fn reopened_program_runs_in_both_engines_after_the_source_is_gone() {
     };
     let inspected = command(&["psi", "inspect", "--artifact"]);
     assert!(inspected.status.success(), "{inspected:?}");
-    let withheld = command(&["run", "--both"]);
+    let withheld = command(&["run", "--engine", "psi"]);
     assert!(!withheld.status.success());
     assert!(String::from_utf8_lossy(&withheld.stderr).contains("requires --trusted-artifact"));
     let mut wrong = manifest.clone();
     wrong.replace_range(..1, if manifest.starts_with('0') { "1" } else { "0" });
-    let refused = command(&["run", "--both", "--trusted-artifact", &wrong]);
+    let refused = command(&["run", "--engine", "native", "--trusted-artifact", &wrong]);
     assert!(!refused.status.success());
     assert!(
         String::from_utf8_lossy(&refused.stderr).contains("differs from the artifact authorized")
@@ -322,13 +367,17 @@ fn reopened_program_runs_in_both_engines_after_the_source_is_gone() {
         };
         assert_hosted_image(target, &consumer.path().join(target).join(executable));
     }
-    let observed = command(&["run", "--both", "--trusted-artifact", &manifest]);
-    assert!(observed.status.success(), "{observed:?}");
-    assert!(observed.stdout.is_empty(), "{observed:?}");
-    assert!(
-        String::from_utf8_lossy(&observed.stderr).contains("interp exit: 0"),
-        "{observed:?}"
-    );
+    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+        let observed = command(&["run", "--engine", engine, "--trusted-artifact", &manifest]);
+        assert!(observed.status.success(), "{observed:?}");
+        assert!(observed.stdout.is_empty(), "{observed:?}");
+        assert!(
+            String::from_utf8_lossy(&observed.stderr)
+                .lines()
+                .any(|line| line == expected),
+            "{observed:?}"
+        );
+    }
 }
 
 #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
@@ -447,12 +496,16 @@ fn reopened_program_uses_the_host_pinned_package_lock() {
         .status()
         .unwrap();
     assert_eq!(status.code(), Some(0));
-    let compared = receive(&["run", "--both"], Some(&digest));
-    assert!(compared.status.success(), "{compared:?}");
-    assert!(
-        String::from_utf8_lossy(&compared.stderr).contains("interp exit: 0"),
-        "{compared:?}"
-    );
+    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+        let observed = receive(&["run", "--engine", engine], Some(&digest));
+        assert!(observed.status.success(), "{observed:?}");
+        assert!(
+            String::from_utf8_lossy(&observed.stderr)
+                .lines()
+                .any(|line| line == expected),
+            "{observed:?}"
+        );
+    }
 }
 
 #[cfg(all(target_os = "linux", target_arch = "x86_64"))]

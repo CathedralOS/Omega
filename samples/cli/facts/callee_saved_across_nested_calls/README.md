@@ -30,16 +30,7 @@ Every place performs the same operation: establish or transport a bounded scalar
 Root `main.omg` and all nine place projects bind `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declare `Expected exit: 0`, and carry `expected_native_exit.txt` (`0`). Run any positive directly:
 
 ```sh
-omega run --both samples/cli/facts/callee_saved_across_nested_calls/main.omg
-omega run --both samples/cli/facts/callee_saved_across_nested_calls/local/main.omg
-omega run --both samples/cli/facts/callee_saved_across_nested_calls/field/main.omg
-omega run --both samples/cli/facts/callee_saved_across_nested_calls/parameter/main.omg
-omega run --both samples/cli/facts/callee_saved_across_nested_calls/call_result/main.omg
-omega run --both samples/cli/facts/callee_saved_across_nested_calls/match_join/main.omg
-omega run --both samples/cli/facts/callee_saved_across_nested_calls/const_name/main.omg
-omega run --both samples/cli/facts/callee_saved_across_nested_calls/other_state/main.omg
-omega run --both samples/cli/facts/callee_saved_across_nested_calls/other_machine/main.omg
-omega run --both samples/cli/facts/callee_saved_across_nested_calls/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/callee_saved_across_nested_calls
 ```
 
 Each place has an `invalid/` twin that sets `saved = 71u64` (violating `saved <= 70u64`), causing exact subtraction `remaining = 70u64 - saved` to underflow. The control must reject with `may overflow `u64``. Check each twin with:

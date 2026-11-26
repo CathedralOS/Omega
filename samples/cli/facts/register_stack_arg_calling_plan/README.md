@@ -32,19 +32,10 @@ Pinned fixture twins, one pair per place:
 
 ## Execution
 
-Each positive place is an application that exits 0, and every positive place (and the root `main.omg`) carries an authored `expected_native_exit.txt` declaring `0`. `omega run --both` verifies agreement between Terminal Psi interpreter and native compilation:
+Each positive place is an application that exits 0, and every positive place (and the root `main.omg`) carries an authored `expected_native_exit.txt` declaring `0`. The sample gate verifies agreement between Terminal Psi interpreter and native compilation:
 
 ```sh
-omega run --both samples/cli/facts/register_stack_arg_calling_plan/main.omg
-omega run --both samples/cli/facts/register_stack_arg_calling_plan/local/main.omg
-omega run --both samples/cli/facts/register_stack_arg_calling_plan/field/main.omg
-omega run --both samples/cli/facts/register_stack_arg_calling_plan/parameter/main.omg
-omega run --both samples/cli/facts/register_stack_arg_calling_plan/call_result/main.omg
-omega run --both samples/cli/facts/register_stack_arg_calling_plan/match_join/main.omg
-omega run --both samples/cli/facts/register_stack_arg_calling_plan/const_name/main.omg
-omega run --both samples/cli/facts/register_stack_arg_calling_plan/other_state/main.omg
-omega run --both samples/cli/facts/register_stack_arg_calling_plan/other_machine/main.omg
-omega run --both samples/cli/facts/register_stack_arg_calling_plan/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/register_stack_arg_calling_plan
 ```
 
 All ten positive places produce `native exit 0` and `interp exit: 0`.

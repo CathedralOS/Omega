@@ -24,19 +24,10 @@ After `clobber_call(1u64)` returns, all eight pre-call live values plus the call
 
 Every positive place and root `main.omg` binds `ProgramEntry` for all four hosted targets
 (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) in its `build.omg` and declares `Expected exit: 0`.
-`omega run --both` verifies Terminal Psi interpreter and native execution agreement:
+The sample gate verifies Terminal Psi interpreter and native execution agreement:
 
 ```sh
-omega run --both samples/cli/facts/live_across_call_spill/main.omg
-omega run --both samples/cli/facts/live_across_call_spill/local/main.omg
-omega run --both samples/cli/facts/live_across_call_spill/field/main.omg
-omega run --both samples/cli/facts/live_across_call_spill/parameter/main.omg
-omega run --both samples/cli/facts/live_across_call_spill/call_result/main.omg
-omega run --both samples/cli/facts/live_across_call_spill/match_join/main.omg
-omega run --both samples/cli/facts/live_across_call_spill/const_name/main.omg
-omega run --both samples/cli/facts/live_across_call_spill/other_state/main.omg
-omega run --both samples/cli/facts/live_across_call_spill/other_machine/main.omg
-omega run --both samples/cli/facts/live_across_call_spill/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/live_across_call_spill
 ```
 
 Every positive place and the root witness observe `native exit 0` and `interp exit: 0`.

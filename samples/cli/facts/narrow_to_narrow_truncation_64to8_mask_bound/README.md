@@ -46,16 +46,7 @@ differ in kind:
 Run each positive place with `omega run --both`:
 
 ```sh
-omega run --both samples/cli/facts/narrow_to_narrow_truncation_64to8_mask_bound/main.omg
-omega run --both samples/cli/facts/narrow_to_narrow_truncation_64to8_mask_bound/local/main.omg
-omega run --both samples/cli/facts/narrow_to_narrow_truncation_64to8_mask_bound/field/main.omg
-omega run --both samples/cli/facts/narrow_to_narrow_truncation_64to8_mask_bound/parameter/main.omg
-omega run --both samples/cli/facts/narrow_to_narrow_truncation_64to8_mask_bound/call_result/main.omg
-omega run --both samples/cli/facts/narrow_to_narrow_truncation_64to8_mask_bound/match_join/main.omg
-omega run --both samples/cli/facts/narrow_to_narrow_truncation_64to8_mask_bound/const_name/main.omg
-omega run --both samples/cli/facts/narrow_to_narrow_truncation_64to8_mask_bound/other_state/main.omg
-omega run --both samples/cli/facts/narrow_to_narrow_truncation_64to8_mask_bound/other_machine/main.omg
-omega run --both samples/cli/facts/narrow_to_narrow_truncation_64to8_mask_bound/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/narrow_to_narrow_truncation_64to8_mask_bound
 ```
 
 All 10 samples report `native exit 0` and `interp exit: 0`.

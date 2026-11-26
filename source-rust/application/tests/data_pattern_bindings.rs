@@ -42,13 +42,14 @@ const FORMS: [&str; 5] = [
     "field_subject",
 ];
 
-fn run_both(tier: &str, form: &str) -> (bool, String) {
+fn invoke(arguments: &[&str], tier: &str, form: &str) -> (bool, String) {
     let project = support::repository_root()
         .join("source-rust/application/tests/fixtures/patterns")
         .join(tier)
         .join(form);
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["run", "--both", "main.omg"])
+        .args(arguments)
+        .arg("main.omg")
         .current_dir(&project)
         .stdin(Stdio::null())
         .output()
@@ -66,9 +67,9 @@ fn run_both(tier: &str, form: &str) -> (bool, String) {
 #[test]
 fn each_pattern_form_binds_the_fields_it_selects_in_both_engines() {
     for form in FORMS {
-        let (success, report) = run_both("run", form);
-        assert!(success, "{form}: {report}");
-        for receipt in ["native exit 0", "interp exit: 0"] {
+        for (engine, receipt) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+            let (success, report) = invoke(&["run", "--engine", engine], "run", form);
+            assert!(success, "{form}: {report}");
             assert!(
                 report.lines().any(|line| line == receipt),
                 "{form}: {report}"
@@ -87,10 +88,10 @@ fn each_twin_is_refused_at_its_pattern() {
                 .join("expected.txt"),
         )
         .unwrap();
-        let (success, report) = run_both("fail", form);
+        let (success, report) = invoke(&["--check"], "fail", form);
         assert!(!success, "{form}: {report}");
         assert!(
-            !report.contains("native exit") && !report.contains("interp exit"),
+            !report.contains("native exit") && !report.contains("Psi exit"),
             "{form}: a refused program must not run: {report}"
         );
         for line in expected.lines().filter(|line| !line.is_empty()) {

@@ -8,7 +8,8 @@ special treatment of this sample in the compiler.
 From the repository root, with a current `omega` binary on `PATH`:
 
 ```sh
-omega run --both samples/cli/collections/slice_maximum/main.omg
+omega run --engine native samples/cli/collections/slice_maximum/main.omg
+omega run --engine psi samples/cli/collections/slice_maximum/main.omg
 ```
 
 Press Enter when prompted. Both native execution and the checked interpreter

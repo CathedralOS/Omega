@@ -10,7 +10,8 @@ exits zero only when that calculation succeeds. After normal package review:
 
 ```sh
 omega packages update --project samples/cli/probes/slice_view_whole --target macos_arm64
-omega run --both samples/cli/probes/slice_view_whole/main.omg
+omega run --engine native samples/cli/probes/slice_view_whole/main.omg
+omega run --engine psi samples/cli/probes/slice_view_whole/main.omg
 ```
 
 The build also binds Linux ARM64/x86-64 and Windows x86-64 hosted entries;

@@ -166,7 +166,19 @@ mod instruction {
             | SelectedInstructionKind::PackedShiftRightArithmeticI16x8Reg { .. }
             | SelectedInstructionKind::PackedShuffleI16x8Reg { .. }
             | SelectedInstructionKind::PackedWidenU8x8ToI16x8Reg
-            | SelectedInstructionKind::PackedNarrowI16x8ToU8x8SaturatingReg => 241,
+            | SelectedInstructionKind::PackedNarrowI16x8ToU8x8SaturatingReg
+            | SelectedInstructionKind::PackedAddU8x16
+            | SelectedInstructionKind::PackedMinI16x8
+            | SelectedInstructionKind::PackedCmpGtI16x8
+            | SelectedInstructionKind::PackedBitAndI16x8
+            | SelectedInstructionKind::PackedBitAndNotI16x8
+            | SelectedInstructionKind::PackedAbsI16x8
+            | SelectedInstructionKind::PackedAddU8x16Reg
+            | SelectedInstructionKind::PackedMinI16x8Reg
+            | SelectedInstructionKind::PackedCmpGtI16x8Reg
+            | SelectedInstructionKind::PackedBitAndI16x8Reg
+            | SelectedInstructionKind::PackedBitAndNotI16x8Reg
+            | SelectedInstructionKind::PackedAbsI16x8Reg => 241,
             SelectedInstructionKind::CopyBytes => 59,
             SelectedInstructionKind::ScanByteSequence { .. } => 233,
             SelectedInstructionKind::LoadEncodedScalar => 236,

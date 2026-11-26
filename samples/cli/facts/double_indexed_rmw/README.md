@@ -53,8 +53,9 @@ Every positive place and the root bind `ProgramEntry` for `windows_x86_64`,
 unproved inner index. Runtime controls retain the trap oracle.
 
 ```sh
-omega run --both samples/cli/facts/double_indexed_rmw/main.omg
-omega run --both samples/cli/facts/double_indexed_rmw/<place>/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/double_indexed_rmw
+omega run --engine native samples/cli/facts/double_indexed_rmw/<place>/main.omg
+omega run --engine psi samples/cli/facts/double_indexed_rmw/<place>/main.omg
 ```
 
 On Linux x86-64, optimized producer `bb854b9b5964` (SHA256

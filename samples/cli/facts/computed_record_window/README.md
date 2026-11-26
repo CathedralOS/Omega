@@ -33,17 +33,9 @@ Existing controls under `controls/invalid_<place>` are preserved intact.
 Root `main.omg` and all place projects bind `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and declare `Expected exit: 0`. Run any positive directly:
 
 ```sh
-omega run --both samples/cli/facts/computed_record_window/main.omg
-omega run --both samples/cli/facts/computed_record_window/local/main.omg
-omega run --both samples/cli/facts/computed_record_window/field/main.omg
-omega run --both samples/cli/facts/computed_record_window/parameter/main.omg
-omega run --both samples/cli/facts/computed_record_window/call_result/main.omg
-omega run --both samples/cli/facts/computed_record_window/match_join/main.omg
-omega run --both samples/cli/facts/computed_record_window/const_name/main.omg
-omega run --both samples/cli/facts/computed_record_window/other_state/main.omg
-omega run --both samples/cli/facts/computed_record_window/other_machine/main.omg
-omega run --both samples/cli/facts/computed_record_window/target_body/main.omg
-omega run --both samples/cli/facts/computed_record_window/case_payload/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/computed_record_window
+omega run --engine native samples/cli/facts/computed_record_window/case_payload/main.omg
+omega run --engine psi samples/cli/facts/computed_record_window/case_payload/main.omg
 ```
 
 Each place has an `invalid/` twin whose computed window endpoint is 1 instead of 2, failing the length-2 promise. Check each twin with:

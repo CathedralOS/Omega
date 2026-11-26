@@ -521,9 +521,7 @@ fn build_dead_tail_cutoff(
             }
             for binding in &edge.bindings {
                 mark_escapes(&mut touches, binding.parameter.root);
-                if let Some(src) = binding.source.exact_location() {
-                    mark_escapes(&mut touches, src.root);
-                }
+                mark_escapes(&mut touches, binding.source.observation().root);
             }
         }
     }

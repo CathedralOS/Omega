@@ -28,16 +28,7 @@ Each positive place and root `main.omg` binds `ProgramEntry` for all four hosted
 ## Execution
 
 ```sh
-omega run --both samples/cli/facts/wrapping_integer_arithmetic/main.omg
-omega run --both samples/cli/facts/wrapping_integer_arithmetic/local/main.omg
-omega run --both samples/cli/facts/wrapping_integer_arithmetic/field/main.omg
-omega run --both samples/cli/facts/wrapping_integer_arithmetic/parameter/main.omg
-omega run --both samples/cli/facts/wrapping_integer_arithmetic/call_result/main.omg
-omega run --both samples/cli/facts/wrapping_integer_arithmetic/match_join/main.omg
-omega run --both samples/cli/facts/wrapping_integer_arithmetic/const_name/main.omg
-omega run --both samples/cli/facts/wrapping_integer_arithmetic/other_state/main.omg
-omega run --both samples/cli/facts/wrapping_integer_arithmetic/other_machine/main.omg
-omega run --both samples/cli/facts/wrapping_integer_arithmetic/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/wrapping_integer_arithmetic
 ```
 
 Measured on macOS arm64 with the factsr1 shared generation producer `gen-f1b0d3326d2` (omega sha256 `4e3950e53eb15fbb3b54868f9c8964e23e7efc5bdced336e07f18eb27e28ac4a`): all ten positive places report `native exit 0` and `interp exit: 0` (20/20 engine legs, exit 0).

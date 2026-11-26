@@ -29,16 +29,7 @@ Every positive place and the root witness bind `ProgramEntry` across all four ho
 Run each positive place with `omega run --both`:
 
 ```sh
-omega run --both samples/cli/facts/affine_discard_root_cleanup/main.omg
-omega run --both samples/cli/facts/affine_discard_root_cleanup/local/main.omg
-omega run --both samples/cli/facts/affine_discard_root_cleanup/field/main.omg
-omega run --both samples/cli/facts/affine_discard_root_cleanup/parameter/main.omg
-omega run --both samples/cli/facts/affine_discard_root_cleanup/call_result/main.omg
-omega run --both samples/cli/facts/affine_discard_root_cleanup/match_join/main.omg
-omega run --both samples/cli/facts/affine_discard_root_cleanup/const_name/main.omg
-omega run --both samples/cli/facts/affine_discard_root_cleanup/other_state/main.omg
-omega run --both samples/cli/facts/affine_discard_root_cleanup/other_machine/main.omg
-omega run --both samples/cli/facts/affine_discard_root_cleanup/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/affine_discard_root_cleanup
 ```
 
 All 10 samples report `native exit 0` and `interp exit: 0`.

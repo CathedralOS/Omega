@@ -156,7 +156,7 @@ external symbols or publishing components separately.
 A representation change must keep exact places, widths, call results,
 argument transfers, control flow and byte/relocation correspondence.
 Accept it on the affected crates' tests, the affected programs under
-`omega run --both` (interpreter against native), and x86-64/AArch64 encoder
+the repository sample gate (native and Psi against expected observations), and x86-64/AArch64 encoder
 checks. Extending calls or frames needs exact stack ownership and
 non-overlap evidence, not an assumption that whole-image addresses stay valid across a
 component boundary. Wider physical support belongs to the existing frame and

@@ -59,7 +59,8 @@ omega packages update --project samples/cli/independent/fatigue_cycle_audit --ta
 # A consumer prepares its own transaction; evidence locks are not transplanted.
 omega --check --target linux_x86_64 samples/cli/independent/fatigue_cycle_audit/main.omg
 omega --target linux_x86_64 --build-dir build/fatigue-audit samples/cli/independent/fatigue_cycle_audit/main.omg
-omega run --both --keep samples/cli/independent/fatigue_cycle_audit/main.omg < samples/cli/independent/fatigue_cycle_audit/data/nested.stdin
+omega run --engine native --keep samples/cli/scientific/fatigue_cycle_audit/main.omg < samples/cli/scientific/fatigue_cycle_audit/data/nested.stdin
+omega run --engine psi --keep samples/cli/scientific/fatigue_cycle_audit/main.omg < samples/cli/scientific/fatigue_cycle_audit/data/nested.stdin
 omega --check --target linux_x86_64 samples/cli/independent/fatigue_cycle_audit/controls/unguarded_index/main.omg
 # The last command must exit 1 with the sole expected bounds diagnostic.
 ```

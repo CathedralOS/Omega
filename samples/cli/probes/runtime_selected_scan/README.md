@@ -9,7 +9,8 @@ scans return `None`; a subwindow result denotes that window's matching element.
 After ordinary package preparation:
 
 ```sh
-omega run --both samples/cli/collections/runtime_selected_scan/main.omg
+omega run --engine native samples/cli/collections/runtime_selected_scan/main.omg
+omega run --engine psi samples/cli/collections/runtime_selected_scan/main.omg
 ```
 
 Expected native and Terminal exit: 0. The program checks each result and traps

@@ -42,15 +42,15 @@ Every positive place binds `ProgramEntry` for all four hosted targets
 native execution agreement (`native exit 0` and `interp exit: 0`):
 
 ```sh
-target/debug/omega run --both samples/cli/facts/match_join_place_read/local/main.omg
-target/debug/omega run --both samples/cli/facts/match_join_place_read/field/main.omg
-target/debug/omega run --both samples/cli/facts/match_join_place_read/parameter/main.omg
-target/debug/omega run --both samples/cli/facts/match_join_place_read/call_result/main.omg
-target/debug/omega run --both samples/cli/facts/match_join_place_read/match_join/main.omg
-target/debug/omega run --both samples/cli/facts/match_join_place_read/const_name/main.omg
-target/debug/omega run --both samples/cli/facts/match_join_place_read/other_state/main.omg
-target/debug/omega run --both samples/cli/facts/match_join_place_read/other_machine/main.omg
-target/debug/omega run --both samples/cli/facts/match_join_place_read/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/match_join_place_read/local
+mbx xtask sample-gate --filter samples/cli/facts/match_join_place_read/field
+mbx xtask sample-gate --filter samples/cli/facts/match_join_place_read/parameter
+mbx xtask sample-gate --filter samples/cli/facts/match_join_place_read/call_result
+mbx xtask sample-gate --filter samples/cli/facts/match_join_place_read/match_join
+mbx xtask sample-gate --filter samples/cli/facts/match_join_place_read/const_name
+mbx xtask sample-gate --filter samples/cli/facts/match_join_place_read/other_state
+mbx xtask sample-gate --filter samples/cli/facts/match_join_place_read/other_machine
+mbx xtask sample-gate --filter samples/cli/facts/match_join_place_read/target_body
 ```
 
 ### The oracle discriminates

@@ -44,8 +44,9 @@ silently widening.
 ## Execution
 
 ```sh
-omega run --both samples/cli/facts/float_comparison_route/main.omg
-omega run --both samples/cli/facts/float_comparison_route/<place>/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/float_comparison_route
+omega run --engine native samples/cli/facts/float_comparison_route/<place>/main.omg
+omega run --engine psi samples/cli/facts/float_comparison_route/<place>/main.omg
 omega --check samples/cli/facts/float_comparison_route/<place>/invalid/main.omg
 ```
 

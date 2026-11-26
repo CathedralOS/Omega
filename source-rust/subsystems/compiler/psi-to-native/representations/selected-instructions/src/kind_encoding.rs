@@ -228,6 +228,18 @@ pub fn encode_kind(bytes: &mut Vec<u8>, tag: u8, kind: SelectedInstructionKind) 
         }
         SelectedInstructionKind::PackedWidenU8x8ToI16x8Reg => bytes.push(22),
         SelectedInstructionKind::PackedNarrowI16x8ToU8x8SaturatingReg => bytes.push(23),
+        SelectedInstructionKind::PackedAddU8x16 => bytes.push(24),
+        SelectedInstructionKind::PackedMinI16x8 => bytes.push(25),
+        SelectedInstructionKind::PackedCmpGtI16x8 => bytes.push(26),
+        SelectedInstructionKind::PackedBitAndI16x8 => bytes.push(27),
+        SelectedInstructionKind::PackedBitAndNotI16x8 => bytes.push(28),
+        SelectedInstructionKind::PackedAbsI16x8 => bytes.push(29),
+        SelectedInstructionKind::PackedAddU8x16Reg => bytes.push(30),
+        SelectedInstructionKind::PackedMinI16x8Reg => bytes.push(31),
+        SelectedInstructionKind::PackedCmpGtI16x8Reg => bytes.push(32),
+        SelectedInstructionKind::PackedBitAndI16x8Reg => bytes.push(33),
+        SelectedInstructionKind::PackedBitAndNotI16x8Reg => bytes.push(34),
+        SelectedInstructionKind::PackedAbsI16x8Reg => bytes.push(35),
         SelectedInstructionKind::CompareI64Zero
         | SelectedInstructionKind::PackedAddI16x8
         | SelectedInstructionKind::CopyBytes

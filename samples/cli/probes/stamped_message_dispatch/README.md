@@ -11,7 +11,8 @@ of 23.
 Run from the repository root:
 
 ```sh
-omega run --both samples/cli/collections/stamped_message_dispatch/main.omg
+omega run --engine native samples/cli/collections/stamped_message_dispatch/main.omg
+omega run --engine psi samples/cli/collections/stamped_message_dispatch/main.omg
 ```
 
 Both authored branches run through native and Terminal execution. Case

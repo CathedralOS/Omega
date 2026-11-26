@@ -24,16 +24,7 @@ Parent outcome: `EXPLICIT-ENTRY-STORAGE` in `TASKS.md`. This row establishes the
 Every positive place, and the root `main.omg`, binds `ProgramEntry` for `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64`, and declares `Expected exit: 0`.
 
 ```sh
-omega run --both samples/cli/facts/free_entry_local_state/main.omg
-omega run --both samples/cli/facts/free_entry_local_state/local/main.omg
-omega run --both samples/cli/facts/free_entry_local_state/field/main.omg
-omega run --both samples/cli/facts/free_entry_local_state/parameter/main.omg
-omega run --both samples/cli/facts/free_entry_local_state/call_result/main.omg
-omega run --both samples/cli/facts/free_entry_local_state/match_join/main.omg
-omega run --both samples/cli/facts/free_entry_local_state/const_name/main.omg
-omega run --both samples/cli/facts/free_entry_local_state/other_state/main.omg
-omega run --both samples/cli/facts/free_entry_local_state/other_machine/main.omg
-omega run --both samples/cli/facts/free_entry_local_state/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/free_entry_local_state
 ```
 
 The exit code 0 discriminates the cleanup. The tally starts at 0. `drop_mark` requires code 7 and writes that code into the tally. The following transition accepts only `tally.total == 7`. A skipped hook leaves 0, and the `bad` state crashes.
@@ -55,7 +46,7 @@ The nine place positives and their `invalid/main.omg` twins differ only in the e
 - **Identity and lifetime:** The tally is the entry's own local storage. The mark borrows that exact local, writes it, and ends before the read. No provisioned context is substituted for the local. A later write of a different tally would be a different fact.
 - **Composition:** Calls, joins, fields, constants, states, machines, and target bodies carry the same code 7 into the same cleanup. Each twin changes only the entry signature.
 - **Soundness boundaries:** Unprovided mutable-record entry parameters are never given backing by selection. All nine twins reject; the root additionally retains the unprovided `u64` control.
-- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** The local, the mark, the cleanup hook, and the transition lower into Terminal Psi. `omega run --both` compares the interpreter with native execution.
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** The local, the mark, the cleanup hook, and the transition lower into Terminal Psi. The sample gate compares the interpreter with native execution.
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** `ProgramEntry` binds `start` on all four hosted targets. The tally and the mark use ordinary value and reference layouts. The free entry has no provisioned receiver lane.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** The tally is an ordinary stack local of the entry. Its cleanup is the entry's normal return cleanup, not a separate entry allocation.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** The hosted image runs the free entry and agrees with Terminal Psi on this machine.

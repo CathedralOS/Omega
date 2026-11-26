@@ -1,7 +1,8 @@
 # Horner evaluation
 
 ```sh
-omega run --both samples/cli/algorithms/horner_eval/main.omg
+omega run --engine native samples/cli/algorithms/horner_eval/main.omg
+omega run --engine psi samples/cli/algorithms/horner_eval/main.omg
 ```
 
 The program evaluates `x⁴ + 2x³ + 3x² + 4x + 5` at `x = 2`, checks the result

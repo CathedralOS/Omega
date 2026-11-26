@@ -29,7 +29,7 @@ It must reject with `but the caller lends only immutable access`; setup or
 unrelated rejections do not count.
 
 ```sh
-omega run --both samples/cli/facts/computed_nested_state_loan/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/computed_nested_state_loan
 ```
 
 ## Requirements and evidence

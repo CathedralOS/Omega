@@ -22,8 +22,9 @@ Every place performs the same operation: shift a signed `i64` value (`400i64`) r
 Each positive place and the root `main.omg` binds `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declares `Expected exit: 0`, carries `expected_native_exit.txt` = 0, and passes `omega run --both` — Terminal Psi and native execution agreeing:
 
 ```sh
-omega run --both samples/cli/facts/signed_arithmetic_shift_right/main.omg
-omega run --both samples/cli/facts/signed_arithmetic_shift_right/<place>/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/signed_arithmetic_shift_right
+omega run --engine native samples/cli/facts/signed_arithmetic_shift_right/<place>/main.omg
+omega run --engine psi samples/cli/facts/signed_arithmetic_shift_right/<place>/main.omg
 ```
 
 ## Reject twins

@@ -6,6 +6,7 @@ use diagnostics::Diagnostic;
 
 #[derive(Clone, PartialEq, Eq, Default)]
 pub(crate) struct BuildProviderScope {
+    owner: Option<semantic_vocabulary::PackageKeyIdentity>,
     packages: Option<package_compilation::PackageCompilationInputs>,
     supplied_scope: Option<declaration_scope::PackageDeclarationScope>,
     dependency_edges: Vec<semantic_vocabulary::dependency_reach::DependencyServiceEdge>,
@@ -21,6 +22,7 @@ impl BuildProviderScope {
     pub(crate) fn for_packages(
         packages: Option<&package_compilation::PackageCompilationInputs>,
         libraries: &[package_compilation::source_imports::SuppliedBuildLibrary],
+        owner: Option<semantic_vocabulary::PackageKeyIdentity>,
     ) -> Self {
         use build_declarations::DependencyPurpose;
         let mut dependency_edges = packages
@@ -30,7 +32,7 @@ impl BuildProviderScope {
             let dependency = library.dependency();
             dependency_edges.push(
                 semantic_vocabulary::dependency_reach::DependencyServiceEdge {
-                    requester: packages.map(|inputs| inputs.root()),
+                    requester: owner,
                     package: dependency.inputs.root(),
                     alias: dependency.alias.clone(),
                     max_reach: library.max_reach().clone(),
@@ -43,11 +45,12 @@ impl BuildProviderScope {
             );
         }
         Self {
+            owner,
             packages: packages.cloned(),
             dependency_edges,
             supplied_scope:
                 package_compilation::source_imports::SuppliedBuildLibrary::declaration_scope(
-                    libraries, None,
+                    libraries, owner,
                 ),
         }
     }
@@ -107,9 +110,7 @@ impl BuildProviderScope {
             None,
             entry,
             &checked,
-            self.packages
-                .as_ref()
-                .map(package_compilation::PackageCompilationInputs::root),
+            self.owner,
             authority
                 .as_ref()
                 .map(|a| a as &dyn declaration_scope::DeclarationSelectionAuthority),

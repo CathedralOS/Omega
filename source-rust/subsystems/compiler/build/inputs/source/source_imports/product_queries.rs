@@ -87,6 +87,29 @@ mod tests {
     }
 
     #[test]
+    fn joining_shared_package_sources_rejects_different_commits_of_the_same_tree() {
+        use source_acquisition::{GitCommitId, GitTreeId, ImmutableSourceResolution};
+        let tree = GitTreeId::parse_hex(&"2".repeat(40)).unwrap();
+        let package = package(1, "meter", "public machine read() {}");
+        let at = |digit: char| {
+            let revision = ImmutableSourceResolution::git(
+                GitCommitId::parse_hex(&digit.to_string().repeat(40)).unwrap(),
+                tree.clone(),
+            )
+            .unwrap();
+            graph(1, package.clone().with_resolution(&revision))
+        };
+        let same = vec![dependency("first", at('1')), dependency("second", at('1'))];
+        ProductQueryInputs::new(None, same).unwrap();
+        let different = vec![dependency("first", at('1')), dependency("second", at('3'))];
+        let reason = ProductQueryInputs::new(None, different).unwrap_err();
+        assert!(
+            reason.contains("disagree about a shared package source"),
+            "{reason}"
+        );
+    }
+
+    #[test]
     fn a_product_query_selects_the_alias_in_the_requesting_sources_scope() {
         use source_provenance::DependencyScope::{Build, Product};
         let product = graph(
@@ -425,6 +448,34 @@ impl ProductQueryInputs {
             storage.join_package_inputs(named)?;
         }
         Ok(())
+    }
+
+    pub(crate) fn resolved_edges(
+        &self,
+    ) -> Result<Vec<crate::source::anonymous_owner::ResolvedEdge<'_>>, Vec<Diagnostic>> {
+        use crate::source::anonymous_owner::ResolvedEdge;
+        [
+            (DependencyPurpose::Build, &self.build_dependencies),
+            (DependencyPurpose::Product, &self.dependencies),
+        ]
+        .into_iter()
+        .flat_map(|(purpose, dependencies)| dependencies.iter().map(move |edge| (purpose, edge)))
+        .map(|(purpose, edge)| {
+            let owner = edge.inputs.root();
+            let resolution = edge.inputs.resolution(owner).ok_or_else(|| {
+                vec![Diagnostic::error(format!(
+                    "dependency `{}` has no immutable resolution for the anonymous Build product",
+                    edge.alias,
+                ))]
+            })?;
+            Ok(ResolvedEdge {
+                purpose,
+                alias: &edge.alias,
+                owner,
+                resolution,
+            })
+        })
+        .collect()
     }
 
     pub(crate) fn mount(&self, storage: &mut SourceStorage) -> Result<(), Vec<Diagnostic>> {

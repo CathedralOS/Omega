@@ -157,7 +157,7 @@ while it ran.
   output goes to `~/omega-agent/jobs/<label>/log`, and the pinned mbx in
   `~/.cache/omega-mbx-bin/` comes first on its `PATH` when the VM has it.
   `status` counts `test ... ok`, `test ... FAILED` and `ignored` lines, lists
-  the failed tests, and groups `DIVERGENCE` lines from `omega run --both` and
+  the failed tests, and groups comparison diagnostics labeled `DIVERGENCE` and
   `error` lines by text. `follow` exits with the job's exit code, so an agent
   can run it in the background and be woken when the job ends; stopping
   `follow` leaves the job running. A job that is still running keeps its

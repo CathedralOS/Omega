@@ -142,6 +142,18 @@ pub struct TargetRegisterEnvironmentConstraintKeys {
     pub packed_shuffle_i16x8_reg: Option<RegisterConstraintKey>,
     pub packed_widen_u8x8_to_i16x8_reg: Option<RegisterConstraintKey>,
     pub packed_narrow_i16x8_to_u8x8_saturating_reg: Option<RegisterConstraintKey>,
+    pub packed_add_u8x16: Option<RegisterConstraintKey>,
+    pub packed_min_i16x8: Option<RegisterConstraintKey>,
+    pub packed_cmpgt_i16x8: Option<RegisterConstraintKey>,
+    pub packed_bit_and_i16x8: Option<RegisterConstraintKey>,
+    pub packed_bit_andnot_i16x8: Option<RegisterConstraintKey>,
+    pub packed_abs_i16x8: Option<RegisterConstraintKey>,
+    pub packed_add_u8x16_reg: Option<RegisterConstraintKey>,
+    pub packed_min_i16x8_reg: Option<RegisterConstraintKey>,
+    pub packed_cmpgt_i16x8_reg: Option<RegisterConstraintKey>,
+    pub packed_bit_and_i16x8_reg: Option<RegisterConstraintKey>,
+    pub packed_bit_andnot_i16x8_reg: Option<RegisterConstraintKey>,
+    pub packed_abs_i16x8_reg: Option<RegisterConstraintKey>,
     pub copy_bytes: Option<RegisterConstraintKey>,
     pub zero_bytes: Option<RegisterConstraintKey>, // Bulk zero fill: two preserved inputs and one early-clobber cursor scratch.
     pub scan_byte_sequence: Option<RegisterConstraintKey>, // Byte-sequence predicate scan: two preserved inputs, two early-clobber scratch, one 0/1 result.

@@ -59,7 +59,8 @@ omega packages update --project samples/cli/independent/exact_contingency_infere
 omega packages update --resume --project samples/cli/independent/exact_contingency_inference
 omega --check samples/cli/independent/exact_contingency_inference/main.omg
 omega run --keep samples/cli/independent/exact_contingency_inference/main.omg < samples/cli/independent/exact_contingency_inference/data/sparse.stdin
-omega run --both --keep samples/cli/independent/exact_contingency_inference/main.omg < samples/cli/independent/exact_contingency_inference/data/sparse.stdin
+omega run --engine native --keep samples/cli/scientific/exact_contingency_inference/main.omg < samples/cli/scientific/exact_contingency_inference/data/sparse.stdin
+omega run --engine psi --keep samples/cli/scientific/exact_contingency_inference/main.omg < samples/cli/scientific/exact_contingency_inference/data/sparse.stdin
 ```
 
 `controls/invalid_contract/main.omg` is a separate complete source whose returned

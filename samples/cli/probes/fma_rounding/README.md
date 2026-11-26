@@ -8,7 +8,8 @@ exits 0 when both precisions satisfy those checks and a second fused call
 preserves the first result.
 
 ```sh
-omega run --both samples/cli/probes/fma_rounding/build.omg < /dev/null
+omega run --engine native samples/cli/probes/fma_rounding/build.omg < /dev/null
+omega run --engine psi samples/cli/probes/fma_rounding/build.omg < /dev/null
 ```
 
 The x86-64 build explicitly selects `X86DeploymentFeatures::AvxFma3`.

@@ -29,16 +29,7 @@ targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and dec
 `omega run --both` reports Terminal Psi interpreter and native execution agreement:
 
 ```sh
-omega run --both samples/cli/facts/exact_sub_guard/main.omg
-omega run --both samples/cli/facts/exact_sub_guard/local/main.omg
-omega run --both samples/cli/facts/exact_sub_guard/field/main.omg
-omega run --both samples/cli/facts/exact_sub_guard/parameter/main.omg
-omega run --both samples/cli/facts/exact_sub_guard/call_result/main.omg
-omega run --both samples/cli/facts/exact_sub_guard/match_join/main.omg
-omega run --both samples/cli/facts/exact_sub_guard/const_name/main.omg
-omega run --both samples/cli/facts/exact_sub_guard/other_state/main.omg
-omega run --both samples/cli/facts/exact_sub_guard/other_machine/main.omg
-omega run --both samples/cli/facts/exact_sub_guard/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/exact_sub_guard
 ```
 
 Every positive place and the root witness observe `native exit 0` and `interp exit: 0`.

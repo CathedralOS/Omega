@@ -30,16 +30,7 @@ of the type-indexed contract changes.
 Every positive place (and root `main.omg`) binds `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and declares `Expected exit: 0`. `omega run --both` reports Terminal Psi interpreter and native execution agreement (`interp exit: 0` and `native exit 0`):
 
 ```sh
-omega run --both samples/cli/facts/applied_requirement_indices/main.omg
-omega run --both samples/cli/facts/applied_requirement_indices/local/main.omg
-omega run --both samples/cli/facts/applied_requirement_indices/field/main.omg
-omega run --both samples/cli/facts/applied_requirement_indices/parameter/main.omg
-omega run --both samples/cli/facts/applied_requirement_indices/call_result/main.omg
-omega run --both samples/cli/facts/applied_requirement_indices/match_join/main.omg
-omega run --both samples/cli/facts/applied_requirement_indices/const_name/main.omg
-omega run --both samples/cli/facts/applied_requirement_indices/other_state/main.omg
-omega run --both samples/cli/facts/applied_requirement_indices/other_machine/main.omg
-omega run --both samples/cli/facts/applied_requirement_indices/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/applied_requirement_indices
 ```
 
 ### The oracle discriminates

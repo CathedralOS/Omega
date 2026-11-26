@@ -64,35 +64,44 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
+<a id="interpreted-cli-filesystem-inputs"></a>
+### 1. How should a caller supply filesystem access to `omega run` and `omega build`?
+
+A developer running a parser or a Build generator may want to expose a directory
+of inputs and choose where writes may go. Which parts of that invocation should
+the CLI expose, and which defaults and arguments should the two commands share?
+The [local Build input rules](wiki/spec/build/command_line.md#local-build-inputs)
+describe source capture, and the [default filesystem contract](wiki/spec/build/scoped_execution.md#inputs-and-default-filesystem)
+describes the executing program’s view. The CLI for supplying that view remains open.
+
 <a id="build-product-source-view-selection"></a>
-### 1. Can a Build select a private filesystem view it created as the source of its next compilation?
+### 2. How can a parent supply a virtual filesystem to a dependency or successor?
 
-A parser generator writes a helper and a new Build entry into a private memory
-filesystem. The preparing Build wants the interpreter to run that entry and
-resolve its helper from the same frozen directory. May it pass that owned
-directory directly to its plan, or must the caller have installed the directory
-as a mount before the preparing Build started?
+A parser generator creates a private memory directory containing a Build entry,
+its imports and a data file the entry reads. How can the parent construct and
+hand off that view for source capture or for the child's runtime filesystem?
+Can it transfer the directory directly, or must it use a mount installed by
+its caller? The [generated-source contract](wiki/spec/build/execution.md#generated-source-boundary)
+defines when the compiler freezes its input. The [child filesystem contract](wiki/spec/build/scoped_execution.md#supplying-a-filesystem-to-a-child-build)
+defines backing custody and borrow duration. The public virtual-backing and
+handoff API remains open.
 
-The plan selects the next source view, the driver freezes it after the dependency
-join, and the compiler reads ordinary package-relative paths from it. The default
-filesystem has a read-only package and writable scratch. Exporting an artifact
-and selecting the source view are separate operations. The child filesystem
-grant describes the backing under which that child runs. These contracts leave
-the public operand for selecting the next compilation's root open.
-[Generated-source boundary](wiki/spec/build/execution.md#generated-source-boundary) ·
-[Checked Build stages](wiki/spec/build/scoped_execution.md#checked-build-stages) ·
-[Filesystem views](wiki/spec/build/scoped_execution.md#inputs-and-default-filesystem) ·
-[Per-child delegation](wiki/spec/build/scoped_execution.md#supplying-a-filesystem-to-a-child-build)
+<a id="unnamed-workspace-check-discovery"></a>
+### 3. How does an unnamed check identify its workspace among enclosing Build entries?
 
-**Recommend accepting an ordinary directory view that the plan can retain
-through handoff.** The generator can transfer its owned view. A borrowed view
-needs backing that stays valid through the join and freeze. A caller-installed
-directory also works under this contract. Selecting only a path on the
-installed provider would keep the public operand smaller, but would require a
-generator using private backing to obtain a mount or copy its complete tree.
-The Rust toolchain still exposes per-file `Build::include_source`. Core declares
-the filesystem authority identities and system's filesystem service exposes
-path and file operations. Neither provides this whole-view operand.
-[Current Build operations](source-rust/subsystems/compiler/build/inputs/declarations/prelude/modules/build_operations.omg) ·
-[Filesystem authority](source/library/core/filesystem_authority.omg) ·
-[System filesystem service](source/library/system/filesystem.omg)
+`omega --check` inside a workspace selects every declared member. A member and
+its enclosing workspace can each have a `build.omg`. The workspace can compute
+its roster through helpers and later Build stages, so filenames and the text of
+an individual source file cannot establish membership. Running every enclosing
+Build to inspect its return can execute an unrelated ancestor's program. The
+source-based workflow has no persistent workspace marker.
+
+Should tooling require the caller to name the catalog when it finds multiple
+enclosing Build entries, or should a workspace declare a discoverable identity
+outside Build execution? Recommend the explicit path in the ambiguous case.
+`omega --check ../build.omg` can execute that catalog and validate its actual
+members. A single enclosing entry remains discoverable from a subdirectory.
+
+[Command vocabulary](wiki/spec/build/command_line.md#command-vocabulary) ·
+[Workspaces](wiki/spec/build/declarations.md#workspaces) ·
+[Validation subjects](wiki/spec/build/validation_subjects.md#subjects)

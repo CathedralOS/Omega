@@ -45,8 +45,10 @@ Every positive place binds `ProgramEntry` for all four hosted targets
 Psi interpreter and native execution agreement:
 
 ```sh
-target/debug/omega run --both samples/cli/facts/generic_comparison_body/<place>/main.omg < /dev/null
-target/debug/omega run --both samples/cli/facts/generic_comparison_body/<place>/invalid/main.omg < /dev/null
+target/debug/omega run --engine native samples/cli/facts/generic_comparison_body/<place>/main.omg < /dev/null
+target/debug/omega run --engine psi samples/cli/facts/generic_comparison_body/<place>/main.omg < /dev/null
+target/debug/omega run --engine native samples/cli/facts/generic_comparison_body/<place>/invalid/main.omg < /dev/null
+target/debug/omega run --engine psi samples/cli/facts/generic_comparison_body/<place>/invalid/main.omg < /dev/null
 ```
 
 Measured at base `c1c6bc8cb8ec886f645976a82e496d4191937339` on macOS arm64

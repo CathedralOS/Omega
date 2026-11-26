@@ -80,7 +80,8 @@ From the repository root, using a compiler built from recorded source:
 omega packages update --project samples/cli/independent/planar_truss_elasticity --target linux_x86_64
 # Inspect pending review decisions and accept only authorized decisions, then:
 omega packages update --resume --project samples/cli/independent/planar_truss_elasticity
-omega run --both samples/cli/independent/planar_truss_elasticity/main.omg < samples/cli/independent/planar_truss_elasticity/input.txt
+omega run --engine native samples/cli/scientific/planar_truss_elasticity/main.omg < samples/cli/scientific/planar_truss_elasticity/input.txt
+omega run --engine psi samples/cli/scientific/planar_truss_elasticity/main.omg < samples/cli/scientific/planar_truss_elasticity/input.txt
 /absolute/path/to/terminal-validator /absolute/path/to/sample /absolute/path/to/captures
 ```
 

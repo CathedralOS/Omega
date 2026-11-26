@@ -278,11 +278,16 @@ enum DescriptorPrefix {
 /// A forgotten public region has no address at all, which keeps the
 /// two kinds of inexact bound apart.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-enum AddressStep {    Path(Vec<StructuralPathSegment>, Option<Position>),
+enum AddressStep {
+    Path(Vec<StructuralPathSegment>, Option<Position>),
     Window {
         start: ValueId,
         end: ValueId,
         at: Position,
+        /// The same instruction selected this window from a previous
+        /// result of itself. Each selection stays inside its predecessor,
+        /// but a single execution's offsets cannot identify the result.
+        repeated: bool,
     },
     /// A callee's ordinal cannot be used as a caller-local scalar. Only an
     /// index captured at a live producer instruction can name a returned element.
@@ -354,6 +359,11 @@ impl Projection {
             self.captured_at = Some(position);
         }
         self
+    }
+
+    pub(crate) fn is_captured_element(&self) -> bool {
+        matches!(self.address.as_deref(), Some([AddressStep::Path(steps, Some(_))])
+            if matches!(steps.as_slice(), [StructuralPathSegment::RuntimeIndex { .. }]))
     }
 
     /// Recover the complete captured address, including fields after a
@@ -602,6 +612,7 @@ impl Projection {
                 start,
                 end,
                 at: position,
+                repeated: false,
             });
         }
         self.exact = false;
@@ -650,8 +661,8 @@ impl Projection {
             let mut erased = Vec::with_capacity(steps.len());
             for step in steps {
                 match step {
-                    AddressStep::Window { start, end, at } => {
-                        let interval = producer_position(at)
+                    AddressStep::Window { start, end, at, repeated } => {
+                        let interval = (!repeated && producer_position(at))
                             .then(|| known_index(start).zip(known_index(end))).flatten();
                         erased.push(AddressStep::ErasedWindow { interval });
                     }
@@ -805,8 +816,9 @@ impl Projection {
         };
         for step in self.address.as_ref()? {
             match step {
-                AddressStep::Window { start, at, .. } => {
-                    append_offset(&mut offset, known_unsigned(*at, *start))?
+                AddressStep::Window { start, at, repeated, .. } => {
+                    let start = (!repeated).then(|| known_unsigned(*at, *start)).flatten();
+                    append_offset(&mut offset, start)?
                 }
                 AddressStep::ErasedWindow { .. } => append_offset(&mut offset, None)?,
                 AddressStep::ErasedElement { .. } => {
@@ -886,32 +898,44 @@ impl Projection {
                             | AddressStep::ErasedWindow { .. } => 1,
                         })
                     })?;
-                    if work > 4096
-                        || suffix.iter().any(|step| {
-                            prefix.iter().any(|prior| match (prior, step) {
-                                (
-                                    AddressStep::Window { at: before, .. },
-                                    AddressStep::Window { at, .. },
-                                ) => before == at,
-                                (
-                                    AddressStep::Path(previous, Some(before)),
-                                    AddressStep::Path(path, Some(at)),
-                                ) if before == at => path
-                                    .iter()
-                                    .filter_map(StructuralPathSegment::runtime_index)
-                                    .any(|selector| {
-                                        previous.iter().any(|segment| {
-                                            segment.runtime_index() == Some(selector)
-                                        })
-                                    }),
-                                _ => false,
-                            })
-                        })
-                    {
+                    if work > 4096 {
                         return None;
                     }
-                    let mut steps: Vec<AddressStep> = Vec::new();
-                    for step in prefix.iter().chain(suffix) {
+                    let mut steps = prefix.to_vec();
+                    for step in suffix {
+                        if let AddressStep::Window { start, end, at, .. } = step {
+                            if let Some(AddressStep::Window {
+                                start: previous_start,
+                                end: previous_end,
+                                at: previous_at,
+                                repeated,
+                            }) = steps.last_mut()
+                                && (*previous_start, *previous_end, *previous_at) == (*start, *end, *at)
+                            {
+                                *repeated = true;
+                                continue;
+                            }
+                            if steps.iter().any(|prior| {
+                                matches!(prior, AddressStep::Window { at: previous, .. } if previous == at)
+                            })
+                            {
+                                return None;
+                            }
+                        }
+                        if let AddressStep::Path(path, Some(at)) = step
+                            && steps.iter().any(|prior| {
+                                let AddressStep::Path(previous, Some(before)) = prior else {
+                                    return false;
+                                };
+                                at == before && path.iter()
+                                    .filter_map(StructuralPathSegment::runtime_index)
+                                    .any(|selector| previous.iter().any(|segment| {
+                                        segment.runtime_index() == Some(selector)
+                                    }))
+                            })
+                        {
+                            return None;
+                        }
                         if let AddressStep::Path(path, at) = step
                             && let Some(AddressStep::Path(previous, captured)) =
                                 steps.last_mut()
@@ -939,6 +963,14 @@ impl Projection {
             composed.exact = suffix.exact;
             composed.window = suffix.window;
             composed.captured_at = suffix.captured_at;
+        }
+        if composed.address.as_ref().is_some_and(|steps| {
+            steps
+                .iter()
+                .any(|step| matches!(step, AddressStep::Window { repeated: true, .. }))
+        }) {
+            // A later pass can give the same instruction different bounds.
+            composed.captured_at = None;
         }
         composed
     }

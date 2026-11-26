@@ -5,7 +5,8 @@ inside a predicate domain. This smaller program also exercises embedding in a
 data invariant and reads the classified values natively.
 
 ```text
-omega run --both samples/cli/memory/declaration_predicate_calls/main.omg
+omega run --engine native samples/cli/memory/declaration_predicate_calls/main.omg
+omega run --engine psi samples/cli/memory/declaration_predicate_calls/main.omg
 ```
 
 Expected exit: 0 in both native and Terminal execution. The program exercises

@@ -16,7 +16,8 @@ including parsing and rewriting. The CLI routes each implemented action to its
 owner.
 
 ```text
-omega [--check [--floor-only]] [--verify] [--validator <ExactName>]... [--every-validator] <root.omg>
+omega [--verify] [--validator <ExactName>]... [--every-validator] <root.omg>
+omega --check [--floor-only] [--verify] [--validator <ExactName>]... [--every-validator] [<root.omg>]
 omega build [--allow Network] [--allow ProgramLaunch] [--program <identity> <executable> [--program-read <path>]... [--program-write <path>]... [--program-timeout <milliseconds>]]... [--compare-tests] <root.omg>
 omega run [--engine native|psi] [--target <name>] <root.omg>
 omega source parse [--] <file>

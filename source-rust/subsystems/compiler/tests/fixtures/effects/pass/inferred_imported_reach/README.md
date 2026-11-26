@@ -5,7 +5,8 @@ boundary. Its call to `fetch_mark` reaches `Mark::read` through the private
 From `consumer/`, run the hosted program with:
 
 ```sh
-omega run --both --build-input build.omg --build-input main.omg main.omg
+omega run --engine native --build-input build.omg --build-input main.omg main.omg
+omega run --engine psi --build-input build.omg --build-input main.omg main.omg
 ```
 
 Both engines must exit 0 after checking that the provider returns seven.

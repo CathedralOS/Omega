@@ -5,7 +5,7 @@ use platform_custody::temporary_directory::TemporaryDirectory;
 use std::{fs, process::Command};
 
 #[test]
-fn root_registration_preserves_each_class_of_an_exposed_core_service() {
+fn review_classifies_exposed_core_services_by_identity_and_preserves_root_registrations() {
     let project = TemporaryDirectory::create("overlapping-service-audits", false).unwrap();
     fs::write(
         project.path().join("build.omg"),
@@ -21,6 +21,11 @@ machine build(builder: @mutable Build) {
     fs::write(
         project.path().join("main.omg"),
         r#"use {omega}/language/core/process_authority.omg as process;
+use {omega}/language/core/network_authority.omg as net;
+boundary trait PacketWriter: |net|::NetworkSend {}
+boundary trait Network {}
+public machine send_ceiling() reaches PacketWriter {}
+public machine local_ceiling() reaches Network {}
 public machine output_ceiling() reaches |process|::StandardOutput {}"#,
     )
     .unwrap();
@@ -42,7 +47,7 @@ public machine output_ceiling() reaches |process|::StandardOutput {}"#,
     );
     let summary = report.split_once("  dangerous-authority ").unwrap().1;
     let summary = summary.split_once("  external-supplies ").unwrap().0;
-    let findings: Vec<_> = summary
+    let mut findings: Vec<_> = summary
         .lines()
         .filter_map(|line| {
             let (class, owned_service) = line.trim().split_once(" toolchain[")?;
@@ -50,15 +55,18 @@ public machine output_ceiling() reaches |process|::StandardOutput {}"#,
             Some((class, finding))
         })
         .collect();
+    findings.sort_unstable();
     let service = r#""StandardOutput""#;
     let slack = r#""StandardOutput" declared but absent from checked reach of "service_audit"::"main.omg::output_ceiling""#;
     assert_eq!(
         findings,
         [
-            ("Process", service),
             ("ConsumerAudit", service),
-            ("Process", slack),
-            ("ConsumerAudit", slack)
+            ("ConsumerAudit", slack),
+            ("Network", r#""Network""#),
+            ("Network", r#""Network" declared but absent from checked reach of "service_audit"::"main.omg::send_ceiling""#),
+            ("Process", service),
+            ("Process", slack)
         ],
         "{summary}"
     );

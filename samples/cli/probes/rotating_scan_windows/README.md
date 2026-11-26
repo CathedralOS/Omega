@@ -7,7 +7,8 @@ its old descriptor is retired. Expected exit: 0.
 
 ```sh
 omega packages update --project samples/cli/collections/rotating_scan_windows --target macos_arm64
-omega run --both samples/cli/collections/rotating_scan_windows/main.omg
+omega run --engine native samples/cli/collections/rotating_scan_windows/main.omg
+omega run --engine psi samples/cli/collections/rotating_scan_windows/main.omg
 ```
 
 The helper uses a fixed element of a runtime-length view. Its checked bound

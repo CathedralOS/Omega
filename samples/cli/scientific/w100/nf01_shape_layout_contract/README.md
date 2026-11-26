@@ -11,7 +11,8 @@ From the repository root, for each consumer:
 omega packages update --project samples/cli/scientific/w100/nf01_shape_layout_contract/readonly_consumer --target linux_x86_64
 omega --check samples/cli/scientific/w100/nf01_shape_layout_contract/readonly_consumer/main.omg
 omega run samples/cli/scientific/w100/nf01_shape_layout_contract/readonly_consumer/main.omg
-omega run --both samples/cli/scientific/w100/nf01_shape_layout_contract/readonly_consumer/main.omg < /dev/null
+omega run --engine native samples/cli/scientific/w100/nf01_shape_layout_contract/readonly_consumer/main.omg < /dev/null
+omega run --engine psi samples/cli/scientific/w100/nf01_shape_layout_contract/readonly_consumer/main.omg < /dev/null
 ```
 
 Repeat with `mutable_consumer`. Check `invalid_control/main.omg` expecting

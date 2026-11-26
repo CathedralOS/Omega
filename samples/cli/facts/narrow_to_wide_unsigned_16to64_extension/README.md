@@ -35,16 +35,7 @@ The nine positive places and nine reject twins are pinned in the compiler corpus
 Run each positive place with `omega run --both`:
 
 ```sh
-omega run --both samples/cli/facts/narrow_to_wide_unsigned_16to64_extension/main.omg
-omega run --both samples/cli/facts/narrow_to_wide_unsigned_16to64_extension/local/main.omg
-omega run --both samples/cli/facts/narrow_to_wide_unsigned_16to64_extension/field/main.omg
-omega run --both samples/cli/facts/narrow_to_wide_unsigned_16to64_extension/parameter/main.omg
-omega run --both samples/cli/facts/narrow_to_wide_unsigned_16to64_extension/call_result/main.omg
-omega run --both samples/cli/facts/narrow_to_wide_unsigned_16to64_extension/match_join/main.omg
-omega run --both samples/cli/facts/narrow_to_wide_unsigned_16to64_extension/const_name/main.omg
-omega run --both samples/cli/facts/narrow_to_wide_unsigned_16to64_extension/other_state/main.omg
-omega run --both samples/cli/facts/narrow_to_wide_unsigned_16to64_extension/other_machine/main.omg
-omega run --both samples/cli/facts/narrow_to_wide_unsigned_16to64_extension/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/narrow_to_wide_unsigned_16to64_extension
 ```
 
 All 10 samples report `native exit 0` and `interp exit: 0`.

@@ -28,16 +28,7 @@ The nine places carry the preserved caller-live sum through each language constr
 All positive places and root bind `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and pass `omega run --both` with exit 0 (Terminal Psi and native execution agreement):
 
 ```sh
-omega run --both samples/cli/facts/multi_exit_callee_saved_restoration/main.omg
-omega run --both samples/cli/facts/multi_exit_callee_saved_restoration/local/main.omg
-omega run --both samples/cli/facts/multi_exit_callee_saved_restoration/field/main.omg
-omega run --both samples/cli/facts/multi_exit_callee_saved_restoration/parameter/main.omg
-omega run --both samples/cli/facts/multi_exit_callee_saved_restoration/call_result/main.omg
-omega run --both samples/cli/facts/multi_exit_callee_saved_restoration/match_join/main.omg
-omega run --both samples/cli/facts/multi_exit_callee_saved_restoration/const_name/main.omg
-omega run --both samples/cli/facts/multi_exit_callee_saved_restoration/other_state/main.omg
-omega run --both samples/cli/facts/multi_exit_callee_saved_restoration/other_machine/main.omg
-omega run --both samples/cli/facts/multi_exit_callee_saved_restoration/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/multi_exit_callee_saved_restoration
 ```
 
 Each place has an `invalid/` twin whose caller live value is broken (`k3 = 29u64` instead of `30u64`, or `BASE_K1 = 9u64` instead of `10u64`), causing the combined sum to be `99u64` and exact subtraction `total - 100u64` to fail compilation with `exact arithmetic in machine ... may overflow \`u64\`` (`exact subtraction underflow`). Check each twin with:

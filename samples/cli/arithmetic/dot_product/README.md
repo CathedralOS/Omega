@@ -1,7 +1,8 @@
 # Dot product
 
 ```sh
-omega run --both samples/cli/arithmetic/dot_product/main.omg
+omega run --engine native samples/cli/arithmetic/dot_product/main.omg
+omega run --engine psi samples/cli/arithmetic/dot_product/main.omg
 ```
 
 The complete program computes `[1,2,3] · [4,5,6] = 32`, prints its three

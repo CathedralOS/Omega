@@ -1,4 +1,7 @@
 //! The preparing Build chooses which package implementation the next Build calls.
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+mod support;
+
 use platform_custody::temporary_directory::TemporaryDirectory;
 use std::fs;
 use std::process::{Command, Output, Stdio};
@@ -18,6 +21,12 @@ public TwentyThree satisfies |api|::Meter {
 const PRODUCT_ENTRIES: &str = r#"public machine return_normally() {}
 public machine trap() crashes Trap { crash Trap; }"#;
 
+#[derive(Clone, Copy)]
+enum ProviderSource {
+    Dependency,
+    Local,
+}
+
 enum ProductEntries {
     Separate,
     SharedWithBuild,
@@ -26,30 +35,42 @@ enum ProductEntries {
 fn project(
     target: &str,
     provider: Option<&str>,
+    source: ProviderSource,
     before_read: &str,
     entries: ProductEntries,
 ) -> TemporaryDirectory {
     let sandbox = TemporaryDirectory::create("staged-build-providers", false).unwrap();
     let app = sandbox.path().join("app");
-    let meter = sandbox.path().join("meter");
     fs::create_dir(&app).unwrap();
-    fs::create_dir(&meter).unwrap();
-    fs::write(
-        meter.join("build.omg"),
-        r#"machine build(builder: @mutable Build) { Build::package(builder, "meter"); }"#,
-    )
-    .unwrap();
+    let (meter, import_root, registration) = match source {
+        ProviderSource::Local => (app.clone(), "", ""),
+        ProviderSource::Dependency => {
+            let meter = sandbox.path().join("meter");
+            fs::create_dir(&meter).unwrap();
+            fs::write(
+                meter.join("build.omg"),
+                r#"machine build(builder: @mutable Build) { Build::package(builder, "meter"); }"#,
+            )
+            .unwrap();
+            (
+                meter,
+                "{meter}/",
+                r#"let source: DependencyDescription = |dependency|::from_source(Source::Path { location: "../meter" });
+    _ = Build::dependency(builder, source);"#,
+            )
+        }
+    };
     fs::write(meter.join("main.omg"), SERVICE).unwrap();
     fs::write(meter.join("backings.omg"), BACKINGS).unwrap();
 
     let (provider_files, selection) = match provider {
         Some(name) => (
-            "use {meter}/main.omg as api; use {meter}/backings.omg;",
+            format!("use {import_root}main.omg as api; use {import_root}backings.omg;"),
             format!(
                 "Build::select_provider::<|api|::Meter, |backings|::{name}>(builder, interpreter);"
             ),
         ),
-        None => ("", String::new()),
+        None => (String::new(), String::new()),
     };
     fs::write(
         app.join("build.omg"),
@@ -57,8 +78,7 @@ fn project(
             r#"use {{omega}}/build/dependency.omg;
 {provider_files}
 machine build(builder: @mutable Build) {{
-    let source: DependencyDescription = |dependency|::from_source(Source::Path {{ location: "../meter" }});
-    _ = Build::dependency(builder, source);
+    {registration}
     Build::build_entry(builder, "configure.omg");
     {selection}
 }}"#
@@ -75,7 +95,7 @@ machine build(builder: @mutable Build) {{
     fs::write(
         app.join("configure.omg"),
         format!(
-            r#"use {{meter}}/main.omg as api;
+            r#"use {import_root}main.omg as api;
 {product_import}
 machine build(builder: @mutable Build) {{
     {before_read}
@@ -109,6 +129,10 @@ fn run(project: &TemporaryDirectory, engine: &str) -> (Output, String) {
             "configure.omg",
             "--optional-build-input",
             "product.omg",
+            "--optional-build-input",
+            "main.omg",
+            "--optional-build-input",
+            "backings.omg",
             "build.omg",
         ])
         .stdin(Stdio::null())
@@ -127,31 +151,35 @@ fn changing_only_the_interpreter_selection_changes_the_final_product() {
     let Some(host) = target::TargetProfile::host_if_supported() else {
         return;
     };
-    for (provider, psi_termination, native_trap) in [
-        ("Seventeen", "psi\treturn", false),
-        ("TwentyThree", "psi\tcrash\tTrap", true),
-    ] {
-        let fixture = project(
-            host.target_name(),
-            Some(provider),
-            "",
-            ProductEntries::Separate,
-        );
-        for engine in ["native", "psi"] {
-            let (output, report) = run(&fixture, engine);
-            assert!(output.status.success(), "{provider} {engine}: {report}");
-            let termination =
-                fs::read_to_string(fixture.path().join(engine).join("termination.tsv")).unwrap();
-            if engine == "psi" {
-                assert_eq!(termination.trim_end(), psi_termination, "{provider}");
-            } else {
-                let columns: Vec<_> = termination.trim_end().split('\t').collect();
-                let expected = if native_trap {
-                    matches!(columns.as_slice(), ["native", _, _, "trap", _])
+    for source in [ProviderSource::Dependency, ProviderSource::Local] {
+        for (provider, psi_termination, native_trap) in [
+            ("Seventeen", "psi\treturn", false),
+            ("TwentyThree", "psi\tcrash\tTrap", true),
+        ] {
+            let fixture = project(
+                host.target_name(),
+                Some(provider),
+                source,
+                "",
+                ProductEntries::Separate,
+            );
+            for engine in ["native", "psi"] {
+                let (output, report) = run(&fixture, engine);
+                assert!(output.status.success(), "{provider} {engine}: {report}");
+                let termination =
+                    fs::read_to_string(fixture.path().join(engine).join("termination.tsv"))
+                        .unwrap();
+                if engine == "psi" {
+                    assert_eq!(termination.trim_end(), psi_termination, "{provider}");
                 } else {
-                    matches!(columns.as_slice(), ["native", "exit", "0", _, _])
-                };
-                assert!(expected, "{provider}: {termination}");
+                    let columns: Vec<_> = termination.trim_end().split('\t').collect();
+                    let expected = if native_trap {
+                        matches!(columns.as_slice(), ["native", _, _, "trap", _])
+                    } else {
+                        matches!(columns.as_slice(), ["native", "exit", "0", _, _])
+                    };
+                    assert!(expected, "{provider}: {termination}");
+                }
             }
         }
     }
@@ -160,7 +188,13 @@ fn changing_only_the_interpreter_selection_changes_the_final_product() {
 #[test]
 fn a_successor_with_an_unmapped_service_cannot_begin_execution() {
     let poison = r#"Build::build_entry(builder, "../successor-started.omg");"#;
-    let fixture = project("linux_x86_64", None, poison, ProductEntries::Separate);
+    let fixture = project(
+        "linux_x86_64",
+        None,
+        ProviderSource::Dependency,
+        poison,
+        ProductEntries::Separate,
+    );
     let (output, report) = run(&fixture, "psi");
     assert!(!output.status.success(), "{report}");
     assert!(
@@ -178,6 +212,7 @@ fn a_shared_product_entry_cannot_use_the_builds_meter_dependency() {
     let fixture = project(
         "linux_x86_64",
         Some("Seventeen"),
+        ProviderSource::Dependency,
         "",
         ProductEntries::SharedWithBuild,
     );
@@ -188,4 +223,94 @@ fn a_shared_product_entry_cannot_use_the_builds_meter_dependency() {
         "{report}"
     );
     assert!(report.contains("configure.omg:1:5"), "{report}");
+}
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[test]
+fn sandbox_standard_output_and_system_editor_guide() {
+    use package_manager::operations::begin_local_project_preparation;
+    use target::TargetProfile;
+
+    let target = TargetProfile::LinuxX64;
+    let root = support::repository_root();
+    package_compilation::toolchain_library::configure(&root.join("source/library")).unwrap();
+    let work = TemporaryDirectory::create("stock-successor-console", false).unwrap();
+    let project = work.path().join("editor");
+    let vendor = project.join("vendor/system");
+    fs::create_dir_all(&vendor).unwrap();
+    let system = begin_local_project_preparation(
+        &root.join("source/library/system/build.omg"),
+        &[target],
+        true,
+    )
+    .unwrap()
+    .acquire_root()
+    .unwrap();
+    let captured = system.source_capture().tree();
+    for (path, _) in captured
+        .entries()
+        .filter(|(p, _)| p.extension().is_some_and(|e| e == "omg"))
+    {
+        let destination = vendor.join(path);
+        fs::create_dir_all(destination.parent().unwrap()).unwrap();
+        fs::write(
+            destination,
+            captured.read_to_string(path).unwrap().as_bytes(),
+        )
+        .unwrap();
+    }
+    let guide = fs::read_to_string(root.join("wiki/language_guide/packages.md")).unwrap();
+    let (_, guide) = guide
+        .split_once("## Using the same console in a Build and an application")
+        .expect("the packages guide contains the staged editor");
+    for filename in ["build.omg", "build_0.omg", "generated.omg", "main.omg"] {
+        let opening = format!("```omega\n// {filename}");
+        let (_, example) = guide
+            .split_once(&opening)
+            .expect("the guide names its source file");
+        let (_, source) = example.split_once('\n').unwrap();
+        let (source, _) = source.split_once("\n```").unwrap();
+        fs::write(project.join(filename), source).unwrap();
+    }
+
+    let outputs = work.path().join("outputs");
+    fs::create_dir(&outputs).unwrap();
+    let product = package_manager::project::open_product(
+        &project.join("build.omg"),
+        target,
+        true,
+        &outputs,
+        None,
+    )
+    .expect("run the staged guide under the package driver");
+    assert_eq!(product.evaluated().preparations.len(), 1);
+    let summary = product
+        .evaluated()
+        .configuration
+        .observation_summary
+        .as_ref()
+        .unwrap();
+    assert_eq!(summary.build_log(), b"configuring editor\n");
+
+    let plan = product.product_stage(&[target]).unwrap();
+    let program = plan.program(target, Vec::new()).unwrap();
+    let compiler::Artifact::Native(output) = compiler::compile(
+        compiler::CompileRequest::Native {
+            program,
+            entry_memory: &[],
+        },
+        Default::default(),
+    )
+    .expect("compile the editor using the stock native provider")
+    .artifact
+    else {
+        panic!("expected a native application");
+    };
+    let file = work.path().join("editor.elf");
+    let artifact = output.retained_native_artifact().unwrap();
+    fs::write(&file, &artifact.image().output().bytes).unwrap();
+    platform_custody::file_publication::make_executable(&file).unwrap();
+    let execution = Command::new(file).output().unwrap();
+    assert!(execution.status.success(), "{execution:?}");
+    assert_eq!(execution.stdout, b"editor started\n");
 }

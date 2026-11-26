@@ -96,7 +96,8 @@ omega packages update --project samples/cli/independent/mold_front_vent_analysis
 # then use omega packages update --resume --project <same-directory> when required.
 omega --check --target linux_x86_64 samples/cli/independent/mold_front_vent_analysis/main.omg
 omega --target linux_x86_64 samples/cli/independent/mold_front_vent_analysis/main.omg
-omega run --both --keep samples/cli/independent/mold_front_vent_analysis/main.omg < samples/cli/independent/mold_front_vent_analysis/data/merging.in
+omega run --engine native --keep samples/cli/scientific/mold_front_vent_analysis/main.omg < samples/cli/scientific/mold_front_vent_analysis/data/merging.in
+omega run --engine psi --keep samples/cli/scientific/mold_front_vent_analysis/main.omg < samples/cli/scientific/mold_front_vent_analysis/data/merging.in
 omega --check --target linux_x86_64 samples/cli/independent/mold_front_vent_analysis/controls/out_of_bounds/main.omg
 ```
 

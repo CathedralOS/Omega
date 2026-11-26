@@ -13,9 +13,7 @@ mod contents {
 
     use super::ElfComponentExport;
     use crate::bytes::name_at;
-    use crate::dynamic_executable::import_sections::dynamic_sections::{
-        ElfDynamicSymbol, build_sysv_hash, derive_shared_import_contents,
-    };
+    use crate::dynamic_tables::{ElfDynamicSymbol, build_sysv_hash, derive_shared_import_contents};
     use crate::imports::canonical_referenced_imports;
 
     const PAGE: usize = 0x1_0000;

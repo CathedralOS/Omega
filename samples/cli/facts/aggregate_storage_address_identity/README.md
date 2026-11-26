@@ -38,7 +38,7 @@ across the shared address operand. It must still reject the overlapping loan.
 Reproduce one positive and its control:
 
 ```sh
-omega run --both samples/cli/facts/aggregate_storage_address_identity/local/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/aggregate_storage_address_identity/local
 omega --check samples/cli/facts/aggregate_storage_address_identity/invalid_local/main.omg
 ```
 

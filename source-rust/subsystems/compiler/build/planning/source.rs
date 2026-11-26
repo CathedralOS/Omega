@@ -69,6 +69,7 @@ pub(super) struct PlanningSource {
 
 /// The opened Product and the exact Build and package graph that admitted it.
 pub struct PlannedProduct {
+    pub(super) supplied_build_libraries: Arc<[SuppliedBuildLibrary]>,
     pub(crate) evaluated: EvaluatedBuild,
     pub(crate) build_profile: TargetProfile,
     pub(super) runtime_consents: Option<Vec<TerminalPermissionAcceptance>>,
@@ -199,6 +200,7 @@ pub fn prepare(
     let mut entry = CapturedBuildEntry::Initial(request.root);
     let mut preparations = super::BuildPreparations::default();
     let successor_source;
+    let successor_owner;
     let mut execution = request.execution;
     let (inputs, capture, supplied_libraries) = match request.sources {
         PlanningSources::Captured(capture) => (None, Some(capture), Vec::new()),
@@ -213,9 +215,11 @@ pub fn prepare(
             }
             execution.interpreter_providers = successor.providers;
             successor_source = successor.capture;
+            successor_owner = successor.source_owner;
             preparations = successor.preparations;
             entry = CapturedBuildEntry::Successor {
                 path: request.root,
+                source_owner: successor_owner.as_ref(),
                 previous_build_files: &preparations.files,
             };
             (None, Some(&successor_source), successor.libraries)
@@ -272,7 +276,7 @@ pub fn prepare(
     // A dependency Build checks only what its entry reaches, so typing its
     // file under a check-only owner would produce a subject nothing judges.
     let check_only_subject =
-        if execution.checks_whole_subject_first(inputs, assembled.anonymous_owner.is_some()) {
+        if execution.checks_whole_subject_first(inputs, assembled.anonymous_owner.as_ref()) {
             check_only_subject(&assembled, &preparation, profile, &supplied_libraries)?
         } else {
             None
@@ -357,7 +361,9 @@ fn resolve(
                 .map(|inputs| {
                     inputs.declaration_scope(build_declarations::DependencyPurpose::Build)
                 })
-                .or_else(|| SuppliedBuildLibrary::declaration_scope(libraries, None))
+                .or_else(|| {
+                    SuppliedBuildLibrary::declaration_scope(libraries, assembled.build_owner())
+                })
                 .map(Arc::new),
         )
         .map_err(|rows| locate_failure(rows.into(), &assembled.parsed.files, inputs))
@@ -540,6 +546,7 @@ impl PlanningSource {
             })?
             .1;
         Ok(PlannedProduct {
+            supplied_build_libraries: self.supplied_libraries,
             evaluated,
             build_profile: self.profile,
             runtime_consents: None,

@@ -74,8 +74,6 @@ pub(super) struct Family {
     /// -> indices into `bodies`. A name defined twice is followed to both.
     machines: HashMap<String, Vec<usize>>,
     files: HashMap<PathBuf, AdapterFile>,
-    /// Each Build provider is named in its directory namespace.
-    providers: HashMap<PathBuf, BTreeMap<String, Member>>,
     pub(super) selected: BTreeMap<String, BTreeMap<String, usize>>,
 }
 
@@ -85,6 +83,7 @@ struct MachineBody {
 }
 
 struct AdapterFile {
+    providers: HashMap<String, BTreeMap<String, Member>>,
     aliases: HashMap<String, PathBuf>,
     machines: HashMap<String, usize>,
 }
@@ -114,6 +113,7 @@ impl Family {
     fn add_source(&mut self, file: &Path, text: &str) -> Result<(), String> {
         let aliases = file_aliases(text);
         let mut machines = HashMap::new();
+        let mut providers = HashMap::new();
         for (kind, body) in split_toplevel(text) {
             match kind {
                 TopLevel::Machine(name) => {
@@ -135,13 +135,9 @@ impl Family {
                     });
                 }
                 TopLevel::Provider(name) => {
-                    let qualified = file.with_file_name(name);
                     let members = read_provider_members(file, body, &aliases, &mut self.bodies)?;
-                    if self.providers.insert(qualified, members).is_some() {
-                        return Err(format!(
-                            "duplicate provider `{name}` in the module containing {}",
-                            file.display()
-                        ));
+                    if providers.insert(name.to_string(), members).is_some() {
+                        return Err(format!("duplicate provider `{name}` in {}", file.display()));
                     }
                 }
                 TopLevel::Other => {}
@@ -151,27 +147,34 @@ impl Family {
             .into_iter()
             .map(|(name, path)| (name.to_owned(), PathBuf::from(path)))
             .collect();
-        self.files
-            .insert(file.to_owned(), AdapterFile { aliases, machines });
+        self.files.insert(
+            file.to_owned(),
+            AdapterFile {
+                aliases,
+                machines,
+                providers,
+            },
+        );
         Ok(())
     }
 
-    fn provider(&self, name: &str) -> Option<&BTreeMap<String, Member>> {
-        let mut path = PathBuf::new();
-        for part in name.split('\\') {
-            if ident(part) != Some(part) {
-                return None;
-            }
-            path.push(part);
-        }
-        self.providers.get(&path)
-    }
-
-    /// Install only the provider selected for this service on this target.
-    pub(super) fn select(&mut self, service: &str, provider: &str) -> Result<(), String> {
+    /// Look up the provider in the exact file selected by the Build.
+    pub(super) fn select(
+        &mut self,
+        service: &str,
+        file: &Path,
+        provider: &str,
+    ) -> Result<(), String> {
         let members = self
-            .provider(provider)
-            .ok_or_else(|| format!("{service}: cannot find selected provider `{provider}`"))?;
+            .files
+            .get(file)
+            .and_then(|source| source.providers.get(provider))
+            .ok_or_else(|| {
+                format!(
+                    "{service}: cannot find provider `{provider}` in {}",
+                    file.display()
+                )
+            })?;
         let mut selected = BTreeMap::new();
         for (name, body) in members {
             let index = match body {
@@ -479,7 +482,7 @@ mod tests {
         let mut family = Family::default();
         family.add_source(Path::new("helpers.omg"), text).unwrap();
         assert!(family.machines.contains_key("Target::bits"));
-        family.select("S", "P").unwrap();
+        family.select("S", Path::new("helpers.omg"), "P").unwrap();
         let got: Vec<String> = family
             .member_facts(family.selected["S"]["go"])
             .unwrap()
@@ -489,33 +492,26 @@ mod tests {
     }
 
     #[test]
-    fn provider_selection_uses_the_module_and_the_local_name() {
+    fn same_named_providers_in_sibling_files_stay_distinct() {
         let mut family = Family::default();
         for (file, result) in [
-            ("root.omg", "Root"),
-            ("targets/windows/filesystem/provider.omg", "Windows"),
-            ("targets/posix/other_file.omg", "Posix"),
+            ("adapters/left.omg", "Left"),
+            ("adapters/right.omg", "Right"),
         ] {
             let source = format!("Adapter satisfies S {{\n    machine go() {{ {result} }}\n}}\n");
             family.add_source(Path::new(file), &source).unwrap();
         }
-        for (selection, result) in [
-            ("Adapter", "Root"),
-            (r"targets\windows\filesystem\Adapter", "Windows"),
-            (r"targets\posix\Adapter", "Posix"),
+        for (file, result) in [
+            ("adapters/left.omg", "Left"),
+            ("adapters/right.omg", "Right"),
         ] {
-            family.select("S", selection).unwrap();
+            family.select("S", Path::new(file), "Adapter").unwrap();
             let body = &family.bodies[family.selected["S"]["go"]].text;
-            assert!(body.contains(result), "{selection}: {body}");
+            assert!(body.contains(result), "{file}: {body}");
         }
-        assert!(family.provider(r"targets\missing\Adapter").is_none());
-        assert!(family.provider("targets/posix/Adapter").is_none());
         assert!(
             family
-                .add_source(
-                    Path::new("another_root_file.omg"),
-                    "Adapter satisfies S {\n}\n"
-                )
+                .select("S", Path::new("missing.omg"), "Adapter")
                 .is_err()
         );
     }
@@ -568,19 +564,27 @@ Missing satisfies |raw|::Raw {
                 "machine fetch() { R::Err { kind: ErrorKind::WrongFile } }\n",
             )
             .unwrap();
-        family.select("Portable", "PortableAdapter").unwrap();
+        family
+            .select("Portable", Path::new("portable.omg"), "PortableAdapter")
+            .unwrap();
         let root = family.selected["Portable"]["go"];
-        family.select("Raw", "Chosen").unwrap();
+        family
+            .select("Raw", Path::new("selection.omg"), "Chosen")
+            .unwrap();
         assert_eq!(
             family.member_facts(root).unwrap(),
             BTreeSet::from(["refuse Actual".into()])
         );
-        family.select("Raw", "Other").unwrap();
+        family
+            .select("Raw", Path::new("selection.omg"), "Other")
+            .unwrap();
         assert_eq!(
             family.member_facts(root).unwrap(),
             BTreeSet::from(["refuse OtherProvider".into()])
         );
-        family.select("Raw", "Missing").unwrap();
+        family
+            .select("Raw", Path::new("selection.omg"), "Missing")
+            .unwrap();
         let error = family.member_facts(root).unwrap_err();
         assert!(error.contains("calls `Raw::read` but its selected provider has no such member"));
     }

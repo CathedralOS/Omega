@@ -11,7 +11,8 @@ a shifted subview, zero and the maximum unsigned 64-bit key.
 After ordinary package preparation:
 
 ```sh
-cargo run -p omega -- run --both samples/cli/algorithms/record_range_search/main.omg
+mbx run -p omega -- run --engine native samples/cli/algorithms/record_range_search/main.omg
+mbx run -p omega -- run --engine psi samples/cli/algorithms/record_range_search/main.omg
 ```
 
 The midpoint uses the same live integer relationships for its Exact addition,

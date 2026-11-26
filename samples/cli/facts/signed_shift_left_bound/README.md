@@ -25,19 +25,10 @@ Subsequent exact subtraction `shifted - 100i64` is proved free of overflow/under
 
 Every positive place (and root `main.omg`) binds `ProgramEntry` for all four hosted targets
 (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) in its `build.omg` and declares `Expected exit: 0`.
-`omega run --both` verifies Terminal Psi interpreter and native execution agreement:
+The sample gate verifies Terminal Psi interpreter and native execution agreement:
 
 ```sh
-omega run --both samples/cli/facts/signed_shift_left_bound/main.omg
-omega run --both samples/cli/facts/signed_shift_left_bound/local/main.omg
-omega run --both samples/cli/facts/signed_shift_left_bound/field/main.omg
-omega run --both samples/cli/facts/signed_shift_left_bound/parameter/main.omg
-omega run --both samples/cli/facts/signed_shift_left_bound/call_result/main.omg
-omega run --both samples/cli/facts/signed_shift_left_bound/match_join/main.omg
-omega run --both samples/cli/facts/signed_shift_left_bound/const_name/main.omg
-omega run --both samples/cli/facts/signed_shift_left_bound/other_state/main.omg
-omega run --both samples/cli/facts/signed_shift_left_bound/other_machine/main.omg
-omega run --both samples/cli/facts/signed_shift_left_bound/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/signed_shift_left_bound
 ```
 
 Every positive place and the root witness observe `native exit 0` and `interp exit: 0`.

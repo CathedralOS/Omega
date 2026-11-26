@@ -33,16 +33,7 @@ Every positive place has an authored native exit oracle of zero and verifies tha
 crashing `Trap` otherwise. Run with `omega run --both`:
 
 ```sh
-omega run --both samples/cli/facts/nested_result_extent/main.omg
-omega run --both samples/cli/facts/nested_result_extent/local/main.omg
-omega run --both samples/cli/facts/nested_result_extent/field/main.omg
-omega run --both samples/cli/facts/nested_result_extent/parameter/main.omg
-omega run --both samples/cli/facts/nested_result_extent/call_result/main.omg
-omega run --both samples/cli/facts/nested_result_extent/match_join/main.omg
-omega run --both samples/cli/facts/nested_result_extent/const_name/main.omg
-omega run --both samples/cli/facts/nested_result_extent/other_state/main.omg
-omega run --both samples/cli/facts/nested_result_extent/other_machine/main.omg
-omega run --both samples/cli/facts/nested_result_extent/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/nested_result_extent
 ```
 
 All 10 samples report `native exit 0` and `interp exit: 0`.

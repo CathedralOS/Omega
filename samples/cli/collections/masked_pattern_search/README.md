@@ -8,7 +8,8 @@ an empty pattern, a start beyond the input, and untouched boundary sentinels.
 
 ```sh
 omega packages update --project samples/cli/collections/masked_pattern_search --target macos_arm64 --offline --dangerously-accept-all
-omega run --both samples/cli/collections/masked_pattern_search/main.omg
+omega run --engine native samples/cli/collections/masked_pattern_search/main.omg
+omega run --engine psi samples/cli/collections/masked_pattern_search/main.omg
 ```
 
 Expected exit: 0, no output. Empty patterns deliberately produce no match.

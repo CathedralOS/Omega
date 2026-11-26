@@ -7,7 +7,8 @@ with the ANSI cursor-home sequence `ESC [ H` and use `Clock.sleep(70)` for pacin
 After completing the sample's package review, run from the repository root:
 
 ```sh
-omega run --both --psi-work-budget 100000000 samples/cli/rendering/mandelbrot_zoom/main.omg
+omega run --engine native samples/cli/rendering/mandelbrot_zoom/main.omg
+omega run --engine psi --psi-work-budget 100000000 samples/cli/rendering/mandelbrot_zoom/main.omg
 ```
 
 Press Enter at the final prompt. A POSIX shell can redirect stdin from
@@ -15,7 +16,7 @@ Press Enter at the final prompt. A POSIX shell can redirect stdin from
 arguments execute in both engines on macOS ARM64 and exit 0. The interpreter
 needs more than its default ten-million-unit sponsor allowance for all 12
 frames; the command requests 100 million logical work units explicitly.
-Work exhaustion declines the comparison. Both engines delegate the selected
+Work exhaustion makes the Psi run incomplete. Both engines delegate the selected
 clock wait to the host and retain the authored frame pacing.
 
 Application stdout starts with

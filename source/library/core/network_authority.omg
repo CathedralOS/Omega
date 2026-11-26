@@ -1,0 +1,7 @@
+// Each operation also reaches Network through its declared boundary parent.
+public boundary trait Network {}
+public boundary trait NetworkResolveName: Network {}
+public boundary trait NetworkInitiateContact: Network {}
+public boundary trait NetworkServe: Network {}
+public boundary trait NetworkSend: Network {}
+public boundary trait NetworkReceive: Network {}

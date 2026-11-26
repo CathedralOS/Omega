@@ -76,7 +76,8 @@ must not be retried or bypassed. Then:
 ```
 omega --check --target linux_x86_64 samples/cli/independent/heat_exchanger_balances/main.omg
 omega --target linux_x86_64 samples/cli/independent/heat_exchanger_balances/main.omg
-omega run --both samples/cli/independent/heat_exchanger_balances/main.omg < samples/cli/independent/heat_exchanger_balances/data/unequal_hot_larger.txt
+omega run --engine native samples/cli/scientific/heat_exchanger_balances/main.omg < samples/cli/scientific/heat_exchanger_balances/data/unequal_hot_larger.txt
+omega run --engine psi samples/cli/scientific/heat_exchanger_balances/main.omg < samples/cli/scientific/heat_exchanger_balances/data/unequal_hot_larger.txt
 omega --check samples/cli/independent/heat_exchanger_balances/controls/out_of_bounds/main.omg
 ```
 

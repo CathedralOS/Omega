@@ -6,7 +6,7 @@ selection"). A program declares ordinary named implementations, none of them
 marked with a target, and its Build has one `Build::select_provider` row per
 target.
 
-The positive program runs through those rows under `omega run --both` on this
+The positive program runs through those rows under each application engine on this
 host, and runs in Psi under each hosted target's row. Its twin drops the
 `windows_x86_64` row: the three implementations are still in scope, but the
 compiler must refuse the program for that target rather than pick one.
@@ -42,14 +42,22 @@ fn printed(output: &Output) -> String {
     )
 }
 
+fn assert_each_engine_returns(directory: &Path) {
+    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+        let output = omega_run(directory, &["--engine", engine]);
+        let text = printed(&output);
+        assert!(output.status.success(), "{engine}: {text}");
+        assert!(
+            text.lines().any(|line| line == expected),
+            "{engine}: {text}"
+        );
+    }
+}
+
 #[test]
 fn each_target_runs_the_implementation_its_build_row_selects() {
     let directory = fixture("tests/fixtures/providers/run/target_selected_implementation");
-    let output = omega_run(&directory, &["--both"]);
-    let text = printed(&output);
-    assert!(output.status.success(), "{text}");
-    assert!(text.contains("native exit 0"), "{text}");
-    assert!(text.contains("interp exit: 0"), "{text}");
+    assert_each_engine_returns(&directory);
     for target in [
         "windows_x86_64",
         "linux_x86_64",
@@ -86,17 +94,13 @@ fn a_target_without_a_build_row_has_no_implementation() {
 #[test]
 fn applied_services_keep_their_separate_selected_implementations() {
     let directory = fixture("source-rust/application/tests/fixtures/providers/run/applied_boundary_providers");
-    let output = omega_run(&directory, &["--both"]);
-    let text = printed(&output);
-    assert!(output.status.success(), "{text}");
-    assert!(text.contains("native exit 0"), "{text}");
-    assert!(text.contains("interp exit: 0"), "{text}");
+    assert_each_engine_returns(&directory);
 }
 
 #[test]
 fn an_implementation_of_another_service_application_is_refused() {
     let directory = fixture("source-rust/application/tests/fixtures/providers/fail/applied_boundary_providers");
-    let output = omega_run(&directory, &["--both"]);
+    let output = omega_run(&directory, &["--engine", "psi"]);
     let text = printed(&output);
     assert!(!output.status.success(), "{text}");
     assert!(
@@ -121,12 +125,8 @@ fn a_selected_implementation_uses_its_nested_machines_results() {
         body(&source(positive)).replace("            0i32\n", "            1i32\n"),
         body(&source(negative))
     );
-    let output = omega_run(&fixture(positive), &["--both"]);
-    let text = printed(&output);
-    assert!(output.status.success(), "{text}");
-    assert!(text.contains("native exit 0"), "{text}");
-    assert!(text.contains("interp exit: 0"), "{text}");
-    let output = omega_run(&fixture(negative), &["--both"]);
+    assert_each_engine_returns(&fixture(positive));
+    let output = omega_run(&fixture(negative), &["--engine", "psi"]);
     let text = printed(&output);
     assert!(!output.status.success(), "{text}");
     assert!(

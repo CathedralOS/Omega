@@ -1,610 +1,103 @@
 /*
-We drive the 22-stage dynamic ELF executable pipeline
-(`emit_elf_dynamic_executable`), chaining the six phase modules from
-dynamic-link input preflight through final-byte admission and wrapping any
-stage failure in `ElfDynamicExecutableEmissionError` alongside the shared
-`checked` validation helpers.
+Step 3 of the dynamic ELF pipeline: assemble deterministic ELF64 executable bytes
+from the Step 1 layout plan and Step 2 resolved sections/relocations, wrap the
+result in `ValidatedElfDynamicExecutable`, and expose `emit_elf_dynamic_executable`.
 */
 
-pub(crate) mod checked {
-    use diagnostics::Diagnostic;
+use crate::bytes::{write_u16, write_u32, write_u64};
+use crate::constants::{
+    ELF_HEADER_SIZE, ELF64_SECTION_HEADER_SIZE, PROGRAM_HEADER_SIZE, SECTION_COUNT,
+};
+use crate::dynamic_layout::{
+    COMPLETE_SECTION_NAME_TABLE, DYNAMIC_PROGRAM_HEADER_COUNT, DynamicLayoutPlan,
+    DynamicSectionIndex, SECTION_NAME_TABLE_INDEX, plan_dynamic_layout, require,
+};
+use crate::dynamic_relocation::{ResolvedDynamicRelocations, resolve_dynamic_relocations};
+use diagnostics::Diagnostic;
+use image::{ExecutableImageOutput, FinalImage, place_data_extent, place_executable_extent};
+use target::{NormalizedElfInterpreterPlan, TargetProfile};
 
-    use crate::constants::{
-        ELF64_DYNAMIC_ROW_SIZE, ELF64_DYNAMIC_VALUE_OFFSET, ELF64_SECTION_HEADER_SIZE,
-    };
-    use target::compatibility_fingerprint::Fnv1a;
+const ET_EXEC: u16 = 2;
+const EM_X86_64: u16 = 62;
+const EM_AARCH64: u16 = 183;
+const EV_CURRENT: u32 = 1;
 
-    pub(crate) fn require(condition: bool, message: &'static str) -> Result<(), Diagnostic> {
-        condition
-            .then_some(())
-            .ok_or_else(|| Diagnostic::error(message))
-    }
-
-    pub(crate) fn require_count(
-        actual: usize,
-        expected: usize,
-        context: &'static str,
-    ) -> Result<(), Diagnostic> {
-        (actual == expected).then_some(()).ok_or_else(|| {
-            Diagnostic::error(format!("{context}: expected {expected}, found {actual}"))
-        })
-    }
-
-    pub(crate) fn checked_sum(
-        left: usize,
-        right: usize,
-        context: &'static str,
-    ) -> Result<usize, Diagnostic> {
-        left.checked_add(right)
-            .ok_or_else(|| Diagnostic::error(format!("{context} overflows usize")))
-    }
-
-    pub(crate) fn checked_product(
-        left: usize,
-        right: usize,
-        context: &'static str,
-    ) -> Result<usize, Diagnostic> {
-        left.checked_mul(right)
-            .ok_or_else(|| Diagnostic::error(format!("{context} overflows usize")))
-    }
-
-    pub(crate) fn checked_u32(value: usize, context: &'static str) -> Result<u32, Diagnostic> {
-        u32::try_from(value).map_err(|_| Diagnostic::error(format!("{context} exceeds Elf64_Word")))
-    }
-
-    fn read_array<const N: usize>(
-        bytes: &[u8],
-        offset: usize,
-        context: &'static str,
-    ) -> Result<[u8; N], Diagnostic> {
-        let end = checked_sum(offset, N, context)?;
-        bytes
-            .get(offset..end)
-            .and_then(|bytes| bytes.try_into().ok())
-            .ok_or_else(|| Diagnostic::error(format!("truncated {context}")))
-    }
-
-    pub(crate) fn read_u8(
-        bytes: &[u8],
-        offset: usize,
-        context: &'static str,
-    ) -> Result<u8, Diagnostic> {
-        bytes
-            .get(offset)
-            .copied()
-            .ok_or_else(|| Diagnostic::error(format!("truncated {context}")))
-    }
-
-    pub(crate) fn read_u16(
-        bytes: &[u8],
-        offset: usize,
-        context: &'static str,
-    ) -> Result<u16, Diagnostic> {
-        Ok(u16::from_le_bytes(read_array::<2>(bytes, offset, context)?))
-    }
-
-    pub(crate) fn read_u32(
-        bytes: &[u8],
-        offset: usize,
-        context: &'static str,
-    ) -> Result<u32, Diagnostic> {
-        Ok(u32::from_le_bytes(read_array::<4>(bytes, offset, context)?))
-    }
-
-    pub(crate) fn read_u64(
-        bytes: &[u8],
-        offset: usize,
-        context: &'static str,
-    ) -> Result<u64, Diagnostic> {
-        Ok(u64::from_le_bytes(read_array::<8>(bytes, offset, context)?))
-    }
-
-    pub(crate) fn read_i64(
-        bytes: &[u8],
-        offset: usize,
-        context: &'static str,
-    ) -> Result<i64, Diagnostic> {
-        Ok(i64::from_le_bytes(read_array::<8>(bytes, offset, context)?))
-    }
-
-    pub(crate) fn read_field(
-        bytes: &[u8],
-        offset: usize,
-        width: u8,
-        context: &'static str,
-    ) -> Result<u64, Diagnostic> {
-        match width {
-            4 => Ok(u64::from(read_u32(bytes, offset, context)?)),
-            8 => read_u64(bytes, offset, context),
-            _ => Err(Diagnostic::error(format!(
-                "{context} has an unsupported field width"
-            ))),
-        }
-    }
-
-    pub(crate) fn field_mut<'a>(
-        bytes: &'a mut [u8],
-        offset: usize,
-        width: u8,
-        context: &'static str,
-    ) -> Result<&'a mut [u8], Diagnostic> {
-        let end = checked_sum(offset, usize::from(width), context)?;
-        bytes
-            .get_mut(offset..end)
-            .ok_or_else(|| Diagnostic::error(format!("{context} exceeds its storage")))
-    }
-
-    pub(crate) fn stage_fingerprint(tag: &[u8], upstream: u64) -> Fnv1a {
-        let mut hash = Fnv1a::new();
-        hash.bytes(tag);
-        hash.bytes(&upstream.to_le_bytes());
-        hash
-    }
-
-    pub(crate) fn checked_sum_u64(
-        left: u64,
-        right: u64,
-        context: &str,
-        bound: &'static str,
-    ) -> Result<u64, Diagnostic> {
-        left.checked_add(right)
-            .ok_or_else(|| Diagnostic::error(format!("{context} overflows {bound}")))
-    }
-
-    pub(crate) fn checked_product_u64(
-        left: u64,
-        right: u64,
-        context: &str,
-        bound: &'static str,
-    ) -> Result<u64, Diagnostic> {
-        left.checked_mul(right)
-            .ok_or_else(|| Diagnostic::error(format!("{context} overflows {bound}")))
-    }
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub(crate) struct DecodedElf64SectionHeader {
-        pub(crate) name_offset: u32,
-        pub(crate) section_type: u32,
-        pub(crate) flags: u64,
-        pub(crate) address: u64,
-        pub(crate) file_offset: u64,
-        pub(crate) payload_size: u64,
-        pub(crate) link: u32,
-        pub(crate) info: u32,
-        pub(crate) alignment: u64,
-        pub(crate) entry_size: u64,
-    }
-
-    pub(crate) fn decode_section_header_rows(
-        bytes: &[u8],
-        expected_count: usize,
-    ) -> Result<Vec<DecodedElf64SectionHeader>, Diagnostic> {
-        let expected_size = checked_product(
-            expected_count,
-            ELF64_SECTION_HEADER_SIZE,
-            "decoded ELF64 section-header table size",
-        )?;
-        require(
-            bytes.len() == expected_size,
-            "ELF64 section-header table has a truncated row or trailing bytes",
-        )?;
-        let mut rows = Vec::with_capacity(expected_count);
-        for index in 0..expected_count {
-            let offset = checked_product(
-                index,
-                ELF64_SECTION_HEADER_SIZE,
-                "decoded ELF64 section-header row",
-            )?;
-            let field = |field_offset: usize, context: &'static str| {
-                checked_sum(offset, field_offset, context)
-            };
-            rows.push(DecodedElf64SectionHeader {
-                name_offset: read_u32(bytes, offset, "Elf64_Shdr.sh_name")?,
-                section_type: read_u32(
-                    bytes,
-                    field(4, "Elf64_Shdr.sh_type offset")?,
-                    "Elf64_Shdr.sh_type",
-                )?,
-                flags: read_u64(
-                    bytes,
-                    field(8, "Elf64_Shdr.sh_flags offset")?,
-                    "Elf64_Shdr.sh_flags",
-                )?,
-                address: read_u64(
-                    bytes,
-                    field(16, "Elf64_Shdr.sh_addr offset")?,
-                    "Elf64_Shdr.sh_addr",
-                )?,
-                file_offset: read_u64(
-                    bytes,
-                    field(24, "Elf64_Shdr.sh_offset offset")?,
-                    "Elf64_Shdr.sh_offset",
-                )?,
-                payload_size: read_u64(
-                    bytes,
-                    field(32, "Elf64_Shdr.sh_size offset")?,
-                    "Elf64_Shdr.sh_size",
-                )?,
-                link: read_u32(
-                    bytes,
-                    field(40, "Elf64_Shdr.sh_link offset")?,
-                    "Elf64_Shdr.sh_link",
-                )?,
-                info: read_u32(
-                    bytes,
-                    field(44, "Elf64_Shdr.sh_info offset")?,
-                    "Elf64_Shdr.sh_info",
-                )?,
-                alignment: read_u64(
-                    bytes,
-                    field(48, "Elf64_Shdr.sh_addralign offset")?,
-                    "Elf64_Shdr.sh_addralign",
-                )?,
-                entry_size: read_u64(
-                    bytes,
-                    field(56, "Elf64_Shdr.sh_entsize offset")?,
-                    "Elf64_Shdr.sh_entsize",
-                )?,
-            });
-        }
-        Ok(rows)
-    }
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub(crate) struct DecodedElfDynamicRow {
-        pub(crate) tag: i64,
-        pub(crate) value: u64,
-    }
-
-    pub(crate) fn decode_dynamic_rows(
-        bytes: &[u8],
-        expected_count: usize,
-    ) -> Result<Vec<DecodedElfDynamicRow>, Diagnostic> {
-        let expected_size = checked_product(
-            expected_count,
-            ELF64_DYNAMIC_ROW_SIZE,
-            "decoded Elf64_Dyn payload size",
-        )?;
-        require(
-            bytes.len() == expected_size,
-            "Elf64_Dyn payload has a truncated row or trailing bytes",
-        )?;
-        let mut rows = Vec::with_capacity(expected_count);
-        for ordinal in 0..expected_count {
-            let offset = checked_product(ordinal, ELF64_DYNAMIC_ROW_SIZE, "decoded Elf64_Dyn row")?;
-            rows.push(DecodedElfDynamicRow {
-                tag: read_i64(bytes, offset, "Elf64_Dyn.d_tag")?,
-                value: read_u64(
-                    bytes,
-                    checked_sum(offset, ELF64_DYNAMIC_VALUE_OFFSET, "Elf64_Dyn.d_un offset")?,
-                    "Elf64_Dyn.d_un",
-                )?,
-            });
-        }
-        Ok(rows)
-    }
-
-    pub(crate) struct CandidateValidationError<C> {
-        pub(crate) candidate: C,
-        pub(crate) diagnostic: Diagnostic,
-    }
-
-    macro_rules! seal_stage {
-        (
-            field: $field:ident,
-            contents: $contents:ident,
-            validated: $validated:ident,
-            validate: $validate:ident,
-            fingerprint: $fingerprint:ident,
-            message: $message:literal
-            $(, vis: $vis:vis)? $(,)?
-        ) => {
-            $( $vis )? fn validate_candidate(
-                candidate: Candidate,
-            ) -> Result<$validated, CandidateValidationError<Candidate>> {
-                checked::validate_candidate(
-                    candidate,
-                    |candidate| $validate(&candidate.$field, &candidate.$contents),
-                    |candidate| {
-                        candidate.$fingerprint == $fingerprint(&candidate.$field, &candidate.$contents)
-                    },
-                    $message,
-                    |candidate| $validated {
-                        $field: candidate.$field,
-                        $contents: candidate.$contents,
-                        $fingerprint: candidate.$fingerprint,
-                    },
-                )
-            }
-        };
-        (
-            field: $field:ident,
-            contents: $contents:ident,
-            validated: $validated:ident,
-            validate: $validate:ident,
-            fingerprint: $fingerprint:ident,
-            nonzero,
-            message: $message:literal
-            $(, vis: $vis:vis)? $(,)?
-        ) => {
-            $( $vis )? fn validate_candidate(
-                candidate: Candidate,
-            ) -> Result<$validated, CandidateValidationError<Candidate>> {
-                checked::validate_candidate(
-                    candidate,
-                    |candidate| $validate(&candidate.$field, &candidate.$contents),
-                    |candidate| {
-                        candidate.$fingerprint != 0
-                            && candidate.$fingerprint
-                                == $fingerprint(&candidate.$field, &candidate.$contents)
-                    },
-                    $message,
-                    |candidate| $validated {
-                        $field: candidate.$field,
-                        $contents: candidate.$contents,
-                        $fingerprint: candidate.$fingerprint,
-                    },
-                )
-            }
-        };
-        (
-            field: $field:ident,
-            contents: $contents:ident,
-            validated: $validated:ident,
-            validate: $validate:ident
-            $(, vis: $vis:vis)? $(,)?
-        ) => {
-            $( $vis )? fn validate_candidate(
-                candidate: Candidate,
-            ) -> Result<$validated, CandidateValidationError<Candidate>> {
-                checked::validate_candidate(
-                    candidate,
-                    |candidate| $validate(&candidate.$field, &candidate.$contents),
-                    |_| true,
-                    "",
-                    |candidate| $validated {
-                        $field: candidate.$field,
-                        $contents: candidate.$contents,
-                    },
-                )
-            }
-        };
-    }
-    pub(crate) use seal_stage;
-
-    pub(crate) fn validate_candidate<C, T>(
-        candidate: C,
-        valid: impl Fn(&C) -> Result<(), Diagnostic>,
-        replays: impl Fn(&C) -> bool,
-        replay_diagnostic: &'static str,
-        validated: impl Fn(C) -> T,
-    ) -> Result<T, CandidateValidationError<C>> {
-        if let Err(diagnostic) = valid(&candidate) {
-            return Err(CandidateValidationError {
-                candidate,
-                diagnostic,
-            });
-        }
-        if !replays(&candidate) {
-            return Err(CandidateValidationError {
-                candidate,
-                diagnostic: Diagnostic::error(replay_diagnostic),
-            });
-        }
-        Ok(validated(candidate))
-    }
-
-    macro_rules! plan_stage {
-        (
-            plan: $plan:ident,
-            derive: $derive:expr,
-            contents: $contents:ident,
-            fingerprint: $fingerprint:ident,
-            error: $error:ident $(,)?
-        ) => {
-            checked::plan_candidate(
-                $plan,
-                $derive,
-                |$plan, $contents| $fingerprint(&$plan, &$contents),
-                |$plan, $contents, fingerprint| Candidate {
-                    $plan,
-                    $contents,
-                    $fingerprint: fingerprint,
-                },
-                validate_candidate,
-                |candidate| candidate.$plan,
-                |$plan, diagnostic| Box::new($error { $plan, diagnostic }),
-            )
-        };
-        (
-            plan: $plan:ident,
-            derive: $derive:expr,
-            contents: $contents:ident,
-            error: $error:ident $(,)?
-        ) => {
-            checked::plan_candidate(
-                $plan,
-                $derive,
-                |_, _| 0,
-                |$plan, $contents, _fingerprint| Candidate { $plan, $contents },
-                validate_candidate,
-                |candidate| candidate.$plan,
-                |$plan, diagnostic| Box::new($error { $plan, diagnostic }),
-            )
-        };
-    }
-    pub(crate) use plan_stage;
-
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn plan_candidate<P, C, D, V, E>(
-        plan: P,
-        derive_contents: impl Fn(&P) -> Result<D, Diagnostic>,
-        fingerprint: impl Fn(&P, &D) -> u64,
-        into_candidate: impl FnOnce(P, D, u64) -> C,
-        validate: impl FnOnce(C) -> Result<V, CandidateValidationError<C>>,
-        into_plan: impl FnOnce(C) -> P,
-        error: impl Fn(P, Diagnostic) -> E,
-    ) -> Result<V, E> {
-        let contents = match derive_contents(&plan) {
-            Ok(contents) => contents,
-            Err(diagnostic) => return Err(error(plan, diagnostic)),
-        };
-        let fingerprint = fingerprint(&plan, &contents);
-        let candidate = into_candidate(plan, contents, fingerprint);
-        match validate(candidate) {
-            Ok(validated) => Ok(validated),
-            Err(candidate_error) => Err(error(
-                into_plan(candidate_error.candidate),
-                candidate_error.diagnostic,
-            )),
-        }
-    }
+#[derive(Debug)]
+#[must_use = "admitted dynamic ELF retains exact final-image and byte custody"]
+pub struct ValidatedElfDynamicExecutable {
+    image: FinalImage,
+    output: ExecutableImageOutput,
 }
 
-pub(crate) use crate::dynamic_table;
-pub(crate) use crate::file_assembly;
-pub(crate) use crate::import_sections;
-pub(crate) use crate::load_placement;
-pub(crate) use crate::procedure_linkage;
-pub(crate) use crate::section_headers;
+impl ValidatedElfDynamicExecutable {
+    pub const fn image(&self) -> &FinalImage {
+        &self.image
+    }
 
-use diagnostics::Diagnostic;
-use image::FinalImage;
-use target::NormalizedElfInterpreterPlan;
+    pub const fn output(&self) -> &ExecutableImageOutput {
+        &self.output
+    }
 
-use dynamic_table::dynamic_table_descriptor::{
-    ElfDynamicTableSectionDescriptorPlanningError, plan_elf_dynamic_table_section_descriptor,
-};
-use dynamic_table::dynamic_tag_bytes::{
-    ElfDynamicTableSerializationError, serialize_elf_dynamic_table,
-};
-use dynamic_table::dynamic_tags::{ElfDynamicTagPlanningError, plan_elf_dynamic_tags};
-use file_assembly::assembled_dynamic_file::{
-    ElfDynamicExecutableAdmissionError, ElfDynamicFileAssemblyError, ValidatedElfDynamicExecutable,
-    admit_elf_dynamic_executable, assemble_elf_dynamic_file,
-};
-use file_assembly::dynamic_file_envelope::{
-    ElfDynamicFileEnvelopeSerializationError, serialize_elf_dynamic_file_envelope,
-};
-use file_assembly::resolved_procedure_linkage::{
-    ElfProcedureLinkageApplicationError, apply_elf_procedure_linkage_fixups,
-};
-use import_sections::dynamic_link::{
-    ElfDynamicLinkInputPlanningError, plan_elf_dynamic_link_inputs,
-};
-use import_sections::dynamic_section_bytes::{
-    ElfDynamicSectionSerializationError, serialize_elf_dynamic_sections,
-};
-use import_sections::dynamic_section_descriptors::{
-    ElfDynamicSectionDescriptorPlanningError, plan_elf_dynamic_section_descriptors,
-};
-use import_sections::dynamic_sections::{
-    ElfDynamicSectionPlanningError, plan_elf_dynamic_sections,
-};
-use load_placement::load_layout::{ElfDynamicLoadLayoutError, plan_elf_dynamic_load_layout};
-use load_placement::placed_section_headers::{
-    ElfSectionHeaderPlacementApplicationError, apply_elf_section_header_placements,
-};
-use load_placement::resolved_dynamic_table::{
-    ElfDynamicAddressApplicationError, apply_elf_dynamic_address_fixups,
-};
-use procedure_linkage::dynamic_import_relocations::{
-    ElfProcedureLinkageRelocationPlanningError, plan_elf_procedure_linkage_relocations,
-};
-use procedure_linkage::dynamic_linkage_descriptors::{
-    ElfProcedureLinkageSectionDescriptorPlanningError,
-    plan_elf_procedure_linkage_section_descriptors,
-};
-use procedure_linkage::dynamic_linkage_templates::{
-    ElfProcedureLinkageTemplatePlanningError, plan_elf_procedure_linkage_templates,
-};
-use section_headers::relative_section_layout::{
-    ElfRelativeSectionPayloadLayoutError, plan_elf_relative_section_payload_layout,
-};
-use section_headers::section_header_bytes::{
-    ElfSectionHeaderTableSerializationError, serialize_elf_section_header_table,
-};
-use section_headers::section_name_table::{
-    ElfSectionNameTablePlanningError, plan_elf_section_name_table,
-};
-use section_headers::section_payload_roster::{
-    ElfIndexedSectionPayloadPlanningError, plan_elf_indexed_section_payloads,
-};
-use section_headers::section_roster::{
-    ElfDynamicSectionRosterPlanningError, plan_elf_dynamic_section_roster,
-};
+    pub fn into_parts(self) -> (FinalImage, ExecutableImageOutput) {
+        (self.image, self.output)
+    }
+}
 
 #[derive(Debug)]
 #[must_use = "dynamic ELF emission failure retains the exact failing owner"]
 pub enum ElfDynamicExecutableEmissionError {
-    LinkInputs(Box<ElfDynamicLinkInputPlanningError>),
-    DynamicSections(Box<ElfDynamicSectionPlanningError>),
-    DynamicSectionBytes(Box<ElfDynamicSectionSerializationError>),
-    DynamicSectionDescriptors(Box<ElfDynamicSectionDescriptorPlanningError>),
-    ProcedureLinkageRelocations(Box<ElfProcedureLinkageRelocationPlanningError>),
-    ProcedureLinkageTemplates(Box<ElfProcedureLinkageTemplatePlanningError>),
-    ProcedureLinkageDescriptors(Box<ElfProcedureLinkageSectionDescriptorPlanningError>),
-    DynamicTags(Box<ElfDynamicTagPlanningError>),
-    DynamicTableBytes(Box<ElfDynamicTableSerializationError>),
-    DynamicTableDescriptor(Box<ElfDynamicTableSectionDescriptorPlanningError>),
-    SectionNames(Box<ElfSectionNameTablePlanningError>),
-    SectionRoster(Box<ElfDynamicSectionRosterPlanningError>),
-    SectionHeaderBytes(Box<ElfSectionHeaderTableSerializationError>),
-    IndexedPayloads(Box<ElfIndexedSectionPayloadPlanningError>),
-    RelativeLayout(Box<ElfRelativeSectionPayloadLayoutError>),
-    LoadLayout(Box<ElfDynamicLoadLayoutError>),
-    PlacedSectionHeaders(Box<ElfSectionHeaderPlacementApplicationError>),
-    ResolvedDynamicTable(Box<ElfDynamicAddressApplicationError>),
-    FileEnvelope(Box<ElfDynamicFileEnvelopeSerializationError>),
-    ProcedureLinkageApplication(Box<ElfProcedureLinkageApplicationError>),
-    FileAssembly(Box<ElfDynamicFileAssemblyError>),
-    FinalByteAdmission(Box<ElfDynamicExecutableAdmissionError>),
+    LayoutPlanning {
+        image: FinalImage,
+        interpreter: NormalizedElfInterpreterPlan,
+        diagnostic: Diagnostic,
+    },
+    RelocationResolution {
+        image: FinalImage,
+        interpreter: NormalizedElfInterpreterPlan,
+        diagnostic: Diagnostic,
+    },
+    ByteEmission {
+        image: FinalImage,
+        interpreter: NormalizedElfInterpreterPlan,
+        diagnostic: Diagnostic,
+    },
 }
 
 impl ElfDynamicExecutableEmissionError {
-    const fn failing_stage(&self) -> (&'static str, &Diagnostic) {
+    pub const fn stage(&self) -> &'static str {
         match self {
-            Self::LinkInputs(error) => ("link-inputs", error.diagnostic()),
-            Self::DynamicSections(error) => ("dynamic-sections", error.diagnostic()),
-            Self::DynamicSectionBytes(error) => ("dynamic-section-bytes", error.diagnostic()),
-            Self::DynamicSectionDescriptors(error) => {
-                ("dynamic-section-descriptors", error.diagnostic())
-            }
-            Self::ProcedureLinkageRelocations(error) => {
-                ("procedure-linkage-relocations", error.diagnostic())
-            }
-            Self::ProcedureLinkageTemplates(error) => {
-                ("procedure-linkage-templates", error.diagnostic())
-            }
-            Self::ProcedureLinkageDescriptors(error) => {
-                ("procedure-linkage-descriptors", error.diagnostic())
-            }
-            Self::DynamicTags(error) => ("dynamic-tags", error.diagnostic()),
-            Self::DynamicTableBytes(error) => ("dynamic-table-bytes", error.diagnostic()),
-            Self::DynamicTableDescriptor(error) => ("dynamic-table-descriptor", error.diagnostic()),
-            Self::SectionNames(error) => ("section-names", error.diagnostic()),
-            Self::SectionRoster(error) => ("section-roster", error.diagnostic()),
-            Self::SectionHeaderBytes(error) => ("section-header-bytes", error.diagnostic()),
-            Self::IndexedPayloads(error) => ("indexed-payloads", error.diagnostic()),
-            Self::RelativeLayout(error) => ("relative-layout", error.diagnostic()),
-            Self::LoadLayout(error) => ("load-layout", error.diagnostic()),
-            Self::PlacedSectionHeaders(error) => ("placed-section-headers", error.diagnostic()),
-            Self::ResolvedDynamicTable(error) => ("resolved-dynamic-table", error.diagnostic()),
-            Self::FileEnvelope(error) => ("file-envelope", error.diagnostic()),
-            Self::ProcedureLinkageApplication(error) => {
-                ("procedure-linkage-application", error.diagnostic())
-            }
-            Self::FileAssembly(error) => ("file-assembly", error.diagnostic()),
-            Self::FinalByteAdmission(error) => ("final-byte-admission", error.diagnostic()),
+            Self::LayoutPlanning { .. } => "layout-planning",
+            Self::RelocationResolution { .. } => "relocation-resolution",
+            Self::ByteEmission { .. } => "byte-emission",
         }
     }
 
-    pub const fn stage(&self) -> &'static str {
-        self.failing_stage().0
+    pub const fn diagnostic(&self) -> &Diagnostic {
+        match self {
+            Self::LayoutPlanning { diagnostic, .. }
+            | Self::RelocationResolution { diagnostic, .. }
+            | Self::ByteEmission { diagnostic, .. } => diagnostic,
+        }
     }
 
-    pub const fn diagnostic(&self) -> &Diagnostic {
-        self.failing_stage().1
+    pub fn into_parts(self) -> (FinalImage, NormalizedElfInterpreterPlan, Diagnostic) {
+        match self {
+            Self::LayoutPlanning {
+                image,
+                interpreter,
+                diagnostic,
+            }
+            | Self::RelocationResolution {
+                image,
+                interpreter,
+                diagnostic,
+            }
+            | Self::ByteEmission {
+                image,
+                interpreter,
+                diagnostic,
+            } => (image, interpreter, diagnostic),
+        }
     }
 }
 
@@ -621,75 +114,555 @@ impl std::fmt::Display for ElfDynamicExecutableEmissionError {
 
 impl std::error::Error for ElfDynamicExecutableEmissionError {}
 
+/// Emit a dynamically linked ELF64 executable using the three-step direct builder:
+/// 1. Plan sections, program headers, and virtual/file layout (`plan_dynamic_layout`).
+/// 2. Build dynamic tables and resolve image-local, GOT/PLT, and RELA relocations
+///    (`resolve_dynamic_relocations`).
+/// 3. Emit deterministic ELF64 bytes (`emit_dynamic_bytes`).
 pub fn emit_elf_dynamic_executable(
-    image: FinalImage,
+    mut image: FinalImage,
     interpreter: NormalizedElfInterpreterPlan,
 ) -> Result<ValidatedElfDynamicExecutable, Box<ElfDynamicExecutableEmissionError>> {
-    use ElfDynamicExecutableEmissionError as Stage;
-    let inputs = plan_elf_dynamic_link_inputs(image, interpreter)
-        .map_err(|error| Box::new(Stage::LinkInputs(error)))?;
-    let sections = plan_elf_dynamic_sections(inputs)
-        .map_err(|error| Box::new(Stage::DynamicSections(error)))?;
-    let payloads = serialize_elf_dynamic_sections(sections)
-        .map_err(|error| Box::new(Stage::DynamicSectionBytes(error)))?;
-    let descriptors = plan_elf_dynamic_section_descriptors(payloads)
-        .map_err(|error| Box::new(Stage::DynamicSectionDescriptors(error)))?;
-    let linkage = plan_elf_procedure_linkage_relocations(descriptors)
-        .map_err(|error| Box::new(Stage::ProcedureLinkageRelocations(error)))?;
-    let templates = plan_elf_procedure_linkage_templates(linkage)
-        .map_err(|error| Box::new(Stage::ProcedureLinkageTemplates(error)))?;
-    let descriptors = plan_elf_procedure_linkage_section_descriptors(templates)
-        .map_err(|error| Box::new(Stage::ProcedureLinkageDescriptors(error)))?;
-    let tags =
-        plan_elf_dynamic_tags(descriptors).map_err(|error| Box::new(Stage::DynamicTags(error)))?;
-    let dynamic = serialize_elf_dynamic_table(tags)
-        .map_err(|error| Box::new(Stage::DynamicTableBytes(error)))?;
-    let descriptor = plan_elf_dynamic_table_section_descriptor(dynamic)
-        .map_err(|error| Box::new(Stage::DynamicTableDescriptor(error)))?;
-    let names = plan_elf_section_name_table(descriptor)
-        .map_err(|error| Box::new(Stage::SectionNames(error)))?;
-    let roster = plan_elf_dynamic_section_roster(names)
-        .map_err(|error| Box::new(Stage::SectionRoster(error)))?;
-    let headers = serialize_elf_section_header_table(roster)
-        .map_err(|error| Box::new(Stage::SectionHeaderBytes(error)))?;
-    let payloads = plan_elf_indexed_section_payloads(headers)
-        .map_err(|error| Box::new(Stage::IndexedPayloads(error)))?;
-    let relative = plan_elf_relative_section_payload_layout(payloads)
-        .map_err(|error| Box::new(Stage::RelativeLayout(error)))?;
-    let load = plan_elf_dynamic_load_layout(relative)
-        .map_err(|error| Box::new(Stage::LoadLayout(error)))?;
-    let placed = apply_elf_section_header_placements(load)
-        .map_err(|error| Box::new(Stage::PlacedSectionHeaders(error)))?;
-    let resolved = apply_elf_dynamic_address_fixups(placed)
-        .map_err(|error| Box::new(Stage::ResolvedDynamicTable(error)))?;
-    let envelope = serialize_elf_dynamic_file_envelope(resolved)
-        .map_err(|error| Box::new(Stage::FileEnvelope(error)))?;
-    let linkage = apply_elf_procedure_linkage_fixups(envelope)
-        .map_err(|error| Box::new(Stage::ProcedureLinkageApplication(error)))?;
-    let assembled =
-        assemble_elf_dynamic_file(linkage).map_err(|error| Box::new(Stage::FileAssembly(error)))?;
-    admit_elf_dynamic_executable(assembled)
-        .map_err(|error| Box::new(Stage::FinalByteAdmission(error)))
+    let plan = match plan_dynamic_layout(&image, &interpreter) {
+        Ok(plan) => plan,
+        Err(diagnostic) => {
+            return Err(Box::new(
+                ElfDynamicExecutableEmissionError::LayoutPlanning {
+                    image,
+                    interpreter,
+                    diagnostic,
+                },
+            ));
+        }
+    };
+
+    let resolved = match resolve_dynamic_relocations(&image, &plan) {
+        Ok(resolved) => resolved,
+        Err(diagnostic) => {
+            return Err(Box::new(
+                ElfDynamicExecutableEmissionError::RelocationResolution {
+                    image,
+                    interpreter,
+                    diagnostic,
+                },
+            ));
+        }
+    };
+
+    let output = match emit_dynamic_bytes(&image, &plan, resolved) {
+        Ok(output) => output,
+        Err(diagnostic) => {
+            return Err(Box::new(ElfDynamicExecutableEmissionError::ByteEmission {
+                image,
+                interpreter,
+                diagnostic,
+            }));
+        }
+    };
+
+    image.memory.text = output.final_text_bytes.clone();
+    image.memory.data = output.final_data_bytes.clone();
+    Ok(ValidatedElfDynamicExecutable { image, output })
+}
+
+fn emit_dynamic_bytes(
+    image: &FinalImage,
+    plan: &DynamicLayoutPlan,
+    resolved: ResolvedDynamicRelocations,
+) -> Result<ExecutableImageOutput, Diagnostic> {
+    let (machine, format) = match plan.target {
+        TargetProfile::LinuxX64 => (EM_X86_64, "elf64-x86-64-dynamic-executable"),
+        TargetProfile::LinuxArm64 => (EM_AARCH64, "elf64-aarch64-dynamic-executable"),
+        _ => {
+            return Err(Diagnostic::error(
+                "dynamic ELF emission requires an exact Linux x86-64 or AArch64 target",
+            ));
+        }
+    };
+
+    let executable_regions = place_executable_extent(
+        &resolved.text_bytes,
+        image.executable_regions.clone(),
+        plan.image_layout.text_address,
+    )?;
+    let data_regions = place_data_extent(
+        &resolved.data_bytes,
+        image.data_regions.clone(),
+        plan.image_layout.data_address,
+        "initialized-data",
+    )?;
+
+    let mut bytes = vec![0u8; plan.total_file_size];
+    let mut occupied = vec![false; plan.total_file_size];
+
+    let mut header_prefix =
+        Vec::with_capacity(ELF_HEADER_SIZE + PROGRAM_HEADER_SIZE * DYNAMIC_PROGRAM_HEADER_COUNT);
+    header_prefix.extend([0x7f, b'E', b'L', b'F', 2, 1, 1, 0, 0]);
+    header_prefix.extend([0; 7]);
+    write_u16(&mut header_prefix, ET_EXEC);
+    write_u16(&mut header_prefix, machine);
+    write_u32(&mut header_prefix, EV_CURRENT);
+    write_u64(&mut header_prefix, plan.entry_address);
+    write_u64(&mut header_prefix, ELF_HEADER_SIZE as u64);
+    write_u64(&mut header_prefix, plan.section_header_table_file_offset);
+    write_u32(&mut header_prefix, 0);
+    write_u16(&mut header_prefix, ELF_HEADER_SIZE as u16);
+    write_u16(&mut header_prefix, PROGRAM_HEADER_SIZE as u16);
+    write_u16(&mut header_prefix, DYNAMIC_PROGRAM_HEADER_COUNT as u16);
+    write_u16(&mut header_prefix, ELF64_SECTION_HEADER_SIZE as u16);
+    write_u16(&mut header_prefix, SECTION_COUNT as u16);
+    write_u16(&mut header_prefix, SECTION_NAME_TABLE_INDEX);
+    for phdr in &plan.program_headers {
+        write_u32(&mut header_prefix, phdr.segment_type);
+        write_u32(&mut header_prefix, phdr.flags);
+        write_u64(&mut header_prefix, phdr.file_offset);
+        write_u64(&mut header_prefix, phdr.virtual_address);
+        write_u64(&mut header_prefix, phdr.physical_address);
+        write_u64(&mut header_prefix, phdr.file_size);
+        write_u64(&mut header_prefix, phdr.memory_size);
+        write_u64(&mut header_prefix, phdr.alignment);
+    }
+    write_fragment(&mut bytes, &mut occupied, 0, &header_prefix)?;
+
+    write_fragment(
+        &mut bytes,
+        &mut occupied,
+        plan.text_file_offset,
+        &resolved.text_bytes,
+    )?;
+    write_fragment(
+        &mut bytes,
+        &mut occupied,
+        plan.data_file_offset,
+        &resolved.data_bytes,
+    )?;
+
+    for section in &plan.sections {
+        if section.index == 0 {
+            continue;
+        }
+        let payload: &[u8] = match section.index {
+            x if x == DynamicSectionIndex::Interpreter as u32 => &plan.tables.interpreter,
+            x if x == DynamicSectionIndex::DynamicString as u32 => &plan.tables.dynstr,
+            x if x == DynamicSectionIndex::DynamicSymbol as u32 => &plan.tables.dynsym,
+            x if x == DynamicSectionIndex::SystemVHash as u32 => &plan.tables.sysv_hash,
+            x if x == DynamicSectionIndex::GnuSymbolVersion as u32 => &plan.tables.versym,
+            x if x == DynamicSectionIndex::GnuVersionRequirement as u32 => &plan.tables.verneed,
+            x if x == DynamicSectionIndex::GnuHash as u32 => &plan.tables.gnu_hash,
+            x if x == DynamicSectionIndex::ProcedureLinkage as u32 => &resolved.plt_bytes,
+            x if x == DynamicSectionIndex::ProcedureGot as u32 => &resolved.got_plt_bytes,
+            x if x == DynamicSectionIndex::ProcedureRelocation as u32 => &resolved.rela_plt_bytes,
+            x if x == DynamicSectionIndex::GeneralRelocation as u32 => &resolved.rela_dyn_bytes,
+            x if x == DynamicSectionIndex::DynamicTable as u32 => &resolved.dynamic_bytes,
+            x if x == DynamicSectionIndex::SectionNameTable as u32 => COMPLETE_SECTION_NAME_TABLE,
+            _ => unreachable!("closed 14-section ELF roster"),
+        };
+        require(
+            payload.len() as u64 == section.byte_size,
+            "dynamic ELF section payload size drifted from layout plan",
+        )?;
+        write_fragment(&mut bytes, &mut occupied, section.file_offset, payload)?;
+    }
+
+    let mut shdr_table = Vec::with_capacity(SECTION_COUNT * ELF64_SECTION_HEADER_SIZE);
+    for section in &plan.sections {
+        write_u32(&mut shdr_table, section.name_offset);
+        write_u32(&mut shdr_table, section.section_type);
+        write_u64(&mut shdr_table, section.flags);
+        write_u64(&mut shdr_table, section.virtual_address);
+        write_u64(&mut shdr_table, section.file_offset);
+        write_u64(&mut shdr_table, section.byte_size);
+        write_u32(&mut shdr_table, section.link);
+        write_u32(&mut shdr_table, section.info);
+        write_u64(&mut shdr_table, section.alignment);
+        write_u64(&mut shdr_table, section.entry_size);
+    }
+    write_fragment(
+        &mut bytes,
+        &mut occupied,
+        plan.section_header_table_file_offset,
+        &shdr_table,
+    )?;
+
+    Ok(ExecutableImageOutput {
+        final_image_layout: plan.image_layout,
+        final_text_bytes: resolved.text_bytes,
+        final_data_bytes: resolved.data_bytes,
+        final_import_data_bytes: resolved.got_plt_bytes,
+        bytes,
+        file_name: "omega-program".to_owned(),
+        format: format.to_owned(),
+        text_bytes: image.memory.text.len(),
+        data_bytes: image.memory.data.len(),
+        bss_bytes: image.memory.bss_size,
+        symbols: image.symbol_table.symbols.len(),
+        imports: image.symbol_table.imports.len(),
+        relocations: image.relocation_table.relocations.len(),
+        executable_regions,
+        data_regions,
+        import_data_regions: resolved.import_data_regions,
+    })
+}
+
+fn write_fragment(
+    file: &mut [u8],
+    occupied: &mut [bool],
+    file_offset: u64,
+    bytes: &[u8],
+) -> Result<(), Diagnostic> {
+    let start = usize::try_from(file_offset)
+        .map_err(|_| Diagnostic::error("dynamic ELF file offset exceeds usize"))?;
+    let end = start
+        .checked_add(bytes.len())
+        .ok_or_else(|| Diagnostic::error("dynamic ELF fragment end overflows usize"))?;
+    let dst = file
+        .get_mut(start..end)
+        .ok_or_else(|| Diagnostic::error("dynamic ELF fragment exceeds allocated file"))?;
+    let occ = &mut occupied[start..end];
+    require(
+        occ.iter().all(|flag| !*flag),
+        "dynamic ELF file fragments overlap",
+    )?;
+    dst.copy_from_slice(bytes);
+    occ.fill(true);
+    Ok(())
 }
 
 #[cfg(test)]
-pub(crate) fn interpreter_path(target: target::TargetProfile) -> &'static [u8] {
-    match target {
-        target::TargetProfile::LinuxX64 => b"/lib64/ld-linux-\xfc-x86-64.so.2",
-        target::TargetProfile::LinuxArm64 => b"/lib/ld-linux-\xfb-aarch64.so.1",
-        _ => unreachable!("descriptor fixture uses a Linux target"),
-    }
-}
+mod tests {
+    use super::emit_elf_dynamic_executable;
+    use crate::constants::ELF_MAX_PAGE_SIZE;
+    use crate::test_support::{
+        IMPORTS, UTF8_IMPORTS, dynamic_import_inputs, import_fixture_interpreter_path,
+        import_with_text_relocations, interpreter, text_entry,
+    };
+    use arena::Handle;
+    use image::{
+        FinalImage, FinalImageImportPlan, FinalImageMemory, FinalImageRelocation,
+        FinalImageSection, FinalImageSymbol,
+    };
+    use object_file::{RelocationKind, SymbolKind};
+    use target::{TargetProfile, normalize_elf_interpreter_plan};
 
-pub(crate) const fn image_section_tag(section: image::FinalImageSection) -> u8 {
-    match section {
-        image::FinalImageSection::Text => 1,
-        image::FinalImageSection::Data => 2,
-        image::FinalImageSection::Bss => 3,
-        image::FinalImageSection::None => 4,
-    }
-}
+    const PRIVATE_CALLBACK_OFFSET: usize = 40;
+    const CALLBACK_MATERIALIZATION_OFFSET: usize = 8;
+    const CALLBACK_POINTER_DATA_OFFSET: usize = 8;
 
-pub(crate) fn checked_u64(value: usize, context: &str) -> Result<u64, Diagnostic> {
-    u64::try_from(value).map_err(|_| Diagnostic::error(format!("{context} exceeds Elf64_Xword")))
+    fn read_u16(bytes: &[u8], offset: usize) -> u16 {
+        u16::from_le_bytes(bytes[offset..offset + 2].try_into().unwrap())
+    }
+
+    fn read_u32(bytes: &[u8], offset: usize) -> u32 {
+        u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap())
+    }
+
+    fn read_u64(bytes: &[u8], offset: usize) -> u64 {
+        u64::from_le_bytes(bytes[offset..offset + 8].try_into().unwrap())
+    }
+
+    fn callback_image(target: TargetProfile) -> FinalImage {
+        let mut image = FinalImage::with_capacity(
+            target.native_target(),
+            FinalImageMemory {
+                text: vec![0; 64],
+                data: (0_u8..24).map(|byte| byte.wrapping_add(0x30)).collect(),
+                bss_size: 16,
+                bss_alignment: 8,
+            },
+            Handle::invalid(),
+            3,
+            1,
+            4,
+        );
+        image.memory.data[CALLBACK_POINTER_DATA_OFFSET..CALLBACK_POINTER_DATA_OFFSET + 8].fill(0);
+        text_entry(&mut image, 24);
+        let private_callback = image.symbol_table.symbols.insert(FinalImageSymbol {
+            name: "__omega_private_callback".to_owned(),
+            section: FinalImageSection::Text,
+            offset: PRIVATE_CALLBACK_OFFSET,
+            size: 8,
+            kind: SymbolKind::Function,
+        });
+        let import = crate::test_support::versioned_import(
+            &mut image,
+            "__omega_callback_registrar",
+            b"libcallback-registrar.so",
+            b"register_callback",
+            b"CALLBACK_1",
+            target,
+            "versioned import locator",
+        );
+
+        let mut relocate = |section, offset, byte_width, symbol_handle, kind| {
+            image
+                .relocation_table
+                .relocations
+                .insert(FinalImageRelocation {
+                    section,
+                    offset,
+                    byte_width,
+                    symbol_handle,
+                    addend: 0,
+                    kind,
+                });
+        };
+        match target {
+            TargetProfile::LinuxX64 => {
+                relocate(
+                    FinalImageSection::Text,
+                    1,
+                    4,
+                    import,
+                    RelocationKind::X86_64Relative32,
+                );
+                relocate(
+                    FinalImageSection::Text,
+                    CALLBACK_MATERIALIZATION_OFFSET + 3,
+                    4,
+                    private_callback,
+                    RelocationKind::X86_64Relative32,
+                );
+                image.memory.text[0] = 0xe8;
+                image.memory.text
+                    [CALLBACK_MATERIALIZATION_OFFSET..CALLBACK_MATERIALIZATION_OFFSET + 3]
+                    .copy_from_slice(&[0x48, 0x8d, 0x05]);
+            }
+            TargetProfile::LinuxArm64 => {
+                relocate(
+                    FinalImageSection::Text,
+                    0,
+                    4,
+                    import,
+                    RelocationKind::Aarch64Branch26,
+                );
+                relocate(
+                    FinalImageSection::Text,
+                    CALLBACK_MATERIALIZATION_OFFSET,
+                    4,
+                    private_callback,
+                    RelocationKind::Aarch64Page21,
+                );
+                relocate(
+                    FinalImageSection::Text,
+                    CALLBACK_MATERIALIZATION_OFFSET + 4,
+                    4,
+                    private_callback,
+                    RelocationKind::Aarch64PageOffset12,
+                );
+                image.memory.text[0..4].copy_from_slice(&[0, 0, 0, 0x94]);
+                image.memory.text
+                    [CALLBACK_MATERIALIZATION_OFFSET..CALLBACK_MATERIALIZATION_OFFSET + 8]
+                    .copy_from_slice(&[0, 0, 0, 0x90, 0, 0, 0, 0x91]);
+            }
+            _ => unreachable!(),
+        }
+        relocate(
+            FinalImageSection::Data,
+            CALLBACK_POINTER_DATA_OFFSET,
+            8,
+            private_callback,
+            RelocationKind::Absolute64,
+        );
+        image
+    }
+
+    fn file_offset_of(file: &[u8], address: u64) -> usize {
+        const PT_LOAD: u32 = 1;
+        let phoff = read_u64(file, 32) as usize;
+        let phentsize = usize::from(read_u16(file, 54));
+        let phnum = usize::from(read_u16(file, 56));
+        for index in 0..phnum {
+            let header = phoff + index * phentsize;
+            if read_u32(file, header) != PT_LOAD {
+                continue;
+            }
+            let file_offset = read_u64(file, header + 8);
+            let virtual_address = read_u64(file, header + 16);
+            let file_size = read_u64(file, header + 32);
+            if (virtual_address..virtual_address + file_size).contains(&address) {
+                return (file_offset + (address - virtual_address)) as usize;
+            }
+        }
+        panic!("address 0x{address:x} is not file-backed by any PT_LOAD segment");
+    }
+
+    fn materialized_callback_address(target: TargetProfile, text: &[u8], text_address: u64) -> u64 {
+        let instruction_address = text_address + CALLBACK_MATERIALIZATION_OFFSET as u64;
+        match target {
+            TargetProfile::LinuxX64 => {
+                let displacement =
+                    read_u32(text, CALLBACK_MATERIALIZATION_OFFSET + 3).cast_signed();
+                (instruction_address + 7).wrapping_add_signed(i64::from(displacement))
+            }
+            TargetProfile::LinuxArm64 => {
+                let adrp = read_u32(text, CALLBACK_MATERIALIZATION_OFFSET);
+                let add = read_u32(text, CALLBACK_MATERIALIZATION_OFFSET + 4);
+                let page_immediate = (((adrp >> 5) & 0x7ffff) << 2) | ((adrp >> 29) & 0b11);
+                let signed_pages = i64::from(((page_immediate << 11) as i32) >> 11);
+                let page = (instruction_address & !0xfff).wrapping_add_signed(signed_pages * 4096);
+                page + u64::from((add >> 10) & 0xfff)
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn dynamic_image_resolves_callback_address_and_data_pointer_to_the_private_function() {
+        for target in [TargetProfile::LinuxX64, TargetProfile::LinuxArm64] {
+            let admitted = emit_elf_dynamic_executable(callback_image(target), interpreter(target))
+                .expect("import-bearing image with a private callback emits");
+            let output = admitted.output();
+            let text_address = output.final_image_layout.text_address;
+            let data_address = output.final_image_layout.data_address;
+            let private_callback = text_address + PRIVATE_CALLBACK_OFFSET as u64;
+
+            assert_eq!(
+                materialized_callback_address(target, &output.final_text_bytes, text_address),
+                private_callback
+            );
+            assert_eq!(
+                read_u64(&output.final_data_bytes, CALLBACK_POINTER_DATA_OFFSET),
+                private_callback
+            );
+            let text_file_offset = file_offset_of(&output.bytes, text_address);
+            assert_eq!(
+                &output.bytes[text_file_offset..text_file_offset + 64],
+                output.final_text_bytes.as_slice()
+            );
+            let data_file_offset = file_offset_of(&output.bytes, data_address);
+            assert_eq!(
+                read_u64(
+                    &output.bytes,
+                    data_file_offset + CALLBACK_POINTER_DATA_OFFSET
+                ),
+                private_callback
+            );
+            assert_eq!(admitted.image().memory.text, output.final_text_bytes);
+            assert_eq!(admitted.image().memory.data, output.final_data_bytes);
+        }
+    }
+
+    #[test]
+    fn both_linux_targets_emit_deterministic_elf64_headers_sections_and_dynamic_tags() {
+        for target in [TargetProfile::LinuxX64, TargetProfile::LinuxArm64] {
+            let (mut image, _, _) =
+                dynamic_import_inputs(target, &UTF8_IMPORTS, "__omega_e2e_", "valid", "valid");
+            text_entry(&mut image, 0);
+            let interp = normalize_elf_interpreter_plan(
+                import_fixture_interpreter_path(target).to_vec(),
+                target,
+            )
+            .unwrap();
+            let first = emit_elf_dynamic_executable(image.clone(), interp.clone()).unwrap();
+            let second = emit_elf_dynamic_executable(image, interp).unwrap();
+            assert_eq!(first.output().bytes, second.output().bytes);
+
+            let bytes = &first.output().bytes;
+            assert!(bytes.starts_with(b"\x7fELF\x02\x01\x01"));
+            assert_eq!(read_u16(bytes, 16), 2);
+            assert_eq!(
+                read_u16(bytes, 18),
+                match target {
+                    TargetProfile::LinuxX64 => 62,
+                    TargetProfile::LinuxArm64 => 183,
+                    _ => unreachable!(),
+                }
+            );
+            assert_eq!(read_u16(bytes, 56), 5);
+            assert_eq!(read_u16(bytes, 60), 14);
+            assert_eq!(read_u16(bytes, 62), 13);
+
+            // Check that every PT_LOAD segment honours 64 KiB page alignment.
+            for index in 1..=3 {
+                let ph = 64 + index * 56;
+                assert_eq!(read_u32(bytes, ph), 1);
+                assert_eq!(read_u64(bytes, ph + 48), ELF_MAX_PAGE_SIZE);
+            }
+            assert_eq!(
+                first.output().import_data_regions.regions.len(),
+                UTF8_IMPORTS.len()
+            );
+        }
+    }
+
+    #[test]
+    fn non_utf8_import_symbol_rejects_with_custody_in_relocation_resolution() {
+        let target = TargetProfile::LinuxX64;
+        let (mut image, interp, _) =
+            dynamic_import_inputs(target, &IMPORTS, "__omega_raw_", "valid", "valid");
+        text_entry(&mut image, 0);
+        let err = emit_elf_dynamic_executable(image, interp)
+            .expect_err("non-UTF-8 symbol in GOT region custody must reject");
+        assert_eq!(err.stage(), "relocation-resolution");
+        assert!(err.diagnostic().message.contains("UTF-8"));
+    }
+
+    #[test]
+    fn mixed_versioned_and_component_only_dynamic_executables_emit_cleanly() {
+        let target = TargetProfile::LinuxX64;
+        let mut image = crate::test_support::import_image(target, 8, 2);
+        text_entry(&mut image, 0);
+        let locator =
+            target::NormalizedComponentLocator::for_image(target, b"component bytes", [9; 32])
+                .unwrap();
+        image.memory.text[16] = 0xe8;
+        import_with_text_relocations(
+            &mut image,
+            "__omega_comp_only",
+            FinalImageImportPlan::Normalized(locator.into()),
+            &[17],
+        );
+        let interp = interpreter(target);
+        let emitted = emit_elf_dynamic_executable(image, interp)
+            .expect("component-only dynamic ELF executable emits");
+        let bytes = &emitted.output().bytes;
+        // Locate PT_DYNAMIC and verify DT_VERSYM / DT_VERNEED are omitted and DT_FLAGS=DF_BIND_NOW is present.
+        let dyn_ph = 64 + 4 * 56;
+        assert_eq!(read_u32(bytes, dyn_ph), 2);
+        let dyn_off = read_u64(bytes, dyn_ph + 8) as usize;
+        let dyn_size = read_u64(bytes, dyn_ph + 32) as usize;
+        let mut tags = Vec::new();
+        for offset in (dyn_off..dyn_off + dyn_size).step_by(16) {
+            tags.push((
+                i64::from_le_bytes(bytes[offset..offset + 8].try_into().unwrap()),
+                read_u64(bytes, offset + 8),
+            ));
+        }
+        assert!(
+            tags.contains(&(30, 8)),
+            "DT_FLAGS = DF_BIND_NOW must be present"
+        );
+        assert!(
+            !tags
+                .iter()
+                .any(|(tag, _)| matches!(tag, 0x6fff_fff0 | 0x6fff_fffe | 0x6fff_ffff))
+        );
+    }
+
+    #[test]
+    fn rejection_retains_unmodified_image_and_interpreter_custody() {
+        let target = TargetProfile::LinuxX64;
+        let empty = FinalImage::with_capacity(
+            target.native_target(),
+            FinalImageMemory::default(),
+            Handle::invalid(),
+            0,
+            0,
+            0,
+        );
+        let interp = interpreter(target);
+        let err = emit_elf_dynamic_executable(empty.clone(), interp.clone())
+            .expect_err("no-import image must reject");
+        assert_eq!(err.stage(), "layout-planning");
+        let (returned_image, returned_interp, _) = err.into_parts();
+        assert_eq!(returned_image, empty);
+        assert_eq!(returned_interp, interp);
+
+        let wrong_interp = interpreter(TargetProfile::LinuxArm64);
+        let err = emit_elf_dynamic_executable(callback_image(target), wrong_interp.clone())
+            .expect_err("target mismatch must reject");
+        assert_eq!(err.stage(), "layout-planning");
+        let (_, returned_interp, _) = err.into_parts();
+        assert_eq!(returned_interp, wrong_interp);
+    }
 }

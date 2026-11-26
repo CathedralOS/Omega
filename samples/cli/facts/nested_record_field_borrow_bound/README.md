@@ -31,16 +31,7 @@ authored `expected_native_exit.txt` (`0`), and declares `Expected exit: 0`.
 Each positive place is an application that exits 0 in both Terminal Psi and native execution:
 
 ```sh
-omega run --both samples/cli/facts/nested_record_field_borrow_bound/main.omg
-omega run --both samples/cli/facts/nested_record_field_borrow_bound/local/main.omg
-omega run --both samples/cli/facts/nested_record_field_borrow_bound/field/main.omg
-omega run --both samples/cli/facts/nested_record_field_borrow_bound/parameter/main.omg
-omega run --both samples/cli/facts/nested_record_field_borrow_bound/call_result/main.omg
-omega run --both samples/cli/facts/nested_record_field_borrow_bound/match_join/main.omg
-omega run --both samples/cli/facts/nested_record_field_borrow_bound/const_name/main.omg
-omega run --both samples/cli/facts/nested_record_field_borrow_bound/other_state/main.omg
-omega run --both samples/cli/facts/nested_record_field_borrow_bound/other_machine/main.omg
-omega run --both samples/cli/facts/nested_record_field_borrow_bound/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/nested_record_field_borrow_bound
 ```
 
 All 10 applications pass with `native exit 0` and `interp exit: 0`.

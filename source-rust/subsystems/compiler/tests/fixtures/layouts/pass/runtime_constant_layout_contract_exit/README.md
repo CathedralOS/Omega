@@ -1,6 +1,6 @@
 # Target-closed constant contracts
 
-Run `omega run --both tests/omega/pass/layouts/runtime_constant_layout_contract_exit/main.omg`.
+Run `omega run --engine native source-rust/subsystems/compiler/tests/fixtures/layouts/pass/runtime_constant_layout_contract_exit/main.omg` and `omega run --engine psi source-rust/subsystems/compiler/tests/fixtures/layouts/pass/runtime_constant_layout_contract_exit/main.omg`.
 Native and Terminal execution must both exit 0. Calls require a layout query
 directly, through a named constant, through a cast and arithmetic, and through
 Boolean composition in a later state. These obligations must close before

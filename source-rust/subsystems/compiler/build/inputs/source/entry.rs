@@ -65,11 +65,13 @@ impl NamedSource {
 /// The command operand can name a directory or a Product source. A returned
 /// Build entry selects one particular file in the already acquired source.
 #[derive(Clone, Copy)]
-pub enum CapturedBuildEntry<'a> {
-    Initial(&'a Path),
+pub enum CapturedBuildEntry<'source> {
+    Initial(&'source Path),
     Successor {
-        path: &'a Path,
-        previous_build_files: &'a [PathBuf],
+        path: &'source Path,
+        previous_build_files: &'source [PathBuf],
+        /// Identity issued from this capture after its anonymous Build returned.
+        source_owner: Option<&'source crate::CompletedAnonymousSource>,
     },
 }
 
@@ -85,9 +87,15 @@ impl<'a> CapturedBuildEntry<'a> {
         package_inputs: Option<&crate::PackageCompilationInputs>,
         source_capture: Option<&crate::CapturedLocalSource>,
     ) -> Result<(), Vec<Diagnostic>> {
-        let Self::Successor { path, .. } = self else {
+        let Self::Successor {
+            path, source_owner, ..
+        } = self
+        else {
             return Ok(());
         };
+        if let Some(owner) = source_owner {
+            owner.require_capture(source_capture)?;
+        }
         let package_root = source_capture
             .map(|capture| capture.canonical_live_root())
             .or_else(|| {

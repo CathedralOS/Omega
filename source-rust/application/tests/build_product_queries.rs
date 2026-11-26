@@ -63,11 +63,7 @@ fn an_entry_asked_through_a_build_scope_alias_names_nothing() {
 
 /// Supply the external Build library at invocation. Run the resulting Product
 /// artifact through the CLI so both engines exercise the entry the Build bound.
-fn run_with_kit(
-    root: &Path,
-    library: &str,
-    target: target::TargetProfile,
-) -> Result<String, String> {
+fn run_with_kit(root: &Path, library: &str, target: target::TargetProfile) -> Result<(), String> {
     use build_declarations::{BuildDependencySource, ProjectName};
     use compiler::{Artifact, CompileRequest};
     use package_manager::project::{BuildLibraryRequest, ProjectInput, open_products};
@@ -117,8 +113,9 @@ fn run_with_kit(
         .manifest()
         .identity()
         .to_string();
-    let result = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["run", "--both", "--trusted-artifact", &manifest])
+    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+        let result = Command::new(env!("CARGO_BIN_EXE_omega"))
+        .args(["run", "--engine", engine, "--trusted-artifact", &manifest])
         .arg(&path)
         .current_dir(root)
         .stdin(std::process::Stdio::null())
@@ -129,11 +126,11 @@ fn run_with_kit(
         String::from_utf8_lossy(&result.stdout),
         String::from_utf8_lossy(&result.stderr)
     );
-    if result.status.success() {
-        Ok(report)
-    } else {
-        Err(report)
+        if !result.status.success() || !report.lines().any(|line| line == expected) {
+            return Err(format!("{engine}: {report}"));
+        }
     }
+    Ok(())
 }
 
 #[test]
@@ -186,8 +183,7 @@ machine entry(builder: @mutable Build, slot: @[u8]) -> ProductEntryRef {
 }
 "#.replace("HOST", host.target_name());
     std::fs::write(root.join("build.omg"), build).unwrap();
-    let report = run_with_kit(root, "tools", host).unwrap();
-    assert!(report.contains("native exit 0") && report.contains("interp exit: 0"), "{report}");
+    run_with_kit(root, "tools", host).unwrap();
 
     let tools = root.join("tools/main.omg");
     std::fs::write(&tools, "public machine choose() -> i32 { 8 }").unwrap();
@@ -250,6 +246,5 @@ machine build(builder: @mutable Build) suspends {
 }
 "#.replace("HOST", target.target_name());
     std::fs::write(root.join("build.omg"), build).unwrap();
-    let report = run_with_kit(root, "vendor", target).unwrap();
-    assert!(report.contains("native exit 0") && report.contains("interp exit: 0"), "{report}");
+    run_with_kit(root, "vendor", target).unwrap();
 }
