@@ -14,11 +14,7 @@ fn unary_const_arguments_retain_their_typed_evaluation_obligation() {
         "!false", "(!false)", "!!true", "~1u8", "(~1u8)", "!0", "~false",
     ] {
         let source = format!("data Main {{ value: Flag<{argument}>; }}");
-        let parsed = crate::tests::parse_source_verbose(
-            &source,
-            "tokenize unary argument",
-            "retain unary argument syntax",
-        );
+        let parsed = crate::tests::parse_source(&source);
         let Item::Data(data) = parsed.root_items().next().unwrap() else {
             panic!("data declaration");
         };
@@ -55,11 +51,7 @@ fn fixed_array_equation_operands_retain_type_structure_through_grouping_and_copy
         let source = format!(
             "data Buffer<Backing, Element, const Count: u64> requires {equation} {{ storage: Backing; }}"
         );
-        let parsed = crate::tests::parse_source_verbose(
-            &source,
-            "tokenize equation",
-            "parse fixed-array type equation",
-        );
+        let parsed = crate::tests::parse_source(&source);
         let item = parsed.root_items().next().expect("data item");
         let mut copied = syntax_trees::SyntaxTrees::default();
         let copied_item = copied.copy_item_from(&parsed, item);
@@ -115,11 +107,7 @@ fn proof_fact_array_values_remain_value_expressions() {
         "@[1, 2] == @[1, 2]",
     ] {
         let source = format!("data Buffer requires {equation} {{ storage: u64; }}");
-        let parsed = crate::tests::parse_source_verbose(
-            &source,
-            "tokenize array values",
-            "parse array value equality",
-        );
+        let parsed = crate::tests::parse_source(&source);
         assert!(
             parsed
                 .expressions
@@ -145,8 +133,7 @@ fn reference_operands_retain_access_and_element_type_role_through_copy() {
         let source = format!(
             "data Buffer<Backing, Element, const Count: u64> requires Backing == (@{access}[@Element; Count]) {{ storage: Backing; }}"
         );
-        let tokens = Lexer::new(&source).tokenize().unwrap();
-        let parsed = parse_syntax_trees(&tokens).expect("reference around a type-role operand");
+        let parsed = crate::tests::parse_source(&source);
         let item = parsed.root_items().next().unwrap();
         let mut copied = syntax_trees::SyntaxTrees::default();
         let copied_item = copied.copy_item_from(&parsed, item);
@@ -193,13 +180,10 @@ fn reference_value_operands_remain_borrows_and_recasts_reject_policy_suffixes() 
         "machine observe(value: &u64) {}",
         "machine observe(value: u64) { &value; }",
     ] {
-        let tokens = Lexer::new(legacy).tokenize().unwrap();
-        parse_syntax_trees(&tokens).expect_err("legacy borrow spelling must reject");
+        crate::tests::parse_error(legacy);
     }
-    let tokens = Lexer::new("data Buffer requires @left == @right { storage: u64; }")
-        .tokenize()
-        .unwrap();
-    let parsed = parse_syntax_trees(&tokens).unwrap();
+    let parsed =
+        crate::tests::parse_source("data Buffer requires @left == @right { storage: u64; }");
     assert!(
         !parsed
             .expressions
@@ -212,8 +196,7 @@ fn reference_value_operands_remain_borrows_and_recasts_reject_policy_suffixes() 
         let source =
             format!("machine view(value: @u64) -> @u8 {{ value as {target} in Wrapping }}");
         for source in [source.clone(), source.replace(" in Wrapping", "")] {
-            let tokens = Lexer::new(&source).tokenize().unwrap();
-            parse_syntax_trees(&tokens).expect("the reference target itself is valid syntax");
+            crate::tests::parse_source(&source);
         }
     }
 }
@@ -221,11 +204,7 @@ fn reference_value_operands_remain_borrows_and_recasts_reject_policy_suffixes() 
 #[test]
 fn fixed_array_equation_elements_use_existing_generic_type_grammar() {
     let source = "data Buffer<Backing, Element, const Count: u64> requires Backing == [Pair<Element, Element>; Count] { storage: Backing; }";
-    let parsed = crate::tests::parse_source_verbose(
-        source,
-        "tokenize generic element",
-        "parse generic array element",
-    );
+    let parsed = crate::tests::parse_source(source);
     let array = parsed
         .expressions
         .iter_expressions()
@@ -263,20 +242,13 @@ fn fixed_array_equation_operands_use_the_type_grammars_rejections() {
         let source = format!(
             "data Buffer<Backing, Element, const Count: u64> requires Backing == {operand} {{ storage: Backing; }}"
         );
-        let tokens = Lexer::new(&source)
-            .tokenize()
-            .expect("tokenize malformed type");
-        assert!(parse_syntax_trees(&tokens).is_err(), "{operand}");
+        crate::tests::parse_error(&source);
     }
     for operand in ["[Element; -1]", "[Element; Count + 1]"] {
         let equation = format!(
             "data Buffer<Backing, Element, const Count: u64> requires Backing == {operand} {{ storage: Backing; }}"
         );
-        let parsed = crate::tests::parse_source_verbose(
-            &equation,
-            "tokenize computed extent",
-            "computed extents are retained for semantic evaluation",
-        );
+        let parsed = crate::tests::parse_source(&equation);
         let operand_type = parsed
             .expressions
             .iter_expressions()
@@ -286,11 +258,7 @@ fn fixed_array_equation_operands_use_the_type_grammars_rejections() {
             })
             .expect("the equation operand keeps its type role");
         let field = format!("data Buffer<Element, const Count: u64> {{ storage: {operand}; }}");
-        let field_parsed = crate::tests::parse_source_verbose(
-            &field,
-            "tokenize computed extent",
-            "computed extents are retained for semantic evaluation",
-        );
+        let field_parsed = crate::tests::parse_source(&field);
         let syntax_trees::item::Item::Data(data) =
             field_parsed.root_items().next().expect("data item")
         else {
@@ -320,10 +288,7 @@ fn fixed_array_equation_operands_use_the_type_grammars_rejections() {
 
 #[test]
 fn fixed_array_type_operand_is_not_runtime_value_syntax() {
-    let parsed = crate::tests::parse_source(
-        "machine main() -> u64 { [u8; 4] }",
-        "type operands share the complete expression grammar",
-    );
+    let parsed = crate::tests::parse_source("machine main() -> u64 { [u8; 4] }");
     assert!(
         parsed
             .expressions
