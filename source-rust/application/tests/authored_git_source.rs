@@ -1,7 +1,9 @@
 //! Resolve the literal commit in a Build and repeat it after its transport disappears.
 #![cfg(unix)]
 
-use platform_custody::temporary_directory::TemporaryDirectory;
+#[path = "support/project.rs"]
+mod project;
+
 use std::fs;
 use std::path::Path;
 use std::process::{Command, Output, Stdio};
@@ -51,50 +53,58 @@ fn an_authored_git_pin_rebuilds_offline_without_the_tracking_ref_or_a_lock() {
     let Some(target) = target::TargetProfile::host_if_supported() else {
         return;
     };
-    let dir = TemporaryDirectory::create("authored-git-pin", false).unwrap();
+    let dir = project::stage(
+        "authored-git-pin",
+        &[
+            (
+                "remote/build.omg",
+                r#"machine build(build: @mutable BuildPlan) { build.product = BuildProduct::Package { name: "answers" }; }"#,
+            ),
+            (
+                "remote/answer.omg",
+                "public machine value() -> u64 { 37u64 }",
+            ),
+        ],
+    );
     let remote = dir.path().join("remote");
-    let project = dir.path().join("app");
-    fs::create_dir(&remote).unwrap();
-    fs::create_dir(&project).unwrap();
-    fs::write(
-        remote.join("build.omg"),
-        r#"machine build(build: @mutable BuildPlan) { build.product = BuildProduct::Package { name: "answers" }; }"#,
-    )
-    .unwrap();
-    fs::write(
-        remote.join("answer.omg"),
-        "public machine value() -> u64 { 37u64 }",
-    )
-    .unwrap();
+    let app = dir.path().join("app");
     git(&remote, &["init", "--quiet"]);
     git(&remote, &["add", "."]);
     git(&remote, &["commit", "--quiet", "-m", "publish answer"]);
     let pin = git(&remote, &["rev-parse", "HEAD"]);
-    fs::write(project.join("build.omg"), format!(r#"use {{omega}}/build/dependencies/providers/git.omg as upstream;
+    let build = format!(
+        r#"use {{omega}}/build/dependencies/providers/git.omg as upstream;
 machine build(build: @mutable BuildPlan) {{
     build.product = BuildProduct::Application {{ name: "pinned" }};
     let answers: DependencyDescription = |upstream|::dependency(
         "pinned_answers", "ssh://git@pin.invalid/answers.git", "refs/heads/no-such-tracking-ref", "{pin}");
     _ = Build::dependency(build, answers);
     Build::bind(build, {}::ProgramEntry, main);
-}}"#, target.target_name())).unwrap();
-    fs::write(
-        project.join("main.omg"),
-        r#"use {pinned_answers}/answer.omg as answer;
+}}"#,
+        target.target_name()
+    );
+    project::write(
+        &app,
+        &[
+            ("build.omg", &build),
+            (
+                "main.omg",
+                r#"use {pinned_answers}/answer.omg as answer;
 machine main() crashes Trap {
     transition |answer|::value() { 37u64 -> passed(), _ -> failed() }
     machine passed() {}
     machine failed() { crash Trap; }
 }"#,
-    )
-    .unwrap();
+            ),
+        ],
+    );
 
     for offline in [false, true] {
         if offline {
             fs::rename(&remote, dir.path().join("disconnected")).unwrap();
         }
         let destination = dir.path().join(if offline { "rebuilt" } else { "first" });
-        let output = build(&project, &remote, &destination, offline);
+        let output = build(&app, &remote, &destination, offline);
         let report = format!(
             "{}{}",
             String::from_utf8_lossy(&output.stdout),
@@ -103,7 +113,7 @@ machine main() crashes Trap {
         assert!(output.status.success(), "{report}");
         let executable = destination.join("omega-program");
         let status = Command::new(executable)
-            .current_dir(&project)
+            .current_dir(&app)
             .status()
             .unwrap();
         assert!(status.success(), "{status}");

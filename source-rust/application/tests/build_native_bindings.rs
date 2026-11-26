@@ -19,9 +19,9 @@ The dependency coverage checks that program on Linux and emits it for Windows.
 
 */
 
+#[path = "support/project.rs"]
+mod project;
 mod support;
-
-use std::process::Command;
 
 const PRODUCT: &str = "\
 public boundary trait Host {
@@ -35,12 +35,7 @@ const SLEEP: &str = "|native|::ForeignBinding::DllImport { import: |native|::Dll
 const OTHER: &str = "|native|::ForeignBinding::DllImport { import: |native|::DllImport::PeByName { library: \"kernel32.dll\", export: \"SleepEx\" } }";
 
 fn omega_check(directory: &std::path::Path, target: &str) -> Result<(), String> {
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["--check", "main.omg", "--target", target])
-        .current_dir(directory)
-        .stdin(std::process::Stdio::null())
-        .output()
-        .expect("omega runs");
+    let output = project::omega(directory, &["--check", "main.omg", "--target", target]);
     if output.status.success() {
         Ok(())
     } else {
@@ -53,28 +48,16 @@ fn check(name: &str, bindings: &str) -> Result<(), String> {
 }
 
 fn check_product(name: &str, product: &str, bindings: &str) -> Result<(), String> {
-    let root = std::env::temp_dir().join(format!(
-        "omega-build-native-bindings-{}-{name}",
-        std::process::id()
-    ));
-    let _ = std::fs::remove_dir_all(&root);
-    std::fs::create_dir_all(&root).expect("staging directory");
-    std::fs::write(root.join("main.omg"), product).expect("staged program");
-    std::fs::write(
-        root.join("build.omg"),
-        format!(
-            "use {{omega}}/language/core/external_binding.omg as native;
+    let build = format!(
+        "use {{omega}}/language/core/external_binding.omg as native;
 machine build(builder: @mutable BuildPlan) {{
     builder.product = BuildProduct::Application {{ name: \"bound\" }};
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
 {bindings}}}
 "
-        ),
-    )
-    .expect("staged Build");
-    let result = omega_check(&root, "linux_x86_64");
-    let _ = std::fs::remove_dir_all(&root);
-    result
+    );
+    let scratch = project::stage(name, &[("main.omg", product), ("build.omg", &build)]);
+    omega_check(scratch.path(), "linux_x86_64")
 }
 
 #[test]
@@ -172,34 +155,24 @@ const DEFAULT_BODY_REFUSAL: &str = "machine default or native-callback requireme
 
 /// Stage a program that uses `BOUND_LIBRARY` through `body`, and check it.
 fn check_with_bound_library(name: &str, body: &str) -> String {
-    let root = std::env::temp_dir().join(format!(
-        "omega-build-native-bindings-{}-{name}",
-        std::process::id()
-    ));
-    let _ = std::fs::remove_dir_all(&root);
-    let library = root.join("bound_library");
-    std::fs::create_dir_all(&library).expect("staging directory");
-    std::fs::write(library.join("main.omg"), BOUND_LIBRARY).expect("staged library");
-    std::fs::write(
-        library.join("build.omg"),
-        format!(
-            "use {{omega}}/language/core/external_binding.omg as native;
+    let library_build = format!(
+        "use {{omega}}/language/core/external_binding.omg as native;
 machine build(builder: @mutable BuildPlan) {{
     builder.product = BuildProduct::Package {{ name: \"bound_library\" }};
     Build::bind_native::<Raw::read>(builder, macos_arm64, {SLEEP});
 }}
 "
-        ),
-    )
-    .expect("staged library Build");
-    std::fs::write(
-        root.join("main.omg"),
-        format!("use {{bound}}/main.omg as bound;\n\nmachine main() {{\n{body}}}\n"),
-    )
-    .expect("staged program");
-    std::fs::write(
-        root.join("build.omg"),
-        "use {omega}/build/dependency.omg;
+    );
+    let main = format!("use {{bound}}/main.omg as bound;\n\nmachine main() {{\n{body}}}\n");
+    let scratch = project::stage(
+        name,
+        &[
+            ("bound_library/main.omg", BOUND_LIBRARY),
+            ("bound_library/build.omg", &library_build),
+            ("main.omg", &main),
+            (
+                "build.omg",
+                "use {omega}/build/dependency.omg;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: \"bound_user\" };
     let mutable library: DependencyDescription = |dependency|::from_source(Source::Path { location: \"bound_library\" });
@@ -208,11 +181,12 @@ machine build(builder: @mutable BuildPlan) {
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
 }
 ",
-    )
-    .expect("staged Build");
-    let stderr = omega_check(&root, "windows_x86_64").err().unwrap_or_default();
-    let _ = std::fs::remove_dir_all(&root);
-    stderr
+            ),
+        ],
+    );
+    omega_check(scratch.path(), "windows_x86_64")
+        .err()
+        .unwrap_or_default()
 }
 
 /// A dependency's bindings are judged where the program demands them, not
@@ -247,8 +221,9 @@ fn a_program_receives_the_system_packages_native_bindings() {
 fn windows_arm64_console_emits_with_its_authored_imports() {
     let directory = support::repository_root()
         .join("tests/fixtures/providers/run/default_console_provider_reached");
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args([
+    let output = project::omega(
+        &directory,
+        &[
             "run",
             "--engine",
             "native",
@@ -259,11 +234,8 @@ fn windows_arm64_console_emits_with_its_authored_imports() {
             "--build-input",
             "main.omg",
             "build.omg",
-        ])
-        .current_dir(directory)
-        .stdin(std::process::Stdio::null())
-        .output()
-        .expect("omega runs");
+        ],
+    );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(output.status.success(), "{stderr}");
     assert!(
@@ -283,23 +255,13 @@ fn windows_console_emits_with_its_authored_imports() {
         &["native"][..]
     };
     for engine in engines {
-        let mut command = Command::new(env!("CARGO_BIN_EXE_omega"));
-        command.args(["run", "--engine", engine]);
+        let mut arguments = vec!["run", "--engine", *engine];
         if !hosted {
-            command.args(["--target", "windows_x86_64"]);
+            arguments.extend(["--target", "windows_x86_64"]);
         }
-        let output = command
-            .args([
-                "--build-input",
-                "build.omg",
-                "--build-input",
-                "main.omg",
-                "build.omg",
-            ])
-            .current_dir(&directory)
-            .stdin(std::process::Stdio::null())
-            .output()
-            .expect("omega runs");
+        arguments.extend(["--build-input", "build.omg", "--build-input", "main.omg"]);
+        arguments.push("build.omg");
+        let output = project::omega(&directory, &arguments);
         let stderr = String::from_utf8_lossy(&output.stderr);
         assert!(output.status.success(), "{stderr}");
         if hosted {

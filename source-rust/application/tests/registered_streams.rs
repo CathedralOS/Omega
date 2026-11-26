@@ -4,25 +4,17 @@
     any(target_arch = "x86_64", target_arch = "aarch64")
 ))]
 
-use platform_custody::temporary_directory::TemporaryDirectory;
-use std::process::{Command, Stdio};
+#[path = "support/project.rs"]
+mod project;
 
 const BUILD: &str = include_str!("fixtures/build/run/registered_streams/build.omg");
 const PROGRAM: &str = include_str!("fixtures/build/run/registered_streams/main.omg");
 
 fn compare(configuration: &str) -> (bool, String) {
-    let root = TemporaryDirectory::create("registered-streams", false).unwrap();
-    std::fs::write(root.path().join("build.omg"), configuration).unwrap();
-    std::fs::write(root.path().join("main.omg"), PROGRAM).unwrap();
-    let result = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["build", "--compare-tests", "build.omg"])
-        .current_dir(root.path())
-        .stdin(Stdio::null())
-        .output()
-        .unwrap();
-    (
-        result.status.success(),
-        String::from_utf8_lossy(&result.stderr).into_owned(),
+    project::check(
+        "registered-streams",
+        &[("build.omg", configuration), ("main.omg", PROGRAM)],
+        &["build", "--compare-tests", "build.omg"],
     )
 }
 

@@ -1,42 +1,23 @@
+#[path = "support/project.rs"]
+mod project;
 #[cfg(any(
     all(target_os = "macos", target_arch = "aarch64"),
     all(target_os = "linux", target_arch = "x86_64"),
 ))]
 mod support;
 
-use std::path::PathBuf;
-use std::process::{Command, Stdio};
-
-fn stage_project(name: &str, source: &str, build: &str) -> PathBuf {
-    let project =
-        std::env::temp_dir().join(format!("omega-psi-runtime-{name}-{}", std::process::id()));
-    std::fs::create_dir_all(&project).expect("staging directory");
-    std::fs::write(project.join("main.omg"), source).expect("staged program");
-    std::fs::write(project.join("build.omg"), build).expect("staged Build");
-    project
-}
-
-fn assert_psi_runs(name: &str, source: &str) {
-    let project = stage_project(
-        name,
-        source,
-        r#"machine build(builder: @mutable Build) {
+const BUILD: &str = r#"machine build(builder: @mutable Build) {
     Build::application(builder, "structural_domain_issuer");
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);
     Build::bind(builder, macos_arm64::ProgramEntry, main);
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
 }
-"#,
-    );
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["run", "--engine", "psi", "build.omg"])
-        .current_dir(&project)
-        .stdin(Stdio::null())
-        .output()
-        .expect("omega runs on the hosted target");
-    std::fs::remove_dir_all(&project).expect("clean staged project");
+"#;
 
+fn assert_psi_runs(name: &str, source: &str) {
+    let scratch = project::stage(name, &[("main.omg", source), ("build.omg", BUILD)]);
+    let output = project::omega(scratch.path(), &["run", "--engine", "psi", "build.omg"]);
     let report = format!(
         "{}{}",
         String::from_utf8_lossy(&output.stdout),
@@ -49,10 +30,26 @@ fn assert_psi_runs(name: &str, source: &str) {
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
 fn both_engines_replay_eof_for_the_darwin_console_descriptor() {
+    use std::process::{Command, Stdio};
+
     let library = support::repository_root().join("source/library");
-    let project = stage_project(
-        "darwin-descriptor-input",
+    let build = format!(
         r#"
+use {{omega}}/build/dependency.omg;
+machine build(builder: @mutable Build) {{
+    Build::application(builder, "console_descriptor_eof");
+    let registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {{ location: "{}" }}));
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+}}
+"#,
+        library.join("system").display()
+    );
+    let scratch = project::stage(
+        "darwin-descriptor-input",
+        &[
+            (
+                "main.omg",
+                r#"
 use omega\language\core\ProcessExit;
 use omega\language\core\StandardInput;
 use system\ByteRead;
@@ -64,22 +61,14 @@ machine main() reaches ProcessExit + StandardInput {
     machine unexpected() { ProcessExit::exit_process(1); }
 }
 "#,
-        &format!(
-            r#"
-use {{omega}}/build/dependency.omg;
-machine build(builder: @mutable Build) {{
-    Build::application(builder, "console_descriptor_eof");
-    let registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {{ location: "{}" }}));
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-}}
-"#,
-            library.join("system").display()
-        ),
+            ),
+            ("build.omg", &build),
+        ],
     );
     for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
         let output = Command::new(env!("CARGO_BIN_EXE_omega"))
             .args(["run", "--engine", engine, "build.omg"])
-            .current_dir(&project)
+            .current_dir(scratch.path())
             .env("OMEGA_LIBRARY_ROOT", &library)
             .stdin(Stdio::null())
             .output()
@@ -89,7 +78,6 @@ machine build(builder: @mutable Build) {{
         assert!(report.lines().any(|line| line == expected), "{report}");
         assert!(output.stdout.is_empty(), "{output:?}");
     }
-    std::fs::remove_dir_all(&project).expect("clean staged project");
 }
 
 #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
@@ -98,11 +86,25 @@ fn failed_standard_input_returns_the_written_prefix() {
     use std::io::Write;
     use std::os::fd::OwnedFd;
     use std::os::unix::net::UnixStream;
+    use std::process::{Command, Stdio};
 
     let library = support::repository_root().join("source/library");
-    let project = stage_project(
+    let build = format!(
+        r#"use {{omega}}/build/dependency.omg;
+machine build(builder: @mutable Build) {{
+    Build::application(builder, "partial_read_error");
+    let registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {{ location: "{}" }}));
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+}}
+"#,
+        library.join("system").display()
+    );
+    let scratch = project::stage(
         "partial-read-error",
-        r#"
+        &[
+            (
+                "main.omg",
+                r#"
 use omega\language\core\ProcessExit;
 use omega\language\core\StandardInput;
 use system\Console;
@@ -124,23 +126,16 @@ machine main() reaches StandardInput + ProcessExit crashes none {
     machine wrong() { ProcessExit::exit_process(1); }
 }
 "#,
-        &format!(
-            r#"use {{omega}}/build/dependency.omg;
-machine build(builder: @mutable Build) {{
-    Build::application(builder, "partial_read_error");
-    let registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {{ location: "{}" }}));
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-}}
-"#,
-            library.join("system").display()
-        ),
+            ),
+            ("build.omg", &build),
+        ],
     );
-    let output = project.join("native");
+    let output = scratch.path().join("native");
     let build = Command::new(env!("CARGO_BIN_EXE_omega"))
         .args(["--target", "linux_x86_64", "--build-dir"])
         .arg(&output)
         .arg("build.omg")
-        .current_dir(&project)
+        .current_dir(scratch.path())
         .env("OMEGA_LIBRARY_ROOT", library)
         .output()
         .unwrap();
@@ -158,7 +153,6 @@ machine build(builder: @mutable Build) {{
         .stdin(Stdio::from(OwnedFd::from(input)))
         .status()
         .unwrap();
-    std::fs::remove_dir_all(project).unwrap();
     assert_eq!(result.code(), Some(0));
 }
 

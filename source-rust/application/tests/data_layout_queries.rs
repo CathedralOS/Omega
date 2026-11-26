@@ -7,22 +7,19 @@
 
 #[path = "support/declared_exit.rs"]
 mod declared_exit;
+#[path = "support/project.rs"]
+mod project;
 mod support;
 
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output, Stdio};
+use std::process::Output;
 
 fn fixture(path: &str) -> PathBuf {
     support::repository_root().join(path)
 }
 
-fn check(project: &Path) -> (Output, String) {
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["--check", "main.omg"])
-        .current_dir(project)
-        .stdin(Stdio::null())
-        .output()
-        .expect("omega runs on the hosted target");
+fn check(directory: &Path) -> (Output, String) {
+    let output = project::omega(directory, &["--check", "main.omg"]);
     let report = format!(
         "{}{}",
         String::from_utf8_lossy(&output.stdout),

@@ -1,7 +1,8 @@
 //! The caller selects the first Build by naming a file. Its Product receives a checked entry.
+#[path = "support/project.rs"]
+mod project;
+
 use platform_custody::temporary_directory::TemporaryDirectory;
-use std::path::Path;
-use std::process::{Command, Output, Stdio};
 
 const BUILD: &str = r#"machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "named_entry" };
@@ -10,28 +11,19 @@ const BUILD: &str = r#"machine build(builder: @mutable BuildPlan) {
 "#;
 const MAIN: &str = "machine main() {}\n";
 
-fn invoke(root: &Path, args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(args)
-        .current_dir(root)
-        .stdin(Stdio::null())
-        .output()
-        .unwrap()
-}
-
 #[test]
 fn default_build_selects_only_the_named_files_main() {
-    let project = TemporaryDirectory::create("named-default", false).unwrap();
-    let root = project.path();
+    let scratch = TemporaryDirectory::create("named-default", false).unwrap();
+    let root = scratch.path();
     std::fs::write(root.join("build.omg"), "machine build() {}").unwrap();
     std::fs::write(root.join("chosen.omg"), MAIN).unwrap();
-    let built = invoke(root, &["build", "chosen.omg"]);
+    let built = project::omega(root, &["build", "chosen.omg"]);
     assert!(
         built.status.success(),
         "{}",
         String::from_utf8_lossy(&built.stderr)
     );
-    let run = invoke(root, &["run", "--engine", "psi", "chosen.omg"]);
+    let run = project::omega(root, &["run", "--engine", "psi", "chosen.omg"]);
     assert!(
         run.status.success(),
         "{}",
@@ -40,7 +32,7 @@ fn default_build_selects_only_the_named_files_main() {
 
     std::fs::write(root.join("chosen.omg"), "machine other() {}").unwrap();
     std::fs::write(root.join("main.omg"), MAIN).unwrap();
-    let missing = invoke(root, &["build", "chosen.omg"]);
+    let missing = project::omega(root, &["build", "chosen.omg"]);
     assert!(!missing.status.success());
     let reason = String::from_utf8_lossy(&missing.stderr);
     assert!(
@@ -51,11 +43,11 @@ fn default_build_selects_only_the_named_files_main() {
 
 #[test]
 fn a_renamed_build_can_select_a_product_from_the_same_file() {
-    let project = TemporaryDirectory::create("named-authored", false).unwrap();
-    let root = project.path();
+    let scratch = TemporaryDirectory::create("named-authored", false).unwrap();
+    let root = scratch.path();
     std::fs::write(root.join("build.omg"), "machine build() {}").unwrap();
     std::fs::write(root.join("release.omg"), format!("{BUILD}{MAIN}")).unwrap();
-    let run = invoke(
+    let run = project::omega(
         root,
         &[
             "run",
@@ -77,7 +69,7 @@ fn a_renamed_build_can_select_a_product_from_the_same_file() {
         format!("{BUILD}{MAIN}").replace("main", "launch"),
     )
     .unwrap();
-    let alternate = invoke(
+    let alternate = project::omega(
         root,
         &[
             "run",
@@ -99,7 +91,7 @@ fn a_renamed_build_can_select_a_product_from_the_same_file() {
         format!("machine build() {{}}\n{MAIN}"),
     )
     .unwrap();
-    let invalid = invoke(root, &["build", "release.omg"]);
+    let invalid = project::omega(root, &["build", "release.omg"]);
     assert!(!invalid.status.success());
     let reason = String::from_utf8_lossy(&invalid.stderr);
     assert!(
@@ -116,7 +108,7 @@ fn a_renamed_build_can_select_a_product_from_the_same_file() {
 machine main(arg: UnavailableSchema) {}"#,
     )
     .unwrap();
-    let incomplete = invoke(root, &["build", "release.omg"]);
+    let incomplete = project::omega(root, &["build", "release.omg"]);
     assert!(!incomplete.status.success());
     let reason = String::from_utf8_lossy(&incomplete.stderr);
     assert!(
@@ -128,8 +120,8 @@ machine main(arg: UnavailableSchema) {}"#,
 
 #[test]
 fn private_ram_can_only_initialize_an_installed_argument() {
-    let project = TemporaryDirectory::create("hosted-private-entry-ram", false).unwrap();
-    let root = project.path();
+    let scratch = TemporaryDirectory::create("hosted-private-entry-ram", false).unwrap();
+    let root = scratch.path();
     std::fs::write(root.join("build.omg"), BUILD).unwrap();
     std::fs::write(root.join("main.omg"), MAIN).unwrap();
     let run = |ram: bool| {
@@ -138,7 +130,7 @@ fn private_ram_can_only_initialize_an_installed_argument() {
             args.extend(["--entry-ram", "0=29000000"]);
         }
         args.push("build.omg");
-        invoke(root, &args)
+        project::omega(root, &args)
     };
     let empty = run(false);
     assert!(empty.status.success(), "{empty:?}");

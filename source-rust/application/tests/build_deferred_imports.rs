@@ -1,25 +1,12 @@
 //! Check which imports a Build and its Product receive before each program runs.
 
-use std::process::Command;
+#[path = "support/project.rs"]
+mod project;
 
 /// The Build has a local helper and registers `dep/` for the Product.
 fn check(name: &str, imports: &str, body: &str, product: &str) -> (bool, String) {
-    let root = std::env::temp_dir().join(format!(
-        "omega-build-deferred-imports-{}-{name}",
-        std::process::id()
-    ));
-    let _ = std::fs::remove_dir_all(&root);
-    std::fs::create_dir_all(root.join("dep")).expect("staging directory");
-    std::fs::write(root.join("main.omg"), product).expect("Product source");
-    std::fs::write(
-        root.join("helper.omg"),
-        "public machine value() -> i32 { 7 }",
-    )
-    .unwrap();
-    std::fs::write(
-        root.join("build.omg"),
-        format!(
-            "{imports}use {{omega}}/build/dependency.omg;
+    let build = format!(
+        "{imports}use {{omega}}/build/dependency.omg;
 machine build(builder: @mutable BuildPlan) {{
     builder.product = BuildProduct::Application {{ name: \"deferred\" }};
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
@@ -28,33 +15,23 @@ machine build(builder: @mutable BuildPlan) {{
     let lib_registered: DependencyRegistration = Build::dependency(builder, lib_request);
 {body}}}
 "
-        ),
-    )
-    .expect("staged Build");
-    std::fs::write(
-        root.join("dep/build.omg"),
-        "machine build(builder: @mutable BuildPlan) {
+    );
+    project::check(
+        name,
+        &[
+            ("main.omg", product),
+            ("helper.omg", "public machine value() -> i32 { 7 }"),
+            ("build.omg", &build),
+            (
+                "dep/build.omg",
+                "machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Package { name: \"kit_package\" };
 }
 ",
-    )
-    .expect("staged dependency Build");
-    std::fs::write(
-        root.join("dep/main.omg"),
-        "public machine v() -> i32 { 7 }\n",
-    )
-    .expect("staged dependency source");
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .arg("--check")
-        .arg("build.omg")
-        .current_dir(&root)
-        .stdin(std::process::Stdio::null())
-        .output()
-        .expect("omega runs");
-    let _ = std::fs::remove_dir_all(&root);
-    (
-        output.status.success(),
-        String::from_utf8_lossy(&output.stderr).into_owned(),
+            ),
+            ("dep/main.omg", "public machine v() -> i32 { 7 }\n"),
+        ],
+        &["--check", "build.omg"],
     )
 }
 

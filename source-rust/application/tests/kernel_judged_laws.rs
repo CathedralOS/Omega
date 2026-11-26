@@ -9,10 +9,12 @@
 //! publication: the trait's type argument was recorded under the requirement
 //! it instantiates, not under the machine that declares the record binder.
 
+#[path = "support/project.rs"]
+mod project;
 mod support;
 
 use std::path::PathBuf;
-use std::process::{Command, Output, Stdio};
+use std::process::Output;
 
 const CHECKER_FIXTURES: &str = "source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/tests/fixtures";
 const UNPROVED: &str = "no available equality proves the stated Identity";
@@ -21,12 +23,7 @@ fn check(fixture: &str) -> (Output, String) {
     let directory: PathBuf = support::repository_root()
         .join(CHECKER_FIXTURES)
         .join(fixture);
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["--check", "main.omg"])
-        .current_dir(directory)
-        .stdin(Stdio::null())
-        .output()
-        .expect("omega runs");
+    let output = project::omega(&directory, &["--check", "main.omg"]);
     let report = format!(
         "{}{}",
         String::from_utf8_lossy(&output.stdout),
@@ -71,13 +68,8 @@ fn peano_addition_associativity_compiles_and_its_saved_program_names_the_kernel_
     )
     .unwrap();
     let artifact = scratch.path().join("ring_law_conformance.psi");
-    let omega = |arguments: &[&std::ffi::OsStr]| {
-        let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-            .args(arguments)
-            .current_dir(&directory)
-            .stdin(Stdio::null())
-            .output()
-            .expect("omega runs");
+    let omega = |arguments: &[&str]| {
+        let output = project::omega(&directory, arguments);
         let report = format!(
             "{}{}",
             String::from_utf8_lossy(&output.stdout),
@@ -85,17 +77,9 @@ fn peano_addition_associativity_compiles_and_its_saved_program_names_the_kernel_
         );
         assert_eq!(output.status.code(), Some(0), "{arguments:?}: {report}");
     };
-    omega(&[
-        "--emit-psi".as_ref(),
-        artifact.as_os_str(),
-        "main.omg".as_ref(),
-    ]);
-    omega(&[
-        "psi".as_ref(),
-        "inspect".as_ref(),
-        "--artifact".as_ref(),
-        artifact.as_os_str(),
-    ]);
+    let path = artifact.to_str().unwrap();
+    omega(&["--emit-psi", path, "main.omg"]);
+    omega(&["psi", "inspect", "--artifact", path]);
 
     let bytes = std::fs::read(&artifact).expect("the compiler saved the program");
     let saved = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes)

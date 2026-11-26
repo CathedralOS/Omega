@@ -7,32 +7,32 @@
 //!   must refuse the program.
 //! - Build selects, for Windows, a provider that calls back into its own
 //!   requirement. Checking for Linux alone must refuse the program.
+#[path = "support/project.rs"]
+mod project;
 mod support;
-
-use platform_custody::temporary_directory::TemporaryDirectory;
-use std::process::{Command, Stdio};
 
 const FIXTURE: &str = "source-rust/subsystems/compiler/tests/fixtures/build/fail/program_entry_unestablished_requires";
 
 /// `omega --check --target <target>` over a `build.omg` and `main.omg`.
 /// Returns whether it succeeded and what it printed.
 fn check(target: &str, build: &str, main: &str) -> (bool, String) {
-    let scratch = TemporaryDirectory::create("entry-rows-every-target", false).unwrap();
-    std::fs::write(scratch.path().join("main.omg"), main).unwrap();
-    std::fs::write(scratch.path().join("build.omg"), build).unwrap();
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["--check", "--target", target])
-        .args([
+    let scratch = project::stage(
+        "entry-rows-every-target",
+        &[("main.omg", main), ("build.omg", build)],
+    );
+    let output = project::omega(
+        scratch.path(),
+        &[
+            "--check",
+            "--target",
+            target,
             "--build-input",
             "build.omg",
             "--build-input",
             "main.omg",
             "build.omg",
-        ])
-        .current_dir(scratch.path())
-        .stdin(Stdio::null())
-        .output()
-        .unwrap();
+        ],
+    );
     let mut text = String::from_utf8_lossy(&output.stdout).into_owned();
     text.push_str(&String::from_utf8_lossy(&output.stderr));
     (output.status.success(), text)
