@@ -58,9 +58,8 @@ crashes Trap
 {
     let item: |syntax_trees|::MachineItem = |syntax_trees|::machine_item(syntax, representative);
     let declared: |source|::SourceId = item.name.source_span.source;
-    let seen: bool = |imports|::resolver_visible(sources, syntax, from, declared, true);
     let local: bool = |imports|::resolver_same_package(sources, overload_unit_index(from), overload_unit_index(declared));
-    transition seen && representative < 10240 {
+    transition representative < 10240 {
         true -> family(resolver, sources, syntax, representative, item, local),
         _ -> |symbol_resolved_trees|::VisibleOverloads { first: 0u64 as +Trapping, public_only: false }
     }
@@ -165,8 +164,8 @@ crashes Trap
 
     machine candidate(resolution: @|symbol_resolved_trees|::NameResolution, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, owned: bool, owner: |source|::SourceSpan, name: |source|::SourceSpan, index: u64 in Trapping) -> |declarations|::Lookup {
         let item: |syntax_trees|::MachineItem = |syntax_trees|::machine_item(syntax, index);
-        let named: bool = item.parent == 0 && machine_spells(resolution, sources, item, index, owned, owner, name);
-        let visible: bool = machine_visible_if(resolution, sources, syntax, named, name.source, item, index);
+        let named: bool = item.parent == 0 && machine_spells(resolution, sources, item, index, owned, |imports|::member_spelling(syntax, owner), |imports|::member_spelling(syntax, name));
+        let visible: bool = machine_visible_if(resolution, sources, syntax, named, owner, item, index);
         transition visible {
             true -> rival(resolution, sources, syntax, owned, owner, name, index, item.name.source_span.source, index + 1),
             _ -> next(resolution, sources, syntax, owned, owner, name, index + 1)
@@ -202,8 +201,8 @@ crashes Trap
         index: u64 in Trapping
     ) -> |declarations|::Lookup {
         let item: |syntax_trees|::MachineItem = |syntax_trees|::machine_item(syntax, index);
-        let named: bool = item.parent == 0 && machine_spells(resolution, sources, item, index, owned, owner, name);
-        let visible: bool = machine_visible_if(resolution, sources, syntax, named, name.source, item, index);
+        let named: bool = item.parent == 0 && machine_spells(resolution, sources, item, index, owned, |imports|::member_spelling(syntax, owner), |imports|::member_spelling(syntax, name));
+        let visible: bool = machine_visible_if(resolution, sources, syntax, named, owner, item, index);
         let overload: bool = |imports|::resolver_same_module(sources, family.value as -Trapping as u64 +Trapping,
             item.name.source_span.source.value as -Trapping as u64 +Trapping);
         transition visible && !overload {
@@ -251,7 +250,7 @@ public machine machine_visible_if(
     sources: @|source|::SourceSet,
     syntax: @|syntax_trees|::SyntaxTrees,
     named: bool,
-    from: |source|::SourceId,
+    from: |source|::SourceSpan,
     item: |syntax_trees|::MachineItem,
     handle: u64 in Trapping
 ) -> bool
@@ -262,7 +261,7 @@ crashes Trap
         _ -> hidden()
     }
 
-    machine test(resolution: @|symbol_resolved_trees|::NameResolution, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, from: |source|::SourceId, item: |syntax_trees|::MachineItem, handle: u64 in Trapping) -> bool {
+    machine test(resolution: @|symbol_resolved_trees|::NameResolution, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, from: |source|::SourceSpan, item: |syntax_trees|::MachineItem, handle: u64 in Trapping) -> bool {
         let is_public: bool = machine_public(resolution, syntax, item, handle);
         |imports|::resolver_visible(sources, syntax, from, item.name.source_span.source, is_public)
     }

@@ -1,3 +1,4 @@
+use pipeline/tokens_to_syntax_trees/clause.omg;
 use pipeline/tokens_to_syntax_trees/callable_header.omg;
 use pipeline/tokens_to_syntax_trees/conformance.omg;
 use pipeline/tokens_to_syntax_trees/constant.omg;
@@ -45,6 +46,11 @@ requires
     current_present: bool;
     item_start: u64 in Trapping;
     use_first_member: u64 in Trapping;
+    use_rooted: bool;
+    use_alias: |syntax_trees|::IdentifierSpan;
+    use_alias_token: u64;
+    first_unit_use: u64 in Trapping;
+    alias_tokens: [u64; 4096];
     data_item_start: u64 in Trapping;
     data_first_member: u64 in Trapping;
     data_first_field: u64 in Trapping;
@@ -254,6 +260,7 @@ public machine parser_initialize(parser: @mutable Parser) {
 machine begin_unit(parser: @mutable Parser, source: |source|::SourceId, source_length: u64 in Trapping) {
     parser.source = source;
     parser.source_length = source_length;
+    parser.first_unit_use = parser.output.use_count as +Trapping;
     parser.expression_clause_fact = false;
     |input|::initialize_cursor(parser);
 }
@@ -630,7 +637,7 @@ crashes Trap
     }
 
     machine use_capacity(parser: @mutable Parser, input: @|tokens|::TokenStream) {
-        transition parser.output.use_count < 1024 {
+        transition parser.output.use_count < 4096 {
             true -> use_start(parser, input),
             _ -> use_full(parser, input)
         }
@@ -647,113 +654,196 @@ crashes Trap
 
     machine use_start(parser: @mutable Parser, input: @|tokens|::TokenStream) {
         parser.use_first_member = parser.output.member_count as +Trapping;
-                |input|::parser_advance(parser, input);
-        transition parser.cursor < input.token_count {
-            true -> first_member(parser, input),
-            _ -> expected_member_at_end(parser)
+        |input|::take_current(parser, input);
+        parser.use_rooted = |input|::at_punctuation(parser, input, |tokens|::PunctuationKind::LeftBrace);
+        transition parser.use_rooted {
+            true -> use_root(parser, input),
+            false -> component(parser, input)
         }
     }
 
-    machine first_member(parser: @mutable Parser, input: @|tokens|::TokenStream) {
+    machine use_root(parser: @mutable Parser, input: @|tokens|::TokenStream) {
+        |input|::take_current(parser, input);
+        |input|::expect_name(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedPathMember);
+        let root: |syntax_trees|::IdentifierSpan = identifier_span(parser, parser.name_start, parser.name_end);
+        transition parser.output.accepted {
+            true -> root_end(parser, input, root),
+            false -> done()
+        }
+    }
+
+    machine root_end(parser: @mutable Parser, input: @|tokens|::TokenStream, root: |syntax_trees|::IdentifierSpan) {
+        |clause|::append_member(parser, input, root.source_span.span.start, root.source_span.span.end);
+        |input|::expect_punctuation(parser, input, |tokens|::PunctuationKind::RightBrace, |syntax_trees|::ParseDiagnosticCode::ExpectedPathMember);
+        transition parser.output.accepted {
+            true -> root_slash(parser, input),
+            false -> done()
+        }
+    }
+
+    machine root_slash(parser: @mutable Parser, input: @|tokens|::TokenStream) {
+        |input|::expect_punctuation(parser, input, |tokens|::PunctuationKind::Slash, |syntax_trees|::ParseDiagnosticCode::ExpectedPathSeparatorOrSemicolon);
+        transition parser.output.accepted {
+            true -> component(parser, input),
+            false -> done()
+        }
+    }
+
+    machine component(parser: @mutable Parser, input: @|tokens|::TokenStream) {
         |input|::load_current(parser, input);
+        transition parser.current_present {
+            true -> component_start(parser, input),
+            false -> expected_member_at_end(parser)
+        }
+    }
+
+    machine component_start(parser: @mutable Parser, input: @|tokens|::TokenStream) {
+        parser.use_alias_token = parser.current_index;
         let token: |tokens|::Token = input.tokens[parser.current_index];
-        transition token.kind {
-            |tokens|::TokenKind::Identifier -> retain_member(parser, input,
-                token.start,
-                token.end
-            ),
-            |tokens|::TokenKind::Keyword { keyword, .. } -> member_keyword(parser, input,
-                keyword,
-                token.start,
-                token.end
-            ),
-            _ -> expected_member(parser, token.start, token.end)
+        transition file_component_token(token.kind) {
+            true -> piece(parser, input, token.start, file_alias_token(token.kind)),
+            false -> expected_member(parser, token.start, token.end)
         }
     }
 
-
-    machine member_keyword(parser: @mutable Parser, input: @|tokens|::TokenStream,
-        keyword: |tokens|::KeywordKind,
-        start: u64 in Trapping,
-        end: u64 in Trapping
-    ) {
-        transition keyword {
-            |tokens|::KeywordKind::SelfValue -> expected_member(parser, start, end),
-            _ -> retain_member(parser, input, start, end)
-        }
-    }
-
-    machine retain_member(
-        parser: @mutable Parser,
-        input: @|tokens|::TokenStream,
-        start: u64 in Trapping,
-        end: u64 in Trapping
-    ) {
-        transition parser.output.member_count < 32000 {
-            true -> retain_member_bounded(parser, input, start, end),
-            _ -> member_full(parser, start, end)
-        }
-    }
-
-    machine retain_member_bounded(
-        parser: @mutable Parser,
-        input: @|tokens|::TokenStream,
-        start: u64 in Trapping,
-        end: u64 in Trapping
-    ) {
-        parser.output.members[parser.output.member_count] = identifier_span(parser, start, end);
-        parser.output.member_count = parser.output.member_count + 1;
-                |input|::parser_advance(parser, input);
-        transition parser.cursor < input.token_count {
-            true -> path_tail(parser, input),
-            _ -> expected_separator_at_end(parser)
-        }
-    }
-
-    machine path_tail(parser: @mutable Parser, input: @|tokens|::TokenStream) {
+    // A component can span several adjacent tokens, as in value-cell.omg.
+    // Only a stem lexed as one identifier supplies a default alias.
+    machine piece(parser: @mutable Parser, input: @|tokens|::TokenStream, start: u64 in Trapping, implicit: bool) {
+        |input|::take_current(parser, input);
+        let end: u64 in Trapping = parser.token_end;
         |input|::load_current(parser, input);
-        let token: |tokens|::Token = input.tokens[parser.current_index];
-        transition token.kind {
-            |tokens|::TokenKind::Punctuation { punctuation: |tokens|::PunctuationKind::Backslash, .. } -> separator(parser, input),
-            |tokens|::TokenKind::Punctuation { punctuation: |tokens|::PunctuationKind::ColonColon, .. } -> separator(parser, input),
-            |tokens|::TokenKind::Punctuation { punctuation: |tokens|::PunctuationKind::Semicolon, .. } -> retain_use(parser, input,
-                token.end
-            ),
-            _ -> expected_separator(parser, token.start,
-                token.end
-            )
+        transition parser.current_present {
+            true -> after_piece(parser, input, start, end, implicit),
+            false -> expected_separator_at_end(parser)
         }
     }
 
-
-    machine separator(parser: @mutable Parser, input: @|tokens|::TokenStream) {
-                |input|::parser_advance(parser, input);
-        transition parser.cursor < input.token_count {
-            true -> next_member(parser, input),
-            _ -> expected_member_at_end(parser)
+    machine after_piece(parser: @mutable Parser, input: @|tokens|::TokenStream, start: u64 in Trapping, end: u64 in Trapping, implicit: bool) {
+        let next: |tokens|::Token = input.tokens[parser.current_index];
+        transition next.start == end && file_component_token(next.kind) {
+            true -> piece(parser, input, start, false),
+            false -> component_end(parser, input, start, end, implicit)
         }
     }
 
-    machine next_member(parser: @mutable Parser, input: @|tokens|::TokenStream) {
+    machine component_end(parser: @mutable Parser, input: @|tokens|::TokenStream, start: u64 in Trapping, end: u64 in Trapping, implicit: bool) {
+        |clause|::append_member(parser, input, start, end);
+        transition parser.output.accepted {
+            true -> path_separator(parser, input, start, end, implicit),
+            false -> done()
+        }
+    }
+
+    machine path_separator(parser: @mutable Parser, input: @|tokens|::TokenStream, start: u64 in Trapping, end: u64 in Trapping, implicit: bool) {
+        let slash: bool = |input|::at_punctuation(parser, input, |tokens|::PunctuationKind::Slash);
+        let dot: bool = |input|::at_punctuation(parser, input, |tokens|::PunctuationKind::Dot);
+        transition {
+            slash -> directory(parser, input),
+            dot -> extension(parser, input, start, end, implicit),
+            _ -> bad_path(parser, input)
+        }
+    }
+
+    machine directory(parser: @mutable Parser, input: @|tokens|::TokenStream) {
+        |input|::take_current(parser, input);
+        transition { _ -> component(parser, input) }
+    }
+
+    machine extension(parser: @mutable Parser, input: @|tokens|::TokenStream, start: u64 in Trapping, end: u64 in Trapping, implicit: bool) {
+        |input|::take_current(parser, input);
+        let omg: bool = |input|::at_word(parser, input, "omg");
+        transition omg {
+            true -> alias(parser, input, start, end, implicit),
+            false -> bad_path(parser, input)
+        }
+    }
+
+    machine alias(parser: @mutable Parser, input: @|tokens|::TokenStream, start: u64 in Trapping, end: u64 in Trapping, implicit: bool) {
+        |input|::take_current(parser, input);
+        let renamed: bool = |input|::at_keyword(parser, input, |tokens|::KeywordKind::As);
+        let default_alias: |syntax_trees|::IdentifierSpan = identifier_span(parser, start, end);
+        transition {
+            renamed -> explicit_alias(parser, input),
+            implicit -> semicolon(parser, input, default_alias),
+            _ -> bad_alias(parser, input)
+        }
+    }
+
+    machine explicit_alias(parser: @mutable Parser, input: @|tokens|::TokenStream) {
+        |input|::take_current(parser, input);
         |input|::load_current(parser, input);
-        let token: |tokens|::Token = input.tokens[parser.current_index];
-        transition token.kind {
-            |tokens|::TokenKind::Identifier -> retain_member(parser, input,
-                token.start,
-                token.end
-            ),
-            |tokens|::TokenKind::Keyword { keyword, .. } -> member_keyword(parser, input,
-                keyword,
-                token.start,
-                token.end
-            ),
-            _ -> expected_member(parser, token.start, token.end)
+        transition parser.current_present {
+            true -> alias_token(parser, input),
+            false -> bad_alias(parser, input)
         }
     }
 
+    machine alias_token(parser: @mutable Parser, input: @|tokens|::TokenStream) {
+        parser.use_alias_token = parser.current_index;
+        let token: |tokens|::Token = input.tokens[parser.current_index];
+        let name: |syntax_trees|::IdentifierSpan = identifier_span(parser, token.start, token.end);
+        transition file_alias_token(token.kind) {
+            true -> take_alias(parser, input, name),
+            false -> bad_alias(parser, input)
+        }
+    }
+
+    machine take_alias(parser: @mutable Parser, input: @|tokens|::TokenStream, alias: |syntax_trees|::IdentifierSpan) {
+        |input|::take_current(parser, input);
+        transition { _ -> semicolon(parser, input, alias) }
+    }
+
+    machine semicolon(parser: @mutable Parser, input: @|tokens|::TokenStream, alias: |syntax_trees|::IdentifierSpan) {
+        parser.use_alias = alias;
+        let terminated: bool = |input|::at_punctuation(parser, input, |tokens|::PunctuationKind::Semicolon);
+        let end: u64 in Trapping = input.tokens[parser.current_index].end;
+        transition terminated {
+            true -> check_alias(parser, input, end),
+            false -> bad_path(parser, input)
+        }
+    }
+
+    // Compare decoded identifier bytes only with imports of this unit.
+    machine check_alias(parser: @mutable Parser, input: @|tokens|::TokenStream, item_end: u64 in Trapping) {
+        let token: |tokens|::Token = input.tokens[parser.use_alias_token];
+        let end: u64 in Trapping = token.decoded_start + token.decoded_length;
+        let first: u64 in Trapping = parser.first_unit_use;
+        transition end <= 131072 && token.decoded_start <= end {
+            true -> previous(parser, input, item_end, token.decoded_start, end, first),
+            false -> bad_alias(parser, input)
+        }
+    }
+    machine previous(parser: @mutable Parser, input: @|tokens|::TokenStream, item_end: u64 in Trapping, start: u64 in Trapping, end: u64 in Trapping, index: u64 in Trapping) {
+        transition index < parser.output.use_count && index < 4096 {
+            true -> compare_alias(parser, input, item_end, start, end, index),
+            false -> retain_use(parser, input, item_end)
+        }
+    }
+    machine compare_alias(parser: @mutable Parser, input: @|tokens|::TokenStream, item_end: u64 in Trapping, start: u64 in Trapping, end: u64 in Trapping, index: u64 in Trapping)
+    requires index < 4096
+    {
+        let prior: |tokens|::Token = input.tokens[parser.alias_tokens[index as -Trapping]];
+        let equal: bool = |input|::decoded_spells(input, prior.decoded_start, prior.decoded_length, @input.decoded[start as -Trapping..end as -Trapping]);
+        transition equal {
+            true -> duplicate(parser),
+            false -> previous(parser, input, item_end, start, end, index + 1)
+        }
+    }
+    machine duplicate(parser: @mutable Parser) {
+        let span: |source|::SourceSpan = parser.use_alias.source_span;
+        |syntax_trees|::syntax_trees_reject(@mutable parser.output, |syntax_trees|::ParseDiagnosticCode::DuplicateFileAlias, span.source, span.span.start, span.span.end);
+    }
+
+    machine bad_alias(parser: @mutable Parser, input: @|tokens|::TokenStream) {
+        |input|::reject_current(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedFileAlias);
+    }
+
+    machine bad_path(parser: @mutable Parser, input: @|tokens|::TokenStream) {
+        |input|::reject_current(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedPathSeparatorOrSemicolon);
+    }
 
     machine retain_use(parser: @mutable Parser, input: @|tokens|::TokenStream, item_end: u64 in Trapping) {
-        transition parser.output.use_count < 1024 {
+        transition parser.output.use_count < 4096 {
             true -> retain_use_bounded(parser, input, item_end),
             _ -> retained_capacity_lost(parser)
         }
@@ -761,7 +851,10 @@ crashes Trap
 
     machine retain_use_bounded(parser: @mutable Parser, input: @|tokens|::TokenStream, item_end: u64 in Trapping) {
         let use_index: u64 in Trapping = parser.output.use_count as +Trapping;
+        parser.alias_tokens[parser.output.use_count] = parser.use_alias_token;
         parser.output.uses[parser.output.use_count] = |syntax_trees|::UseItem {
+            rooted: parser.use_rooted,
+            alias: parser.use_alias,
             first_member: parser.use_first_member,
             member_count: (parser.output.member_count as +Trapping) - parser.use_first_member,
             source_span: parser_source_span(parser, parser.item_start, item_end)
@@ -822,14 +915,6 @@ crashes Trap
         |syntax_trees|::syntax_trees_reject(@mutable parser.output, |syntax_trees|::ParseDiagnosticCode::ExpectedPathSeparatorOrSemicolon, parser.source, parser.source_length, parser.source_length);
     }
 
-    machine expected_separator(parser: @mutable Parser, start: u64 in Trapping, end: u64 in Trapping) {
-        |syntax_trees|::syntax_trees_reject(@mutable parser.output, |syntax_trees|::ParseDiagnosticCode::ExpectedPathSeparatorOrSemicolon, parser.source, start, end);
-    }
-
-    machine member_full(parser: @mutable Parser, start: u64 in Trapping, end: u64 in Trapping) {
-        |syntax_trees|::syntax_trees_reject(@mutable parser.output, |syntax_trees|::ParseDiagnosticCode::PathMemberCapacityExceeded, parser.source, start, end);
-    }
-
     machine done() { }
 }
 
@@ -880,5 +965,19 @@ machine boundary_machine_head(head: |machine_parser|::MachineHead) -> |machine_p
         target_end: head.target_end,
         is_boundary: true,
         container: head.container
+    }
+}
+
+machine file_alias_token(kind: |tokens|::TokenKind) -> bool {
+    transition kind { |tokens|::TokenKind::Identifier -> true, _ -> false }
+}
+
+machine file_component_token(kind: |tokens|::TokenKind) -> bool {
+    transition kind {
+        |tokens|::TokenKind::Identifier -> true,
+        |tokens|::TokenKind::Keyword { .. } -> true,
+        |tokens|::TokenKind::Integer { .. } -> true,
+        |tokens|::TokenKind::Punctuation { punctuation: |tokens|::PunctuationKind::Minus, .. } -> true,
+        _ -> false
     }
 }

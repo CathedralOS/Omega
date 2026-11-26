@@ -1,3 +1,4 @@
+use representations/source_files/source.omg;
 use pipeline/tokens_to_syntax_trees/expression_frames.omg as frames;
 use pipeline/tokens_to_syntax_trees/input.omg;
 use pipeline/tokens_to_syntax_trees/parser.omg;
@@ -68,6 +69,7 @@ crashes Trap
     machine operand_token(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, code: |syntax_trees|::ParseDiagnosticCode) {
         let token: |tokens|::Token = input.tokens[parser.current_index];
         transition token.kind {
+            |tokens|::TokenKind::Punctuation { punctuation: |tokens|::PunctuationKind::Pipe, .. } -> path(parser, input),
             |tokens|::TokenKind::Punctuation { punctuation: |tokens|::PunctuationKind::Exclamation, .. } -> prefix(parser, input, |syntax_trees|::OperatorKind::Not),
             |tokens|::TokenKind::Punctuation { punctuation: |tokens|::PunctuationKind::Minus, .. } -> prefix(parser, input, |syntax_trees|::OperatorKind::Negate),
             |tokens|::TokenKind::Punctuation { punctuation: |tokens|::PunctuationKind::Dollar, .. } -> prefix(parser, input, |syntax_trees|::OperatorKind::Dereference),
@@ -317,7 +319,26 @@ crashes Trap
         let token: |tokens|::Token = input.tokens[parser.current_index];
         parser.path_start = token.start;
         parser.path_first_member = parser.output.member_count as +Trapping;
+        transition token.kind {
+            |tokens|::TokenKind::Punctuation { punctuation: |tokens|::PunctuationKind::Pipe, .. } -> selected_path(parser, input),
+            _ -> ordinary_path(parser, input)
+        }
+    }
+
+    machine ordinary_path(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
         |input|::take_current(parser, input);
+        transition { _ -> path_head(parser, input) }
+    }
+
+    machine selected_path(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |input|::expect_path_head(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedExpressionPathMember);
+        transition parser.output.accepted {
+            true -> path_head(parser, input),
+            false -> done()
+        }
+    }
+
+    machine path_head(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
         let qualified: bool = |input|::at_path_separator(parser, input);
         transition qualified {
             true -> path_member(parser, input),
@@ -419,6 +440,7 @@ crashes Trap
     machine suffix(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
         let token: |tokens|::Token = input.tokens[parser.current_index];
         transition token.kind {
+            |tokens|::TokenKind::Punctuation { punctuation: |tokens|::PunctuationKind::ColonColon, .. } -> explicit_arguments(parser, input),
             |tokens|::TokenKind::Punctuation { punctuation: |tokens|::PunctuationKind::Dot, .. } -> field(parser, input),
             |tokens|::TokenKind::Punctuation { punctuation: |tokens|::PunctuationKind::LeftBracket, .. } -> open_index(parser, input),
             |tokens|::TokenKind::Punctuation { punctuation: |tokens|::PunctuationKind::LeftParen, .. } -> open_call(parser, input),
@@ -651,9 +673,17 @@ crashes Trap
         let pattern: u64 in Trapping = pop_operand(parser);
         let expression: |syntax_trees|::Expression = |syntax_trees|::syntax_trees_expression(@parser.output, pattern);
         transition expression.kind {
-            |syntax_trees|::ExpressionKind::Name -> match_arrow(parser, input, frame, |syntax_trees|::ArmPatternKind::Binder, pattern),
+            |syntax_trees|::ExpressionKind::Name -> match_name_pattern(parser, input, frame, pattern, expression.name.source_span),
             |syntax_trees|::ExpressionKind::Path -> match_arrow(parser, input, frame, |syntax_trees|::ArmPatternKind::Case, pattern),
             _ -> match_arrow(parser, input, frame, |syntax_trees|::ArmPatternKind::Literal, pattern)
+        }
+    }
+
+    machine match_name_pattern(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, frame: |frames|::ExpressionFrame, pattern: u64 in Trapping, name: |source|::SourceSpan) {
+        let selector: u64 in Trapping = |syntax_trees|::file_selector_at(@parser.output, name);
+        transition selector > 0 {
+            true -> match_arrow(parser, input, frame, |syntax_trees|::ArmPatternKind::Literal, pattern),
+            false -> match_arrow(parser, input, frame, |syntax_trees|::ArmPatternKind::Binder, pattern)
         }
     }
 
@@ -754,6 +784,18 @@ crashes Trap
     }
 
     // The static argument list (types.omg) commits to `type_arguments`.
+    machine explicit_arguments(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        transition |input|::at_expression_arguments(parser, input) {
+            true -> take_separator(parser, input),
+            false -> reject(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedExpressionPathMember)
+        }
+    }
+
+    machine take_separator(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |input|::take_current(parser, input);
+        transition { _ -> static_arguments(parser, input) }
+    }
+
     machine static_arguments(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
         |types|::parse_static_arguments(parser, input, true);
         transition parser.output.accepted {
@@ -2401,7 +2443,7 @@ crashes Trap
         transition token.kind {
             |tokens|::TokenKind::Punctuation { punctuation: |tokens|::PunctuationKind::Less, .. } -> scan(input, index + 1, depth + 1),
             |tokens|::TokenKind::Punctuation { punctuation: |tokens|::PunctuationKind::Greater, .. } -> close(input, index, depth),
-            |tokens|::TokenKind::Punctuation { punctuation: |tokens|::PunctuationKind::Backslash, .. } -> scan(input, index + 1, depth),
+            |tokens|::TokenKind::Punctuation { punctuation: |tokens|::PunctuationKind::Pipe, .. } -> scan(input, index + 1, depth),
             |tokens|::TokenKind::Punctuation { punctuation: |tokens|::PunctuationKind::ColonColon, .. } -> scan(input, index + 1, depth),
             |tokens|::TokenKind::Punctuation { punctuation: |tokens|::PunctuationKind::Comma, .. } -> scan(input, index + 1, depth),
             |tokens|::TokenKind::Punctuation { punctuation: |tokens|::PunctuationKind::Ampersand, .. } -> scan(input, index + 1, depth),
