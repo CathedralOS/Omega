@@ -84,7 +84,7 @@ binding `layout`, a helper can call the supplied library as soon as its Build st
 ```omega
 use {layout}/api.omg as layout;
 
-machine configure(builder: @mutable Build) {
+machine configure(builder: @mutable BuildPlan) {
     |layout|::configure_product(builder);
 }
 ```
