@@ -1,7 +1,7 @@
 // Expected exit: 11
-// Both modules export run and Reader. Build queries left\run in a helper,
+// Both files export run and Reader. A Build helper selects the entry in left/left.omg,
 // carries the compiler-issued description back, and binds that exact entry.
-// Its selected Reader implementation returns 11; selecting right\run would
+// Its selected Reader implementation returns 11; the entry in right/right.omg would
 // exit 37, and losing the provider result or branch would exit 65.
 use left/left.omg;
 use right/right.omg;
