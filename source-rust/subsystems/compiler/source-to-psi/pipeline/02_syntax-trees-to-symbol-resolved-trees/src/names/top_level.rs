@@ -185,10 +185,11 @@ mod data {
                     );
                 }
                 data_definition.predicate_subject_type =
-                    if !data_definition.predicate_subject_symbol.is_valid() {
+                    if !data_definition.predicate_subject_symbol.is_valid()
+                        || data_definition.generic_instance.is_some()
+                    {
+                        // An instance takes its subject type when its origin is resolved.
                         TypeReference::Unit
-                    } else if let Some(origin) = &data_definition.generic_instance {
-                        origin.clone()
                     } else if local_type_parameters.is_empty()
                         && data_definition.lifetime_parameters.is_empty()
                     {
