@@ -393,11 +393,15 @@ impl<'source> Questions<'source> {
                 else {
                     return Err(refused("emitted invocation source is no call expression"));
                 };
+                let source_target = call
+                    .quotient_operation
+                    .as_ref()
+                    .map_or(call.target_symbol, |op| op.representative_operation.symbol);
                 (
                     call.runtime_call,
                     call.static_machine_parameter,
                     call.static_requirement_dispatch.as_ref(),
-                    call.target_symbol,
+                    source_target,
                 )
             }
             crate::source_state::SourceNode::Statement(statement) => {
