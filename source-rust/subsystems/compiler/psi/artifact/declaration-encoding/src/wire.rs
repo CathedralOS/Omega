@@ -158,11 +158,27 @@ impl Writer {
 pub struct Reader<'bytes> {
     bytes: &'bytes [u8],
     offset: usize,
+    closed_types: crate::EncodedIntegerTypes,
 }
 
 impl<'bytes> Reader<'bytes> {
-    pub const fn new(bytes: &'bytes [u8]) -> Self {
-        Self { bytes, offset: 0 }
+    pub fn new(bytes: &'bytes [u8]) -> Self {
+        Self {
+            bytes,
+            offset: 0,
+            closed_types: crate::EncodedIntegerTypes::default(),
+        }
+    }
+
+    pub fn record_integer_type(
+        &mut self,
+        integer: semantic_vocabulary::IntegerType,
+    ) -> Result<(), CodecError> {
+        self.closed_types.record(integer).map(|_| ())
+    }
+
+    pub fn finish_integer_types(self) -> crate::EncodedIntegerTypes {
+        self.closed_types
     }
 
     pub fn remaining(&self) -> usize {
