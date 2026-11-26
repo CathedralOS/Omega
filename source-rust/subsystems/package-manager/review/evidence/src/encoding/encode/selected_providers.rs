@@ -1,27 +1,27 @@
 // Full inert selected-provider policy encoding sharing one bounded writer.
 
-use crate::encoding::encode::values::identity::encode_service;
-use crate::record::{
-    PackagePolicyProviderFamily, PackagePolicyProviderPlan, PackagePolicyProviderRow,
-    PackagePolicySelectedProviders, PackageReviewProviderFamilyCoverage,
-    PackageReviewProviderGrantSelectorKind, PackageReviewProviderSelectionAuthority,
-};
-mod authority;
-mod bindings;
-pub(super) use bindings::binding as encode_binding;
-mod service;
-mod signature;
-pub(super) use service::method as encode_service_method;
-
+use super::encoder::Encoder;
 use super::values::external_policy::encode_producer;
-use super::{
-    encoder::Encoder,
-    values::{identity::encode_nominal, providers::encode_compiler_intrinsic_execution},
-};
+use super::values::identity::encode_nominal;
+use super::values::providers::encode_compiler_intrinsic_execution;
+use crate::encoding::encode::public_api::{formal, type_parameter as encode_type_parameter};
+use crate::encoding::encode::values::effects::encode_synchronous_invocation;
+use crate::encoding::encode::values::identity::encode_service;
 use crate::encoding::{
     PACKAGE_SELECTED_PROVIDER_POLICY_VERSION, PackageReviewEncodingError,
     SELECTED_PROVIDER_POLICY_MAGIC,
 };
+use crate::record::{
+    PackagePolicyProviderFamily, PackagePolicyProviderPlan, PackagePolicyProviderRow,
+    PackagePolicySelectedProviders, PackagePolicyServiceAuthority, PackagePolicyServiceSignature,
+    PackageReviewProviderFamilyCoverage, PackageReviewProviderGrantSelectorKind,
+    PackageReviewProviderSelectionAuthority,
+};
+pub(super) use bindings::binding as encode_binding;
+pub(super) use service::method as encode_service_method;
+use service_surface::{ServiceProgressEstablishmentRouteKind, ServiceProgressSubject};
+mod bindings;
+mod service;
 
 impl PackagePolicySelectedProviders {
     pub fn canonical_bytes(&self) -> Result<Vec<u8>, PackageReviewEncodingError> {
@@ -171,5 +171,124 @@ fn family(
             encoder.u32_field("plan_index", coordinate.plan_index)?;
             Ok(())
         })
+    })
+}
+
+// Canonical encoding for service-method operational authority, invocations, and progress premises.
+
+fn authority(
+    encoder: &mut Encoder,
+    authority: &PackagePolicyServiceAuthority,
+) -> Result<(), PackageReviewEncodingError> {
+    encoder.sequence_field("service_reach", &authority.service_reach, encode_service)?;
+    encoder.field("synchronous_invocations", |encoder| {
+        encoder.sequence(
+            &authority.synchronous_invocations,
+            encode_synchronous_invocation,
+        )
+    })?;
+    encoder.field("progress_premises", |encoder| {
+        encoder.sequence(&authority.progress_premises, |encoder, premise| {
+            encoder.field_by("profile", &premise.profile, encode_nominal)?;
+            encoder.field("subject", |encoder| {
+                match premise.subject {
+                    ServiceProgressSubject::Parameter(position) => {
+                        encoder.tag("parameter", 1);
+                        encoder.field("position", |encoder| encoder.usize(position))?;
+                    }
+                };
+                Ok(())
+            })?;
+            encoder.field("subject_projections", |encoder| {
+                encoder.sequence(&premise.subject_projections, encode_nominal)
+            })?;
+            encoder.field("establishment_routes", |encoder| {
+                encoder.sequence(&premise.establishment_routes, |encoder, route| {
+                    encoder.field("kind", |encoder| {
+                        match route.kind {
+                            ServiceProgressEstablishmentRouteKind::CheckedRequirement => {
+                                encoder.tag("checked_requirement", 0)
+                            }
+                            ServiceProgressEstablishmentRouteKind::BoundaryRequirement => {
+                                encoder.tag("boundary_requirement", 1)
+                            }
+                        };
+                        Ok(())
+                    })?;
+                    encoder.field_by(
+                        "requirement_owner",
+                        &route.requirement_owner,
+                        encode_nominal,
+                    )?;
+                    encoder.field_by("requirement", &route.requirement, encode_nominal)
+                })
+            })
+        })
+    })
+}
+
+// Canonical encoding for selected-provider service signatures, schema arguments, and formals.
+
+fn signature(
+    encoder: &mut Encoder,
+    signature: &PackagePolicyServiceSignature,
+) -> Result<(), PackageReviewEncodingError> {
+    let lifetime_count = signature
+        .schema_lifetime_parameter_count
+        .checked_add(signature.application_lifetime_parameter_count)
+        .and_then(|count| count.checked_add(signature.requirement_lifetime_parameter_count))
+        .ok_or_else(|| {
+            PackageReviewEncodingError::new("selected service lifetime scope overflows")
+        })? as usize;
+    encoder.field("schema_arguments", |encoder| {
+        encoder.sequence(&signature.schema_arguments, Encoder::static_argument)
+    })?;
+    encoder.u32_field(
+        "schema_lifetime_parameter_count",
+        signature.schema_lifetime_parameter_count,
+    )?;
+    encoder.field("schema_lifetime_arguments", |encoder| {
+        encoder.sequence(&signature.schema_lifetime_arguments, |encoder, ordinal| {
+            encoder.u32(*ordinal);
+            Ok(())
+        })
+    })?;
+    encoder.u32_field(
+        "application_lifetime_parameter_count",
+        signature.application_lifetime_parameter_count,
+    )?;
+    encoder.field("requirement_arguments", |encoder| {
+        encoder.sequence(&signature.requirement_arguments, Encoder::static_argument)
+    })?;
+    encoder.field("requirement_lifetime_arguments", |encoder| {
+        encoder.sequence(
+            &signature.requirement_lifetime_arguments,
+            |encoder, ordinal| {
+                encoder.u32_field("ordinal", *ordinal)?;
+                Ok(())
+            },
+        )
+    })?;
+    encoder.u32_field(
+        "requirement_lifetime_parameter_count",
+        signature.requirement_lifetime_parameter_count,
+    )?;
+    encoder.field("static_parameters", |encoder| {
+        encoder.sequence(&signature.static_parameters, encode_type_parameter)
+    })?;
+    encoder.field("parameters", |encoder| {
+        encoder.sequence(&signature.parameters, |encoder, parameter| {
+            formal(
+                encoder,
+                &parameter.name,
+                &parameter.type_identity,
+                parameter.is_const,
+                parameter.is_mutable,
+                lifetime_count,
+            )
+        })
+    })?;
+    encoder.option_field("result", signature.result.as_ref(), |encoder, identity| {
+        super::type_identity_in_scope(encoder, identity, Some(lifetime_count))
     })
 }
