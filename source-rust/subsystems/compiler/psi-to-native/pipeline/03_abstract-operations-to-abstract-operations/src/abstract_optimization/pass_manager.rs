@@ -217,21 +217,16 @@ pub(crate) mod accounting {
     ) -> u64 {
         let copy_pass =
             OptimizationPassIdentity::from_canonical_bytes(rules::COPY_PROPAGATION_PASS_NAME);
-        let cfg_pass = OptimizationPassIdentity::from_canonical_bytes(
-            rules::CONTROL_FLOW_CLEANUP_PASS_NAME,
-        );
-        let dead_scalar_pass = OptimizationPassIdentity::from_canonical_bytes(
-            rules::DEAD_PURE_SCALAR_PASS_NAME,
-        );
-        let proof_elision_pass = OptimizationPassIdentity::from_canonical_bytes(
-            rules::PROOF_CHECK_ELISION_PASS_NAME,
-        );
-        let global_value_numbering_pass = OptimizationPassIdentity::from_canonical_bytes(
-            rules::GLOBAL_VALUE_NUMBERING_PASS_NAME,
-        );
-        let state_specialization_pass = OptimizationPassIdentity::from_canonical_bytes(
-            rules::STATE_SPECIALIZATION_PASS_NAME,
-        );
+        let cfg_pass =
+            OptimizationPassIdentity::from_canonical_bytes(rules::CONTROL_FLOW_CLEANUP_PASS_NAME);
+        let dead_scalar_pass =
+            OptimizationPassIdentity::from_canonical_bytes(rules::DEAD_PURE_SCALAR_PASS_NAME);
+        let proof_elision_pass =
+            OptimizationPassIdentity::from_canonical_bytes(rules::PROOF_CHECK_ELISION_PASS_NAME);
+        let global_value_numbering_pass =
+            OptimizationPassIdentity::from_canonical_bytes(rules::GLOBAL_VALUE_NUMBERING_PASS_NAME);
+        let state_specialization_pass =
+            OptimizationPassIdentity::from_canonical_bytes(rules::STATE_SPECIALIZATION_PASS_NAME);
         let representation_specialization_pass = OptimizationPassIdentity::from_canonical_bytes(
             rules::REPRESENTATION_SPECIALIZATION_PASS_NAME,
         );
@@ -348,7 +343,8 @@ pub(crate) mod execution {
     use optimization_core::{
         Optimization, OptimizationDecisionRecord, OptimizationIdentityBundle,
         OptimizationPassManifestRecord, OptimizationRuleContract, OptimizationRuleSetIdentity,
-        OptimizationSelections, OptimizationUnitIdentity, OptimizationWorkBudget,
+        OptimizationSelections, OptimizationUnitIdentity, OptimizationValidatorIdentity,
+        OptimizationWorkBudget,
     };
     use optimization_unit::{
         PsiCandidateDeclaration, PsiOptimizationUnit, PsiTransformationLedger,
@@ -646,44 +642,18 @@ pub(crate) mod execution {
                 if validated.is_empty() {
                     continue;
                 }
-                let external_features = validated
+                let rows = validated
                     .iter()
-                    .map(|(declaration, _)| validated_candidate_features(declaration, contract))
-                    .collect::<Result<Vec<_>, _>>()
-                    .map_err(OptimizationRunError::ExternalDecisionSchema)?;
-                let summaries = external_features
-                    .iter()
-                    .map(|features| features.summary())
+                    .map(|(declaration, accepted)| (declaration, accepted.validator()))
                     .collect::<Vec<_>>();
-                let outcome = if let Some(replay) = external_replay.as_deref_mut() {
-                    replay
-                        .choose(unit.identity, contract.identity(), &external_features)
-                        .map_err(OptimizationRunError::ExternalDecisionReplay)?
-                } else {
-                    choose_baseline(&summaries)
-                };
-                recorded_decisions
-                    .record_validated_outcome(unit.identity, summaries.iter().copied(), outcome)
-                    .map_err(|error| {
-                        OptimizationRunError::ExternalDecisionReplay(
-                            ExternalDecisionReplayError::InvalidRecordedOutcome(error),
-                        )
-                    })?;
-                for (declaration, accepted) in &validated {
-                    let verdict = baseline_outcome_verdict(outcome, declaration.identity());
-                    candidate_decisions.push(
-                        OptimizationDecisionRecord::new(
-                            unit.identity,
-                            declaration.identity(),
-                            contract.identity(),
-                            verdict,
-                            contract.required_analyses(),
-                            declaration.consumed_facts(),
-                            Some(accepted.validator()),
-                        )
-                        .map_err(OptimizationRunError::InvalidManifest)?,
-                    );
-                }
+                let outcome = decide(
+                    unit.identity,
+                    contract,
+                    &rows,
+                    external_replay.as_deref_mut(),
+                    &mut recorded_decisions,
+                    &mut candidate_decisions,
+                )?;
                 match outcome {
                     BaselineDecisionOutcome::Choose(identity) => {
                         let index = validated
@@ -703,18 +673,17 @@ pub(crate) mod execution {
                 if std::env::var_os("OMEGA_PROOF_MEASUREMENTS").is_some() {
                     eprint!("{}", accepted_obligation_rewrite_census(&commits));
                 }
-                let decisions = recorded_decisions.finish();
-                let pass_manifest = build_pass_manifest(
+                return finish_step(
                     step,
+                    psi,
+                    work_schedule,
                     initial_identity,
-                    unit.identity,
-                    &commits,
-                    &candidate_decisions,
+                    unit,
+                    commits,
+                    candidate_decisions,
                     usage,
-                )?;
-                let output = unit.identity;
-                let ledger = chain_ledger(psi, work_schedule, initial_identity, output, &commits)?;
-                return Ok((unit, commits, usage, decisions, pass_manifest, ledger));
+                    recorded_decisions,
+                );
             };
             let input_identity = unit.identity;
             let validator = validated.validator();
@@ -724,26 +693,25 @@ pub(crate) mod execution {
             let rule = candidate.rule();
             let predicted_cost_delta = candidate.predicted_cost_delta();
             let next = validated.into_unit();
-            register_revision(&mut seen_revisions, next.identity, usage.iterations)?;
-            let current_measure = convergence_measure(&next, registry);
-            if current_measure >= previous_measure {
-                return Err(OptimizationRunError::NonDecreasingConvergenceMeasure {
-                    previous: previous_measure,
-                    current: current_measure,
-                });
-            }
-            charge(&mut usage.commits, budget.commits(), "commits")?;
-            commits.push(PsiOptimizationCommit {
-                rule,
-                candidate: candidate_identity,
-                validator,
-                input: input_identity,
-                output: next.identity,
-                predicted_cost_delta,
-                pruned_machines,
-                provenance,
-                declaration: candidate,
-            });
+            commit(
+                &mut seen_revisions,
+                &mut usage,
+                budget,
+                previous_measure,
+                convergence_measure(&next, registry),
+                &mut commits,
+                PsiOptimizationCommit {
+                    rule,
+                    candidate: candidate_identity,
+                    validator,
+                    input: input_identity,
+                    output: next.identity,
+                    predicted_cost_delta,
+                    pruned_machines,
+                    provenance,
+                    declaration: candidate,
+                },
+            )?;
             unit = next;
         }
     }
@@ -797,85 +765,35 @@ pub(crate) mod execution {
                     .map_err(OptimizationRunError::LoopInvariantScalarMotion)?;
                 validated_candidates.push(PsiValidatedCandidateDeclaration {
                     pass: contract.pass(),
-                    declaration,
+                    declaration: declaration.clone(),
                     validator: accepted.validator(),
                 });
-                validated.push(accepted);
+                validated.push((declaration, accepted));
             }
-            if validated.is_empty() {
-                return finish_loop_invariant_scalar_motion_step(
-                    step,
-                    psi,
-                    work_schedule,
-                    initial_identity,
-                    session,
-                    commits,
-                    candidate_decisions,
-                    usage,
-                    recorded_decisions,
-                );
-            }
-            let external_features = validated
+            let rows = validated
                 .iter()
-                .map(|accepted| {
-                    validated_candidate_features(
-                        &PsiCandidateDeclaration::LoopInvariantScalarMotion(
-                            accepted.candidate().clone(),
-                        ),
-                        contract,
-                    )
-                })
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(OptimizationRunError::ExternalDecisionSchema)?;
-            let summaries = external_features
-                .iter()
-                .map(|features| features.summary())
+                .map(|(declaration, accepted)| (declaration, accepted.validator()))
                 .collect::<Vec<_>>();
-            let outcome = if let Some(replay) = external_replay.as_deref_mut() {
-                replay
-                    .choose(
-                        session.unit().identity,
-                        contract.identity(),
-                        &external_features,
-                    )
-                    .map_err(OptimizationRunError::ExternalDecisionReplay)?
+            let outcome = if validated.is_empty() {
+                None
             } else {
-                choose_baseline(&summaries)
-            };
-            recorded_decisions
-                .record_validated_outcome(
+                Some(decide(
                     session.unit().identity,
-                    summaries.iter().copied(),
-                    outcome,
-                )
-                .map_err(|error| {
-                    OptimizationRunError::ExternalDecisionReplay(
-                        ExternalDecisionReplayError::InvalidRecordedOutcome(error),
-                    )
-                })?;
-            for accepted in &validated {
-                let candidate = accepted.candidate();
-                let verdict = baseline_outcome_verdict(outcome, candidate.identity());
-                candidate_decisions.push(
-                    OptimizationDecisionRecord::new(
-                        session.unit().identity,
-                        candidate.identity(),
-                        contract.identity(),
-                        verdict,
-                        contract.required_analyses(),
-                        candidate.consumed_facts(),
-                        Some(accepted.validator()),
-                    )
-                    .map_err(OptimizationRunError::InvalidManifest)?,
-                );
-            }
-            let BaselineDecisionOutcome::Choose(identity) = outcome else {
-                return finish_loop_invariant_scalar_motion_step(
+                    contract,
+                    &rows,
+                    external_replay.as_deref_mut(),
+                    &mut recorded_decisions,
+                    &mut candidate_decisions,
+                )?)
+            };
+            let Some(BaselineDecisionOutcome::Choose(identity)) = outcome else {
+                let (_, unit) = session.into_parts();
+                return finish_step(
                     step,
                     psi,
                     work_schedule,
                     initial_identity,
-                    session,
+                    unit,
                     commits,
                     candidate_decisions,
                     usage,
@@ -884,11 +802,9 @@ pub(crate) mod execution {
             };
             let index = validated
                 .iter()
-                .position(|accepted| accepted.candidate().identity() == identity)
+                .position(|(declaration, _)| declaration.identity() == identity)
                 .ok_or(OptimizationRunError::PolicySelectionMissing(identity))?;
-            let accepted = validated.swap_remove(index);
-            let declaration =
-                PsiCandidateDeclaration::LoopInvariantScalarMotion(accepted.candidate().clone());
+            let (declaration, accepted) = validated.swap_remove(index);
             let input_identity = session.unit().identity;
             let validator = accepted.validator();
             let candidate_identity = accepted.candidate().identity();
@@ -898,28 +814,101 @@ pub(crate) mod execution {
                 .map_err(OptimizationRunError::LoopInvariantScalarMotion)?;
             let (next_session, _, _) = applied.into_parts();
             session = next_session;
-            let next_identity = session.unit().identity;
-            register_revision(&mut seen_revisions, next_identity, usage.iterations)?;
-            let current_measure = loop_invariant_member_node_count(&session);
-            if current_measure >= previous_measure {
-                return Err(OptimizationRunError::NonDecreasingConvergenceMeasure {
-                    previous: previous_measure,
-                    current: current_measure,
-                });
-            }
-            charge(&mut usage.commits, budget.commits(), "commits")?;
-            commits.push(PsiOptimizationCommit {
-                rule: contract.identity(),
-                candidate: candidate_identity,
-                validator,
-                input: input_identity,
-                output: next_identity,
-                predicted_cost_delta,
-                pruned_machines: Vec::new(),
-                provenance,
-                declaration,
+            commit(
+                &mut seen_revisions,
+                &mut usage,
+                budget,
+                previous_measure,
+                loop_invariant_member_node_count(&session),
+                &mut commits,
+                PsiOptimizationCommit {
+                    rule: contract.identity(),
+                    candidate: candidate_identity,
+                    validator,
+                    input: input_identity,
+                    output: session.unit().identity,
+                    predicted_cost_delta,
+                    pruned_machines: Vec::new(),
+                    provenance,
+                    declaration,
+                },
+            )?;
+        }
+    }
+
+    /// Ranks one rule's validated candidates, replaying supplied decisions when
+    /// present, and records the verdict for every candidate it considered.
+    fn decide(
+        input: OptimizationUnitIdentity,
+        contract: OptimizationRuleContract,
+        validated: &[(&PsiCandidateDeclaration, OptimizationValidatorIdentity)],
+        external_replay: Option<&mut ExternalDecisionReplayCursor<'_>>,
+        recorded_decisions: &mut BaselineDecisionLogBuilder,
+        candidate_decisions: &mut Vec<OptimizationDecisionRecord>,
+    ) -> Result<BaselineDecisionOutcome, OptimizationRunError> {
+        let external_features = validated
+            .iter()
+            .map(|(declaration, _)| validated_candidate_features(declaration, contract))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(OptimizationRunError::ExternalDecisionSchema)?;
+        let summaries = external_features
+            .iter()
+            .map(|features| features.summary())
+            .collect::<Vec<_>>();
+        let outcome = if let Some(replay) = external_replay {
+            replay
+                .choose(input, contract.identity(), &external_features)
+                .map_err(OptimizationRunError::ExternalDecisionReplay)?
+        } else {
+            choose_baseline(&summaries)
+        };
+        recorded_decisions
+            .record_validated_outcome(input, summaries.iter().copied(), outcome)
+            .map_err(|error| {
+                OptimizationRunError::ExternalDecisionReplay(
+                    ExternalDecisionReplayError::InvalidRecordedOutcome(error),
+                )
+            })?;
+        for (declaration, validator) in validated {
+            let verdict = baseline_outcome_verdict(outcome, declaration.identity());
+            candidate_decisions.push(
+                OptimizationDecisionRecord::new(
+                    input,
+                    declaration.identity(),
+                    contract.identity(),
+                    verdict,
+                    contract.required_analyses(),
+                    declaration.consumed_facts(),
+                    Some(*validator),
+                )
+                .map_err(OptimizationRunError::InvalidManifest)?,
+            );
+        }
+        Ok(outcome)
+    }
+
+    /// Commits one chosen rewrite once its output is new to this pass and has
+    /// strictly decreased the pass's convergence measure.
+    #[allow(clippy::too_many_arguments)]
+    fn commit(
+        seen_revisions: &mut BTreeMap<OptimizationUnitIdentity, u64>,
+        usage: &mut OptimizationRunUsage,
+        budget: OptimizationWorkBudget,
+        previous_measure: u64,
+        current_measure: u64,
+        commits: &mut Vec<PsiOptimizationCommit>,
+        commit: PsiOptimizationCommit,
+    ) -> Result<(), OptimizationRunError> {
+        register_revision(seen_revisions, commit.output, usage.iterations)?;
+        if current_measure >= previous_measure {
+            return Err(OptimizationRunError::NonDecreasingConvergenceMeasure {
+                previous: previous_measure,
+                current: current_measure,
             });
         }
+        charge(&mut usage.commits, budget.commits(), "commits")?;
+        commits.push(commit);
+        Ok(())
     }
 
     fn chain_ledger(
@@ -950,19 +939,20 @@ pub(crate) mod execution {
         .map_err(OptimizationRunError::InvalidTransformationLedger)
     }
 
-    fn finish_loop_invariant_scalar_motion_step(
+    #[allow(clippy::too_many_arguments)]
+    fn finish_step(
         step: &PsiPassStep,
         psi: terminal_psi::TerminalPsiIdentity,
         work_schedule: terminal_work::WorkScheduleIdentity,
         initial_identity: OptimizationUnitIdentity,
-        session: VerifiedPsiOptimizationSession,
+        unit: PsiOptimizationUnit,
         commits: Vec<PsiOptimizationCommit>,
         candidate_decisions: Vec<OptimizationDecisionRecord>,
         usage: OptimizationRunUsage,
         recorded_decisions: BaselineDecisionLogBuilder,
     ) -> Result<OptimizationRunOutput, OptimizationRunError> {
         let decisions = recorded_decisions.finish();
-        let output = session.unit().identity;
+        let output = unit.identity;
         let pass_manifest = build_pass_manifest(
             step,
             initial_identity,
@@ -972,7 +962,6 @@ pub(crate) mod execution {
             usage,
         )?;
         let ledger = chain_ledger(psi, work_schedule, initial_identity, output, &commits)?;
-        let (_, unit) = session.into_parts();
         Ok((unit, commits, usage, decisions, pass_manifest, ledger))
     }
 
@@ -1274,13 +1263,6 @@ use crate::abstract_optimization::validation::{
 };
 use crate::abstract_optimization::verified_unit::VerifiedPsiOptimizationUnit;
 use crate::abstract_optimization::{AnalysisError, RuleProposalError, RuleRegistryError};
-use crate::abstract_optimization::{
-    CountdownInvariantConstantAnalysisError, CountdownInvariantConstantPlacementAnalysisError,
-    CountedLoopAnalysisError, ValidatedCountdownInvariantConstantAnalysis,
-    ValidatedCountdownInvariantConstantPlacementAnalysis, ValidatedCountedLoopAnalysis,
-    analyze_countdown_invariant_constant_placement, analyze_countdown_invariant_constants,
-    analyze_counted_loops,
-};
 pub(crate) use execution::run_registries;
 use optimization_core::{
     BaselineDecisionLog, BaselineDecisionLogDecodeError, BaselineDecisionOutcome,
@@ -1388,55 +1370,6 @@ impl VerifiedPsiOptimizationSession {
 
     pub const fn ranking_certificates(&self) -> &ValidatedOptimizerRankingCertificates {
         self.cycle_components.ranking_certificates()
-    }
-
-    pub(crate) fn counted_loop_analysis(
-        &self,
-    ) -> Result<ValidatedCountedLoopAnalysis, CountedLoopAnalysisError> {
-        analyze_counted_loops(&self.unit, &self.cycle_components)
-    }
-
-    pub(crate) fn countdown_invariant_constant_analysis(
-        &self,
-    ) -> Result<ValidatedCountdownInvariantConstantAnalysis, CountdownInvariantConstantAnalysisError>
-    {
-        let counted = self
-            .counted_loop_analysis()
-            .map_err(CountdownInvariantConstantAnalysisError::CountedLoop)?;
-        analyze_countdown_invariant_constants(&self.unit, &self.cycle_components, &counted)
-    }
-
-    fn countdown_invariant_inputs(
-        &self,
-    ) -> Result<
-        (
-            ValidatedCountedLoopAnalysis,
-            ValidatedCountdownInvariantConstantAnalysis,
-        ),
-        CountdownInvariantConstantPlacementAnalysisError,
-    > {
-        let counted = self
-            .counted_loop_analysis()
-            .map_err(CountdownInvariantConstantPlacementAnalysisError::CountedLoop)?;
-        let invariants =
-            analyze_countdown_invariant_constants(&self.unit, &self.cycle_components, &counted)
-                .map_err(CountdownInvariantConstantPlacementAnalysisError::InvariantConstant)?;
-        Ok((counted, invariants))
-    }
-
-    pub(crate) fn countdown_invariant_constant_placement_analysis(
-        &self,
-    ) -> Result<
-        ValidatedCountdownInvariantConstantPlacementAnalysis,
-        CountdownInvariantConstantPlacementAnalysisError,
-    > {
-        let (counted, invariants) = self.countdown_invariant_inputs()?;
-        analyze_countdown_invariant_constant_placement(
-            &self.unit,
-            &self.cycle_components,
-            &counted,
-            &invariants,
-        )
     }
 }
 

@@ -78,14 +78,12 @@ pub(crate) use analyses::{
 pub(crate) use analyses::{AnalysisProduct, AnalysisRevision, compute_analysis};
 pub(crate) use analyses::{
     CountdownInvariantConstantAnalysisError, CountdownInvariantConstantPlacementAnalysisError,
-    CountedLoopAnalysisError, ValidatedCountdownInvariantConstantAnalysis,
-    ValidatedCountdownInvariantConstantPlacementAnalysis, ValidatedCountedLoopAnalysis,
-    analyze_countdown_invariant_constant_placement, analyze_countdown_invariant_constants,
-    analyze_counted_loops,
+    CountedLoopAnalysisError, analyze_countdown_invariant_constant_placement,
+    analyze_countdown_invariant_constants, analyze_counted_loops,
 };
 pub(crate) use optimization_unit::ScalarConstantValue;
+pub(crate) use pass_manager::OptimizationRun;
 pub(crate) use pass_manager::VerifiedPsiOptimizationSession;
-pub(crate) use pass_manager::{OptimizationRun, OptimizationRunUsage};
 pub(crate) use rules::registry::{
     OrderedRuleRegistry, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,
     RuleRegistryError,

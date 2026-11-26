@@ -3084,8 +3084,7 @@ pub(crate) mod scalar_case_frontiers {
 pub(crate) use scalar_case_frontiers::rewrite_relocated_case_result_frontiers;
 
 pub(crate) use context::{
-    ValidatedOptimizerCycleComponents, ValidatedOptimizerRankingCertificates,
-    validate_psi_context,
+    ValidatedOptimizerCycleComponents, ValidatedOptimizerRankingCertificates, validate_psi_context,
 };
 pub use prephysical_manifest::ValidatedPrePhysicalOptimizationManifest;
 pub(crate) use prephysical_manifest::{

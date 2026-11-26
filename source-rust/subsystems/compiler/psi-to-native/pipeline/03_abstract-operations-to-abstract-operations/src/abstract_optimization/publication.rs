@@ -202,8 +202,9 @@ pub(crate) fn publish_optimization_run(
     }
     let plan = source::project_plan(run.session().input().plan(), run.session().unit())?;
     let validation = seal_optimized_abstract_plan_projection(&run);
-    let pre_physical_manifest = project_pre_physical_optimization_manifest(&run, initial, validation)
-        .map_err(OptimizedAbstractProjectionError::PrePhysicalManifest)?;
+    let pre_physical_manifest =
+        project_pre_physical_optimization_manifest(&run, initial, validation)
+            .map_err(OptimizedAbstractProjectionError::PrePhysicalManifest)?;
     Ok(ValidatedOptimizedAbstractPlan::new(
         run,
         plan,
