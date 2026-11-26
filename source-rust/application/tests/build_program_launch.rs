@@ -490,6 +490,14 @@ int main(int count, char **args) {
     assert_eq!(status, Some(0), "{report}");
     let (status, report) = run(&["build", "build.omg"]);
     assert_eq!(status, Some(0), "{report}");
+    let published = report
+        .lines()
+        .find_map(|line| line.strip_prefix("published completed build outputs to "))
+        .unwrap_or_else(|| panic!("parent did not publish its sealed output: {report}"));
+    assert_eq!(
+        std::fs::read(Path::new(published).join("files/receipt.txt")).unwrap(),
+        b"forwarded"
+    );
 
     // The same acquired child is already settled when the second registration
     // asks for it. Its stronger first edge cannot lend the second its program.
