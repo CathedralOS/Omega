@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "written_element_cannot_rule_out_branch");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "written_element_cannot_rule_out_branch" };
     Build::bind(builder, macos_arm64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);
