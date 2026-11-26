@@ -367,13 +367,23 @@ impl ImmutableSourceParseCheckpoint {
         let root_path = entry.path();
         let mut source_storage =
             SourceStorage::prepare(root_path, package_inputs, source_capture, catalogue)?;
-        if let CapturedBuildEntry::Successor {
-            previous_build_files, ..
-        } = entry
-        {
-            source_storage.previous_build_files = previous_build_files.into();
-        }
         let project = StageRoots::prepare(entry, &mut source_storage)?;
+        let predecessors = match entry {
+            CapturedBuildEntry::Initial(_) => &[][..],
+            CapturedBuildEntry::Successor {
+                previous_build_files,
+                ..
+            } => previous_build_files,
+        };
+        let root = source_storage.default_package_root().to_path_buf();
+        source_storage.register_package_root(
+            &root,
+            None,
+            predecessors
+                .iter()
+                .cloned()
+                .chain(project.build.iter().map(|(path, _)| path.clone())),
+        );
         let mut imports = ImportQueue::default();
         if let Some((path, _)) = &project.build {
             imports.seed(path.clone(), source_provenance::DependencyScope::Build);

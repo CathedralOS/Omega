@@ -346,15 +346,18 @@ pub fn prepare_build_evaluation(
         }
         let original_sources = capture
             .map(|capture| {
-                let declaration = source_compiler::representations::source_symbols::retain_declaration(
-                    &typed.symbols,
-                    selected_machine,
-                ).map_err(|reason| vec![Diagnostic::error(reason)])?;
+                let declaration =
+                    source_compiler::representations::source_symbols::retain_declaration(
+                        &typed.symbols,
+                        selected_machine,
+                    )
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?;
                 let build_entries = package_compilation::PackageBuildEntries::from_selected(
                     capture.canonical_live_root(),
                     capture.tree(),
                     preceding_entries.into_iter().chain([&declaration]),
-                ).map_err(|reason| vec![Diagnostic::error(reason)])?;
+                )
+                .map_err(|reason| vec![Diagnostic::error(reason)])?;
                 Ok::<_, Vec<Diagnostic>>(Arc::new(crate::activation::OriginalBuildSources {
                     capture: capture.clone(),
                     libraries,

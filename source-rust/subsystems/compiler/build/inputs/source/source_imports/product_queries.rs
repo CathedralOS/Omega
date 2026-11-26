@@ -447,9 +447,7 @@ impl ProductQueryInputs {
                         "cannot join query source snapshots: {error}"
                     ))]
                 })?;
-            for (identity, root) in graph.packages() {
-                storage.register_reconciled_package_root(root.to_path_buf(), identity);
-            }
+            storage.register_package_graph(graph);
             storage
                 .sources
                 .retain_product_dependency_scope(graph.dependencies());
@@ -715,9 +713,9 @@ impl ProductQueryInputs {
                     && inputs.dependency_build_file(owner, &canonical)
             }))
             {
-                return Err(vec![Diagnostic::error(
-                    "Product query cannot import a dependency Build entry",
-                )]);
+                return Err(vec![Diagnostic::error(format!(
+                    "Product query cannot import dependency Build entry {}", canonical.display()
+                ))]);
             }
             validated.push((canonical, scope));
         }

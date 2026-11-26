@@ -187,16 +187,29 @@ fn a_captured_file_link_selects_its_source_with_the_same_package_permissions() {
         vec![PackageDependencyBinding::new(outer, "kit", inner)],
     )
     .unwrap();
-    let query = crate::source_imports::ProductQueryInputs::new(Some(packages.clone()), vec![]).unwrap();
+    let query =
+        crate::source_imports::ProductQueryInputs::new(Some(packages.clone()), vec![]).unwrap();
     let storage = crate::source_imports::SourceStorage::for_package_compilation(
-        root.clone(), outer, crate::source_imports::bundled_core_root().unwrap(), packages.source_filesystem().clone()
+        root.clone(),
+        outer,
+        crate::source_imports::bundled_core_root().unwrap(),
+        packages.source_filesystem().clone(),
     );
-    let query_file = |name: &str| query.validate_frontier(
-        vec![(vendor.join(name), source_provenance::DependencyScope::Product)],
-        &storage,
-    );
+    let query_file = |name: &str| {
+        query.validate_frontier(
+            vec![(
+                vendor.join(name),
+                source_provenance::DependencyScope::Product,
+            )],
+            &storage,
+        )
+    };
     assert!(query_file("build.omg").is_ok());
-    assert!(query_file("setup.omg").unwrap_err()[0].message.contains("dependency Build entry"));
+    assert!(
+        query_file("setup.omg").unwrap_err()[0]
+            .message
+            .contains("dependency Build entry")
+    );
     let importer = root.join("main.omg");
     let select = |owner, base: &Path, name, foreign| {
         ReconciledPackageImportRequest::file(owner, base, name, &importer, foreign)

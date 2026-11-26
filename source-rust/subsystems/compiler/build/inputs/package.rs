@@ -139,6 +139,15 @@ impl PackageCompilationInputs {
             .hash_into(digest);
     }
 
+    pub(crate) fn source_owners(
+        &self,
+    ) -> impl Iterator<Item = (PackageKeyIdentity, &Path, &PackageBuildEntries)> {
+        self.source
+            .packages
+            .iter()
+            .map(|(identity, owner)| (*identity, owner.source_root.as_path(), &owner.build_entries))
+    }
+
     pub(crate) fn dependency_build_file(
         &self,
         package: PackageKeyIdentity,

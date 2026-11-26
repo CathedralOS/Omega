@@ -80,6 +80,10 @@ impl PackageBuildEntries {
         }
     }
 
+    pub(crate) fn filenames(&self) -> impl Iterator<Item = &Path> {
+        self.files.keys().map(Path::new)
+    }
+
     pub(super) fn contains(&self, path: &Path) -> bool {
         path.to_str().is_some_and(|name| {
             if std::path::MAIN_SEPARATOR == '/' {

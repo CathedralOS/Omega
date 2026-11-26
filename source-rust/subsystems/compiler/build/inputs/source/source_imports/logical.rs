@@ -27,7 +27,7 @@ use std::sync::Arc;
 #[derive(Clone, Debug, PartialEq, Eq, record_storage::Record)]
 pub(crate) struct LogicalSourceInventory {
     filesystem: SourceFileSystem,
-    excluded_roots: Vec<PathBuf>,
+    excluded_paths: Vec<PathBuf>,
     units: Vec<LogicalSourceUnit>,
     /// Positions in `units`, ordered by path, for admission's lookup of a
     /// retained parse. `units` keeps capture order, which selection reports.
@@ -59,7 +59,7 @@ pub(crate) trait LogicalSourceDiscovery {
         root: &Path,
         logical_path: &[String],
         filesystem: &SourceFileSystem,
-        excluded_roots: Vec<PathBuf>,
+        excluded_paths: Vec<PathBuf>,
     ) -> Result<Vec<PathBuf>, Vec<Diagnostic>>;
     /// Files selected by a legacy namespace import in Build. A missing
     /// declaration remains deferred until the Build prepares its dependency.
@@ -68,14 +68,14 @@ pub(crate) trait LogicalSourceDiscovery {
         root: &Path,
         logical_path: &[String],
         filesystem: &SourceFileSystem,
-        excluded_roots: Vec<PathBuf>,
+        excluded_paths: Vec<PathBuf>,
     ) -> Result<Vec<PathBuf>, Vec<Diagnostic>>;
     fn operator_family_sources(
         &mut self,
         root: &Path,
         source: &Path,
         filesystem: &SourceFileSystem,
-        excluded_roots: Vec<PathBuf>,
+        excluded_paths: Vec<PathBuf>,
     ) -> Result<Vec<PathBuf>, Vec<Diagnostic>>;
 }
 
@@ -85,9 +85,9 @@ impl LogicalSourceDiscovery for Vec<RegisteredPackageRoot> {
         root: &Path,
         logical_path: &[String],
         filesystem: &SourceFileSystem,
-        excluded_roots: Vec<PathBuf>,
+        excluded_paths: Vec<PathBuf>,
     ) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
-        let inventory = owner_inventory(self, root, filesystem, excluded_roots)?;
+        let inventory = owner_inventory(self, root, filesystem, excluded_paths)?;
         // A namespace import also permits qualified descendant references.
         // Ordinary acquisition observes use declarations, not expression paths;
         // acquire that namespace here and leave exposure to semantic selection.
@@ -105,9 +105,9 @@ impl LogicalSourceDiscovery for Vec<RegisteredPackageRoot> {
         root: &Path,
         logical_path: &[String],
         filesystem: &SourceFileSystem,
-        excluded_roots: Vec<PathBuf>,
+        excluded_paths: Vec<PathBuf>,
     ) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
-        let inventory = owner_inventory(self, root, filesystem, excluded_roots)?;
+        let inventory = owner_inventory(self, root, filesystem, excluded_paths)?;
         let declares = |unit: &LogicalSourceUnit| {
             logical_path.starts_with(&unit.module)
                 && logical_path
@@ -136,10 +136,15 @@ impl LogicalSourceDiscovery for Vec<RegisteredPackageRoot> {
         root: &Path,
         source: &Path,
         filesystem: &SourceFileSystem,
-        excluded_roots: Vec<PathBuf>,
+        excluded_paths: Vec<PathBuf>,
     ) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
-        let inventory = owner_inventory(self, root, filesystem, excluded_roots)?;
-        if !inventory.units.iter().any(|unit| unit.path == source) {
+        // A Product may explicitly select one of its own Build files. It must
+        // acquire the same operator homes as any other admitted Product unit.
+        let selected_build = self
+            .iter()
+            .any(|owner| owner.root == root && owner.build_files.contains(source));
+        let inventory = owner_inventory(self, root, filesystem, excluded_paths)?;
+        if !selected_build && !inventory.units.iter().any(|unit| unit.path == source) {
             return Ok(Vec::new());
         }
         Ok(inventory
@@ -159,31 +164,19 @@ fn owner_inventory<'a>(
     owners: &'a mut Vec<RegisteredPackageRoot>,
     root: &Path,
     filesystem: &SourceFileSystem,
-    mut excluded_roots: Vec<PathBuf>,
+    mut excluded_paths: Vec<PathBuf>,
 ) -> Result<&'a LogicalSourceInventory, Vec<Diagnostic>> {
-    excluded_roots.sort();
-    excluded_roots.dedup();
-    let position = match owners.iter().position(|owner| owner.root == root) {
-        Some(position) => position,
-        None => {
-            // Anonymous and compiler-owned captures acquire their row here;
-            // reconciled packages have already registered this exact root.
-            owners.push(RegisteredPackageRoot {
-                root: root.to_path_buf(),
-                identity: None,
-                logical_inventory: None,
-            });
-            owners.len() - 1
-        }
-    };
-    let owner = &mut owners[position];
+    let owner = RegisteredPackageRoot::for_root(owners, root);
+    excluded_paths.extend(owner.build_files.iter().cloned());
+    excluded_paths.sort();
+    excluded_paths.dedup();
     if owner.logical_inventory.as_ref().is_none_or(|inventory| {
-        inventory.filesystem != *filesystem || inventory.excluded_roots != excluded_roots
+        inventory.filesystem != *filesystem || inventory.excluded_paths != excluded_paths
     }) {
         owner.logical_inventory = Some(LogicalSourceInventory::parse(
             root,
             filesystem,
-            &excluded_roots,
+            &excluded_paths,
         )?);
     }
     Ok(owner
@@ -196,7 +189,7 @@ impl LogicalSourceInventory {
     fn parse(
         root: &Path,
         filesystem: &SourceFileSystem,
-        excluded_roots: &[PathBuf],
+        excluded_paths: &[PathBuf],
     ) -> Result<Self, Vec<Diagnostic>> {
         let inventory = filesystem.captured_files(root).map_err(|error| {
             vec![Diagnostic::error(format!(
@@ -212,7 +205,7 @@ impl LogicalSourceInventory {
                 matches!(
                     path.extension().and_then(|extension| extension.to_str()),
                     Some("omg")
-                ) && !excluded_roots
+                ) && !excluded_paths
                         .iter()
                         .any(|package| path.starts_with(package))
             })
@@ -251,7 +244,7 @@ impl LogicalSourceInventory {
             .into_parsed_units(&mut CompileTimings::default())?;
         let mut result = Self {
             filesystem: filesystem.clone(),
-            excluded_roots: excluded_roots.to_vec(),
+            excluded_paths: excluded_paths.to_vec(),
             units: Vec::with_capacity(parsed.len()),
             by_path: Vec::new(),
         };
@@ -347,6 +340,15 @@ mod tests {
         filesystem
     }
 
+    fn owner_with_build_file(file: &str) -> Vec<RegisteredPackageRoot> {
+        let root = capture_root();
+        let mut owners = Vec::new();
+        RegisteredPackageRoot::for_root(&mut owners, &root)
+            .build_files
+            .insert(root.join(file));
+        owners
+    }
+
     #[test]
     fn logical_membership_comes_from_directories_not_filenames() {
         let filesystem = captured(&[
@@ -354,9 +356,9 @@ mod tests {
             ("another.omg", "public machine read() -> u8 { 7 }"),
             ("unrelated/Record.omg", "public data Hidden {}"),
             ("api/renamed.omg", "public data Export {}"),
-            ("build.omg", "not product source syntax"),
+            ("prepare.omg", "not product source syntax"),
         ]);
-        let mut discovery = Vec::<RegisteredPackageRoot>::new();
+        let mut discovery = owner_with_build_file("prepare.omg");
         assert_eq!(
             discovery
                 .select(&capture_root(), &["Record".into()], &filesystem)
@@ -394,9 +396,9 @@ mod tests {
         let filesystem = captured(&[
             ("odd.omg", "public data Record {}"),
             ("api/renamed.omg", "public data Export {}"),
-            ("build.omg", "not product source syntax"),
+            ("prepare.omg", "not product source syntax"),
         ]);
-        let mut discovery = Vec::<RegisteredPackageRoot>::new();
+        let mut discovery = owner_with_build_file("prepare.omg");
         discovery
             .select(&capture_root(), &["api".into()], &filesystem)
             .unwrap();
@@ -406,7 +408,7 @@ mod tests {
         assert_eq!(declarations.declared, ["Export"]);
         assert!(!declarations.declares_operator_family);
         assert!(retained_unit(&discovery, &capture_root().join("odd.omg")).is_some());
-        assert!(retained_unit(&discovery, &capture_root().join("build.omg")).is_none());
+        assert!(retained_unit(&discovery, &capture_root().join("prepare.omg")).is_none());
         assert!(retained_unit(&discovery, Path::new("/elsewhere/odd.omg")).is_none());
     }
 
@@ -497,22 +499,24 @@ mod tests {
                 "child/foreign/foreign.omg",
                 "public machine + Unknown::add(value: u32) {}",
             ),
-            ("build.omg", "not Product syntax"),
+            ("prepare.omg", "not Product syntax"),
         ]);
         let root = capture_root();
-        let mut owners = Vec::<RegisteredPackageRoot>::new();
-        assert_eq!(
-            owners
-                .operator_family_sources(
-                    &root,
-                    &root.join("units/units.omg"),
-                    &filesystem,
-                    vec![root.join("child")]
-                )
-                .unwrap(),
-            ["operations/operators.omg"].map(|path| root.join(path)),
-            "family declarations must enter normal Product admission even without a namespace import",
-        );
+        let mut owners = owner_with_build_file("prepare.omg");
+        for selected in ["units/units.omg", "prepare.omg"] {
+            assert_eq!(
+                owners
+                    .operator_family_sources(
+                        &root,
+                        &root.join(selected),
+                        &filesystem,
+                        vec![root.join("child")],
+                    )
+                    .unwrap(),
+                ["operations/operators.omg"].map(|path| root.join(path)),
+                "each admitted Product unit acquires its package's operator declarations",
+            );
+        }
         assert_eq!(owners.len(), 1, "reuse the actual owner's cached inventory");
     }
 
