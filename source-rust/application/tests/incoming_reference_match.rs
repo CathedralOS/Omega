@@ -5,34 +5,12 @@
 //! write through a lender while the joined reference is live is refused,
 //! even the lender of the arm the program does not take.
 
+#[path = "support/build_fixture.rs"]
+mod build_fixture;
 mod support;
 
-use std::process::{Command, Stdio};
-
-fn run_both(fixture: &str) -> (bool, String) {
-    let project = support::repository_root().join(fixture);
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["run", "--both", "main.omg"])
-        .current_dir(&project)
-        .stdin(Stdio::null())
-        .output()
-        .expect("omega runs on the hosted target");
-    let report = format!(
-        "{}{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr),
-    );
-    let _ = std::fs::remove_dir_all(project.join("build"));
-    let _ = std::fs::remove_file(project.join("omega.lock"));
-    (output.status.success(), report)
-}
-
 fn assert_runs(fixture: &str) {
-    let (success, report) = run_both(fixture);
-    assert!(success, "{report}");
-    for receipt in ["native exit 0", "interp exit: 0"] {
-        assert!(report.lines().any(|line| line == receipt), "{report}");
-    }
+    build_fixture::assert_silent_return(&support::repository_root().join(fixture));
 }
 
 #[test]
@@ -56,7 +34,7 @@ fn a_write_to_the_untaken_lender_while_the_match_is_live_is_refused() {
             .join("expected.txt"),
     )
     .unwrap();
-    let (success, report) = run_both(fixture);
-    assert!(!success, "{report}");
+    let (output, report) = build_fixture::check(&support::repository_root().join(fixture));
+    assert!(!output.status.success(), "{report}");
     assert!(report.contains(expected.trim()), "{report}");
 }
