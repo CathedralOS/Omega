@@ -604,13 +604,6 @@ impl SourceMap {
         }
     }
 
-    pub fn resolution_strata_separate(&self, left: SourceSpan, right: SourceSpan) -> bool {
-        match (self.file_at(left), self.file_at(right)) {
-            (Some(left), Some(right)) => left.resolution_stratum != right.resolution_stratum,
-            _ => false,
-        }
-    }
-
     pub fn len(&self) -> usize {
         self.files.len()
     }
@@ -850,7 +843,7 @@ mod tests {
     }
 
     #[test]
-    fn dependency_generated_declaration_hides_from_its_own_authored_units_only() {
+    fn handwritten_and_generated_files_share_the_frozen_dependency_instance() {
         let kit = PackageKeyIdentity::from_digest([3; 32]).expect("nonzero identity");
         let consumer = PackageKeyIdentity::from_digest([4; 32]).expect("nonzero identity");
         let mut sources = SourceMap::default();
@@ -888,7 +881,7 @@ mod tests {
         assert!(sources.reference_can_see_declaration(importer, generated));
         assert!(sources.reference_can_see_declaration(generated_reference, authored));
         assert!(sources.reference_can_see_declaration(generated_reference, generated));
-        assert!(sources.resolution_strata_separate(authored, generated));
+        assert!(sources.same_checked_instance(authored, generated));
     }
 
     #[test]

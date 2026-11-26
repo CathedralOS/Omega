@@ -413,6 +413,7 @@ pub fn collect_captured(
         let public_toolchain_product = dependency.is_none()
             && owner.is_public
             && source.origin == source_admission::SourceOrigin::Toolchain
+            && source.resolution_stratum == source_admission::SourceResolutionStratum::Base
             && source.dependency_scope == source_provenance::DependencyScope::Product;
         if !(program.symbols.symbol_product_package_identity(selected) == Some(target)
             || public_toolchain_product)

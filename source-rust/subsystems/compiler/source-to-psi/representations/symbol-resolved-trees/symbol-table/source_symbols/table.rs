@@ -4166,17 +4166,7 @@ impl SymbolTable {
                 self.sources.as_deref().and_then(|sources| {
                     candidates.iter().copied().find(|symbol| {
                         self.symbol_source_span(*symbol).is_some_and(|declaration| {
-                            !sources.resolution_strata_separate(reference, declaration)
-                                && sources.same_checked_instance(reference, declaration)
-                        })
-                    })
-                })
-            })
-            .or_else(|| {
-                self.sources.as_deref().and_then(|sources| {
-                    candidates.iter().copied().find(|symbol| {
-                        self.symbol_source_span(*symbol).is_some_and(|declaration| {
-                            !sources.resolution_strata_separate(reference, declaration)
+                            sources.same_checked_instance(reference, declaration)
                         })
                     })
                 })
