@@ -387,7 +387,9 @@ pub(crate) mod build_requests {
             program: source_text::SourceSpan,
         },
         ArtifactOnly,
-        ForwardProgram { program: source_text::SourceSpan },
+        ForwardProgram {
+            program: source_text::SourceSpan,
+        },
         PathDependency,
         GitDependency,
         InputBinding,
