@@ -15,7 +15,7 @@ use terminal_psi::TerminalPsiIdentity;
 use verified_optimization_input::publication::EmissionProgramFacts;
 
 use super::{
-    ValidatedOptimizedNativePhysicalEvidenceScope, canonical_usize, native_optimization_projection,
+    ValidatedOptimizedNativePhysicalEvidenceScope, native_optimization_projection,
     optimized_boundary_occurrence, optimized_operator_occurrence,
     validated_optimized_native_physical_evidence_scope,
 };
@@ -191,12 +191,12 @@ fn optimized_projection_identity(
     let mut canonical = validated_authority_bytes(authority);
     canonical.extend_from_slice(&boundary_application_coverage);
     canonical.push(1);
-    canonical.extend_from_slice(&canonical_usize(operator_occurrences.len()));
+    crate::codec_bytes::push_count_u64(&mut canonical, operator_occurrences.len());
     for occurrence in operator_occurrences {
         canonical.extend_from_slice(&occurrence.identity().bytes());
     }
     canonical.push(2);
-    canonical.extend_from_slice(&canonical_usize(boundary_occurrences.len()));
+    crate::codec_bytes::push_count_u64(&mut canonical, boundary_occurrences.len());
     for occurrence in boundary_occurrences {
         canonical.extend_from_slice(&occurrence.identity().bytes());
     }

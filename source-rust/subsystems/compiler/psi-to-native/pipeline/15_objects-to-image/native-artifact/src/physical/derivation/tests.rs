@@ -1346,9 +1346,8 @@ fn physical_child_identity_binds_every_retained_field() {
     use crate::physical::derivation::evidence::physical_child_identity;
     use crate::physical::native_byte_span;
     use crate::{
-        BoundaryTraitSettlementParts, BoundaryTraitSettlementRole, CompilerBuiltinResult,
-        CompilerBuiltinScalarArgument, NativeCompilerBuiltinCatalogIdentity, PhysicalChildParent,
-        PhysicalRelocationDisposition,
+        BoundaryTraitSettlementRole, CompilerBuiltinResult, CompilerBuiltinScalarArgument,
+        NativeCompilerBuiltinCatalogIdentity, PhysicalChildParent, PhysicalRelocationDisposition,
     };
 
     let (terminal, machine) = fixture_terminal([7; 32]);
@@ -1395,41 +1394,38 @@ fn physical_child_identity_binds_every_retained_field() {
         PhysicalChildParent::OperatorApplicationCoverage(*reference)
     };
     let settlement_parent = |identity: [u8; 32]| {
-        PhysicalChildParent::BoundaryTraitSettlement(
-            BoundaryTraitSettlementParts {
-                occurrence: optimized_boundary_occurrence(
-                    terminal,
-                    machine,
-                    OperationId::new(43).expect("boundary operation"),
-                    semantic_vocabulary::BoundaryMachineId::new(44).expect("boundary"),
-                    0,
-                    OptimizedBoundaryOccurrenceIdentity::from_canonical_bytes(
-                        b"boundary settlement occurrence",
-                    ),
+        PhysicalChildParent::BoundaryTraitSettlement(crate::physical::BoundaryTraitSettlement {
+            occurrence: optimized_boundary_occurrence(
+                terminal,
+                machine,
+                OperationId::new(43).expect("boundary operation"),
+                semantic_vocabulary::BoundaryMachineId::new(44).expect("boundary"),
+                0,
+                OptimizedBoundaryOccurrenceIdentity::from_canonical_bytes(
+                    b"boundary settlement occurrence",
                 ),
-                requirement_identity: "Process::exit".to_owned(),
-                selected_supply: NativeSelectedProviderPlanDigest::from_digest([7; 32]).into(),
-                target: NativeTarget::linux_x64(),
-                role: BoundaryTraitSettlementRole::CompilerBuiltin {
-                    catalog: NativeCompilerBuiltinCatalogIdentity::HostedV1,
-                    execution: CompilerBuiltinExecution::HostedExitProcessI32,
-                    realization: BoundaryRealization::HostedExitProcessI32(Default::default()),
-                    scalar_argument: Some(CompilerBuiltinScalarArgument::Immediate(
-                        BoundaryScalarArgument {
-                            source_value: ValueId::new(45).unwrap(),
-                            scalar_type: ScalarType::Integer(
-                                IntegerType::new(IntegerSign::Signed, 32).unwrap(),
-                            ),
-                            immediate: IntegerValue::Signed(0),
-                            destination: calling_conventions::MachineRegister::X86Rdi,
-                        },
-                    )),
-                    result: CompilerBuiltinResult::Unit,
-                },
-                identity,
-            }
-            .into(),
-        )
+            ),
+            requirement_identity: "Process::exit".to_owned(),
+            selected_supply: NativeSelectedProviderPlanDigest::from_digest([7; 32]).into(),
+            target: NativeTarget::linux_x64(),
+            role: BoundaryTraitSettlementRole::CompilerBuiltin {
+                catalog: NativeCompilerBuiltinCatalogIdentity::HostedV1,
+                execution: CompilerBuiltinExecution::HostedExitProcessI32,
+                realization: BoundaryRealization::HostedExitProcessI32(Default::default()),
+                scalar_argument: Some(CompilerBuiltinScalarArgument::Immediate(
+                    BoundaryScalarArgument {
+                        source_value: ValueId::new(45).unwrap(),
+                        scalar_type: ScalarType::Integer(
+                            IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+                        ),
+                        immediate: IntegerValue::Signed(0),
+                        destination: calling_conventions::MachineRegister::X86Rdi,
+                    },
+                )),
+                result: CompilerBuiltinResult::Unit,
+            },
+            identity,
+        })
     };
 
     let parent = coverage_parent([5; 32]);
@@ -1650,14 +1646,14 @@ fn physical_child_identity_binds_the_normalized_foreign_relocation() {
         normalized_foreign_callback_relocation,
     };
     use crate::{
-        BoundaryTraitSettlementParts, BoundaryTraitSettlementRole, CompilerBuiltinResult,
-        CompilerBuiltinScalarArgument, NativeCompilerBuiltinCatalogIdentity,
-        NormalizedForeignCallbackRelocations, PhysicalChildParent, PhysicalRelocationDisposition,
+        BoundaryTraitSettlementRole, CompilerBuiltinResult, CompilerBuiltinScalarArgument,
+        NativeCompilerBuiltinCatalogIdentity, NormalizedForeignCallbackRelocations,
+        PhysicalChildParent, PhysicalRelocationDisposition,
     };
 
     let projection = physical_projection();
-    let parent = PhysicalChildParent::BoundaryTraitSettlement(
-        BoundaryTraitSettlementParts {
+    let parent =
+        PhysicalChildParent::BoundaryTraitSettlement(crate::physical::BoundaryTraitSettlement {
             occurrence: projection.boundary_occurrences()[0],
             requirement_identity: "Process::exit".to_owned(),
             selected_supply: NativeSelectedProviderPlanDigest::from_digest([7; 32]).into(),
@@ -1679,9 +1675,7 @@ fn physical_child_identity_binds_the_normalized_foreign_relocation() {
                 result: CompilerBuiltinResult::Unit,
             },
             identity: [21; 32],
-        }
-        .into(),
-    );
+        });
     let occurrence =
         NativePhysicalOccurrence::Boundary(projection.boundary_occurrences()[0].identity());
     let machine_span = native_byte_span(8, 5);
