@@ -1,11 +1,12 @@
+use main.omg as app;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "recast_parent_restoration" };
-    Build::select_provider::<RestorationValue, SelectedRestoration>(builder, windows_x86_64);
-    Build::select_provider::<RestorationValue, SelectedRestoration>(builder, linux_x86_64);
-    Build::select_provider::<RestorationValue, SelectedRestoration>(builder, macos_arm64);
-    Build::select_provider::<RestorationValue, SelectedRestoration>(builder, linux_arm64);
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::select_provider::<|app|::RestorationValue, |app|::SelectedRestoration>(builder, windows_x86_64);
+    Build::select_provider::<|app|::RestorationValue, |app|::SelectedRestoration>(builder, linux_x86_64);
+    Build::select_provider::<|app|::RestorationValue, |app|::SelectedRestoration>(builder, macos_arm64);
+    Build::select_provider::<|app|::RestorationValue, |app|::SelectedRestoration>(builder, linux_arm64);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
 }

@@ -1,11 +1,12 @@
+use main.omg as app;
 machine build(builder: @mutable BuildPlan) {
-    Build::select_provider::<SelectedInspect, LinuxX8664Inspect>(builder, linux_x86_64);
-    Build::select_provider::<SelectedInspect, LinuxArm64Inspect>(builder, linux_arm64);
-    Build::select_provider::<SelectedInspect, MacosArm64Inspect>(builder, macos_arm64);
-    Build::select_provider::<SelectedInspect, WindowsX8664Inspect>(builder, windows_x86_64);
+    Build::select_provider::<|app|::SelectedInspect, |app|::LinuxX8664Inspect>(builder, linux_x86_64);
+    Build::select_provider::<|app|::SelectedInspect, |app|::LinuxArm64Inspect>(builder, linux_arm64);
+    Build::select_provider::<|app|::SelectedInspect, |app|::MacosArm64Inspect>(builder, macos_arm64);
+    Build::select_provider::<|app|::SelectedInspect, |app|::WindowsX8664Inspect>(builder, windows_x86_64);
     builder.product = BuildProduct::Application { name: "implementation_region_forwarding_target_body" };
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
 }

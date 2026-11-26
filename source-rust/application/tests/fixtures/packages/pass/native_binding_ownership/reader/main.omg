@@ -4,7 +4,7 @@ boundary trait ReadParent {
     machine read() -> i32 reaches none crashes none;
 }
 
-machine main() {
+public machine main() {
     let process: i32 = |reading|::process_id();
     let parent: i32 = ReadParent::read();
 }

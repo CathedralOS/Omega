@@ -1,5 +1,5 @@
-use enemies\Enemy;
-use rewards\Reward;
+use enemies/enemies.omg;
+use rewards/rewards.omg;
 
 data RoomEventKind [copy] {
     case Nothing;
@@ -18,7 +18,7 @@ data RoomEventAction [copy] {
 
 data RoomEvent [copy] {
     kind: RoomEventKind;
-    enemy: Enemy;
-    reward: Reward;
+    enemy: |enemies|::Enemy;
+    reward: |rewards|::Reward;
     consumed: bool;
 }

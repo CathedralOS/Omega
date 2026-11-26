@@ -1374,7 +1374,9 @@ fn size(semantic: Semantic) -> Size {
         | Semantic::MaterializeBooleanU64LessOrEqual
         | Semantic::MaterializeBooleanI64LessOrEqual => Size::ExactBytes(8),
         Semantic::Jump => Size::ExactBytes(5),
-        Semantic::CompareI64Zero | Semantic::CompareI64 | Semantic::CopyI64 => Size::ExactBytes(3),
+        Semantic::CompareI64Zero | Semantic::CompareI64 => Size::ExactBytes(3),
+        // A copy between the same register encodes to nothing.
+        Semantic::CopyI64 => crate::encoder_resolved(0, Some(3)),
         Semantic::CompareI64Immediate => Size::ExactBytes(7),
         Semantic::Float32ToBits | Semantic::BitsToFloat32 => crate::encoder_resolved(4, Some(5)),
         Semantic::Float64ToBits | Semantic::BitsToFloat64 => Size::ExactBytes(5),

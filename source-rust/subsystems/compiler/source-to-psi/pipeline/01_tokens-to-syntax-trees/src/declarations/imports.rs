@@ -72,7 +72,7 @@ pub(crate) fn parse_use_item<'tokens, 'source>(
     }
     Ok((
         UseItem::File {
-            only_product_operands: false,
+            qualifiers: Vec::new(),
             root,
             components,
             alias,
@@ -244,24 +244,14 @@ pub(crate) fn mark_product_operand_imports(
 ) {
     use syntax_trees::item::Item;
 
-    let operands = qualifiers.only_product_operands(trees, roots);
-    if operands.is_empty() {
-        return;
-    }
+    let mut occurrences = qualifiers.occurrences(trees, roots);
     for handle in &roots.items[roots.import_range.clone()] {
-        let Item::Use(UseItem::File { alias, .. }) = trees.root_item(*handle) else {
-            continue;
-        };
-        if operands.contains(alias.as_str(trees)) {
-            let mut item = trees.root_item(*handle).clone();
-            if let Item::Use(UseItem::File {
-                only_product_operands,
-                ..
-            }) = &mut item
-            {
-                *only_product_operands = true;
-            }
-            trees.items.replace_item(*handle, item);
+        let Item::Use(UseItem::File { alias, .. }) = trees.root_item(*handle) else { continue };
+        let Some(uses) = occurrences.remove(alias.as_str(trees)) else { continue };
+        let mut item = trees.root_item(*handle).clone();
+        if let Item::Use(UseItem::File { qualifiers, .. }) = &mut item {
+            *qualifiers = uses;
         }
+        trees.items.replace_item(*handle, item);
     }
 }

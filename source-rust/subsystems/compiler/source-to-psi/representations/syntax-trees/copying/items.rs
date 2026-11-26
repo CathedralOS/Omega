@@ -561,9 +561,9 @@ impl SyntaxCopy<'_> {
                     components,
                     alias,
                     span,
-                    only_product_operands,
+                    qualifiers,
                 } => UseItem::File {
-                    only_product_operands: *only_product_operands,
+                    qualifiers: qualifiers.clone(),
                     root: root.clone(),
                     components: self.copy_item_identifier_span(other, *components),
                     alias: alias.clone(),

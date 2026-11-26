@@ -7,7 +7,11 @@ use super::super::{
     PackageLockRecoveryLimits,
 };
 use super::compilation::read;
-use super::{HEADER, budget::Budget, framing::Writer};
+use super::{
+    HEADER,
+    budget::Budget,
+    framing::{LOCK, Writer},
+};
 use crate::lock::PackagePolicyOccurrence;
 
 impl PackageLock {
@@ -23,7 +27,7 @@ impl PackageLock {
         self.validate(limits)?;
         let mut budget = Budget::new(limits);
         budget.entries::<PackageLockTarget>(self.targets.len())?;
-        let mut writer = Writer::new(limits.maximum_bytes);
+        let mut writer = Writer::new(&LOCK, limits.maximum_bytes);
         writer.append(HEADER)?;
         writer.row("targets", self.targets.len())?;
         for target in &self.targets {

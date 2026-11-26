@@ -1,15 +1,16 @@
+use main.omg as app;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "quotient_closed_literal_target_body_invalid" };
-    Build::bind(builder, linux_x86_64::ProgramEntry, x86_entry);
-    Build::bind(builder, linux_arm64::ProgramEntry, arm_entry);
-    Build::bind(builder, macos_arm64::ProgramEntry, arm_entry);
-    Build::bind(builder, windows_x86_64::ProgramEntry, x86_entry);
-    Build::select_provider::<SelectedBodyCheck, X86BodyCheck>(builder, linux_x86_64);
-    Build::select_provider::<SelectedLifted, X86Lifted>(builder, linux_x86_64);
-    Build::select_provider::<SelectedBodyCheck, ArmBodyCheck>(builder, linux_arm64);
-    Build::select_provider::<SelectedLifted, ArmLifted>(builder, linux_arm64);
-    Build::select_provider::<SelectedBodyCheck, ArmBodyCheck>(builder, macos_arm64);
-    Build::select_provider::<SelectedLifted, ArmLifted>(builder, macos_arm64);
-    Build::select_provider::<SelectedBodyCheck, X86BodyCheck>(builder, windows_x86_64);
-    Build::select_provider::<SelectedLifted, X86Lifted>(builder, windows_x86_64);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::x86_entry);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::arm_entry);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::arm_entry);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::x86_entry);
+    Build::select_provider::<|app|::SelectedBodyCheck, |app|::X86BodyCheck>(builder, linux_x86_64);
+    Build::select_provider::<|app|::SelectedLifted, |app|::X86Lifted>(builder, linux_x86_64);
+    Build::select_provider::<|app|::SelectedBodyCheck, |app|::ArmBodyCheck>(builder, linux_arm64);
+    Build::select_provider::<|app|::SelectedLifted, |app|::ArmLifted>(builder, linux_arm64);
+    Build::select_provider::<|app|::SelectedBodyCheck, |app|::ArmBodyCheck>(builder, macos_arm64);
+    Build::select_provider::<|app|::SelectedLifted, |app|::ArmLifted>(builder, macos_arm64);
+    Build::select_provider::<|app|::SelectedBodyCheck, |app|::X86BodyCheck>(builder, windows_x86_64);
+    Build::select_provider::<|app|::SelectedLifted, |app|::X86Lifted>(builder, windows_x86_64);
 }

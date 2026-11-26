@@ -157,17 +157,6 @@ impl AcquiredBuildDependency {
         self.acquired.source_capture()
     }
 
-    pub fn complete(
-        self,
-        returned: &build_execution::ReturnedBuild,
-    ) -> Result<(PackageKeyIdentity, ExecutedSourceResolution), String> {
-        let declared = match self.acquired.declare_build(returned) {
-            Ok(declared) => declared,
-            Err(error) => return Err(self.pending.fail(error).to_string()),
-        };
-        self.complete_declared(&declared)
-    }
-
     pub fn complete_declared(
         self,
         declared: &DeclaredBuildSource,
@@ -198,13 +187,6 @@ pub struct ResolvedBuildSources {
 }
 
 impl ResolvedBuildSources {
-    pub fn contains(&self, identity: PackageKeyIdentity) -> bool {
-        self.closure
-            .custodies()
-            .iter()
-            .any(|custody| custody.key().identity() == identity)
-    }
-
     pub(crate) fn into_source_closure(self) -> ResolvedPackageSourceClosure {
         Arc::unwrap_or_clone(self.closure)
     }
@@ -264,14 +246,6 @@ impl ResolvedBuildSources {
 
     pub fn root(&self) -> PackageKeyIdentity {
         self.closure.graph().root().identity()
-    }
-
-    pub fn join_build(
-        &self,
-        root: PackageKeyIdentity,
-        returned: &mut build_execution::ReturnedBuild,
-    ) -> Result<PackageCompilationInputs, String> {
-        self.join_source_result(root, &mut returned.source_result())
     }
 
     pub fn join_source_result(

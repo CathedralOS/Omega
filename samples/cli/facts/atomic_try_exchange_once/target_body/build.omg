@@ -1,11 +1,12 @@
+use main.omg as app;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "atomic_try_exchange_once_target_body" };
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::select_provider::<SelectedAttempt, SingleAttempt>(builder, windows_x86_64);
-    Build::select_provider::<SelectedAttempt, SingleAttempt>(builder, linux_x86_64);
-    Build::select_provider::<SelectedAttempt, SingleAttempt>(builder, macos_arm64);
-    Build::select_provider::<SelectedAttempt, SingleAttempt>(builder, linux_arm64);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
+    Build::select_provider::<|app|::SelectedAttempt, |app|::SingleAttempt>(builder, windows_x86_64);
+    Build::select_provider::<|app|::SelectedAttempt, |app|::SingleAttempt>(builder, linux_x86_64);
+    Build::select_provider::<|app|::SelectedAttempt, |app|::SingleAttempt>(builder, macos_arm64);
+    Build::select_provider::<|app|::SelectedAttempt, |app|::SingleAttempt>(builder, linux_arm64);
 }

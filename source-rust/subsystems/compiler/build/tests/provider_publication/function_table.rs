@@ -38,7 +38,8 @@ machine main() {}
         )
         .unwrap();
         let root = scratch.path().join("build.omg");
-        let build = r#"use {omega}/language/core/external_binding.omg as native;
+        let build = r#"use main.omg as app;
+use {omega}/language/core/external_binding.omg as native;
 use {omega}/language/core/reflect/reflect.omg as reflect;
 machine build<'selection>(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "firmware" };
@@ -47,7 +48,7 @@ machine build<'selection>(builder: @mutable BuildPlan) {
         field: |reflect|::field(FIELD),
     };
     Build::bind_native::<Firmware::write>(builder, linux_x86_64, binding);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
 }
 "#;
         std::fs::write(

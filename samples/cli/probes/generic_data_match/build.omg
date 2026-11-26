@@ -2,10 +2,11 @@
 // standard-library package, so no ProcessExit authority; compile-checked
 // only (same posture as cli/basics/standalone).
 
+use main.omg as app;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "generic_data_match" };
-    Build::bind(builder, windows_x86_64::ProgramEntry, generic_data_match);
-    Build::bind(builder, linux_x86_64::ProgramEntry, generic_data_match);
-    Build::bind(builder, linux_arm64::ProgramEntry, generic_data_match);
-    Build::bind(builder, macos_arm64::ProgramEntry, generic_data_match);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::generic_data_match);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::generic_data_match);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::generic_data_match);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::generic_data_match);
 }

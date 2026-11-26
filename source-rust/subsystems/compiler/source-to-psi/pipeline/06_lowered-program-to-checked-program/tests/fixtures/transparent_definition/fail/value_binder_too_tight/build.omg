@@ -1,5 +1,7 @@
 // The same definition with `check` promising `result < 9`, one input
 // apart: `below::<10>(value)` leaves nine possible, so the guarantee fails.
-let below<Limit: u64>(value: u64): core\Strict<0> = value < Limit;
+use {omega}/language/core/foundation.omg as proof;
+
+let below<Limit: u64>(value: u64): |proof|::Strict<0> = value < Limit;
 machine check(value: u64) -> u64 requires below::<10>(value) ensures result < 9 { value }
 machine build_entry() { let checked: u64 = check(3); }

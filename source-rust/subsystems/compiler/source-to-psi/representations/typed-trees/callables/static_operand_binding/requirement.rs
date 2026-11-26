@@ -1,5 +1,8 @@
 use super::{Operand, Stop, bind, unserved};
-use crate::{TypedTrees, expression::StaticMachineArgument, static_applications::StaticMachineApplicationHandle};
+use crate::{
+    TypedTrees, expression::StaticMachineArgument,
+    static_applications::StaticMachineApplicationHandle,
+};
 use symbols::SymbolHandle;
 
 /// Product operands spend the same declared argument tuple as source calls.
@@ -103,7 +106,7 @@ pub fn prepare_requirement_in_scope(
             supplying_owner,
         )?);
     }
-    bind(program, application, &operands);
+    bind(program, application, &operands)?;
     let table = &mut program.expression_table;
     table
         .static_machine_application_mut(application)
