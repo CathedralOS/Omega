@@ -861,7 +861,7 @@ fn ends_at_view_reborrow(
     {
         return false;
     }
-    location_live_positions(
+    if !location_live_positions(
         steps,
         birth,
         source,
@@ -872,6 +872,69 @@ fn ends_at_view_reborrow(
     )
     .live
     .is_empty()
+    {
+        return false;
+    }
+
+    returns_with_previous_authority(steps, birth, source, result, cutoff)
+}
+
+/// Another reborrow can demand the same backing while holding a different
+/// immediate loan. Follow permission transfers from this result on every
+/// path back to its formation. Initial arrivals have no preceding result.
+fn returns_with_previous_authority(
+    steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
+    birth: DescriptorPosition,
+    source: &DescriptorLocation,
+    result: &DescriptorLocation,
+    cutoff: Option<&DeadTailCutoff>,
+) -> bool {
+    let mut returns = FlowPredecessors {
+        predecessors: BTreeMap::new(),
+    };
+    let mut visited = BTreeSet::new();
+    let mut pending = vec![birth];
+    while let Some(position) = pending.pop() {
+        if !visited.insert(position) {
+            continue;
+        }
+        let Some(step) = steps.get(&position) else {
+            return false;
+        };
+        for edge in &step.successors {
+            returns
+                .predecessors
+                .entry(edge.target)
+                .or_default()
+                .push((position, edge));
+            pending.push(edge.target);
+        }
+    }
+    let Some(arrivals) = returns.predecessors.get(&birth) else {
+        return false;
+    };
+    let permissions = transported_locations_with_predecessors(
+        steps,
+        Some(&returns),
+        cutoff,
+        None,
+        birth,
+        result,
+        DescriptorStart::AfterDefinition,
+        false,
+        false,
+        None,
+    );
+    let empty = BTreeSet::new();
+    arrivals.iter().all(|&(from, edge)| {
+        let before = permissions.get(&from).unwrap_or(&empty);
+        let mut after = steps[&from].transport_authority(before, false);
+        if from == birth {
+            after.insert(result.clone());
+        }
+        edge.transport_locations(&after, false, false)
+            .contains(source)
+    })
 }
 
 fn is_fresh_definition(

@@ -597,4 +597,36 @@ fn a_loop_can_hand_its_last_view_to_the_next_reborrow() {
     steps.get_mut(&position(1)).unwrap().may_escape = false;
     steps.get_mut(&position(0)).unwrap().reborrows_view = false;
     assert!(!lifetime(&steps).reborrows_previous);
+    steps.get_mut(&position(0)).unwrap().reborrows_view = true;
+
+    // One return path narrows through a separate child loan. Its bytes
+    // originate in the same buffer, but the next pass must name that child.
+    let mut returning_child = edge(0);
+    returning_child.parameters.push(source.clone());
+    returning_child.bindings.push(
+        DescriptorFlowBinding::new(
+            root(3),
+            source,
+            terminal_psi::StructuralAccess::MutableBorrow,
+            terminal_psi::StructuralAccess::MutableBorrow,
+        )
+        .unwrap(),
+    );
+    steps
+        .get_mut(&position(1))
+        .unwrap()
+        .successors
+        .push(edge(2));
+    steps.insert(
+        position(2),
+        DescriptorFlowStep {
+            definitions: vec![root(3)],
+            inputs: vec![(Some(result.clone()), None)],
+            derivations: vec![(result.clone(), root(3))],
+            reborrows_view: true,
+            successors: vec![returning_child],
+            ..Default::default()
+        },
+    );
+    assert!(!lifetime(&steps).reborrows_previous);
 }
