@@ -1520,9 +1520,9 @@ fn preparation_makes_a_product_dependency_ready_only_for_its_product() {
     .unwrap();
     std::fs::write(
         root.join("main.omg"),
-        r#"use kit;
+        r#"use {kit}/main.omg as kit;
 machine main() crashes Trap {
-    transition kit\value() == 7 {
+    transition |kit|::value() == 7 {
         true -> pass(),
         _ -> wrong()
     }
@@ -1565,28 +1565,28 @@ machine build(builder: @mutable BuildPlan) suspends {
         );
 
         let leaked = format!(
-            "use kit;\n{}",
+            "use {{kit}}/main.omg as kit;\n{}",
             build.replace(
                 "    Build::bind",
-                "    let leaked: i32 = kit\\value();\n    Build::bind"
+                "    let leaked: i32 = |kit|::value();\n    Build::bind"
             )
         );
         let output = invoke(&leaked);
         let report = String::from_utf8_lossy(&output.stderr);
         assert!(
             !output.status.success()
-                && report.contains("Build import `kit` has no supplied source")
+                && report.contains("Build import `{kit}/main.omg as kit` has no supplied source")
                 && report.contains("build.omg:1:5"),
             "{report}"
         );
         let unknown = leaked
-            .replace("use kit;", "use kitchen;")
-            .replace("kit\\value()", "kitchen\\value()");
+            .replace("use {kit}/main.omg as kit;", "use {kitchen}/main.omg as kitchen;")
+            .replace("|kit|::value()", "|kitchen|::value()");
         let output = invoke(&unknown);
         let report = String::from_utf8_lossy(&output.stderr);
         assert!(
             !output.status.success()
-                && report.contains("Build import `kitchen` has no supplied source")
+                && report.contains("Build import `{kitchen}/main.omg as kitchen` has no supplied source")
                 && report.contains("build.omg:1:5"),
             "{report}"
         );
