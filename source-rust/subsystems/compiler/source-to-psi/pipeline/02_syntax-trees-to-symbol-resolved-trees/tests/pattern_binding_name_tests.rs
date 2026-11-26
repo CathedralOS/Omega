@@ -180,6 +180,8 @@ fn fresh_subject_patterns_bind_the_value_without_testing_equality() {
         "machine pick(current: u32) -> u32 { next(current) machine next(current: u32) -> u32 { current } }",
     );
     accepts("machine pick<T>(sample: u32) -> u32 { let T: u32 = sample; T }");
-    accepts(r"machine pick<const T: core\Type<0>>(sample: u32) -> u32 { let T: u32 = sample; T }");
+    accepts(
+        r"use {omega}/language/core/foundation.omg as proof; machine pick<const T: |proof|::Type<0>>(sample: u32) -> u32 { let T: u32 = sample; T }",
+    );
     accepts("machine pick(ready: bool) -> u32 { transition { ready -> 1u32, _ -> 0u32 } }");
 }

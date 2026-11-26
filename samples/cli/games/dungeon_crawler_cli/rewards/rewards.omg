@@ -1,4 +1,4 @@
-use inventory\ItemKind;
+use inventory/items.omg;
 
 data RewardKind [copy] {
     case None;
@@ -10,5 +10,5 @@ data RewardKind [copy] {
 data Reward [copy] {
     kind: RewardKind;
     gold: u32 in Wrapping;
-    item: ItemKind;
+    item: |items|::ItemKind;
 }

@@ -1,20 +1,21 @@
+use main.omg as app;
 use {omega}/build/dependency.omg;
 
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "owned_outcome" };
     let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Bundled { name: "system" }));
-    Build::accept_boundary::<Issuer>(builder);
-    Build::select_provider::<Issuer, Provider>(builder, linux_arm64);
-    Build::select_provider::<Issuer, Provider>(builder, linux_x86_64);
-    Build::select_provider::<Issuer, Provider>(builder, macos_arm64);
-    Build::select_provider::<Issuer, Provider>(builder, macos_x86_64);
-    Build::select_provider::<Issuer, Provider>(builder, windows_x86_64);
-    Build::select_provider::<Issuer, Provider>(builder, uefi_x86_64);
-    Build::select_provider::<Issuer, Provider>(builder, cross_platform_cli);
-    Build::select_provider::<Issuer, Provider>(builder, local_unchecked);
-    Build::select_provider::<Issuer, Provider>(builder, alpha_bootstrap);
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::accept_boundary::<|app|::Issuer>(builder);
+    Build::select_provider::<|app|::Issuer, |app|::Provider>(builder, linux_arm64);
+    Build::select_provider::<|app|::Issuer, |app|::Provider>(builder, linux_x86_64);
+    Build::select_provider::<|app|::Issuer, |app|::Provider>(builder, macos_arm64);
+    Build::select_provider::<|app|::Issuer, |app|::Provider>(builder, macos_x86_64);
+    Build::select_provider::<|app|::Issuer, |app|::Provider>(builder, windows_x86_64);
+    Build::select_provider::<|app|::Issuer, |app|::Provider>(builder, uefi_x86_64);
+    Build::select_provider::<|app|::Issuer, |app|::Provider>(builder, cross_platform_cli);
+    Build::select_provider::<|app|::Issuer, |app|::Provider>(builder, local_unchecked);
+    Build::select_provider::<|app|::Issuer, |app|::Provider>(builder, alpha_bootstrap);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
 }

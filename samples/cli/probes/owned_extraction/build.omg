@@ -1,17 +1,18 @@
+use main.omg as app;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "owned_extraction" };
-    Build::accept_boundary::<ExtractionProvider>(builder);
-    Build::select_provider::<ExtractionProvider<u64, u32>, Extract>(builder, linux_arm64);
-    Build::select_provider::<ExtractionProvider<u64, u32>, Extract>(builder, linux_x86_64);
-    Build::select_provider::<ExtractionProvider<u64, u32>, Extract>(builder, macos_arm64);
-    Build::select_provider::<ExtractionProvider<u64, u32>, Extract>(builder, macos_x86_64);
-    Build::select_provider::<ExtractionProvider<u64, u32>, Extract>(builder, windows_x86_64);
-    Build::select_provider::<ExtractionProvider<u64, u32>, Extract>(builder, uefi_x86_64);
-    Build::select_provider::<ExtractionProvider<u64, u32>, Extract>(builder, cross_platform_cli);
-    Build::select_provider::<ExtractionProvider<u64, u32>, Extract>(builder, local_unchecked);
-    Build::select_provider::<ExtractionProvider<u64, u32>, Extract>(builder, alpha_bootstrap);
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::accept_boundary::<|app|::ExtractionProvider>(builder);
+    Build::select_provider::<|app|::ExtractionProvider<u64, u32>, |app|::Extract>(builder, linux_arm64);
+    Build::select_provider::<|app|::ExtractionProvider<u64, u32>, |app|::Extract>(builder, linux_x86_64);
+    Build::select_provider::<|app|::ExtractionProvider<u64, u32>, |app|::Extract>(builder, macos_arm64);
+    Build::select_provider::<|app|::ExtractionProvider<u64, u32>, |app|::Extract>(builder, macos_x86_64);
+    Build::select_provider::<|app|::ExtractionProvider<u64, u32>, |app|::Extract>(builder, windows_x86_64);
+    Build::select_provider::<|app|::ExtractionProvider<u64, u32>, |app|::Extract>(builder, uefi_x86_64);
+    Build::select_provider::<|app|::ExtractionProvider<u64, u32>, |app|::Extract>(builder, cross_platform_cli);
+    Build::select_provider::<|app|::ExtractionProvider<u64, u32>, |app|::Extract>(builder, local_unchecked);
+    Build::select_provider::<|app|::ExtractionProvider<u64, u32>, |app|::Extract>(builder, alpha_bootstrap);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
 }

@@ -33,66 +33,30 @@ pub(crate) fn plan_dependency_addition_from_source(
         return Ok(BuildDependencyEditPlan::Unchanged);
     }
     let digest = source_digest(&source);
-    let statement = canonical_dependency_statement(
-        request,
-        &source,
-        &import.alias,
-        receiver,
-    );
-    let Some(layout) = discover_build_layout(&parsed, receiver) else {
-        return Ok(manual_patch(
-            build_path,
+    let statement = canonical_dependency_statement(request, &source, &import.alias, receiver);
+    let patch = |reason| {
+        Ok(manual_patch(
+            build_path.clone(),
             digest,
-            BuildDependencyManualReason::NonCanonicalBuildBodyLayout,
+            reason,
             None,
-            import.manual_proposal(statement),
-        ));
+            import.manual_proposal(statement.clone()),
+        ))
+    };
+    let Some(layout) = discover_build_layout(&parsed, receiver) else {
+        return patch(BuildDependencyManualReason::NonCanonicalBuildBodyLayout);
     };
     let Some(layout) = layout else {
-        return Ok(manual_patch(
-            build_path,
-            digest,
-            BuildDependencyManualReason::NonCanonicalBuildSignature,
-            None,
-            import.manual_proposal(statement),
-        ));
+        return patch(BuildDependencyManualReason::NonCanonicalBuildSignature);
     };
     let Some(replacement) = layout.insert_statement(&source, &statement) else {
-        return Ok(manual_patch(
-            build_path,
-            digest,
-            BuildDependencyManualReason::NonCanonicalBuildBodyLayout,
-            None,
-            import.manual_proposal(statement),
-        ));
+        return patch(BuildDependencyManualReason::NonCanonicalBuildBodyLayout);
     };
-    validated_automatic_addition(
-        build_path,
-        digest,
-        import.include_in(replacement),
-        requests,
-        request.clone(),
-        import.manual_proposal(statement),
-    )
-}
-
-fn validated_automatic_addition(
-    build_path: PathBuf,
-    digest: [u8; 32],
-    replacement: String,
-    mut expected: Vec<DependencySourceRequest>,
-    request: DependencySourceRequest,
-    statement: String,
-) -> Result<BuildDependencyEditPlan, BuildDependencyEditError> {
-    expected.push(request);
+    let replacement = import.include_in(replacement);
+    let mut expected = requests;
+    expected.push(request.clone());
     if extract_requests_from_source(&replacement).ok().as_ref() != Some(&expected) {
-        return Ok(manual_patch(
-            build_path,
-            digest,
-            BuildDependencyManualReason::GeneratedEditRejected,
-            None,
-            statement,
-        ));
+        return patch(BuildDependencyManualReason::GeneratedEditRejected);
     }
     Ok(BuildDependencyEditPlan::Automatic(
         BuildFileReplacement::new(build_path, digest, replacement),

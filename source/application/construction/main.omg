@@ -111,136 +111,9 @@ reaches |process_exit|::ProcessExit crashes Trap
     machine done() {}
 }
 
-// Directory custody follows the source-rust source-files reader. Directory
-// components must be ASCII identifiers and cannot shadow the receiver or a
-// builtin type. A basename only identifies a file.
-machine identifier_letter(byte: u8) -> bool {
-    let uppercase: bool = byte >= 65 && byte <= 90;   // A through Z
-    let lowercase: bool = byte >= 97 && byte <= 122;  // a through z
-    uppercase || lowercase || byte == 95              // underscore
-}
-
-machine directory_name(name: @[u8]) -> bool crashes Trap {
-    transition name.length > 0 {
-        true -> first(name),
-        _ -> no()
-    }
-    machine first(name: @[u8]) -> bool
-    requires name.length > 0
-    {
-        let byte: u8 = name[0];
-        let letter: bool = identifier_letter(byte);
-        let integer_prefix: bool = byte == 105 || byte == 117;  // i or u
-        transition letter {
-            true -> next(name, 1, integer_prefix),
-            _ -> no()
-        }
-    }
-    machine next(name: @[u8], index: u64, integer_family: bool) -> bool {
-        transition index < name.length {
-            true -> character(name, index, integer_family),
-            _ -> spelling(name, integer_family)
-        }
-    }
-    machine character(name: @[u8], index: u64, integer_family: bool) -> bool
-    requires index < name.length
-    {
-        let byte: u8 = name[index];
-        let digit: bool = byte >= 48 && byte <= 57;  // 0 through 9
-        let letter: bool = identifier_letter(byte);
-        transition digit || letter {
-            true -> next(name, index + 1, integer_family && digit),
-            _ -> no()
-        }
-    }
-    machine spelling(name: @[u8], integer_family: bool) -> bool {
-        !integer_family && name != "self" && name != "bool" && name != "address"
-            && name != "f32" && name != "f64" && name != "Slice"
-            && name != "SyscallResult" && name != "Terminal" && name != "UInt"
-            && name != "Int" && name != "AtomicBool" && name != "AtomicU32"
-            && name != "AtomicU64"
-    }
-    machine no() -> bool { false }
-}
-
-machine package_namespace(path: @[u8], name: @mutable |source_files|::ModulePath)
-reaches |process_exit|::ProcessExit crashes Trap
-{
-    |source_files|::module_path_clear(name);
-    transition { _ -> scan(path, name, 0, 0) }
-    machine scan(path: @[u8], name: @mutable |source_files|::ModulePath, start: u64, index: u64)
-    requires start <= index, index <= path.length
-    {
-        transition index < path.length {
-            true -> byte(path, name, start, index),
-            _ -> basename(@path[start..index])
-        }
-    }
-    machine byte(path: @[u8], name: @mutable |source_files|::ModulePath, start: u64, index: u64)
-    requires start <= index, index < path.length
-    {
-        let value: u8 = path[index];
-        transition value {
-            0 -> |input_packet|::malformed(),  // NUL
-            92 -> |input_packet|::malformed(), // Backslash is outside the POSIX wire spelling.
-            47 -> directory(path, name, start, index), // Forward slash ends a directory.
-            _ -> scan(path, name, start, index + 1)
-        }
-    }
-    machine directory(path: @[u8], name: @mutable |source_files|::ModulePath, start: u64, end: u64)
-    requires start <= end, end < path.length
-    {
-        let accepted: bool = directory_name(@path[start..end]);
-        transition accepted && end <= 256 {
-            true -> separator(path, name, start, end),
-            _ -> |input_packet|::malformed()
-        }
-    }
-    machine separator(path: @[u8], name: @mutable |source_files|::ModulePath, start: u64, end: u64)
-    requires start <= end, end < path.length
-    {
-        transition start > 0 {
-            true -> append_separator(path, name, start, end),
-            _ -> copy(path, name, start, end)
-        }
-    }
-    machine append_separator(path: @[u8], name: @mutable |source_files|::ModulePath, start: u64, end: u64)
-    requires start <= end, end < path.length
-    {
-        // ModulePath joins components with a backslash.
-        let retained: bool = |source_files|::module_path_append(name, 92);
-        transition retained {
-            true -> copy(path, name, start, end),
-            _ -> |input_packet|::malformed()
-        }
-    }
-    machine copy(path: @[u8], name: @mutable |source_files|::ModulePath, index: u64, end: u64)
-    requires index <= end, end < path.length
-    {
-        transition index < end {
-            true -> append(path, name, index, end),
-            _ -> scan(path, name, end + 1, end + 1)
-        }
-    }
-    machine append(path: @[u8], name: @mutable |source_files|::ModulePath, index: u64, end: u64)
-    requires index < end, end < path.length
-    {
-        let retained: bool = |source_files|::module_path_append(name, path[index]);
-        transition retained {
-            true -> copy(path, name, index + 1, end),
-            _ -> |input_packet|::malformed()
-        }
-    }
-    machine basename(name: @[u8]) {
-        transition name.length > 0 && name != "." && name != ".." {
-            true -> done(),
-            _ -> |input_packet|::malformed()
-        }
-    }
-    machine done() {}
-}
-
-machine unit_namespace(input: @|input_packet|::ConstructionInput, row: u64, name: @mutable |source_files|::ModulePath)
+// The request supplies the complete package-relative filename. Retain it
+// byte for byte so siblings may declare independent names.
+machine unit_filename(input: @|input_packet|::ConstructionInput, row: u64, name: @mutable |source_files|::ModulePath)
 requires row <= 3771
 reaches |process_exit|::ProcessExit crashes Trap
 {
@@ -254,13 +127,19 @@ reaches |process_exit|::ProcessExit crashes Trap
         let start: u32 = |input_packet|::row_word(input, row + 3);
         let end: u32 = |input_packet|::row_word(input, row + 4);
         transition start < end && end <= input.buffer_length && end <= 8388608 {
-            true -> namespace(input, name, start as u64, end as u64),
+            true -> filename(input, name, start, end),
             _ -> |input_packet|::malformed()
         }
     }
-    machine namespace(input: @|input_packet|::ConstructionInput, name: @mutable |source_files|::ModulePath, start: u64, end: u64)
+    machine filename(input: @|input_packet|::ConstructionInput, name: @mutable |source_files|::ModulePath, start: u32, end: u32)
     requires start < end, end <= 8388608
-    { package_namespace(@input.bytes[start..end], name); }
+    {
+        let valid: bool = |build_sources|::build_path_valid(@input.bytes[start as u64..end as u64]);
+        transition valid {
+            true -> copy_name(input, name, start, end),
+            false -> |input_packet|::malformed()
+        }
+    }
     machine root(name: @mutable |source_files|::ModulePath) { |source_files|::module_path_clear(name); }
 }
 
@@ -328,7 +207,7 @@ reaches |process_exit|::ProcessExit crashes Trap
     requires index < 512, row <= 3771, start <= end, end <= 8388608
     {
         let mutable module_path: |source_files|::ModulePath;
-        unit_namespace(input, row, @mutable module_path);
+        unit_filename(input, row, @mutable module_path);
         load_unit_source(input, lexer, index as u32, start, end);
         |driver|::compilation_add_unit(compilation, lexer, (package as u64) as +Trapping, @module_path);
         transition { _ -> next(input, compilation, lexer, index + 1) }

@@ -1,25 +1,22 @@
-use text;
-use events\RoomEvent;
-use text\ExitCommand;
-use text\RoomDescription;
-use text\RoomLabel;
-use text\exit_command_set;
+use events/events.omg;
+use rooms/map.omg;
+use text/buffer.omg;
 
 data Exit [copy] {
-    command: ExitCommand;
-    direction: Direction;
-    destination: CellId;
+    command: |buffer|::ExitCommand;
+    direction: |map|::Direction;
+    destination: |map|::CellId;
 }
 
 data Room [copy] {
-    cell: CellId;
+    cell: |map|::CellId;
     depth: u32 in Wrapping;
     branch: u32 in Wrapping;
-    label: RoomLabel;
-    description: RoomDescription;
+    label: |buffer|::RoomLabel;
+    description: |buffer|::RoomDescription;
     exits: [Exit; 4];
     exit_count: u64 in Wrapping;
-    event: RoomEvent;
+    event: |events|::RoomEvent;
     discovered: bool;
 }
 
@@ -28,7 +25,7 @@ requires self.room_count <= 16
 {
     rooms: [Room; 16];
     room_count: u64;
-    start_cell: CellId;
+    start_cell: |map|::CellId;
     deepest_depth: u32 in Wrapping;
 }
 
@@ -37,9 +34,9 @@ requires self.room_count <= 16
 // builder-owned appender would need the builder receiver at the same time.
 machine append_exit(
     room: @mutable Room,
-    command: @[u8] in Ascii,
-    direction: Direction,
-    destination: CellId
+    command: @[u8] in |buffer|::Ascii,
+    direction: |map|::Direction,
+    destination: |map|::CellId
 )
 requires command.length <= 8
 {
@@ -53,13 +50,13 @@ requires command.length <= 8
 
     machine append_exit_slot_0(
         room: @mutable Room,
-        command: @[u8] in Ascii,
-        direction: Direction,
-        destination: CellId
+        command: @[u8] in |buffer|::Ascii,
+        direction: |map|::Direction,
+        destination: |map|::CellId
     )
     requires command.length <= 8
     {
-        exit_command_set(@mutable room.exits[0].command, command);
+        |buffer|::exit_command_set(@mutable room.exits[0].command, command);
         room.exits[0].direction = direction;
         room.exits[0].destination = destination;
         room.exit_count = 1u64 as +Wrapping;
@@ -67,13 +64,13 @@ requires command.length <= 8
 
     machine append_exit_slot_1(
         room: @mutable Room,
-        command: @[u8] in Ascii,
-        direction: Direction,
-        destination: CellId
+        command: @[u8] in |buffer|::Ascii,
+        direction: |map|::Direction,
+        destination: |map|::CellId
     )
     requires command.length <= 8
     {
-        exit_command_set(@mutable room.exits[1].command, command);
+        |buffer|::exit_command_set(@mutable room.exits[1].command, command);
         room.exits[1].direction = direction;
         room.exits[1].destination = destination;
         room.exit_count = 2u64 as +Wrapping;
@@ -81,13 +78,13 @@ requires command.length <= 8
 
     machine append_exit_slot_2(
         room: @mutable Room,
-        command: @[u8] in Ascii,
-        direction: Direction,
-        destination: CellId
+        command: @[u8] in |buffer|::Ascii,
+        direction: |map|::Direction,
+        destination: |map|::CellId
     )
     requires command.length <= 8
     {
-        exit_command_set(@mutable room.exits[2].command, command);
+        |buffer|::exit_command_set(@mutable room.exits[2].command, command);
         room.exits[2].direction = direction;
         room.exits[2].destination = destination;
         room.exit_count = 3u64 as +Wrapping;
@@ -95,13 +92,13 @@ requires command.length <= 8
 
     machine append_exit_slot_3(
         room: @mutable Room,
-        command: @[u8] in Ascii,
-        direction: Direction,
-        destination: CellId
+        command: @[u8] in |buffer|::Ascii,
+        direction: |map|::Direction,
+        destination: |map|::CellId
     )
     requires command.length <= 8
     {
-        exit_command_set(@mutable room.exits[3].command, command);
+        |buffer|::exit_command_set(@mutable room.exits[3].command, command);
         room.exits[3].direction = direction;
         room.exits[3].destination = destination;
         room.exit_count = 4u64 as +Wrapping;
@@ -111,26 +108,26 @@ requires command.length <= 8
 // The level owns its rooms, so it hands out the borrow. A builder-owned
 // lookup would tie every `@mutable Room` to the builder receiver and block the
 // builder calls the caller still needs while that room is live.
-machine room_mut(level: @mutable Level, cell: CellId) -> @mutable Room {
+machine room_mut(level: @mutable Level, cell: |map|::CellId) -> @mutable Room {
     let slots: @mutable [Room] = @mutable level.rooms[..];
 
     transition cell {
-        CellId::R00 -> @mutable slots[0],
-        CellId::R01 -> @mutable slots[1],
-        CellId::R02 -> @mutable slots[2],
-        CellId::R03 -> @mutable slots[3],
-        CellId::R04 -> @mutable slots[4],
-        CellId::R05 -> @mutable slots[5],
-        CellId::R06 -> @mutable slots[6],
-        CellId::R07 -> @mutable slots[7],
-        CellId::R08 -> @mutable slots[8],
-        CellId::R09 -> @mutable slots[9],
-        CellId::R10 -> @mutable slots[10],
-        CellId::R11 -> @mutable slots[11],
-        CellId::R12 -> @mutable slots[12],
-        CellId::R13 -> @mutable slots[13],
-        CellId::R14 -> @mutable slots[14],
-        CellId::R15 -> @mutable slots[15],
+        |map|::CellId::R00 -> @mutable slots[0],
+        |map|::CellId::R01 -> @mutable slots[1],
+        |map|::CellId::R02 -> @mutable slots[2],
+        |map|::CellId::R03 -> @mutable slots[3],
+        |map|::CellId::R04 -> @mutable slots[4],
+        |map|::CellId::R05 -> @mutable slots[5],
+        |map|::CellId::R06 -> @mutable slots[6],
+        |map|::CellId::R07 -> @mutable slots[7],
+        |map|::CellId::R08 -> @mutable slots[8],
+        |map|::CellId::R09 -> @mutable slots[9],
+        |map|::CellId::R10 -> @mutable slots[10],
+        |map|::CellId::R11 -> @mutable slots[11],
+        |map|::CellId::R12 -> @mutable slots[12],
+        |map|::CellId::R13 -> @mutable slots[13],
+        |map|::CellId::R14 -> @mutable slots[14],
+        |map|::CellId::R15 -> @mutable slots[15],
         _ -> @mutable slots[0]
     }
 }

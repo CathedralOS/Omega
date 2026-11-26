@@ -4,9 +4,7 @@
 // constructors are qualified by a data type; their explicit parameters carry
 // every input.
 
-use omega\language\core\Extent;
-use omega\language\core\Extent::Granted;
-use omega\language\core\Extent::Vacant;
+use {omega}/language/core/extent.omg;
 use {omega}/language/core/layout.omg;
 use {omega}/language/core/reflect/reflect.omg;
 
@@ -137,7 +135,7 @@ reaches none crashes none;
 // Resident interpretation retains the exact content claim as well as the
 // complete qualified View. Retiring the result loan cannot retire that claim.
 public boundary machine view_resident_mut<P, Source, View>(
-    storage: @mutable Extent in Granted & Resident<P, Source>
+    storage: @mutable |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Resident<P, Source>
 ) -> @mutable View reaches none crashes none;
 
 // View already-established external content without manufacturing Resident or
@@ -145,7 +143,7 @@ public boundary machine view_resident_mut<P, Source, View>(
 // range, while the result retains the original storage loan. A numeric address
 // or a constructed ResourceProfile is not a substitute for either input.
 public machine view_extent<'storage, View, Role>(
-    storage: @'storage Extent in Granted
+    storage: @'storage |extent|::Extent in |extent|::Extent::Granted
 ) -> |layout|::AccessOutcome<
     @'storage View, |layout|::AccessBorrowReturn, |layout|::AccessInitializationFailure
 >
@@ -155,7 +153,7 @@ public machine view_extent<'storage, View, Role>(
 }
 
 boundary machine view_from_profile<'storage, View, Role>(
-    storage: @'storage Extent in Granted,
+    storage: @'storage |extent|::Extent in |extent|::Extent::Granted,
     profile: @|layout|::ResourceProfile
 ) -> |layout|::AccessOutcome<
     @'storage View, |layout|::AccessBorrowReturn, |layout|::AccessInitializationFailure
@@ -165,7 +163,7 @@ boundary machine view_from_profile<'storage, View, Role>(
 // profile occurrence. Its reference ceiling, not a second lifecycle or a
 // geometry-based permission, allows the placement's admitted writes.
 public machine view_extent_mut<'storage, View, Role>(
-    storage: @'storage mutable Extent in Granted
+    storage: @'storage mutable |extent|::Extent in |extent|::Extent::Granted
 ) -> |layout|::AccessOutcome<
     @'storage mutable View, |layout|::AccessBorrowReturn, |layout|::AccessInitializationFailure
 >
@@ -175,7 +173,7 @@ public machine view_extent_mut<'storage, View, Role>(
 }
 
 boundary machine view_mut_from_profile<'storage, View, Role>(
-    storage: @'storage mutable Extent in Granted,
+    storage: @'storage mutable |extent|::Extent in |extent|::Extent::Granted,
     profile: @|layout|::ResourceProfile
 ) -> |layout|::AccessOutcome<
     @'storage mutable View, |layout|::AccessBorrowReturn, |layout|::AccessInitializationFailure
@@ -186,19 +184,19 @@ boundary machine view_mut_from_profile<'storage, View, Role>(
 // requires the exact admitted call, live claim and actual allocation. They
 // cannot interpret a constructed profile or an Extent's descriptor as bytes.
 boundary machine initialize_from_profile<P, T, Storage, Role>(
-    storage: Extent in Granted & Vacant,
+    storage: |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Vacant,
     value: T,
     profile: @|layout|::ResourceProfile
 ) -> |layout|::AccessOutcome<
-    Extent in Granted & Resident<P, T>,
-    |layout|::AccessReturn<Extent in Granted & Vacant, T>,
+    |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Resident<P, T>,
+    |layout|::AccessReturn<|extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Vacant, T>,
     |layout|::AccessInitializationFailure
 >;
 
 boundary machine extract_resident<P, T, Storage, Role>(
-    storage: Extent in Granted & Resident<P, T>,
+    storage: |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Resident<P, T>,
     profile: @|layout|::ResourceProfile
-) -> |layout|::AccessExtraction<Extent in Granted & Vacant, T>;
+) -> |layout|::AccessExtraction<|extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Vacant, T>;
 
 // The owned operation captures both inputs before its ordinary selected supply
 // call. Ready retains the original range and the complete value's custody;
@@ -206,11 +204,11 @@ boundary machine extract_resident<P, T, Storage, Role>(
 // can establish resident content. The compiler's lifecycle operation, not a
 // caller-provided profile or the return annotation, discharges that obligation.
 public machine initialize_owned<P, T>(
-    storage: Extent in Granted & Vacant,
+    storage: |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Vacant,
     value: T
 ) -> |layout|::AccessOutcome<
-    Extent in Granted & Resident<P, T>,
-    |layout|::AccessReturn<Extent in Granted & Vacant, T>,
+    |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Resident<P, T>,
+    |layout|::AccessReturn<|extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Vacant, T>,
     |layout|::AccessInitializationFailure
 >
 {
@@ -221,9 +219,9 @@ public machine initialize_owned<P, T>(
 // unresolved partial moves forbid it; success returns the owned value and the
 // original storage with vacancy restored, rather than a new numeric root.
 public machine move_out_owned<P, T>(
-    storage: Extent in Granted & Resident<P, T>
+    storage: |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Resident<P, T>
 )
-    -> |layout|::AccessReturn<Extent in Granted & Vacant, T>
+    -> |layout|::AccessReturn<|extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Vacant, T>
 {
     transition |layout|::AccessLifecycle::<P, T>::move_out(storage) {
         |layout|::AccessExtraction::Moved { storage as vacant, value } ->

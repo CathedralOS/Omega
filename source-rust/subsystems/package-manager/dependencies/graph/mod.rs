@@ -217,7 +217,11 @@ impl ResolvedPackageClosure {
         }
 
         if package_indices.contains_key(&root) {
-            let reachable = reachable_packages(&root, &packages, &package_indices);
+            let reachable = reachable_packages(
+                &root,
+                |key| package_indices.get(key).map(|index| &packages[*index]),
+                |_, dependency| package_indices.contains_key(dependency.target()),
+            );
             for key in package_indices.keys() {
                 if !reachable.contains(key) {
                     errors.push(PackageClosureValidationError::UnreachablePackage {
@@ -300,28 +304,29 @@ pub(crate) enum PackageClosureValidationError {
     },
 }
 
-fn reachable_packages(
+/// Packages reachable from `root` by depth-first search over the edges `follow`
+/// admits. Edges are visited in authored order; a key with no node is still
+/// reachable but has no outgoing edges.
+pub(crate) fn reachable_packages<'node>(
     root: &PackageKey,
-    packages: &[ResolvedPackageNode],
-    package_indices: &BTreeMap<PackageKey, usize>,
+    node: impl Fn(&PackageKey) -> Option<&'node ResolvedPackageNode>,
+    follow: impl Fn(&PackageKey, &ResolvedDependency) -> bool,
 ) -> BTreeSet<PackageKey> {
     let mut reachable = BTreeSet::new();
     let mut pending = vec![root.clone()];
-
     while let Some(key) = pending.pop() {
         if !reachable.insert(key.clone()) {
             continue;
         }
-        let Some(index) = package_indices.get(&key) else {
+        let Some(node) = node(&key) else {
             continue;
         };
-        for dependency in packages[*index].dependencies().iter().rev() {
-            if package_indices.contains_key(dependency.target()) {
+        for dependency in node.dependencies().iter().rev() {
+            if follow(&key, dependency) {
                 pending.push(dependency.target().clone());
             }
         }
     }
-
     reachable
 }
 

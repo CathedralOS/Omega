@@ -1,11 +1,12 @@
+use main.omg as app;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "joint_rank_remainder_view" };
-    Build::select_provider::<HostedIndexed, HostedIndexedBody>(builder, windows_x86_64);
-    Build::select_provider::<HostedIndexed, HostedIndexedBody>(builder, linux_x86_64);
-    Build::select_provider::<HostedIndexed, HostedIndexedBody>(builder, macos_arm64);
-    Build::select_provider::<HostedIndexed, HostedIndexedBody>(builder, linux_arm64);
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::select_provider::<|app|::HostedIndexed, |app|::HostedIndexedBody>(builder, windows_x86_64);
+    Build::select_provider::<|app|::HostedIndexed, |app|::HostedIndexedBody>(builder, linux_x86_64);
+    Build::select_provider::<|app|::HostedIndexed, |app|::HostedIndexedBody>(builder, macos_arm64);
+    Build::select_provider::<|app|::HostedIndexed, |app|::HostedIndexedBody>(builder, linux_arm64);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
 }

@@ -105,17 +105,50 @@ impl Default for Item {
     syntax_trees_derive::SyntaxRelocate,
     record_storage::Record,
 )]
-pub enum UseItem {
-    Namespace {
+pub enum UseItem {    Namespace {
         path: HandleSpan<Identifier>,
     },
     File {
         root: Option<Identifier>,
         components: HandleSpan<Identifier>,
         alias: Identifier,
-        only_product_operands: bool,
+        qualifiers: Vec<FileQualifier>,
         span: source_text::SourceSpan,
     },
+}
+
+/// One written use of a file alias, at its opening bar in the importing file.
+/// A designated Product operand names a declaration outside the running Build.
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    syntax_trees_derive::SyntaxRelocate,
+    record_storage::Record,
+)]
+pub struct FileQualifier {
+    pub offset: usize,
+    pub role: FileQualifierRole,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    syntax_trees_derive::SyntaxRelocate,
+    record_storage::Record,
+)]
+pub enum FileQualifierRole {
+    Code,
+    Product,
+    /// Ordinary Build reflection when the declaration is supplied to the Build.
+    /// Otherwise the genuine core operation may select a Product declaration.
+    Description,
 }
 
 impl Default for UseItem {

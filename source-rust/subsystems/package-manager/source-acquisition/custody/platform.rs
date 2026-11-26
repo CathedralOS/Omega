@@ -49,73 +49,76 @@ pub(crate) fn same_capability_file_identity(
     left.dev() == right.dev() && left.ino() == right.ino()
 }
 
-#[cfg(unix)]
 pub(crate) fn verify_capability_cache_node_owner_and_mode(
     kind: CacheCustodyKind,
     path: &Path,
     metadata: &CapabilityMetadata,
 ) -> Result<(), SourceResolveError> {
-    use cap_fs_ext::OsMetadataExt;
-
-    let effective_user = nix::unistd::Uid::effective().as_raw();
-    if metadata.uid() != effective_user {
-        return Err(cache_custody_invalid(
+    #[cfg(unix)]
+    {
+        use cap_fs_ext::OsMetadataExt;
+        verify_owner_and_mode(
             kind,
             path,
-            "cache entry is not owned by the resolver's effective user",
-        ));
+            metadata.uid(),
+            metadata.mode(),
+            metadata.is_symlink(),
+        )
     }
-    if !metadata.file_type().is_symlink() && metadata.mode() & 0o022 != 0 {
-        return Err(cache_custody_invalid(
-            kind,
-            path,
-            "cache entry is writable by group or other users",
-        ));
+    #[cfg(not(unix))]
+    {
+        let _ = (kind, path, metadata);
+        Ok(())
     }
-    Ok(())
 }
 
-#[cfg(not(unix))]
-pub(crate) fn verify_capability_cache_node_owner_and_mode(
-    _kind: CacheCustodyKind,
-    _path: &Path,
-    _metadata: &CapabilityMetadata,
-) -> Result<(), SourceResolveError> {
-    Ok(())
-}
-
-#[cfg(unix)]
 pub(super) fn verify_cache_node_owner_and_mode(
     kind: CacheCustodyKind,
     path: &Path,
     metadata: &std::fs::Metadata,
 ) -> Result<(), SourceResolveError> {
-    use std::os::unix::fs::MetadataExt;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        verify_owner_and_mode(
+            kind,
+            path,
+            metadata.uid(),
+            metadata.mode(),
+            metadata.is_symlink(),
+        )
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = (kind, path, metadata);
+        Ok(())
+    }
+}
 
-    let effective_user = nix::unistd::Uid::effective().as_raw();
-    if metadata.uid() != effective_user {
+// A cache entry must belong to the resolver's effective user, and only a
+// symbolic link (whose mode the platform ignores) may be group/other-writable.
+#[cfg(unix)]
+fn verify_owner_and_mode(
+    kind: CacheCustodyKind,
+    path: &Path,
+    owner: u32,
+    mode: u32,
+    is_symlink: bool,
+) -> Result<(), SourceResolveError> {
+    if owner != nix::unistd::Uid::effective().as_raw() {
         return Err(cache_custody_invalid(
             kind,
             path,
             "cache entry is not owned by the resolver's effective user",
         ));
     }
-    if !metadata.file_type().is_symlink() && metadata.mode() & 0o022 != 0 {
+    if !is_symlink && mode & 0o022 != 0 {
         return Err(cache_custody_invalid(
             kind,
             path,
             "cache entry is writable by group or other users",
         ));
     }
-    Ok(())
-}
-
-#[cfg(not(unix))]
-pub(super) fn verify_cache_node_owner_and_mode(
-    _kind: CacheCustodyKind,
-    _path: &Path,
-    _metadata: &std::fs::Metadata,
-) -> Result<(), SourceResolveError> {
     Ok(())
 }
 

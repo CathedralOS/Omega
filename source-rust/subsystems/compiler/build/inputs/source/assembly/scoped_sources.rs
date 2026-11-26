@@ -180,7 +180,7 @@ impl DeferredProductSources {
             catalogue,
         )?;
         bindings.extend(crate::source::source_imports::retain_import_bindings(
-            &storage,
+            &storage, Some(inputs),
         )?);
         let root_sources = storage.root_sources();
         let build_scope_sources = storage
@@ -310,7 +310,7 @@ impl super::ImmutableSourceParseCheckpoint {
             catalogue,
         )?;
         bindings.extend(crate::source::source_imports::retain_import_bindings(
-            &storage,
+            &storage, None,
         )?);
         let root_sources = storage.root_sources();
         let source_file_count = storage.file_count();

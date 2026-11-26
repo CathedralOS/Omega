@@ -14,9 +14,7 @@
 // Dot may share its inputs but its output must be disjoint; ordinary axpy
 // needs disjoint x and an exclusive y loan, and x == y uses try_axpy_self_f64
 // with one exclusive loan.
-use omega\language\core\F64::negate;
-use omega\language\core\F64::square_root;
-use omega\language\core\F64::maximum;
+use {omega}/language/core/float_operations.omg;
 
 machine is_finite_f64(value: f64) -> bool {
     let difference: f64 = value - value;
@@ -68,7 +66,7 @@ public machine try_scaled_norm_f64(values: @[f64], output: @mutable f64) -> bool
     machine inspect(values: @[f64], output: @mutable f64, index: u64 in Wrapping,
         scale: f64, squares: f64) -> bool
     requires index < values.length {
-        let value: f64 = F64::maximum(values[index as u64], F64::negate(values[index as u64]));
+        let value: f64 = |float_operations|::F64::maximum(values[index as u64], |float_operations|::F64::negate(values[index as u64]));
         let valid: bool = is_finite_f64(values[index as u64]);
         transition valid {
             false -> (false),
@@ -96,7 +94,7 @@ public machine try_scaled_norm_f64(values: @[f64], output: @mutable f64) -> bool
         transition { _ -> step(values, output, index + 1, scale, next) }
     }
     machine finish(output: @mutable f64, scale: f64, squares: f64) -> bool {
-        let result: f64 = scale * F64::square_root(squares);
+        let result: f64 = scale * |float_operations|::F64::square_root(squares);
         let valid: bool = is_finite_f64(result);
         transition valid {
             true -> publish(output, result),

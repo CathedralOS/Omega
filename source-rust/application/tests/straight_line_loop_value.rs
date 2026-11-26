@@ -1,0 +1,19 @@
+//! A loop body built from chained sub-expressions keeps its value natively.
+//!
+//! The source compiler gives each sub-expression of `acc + (kw ^ (acc >> 3))`
+//! its own block, so native selection folds `block -> edge copies -> block`
+//! chains into one block. The fixture checks the folded loop returns the same
+//! value as Psi.
+
+#[path = "support/build_fixture.rs"]
+mod build_fixture;
+mod support;
+
+#[test]
+fn a_chained_expression_loop_returns_the_same_value_on_both_engines() {
+    build_fixture::assert_silent_return(
+        &support::repository_root().join(
+            "source-rust/application/tests/fixtures/transitions/run/straight_line_loop_value",
+        ),
+    );
+}

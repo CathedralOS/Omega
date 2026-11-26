@@ -75,6 +75,22 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+<a id="flattened-asm-regions-drop-their-target"></a>
+### Straight-line asm regions of place instructions lose their x86-64 requirement
+- Category: 6. A verdict with nothing behind it
+- Where: [`desugar` flattening](source-rust/subsystems/compiler/source-to-psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/declarations/assembly/mod.rs#L315) and the interpreter's [`assembly_target_requirement: Any`](source-rust/subsystems/interpreter/instructions/calls.rs#L869)
+- Saw: an `asm` region holding only `mov`/`ldr`/`str` or packed instructions over typed places becomes ordinary statements in stage 02, so stage 05 accepts it. The catalog marks packed instructions `X86_64`, but nothing carries that target past stage 02; arm64 native fails later with a source custody mismatch instead of a target refusal. Every other `asm` statement is still refused in stage 05.
+- Cost: a library machine using `vpaddw` reads as target-checked when only x86-64 realization and Psi enforce it.
+- Reported: 2026-11-26, Claude Code, while moving the SIMD library onto checked asm instructions.
+
+<a id="packed-four-lane-widen-narrow-unreachable"></a>
+### Four-lane packed widen and narrow operations have no source spelling
+- Category: 8. Zombie machinery
+- Where: [`PackedIntegerUnaryOperation`](source-rust/subsystems/compiler/foundation/semantic-records/src/lib.rs#L48) `WidenU8x4ToI16x8` and `NarrowI16x8ToU8x4Saturating`, their interpreter arms and the selected-instruction catalog entries `PackedWidenU8x4ToI16x8`
+- Saw: the SIMD library composes `widen_u8x4` and `narrow_u8x4` from the eight-lane `vpmovzxbw` and `vpackuswb` instructions, so no source reaches these Psi operations. Only unit tests call them.
+- Cost: readers assume source can select a four-byte load form; removing them touches Psi, the interpreter and native selection together.
+- Reported: 2026-11-26, Claude Code, while moving the SIMD library onto checked asm instructions.
+
 <a id="every-bundled-custody-query-compares-the-whole-file"></a>
 ### Every bundled-declaration custody query compares the whole source file
 - Category: 4. Re-deriving

@@ -1,12 +1,13 @@
+use main.omg as app;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "selected_value_application" };
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::accept_boundary::<SelectedValue>(builder);
-    Build::select_provider::<SelectedValue, SelectionAdapter>(builder, windows_x86_64);
-    Build::select_provider::<SelectedValue, SelectionAdapter>(builder, linux_x86_64);
-    Build::select_provider::<SelectedValue, SelectionAdapter>(builder, macos_arm64);
-    Build::select_provider::<SelectedValue, SelectionAdapter>(builder, linux_arm64);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
+    Build::accept_boundary::<|app|::SelectedValue>(builder);
+    Build::select_provider::<|app|::SelectedValue, |app|::SelectionAdapter>(builder, windows_x86_64);
+    Build::select_provider::<|app|::SelectedValue, |app|::SelectionAdapter>(builder, linux_x86_64);
+    Build::select_provider::<|app|::SelectedValue, |app|::SelectionAdapter>(builder, macos_arm64);
+    Build::select_provider::<|app|::SelectedValue, |app|::SelectionAdapter>(builder, linux_arm64);
 }

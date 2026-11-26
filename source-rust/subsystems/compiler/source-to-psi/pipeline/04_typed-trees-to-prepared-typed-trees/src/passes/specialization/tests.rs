@@ -1655,7 +1655,7 @@ fn an_already_bound_tuple_keeps_even_an_unused_parameter() {
                 .unwrap_or_else(|_| panic!("closed argument"))
         })
         .collect::<Vec<_>>();
-    super::bind(&mut program, application, &selected);
+    super::bind(&mut program, application, &selected).unwrap();
     assert!(
         super::bound_arguments(&mut program, &parameters, &parameters, application, &actual)
             .is_ok()
@@ -3164,9 +3164,22 @@ fn constructed_type_arguments_keep_their_supplying_binders_open() {
             .expression_table
             .static_machine_application_bindings(application);
         assert_eq!(bindings.len(), 1);
+        let StaticMachineBindingValue::Type(supplied) = bindings[0].value else {
+            panic!("the forwarded argument must retain its open type");
+        };
         assert_eq!(
-            bindings[0].value,
-            StaticMachineBindingValue::Type(reference)
+            program.normalized_type_identity(supplied),
+            program.normalized_type_identity(reference)
+        );
+        assert!(
+            program
+                .require_declared_application_operands(&[supplied], relay.machine)
+                .is_ok()
+        );
+        assert!(
+            program
+                .require_declared_application_operands(&[supplied], main)
+                .is_err()
         );
         assert!(
             matches!(super::named_type(&mut program, &arguments[0], main), Err(super::Stop::Unserved(reason)) if reason == "open operands do not close a requirement instance"),

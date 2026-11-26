@@ -49,9 +49,7 @@ mod register_operations {
         }
     }
 
-    #[derive(
-        Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record,
-    )]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
     pub enum AsmRegisterOperation {
         ProcessorHalt, // Stop instruction execution until the architecture's admitted wake event.
         InterruptControl(AsmInterruptControlKind),
@@ -555,6 +553,9 @@ pub enum AsmInstructionShape {
     CacheOperation(AsmCacheOperationKind),
     DescriptorTableLoad,
     GlobalDescriptorTable(AsmGlobalDescriptorTableOperation),
+    // An x86-64 packed-integer instruction over typed array places. Its operand
+    // contract is the matching declaration in core `assembly_packed_integer.omg`.
+    PackedInteger(crate::sealed_intrinsics::PackedIntegerPrimitive),
     DerivedExit,
 }
 
@@ -1378,6 +1379,17 @@ const IDT_DESCRIPTOR_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint:
 )];
 const IDT_DESCRIPTOR_CLOBBERS: &[&str] = &["r10"];
 
+/*
+The packed-integer instruction contracts live in core
+`assembly_packed_integer.omg`. A file whose `asm` regions spell one of those
+instructions imports it under this alias; the `#` keeps source code from
+naming the alias or writing the import itself.
+*/
+pub const PACKED_INTEGER_CONTRACTS_ALIAS: &str = "asm#packed_integer";
+pub const PACKED_INTEGER_CONTRACTS_ROOT: &str = "omega";
+pub const PACKED_INTEGER_CONTRACTS_COMPONENTS: [&str; 3] =
+    ["language", "core", "assembly_packed_integer"];
+
 pub fn asm_intrinsic_mnemonic(intrinsic_name: &str) -> Option<&'static str> {
     if let Some(register) = AsmControlRegister::from_read_intrinsic_name(intrinsic_name) {
         return Some(register.read_mnemonic());
@@ -1537,6 +1549,15 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             Aarch64,
             operands,
             SYSTEM_REGISTER_WRITE_CLOBBERS,
+        )));
+    }
+
+    if let Some(primitive) =
+        crate::sealed_intrinsics::PackedIntegerPrimitive::from_mnemonic(mnemonic)
+    {
+        return Some(Contract(AsmInstructionContract::without_side_effects(
+            AsmInstructionShape::PackedInteger(primitive),
+            X86_64,
         )));
     }
 
@@ -2148,6 +2169,51 @@ mod tests {
 
         assert_eq!(asm_catalog_entry("write_esr_el1"), None);
         assert_eq!(asm_catalog_entry("write_far_el1"), None);
+    }
+
+    #[test]
+    fn packed_integer_mnemonics_name_their_x86_contract_declarations() {
+        use crate::sealed_intrinsics::PackedIntegerPrimitive;
+        for primitive in PackedIntegerPrimitive::ALL {
+            let mnemonic = primitive.mnemonic();
+            assert_eq!(
+                PackedIntegerPrimitive::from_mnemonic(mnemonic),
+                Some(primitive)
+            );
+            let Some(AsmCatalogEntry::Contract(contract)) = asm_catalog_entry(mnemonic) else {
+                panic!("{mnemonic} must be contracted");
+            };
+            assert_eq!(
+                contract.shape,
+                AsmInstructionShape::PackedInteger(primitive)
+            );
+            assert_eq!(contract.target, AsmTargetApplicability::X86_64);
+            assert_eq!(
+                contract.availability,
+                AsmInstructionAvailability::UserChecked
+            );
+            assert_eq!(contract.required_authority, AsmAuthorityRequirement::None);
+            assert!(contract.clobbers.is_empty());
+            let row = crate::sealed_intrinsics::SealedIntrinsicCatalog::match_declaration(
+                std::path::Path::new("assembly_packed_integer.omg"),
+                mnemonic,
+                |source| source == crate::bundled_files::BundledFile::CoreAssemblyPackedInteger,
+            );
+            assert_eq!(
+                row,
+                Some(
+                    crate::sealed_intrinsics::SealedIntrinsic::CompilerPrimitive(
+                        crate::sealed_intrinsics::CompilerPrimitive::PackedInteger(primitive)
+                    )
+                )
+            );
+        }
+        // `movq` stays the scalar register move; the vector load is `vmovq`.
+        assert!(matches!(
+            asm_catalog_entry("movq"),
+            Some(AsmCatalogEntry::Contract(contract))
+                if contract.shape == AsmInstructionShape::RegisterMove
+        ));
     }
 
     #[test]

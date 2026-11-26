@@ -145,10 +145,17 @@ fn bind_admitted(
 
 pub(crate) fn build_product_file_imports(
     storage: &crate::source::source_imports::SourceStorage,
+    query: Option<&crate::source::source_imports::ProductQueryInputs>,
 ) -> Result<
     Vec<source_compiler::representations::source_symbols::SourceScopedTopLevelBinding>,
     Vec<Diagnostic>,
 > {
+    // A computed locator can use a file alias without spelling it as an expression.
+    let queried: Vec<_> = query
+        .into_iter()
+        .flat_map(|inputs| inputs.queried_file_aliases())
+        .filter_map(|(author, alias)| Some((storage.sources.rejoined_source_id(author)?, alias)))
+        .collect();
     let mut aliases = Vec::new();
     for (_, roots) in storage.source_roots.iter() {
         if !storage.sources.source_is_selected(roots.source_id) {
@@ -162,7 +169,12 @@ pub(crate) fn build_product_file_imports(
                 continue;
             };
             // A Build import has no corresponding Product alias.
-            if !import.only_product_operands && super::is_build_file(root.as_deref(), path) {
+            let used = import.used_in(DependencyScope::Product)
+                || queried.contains(&(source.source_id, alias.as_str()));
+            if !used
+                || (import.used_in(DependencyScope::Build)
+                    && super::is_build_file(root.as_deref(), path))
+            {
                 continue;
             }
             let (owner, filename) = match root.as_deref() {

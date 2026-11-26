@@ -17,9 +17,6 @@
 //! - `cargo xtask alpha-forge LISTING OUTPUT` or `alpha-forge LISTING --check COMMITTED`
 //! - `cargo xtask gamma-invoke --evaluator PATH --source PATH --output PATH [--input PATH] [--timeout SECONDS]`
 //! - `cargo xtask source-closure MANIFEST OUTPUT [--prefix ENTRY]`
-//! - `cargo xtask sweep [--quick | --cause <text> --previous <sweep>] [--target <name>] [--shard K/N] [--out <file>]`
-//! - `cargo xtask sweep merge --out <file.json> <shard.json>...`
-//! - `cargo xtask sweep fleet <start|status|collect|restart>`
 //! - `cargo xtask vm <start|status|follow> <host> [<label>] ...`
 
 mod alpha_forge;
@@ -41,7 +38,6 @@ mod rules;
 mod rust_producer_omission;
 mod samples;
 mod source_closure;
-mod sweep;
 mod vm;
 mod work_interval;
 mod worktree;
@@ -81,8 +77,6 @@ verification and gates:
   check-portable-services   Diff system's POSIX and Windows adapters for each portable call against a baseline
   sample-gate               Run differential native + Psi sample verification
   qualify                   Run exact sample selections with retained producer evidence
-  sweep                     Run omega --check over the programs and group where each one stops;
-                            `sweep fleet` splits one target's sweep across machines
   rust-producer-omission    Audit declared bootstrap dependencies (developer-only)
   vm                        Start a heavy job on a LAN VM under vm-heavy and watch its progress
 
@@ -127,7 +121,6 @@ fn main() -> ExitCode {
         // A Windows evaluator can return a full 32-bit process status.
         "gamma-invoke" => std::process::exit(gamma_invoke::run(&args)),
         "source-closure" => source_closure::run(&args),
-        "sweep" => sweep::run(&args),
         "vm" => vm::run(&args),
         other => {
             eprintln!("xtask: unknown command `{other}`\n\n{}", usage());
@@ -167,7 +160,6 @@ mod tests {
             "alpha-forge",
             "gamma-invoke",
             "source-closure",
-            "sweep",
             "vm",
         ] {
             assert!(help.contains(cmd), "usage missing subcommand `{cmd}`");

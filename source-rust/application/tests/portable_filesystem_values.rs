@@ -144,12 +144,13 @@ fn stage_adapter_operations(project: &Project, library: &Path) {
 }
 
 fn build() -> String {
-    r#"machine build(builder: @mutable Build) {
+    r#"use main.omg as app;
+machine build(builder: @mutable Build) {
 Build::application(builder, "portable_filesystem_values");
-Build::bind(builder, windows_x86_64::ProgramEntry, main);
-Build::bind(builder, linux_x86_64::ProgramEntry, main);
-Build::bind(builder, linux_arm64::ProgramEntry, main);
-Build::bind(builder, macos_arm64::ProgramEntry, main);
+Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
+Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
+Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
 }
 "#
     .to_owned()
@@ -386,7 +387,7 @@ machine posix_filesystem_last_error_i64(filesystem: @mutable PosixFilesystem, re
 "#);
     project.write("posix_filesystem_adapter.omg", &adapter);
     let mut settings = String::from(
-        "machine build(b: @mutable Build) { Build::application(b, \"posix_names\");\n",
+        "use main.omg as app;\nuse posix_filesystem_host.omg as host;\nmachine build(b: @mutable Build) { Build::application(b, \"posix_names\");\n",
     );
     for target in [
         "linux_x86_64",
@@ -395,7 +396,7 @@ machine posix_filesystem_last_error_i64(filesystem: @mutable PosixFilesystem, re
         "windows_x86_64",
         "windows_arm64",
     ] {
-        settings.push_str(&format!("Build::select_provider::<PosixFilesystemHost, Stream>(b, {target});\nBuild::select_provider::<PosixFilesystemTarget, Geometry>(b, {target});\nBuild::bind(b, {target}::ProgramEntry, main);\n"));
+        settings.push_str(&format!("Build::select_provider::<|host|::PosixFilesystemHost, |host|::Stream>(b, {target});\nBuild::select_provider::<|host|::PosixFilesystemTarget, |host|::Geometry>(b, {target});\nBuild::bind(b, {target}::ProgramEntry, |app|::main);\n"));
     }
     settings.push('}');
     project.write("build.omg", &settings);

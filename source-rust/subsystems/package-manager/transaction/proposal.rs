@@ -2,18 +2,46 @@
 //! and editable Build-review findings. Once the Build has returned, the same
 //! record also pins its resolved source graph for Product review and publication.
 
-#[path = "proposal_framing.rs"]
-mod framing;
-
 use super::PackageCommandKind;
+use crate::hex_digest;
 use crate::resolution::graph::{
     CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits,
 };
 use crate::resolution::source::git::workspace::MAX_BUILD_DECLARATION_BYTES;
-use framing::{Reader, Writer, read_digest, write_digest};
 use package_compilation::{BuildSourceCaptureObligation, BuildSourceCaptureRequest};
 use std::collections::BTreeSet;
 use target::TargetProfile;
+
+// Proposal sections end with an LF, and every framing fault names its own
+// failure point so a damaged proposal says what to discard.
+type Reader<'text> = crate::framing::Reader<'text, &'static str>;
+type Writer = crate::framing::Writer<&'static str>;
+
+static PROPOSAL: crate::framing::Framing<&'static str> = crate::framing::Framing {
+    errors: crate::framing::FramingErrors {
+        byte_limit: "package proposal exceeds text byte limit",
+        allocation: "package proposal allocation failed",
+        missing_line: "invalid proposal framing",
+        unexpected_line: "unexpected package proposal row",
+        malformed_field: "invalid proposal field",
+        unexpected_field: "unexpected package proposal field",
+        noncanonical_count: "noncanonical package proposal count",
+        count_overflow: "package proposal count overflow",
+        count_limit: "package proposal count exceeds limit",
+        section_length: "invalid package proposal payload length or UTF-8 boundary",
+        missing_section_terminator: "missing proposal framing LF",
+        trailing_bytes: "trailing package proposal bytes",
+    },
+    section_terminator: true,
+};
+
+fn write_digest(digest: &[u8; 32]) -> String {
+    crate::Hex(digest).to_string()
+}
+
+fn read_digest(text: &str) -> Result<[u8; 32], String> {
+    hex_digest(text).ok_or("package proposal digest must be 64 lowercase hexadecimal digits".into())
+}
 
 const HEADER: &str = "omega-package-proposal 3";
 const MAXIMUM_TEXT_BYTES: usize = 128 * 1024 * 1024;
@@ -88,7 +116,7 @@ impl PendingPackageChange {
                 "package proposal has neither a resolved graph nor pending Build requests".into(),
             );
         }
-        let mut writer = Writer::new(MAXIMUM_TEXT_BYTES);
+        let mut writer = Writer::new(&PROPOSAL, MAXIMUM_TEXT_BYTES);
         writer.append(HEADER)?;
         writer.append("\n")?;
         writer.row(
@@ -133,14 +161,14 @@ impl PendingPackageChange {
         }
         writer.section("source", source.as_deref().unwrap_or(""))?;
         writer.append("end\n")?;
-        Ok(writer.finish())
+        Ok(writer.finish()?)
     }
 
     pub(super) fn recover(text: &str) -> Result<Self, String> {
         if text.len() > MAXIMUM_TEXT_BYTES {
             return Err("package proposal exceeds text byte limit".into());
         }
-        let mut reader = Reader::new(text);
+        let mut reader = Reader::new(&PROPOSAL, text);
         reader.expect(HEADER).map_err(|_| {
             "unsupported or malformed package proposal header; use --discard-review, then start a fresh install/update review".to_owned()
         })?;
@@ -255,7 +283,7 @@ fn write_build_inputs(
     request: Option<&BuildSourceCaptureRequest>,
 ) -> Result<(), String> {
     let Some(request) = request else {
-        return writer.row("build-inputs", "absent");
+        return Ok(writer.row("build-inputs", "absent")?);
     };
     let count = request.entries().count();
     if count > MAXIMUM_BUILD_INPUTS {
@@ -338,6 +366,65 @@ fn validate_targets(targets: &[TargetProfile], source_target: TargetProfile) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // A proposal written before the framing was shared must still resume, and
+    // a damaged one must still name the framing fault that refused it.
+    #[test]
+    fn a_proposal_keeps_its_canonical_bytes_and_framing_refusals() {
+        let pending = PendingPackageChange {
+            kind: PackageCommandKind::Update,
+            before_build: [1; 32],
+            before_lock: Some([4; 32]),
+            original_content: [2; 32],
+            proposed_build: "machine build(builder: @mutable Build) {}".into(),
+            source: None,
+            refresh: Some(BTreeSet::from([[7; 32]])),
+            build_requests: [([3; 32], "one restricted Build action".into())].into(),
+            targets: vec![TargetProfile::CrossPlatformCli],
+            build_inputs: None,
+        };
+        let expected = concat!(
+            "omega-package-proposal 3\n",
+            "kind update\n",
+            "before-build 0101010101010101010101010101010101010101010101010101010101010101\n",
+            "before-lock 0404040404040404040404040404040404040404040404040404040404040404\n",
+            "original-content 0202020202020202020202020202020202020202020202020202020202020202\n",
+            "targets 1\n",
+            "target omega.target-profile.v1:cross_platform_cli\n",
+            "refresh selected\n",
+            "refresh-count 1\n",
+            "refresh-key 0707070707070707070707070707070707070707070707070707070707070707\n",
+            "build-inputs absent\n",
+            "proposed-build 41\n",
+            "machine build(builder: @mutable Build) {}\n",
+            "build-requests 1\n",
+            "build-request 0303030303030303030303030303030303030303030303030303030303030303\n",
+            "description 27\n",
+            "one restricted Build action\n",
+            "source 0\n",
+            "\n",
+            "end\n",
+        );
+        assert_eq!(pending.encode().unwrap(), expected);
+        let restored = PendingPackageChange::recover(expected).unwrap();
+        assert_eq!(restored.encode().unwrap(), expected);
+        for (damaged, refusal) in [
+            (
+                expected.replace("targets 1", "targets 01"),
+                "noncanonical package proposal count",
+            ),
+            (
+                expected.replace("source 0\n\n", "source 0\n"),
+                "missing proposal framing LF",
+            ),
+            (format!("{expected}x"), "trailing package proposal bytes"),
+        ] {
+            assert_eq!(
+                PendingPackageChange::recover(&damaged).err().as_deref(),
+                Some(refusal)
+            );
+        }
+    }
 
     #[test]
     fn a_build_review_pause_keeps_the_requested_update_selection() {

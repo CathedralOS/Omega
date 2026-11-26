@@ -1,16 +1,18 @@
-use text;
+use rooms/map.omg;
+use rooms/rooms.omg;
+use text/buffer.omg;
 
 data RoomLookup {
 }
 
-machine find_room(level: Level,
-    cell: CellId,
-    out_room: @mutable Room)
+machine find_room(level: |rooms|::Level,
+    cell: |map|::CellId,
+    out_room: @mutable |rooms|::Room)
 ensures
-    out_room.label.storage in Utf8,
-    out_room.event.enemy.name.storage in Utf8
+    out_room.label.storage in |buffer|::Utf8,
+    out_room.event.enemy.name.storage in |buffer|::Utf8
 {
-    let rooms: @[Room] = @level.rooms[..];
+    let rooms: @[|rooms|::Room] = @level.rooms[..];
 
     transition level.room_count > 0 {
         true -> find_room_at(rooms, level.room_count, cell, out_room, 0u64 as +Wrapping),
@@ -18,10 +20,10 @@ ensures
     }
 
 
-    machine find_room_at(rooms: @[Room],
+    machine find_room_at(rooms: @[|rooms|::Room],
         room_count: u64,
-        cell: CellId,
-        out_room: @mutable Room,
+        cell: |map|::CellId,
+        out_room: @mutable |rooms|::Room,
         index: u64 in Wrapping)
     requires room_count <= 16, index < 16, rooms.length == 16
     {
@@ -38,8 +40,8 @@ ensures
         }
     }
 
-    machine apply_room(room: Room,
-        out_room: @mutable Room) {
+    machine apply_room(room: |rooms|::Room,
+        out_room: @mutable |rooms|::Room) {
         out_room.cell = room.cell;
         out_room.depth = room.depth;
         out_room.branch = room.branch;
@@ -48,8 +50,8 @@ ensures
         out_room.exit_count = room.exit_count;
         out_room.discovered = room.discovered;
 
-        let out_exits: @mutable [Exit] = @mutable out_room.exits[..];
-        let room_exits: @[Exit] = @room.exits[..];
+        let out_exits: @mutable [|rooms|::Exit] = @mutable out_room.exits[..];
+        let room_exits: @[|rooms|::Exit] = @room.exits[..];
         out_exits[0] = room_exits[0];
         out_exits[1] = room_exits[1];
         out_exits[2] = room_exits[2];
@@ -62,9 +64,9 @@ ensures
     }
 }
 
-machine find_room_mut(level: @mutable Level,
-    cell: CellId) -> @mutable Room {
-    let rooms: @mutable [Room] = @mutable level.rooms[..];
+machine find_room_mut(level: @mutable |rooms|::Level,
+    cell: |map|::CellId) -> @mutable |rooms|::Room {
+    let rooms: @mutable [|rooms|::Room] = @mutable level.rooms[..];
 
     transition level.room_count > 0 {
         true -> find_room_mut_at(rooms, level.room_count, cell, 0u64 as +Wrapping),
@@ -72,10 +74,10 @@ machine find_room_mut(level: @mutable Level,
     }
 
 
-    machine find_room_mut_at(rooms: @mutable [Room],
+    machine find_room_mut_at(rooms: @mutable [|rooms|::Room],
         room_count: u64,
-        cell: CellId,
-        index: u64 in Wrapping) -> @mutable Room
+        cell: |map|::CellId,
+        index: u64 in Wrapping) -> @mutable |rooms|::Room
     requires room_count <= 16, index < 16, rooms.length == 16
     {
         let found: bool = rooms[index as -Wrapping].cell == cell;

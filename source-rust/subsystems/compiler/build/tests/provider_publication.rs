@@ -107,7 +107,7 @@ fn a_mixed_build_keeps_a_firmware_provider_selection_scoped_to_uefi() {
     let root = temporary.path().join("main.omg");
     std::fs::write(
         &root,
-        r"use omega\language\core\Extent;
+        r"use {omega}/language/core/extent.omg;
 boundary trait Sensor { machine read() -> u32 reaches none crashes none; }
 FirmwareSensor satisfies Sensor { machine read() -> u32 { 17u32 } }
 boundary trait Counter { machine value() -> u64 reaches none crashes none; }
@@ -115,21 +115,22 @@ LocalCounter satisfies Counter { machine value() -> u64 { 42u64 } }
 boundary trait Clock { machine tick() -> u64 reaches none crashes none; }
 FixedClock satisfies Clock { machine tick() -> u64 { 0u64 } }
 machine hosted() {}
-machine firmware(image: Extent in Granted, initial_storage: Extent in Granted)
+machine firmware(image: |extent|::Extent in Granted, initial_storage: |extent|::Extent in Granted)
     crashes Abort { crash Abort; }",
     )
     .unwrap();
     std::fs::write(
         temporary.path().join("build.omg"),
-        r#"machine build(builder: @mutable Build) {
+        r#"use main.omg as app;
+machine build(builder: @mutable Build) {
     Build::application(builder, "mixed");
-    Build::select_provider::<Counter, LocalCounter>(builder);
+    Build::select_provider::<|app|::Counter, |app|::LocalCounter>(builder);
     let mode: CompositionMode = fused_mode();
-    Build::select_provider::<Clock, FixedClock>(builder, mode);
-    Build::select_provider::<Sensor, FirmwareSensor>(builder, uefi_x86_64);
-    Build::select_provider::<Clock, FixedClock>(builder, interpreter);
-    Build::bind(builder, uefi_x86_64::ProgramEntry, firmware);
-    Build::bind(builder, linux_x86_64::ProgramEntry, hosted);
+    Build::select_provider::<|app|::Clock, |app|::FixedClock>(builder, mode);
+    Build::select_provider::<|app|::Sensor, |app|::FirmwareSensor>(builder, uefi_x86_64);
+    Build::select_provider::<|app|::Clock, |app|::FixedClock>(builder, interpreter);
+    Build::bind(builder, uefi_x86_64::ProgramEntry, |app|::firmware);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::hosted);
 }
 machine fused_mode() -> CompositionMode { CompositionMode::Fused }"#,
     )
@@ -290,10 +291,11 @@ fn private_entry_requires_the_target_of_its_parent() {
     std::fs::write(&main, "machine main() {}").unwrap();
     std::fs::write(
         project.path().join("build.omg"),
-        r#"machine build(builder: @mutable Build) {
+        r#"use main.omg as app;
+machine build(builder: @mutable Build) {
         Build::application(builder, "entry_target");
-        Build::bind(builder, linux_x86_64::ProgramEntry, main);
-        Build::bind(builder, linux_arm64::ProgramEntry, main);
+        Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+        Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
     }"#,
     )
     .unwrap();
@@ -703,7 +705,7 @@ fn folded_layout_reopens_only_with_its_selected_target_and_plan_preimages() {
 
     // Small and Same both return four. Swapping the chosen implementation
     // must be observable even when the resulting language-level value agrees.
-    let selection = "Build::select_provider::<Answer, Small>(builder, linux_x86_64);";
+    let selection = "Build::select_provider::<|app|::Answer, |app|::Small>(builder, linux_x86_64);";
     assert_eq!(original_build.matches(selection).count(), 1);
     std::fs::write(
         &build,
@@ -794,9 +796,10 @@ fn root_and_private_callable_enforce_the_selected_process_exit() {
     let source = workspace.path().join("main.omg");
     std::fs::write(
         workspace.path().join("build.omg"),
-        r#"machine build(builder: @mutable Build) {
+        r#"use main.omg as app;
+machine build(builder: @mutable Build) {
     Build::application(builder, "exit_scope");
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
 }"#,
     )
     .unwrap();
@@ -805,12 +808,12 @@ fn root_and_private_callable_enforce_the_selected_process_exit() {
         std::fs::write(
             &source,
             format!(
-                r"use omega\language\core\Never;
-use omega\language\core\ProcessExit;
-use omega\language\core\ProcessExitPrimitive;
-machine exit_helper(code: i32) reaches ProcessExit crashes none terminates {{ ProcessExitPrimitive(code); }}
+                r"use {{omega}}/language/core/never.omg;
+use {{omega}}/language/core/process_exit.omg;
+use {{omega}}/language/core/process_exit_native.omg;
+machine exit_helper(code: i32) reaches |process_exit|::ProcessExit crashes none terminates {{ |process_exit_native|::ProcessExitPrimitive(code); }}
 machine passthrough(value: i32) -> i32 {{ value }}
-machine main() reaches ProcessExit crashes none terminates {{ exit_helper(passthrough({literal})); }}"
+machine main() reaches |process_exit|::ProcessExit crashes none terminates {{ exit_helper(passthrough({literal})); }}"
             ),
         )
         .unwrap();
@@ -998,7 +1001,8 @@ fn fresh_review_records_the_build_that_declared_the_package() {
     let root = temp.path();
     std::fs::write(
         root.join("build.omg"),
-        r#"machine build(builder: @mutable Build) { Build::application(builder, "review_example"); Build::bind(builder, linux_x86_64::ProgramEntry, main); }"#,
+        r#"use main.omg as app;
+machine build(builder: @mutable Build) { Build::application(builder, "review_example"); Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main); }"#,
     )
     .unwrap();
     std::fs::write(root.join("main.omg"), "machine main() {}").unwrap();
@@ -1024,8 +1028,8 @@ fn fresh_review_records_the_build_that_declared_the_package() {
 fn public_service_ceilings_are_reviewed_without_an_installed_provider_or_grant() {
     let target = TargetProfile::LinuxX64;
     for (name, service, critical) in [
-        ("StandardInput", r"use omega\language\core\StandardInput;", true),
-        ("StandardOutput", r"use omega\language\core\StandardOutput;", true),
+        ("StandardInput", r"use {omega}/language/core/process_authority.omg;", true),
+        ("StandardOutput", r"use {omega}/language/core/process_authority.omg;", true),
         ("StandardOutput", "public boundary trait StandardOutput {}", false),
     ] {
         let project = platform_custody::temporary_directory::TemporaryDirectory::create(
@@ -1158,25 +1162,26 @@ fn reviewing_a_selected_hosted_exit_uses_its_product_declaration() {
     let root = temporary.path();
     std::fs::write(
         root.join("build.omg"),
-        r#"use omega\language\core\ProcessExit;
+        r#"use main.omg as app;
+use {omega}/language/core/process_exit.omg;
         machine build(builder: @mutable Build) {
             Build::package(builder, "exit_provider");
-            Build::select_provider::<ProcessExit, LeafExit>(builder, linux_x86_64);
+            Build::select_provider::<|process_exit|::ProcessExit, |app|::LeafExit>(builder, linux_x86_64);
         }"#,
     )
     .unwrap();
     std::fs::write(
         root.join("main.omg"),
-        r#"use omega\language\core\Never;
-        use omega\language\core\ProcessExit;
-        use omega\language\core\ProcessExitPrimitive;
-        public LeafExit satisfies ProcessExit {
-            machine exit_process(code: i32) -> Never reaches ProcessExit crashes none terminates {
-                ProcessExitPrimitive(code);
+        r#"use {omega}/language/core/never.omg;
+use {omega}/language/core/process_exit.omg;
+use {omega}/language/core/process_exit_native.omg;
+        public LeafExit satisfies |process_exit|::ProcessExit {
+            machine exit_process(code: i32) -> |never|::Never reaches |process_exit|::ProcessExit crashes none terminates {
+                |process_exit_native|::ProcessExitPrimitive(code);
             }
         }
-        public machine finish(code: i32) -> Never reaches ProcessExit crashes none terminates {
-            ProcessExit::exit_process(code);
+        public machine finish(code: i32) -> |never|::Never reaches |process_exit|::ProcessExit crashes none terminates {
+            |process_exit|::ProcessExit::exit_process(code);
         }"#,
     )
     .unwrap();
@@ -1563,9 +1568,10 @@ fn selected_provider_review_preserves_borrowed_domains_and_authored_postconditio
     let build = root.join("build.omg");
     std::fs::write(
         &build,
-        r#"machine build(builder: @mutable Build) {
+        r#"use main.omg as app;
+machine build(builder: @mutable Build) {
         Build::package(builder, "reading");
-        Build::select_provider::<Reading, Provider>(builder, linux_x86_64);
+        Build::select_provider::<|app|::Reading, |app|::Provider>(builder, linux_x86_64);
     }"#,
     )
     .unwrap();
@@ -1665,9 +1671,10 @@ fn check_qualified_parameter(
     let build = root.join("build.omg");
     std::fs::write(
         &build,
-        r#"machine build(builder: @mutable Build) {
+        r#"use main.omg as app;
+machine build(builder: @mutable Build) {
             Build::package(builder, "reading");
-            Build::select_provider::<Reading, Provider>(builder, linux_x86_64);
+            Build::select_provider::<|app|::Reading, |app|::Provider>(builder, linux_x86_64);
         }"#,
     )
     .unwrap();

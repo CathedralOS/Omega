@@ -116,16 +116,7 @@ impl PackageCommandTransaction {
         if matches!(command, PackageCommand::DiscardReview) {
             return Err(failure("discard does not require a review command"));
         }
-        let storage = match storage {
-            Some(storage) => CommandStorage::Supplied(storage),
-            None => CommandStorage::Opened(
-                SourceResolver::for_current_user(PrimaryGitChoices {
-                    excluded_controlled_roots: &[transaction.project_root().to_path_buf()],
-                    ..PrimaryGitChoices::default()
-                })
-                .map_err(failure)?,
-            ),
-        };
+        let storage = CommandStorage::open(storage, transaction.project_root()).map_err(failure)?;
         let PackageCommandOptions {
             targets: requested_targets,
             offline,
@@ -492,13 +483,28 @@ impl<'workspace, 'storage> PackageCommandPreparation<'workspace, 'storage> {
     }
 }
 
-enum CommandStorage<'storage> {
+/// The caller's source storage, or the current user's own storage opened for
+/// one package command or inspection with the project kept out of Git control.
+pub(crate) enum CommandStorage<'storage> {
     Supplied(&'storage SourceResolver),
     Opened(SourceResolver),
 }
 
-impl CommandStorage<'_> {
-    fn resolver(&self) -> &SourceResolver {
+impl<'storage> CommandStorage<'storage> {
+    pub(crate) fn open(
+        supplied: Option<&'storage SourceResolver>,
+        project_root: &Path,
+    ) -> Result<Self, source_acquisition::SourceResolveError> {
+        Ok(match supplied {
+            Some(storage) => Self::Supplied(storage),
+            None => Self::Opened(SourceResolver::for_current_user(PrimaryGitChoices {
+                excluded_controlled_roots: &[project_root.to_path_buf()],
+                ..PrimaryGitChoices::default()
+            })?),
+        })
+    }
+
+    pub(crate) fn resolver(&self) -> &SourceResolver {
         match self {
             Self::Supplied(storage) => storage,
             Self::Opened(storage) => storage,
@@ -871,17 +877,6 @@ impl PackageCommandError {
     pub fn compilation_failure(&self) -> Option<&CompileFailure> {
         match &self.cause {
             PackageCommandCause::Compilation(failure) => Some(failure),
-            _ => None,
-        }
-    }
-
-    pub fn review_failure(&self) -> Option<&CompileResolvedPackageReviewsError> {
-        match &self.cause {
-            PackageCommandCause::Review(failure) => Some(failure),
-            PackageCommandCause::Change(failure) => match failure.as_ref() {
-                crate::review::PackageChangeError::Compilation(error) => Some(error),
-                _ => None,
-            },
             _ => None,
         }
     }

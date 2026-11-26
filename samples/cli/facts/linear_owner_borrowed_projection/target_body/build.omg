@@ -1,7 +1,8 @@
+use main.omg as app;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "linear_owner_borrowed_projection_target_body" };
-    Build::bind(builder, linux_x86_64::ProgramEntry, selected_entry);
-    Build::bind(builder, linux_arm64::ProgramEntry, selected_entry);
-    Build::bind(builder, macos_arm64::ProgramEntry, selected_entry);
-    Build::bind(builder, windows_x86_64::ProgramEntry, selected_entry);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::selected_entry);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::selected_entry);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::selected_entry);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::selected_entry);
 }

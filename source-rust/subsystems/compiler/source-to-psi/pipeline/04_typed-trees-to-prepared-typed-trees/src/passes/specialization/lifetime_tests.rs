@@ -520,6 +520,11 @@ fn borrowed_type_arguments_share_code_and_keep_each_call_scope() {
                     access: language_core::ReferenceAccess::Shared,
                     lifetime: Some(Identifier::from(lifetime)),
                 });
+            // Authored type applications may have a tag plus the call's scope
+            // before preparation resolves their supplying occurrence.
+            if position == 1 {
+                return reference;
+            }
             program
                 .type_reference_table
                 .retain_operand_lifetime_owner(reference, caller)
@@ -575,17 +580,51 @@ fn borrowed_type_arguments_share_code_and_keep_each_call_scope() {
             .expression_table
             .static_machine_application_bindings(application);
         assert_eq!(bindings.len(), 1);
-        assert_eq!(bindings[0].value, StaticMachineBindingValue::Type(actual));
+        let StaticMachineBindingValue::Type(supplied) = bindings[0].value else {
+            panic!("the supplied argument must retain its type");
+        };
+        if position == 0 {
+            assert_eq!(supplied, actual, "preserve the already resolved occurrence");
+            assert_eq!(
+                program.type_reference_table.operand_lifetimes(supplied),
+                &[Region {
+                    declaration: caller,
+                    ordinal: position
+                }]
+            );
+        } else {
+            assert_ne!(
+                supplied, actual,
+                "the caller's original type stays unmodified"
+            );
+            assert!(
+                !program
+                    .type_reference_table
+                    .operand_lifetime_owner(actual)
+                    .is_valid()
+            );
+        }
+        let supplier = program
+            .type_reference_table
+            .operand_lifetime_owner(supplied);
+        assert_eq!(supplier, caller);
+        let TypeReferenceNode::Reference {
+            lifetime: Some(tag),
+            ..
+        } = program.type_reference_table.type_reference(supplied)
+        else {
+            panic!("expected the authored reference type");
+        };
         assert_eq!(
-            program.type_reference_table.operand_lifetime_owner(actual),
-            caller
-        );
-        assert_eq!(
-            program.type_reference_table.operand_lifetimes(actual),
-            [Region {
+            crate::source_state::type_identity::lifetime_parameter_identity(
+                &program,
+                supplier,
+                tag.as_str()
+            ),
+            Some(Region {
                 declaration: caller,
-                ordinal: position,
-            }]
+                ordinal: position
+            }),
         );
     }
 }

@@ -700,6 +700,20 @@ fn residency_edge_violation(
     let Some(location) = event.location() else {
         return Some(AtomicEdgeViolation::MissingEdge);
     };
+    // A claimed write must name one atomic write in this location's
+    // modification order that reaches the edge.
+    let claimed_write = |claimed: OperationId| {
+        let Some([(writer, position, resolved)]) = events.get(&claimed).map(Vec::as_slice) else {
+            return Err(AtomicEdgeViolation::Unresolved { claimed });
+        };
+        if !resolved.joins_modification_order()
+            || (resolved.location() != Some(location)
+                && !reached.contains(&ReachingWrite::Atomic(*writer, *position)))
+        {
+            return Err(AtomicEdgeViolation::OutsideModificationOrder { claimed });
+        }
+        Ok((*writer, *position))
+    };
     match edge {
         AtomicResidencyEdge::PathAlternatives { sources } => {
             if sources.len() < 2 || sources.windows(2).any(|pair| pair[0] >= pair[1]) {
@@ -713,18 +727,10 @@ fn residency_edge_violation(
                         ReachingWrite::Effect(operation)
                     }
                     AtomicResidencySource::Write { operation: claimed } => {
-                        let Some([(writer, position, resolved)]) =
-                            events.get(&claimed).map(Vec::as_slice)
-                        else {
-                            return Some(AtomicEdgeViolation::Unresolved { claimed });
-                        };
-                        if !resolved.joins_modification_order()
-                            || (resolved.location() != Some(location)
-                                && !reached.contains(&ReachingWrite::Atomic(*writer, *position)))
-                        {
-                            return Some(AtomicEdgeViolation::OutsideModificationOrder { claimed });
+                        match claimed_write(claimed) {
+                            Ok((writer, position)) => ReachingWrite::Atomic(writer, position),
+                            Err(violation) => return Some(violation),
                         }
-                        ReachingWrite::Atomic(*writer, *position)
                     }
                 };
                 claimed_frontier.insert(source);
@@ -741,25 +747,19 @@ fn residency_edge_violation(
             .then_some(AtomicEdgeViolation::InitialResidencyAfterWrite),
         AtomicResidencyEdge::Write { operation: claimed } => {
             let claimed = *claimed;
-            let Some([(writer, position, resolved)]) = events.get(&claimed).map(Vec::as_slice)
-            else {
-                return Some(AtomicEdgeViolation::Unresolved { claimed });
+            let (writer, position) = match claimed_write(claimed) {
+                Ok(write) => write,
+                Err(violation) => return Some(violation),
             };
-            if !resolved.joins_modification_order()
-                || (resolved.location() != Some(location)
-                    && !reached.contains(&ReachingWrite::Atomic(*writer, *position)))
-            {
-                return Some(AtomicEdgeViolation::OutsideModificationOrder { claimed });
-            }
-            let happens_before = if *writer == block {
-                *position < index
+            let happens_before = if writer == block {
+                position < index
             } else {
-                block_dominates(*writer, block)
+                block_dominates(writer, block)
             };
             if !happens_before {
                 return Some(AtomicEdgeViolation::NotHappensBefore { claimed });
             }
-            (reached != &BTreeSet::from([ReachingWrite::Atomic(*writer, *position)]))
+            (reached != &BTreeSet::from([ReachingWrite::Atomic(writer, position)]))
                 .then_some(AtomicEdgeViolation::Overwritten { claimed })
         }
     }

@@ -39,7 +39,8 @@ fn check(name: &str, choice: &str) -> (bool, String) {
 
 fn check_tag(name: &str, choice: &str, package: &str, tag: u64) -> (bool, String) {
     let build = format!(
-        "machine build(builder: @mutable Build) {{
+        "use main.omg as app;
+machine build(builder: @mutable Build) {{
     Build::package(builder, \"reading\");
     configure::<(8u64 + 9u64)>(builder);
 }}
@@ -77,11 +78,12 @@ fn check_package(name: &str, build: &str, files: &[(&str, &str)], main: &str) ->
     std::fs::write(program.join("main.omg"), main).expect("staged program");
     std::fs::write(
         program.join("build.omg"),
-        "use {omega}/build/dependency.omg;
+        "use main.omg as app;
+use {omega}/build/dependency.omg;
 machine build(builder: @mutable Build) {
     Build::application(builder, \"reader\");
     let registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: \"../reading\" }));
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
 }
 ",
     )
@@ -103,8 +105,8 @@ machine build(builder: @mutable Build) {
 fn a_package_chooses_an_applied_provider_and_its_consumer_receives_the_choice() {
     let (compiled, stderr) = check(
         "chosen",
-        "Build::select_provider::<Reading<Tag>, FirstReading<[Holder<u64>; 2], Tag>>(builder, linux_x86_64);
-        Build::select_provider::<Reading<Tag>, FirstReading<[Holder<u32>; 2], Tag>>(builder, macos_arm64);",
+        "Build::select_provider::<|app|::Reading<Tag>, |app|::FirstReading<[|app|::Holder<u64>; 2], Tag>>(builder, linux_x86_64);
+        Build::select_provider::<|app|::Reading<Tag>, |app|::FirstReading<[|app|::Holder<u32>; 2], Tag>>(builder, macos_arm64);",
     );
     assert!(compiled, "{stderr}");
 }
@@ -113,7 +115,7 @@ fn a_package_chooses_an_applied_provider_and_its_consumer_receives_the_choice() 
 fn a_consumer_cannot_use_the_choice_for_a_different_tag() {
     let (compiled, stderr) = check_tag(
         "unselected_tag",
-        "Build::select_provider::<Reading<Tag>, FirstReading<[Holder<u64>; 2], Tag>>(builder, linux_x86_64);",
+        "Build::select_provider::<|app|::Reading<Tag>, |app|::FirstReading<[|app|::Holder<u64>; 2], Tag>>(builder, linux_x86_64);",
         PACKAGE,
         29,
     );
@@ -129,7 +131,7 @@ fn the_implementation_owes_its_result_bound_at_unselected_tags() {
     let package = PACKAGE.replace("_ -> 1129u64", "_ -> 0u64");
     let (compiled, stderr) = check_tag(
         "unselected_branch",
-        "Build::select_provider::<Reading<Tag>, FirstReading<[Holder<u64>; 2], Tag>>(builder, linux_x86_64);",
+        "Build::select_provider::<|app|::Reading<Tag>, |app|::FirstReading<[|app|::Holder<u64>; 2], Tag>>(builder, linux_x86_64);",
         &package,
         17,
     );
@@ -144,7 +146,7 @@ fn the_implementation_owes_its_result_bound_at_unselected_tags() {
 fn a_provider_applied_to_another_tag_than_its_slot_is_rejected() {
     let (compiled, stderr) = check(
         "crossed",
-        "Build::select_provider::<Reading<Tag>, FirstReading<[Holder<u64>; 2], 29u64>>(builder, linux_x86_64);",
+        "Build::select_provider::<|app|::Reading<Tag>, |app|::FirstReading<[|app|::Holder<u64>; 2], 29u64>>(builder, linux_x86_64);",
     );
     assert!(!compiled);
     assert!(
@@ -159,7 +161,7 @@ fn a_provider_applied_to_another_tag_than_its_slot_is_rejected() {
 fn an_application_with_the_wrong_number_of_arguments_is_rejected() {
     let (compiled, stderr) = check(
         "excess",
-        "Build::select_provider::<Reading<Tag, Tag>, FirstReading<[Holder<u64>; 2], Tag>>(builder, linux_x86_64);",
+        "Build::select_provider::<|app|::Reading<Tag, Tag>, |app|::FirstReading<[|app|::Holder<u64>; 2], Tag>>(builder, linux_x86_64);",
     );
     assert!(!compiled);
     assert!(
@@ -172,7 +174,7 @@ fn an_application_with_the_wrong_number_of_arguments_is_rejected() {
 fn a_tag_stated_in_another_integer_type_is_rejected() {
     let (compiled, stderr) = check(
         "narrow",
-        "Build::select_provider::<Reading<17u32>, FirstReading<[Holder<u64>; 2], Tag>>(builder, linux_x86_64);",
+        "Build::select_provider::<|app|::Reading<17u32>, |app|::FirstReading<[|app|::Holder<u64>; 2], Tag>>(builder, linux_x86_64);",
     );
     assert!(!compiled);
     assert!(
@@ -215,10 +217,11 @@ machine build(builder: @mutable Build) {
 fn a_dependency_retains_the_domain_used_in_each_provider_choice() {
     let (compiled, report) = check_package(
         "qualified_inputs",
-        r#"machine build(builder: @mutable Build) {
+        r#"use main.omg as app;
+machine build(builder: @mutable Build) {
     Build::package(builder, "reading");
-    Build::select_provider::<Reading<Tag in Tag::Left>, First>(builder, linux_x86_64);
-    Build::select_provider::<Reading<Tag in Tag::Right>, Second>(builder, linux_x86_64);
+    Build::select_provider::<|app|::Reading<|app|::Tag in |app|::Tag::Left>, |app|::First>(builder, linux_x86_64);
+    Build::select_provider::<|app|::Reading<|app|::Tag in |app|::Tag::Right>, |app|::Second>(builder, linux_x86_64);
 }"#,
         &[(
             "main.omg",

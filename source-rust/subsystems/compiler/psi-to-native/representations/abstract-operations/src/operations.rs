@@ -1034,24 +1034,7 @@ impl AbstractOperation {
     }
 
     pub fn successor_target(&self, edge: EdgeId) -> Option<BlockId> {
-        match self {
-            Self::Jump {
-                psi_edge, target, ..
-            } if *psi_edge == edge => Some(*target),
-            Self::Conditional {
-                when_true,
-                when_false,
-                ..
-            } => [when_true, when_false]
-                .into_iter()
-                .find(|successor| successor.psi_edge == edge)
-                .map(|successor| successor.target),
-            Self::StructuralCase { cases, .. } => cases
-                .iter()
-                .find(|successor| successor.psi_edge == edge)
-                .map(|successor| successor.target),
-            _ => None,
-        }
+        self.owned_transfer(edge).map(|(target, _)| target)
     }
 
     pub fn owned_transfer(&self, edge: EdgeId) -> Option<(BlockId, &[AbstractStructuralBinding])> {

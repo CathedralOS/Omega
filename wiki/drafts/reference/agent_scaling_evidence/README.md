@@ -40,7 +40,7 @@ the 5,210 programs meant to compile for `linux_x86_64`, against 1,817 of 5,165
 at `f76875c4106c`. The other four hosted targets have not been swept at that
 revision.
 
-`mbx xtask sweep` checks every program and groups where each stops, and
-`mbx xtask sweep fleet` splits a target's sweep across machines. A first quick
+The former `mbx xtask sweep` checked every program and grouped where each
+stopped; its `sweep fleet` split a target's sweep across machines. A first quick
 sweep was tried on a 4-CPU cloud container and stopped: each program that uses
 the standard library took about 3 minutes to check there.

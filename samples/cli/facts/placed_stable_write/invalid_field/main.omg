@@ -1,56 +1,45 @@
 // Fact: an exact permitted Stable field operation writes its original storage.
 // Expected exit: 0
-use omega\language\core\Access;
-use omega\language\core\Access::view_mut;
-use omega\language\core\AccessPlan;
-use omega\language\core\AccessPlan::inaccessible;
-use omega\language\core\AccessPlan::with;
-use omega\language\core\AccessPlan::with_reach;
-use omega\language\core\BoundaryReach;
-use omega\language\core\Exposure;
-use omega\language\core\FieldAccess;
-use omega\language\core\FieldEntry;
-use omega\language\core\FieldPlan;
-use omega\language\core\LayoutPlan;
-use omega\language\core\Schema;
-use omega\language\core\read;
-use omega\language\core\write;
+use {omega}/language/core/access/access.omg;
+use {omega}/language/core/layout.omg;
+use {omega}/language/core/reflect/reflect.omg;
 
 public data Value { number: u64; }
-public data StablePlacement {}
+public domain Value::Placed access ValueAccess;
+public data ValueStorage = |layout|::LayoutStorage<Value, ValueLayout>;
 
-machine StablePlacement::plan(schema: Schema) -> AccessPlan {
-    let mutable entries: [FieldEntry; 64];
-    entries[0] = FieldEntry {
-        key: schema.fields[0].key,
-        representation: FieldPlan::At { offset: 0 },
-    };
-    let layout: LayoutPlan = LayoutPlan { entries: entries, entry_count: 1, size_fixed: 8,
-                       size_is_dynamic: false, align: 8 };
-    let access: AccessPlan = AccessPlan::with(
-        AccessPlan::inaccessible(layout), schema.fields[0].key,
-        FieldAccess::Stable { read: true, take: false, write: false, swap: false, exposure: Exposure::Exported }
-    );
-    let mutable services: [u64; 32];
-    AccessPlan::with_reach(
-        access,
-        BoundaryReach { services: services, service_count: 0 }
-    )
+public ValueLayout satisfies |layout|::FixedLayout<Value> {
+    machine plan(schema: |layout|::Schema, target: |layout|::LayoutTarget) -> |layout|::LayoutPlan
+    reaches none crashes none terminates {
+        let mutable entries: [|layout|::FieldEntry; 64];
+        entries[0] = |layout|::FieldEntry { key: schema.fields[0].key, representation: |layout|::FieldPlan::At { offset: 0 } };
+        |layout|::LayoutPlan { entries: entries, entry_count: 1, size_fixed: 8, size_is_dynamic: false, align: 8 }
+    }
 }
 
-data Saved<'storage> { view: @'storage mutable Access<StablePlacement, Value>; }
+public ValueAccess satisfies |layout|::AccessPolicy {
+    machine plan(schema: |reflect|::TypeSchema) -> |layout|::AccessPlan
+    reaches none crashes none terminates {
+        let mutable plan: |layout|::AccessPlan = |access|::new_plan(@schema, |layout|::Issuance::Unrestricted);
+        |access|::observe(@mutable plan, |reflect|::field(Value::number),
+            |layout|::FieldAccess::Stable { read: true, take: false, write: false, swap: false, exposure: |layout|::Exposure::Exported });
+        plan
+    }
+}
 
-machine write_pair(view: @mutable Access<StablePlacement, Value>, other: @mutable Access<StablePlacement, Value>) {
-    let observed: u64 = read(@other.number);
-    write(@mutable view.number, 29u64);
+data Saved<'storage> { view: @'storage mutable ValueStorage in Value::Placed; }
+
+machine write_pair(view: @mutable ValueStorage in Value::Placed, other: @mutable ValueStorage in Value::Placed) {
+    let observed: u64 = |layout|::read::<|layout|::Accessor<u64>, u64>(@other.number);
+    |layout|::write::<|layout|::Accessor<u64>, u64>(@mutable view.number, 29u64);
 }
 
 machine main() crashes Trap {
     let mutable value: Value = Value { number: 17 };
     let mutable companion: Value = Value { number: 43 };
-    let companion_view: @mutable Access<StablePlacement, Value> = Access::view_mut::<StablePlacement, Value>(@mutable companion);
-    let saved: Saved = Saved { view: Access::view_mut::<StablePlacement, Value>(@mutable value) };
-    let view: @mutable Access<StablePlacement, Value> = saved.view;
+    let companion_view: @mutable ValueStorage in Value::Placed = |access|::view_mut::<Value, ValueStorage in Value::Placed>(@mutable companion);
+    let saved: Saved = Saved { view: |access|::view_mut::<Value, ValueStorage in Value::Placed>(@mutable value) };
+    let view: @mutable ValueStorage in Value::Placed = saved.view;
     write_pair(view, companion_view);
     transition value.number == 29 && companion.number == 43 {
         true -> done(),

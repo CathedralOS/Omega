@@ -1,3 +1,8 @@
+use {omega}/language/core/foundation.omg as proof;
+use nat.omg;
+use nat_metric.omg;
+use rat.omg;
+
 // Constructive Cauchy obligations over core Rat's division-free metric.
 //
 // Quantification uses Omega's ordinary theorem-machine rule: `precision`,
@@ -11,54 +16,54 @@
 // be built.
 
 machine cauchy_at<machine Sequence, machine Modulus>(
-    precision: Nat,
-    left_index: Nat,
-    right_index: Nat
-) -> Nat
-requires machine Sequence(index: Nat) -> Rat terminates;
-requires machine Modulus(precision: Nat) -> Nat terminates;
+    precision: |nat|::Nat,
+    left_index: |nat|::Nat,
+    right_index: |nat|::Nat
+) -> |nat|::Nat
+requires machine Sequence(index: |nat|::Nat) -> |rat|::Rat terminates;
+requires machine Modulus(precision: |nat|::Nat) -> |nat|::Nat terminates;
 requires
-    core\Identity::<Nat>(saturating_sub(Nat::Succ { prev: Nat::Zero }, precision), Nat::Zero),
-    core\Identity::<Nat>(saturating_sub(Modulus(precision), left_index), Nat::Zero),
-    core\Identity::<Nat>(saturating_sub(Modulus(precision), right_index), Nat::Zero)
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, precision), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(Modulus(precision), left_index), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(Modulus(precision), right_index), |nat|::Nat::Zero)
 {
-    let left: Rat = Sequence(left_index);
-    let right: Rat = Sequence(right_index);
-    transition { _ -> (rat_close(left, right, precision)) }
+    let left: |rat|::Rat = Sequence(left_index);
+    let right: |rat|::Rat = Sequence(right_index);
+    transition { _ -> (|rat|::rat_close(left, right, precision)) }
 }
 
 machine converges_together_at<machine Left, machine Right, machine Modulus>(
-    precision: Nat,
-    left_index: Nat,
-    right_index: Nat
-) -> Nat
-requires machine Left(index: Nat) -> Rat terminates;
-requires machine Right(index: Nat) -> Rat terminates;
-requires machine Modulus(precision: Nat) -> Nat terminates;
+    precision: |nat|::Nat,
+    left_index: |nat|::Nat,
+    right_index: |nat|::Nat
+) -> |nat|::Nat
+requires machine Left(index: |nat|::Nat) -> |rat|::Rat terminates;
+requires machine Right(index: |nat|::Nat) -> |rat|::Rat terminates;
+requires machine Modulus(precision: |nat|::Nat) -> |nat|::Nat terminates;
 requires
-    core\Identity::<Nat>(saturating_sub(Nat::Succ { prev: Nat::Zero }, precision), Nat::Zero),
-    core\Identity::<Nat>(saturating_sub(Modulus(precision), left_index), Nat::Zero),
-    core\Identity::<Nat>(saturating_sub(Modulus(precision), right_index), Nat::Zero)
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, precision), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(Modulus(precision), left_index), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(Modulus(precision), right_index), |nat|::Nat::Zero)
 {
-    let left: Rat = Left(left_index);
-    let right: Rat = Right(right_index);
-    transition { _ -> (rat_close(left, right, precision)) }
+    let left: |rat|::Rat = Left(left_index);
+    let right: |rat|::Rat = Right(right_index);
+    transition { _ -> (|rat|::rat_close(left, right, precision)) }
 }
 
 machine cauchy_at_reflexive<machine Sequence, machine Modulus>(
-    precision: Nat,
-    index: Nat
+    precision: |nat|::Nat,
+    index: |nat|::Nat
 )
-requires machine Sequence(index: Nat) -> Rat terminates;
-requires machine Modulus(precision: Nat) -> Nat terminates;
+requires machine Sequence(index: |nat|::Nat) -> |rat|::Rat terminates;
+requires machine Modulus(precision: |nat|::Nat) -> |nat|::Nat terminates;
 requires
-    core\Identity::<Nat>(saturating_sub(Nat::Succ { prev: Nat::Zero }, precision), Nat::Zero),
-    core\Identity::<Nat>(saturating_sub(Modulus(precision), index), Nat::Zero)
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, precision), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(Modulus(precision), index), |nat|::Nat::Zero)
 ensures
-    core\Identity::<Nat>(cauchy_at::<Sequence, Modulus>(precision, index, index), Nat::Zero)
+    |proof|::Identity::<|nat|::Nat>(cauchy_at::<Sequence, Modulus>(precision, index, index), |nat|::Nat::Zero)
 {
-    let value: Rat = Sequence(index);
-    rat_close_reflexive(value, precision);
+    let value: |rat|::Rat = Sequence(index);
+    |rat|::rat_close_reflexive(value, precision);
 }
 
 machine converges_together_at_symmetric<
@@ -66,38 +71,38 @@ machine converges_together_at_symmetric<
     machine Right,
     machine Modulus
 >(
-    precision: Nat,
-    left_index: Nat,
-    right_index: Nat
+    precision: |nat|::Nat,
+    left_index: |nat|::Nat,
+    right_index: |nat|::Nat
 )
-requires machine Left(index: Nat) -> Rat terminates;
-requires machine Right(index: Nat) -> Rat terminates;
-requires machine Modulus(precision: Nat) -> Nat terminates;
+requires machine Left(index: |nat|::Nat) -> |rat|::Rat terminates;
+requires machine Right(index: |nat|::Nat) -> |rat|::Rat terminates;
+requires machine Modulus(precision: |nat|::Nat) -> |nat|::Nat terminates;
 requires
-    core\Identity::<Nat>(saturating_sub(Nat::Succ { prev: Nat::Zero }, precision), Nat::Zero),
-    core\Identity::<Nat>(saturating_sub(Modulus(precision), left_index), Nat::Zero),
-    core\Identity::<Nat>(saturating_sub(Modulus(precision), right_index), Nat::Zero),
-    core\Identity::<Nat>(
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, precision), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(Modulus(precision), left_index), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(Modulus(precision), right_index), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(
         converges_together_at::<Left, Right, Modulus>(
             precision,
             left_index,
             right_index
         ),
-        Nat::Zero
+        |nat|::Nat::Zero
     )
 ensures
-    core\Identity::<Nat>(
+    |proof|::Identity::<|nat|::Nat>(
         converges_together_at::<Right, Left, Modulus>(
             precision,
             right_index,
             left_index
         ),
-        Nat::Zero
+        |nat|::Nat::Zero
     )
 {
-    let left: Rat = Left(left_index);
-    let right: Rat = Right(right_index);
-    rat_close_symmetric(left, right, precision);
+    let left: |rat|::Rat = Left(left_index);
+    let right: |rat|::Rat = Right(right_index);
+    |rat|::rat_close_symmetric(left, right, precision);
 }
 
 // Pointwise transitivity consumes the doubled-precision Left~Middle and
@@ -111,66 +116,66 @@ machine converges_together_at_triangle_split<
     machine Right,
     machine Modulus
 >(
-    precision: Nat,
-    left_index: Nat,
-    middle_index: Nat,
-    right_index: Nat
+    precision: |nat|::Nat,
+    left_index: |nat|::Nat,
+    middle_index: |nat|::Nat,
+    right_index: |nat|::Nat
 )
-requires machine Left(index: Nat) -> Rat terminates;
-requires machine Middle(index: Nat) -> Rat terminates;
-requires machine Right(index: Nat) -> Rat terminates;
-requires machine Modulus(precision: Nat) -> Nat terminates;
+requires machine Left(index: |nat|::Nat) -> |rat|::Rat terminates;
+requires machine Middle(index: |nat|::Nat) -> |rat|::Rat terminates;
+requires machine Right(index: |nat|::Nat) -> |rat|::Rat terminates;
+requires machine Modulus(precision: |nat|::Nat) -> |nat|::Nat terminates;
 requires
-    core\Identity::<Nat>(saturating_sub(Nat::Succ { prev: Nat::Zero }, precision), Nat::Zero),
-    core\Identity::<Nat>(
-        saturating_sub(
-            Nat::Succ { prev: Nat::Zero },
-            add(precision, precision)
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, precision), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::saturating_sub(
+            |nat|::Nat::Succ { prev: |nat|::Nat::Zero },
+            |nat|::add(precision, precision)
         ),
-        Nat::Zero
+        |nat|::Nat::Zero
     ),
-    core\Identity::<Nat>(saturating_sub(Modulus(precision), left_index), Nat::Zero),
-    core\Identity::<Nat>(saturating_sub(Modulus(precision), right_index), Nat::Zero),
-    core\Identity::<Nat>(saturating_sub(Modulus(add(precision, precision)), left_index), Nat::Zero),
-    core\Identity::<Nat>(saturating_sub(Modulus(add(precision, precision)), middle_index), Nat::Zero),
-    core\Identity::<Nat>(saturating_sub(Modulus(add(precision, precision)), right_index), Nat::Zero),
-    core\Identity::<Nat>(
-        saturating_sub(
-            Nat::Succ { prev: Nat::Zero },
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(Modulus(precision), left_index), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(Modulus(precision), right_index), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(Modulus(|nat|::add(precision, precision)), left_index), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(Modulus(|nat|::add(precision, precision)), middle_index), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(Modulus(|nat|::add(precision, precision)), right_index), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::saturating_sub(
+            |nat|::Nat::Succ { prev: |nat|::Nat::Zero },
             (Middle(middle_index)).den
         ),
-        Nat::Zero
+        |nat|::Nat::Zero
     ),
-    core\Identity::<Nat>(
+    |proof|::Identity::<|nat|::Nat>(
         converges_together_at::<Left, Middle, Modulus>(
-            add(precision, precision),
+            |nat|::add(precision, precision),
             left_index,
             middle_index
         ),
-        Nat::Zero
+        |nat|::Nat::Zero
     ),
-    core\Identity::<Nat>(
+    |proof|::Identity::<|nat|::Nat>(
         converges_together_at::<Middle, Right, Modulus>(
-            add(precision, precision),
+            |nat|::add(precision, precision),
             middle_index,
             right_index
         ),
-        Nat::Zero
+        |nat|::Nat::Zero
     )
 ensures
-    core\Identity::<Nat>(
+    |proof|::Identity::<|nat|::Nat>(
         converges_together_at::<Left, Right, Modulus>(
             precision,
             left_index,
             right_index
         ),
-        Nat::Zero
+        |nat|::Nat::Zero
     )
 {
-    let left: Rat = Left(left_index);
-    let middle: Rat = Middle(middle_index);
-    let right: Rat = Right(right_index);
-    rat_close_triangle_split(left, middle, right, precision);
+    let left: |rat|::Rat = Left(left_index);
+    let middle: |rat|::Rat = Middle(middle_index);
+    let right: |rat|::Rat = Right(right_index);
+    |rat|::rat_close_triangle_split(left, middle, right, precision);
 }
 
 // HETEROGENEOUS MODULUS COMPOSITION.  `converges_together_at_triangle_split`
@@ -183,15 +188,15 @@ ensures
 // combinator keeps the composed modulus a static machine, so it occupies a
 // `requires machine` binder exactly like an atomic modulus.
 machine doubled_nat_max_modulus<machine FirstModulus, machine SecondModulus>(
-    precision: Nat
-) -> Nat
-requires machine FirstModulus(precision: Nat) -> Nat terminates;
-requires machine SecondModulus(precision: Nat) -> Nat terminates;
+    precision: |nat|::Nat
+) -> |nat|::Nat
+requires machine FirstModulus(precision: |nat|::Nat) -> |nat|::Nat terminates;
+requires machine SecondModulus(precision: |nat|::Nat) -> |nat|::Nat terminates;
 {
     // Each selected invocation consumes its own affine proof-number value.
-    let first_threshold: Nat = FirstModulus(add(precision, precision));
-    let second_threshold: Nat = SecondModulus(add(precision, precision));
-    transition { _ -> (nat_max(first_threshold, second_threshold)) }
+    let first_threshold: |nat|::Nat = FirstModulus(|nat|::add(precision, precision));
+    let second_threshold: |nat|::Nat = SecondModulus(|nat|::add(precision, precision));
+    transition { _ -> (|nat_metric|::nat_max(first_threshold, second_threshold)) }
 }
 
 // Threshold transfer for the composed modulus: an index that has crossed both
@@ -203,38 +208,38 @@ machine doubled_nat_max_threshold<
     machine FirstModulus,
     machine SecondModulus
 >(
-    precision: Nat,
-    index: Nat
+    precision: |nat|::Nat,
+    index: |nat|::Nat
 )
-requires machine FirstModulus(precision: Nat) -> Nat terminates;
-requires machine SecondModulus(precision: Nat) -> Nat terminates;
+requires machine FirstModulus(precision: |nat|::Nat) -> |nat|::Nat terminates;
+requires machine SecondModulus(precision: |nat|::Nat) -> |nat|::Nat terminates;
 requires
-    core\Identity::<Nat>(
-        saturating_sub(
-            FirstModulus(add(precision, precision)),
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::saturating_sub(
+            FirstModulus(|nat|::add(precision, precision)),
             index
         ),
-        Nat::Zero
+        |nat|::Nat::Zero
     ),
-    core\Identity::<Nat>(
-        saturating_sub(
-            SecondModulus(add(precision, precision)),
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::saturating_sub(
+            SecondModulus(|nat|::add(precision, precision)),
             index
         ),
-        Nat::Zero
+        |nat|::Nat::Zero
     )
 ensures
-    core\Identity::<Nat>(
-        saturating_sub(
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::saturating_sub(
             doubled_nat_max_modulus::<FirstModulus, SecondModulus>(precision),
             index
         ),
-        Nat::Zero
+        |nat|::Nat::Zero
     )
 {
-    _ = nat_max_le(
-        FirstModulus(add(precision, precision)),
-        SecondModulus(add(precision, precision)),
+    _ = |nat_metric|::nat_max_le(
+        FirstModulus(|nat|::add(precision, precision)),
+        SecondModulus(|nat|::add(precision, precision)),
         index
     );
 }

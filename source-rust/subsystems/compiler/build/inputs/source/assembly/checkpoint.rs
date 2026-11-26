@@ -74,6 +74,7 @@ impl DeferredProductSources {
 pub struct ProductEntrySources<'a> {
     pub bindings: &'a [ProductEntryBinding],
     pub has_registered_tests: bool,
+    pub exclude_product_subject: bool,
 }
 
 pub(super) struct ProductSourceSelection<'a> {
@@ -119,8 +120,10 @@ impl ProductSourceSelection<'_> {
         )?;
         if let Some(packages) = packages {
             seed_described_entries(imports, packages, self.entries.bindings);
-            for path in storage.product_subject_sources()? {
-                imports.seed(path, Product);
+            if !self.entries.exclude_product_subject {
+                for path in storage.product_subject_sources()? {
+                    imports.seed(path, Product);
+                }
             }
         }
         for root in self.roots.iter() {

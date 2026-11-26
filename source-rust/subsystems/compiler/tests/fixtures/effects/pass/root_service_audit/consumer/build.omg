@@ -1,3 +1,4 @@
+use {audit_driver}/main.omg as audit_driver;
 use {omega}/build/dependency.omg;
 
 machine build(builder: @mutable Build) {
@@ -9,12 +10,12 @@ machine build(builder: @mutable Build) {
         false -> done()
     }
     machine unselected(builder: @mutable Build) {
-        Build::audit_service::<audit_driver\Untaken>(builder);
+        Build::audit_service::<|audit_driver|::Untaken>(builder);
     }
     machine done() {}
 }
 
 machine configure(builder: @mutable Build) {
-    Build::audit_service::<audit_driver\MotorControl>(builder);
-    Build::audit_service::<audit_driver\MotorControl>(builder);
+    Build::audit_service::<|audit_driver|::MotorControl>(builder);
+    Build::audit_service::<|audit_driver|::MotorControl>(builder);
 }

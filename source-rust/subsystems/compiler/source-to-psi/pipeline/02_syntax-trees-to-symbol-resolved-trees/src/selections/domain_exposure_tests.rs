@@ -41,13 +41,17 @@ fn select_home_with_base(
             syntax.extend_from(&unit);
         }
     }
+    let core = std::path::Path::new("core");
+    let imports = crate::resolution::fixture_local_and_core_imports(&syntax, &sources, core);
+    let base_imports =
+        crate::resolution::fixture_local_and_core_imports(&base_syntax, &sources, core);
     let sources = Arc::new(sources);
     let base = seeded.then(|| {
         Arc::new(
             crate::resolution::resolve(crate::resolution::ResolutionRequest {
                 syntax: base_syntax,
                 sources: Some(Arc::clone(&sources)),
-                top_level_bindings: Vec::new(),
+                top_level_bindings: base_imports,
                 retained_base: None,
             })
             .unwrap(),
@@ -56,11 +60,11 @@ fn select_home_with_base(
     let selection = ConstantSelection::with_shared_base(
         &syntax,
         Some(Arc::clone(&sources)),
-        Vec::new(),
+        imports.clone(),
         base.clone(),
     )
     .unwrap();
-    let mut lowerer = Lowerer::new(Some(sources), Vec::new());
+    let mut lowerer = Lowerer::new(Some(sources), imports);
     if let Some(base) = base {
         lowerer.seed_resolved_base(base).unwrap();
     }
@@ -139,7 +143,7 @@ fn domain_exposure_operator_home_rejoins_retained_base_domains() {
                 ),
                 (
                     "app/main.omg",
-                    "use units; machine probe(value: units\\Item in units\\Item::Mark) -> u64 { 0 }"
+                    "use units/domain.omg as units; machine probe(value: |units|::Item in |units|::Item::Mark) -> u64 { 0 }"
                 ),
             ],
             None,
@@ -151,9 +155,11 @@ fn domain_exposure_operator_home_rejoins_retained_base_domains() {
 }
 
 #[test]
-fn domain_exposure_operator_home_accepts_module_and_exact_imports() {
-    for import in ["units", "units::u64::Mark"] {
-        let caller = format!("use {import}; machine probe(value: u64 in u64::Mark) -> u64 {{ 0 }}");
+fn a_domain_file_can_be_selected_by_either_alias() {
+    for alias in ["units", "dimensions"] {
+        let caller = format!(
+            "use units/domain.omg as {alias}; machine probe(value: u64 in |{alias}|::u64::Mark) -> u64 {{ 0 }}"
+        );
         assert_eq!(
             select_home(
                 &[
@@ -177,10 +183,10 @@ fn domain_exposure_operator_home_does_not_borrow_sibling_imports() {
                     "app/units/domain.omg",
                     "public domain u64::Mark; machine helper() -> u64 { 0 }"
                 ),
-                ("app/sibling.omg", "use units;"),
+                ("app/sibling.omg", "use units/domain.omg as units;"),
                 (
                     "app/main.omg",
-                    "use units\\helper; machine probe(value: u64 in u64::Mark) -> u64 { 0 }"
+                    "use sibling.omg; machine probe(value: u64 in u64::Mark) -> u64 { 0 }"
                 ),
             ],
             None
@@ -208,48 +214,25 @@ fn domain_exposure_operator_home_rejects_foreign_unimported_root() {
     );
 }
 
-/*
-    Distinct visible domains competing for one spelling reject; the referencing
-    module's own declaration does not outrank an imported one
-    (`wiki/spec/language/modules.md#resolution`).
-*/
 #[test]
-fn domain_exposure_operator_home_rejects_competing_visible_domains() {
+fn same_named_domains_are_selected_through_their_own_files() {
     let domains = [
         ("app/one/domain.omg", "public domain u64::Mark;"),
         ("app/two/domain.omg", "public domain u64::Mark;"),
     ];
-    for (path, caller) in [
-        (
-            "app/main.omg",
-            "use one; use two; machine probe(value: u64 in u64::Mark) -> u64 { 0 }",
-        ),
-        (
-            "app/one/entry.omg",
-            "use two; machine probe(value: u64 in u64::Mark) -> u64 { 0 }",
-        ),
+    for (selected, expected) in [
+        ("|one|::u64::Mark", vec![0]),
+        ("|two|::u64::Mark", vec![1]),
+        ("u64::Mark", vec![]),
     ] {
-        let error = select_home(&[domains[0], domains[1], (path, caller)], None).unwrap_err();
-        assert!(
-            error.contains("more than one possible domain home"),
-            "{caller}: {error}"
+        let caller = format!(
+            "use one/domain.omg as one; use two/domain.omg as two; machine probe(value: u64 in {selected}) -> u64 {{ 0 }}"
+        );
+        assert_eq!(
+            select_home(&[domains[0], domains[1], ("app/main.omg", &caller)], None).unwrap(),
+            expected
         );
     }
-    assert_eq!(
-        select_home(
-            &[
-                domains[0],
-                domains[1],
-                (
-                    "app/one/entry.omg",
-                    "machine probe(value: u64 in u64::Mark) -> u64 { 0 }"
-                ),
-            ],
-            None
-        )
-        .unwrap(),
-        [0]
-    );
 }
 
 #[test]
@@ -263,7 +246,7 @@ fn domain_exposure_operator_home_keeps_carrier_identity() {
                 ),
                 (
                     "app/main.omg",
-                    "use one; data Item {} machine probe(value: Item in one\\Item::Mark) -> u64 { 0 }"
+                    "use one/domain.omg as one; data Item {} machine probe(value: Item in |one|::Item::Mark) -> u64 { 0 }"
                 ),
             ],
             None
@@ -281,10 +264,10 @@ fn domain_exposure_explicit_owner_uses_the_same_scope() {
                 ("app/units/domain.omg", "public domain u64::Mark;"),
                 (
                     "app/main.omg",
-                    "use units; machine probe(value: u64) -> u64 { 0 }"
+                    "use units/domain.omg as units; machine probe(value: u64) -> u64 { 0 }"
                 ),
             ],
-            Some("u64::Mark::operation")
+            Some("|units|::u64::Mark::operation")
         )
         .unwrap(),
         [0]

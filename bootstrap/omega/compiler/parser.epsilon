@@ -134,14 +134,11 @@ machine OmegaParser::parse_set(&mut self, source: &[u8]) {
     }
 }
 
-// The caller supplies one canonical package-relative POSIX path. Its parent
-// components enter the ordinary name resolver. The basename contributes none.
+// The request supplies the complete logical filename. Directory components
+// identify a file and never enter its source name table.
 machine OmegaParser::retain_unit_namespace(&mut self, source: &[u8], index: i32,
     path: OmegaRelativeSpan) {
-    self.sources.units[index].has_file_import = 0;
-    self.sources.units[index].first_module_member = self.member_count;
-    self.sources.units[index].module_end = path.start;
-    self.sources.units[index].module_member_count = 0;
+    self.sources.units[index].is_root_file = 1;
     self.status = OmegaParserStatus::Complete;
     transition path.start == path.end {
         true -> return
@@ -166,25 +163,14 @@ machine OmegaParser::retain_unit_namespace(&mut self, source: &[u8], index: i32,
         }
     }
     state directory(start: i32, end: i32) {
-        transition (self.sources.identifier_range(source, start, end) == 1) &&
-            (self.reserved_namespace(source, start, end) == 0) {
-            true -> capacity(start, end)
-            _ -> invalid(start, end)
+        transition (end == start) || (self.scan.span_equals(source, start, end, ".") == 1) ||
+            (self.scan.span_equals(source, start, end, "..") == 1) {
+            true -> invalid(start, end)
+            _ -> nested(end)
         }
     }
-    state capacity(start: i32, end: i32) {
-        transition self.member_count < 16384 {
-            true -> retain(start, end)
-            _ -> full(start, end)
-        }
-    }
-    state retain(start: i32, end: i32) {
-        self.members[self.member_count].start = start;
-        self.members[self.member_count].end = end;
-        self.member_count = self.member_count + 1;
-        self.sources.units[index].module_end = end;
-        self.sources.units[index].module_member_count =
-            self.sources.units[index].module_member_count + 1;
+    state nested(end: i32) {
+        self.sources.units[index].is_root_file = 0;
         transition true { true -> scan(end + 1, end + 1) }
     }
     state basename(start: i32) {
@@ -200,17 +186,10 @@ machine OmegaParser::retain_unit_namespace(&mut self, source: &[u8], index: i32,
         self.diagnostic_start = start;
         self.diagnostic_end = end;
     }
-    state full(start: i32, end: i32) {
-        self.status = OmegaParserStatus::ResourceFailure;
-        self.resource = OmegaParserResource::PathMembers;
-        self.resource_limit = 16384;
-        self.resource_requested = self.member_count + 1;
-        self.diagnostic_start = start;
-        self.diagnostic_end = end;
-    }
+
 }
 
-// Directory names share the namespace of builtin types. The integer family
+// File aliases and declarations share the namespace of builtin types. The integer family
 // includes bare i/u and every decimal width, even an unsupported width.
 machine OmegaParser::reserved_namespace(&mut self, source: &[u8], start: i32, end: i32) -> i32 {
     transition (source[start] == 'i') || (source[start] == 'u') {
@@ -232,7 +211,7 @@ machine OmegaParser::reserved_namespace(&mut self, source: &[u8], start: i32, en
     state fixed() {
         transition (self.scan.span_equals(source, start, end, "self") == 1) ||
             (self.scan.span_equals(source, start, end, "bool") == 1) ||
-            (self.scan.span_equals(source, start, end, "addr") == 1) ||
+            (self.scan.span_equals(source, start, end, "address") == 1) ||
             (self.scan.span_equals(source, start, end, "f32") == 1) ||
             (self.scan.span_equals(source, start, end, "f64") == 1) ||
             (self.scan.span_equals(source, start, end, "Slice") == 1) ||
@@ -263,7 +242,6 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     self.cursor = unit_start;
     self.item_start = unit_start;
     self.first_member = 0;
-    self.path_destination = OmegaPathDestination::Use;
     self.data_name_start = 0;
     self.data_name_end = 0;
     self.data_first_member = 0;
@@ -482,6 +460,13 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state semantic_token(purpose: i32) {
+        transition source[self.scan.token_start] == '\\' {
+            true -> syntax_failure(OmegaParseDiagnosticCode::ExpectedPathMember, self.scan.token_start, self.scan.token_end)
+            _ -> grammar_token(purpose)
+        }
+    }
+
+    state grammar_token(purpose: i32) {
         transition purpose {
             0 -> root_token()
             1 -> member_token()
@@ -1112,18 +1097,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state path_end_at_view_end() {
-        transition self.path_destination {
-            OmegaPathDestination::Machine -> syntax_failure(
-                OmegaParseDiagnosticCode::ExpectedMachineBody,
-                source.len,
-                source.len
-            )
-            _ -> syntax_failure(
-                OmegaParseDiagnosticCode::ExpectedPathSeparatorOrSemicolon,
-                source.len,
-                source.len
-            )
-        }
+        transition true { true -> syntax_failure(OmegaParseDiagnosticCode::ExpectedMachineBody, source.len, source.len) }
     }
 
     state call_argument_at_view_end(ordinary: OmegaParseDiagnosticCode) {
@@ -1406,10 +1380,8 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     state begin_use_bounded() {
         self.item_start = self.scan.token_start;
         self.first_member = self.member_count;
-        self.path_destination = OmegaPathDestination::Use;
         self.cursor = self.scan.next_cursor;
-        transition self.file_import(source, self.cursor) {
-            0 -> scan_semantic(1)
+        transition self.file_import(source) {
             1 -> retain_use()
             2 -> resource_failure(OmegaParserResource::PathMembers, 16384, self.member_count + 1)
             _ -> syntax_failure(OmegaParseDiagnosticCode::ExpectedPathSeparatorOrSemicolon, self.scan.token_start, self.scan.token_end)
@@ -1553,7 +1525,6 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         self.machine_is_bodyless = 0;
         self.state_has_return_type = 0;
         self.state_return_type = 0;
-        self.path_destination = OmegaPathDestination::Machine;
         self.cursor = self.scan.next_cursor;
         transition self.in_trait {
             1 -> scan_semantic(127)
@@ -1625,18 +1596,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     state path_tail_token() {
         transition self.scan.token_kind {
             OmegaTokenKind::Punctuation -> path_tail_punctuation()
-            _ -> path_tail_nonpunctuation()
-        }
-    }
-
-    state path_tail_nonpunctuation() {
-        transition self.path_destination {
-            OmegaPathDestination::Machine -> finish_machine_path_nonpunctuation()
-            _ -> syntax_failure(
-                OmegaParseDiagnosticCode::ExpectedPathSeparatorOrSemicolon,
-                self.scan.token_start,
-                self.scan.token_end
-            )
+            _ -> finish_machine_path_nonpunctuation()
         }
     }
 
@@ -1647,27 +1607,8 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
 
     state path_tail_punctuation() {
         transition self.scan.punctuation {
-            OmegaPunctuationKind::Backslash -> next_member()
             OmegaPunctuationKind::ColonColon -> next_member()
-            _ -> finish_path_punctuation()
-        }
-    }
-
-    state finish_path_punctuation() {
-        transition self.path_destination {
-            OmegaPathDestination::Use -> use_path_end()
-            OmegaPathDestination::Machine -> machine_path_end()
-        }
-    }
-
-    state use_path_end() {
-        transition self.scan.punctuation {
-            OmegaPunctuationKind::Semicolon -> retain_use()
-            _ -> syntax_failure(
-                OmegaParseDiagnosticCode::ExpectedPathSeparatorOrSemicolon,
-                self.scan.token_start,
-                self.scan.token_end
-            )
+            _ -> machine_path_end()
         }
     }
 
@@ -2726,7 +2667,6 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
 
     state termination_subject_tail_punctuation() {
         transition self.scan.punctuation {
-            OmegaPunctuationKind::Backslash -> next_termination_subject_member()
             OmegaPunctuationKind::ColonColon -> next_termination_subject_member()
             OmegaPunctuationKind::Arrow -> begin_termination_view()
             _ -> incomplete_root()
@@ -2799,7 +2739,6 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
 
     state termination_view_tail_punctuation() {
         transition self.scan.punctuation {
-            OmegaPunctuationKind::Backslash -> next_termination_view_member()
             OmegaPunctuationKind::ColonColon -> next_termination_view_member()
             OmegaPunctuationKind::LeftBrace -> retain_termination_clause()
             OmegaPunctuationKind::Arrow -> retain_termination_clause()
@@ -4542,7 +4481,6 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
 
     state membership_domain_tail_punctuation() {
         transition self.scan.punctuation {
-            OmegaPunctuationKind::Backslash -> next_membership_domain_member()
             OmegaPunctuationKind::ColonColon -> next_membership_domain_member()
             OmegaPunctuationKind::Ampersand -> incomplete_root()
             OmegaPunctuationKind::Pipe -> incomplete_root()
@@ -4878,7 +4816,6 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
 
     state transition_guard_path_tail_punctuation() {
         transition self.scan.punctuation {
-            OmegaPunctuationKind::Backslash -> next_transition_guard_path_member()
             OmegaPunctuationKind::ColonColon -> next_transition_guard_path_member()
             OmegaPunctuationKind::LeftBrace -> begin_transition_destructure()
             OmegaPunctuationKind::Arrow -> retain_path_transition_guard()
@@ -5643,7 +5580,6 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     state acknowledged_path_punctuation(path_kind: i32) {
         transition self.scan.punctuation {
             OmegaPunctuationKind::LeftParen -> accepted_path_tail(path_kind)
-            OmegaPunctuationKind::Backslash -> accepted_path_tail(path_kind)
             OmegaPunctuationKind::ColonColon -> accepted_path_tail(path_kind)
             OmegaPunctuationKind::Dot -> accepted_path_tail(path_kind)
             OmegaPunctuationKind::Less -> incomplete_root()
@@ -5676,7 +5612,6 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     state statement_path_tail_punctuation() {
         transition self.scan.punctuation {
             OmegaPunctuationKind::Dot -> next_statement_path_member()
-            OmegaPunctuationKind::Backslash -> qualify_statement_path()
             OmegaPunctuationKind::ColonColon -> after_double_colon(144)
             OmegaPunctuationKind::Less -> begin_statement_path_expression(2)
             OmegaPunctuationKind::LeftParen -> begin_statement_call()
@@ -5758,19 +5693,6 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     state select_expression_member() {
         self.argument_name_member_count = self.argument_name_member_count + 1;
         transition true { true -> path_expression_member_token() }
-    }
-
-    state qualify_statement_path() {
-        transition (self.statement_starts_at_self == 0) &&
-            (self.statement_name_member_count == self.statement_path_member_count) {
-            true -> retain_statement_qualification()
-            _ -> incomplete_root()
-        }
-    }
-
-    state retain_statement_qualification() {
-        self.statement_name_member_count = self.statement_name_member_count + 1;
-        transition true { true -> next_statement_path_member() }
     }
 
     state begin_statement_struct_literal() {
@@ -6253,7 +6175,6 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
 
     state call_static_argument_tail_punctuation() {
         transition self.scan.punctuation {
-            OmegaPunctuationKind::Backslash -> next_call_static_argument_member()
             OmegaPunctuationKind::ColonColon -> next_call_static_argument_member()
             OmegaPunctuationKind::Comma -> retain_call_static_argument()
             OmegaPunctuationKind::Greater -> retain_call_static_argument()
@@ -6756,7 +6677,6 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         transition self.scan.punctuation {
             OmegaPunctuationKind::Arrow -> retain_framed_operator_path()
             OmegaPunctuationKind::Dot -> path_expression_member_access()
-            OmegaPunctuationKind::Backslash -> path_expression_name_qualification()
             OmegaPunctuationKind::ColonColon -> after_double_colon(145)
             OmegaPunctuationKind::LeftBrace -> path_expression_left_brace()
             OmegaPunctuationKind::Comma -> retain_comma_terminated_path()
@@ -7010,18 +6930,6 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
 
     state path_expression_member_access() {
         self.argument_path_kind = OmegaPathExpressionKind::Member;
-        transition true { true -> next_path_expression_member() }
-    }
-
-    state path_expression_name_qualification() {
-        transition self.argument_path_kind {
-            OmegaPathExpressionKind::Name -> retain_name_qualification()
-            _ -> incomplete_root()
-        }
-    }
-
-    state retain_name_qualification() {
-        self.argument_name_member_count = self.argument_name_member_count + 1;
         transition true { true -> next_path_expression_member() }
     }
 
@@ -10388,7 +10296,6 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     state array_semicolon_punctuation() {
         transition self.scan.punctuation {
             OmegaPunctuationKind::Semicolon -> after_array_semicolon()
-            OmegaPunctuationKind::Backslash -> begin_qualified_type_member()
             OmegaPunctuationKind::ColonColon -> begin_qualified_type_member()
             OmegaPunctuationKind::Less -> type_lifetime_position()
             OmegaPunctuationKind::LeftBracket -> incomplete_root()
@@ -10718,7 +10625,6 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     state type_base_end_punctuation() {
         transition self.scan.punctuation {
             OmegaPunctuationKind::Less -> type_lifetime_position()
-            OmegaPunctuationKind::Backslash -> begin_qualified_type_member()
             OmegaPunctuationKind::ColonColon -> begin_qualified_type_member()
             OmegaPunctuationKind::LeftBracket -> unexpected_type_suffix()
             _ -> type_consumer_punctuation()
@@ -10935,7 +10841,6 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
     state cast_domain_tail() {
         transition self.scan.punctuation {
-            OmegaPunctuationKind::Backslash -> next_cast_domain_member()
             OmegaPunctuationKind::ColonColon -> next_cast_domain_member()
             OmegaPunctuationKind::Plus -> retain_cast_expression()
             OmegaPunctuationKind::Minus -> finish_domain_only_entry()

@@ -2,7 +2,7 @@
 // integer meanings; layouts, providers and arithmetic policies do not choose
 // these endpoints. Qualified and unsupported types do not satisfy the domain.
 // Results are unqualified: callers explicitly apply arithmetic policy with
-// `as`, for example `integer\max::<u32>() as +Wrapping`.
+// `as`, for example `|integer|::max::<u32>() as +Wrapping`.
 
 public machine min<T>() -> T
 requires

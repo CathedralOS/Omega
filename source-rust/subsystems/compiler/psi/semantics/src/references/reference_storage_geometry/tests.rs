@@ -46,7 +46,7 @@ fn a_location_keeps_only_alignment_shared_by_its_base_and_offset() {
 fn primitive_placement_uses_target_addresses_without_granting_byte_codecs() {
     let address = ScalarType::Integer(IntegerType::address(64).unwrap());
     let narrow = scalar(13);
-    let types = [address, narrow, scalar(32)]
+    let mut types = [address, narrow, scalar(32)]
         .into_iter()
         .enumerate()
         .map(|(position, scalar)| StructuralTypeDeclaration {
@@ -64,6 +64,21 @@ fn primitive_placement_uses_target_addresses_without_granting_byte_codecs() {
             scalar_restriction: None,
         })
         .collect::<Vec<_>>();
+    types.push(StructuralTypeDeclaration {
+        id: identity(4),
+        identity: TerminalIdentityIndex(4),
+        shape: StructuralTypeShape::Record {
+            fields: [narrow, address, scalar(128)]
+                .into_iter()
+                .enumerate()
+                .map(|(ordinal, scalar)| {
+                    field(ordinal as u64 + 1, StructuralFieldType::Scalar(scalar), None)
+                })
+                .collect(),
+            storage: StructuralRecordStorage::Packed,
+        },
+        ..types[0].clone()
+    });
     let target = |size, alignment| TargetCarrierLayout {
         pointer_byte_size: size,
         pointer_byte_alignment: alignment,
@@ -96,6 +111,18 @@ fn primitive_placement_uses_target_addresses_without_granting_byte_codecs() {
     );
     assert_eq!(layout(identity(2), None), Ok((2, 2)));
     assert_eq!(layout(identity(3), None), Ok((4, 4)));
+    assert_eq!(
+        layout(identity(4), None),
+        Err(StorageGeometryError::MissingCarrierLayout)
+    );
+    assert_eq!(layout(identity(4), Some(target(4, 2))), Ok((32, 16)));
+    let mut geometry = ReferenceStorageGeometry::new(types.iter(), |id| {
+        Err(StorageGeometryError::UnresolvedExtent(id))
+    })
+    .with_target_carriers(Some(target(4, 2)));
+    let fields = geometry.record_fields(identity(4)).unwrap();
+    let offsets: Vec<_> = fields.iter().map(|field| field.byte_offset).collect();
+    assert_eq!(offsets, [Some(0), Some(2), Some(16)]);
     assert_eq!(crate::reference_storage_byte_width(address), None);
     assert_eq!(crate::reference_storage_byte_width(narrow), None);
     assert!(!crate::reference_storage_view_is_compatible(

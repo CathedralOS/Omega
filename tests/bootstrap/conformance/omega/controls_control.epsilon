@@ -166,7 +166,7 @@ machine Main::refusal(&mut self, source: &[u8], expected: i32, failure: i32) {
 // Removing that edge must refuse, even after the successful lookup; restoring
 // it must rebuild rather than inheriting a partial failed invocation.
 machine Main::source_sets(&mut self) {
-    let source: &[u8] = "appdepuse dep\\answer; machine main()->u8 {answer()}public machine answer()->u8 {let mutable s:Score;s.points=42;read_score(@s)}machine read_score(s:@Score)->u8{s.points}data Score requires points<=42,{points:u8;}";
+    let source: &[u8] = "appdepmain.omganswer.omguse {dep}/answer.omg; machine main()->u8 {|answer|::answer()}public machine answer()->u8 {let mutable s:Score;s.points=42;read_score(@s)}machine read_score(s:@Score)->u8{s.points}data Score requires points<=42,{points:u8;}";
     self.compiler.parser.sources.package_count = 2;
     self.compiler.parser.sources.packages[0].name.start = 0;
     self.compiler.parser.sources.packages[0].name.end = 3;
@@ -180,11 +180,15 @@ machine Main::source_sets(&mut self) {
     self.compiler.parser.sources.dependencies[0].alias.start = 3;
     self.compiler.parser.sources.dependencies[0].alias.end = 6;
     self.compiler.parser.sources.unit_count = 2;
+    self.compiler.parser.sources.units[0].path.start = 6;
+    self.compiler.parser.sources.units[0].path.end = 14;
     self.compiler.parser.sources.units[0].package = 0;
-    self.compiler.parser.sources.units[0].start = 6;
-    self.compiler.parser.sources.units[0].end = 51;
+    self.compiler.parser.sources.units[0].start = 24;
+    self.compiler.parser.sources.units[0].end = 85;
+    self.compiler.parser.sources.units[1].path.start = 14;
+    self.compiler.parser.sources.units[1].path.end = 24;
     self.compiler.parser.sources.units[1].package = 1;
-    self.compiler.parser.sources.units[1].start = 51;
+    self.compiler.parser.sources.units[1].start = 85;
     self.compiler.parser.sources.units[1].end = source.len;
     self.compiler.compile_set(source, 0, "main");
     // The bounded record and its shared parameter must use the per-file compiler.

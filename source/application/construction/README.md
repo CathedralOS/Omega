@@ -92,8 +92,7 @@ All intervals are half-open within that one buffer. Unit bytes are exact
 source, not concatenated text with rewritten imports. The given unit and entry
 name select a parsed declaration; ordinary semantic and safety checks still
 apply. Each path spans its complete package-relative filename, with `/` between
-components. The Epsilon constructor uses the full path to resolve a file import.
-The Omega-written constructor still passes the parent directory to its resolver. A packet
+components. Both constructors receive the full filename for exact file imports. A packet
 beginning with a nonzero package count uses the original three-word unit rows
 and places each unit in the package root. [File identity](../../../wiki/spec/language/modules.md#file-identity)
 

@@ -127,7 +127,8 @@ fn the_installed_provider_survives_a_product_dependency_wait() {
 
 #[test]
 fn an_untaken_arm_still_requires_its_supplied_backing() {
-    let source = r#"use {omega}/language/core/program_image.omg as image;
+    let source = r#"use main.omg as app;
+use {omega}/language/core/program_image.omg as image;
 use {images}/main.omg as backing;
 machine build(builder: @mutable Build) suspends {
     Build::application(builder, "untaken_readiness");
@@ -138,7 +139,7 @@ machine build(builder: @mutable Build) suspends {
     machine unused(builder: @mutable Build) suspends {
         suspend Build::await_provider::<|image|::ProgramImage, |backing|::TestImage>(builder);
     }
-    machine finish(builder: @mutable Build) { Build::bind(builder, linux_x86_64::ProgramEntry, main); }
+    machine finish(builder: @mutable Build) { Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main); }
 }
 "#;
     check(source).unwrap();

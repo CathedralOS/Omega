@@ -62,8 +62,9 @@ The adapter delegates that authority to the subsystem doing the work by passing
 a qualified handle or borrow. The subsystem may use it only for the permitted
 operations and within its firmware phase. Each protected domain uses
 `Issuance::Only` in its `AccessPlan` to name its authorized issuers. The installed
-physical requirement permits the `UefiBootServices` reach required by page
-allocation. The adapter’s synchronous handoff to the
+physical requirement permits the `UefiBootServices` reach. Allocating or
+freeing pages, reading the firmware memory map, and exiting Boot Services each
+publish that reach. The adapter’s synchronous handoff to the
 Build-bound continuation contributes `invokes ProgramStorageEntry`. Calls to
 outbound firmware and grant providers contribute their published effect rows. [Initial-call authority](../resources/authority.md#initial-call-authority)
 

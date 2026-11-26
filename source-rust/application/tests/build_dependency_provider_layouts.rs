@@ -95,7 +95,7 @@ fn a_chosen_dependency_default_is_laid_out_for_its_target_and_runs() {
 fn an_unchosen_dependency_default_is_never_laid_out() {
     let root = default_only(
         "unreached",
-        "use layout_default_kit\\main\\Measure;\n\nmachine main() {\n}\n",
+        "use {layout_default_kit}/main/layouts.omg;\n\nmachine main() {\n}\n",
     );
     assert_runs_on_each_engine(&root);
     let _ = std::fs::remove_dir_all(&root);
@@ -131,9 +131,10 @@ fn an_entryless_library_demands_only_the_selected_targets_layouts() {
     let root = TemporaryDirectory::create("entryless-layout-demand", false).unwrap();
     std::fs::write(
         root.path().join("build.omg"),
-        r#"machine build(builder: @mutable Build) {
+        r#"use main.omg as app;
+machine build(builder: @mutable Build) {
         Build::package(builder, "layout_reach");
-        Build::select_provider::<Reading, ConstantReading>(builder, alpha_bootstrap);
+        Build::select_provider::<|app|::Reading, |app|::ConstantReading>(builder, alpha_bootstrap);
     }"#,
     )
     .unwrap();
@@ -141,24 +142,23 @@ fn an_entryless_library_demands_only_the_selected_targets_layouts() {
     // Alpha has no C record geometry. Its selected provider can still return
     // a constant while an unrelated declaration in the same library mentions CLayout.
     for (formal, representation, refusal) in [
-        ("", "CLayout<Packet>", None),
+        ("", "|c_layout|::CLayout<Packet>", None),
         (
             "pair: @PacketPair",
-            "CLayout<Packet>",
+            "|c_layout|::CLayout<Packet>",
             Some(
                 "layout policy for `Packet` on `alpha_bootstrap`: target has no complete layout facts",
             ),
         ),
         (
             "",
-            "LayoutStorage<Packet, CAbiPolicy<OtherPacket>>",
+            "|layout|::LayoutStorage<Packet, |c_layout|::CAbiPolicy<OtherPacket>>",
             Some("selected layout policy belongs to another semantic type"),
         ),
     ] {
         let source = format!(
-            r#"use omega\language\core\CLayout;
-            use omega\language\core\CAbiPolicy;
-            use omega\language\core\LayoutStorage;
+            r#"use {{omega}}/language/core/c_layout.omg;
+use {{omega}}/language/core/layout.omg;
             public data Packet [copy] {{ a: i64; b: i64; }}
             public data OtherPacket [copy] {{ a: i64; b: i64; }}
             public data PacketPair = [{representation}; 2];
@@ -259,11 +259,11 @@ fn an_unreached_layout_constant_keeps_its_initializer_without_target_geometry() 
     .unwrap();
     std::fs::write(
         root.path().join("main.omg"),
-        r#"use omega\language\core\CLayout;
+        r#"use {omega}/language/core/c_layout.omg;
         public data Packet [copy] { first: u8; second: u64; last: u16; }
-        public const BYTES: u64 = size_of::<CLayout<Packet>>();
+        public const BYTES: u64 = size_of::<|c_layout|::CLayout<Packet>>();
         public machine packet_bytes() -> u64 reaches none crashes none { BYTES }
-        machine extent() -> u64 reaches none crashes none { size_of::<CLayout<Packet>>() }
+        machine extent() -> u64 reaches none crashes none { size_of::<|c_layout|::CLayout<Packet>>() }
         public data Envelope [copy] { bytes: [u8; extent()]; }
         public machine read(packet: @Envelope) -> u64 reaches none crashes none { 0u64 }"#,
     )

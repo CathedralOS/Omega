@@ -1,11 +1,12 @@
+use main.omg as app;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "runtime_family_generic_callback_forwarding_exit" };
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-    Build::select_provider::<CallbackApply, SharedApply>(builder, linux_arm64);
-    Build::select_provider::<CallbackApply, SharedApply>(builder, linux_x86_64);
-    Build::select_provider::<CallbackApply, SharedApply>(builder, macos_arm64);
-    Build::select_provider::<CallbackApply, SharedApply>(builder, windows_x86_64);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
+    Build::select_provider::<|app|::CallbackApply, |app|::SharedApply>(builder, linux_arm64);
+    Build::select_provider::<|app|::CallbackApply, |app|::SharedApply>(builder, linux_x86_64);
+    Build::select_provider::<|app|::CallbackApply, |app|::SharedApply>(builder, macos_arm64);
+    Build::select_provider::<|app|::CallbackApply, |app|::SharedApply>(builder, windows_x86_64);
 }

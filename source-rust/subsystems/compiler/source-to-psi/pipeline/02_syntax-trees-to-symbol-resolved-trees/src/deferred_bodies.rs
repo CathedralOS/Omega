@@ -7,7 +7,6 @@
     separate and retains the actual pending syntax until a consumer demands it.
 */
 
-#[cfg(any(test, feature = "test-support"))]
 use crate::resolution::constants::initializer_dependencies::ResolvedMachineBodyDemand;
 use crate::resolution::constants::initializer_dependencies::collect_machine_body_demand;
 use crate::resolution::declarations::declaration_selection::ConstantSelection;
@@ -18,7 +17,6 @@ use crate::resolution::names::assign_constant_expression_symbols;
 use crate::source_resolved::continuations::{
     RebasedResolvedBodyCompletion, ResolvedSourceActivation,
 };
-#[cfg(any(test, feature = "test-support"))]
 use crate::source_resolved::expression::ExpressionHandle;
 use crate::source_resolved::types::OperandLifetimeOwnerHandle;
 use crate::source_resolved::{
@@ -351,13 +349,26 @@ impl DeferredResolvedFrontier {
         Ok(selected)
     }
 
+    pub fn pending_machines_in_sources(
+        &self,
+        sources: &[source_text::SourceId],
+    ) -> Vec<SymbolHandle> {
+        let symbols = &self.trees.symbols;
+        self.pending_machines()
+            .filter(|symbol| {
+                symbols
+                    .symbol_provenance_source_span(*symbol)
+                    .is_some_and(|span| sources.contains(&span.source_id))
+            })
+            .collect()
+    }
+
     /*
         Discover exact executable-body demand from resolved machines and
         expressions. Deferred implementations stop traversal and remain owned
         here; complete the reported batch and repeat until none remain before
         admitting the returned machine roster for typing or execution.
     */
-    #[cfg(any(test, feature = "test-support"))]
     pub fn body_demand(
         &self,
         machine_roots: &[SymbolHandle],
@@ -373,6 +384,250 @@ impl DeferredResolvedFrontier {
             }
         }
         Ok(demand)
+    }
+
+    /// Return the next batch of still-pending machine bodies required by `roots`,
+    /// expanding trait providers, `ProviderDefaults`, domain/access/content/layout
+    /// conformances, and operators referenced by the demanded closure.
+    pub fn demand_closure_batch(
+        &self,
+        roots: &[SymbolHandle],
+        provider_conformances: &[(std::path::PathBuf, source_text::Span)],
+        subject_sources: &[source_text::SourceId],
+    ) -> Result<Vec<SymbolHandle>, Vec<Diagnostic>> {
+        let demand = self.body_demand(roots, &[])?;
+        let symbols = &self.trees.symbols;
+        let mut pending_sorted: Vec<(u32, u32)> = self
+            .pending_machines()
+            .map(|symbol| (symbol.arena_index(), symbol.generation()))
+            .collect();
+        pending_sorted.sort_unstable();
+        if pending_sorted.is_empty() {
+            return Ok(Vec::new());
+        }
+        let is_pending = |symbol: SymbolHandle| {
+            symbol.is_valid()
+                && pending_sorted
+                    .binary_search(&(symbol.arena_index(), symbol.generation()))
+                    .is_ok()
+        };
+        let mut next = demand.deferred_machines;
+        let mut push_pending = |symbol: SymbolHandle| {
+            if is_pending(symbol) && !next.contains(&symbol) {
+                next.push(symbol);
+            }
+        };
+
+        let is_provider_conformance = |symbol: SymbolHandle| -> bool {
+            let Some(span) = symbols.symbol_source_span(symbol) else {
+                return false;
+            };
+            let Some(file) = symbols.source_file(span) else {
+                return false;
+            };
+            provider_conformances
+                .iter()
+                .any(|(path, target_span)| *path == file.path && *target_span == span.span)
+        };
+
+        let mut demanded_types = demand.type_declarations.clone();
+        for data in self.trees.data_definitions.iter() {
+            if symbols
+                .symbol_provenance_source_span(data.symbol)
+                .is_some_and(|span| subject_sources.contains(&span.source_id))
+                && !demanded_types.contains(&data.symbol)
+            {
+                demanded_types.push(data.symbol);
+            }
+        }
+        // Boundary declarations and their Calling headers enter Stage 05 checking
+        // unconditionally; include their referenced types so domain Content/access
+        // projections (such as `Extent in Granted`) are completed on demand.
+        for trait_def in self.trees.traits.iter() {
+            if !trait_def.is_boundary {
+                continue;
+            }
+            for signature in self
+                .trees
+                .trait_machine_signatures(trait_def.storage.machines)
+            {
+                for param in self.trees.state_parameters(signature.parameters) {
+                    collect_type_head_symbols(
+                        &self.trees,
+                        &param.type_reference,
+                        &mut demanded_types,
+                    );
+                }
+                if let Some(return_type) = &signature.return_type {
+                    collect_type_head_symbols(&self.trees, return_type, &mut demanded_types);
+                }
+            }
+        }
+        for operator in self.trees.operators.iter() {
+            if !operator.is_boundary {
+                continue;
+            }
+            for param in self.trees.state_parameters(operator.parameters) {
+                collect_type_head_symbols(&self.trees, &param.type_reference, &mut demanded_types);
+            }
+            if let Some(return_type) = &operator.return_type {
+                collect_type_head_symbols(&self.trees, return_type, &mut demanded_types);
+            }
+        }
+
+        let type_head_symbol =
+            |reference: &crate::source_resolved::types::TypeReference| -> Option<SymbolHandle> {
+                use crate::source_resolved::types::TypeReference;
+                match reference {
+                    TypeReference::Named { symbol, .. } => symbol.is_valid().then_some(*symbol),
+                    TypeReference::Generic(app) => {
+                        app.base_symbol.is_valid().then_some(app.base_symbol)
+                    }
+                    _ => None,
+                }
+            };
+
+        for domain in self.trees.domain_definitions.iter() {
+            let in_subject = symbols
+                .symbol_provenance_source_span(domain.symbol)
+                .is_some_and(|span| subject_sources.contains(&span.source_id));
+            let target_demanded = type_head_symbol(&domain.target_type)
+                .is_some_and(|sym| demanded_types.contains(&sym));
+            if !(in_subject || target_demanded || demanded_types.contains(&domain.symbol)) {
+                continue;
+            }
+            if !demanded_types.contains(&domain.symbol) {
+                demanded_types.push(domain.symbol);
+            }
+            if let Some(policy) = &domain.access_policy {
+                if symbols.get(policy.symbol).kind == symbols::SymbolKind::Conformance {
+                    if let Some(conf) = self
+                        .trees
+                        .conformances
+                        .iter()
+                        .find(|row| row.symbol == policy.symbol)
+                    {
+                        for row in &conf.rows {
+                            let target = if row.source.owns_realization() {
+                                crate::resolution::names::owned_conformance_realization(
+                                    &self.trees,
+                                    row,
+                                )
+                                .unwrap_or(row.realization_machine)
+                            } else {
+                                row.realization_machine
+                            };
+                            push_pending(target);
+                        }
+                    }
+                } else {
+                    push_pending(policy.symbol);
+                }
+            }
+            if let Some(cleanup) = &domain.cleanup_selection {
+                push_pending(cleanup.symbol);
+            }
+            for &projection in &domain.content_projections {
+                push_pending(projection);
+            }
+        }
+
+        let mut traits_with_selected_provider = Vec::new();
+        for conf in self.trees.conformances.iter() {
+            if is_provider_conformance(conf.symbol)
+                && !traits_with_selected_provider.contains(&conf.trait_symbol)
+            {
+                traits_with_selected_provider.push(conf.trait_symbol);
+            }
+        }
+
+        for conf in self.trees.conformances.iter() {
+            // The resolved trait's own name: an authored conformance can name
+            // its trait through a file alias such as `|abi|::CallingPolicy`.
+            let trait_name = if conf.trait_symbol.is_valid() {
+                symbols.name(conf.trait_symbol)
+            } else {
+                conf.trait_name.as_str()
+            };
+            let in_subject = symbols
+                .symbol_provenance_source_span(conf.symbol)
+                .is_some_and(|span| subject_sources.contains(&span.source_id));
+            let is_selected = is_provider_conformance(conf.symbol);
+            let trait_demanded = demand.traits.contains(&conf.trait_symbol);
+            let policy_for_demanded_type =
+                matches!(trait_name, "AccessPolicy" | "Content" | "FixedLayout")
+                    && self
+                        .trees
+                        .child_type_references(conf.arguments)
+                        .first()
+                        .and_then(type_head_symbol)
+                        .is_some_and(|sym| demanded_types.contains(&sym));
+            let calling_policy = trait_name == "CallingPolicy";
+            let include = in_subject
+                || is_selected
+                || calling_policy
+                || policy_for_demanded_type
+                || (trait_demanded
+                    && conf.type_parameters.is_empty()
+                    && !traits_with_selected_provider.contains(&conf.trait_symbol));
+            if !include {
+                continue;
+            }
+            for row in &conf.rows {
+                let target = if row.source.owns_realization() {
+                    crate::resolution::names::owned_conformance_realization(&self.trees, row)
+                        .unwrap_or(row.realization_machine)
+                } else {
+                    row.realization_machine
+                };
+                push_pending(target);
+            }
+        }
+
+        let trait_sources: Vec<source_text::SourceId> = demand
+            .traits
+            .iter()
+            .filter_map(|&tr| symbols.symbol_source_span(tr).map(|span| span.source_id))
+            .collect();
+        for machine in self.trees.machines.iter() {
+            if !is_pending(machine.symbol) {
+                continue;
+            }
+            if machine.name.as_str().ends_with("::provider_defaults") {
+                let same_source = symbols
+                    .symbol_provenance_source_span(machine.symbol)
+                    .is_some_and(|span| {
+                        subject_sources.contains(&span.source_id)
+                            || trait_sources.contains(&span.source_id)
+                    });
+                let parent_demanded = demand.traits.contains(&symbols.get(machine.symbol).parent);
+                if same_source || parent_demanded {
+                    push_pending(machine.symbol);
+                }
+            }
+        }
+
+        for operator in self.trees.operators.iter() {
+            if !is_pending(operator.symbol) {
+                continue;
+            }
+            let in_subject = symbols
+                .symbol_provenance_source_span(operator.symbol)
+                .is_some_and(|span| subject_sources.contains(&span.source_id));
+            let operand_demanded =
+                self.trees
+                    .state_parameters(operator.parameters)
+                    .iter()
+                    .any(|param| {
+                        type_head_symbol(&param.type_reference)
+                            .is_some_and(|sym| demanded_types.contains(&sym))
+                    });
+            if in_subject || operand_demanded {
+                push_pending(operator.symbol);
+            }
+        }
+
+        Ok(next)
     }
 
     /*
@@ -483,6 +738,68 @@ impl DeferredResolvedFrontier {
         lowerer.structural_type_equations_pending = self.structural_type_equations_pending;
         lowerer.equation_sources = self.equation_sources.clone();
         Ok(lowerer)
+    }
+}
+
+fn collect_type_head_symbols(
+    trees: &SymbolResolvedTrees,
+    reference: &crate::source_resolved::types::TypeReference,
+    out: &mut Vec<SymbolHandle>,
+) {
+    use crate::source_resolved::types::{TypeConstraint, TypeReference};
+    match reference {
+        TypeReference::Named { symbol, .. } => {
+            if symbol.is_valid() && !out.contains(symbol) {
+                out.push(*symbol);
+            }
+        }
+        TypeReference::Generic(app) => {
+            if app.base_symbol.is_valid() && !out.contains(&app.base_symbol) {
+                out.push(app.base_symbol);
+            }
+            for child in trees.child_type_references(app.arguments) {
+                collect_type_head_symbols(trees, child, out);
+            }
+        }
+        TypeReference::Reference(reference) => {
+            collect_type_head_symbols(trees, trees.child_type_reference(reference.referee), out);
+        }
+        TypeReference::Slice(slice) => {
+            collect_type_head_symbols(trees, trees.child_type_reference(slice.element_type), out);
+        }
+        TypeReference::FixedArray(array) => {
+            collect_type_head_symbols(trees, trees.child_type_reference(array.element_type), out);
+        }
+        TypeReference::Constrained(constrained) => {
+            collect_type_head_symbols(
+                trees,
+                trees.child_type_reference(constrained.base_type),
+                out,
+            );
+            for constraint in trees
+                .tables
+                .types
+                .constraints
+                .span_or_empty(constrained.constraints)
+            {
+                if let TypeConstraint::Domain(domain) = constraint {
+                    for child in trees.child_type_references(domain.arguments) {
+                        collect_type_head_symbols(trees, child, out);
+                    }
+                }
+            }
+        }
+        TypeReference::AliasUse {
+            expansion,
+            application,
+            ..
+        } => {
+            collect_type_head_symbols(trees, expansion, out);
+            collect_type_head_symbols(trees, application, out);
+        }
+        TypeReference::Callable { .. }
+        | TypeReference::ConstExpression(_)
+        | TypeReference::Unit => {}
     }
 }
 
