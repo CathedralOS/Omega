@@ -2384,12 +2384,13 @@ fn a_record_actual_leaves_scalar_clauses_named_by_their_own_lane() {
 fn projected(tables: &MachineTables, root: PlaceId, fields: &[u64]) -> ExactPlaceId {
     let mut place = *tables.roots.get(root).unwrap();
     for field in fields {
-        let children = &tables.places.get(place).unwrap().children;
         let segment = Segment::Field(id::<StructuralFieldId>(*field));
-        let found = children
-            .binary_search_by_key(&segment, |(segment, _)| *segment)
+        place = tables
+            .places
+            .get(place)
+            .unwrap()
+            .child(&tables.places, segment)
             .unwrap();
-        place = children[found].1;
     }
     place
 }
@@ -3645,11 +3646,12 @@ fn a_bound_payload_is_what_its_leaf_was_constructed_with_and_nothing_from_a_sibl
     let leaf = |case: u64, field: u64| {
         let mut place = *tables.roots.get(id::<PlaceId>(1)).unwrap();
         for segment in [Segment::Case(id(case)), Segment::Field(id(field))] {
-            let children = &tables.places.get(place).unwrap().children;
-            let found = children
-                .binary_search_by_key(&segment, |(segment, _)| *segment)
+            place = tables
+                .places
+                .get(place)
+                .unwrap()
+                .child(&tables.places, segment)
                 .unwrap();
-            place = children[found].1;
         }
         crate::places::lineage(id(1), &tables.places, place).unwrap()
     };

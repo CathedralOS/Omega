@@ -43,7 +43,7 @@ returns as `Err`:
   (`Storage::initial_contents_are_declared`).
 */
 
-use arena::{IdTable, NumericId};
+use arena::IdTable;
 use semantic_vocabulary::{BlockId, MachineId, OperationId, ScalarType, StructuralCaseId, ValueId};
 use terminal_check_tables::bindings::{Content, PlaceOrigin, Segment};
 use terminal_check_tables::{Checked, Construct, MachineTables, ProgramPoint};
@@ -153,21 +153,13 @@ pub(super) fn places_are_interned(machine: MachineId, tables: &MachineTables) ->
             ));
         }
     }
+    let mut indexed = arena::IdSet::new();
     for (place, row) in tables.places.iter() {
         let concerns = Construct::Place(place);
         let listed = match row.origin {
             PlaceOrigin::Root(root) => tables.roots.get(root) == Some(&place),
-            // A parent is minted before its projections, so every parent
-            // chain ends at a root.
-            PlaceOrigin::Projection { parent, segment } => {
-                parent < place
-                    && tables.places.get(parent).is_some_and(|parent| {
-                        parent
-                            .children
-                            .binary_search_by_key(&segment, |(segment, _)| *segment)
-                            .is_ok_and(|position| parent.children[position].1 == place)
-                    })
-            }
+            // A parent precedes its children, so its index was already checked.
+            PlaceOrigin::Projection { parent, .. } => parent < place && indexed.contains(place),
         };
         if !listed {
             return Err(foreign(
@@ -176,28 +168,27 @@ pub(super) fn places_are_interned(machine: MachineId, tables: &MachineTables) ->
                 "a place row is not the projection its parent lists",
             ));
         }
-        if !row.children.windows(2).all(|pair| pair[0].0 < pair[1].0) {
-            return Err(foreign(
-                machine,
-                concerns,
-                "a place's projections are not sorted, one per segment",
-            ));
-        }
-        for (segment, child) in &row.children {
-            let projects = tables.places.get(*child).is_some_and(|child| {
-                child.origin
-                    == PlaceOrigin::Projection {
-                        parent: place,
-                        segment: *segment,
-                    }
-            });
-            if !projects {
+        let mut previous = None;
+        for child in &row.children {
+            let segment = match tables.places.get(*child).map(|row| row.origin) {
+                Some(PlaceOrigin::Projection { parent, segment }) if parent == place => segment,
+                _ => {
+                    return Err(foreign(
+                        machine,
+                        concerns,
+                        "a place row is not the projection its parent lists",
+                    ));
+                }
+            };
+            if previous.is_some_and(|prior| prior >= segment) {
                 return Err(foreign(
                     machine,
                     concerns,
-                    "a place row is not the projection its parent lists",
+                    "a place's projections are not sorted, one per segment",
                 ));
             }
+            indexed.insert(*child);
+            previous = Some(segment);
         }
     }
     Ok(())

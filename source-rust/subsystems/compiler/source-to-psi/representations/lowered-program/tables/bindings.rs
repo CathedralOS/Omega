@@ -32,9 +32,33 @@ use crate::{ExactPlaceId, ProgramPoint, WriteId};
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PlaceRow {
     pub origin: PlaceOrigin,
-    /// The projections of this place, sorted by `Segment`, at most one per
-    /// segment: interning a child is a binary search here.
-    pub children: Vec<(Segment, ExactPlaceId)>,
+    /// Child identities, ordered by the segment in each child's origin.
+    pub children: Vec<ExactPlaceId>,
+}
+
+impl PlaceRow {
+    fn child_position(
+        &self,
+        places: &IdTable<ExactPlaceId, PlaceRow>,
+        segment: Segment,
+    ) -> Result<usize, usize> {
+        self.children.binary_search_by_key(&Some(segment), |child| {
+            match places.get(*child)?.origin {
+                PlaceOrigin::Projection { segment, .. } => Some(segment),
+                PlaceOrigin::Root(_) => None,
+            }
+        })
+    }
+
+    pub fn child(
+        &self,
+        places: &IdTable<ExactPlaceId, PlaceRow>,
+        segment: Segment,
+    ) -> Option<ExactPlaceId> {
+        self.child_position(places, segment)
+            .ok()
+            .map(|position| self.children[position])
+    }
 }
 
 /// Invariant: a projection's `parent` was minted before it, so every parent
@@ -142,11 +166,8 @@ pub fn intern_projection(
         detail: "place is past the end of this machine".to_owned(),
     };
     let row = places.get(parent).ok_or_else(missing)?;
-    match row
-        .children
-        .binary_search_by_key(&segment, |(segment, _)| *segment)
-    {
-        Ok(position) => Ok(row.children[position].1),
+    match row.child_position(places, segment) {
+        Ok(position) => Ok(row.children[position]),
         Err(position) => {
             let child = places.push(PlaceRow {
                 origin: PlaceOrigin::Projection { parent, segment },
@@ -156,7 +177,7 @@ pub fn intern_projection(
                 .get_mut(parent)
                 .ok_or_else(missing)?
                 .children
-                .insert(position, (segment, child));
+                .insert(position, child);
             Ok(child)
         }
     }
@@ -181,35 +202,27 @@ pub fn record_write(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use arena::{IdTable, NumericId};
     use semantic_vocabulary::StructuralFieldId;
 
     #[test]
     fn children_are_interned_once_per_segment_by_binary_search() {
         let field = |raw| Segment::Field(StructuralFieldId::new(raw).unwrap());
-        let mut places: IdTable<ExactPlaceId, PlaceRow> = IdTable::default();
+        let mut places = crate::CheckingRows::default();
         let root = places.push(PlaceRow {
             origin: PlaceOrigin::Root(PlaceId::new(1).unwrap()),
             children: Vec::new(),
         });
-        for raw in [3, 1, 2] {
-            let child = places.push(PlaceRow {
-                origin: PlaceOrigin::Projection {
-                    parent: root,
-                    segment: field(raw),
-                },
-                children: Vec::new(),
-            });
-            let row = places.get_mut(root).unwrap();
-            let at = row
-                .children
-                .binary_search_by_key(&field(raw), |(segment, _)| *segment)
-                .unwrap_err();
-            row.children.insert(at, (field(raw), child));
-        }
-        let children = &places.get(root).unwrap().children;
-        let found = children.binary_search_by_key(&field(2), |(segment, _)| *segment);
-        assert_eq!(children[found.unwrap()].1.get(), 4);
-        assert!(children.windows(2).all(|pair| pair[0].0 < pair[1].0));
+        let machine = MachineId::new(1).unwrap();
+        let children =
+            [3, 1, 2].map(|raw| intern_projection(machine, &mut places, root, field(raw)).unwrap());
+        let row = places.get(root).unwrap();
+        assert_eq!(row.children, [children[1], children[2], children[0]]);
+        assert_eq!(row.child(&places, field(2)), Some(children[2]));
+        assert_eq!(row.child(&places, field(4)), None);
+        assert_eq!(
+            intern_projection(machine, &mut places, root, field(2)).unwrap(),
+            children[2]
+        );
+        assert_eq!(places.len(), 4);
     }
 }

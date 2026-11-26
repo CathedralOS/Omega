@@ -2912,13 +2912,10 @@ impl<'a> Storage<'a> {
             *terminal_check_tables::row(&tables.roots, place.root, self.machine, concerns)?;
         for segment in &place.segments {
             let row = terminal_check_tables::row(&tables.places, at, self.machine, concerns)?;
-            match row
-                .children
-                .binary_search_by_key(segment, |(segment, _)| *segment)
-            {
-                Ok(position) => at = row.children[position].1,
-                Err(_) => return Ok(None),
-            }
+            let Some(child) = row.child(&tables.places, *segment) else {
+                return Ok(None);
+            };
+            at = child;
         }
         Ok(Some(at))
     }
