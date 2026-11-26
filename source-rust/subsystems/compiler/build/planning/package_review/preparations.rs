@@ -16,8 +16,19 @@ pub struct ReviewedPreparation {
     pub installation_reach: Vec<(String, Vec<String>)>,
 }
 
+impl crate::PlannedProduct {
+    /// A fresh audit and reuse of a prior audit compare the same executed stages.
+    pub fn reviewed_preparations(&self) -> Result<Vec<ReviewedPreparation>, Vec<Diagnostic>> {
+        self.evaluated()
+            .preparations
+            .iter()
+            .map(|(next, stage)| ReviewedPreparation::from_stage(next, stage))
+            .collect()
+    }
+}
+
 impl ReviewedPreparation {
-    pub(super) fn from_stage(
+    fn from_stage(
         successor: &BuildEntryPath,
         stage: &ComputedBuildConfig,
     ) -> Result<Self, Vec<Diagnostic>> {

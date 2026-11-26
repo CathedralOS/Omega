@@ -112,9 +112,7 @@ impl crate::ProductStage<'_> {
                 )]
             })?;
         Ok(CheckedPackagePolicy {
-            preparations: evaluation.preparations.iter().map(|(next, stage)| {
-                ReviewedPreparation::from_stage(next, stage)
-            }).collect::<Result<_, _>>()?,
+            preparations: product.reviewed_preparations()?,
             sources,
             policy,
             source_completion_accounting: std::mem::take(accounting),

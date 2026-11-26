@@ -441,6 +441,9 @@ impl<'pass> PackageReviewRound<'pass> {
             || evaluated.configuration.evaluation_usage != review.build_evaluation_usage()
             || evaluated.configuration.observation_summary.as_ref()
                 != review.build_observation_summary()
+            || product.reviewed_preparations()
+                .map_err(|diagnostics| occurrence.compilation_error(self.execution_profile, diagnostics.into()))?
+                != review.preparations()
             || &product
                 .build_handoff(checked_target)
                 .map_err(|failure| occurrence.compilation_error(self.execution_profile, failure))?
