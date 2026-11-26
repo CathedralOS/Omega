@@ -58,7 +58,7 @@ impl SourceHost<'_, '_> {
             let (libraries, inputs) =
                 self.successor_inputs(acquired, stage.returned(), requests)?;
             preparations.push((next_entry, inputs));
-            let successor = stage.finish_successor(source, libraries)?;
+            let successor = stage.finish_successor(libraries)?;
             path = successor.path().to_owned();
             sources = PlanningSources::Successor(successor);
         }

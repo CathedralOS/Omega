@@ -98,6 +98,67 @@ fn alpha_service_defaults_are_returned_by_the_standard_library_build() {
 }
 
 #[test]
+fn successor_runs_the_entry_and_helper_in_the_view_supplied_by_its_invoker() {
+    use platform_custody::temporary_directory::TemporaryDirectory;
+
+    configure_library();
+    let temporary = TemporaryDirectory::create("issued-successor-view", false).unwrap();
+    let root = temporary.path();
+    let entry = root.join("build.omg");
+    std::fs::create_dir(root.join("generated")).unwrap();
+    std::fs::write(
+        &entry,
+        r#"machine build(builder: @mutable Build) {
+        Build::build_entry(builder, "generated/configure.omg");
+    }"#,
+    )
+    .unwrap();
+    // An ordinary generator supplies files to this invocation before capture.
+    std::fs::write(
+        root.join("generated/configure.omg"),
+        r#"use generated/policy.omg;
+        machine build(builder: @mutable Build) { |policy|::configure(builder); }"#,
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("generated/policy.omg"),
+        r#"public machine configure(builder: @mutable Build) {
+        Build::package(builder, "from_generated_files");
+    }"#,
+    )
+    .unwrap();
+    let project =
+        begin_local_project_preparation(&entry, &[TargetProfile::LinuxX64], true).unwrap();
+    let acquired = project.acquire_root().unwrap();
+    let run = |path: &std::path::Path, sources| {
+        let prepared = prepare(
+            PlanningRequest {
+                root: path,
+                sources,
+                execution: BuildExecutionInputs::default(),
+                artifact_only: false,
+            },
+            Default::default(),
+            Default::default(),
+        )
+        .unwrap();
+        interpret(prepared, &mut ()).unwrap()
+    };
+    let returned = run(&entry, PlanningSources::Captured(acquired.source_capture()));
+    // Replacing every generated file on the host cannot change that return.
+    std::fs::rename(root.join("generated"), root.join("withdrawn")).unwrap();
+    std::fs::create_dir(root.join("generated")).unwrap();
+    std::fs::write(root.join("generated/configure.omg"), "machine build() {}").unwrap();
+    let successor = returned.finish_successor(Vec::new()).unwrap();
+    let next_entry = successor.path().to_owned();
+    let result = run(&next_entry, PlanningSources::Successor(successor));
+    let Some(BuildDeclaration::Package(package)) = result.returned().declaration() else {
+        panic!("expected the package declared by the captured helper");
+    };
+    assert_eq!(package.name.as_str(), "from_generated_files");
+}
+
+#[test]
 fn authored_build_returns_its_application_and_target_bindings() {
     configure_library();
     let fixture = fixture_repository::root()
