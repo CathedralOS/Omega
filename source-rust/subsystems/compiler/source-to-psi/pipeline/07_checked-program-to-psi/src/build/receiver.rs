@@ -1,4 +1,4 @@
-//! The checked source entry identifies the one published parameter that may borrow the host’s Build.
+//! The checked source entry identifies the one published parameter that may borrow the host’s BuildPlan.
 
 use crate::AcceptedTerminalSource;
 use crate::source_state::{TypedTrees, machine::Machine, types::TypeReferenceNode};
@@ -36,7 +36,7 @@ fn source_receiver(typed: &TypedTrees, machine: &Machine) -> Result<symbols::Sym
         return Err("Build activation requires its one original BuildPlan parameter".into());
     };
     if parameter.is_const || parameter.relevance.is_erased() {
-        return Err("Build entry requires an executable mutable borrow of Build".into());
+        return Err("Build entry requires an executable mutable borrow of BuildPlan".into());
     }
     let TypeReferenceNode::Reference {
         referee,
@@ -46,21 +46,21 @@ fn source_receiver(typed: &TypedTrees, machine: &Machine) -> Result<symbols::Sym
         .type_reference_table
         .type_reference(parameter.type_reference)
     else {
-        return Err("Build entry requires an executable mutable borrow of Build".into());
+        return Err("Build entry requires an executable mutable borrow of BuildPlan".into());
     };
     let TypeReferenceNode::Named { symbol, .. } =
         typed.type_reference_table.type_reference(*referee)
     else {
-        return Err("Build entry receiver must name the exact toolchain Build type".into());
+        return Err("Build entry receiver must name the exact toolchain BuildPlan type".into());
     };
     if !typed.is_exact_toolchain_build_prelude_data(*symbol, "BuildPlan") {
-        return Err("Build entry receiver must name the exact toolchain Build type".into());
+        return Err("Build entry receiver must name the exact toolchain BuildPlan type".into());
     }
     Ok(*symbol)
 }
 
 impl AcceptedTerminalSource {
-    /// Identify the toolchain Build borrow on this invocation's selected source declaration.
+    /// Identify the toolchain BuildPlan borrow on this invocation's selected source declaration.
     pub fn build_receiver(
         &self,
         selected: symbols::SymbolHandle,

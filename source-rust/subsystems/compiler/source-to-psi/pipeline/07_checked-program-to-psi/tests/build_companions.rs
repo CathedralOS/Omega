@@ -308,7 +308,7 @@ fn a_user_declared_build_type_cannot_receive_the_hosts_build() {
     let source = accepted_frontier(typed, terminal_codec::TerminalPublication::Invocation).unwrap();
     assert_eq!(
         source.build_receiver(selected_entry(&source)).unwrap_err(),
-        "Build entry receiver must name the exact toolchain Build type"
+        "Build entry receiver must name the exact toolchain BuildPlan type"
     );
 }
 
