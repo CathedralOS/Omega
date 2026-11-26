@@ -64,30 +64,8 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-<a id="staged-restricted-request-approval"></a>
-### 1. How does a source Build receive project approval for a restricted action?
-
-A developer binds a packer with `--allow ProgramLaunch --program Packer ./packer`.
-A dependency that invokes it still needs the consuming project's approval for
-its own request. Today's driver reads a neighboring version 4 `omega.lock`
-before it runs any Build. Even a package that only returns the integer 42
-fails to check beside an unreadable lock. The staged path removes implicit
-lock discovery. Its launch contract still requires both a caller-supplied
-executable and an independently accepted request.
-[Project locks](wiki/spec/packages/locks.md) ·
-[Program grants and delegation](wiki/spec/build/program_launch.md#grant-and-delegation) ·
-[Restricted Build acceptance](wiki/spec/packages/acceptance.md#restricted-build-acceptance)
-
-**Recommend letting the caller explicitly supply the project's reviewed
-restricted requests.** Admission would match each request to its actual Build
-and delegated resources before entry. Source, target and provider selections
-would continue to come from the Build. An alternative is to have the caller
-review and accept the exact requests for that invocation, with an equivalent
-way to supply those decisions unattended. Which approval input should the
-source-based CLI and embedding host support?
-
 <a id="sealed-mathematical-source-names"></a>
-### 2. How should a file name the five sealed mathematical declarations?
+### 1. How should a file name the five sealed mathematical declarations?
 
 An algebra can state commutativity with `core\Identity::<T>(add(a, b), add(b, a))`, as the proof contract specifies. The module contract rejects backslash-qualified source paths. The same conflict affects `Level`, `Type`, `Strict` and `Squash`. The resolver seeds all five identities directly. There is no declaring source file a caller can import today. The spelling matters for authors of contracts and generic proofs, including the laws in the standard numeric library.
 [File imports](wiki/spec/language/modules.md#import-scope-and-exposure) ·

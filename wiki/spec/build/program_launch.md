@@ -1,16 +1,14 @@
 # Launching a program from a Build
 
-A Build can run an executable its caller approved. The Build supplies arguments.
-The caller binds a program identity to an executable and limits the resources
-that executable can use. A stock invocation grants no program launches by default.
+A Build launches a tool by its path in that Build's namespace. The invoker
+binds a logical path to a particular executable and sets its limits. The
+stock invocation starts with an empty launch table.
 
 ## Source interface
 
-Core declares the memberless boundary trait `ProgramLaunch`. The following
-declarations specify the interface of `{omega}/build/program.omg`. The host
-installs one launcher provider for the activation. Its grant table binds
-each demanded `Program` identity to its approved executable under the
-[ordinary generic requirement rules](provider_selection.md#generic-selected-requirements). Build code calls the free machine through its file import.
+Core declares the memberless boundary trait `ProgramLaunch` for launch reach. The host installs
+one launcher for the activation. The Build library exposes the following
+operation through `{omega}/build/program.omg`.
 
 ```omega
 public data RunResult {
@@ -22,26 +20,25 @@ public data RunResult {
 }
 
 boundary trait Launcher {
-    machine run<Program>(arguments: @[@[u8]]) -> RunResult
+    machine launch_program(path: @[u8], arguments: @[@[u8]]) -> RunResult
         reaches ProgramLaunch
         blocks
         crashes none
         ensures !(result in RunResult::NotRun);
 }
 
-public machine run<Program>(arguments: @[@[u8]]) -> RunResult
+public machine launch_program(path: @[u8], arguments: @[@[u8]]) -> RunResult
     reaches ProgramLaunch
     blocks
     crashes none
     ensures !(result in RunResult::NotRun)
 {
-    block Launcher::run::<Program>(arguments)
+    block Launcher::launch_program(path, arguments)
 }
 ```
 
-`Program` identifies an exact nominal declaration. Naming or constructing a
-value of that type grants no authority. The ordered byte views are borrowed
-for the call. Each is one UTF-8 argument with no embedded NUL. The host supplies
+The launcher borrows the path and argument views for the call. Each argument
+is UTF-8 with no embedded NUL. The host supplies
 the program name separately and launches the bound executable directly.
 Arguments retain their boundaries, including empty arguments and spaces.
 Shell parsing, PATH lookup and file-association dispatch are outside this call.
@@ -51,39 +48,46 @@ calling convention, it returns `StartFailed`.
 ## Grant and delegation
 
 `omega build --allow ProgramLaunch` raises the root ceiling. Each
-`--program <identity> <executable>` opens one grant. The following repeated
-`--program-read <path>` and `--program-write <path>` options select readable
-inputs and writable outputs for that grant. Paths use the activation's
-[logical filesystem](scoped_execution.md#snapshot-and-staging-protocol).
-`--program-timeout <milliseconds>` sets a positive elapsed-time limit within
-the host's execution budget. When omitted, the host applies its finite limit.
-The CLI resolves the qualified type name in the reviewed package graph.
-An option for a program must follow its binding. Duplicate program bindings
-and unresolved or ambiguous identities are errors. An embedding host can
-supply the same grants directly.
+`--program <logical-path> <executable>` opens one grant. For example,
+`--program /tools/packer ./tools/linux/packer` binds the Build-visible name
+`/tools/packer` to the executable chosen by the invoker. The host resolves
+the external locator at grant creation and retains the executable's identity
+and required runtime files through launch. Replacing a file at that spelling
+cannot authorize the replacement. Duplicate logical bindings reject.
+An embedding host can supply the same table directly.
 
-The executable locator is resolved by the invoker. Admission binds the
-reviewed executable and the runtime files it needs, preserving their identity
-through launch. The process gets the granted paths within the caller's own
-view and bounded private scratch. It receives no ambient working directory,
+Repeated `--program-read <path>` and `--program-write <path>` select the
+readable inputs and writable outputs for the preceding program grant in the
+activation's [logical filesystem](scoped_execution.md#snapshot-and-staging-protocol).
+`--program-timeout <milliseconds>` sets a positive elapsed-time limit. The
+host applies a finite limit when omitted. The process gets the granted paths within
+the caller's own view and bounded private scratch. It receives no ambient working directory,
 credentials, environment, inherited handles or network access. The host must
 enforce the grant for the whole launched process tree and manage its lifetime
 through completion, timeout or cancellation. Declaring the reach atom or
 approving a path alone cannot provide that confinement.
 
-A parent delegates a specific existing binding at registration with
-`Build::dependency(build, source, ProgramLaunch::Inherit::<Program>())`.
-The same selection applies to a configured dependency description. It
-forwards at most the parent's approved executable, resources and limits.
-A child receives no binding by default. Each further dependency requires
-its own delegation. Registering a child performs no launch.
+At registration a parent can delegate a list of program paths from its
+own launch table. An omitted or empty list grants none. Reject a selection
+the parent does not hold. A child receives only the selected bindings, with
+the same executable identities and at most the parent's resources and limits.
+For instance, a parent holding packer and shader compiler grants can pass
+just `["/tools/packer"]` to its textures dependency. Apply the child's
+directory remaps to the delegated names. For example, if
+`/tools` appears as `/sdk` in the child, its delegated packer is
+`/sdk/packer`. A read-only mapping alone conveys no launch grant. Each
+subsequent handoff requires its own delegation.
 
-Before each Build starts, admission checks its reachable program demands
-against the ceiling, actual bindings, host enforcement and
-[restricted-build acceptance](../packages/acceptance.md#restricted-build-acceptance).
-On refusal, identify the requesting Build, call path, program, requested
-resources and missing approval, binding or host support. A user or agent can
-audit the request and rerun. The same refusal applies in noninteractive use.
+The explicit delegation is the consuming project's approval for that child
+within those bounds. Before entry, check the Build's reachable
+`ProgramLaunch` effect against its ceiling. At each executed
+`launch_program` call, look up the supplied path in that activation's launch
+table. A missing grant fails the call at runtime and reports the Build and
+logical path before any process starts. Literal and computed paths follow
+the same rule. An untaken branch performs no lookup. The host must be able
+to enforce the entire grant before it starts the process. Earlier authorized
+effects remain observable. Launch never searches the external filesystem
+for an equivalent path. [Staged approval](../packages/acceptance.md#restricted-build-acceptance)
 
 ## Completion
 
@@ -97,6 +101,6 @@ caller. Cancellation of the Build follows ordinary activation interruption.
 
 The first case, `NotRun`, is the [ordinary zero value](../language/data_and_literals.md).
 Fresh result storage therefore records no attempt. Every normal return from
-`run` establishes the stronger postcondition in its signature. A caller can construct result data, so `Exited(0)` alone cannot establish
+`launch_program` establishes the stronger postcondition in its signature. A caller can construct result data, so `Exited(0)` alone cannot establish
 that any output was written or sealed. Publishing a product still requires the Build's ordinary
 [output completion](scoped_execution.md#staged-products-and-failure).

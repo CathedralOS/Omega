@@ -632,13 +632,13 @@ implicitly readable. Different contexts are ordinary supported
 occurrences, not a conflict that must always be detected before the package's
 first-ever activation. The driver admits each Build before its first effect. Earlier authorized execution has no rollback.
 
-Additional real-host access is opt-in under independently accepted consumer and
-executor policy. Requests by downloaded code cannot grant themselves authority.
-Install/update must expose direct and transitive restricted build requests before
-executing them. The consuming project's `omega.lock` retains accepted request
-meaning under [restricted-build acceptance](../packages/acceptance.md#restricted-build-acceptance);
-the invocation supplies actual grants separately. No dependency's own lock,
-runtime acceptance, or ordinary resolution refresh substitutes for that decision.
+The invoker grants real-host access to the root. In source Builds, a
+parent's explicit delegation approves that child to use the restricted
+resource within the delegated bounds. A downloaded dependency cannot grant
+itself authority. Version 4 install/update review records accepted requests
+in the consuming project's lock.
+[Restricted-build acceptance](../packages/acceptance.md#restricted-build-acceptance)
+
 Specify operation, root/object scope, lifetime, and bounds;
 do not use an undifferentiated "trust this package" flag. A host
 grant does not propagate automatically to dependency Builds. A parent may
