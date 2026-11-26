@@ -760,3 +760,85 @@ machine failed() { crash Trap; }"#)).unwrap();
         assert!(error.contains(expected), "{error}");
     }
 }
+
+#[test]
+fn explicitly_forwarding_a_runtime_subtree_keeps_its_shadowing_readonly_mount() {
+    let sandbox = TemporaryDirectory::create("forward-runtime-directories", false).unwrap();
+    let root = sandbox.path();
+    let project = root.join("package");
+    let parent = root.join("incoming");
+    let private = root.join("private");
+    fs::create_dir(&project).unwrap();
+    fs::create_dir_all(parent.join("team/private")).unwrap();
+    fs::create_dir(&private).unwrap();
+    fs::write(parent.join("team/private/key"), b"H").unwrap();
+    fs::write(private.join("key"), b"R").unwrap();
+
+    let sdk = std::env::var_os("OMEGA_LIBRARY_ROOT")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| support::repository_root().join("source/library"));
+    prepare_stock_filesystem(&project, &sdk.join("system"));
+    let preparing = fs::read_to_string(project.join("build.omg")).unwrap();
+    let select = |source: &str| {
+        fs::write(
+        project.join("build.omg"),
+        preparing.replace("    plan.product", &format!(r#"    plan.directories = Build::forward_readwrite(plan.directories, "{source}", "/team");
+    plan.product"#)),
+    ).unwrap()
+    };
+    fs::write(project.join("configure.omg"), r#"use {system}/filesystem.omg as files;
+use {system}/filesystem_host.omg as paths;
+machine build(plan: @mutable BuildPlan) blocks crashes Trap {
+    let mutable byte: [u8; 1] = [0u8];
+    let read: |files|::IoResult = block |files|::Filesystem::read_all("/team/private/key" as + |paths|::Path, @mutable byte[..], 1u64);
+    transition read { |files|::IoResult::Ok { count } -> block check_value(plan, count, byte[0]), _ -> failed() }
+}
+machine check_value(plan: @mutable BuildPlan, count: u64, value: u8) blocks {
+    transition count == 1u64 && value == 82u8 { true -> block try_shadow(plan), false -> failed() }
+}
+machine try_shadow(plan: @mutable BuildPlan) blocks {
+    let result: |files|::UnitResult = block |files|::Filesystem::write_all("/team/private/key" as + |paths|::Path, "X");
+    transition result { |files|::UnitResult::Error { kind } -> block check_denied(plan, kind), _ -> failed() }
+}
+machine check_denied(plan: @mutable BuildPlan, kind: |files|::ErrorKind) blocks {
+    transition kind { |files|::ErrorKind::PermissionDenied -> block try_writable(plan), _ -> failed() }
+}
+machine try_writable(plan: @mutable BuildPlan) blocks {
+    let result: |files|::UnitResult = block |files|::Filesystem::write_all("/team/result" as + |paths|::Path, "W");
+    transition result { |files|::UnitResult::Ok -> { plan.product = BuildProduct::Package { name: "forwarded" }; }, _ -> failed() }
+}
+machine failed() { crash Trap; }
+"#).unwrap();
+    let check = || {
+        Command::new(env!("CARGO_BIN_EXE_omega"))
+            .args(["--check", "--build-directories-readwrite"])
+            .arg(format!("{}::/incoming", parent.display()))
+            .arg("--build-directories-readonly")
+            .arg(format!("{}::/incoming/team/private", private.display()))
+            .arg("build.omg")
+            .current_dir(&project)
+            .output()
+            .unwrap()
+    };
+    select("/incoming/team");
+    let result = check();
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    assert_eq!(fs::read(parent.join("team/result")).unwrap(), b"W");
+    assert_eq!(fs::read(parent.join("team/private/key")).unwrap(), b"H");
+    assert_eq!(fs::read(private.join("key")).unwrap(), b"R");
+    assert!(!parent.join("result").exists());
+    for path in ["/incoming/team/private", "/not-granted"] {
+        select(path);
+        let result = check();
+        assert!(!result.status.success());
+        assert!(
+            String::from_utf8_lossy(&result.stderr).contains("cannot forward directory"),
+            "{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+    }
+}

@@ -78,3 +78,11 @@ public machine map_readonly(prefix: BuildDirectories, directory: BuildPath, gues
 public machine map_readwrite(prefix: BuildDirectories, directory: BuildPath, guest: @[u8]) -> BuildDirectories reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
     BuildFilesystemOperations::map_directory(prefix, directory, guest, true)
 }
+
+public machine forward_readonly(prefix: BuildDirectories, from: @[u8], guest: @[u8]) -> BuildDirectories reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
+    BuildFilesystemOperations::forward_directory(prefix, from, guest, false)
+}
+
+public machine forward_readwrite(prefix: BuildDirectories, from: @[u8], guest: @[u8]) -> BuildDirectories reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
+    BuildFilesystemOperations::forward_directory(prefix, from, guest, true)
+}

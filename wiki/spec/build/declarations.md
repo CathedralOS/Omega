@@ -195,6 +195,19 @@ successor receives. Captured source and named inputs accept read-only mappings.
 A grant of private output retains its sponsor and is subject to the same limits
 on entries, bytes and file extent. Duplicate guest roots are rejected.
 
+A Build can forward an absolute pathname in the preparing Build's
+existing runtime mappings. For example, a Build receiving an SDK at
+`/sdk` can forward only its `headers` directory.
+
+```omega
+plan.directories = Build::forward_readonly(plan.directories, "/sdk/headers", "/include");
+```
+
+The selected subtree retains its more-specific mounts, including any that hide
+files in a broader grant. A read-only handoff makes every descendant read-only.
+A writable handoff requires a writable root and preserves each descendant's
+access mode. Looking up an ungranted path refuses the handoff.
+
 With the default `BuildPackageRoot::Current`, the entry belongs to the
 preparing Build's captured package. If the parent also maps an SDK at `/sdk`
 read-only, the successor can read SDK data while it runs. With an empty

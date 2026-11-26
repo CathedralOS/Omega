@@ -19,7 +19,7 @@ mod file_result;
 use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
 use filesystem_authority::FilesystemGrantRootIdentity;
 use package_compilation::build_execution::{
-    BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY, BuildDirectory, BuildDirectoryMappings,
+    BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY, BuildDirectoryMappings,
     BuildFilesystemEffects, BuildFilesystemRuntime, BuildMachineFilesystemScope, DirectoryAccess,
 };
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
@@ -39,14 +39,12 @@ struct Marker {
     _storage: EvaluationStorageLease,
 }
 
-enum MarkerKind {
-    Source(FilesystemGrantRootIdentity),
+enum MarkerKind {    Source(FilesystemGrantRootIdentity),
     Path(FilesystemGrantRootIdentity, Vec<u8>),
     Directory {
         previous: Option<usize>,
-        guest: String,
-        view: BuildDirectory,
-        access: DirectoryAccess,
+        grants: BuildDirectoryMappings,
+        _rows: Option<EvaluationStorageLease>,
     },
     Obligation(usize),
     Receipt,
@@ -213,19 +211,20 @@ impl TerminalBuildFilesystemHost {
         let mut item = marker(&activation.markers, value)?;
         loop {
             let MarkerKind::Directory {
-                previous,
-                guest,
-                view,
-                access,
+                previous, grants, ..
             } = &item.kind
             else {
                 return Err(
                     "returned Build directories require a list issued by this activation".into(),
                 );
             };
-            mappings
-                .insert(guest, view.clone(), *access)
-                .map_err(|error| format!("invalid successor directory mapping {guest}: {error}"))?;
+            for (guest, mapping) in grants.entries() {
+                mappings
+                    .insert(guest, mapping.backing().clone(), mapping.access())
+                    .map_err(|error| {
+                        format!("invalid successor directory mapping {guest}: {error}")
+                    })?;
+            }
             let Some(index) = previous else { break };
             item = &activation.markers[*index];
         }
@@ -421,17 +420,24 @@ impl FilesystemAdapter {
                     Ok(MarkerKind::Path(root, retained))
                 })
             }
-            Operation::MapDirectory => {
+            Operation::MapDirectory | Operation::ForwardDirectory => {
                 let prefix = structural(0)?;
-                // Only an issued list can contribute earlier grants. Ordinary
-                // constructed or zero-established values denote the empty list.
                 let previous = markers.iter().position(|marker| marker.value == *prefix && matches!(marker.kind, MarkerKind::Directory { .. }));
-                let (root, relative) = path(1)?;
                 let guest = std::str::from_utf8(bytes(2)?).map_err(|_| "guest directory is not UTF-8")?;
                 let Some(TerminalScalarValue::Boolean(writable)) = arguments.first() else { return Err("directory mapping requires a Boolean access choice".into()) };
                 let access = if *writable { DirectoryAccess::ReadWrite } else { DirectoryAccess::ReadOnly };
-                let view = runtime.runtime_directory(root, relative, access)?;
-                mint(markers, &self.host.account, result, guest.len() + relative.len(), || Ok(MarkerKind::Directory { previous, guest: guest.into(), view, access }))
+                let (grants, storage, retained) = if action == Operation::ForwardDirectory {
+                    let from = std::str::from_utf8(bytes(1)?).map_err(|_| "current guest directory is not UTF-8")?;
+                    let (grants, storage) = runtime.forward_directory(from, guest, access)?;
+                    (grants, Some(storage), 0)
+                } else {
+                    let (root, relative) = path(1)?;
+                    let view = runtime.runtime_directory(root, relative, access)?;
+                    let mut grants = BuildDirectoryMappings::default();
+                    grants.insert(guest, view, access).map_err(|error| format!("invalid successor directory mapping {guest}: {error}"))?;
+                    (grants, None, guest.len() + relative.len())
+                };
+                mint(markers, &self.host.account, result, retained, || Ok(MarkerKind::Directory { previous, grants, _rows: storage }))
             }
             Operation::NamedInput => {
                 if structural(0)? != &facets()?.inputs {

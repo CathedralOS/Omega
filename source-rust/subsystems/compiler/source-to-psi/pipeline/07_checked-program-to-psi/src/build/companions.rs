@@ -592,6 +592,7 @@ fn request_operation(name: &str) -> Result<TerminalBuildRequestOperation, Diagno
 fn filesystem_operation(name: &str) -> Result<TerminalBuildFilesystemOperation, Diagnostic> {
     use TerminalBuildFilesystemOperation as Operation;
     Ok(match name {
+        "forward_directory" => Operation::ForwardDirectory,
         "map_directory" => Operation::MapDirectory,
         "resolve_source" => Operation::ResolveSource,
         "resolve_output" => Operation::ResolveOutput,
