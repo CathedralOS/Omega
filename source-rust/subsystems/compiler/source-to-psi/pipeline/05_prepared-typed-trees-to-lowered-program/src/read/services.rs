@@ -286,18 +286,7 @@ impl Program<'_> {
             published.push(policy.initial());
             policies.push(policy);
             let body = terminal_check_tables::row(bodies, id, id, Construct::Machine)?;
-            let found = CallCollector::for_body(id, signature, body, &self.records)?;
-            if !components.members(id)?.is_empty()
-                && found
-                    .iter()
-                    .any(|call| !call.static_reach_arguments.is_empty())
-            {
-                return Err(unavailable(
-                    id,
-                    "a static callback substitution on a recursive edge needs its retained call correspondence",
-                ));
-            }
-            calls.push(found);
+            calls.push(CallCollector::for_body(id, signature, body, &self.records)?);
         }
         loop {
             let mut changed = false;
@@ -1043,7 +1032,6 @@ struct Use<'a> {
     target: &'a CallTarget,
     required_contract: Option<ContractId>,
     arguments: &'a [Expression],
-    static_reach_arguments: &'a [terminal_psi::static_reach::StaticReachArgument],
 }
 
 struct CallCollector<'a> {
@@ -1227,7 +1215,6 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut CallCollector<
             callee,
             required_contract,
             arguments,
-            static_reach_arguments,
             ..
         } => {
             let selected_parameters = if let CallTarget::Selected { callable, .. } = callee {
@@ -1250,7 +1237,6 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut CallCollector<
                 target: callee,
                 required_contract: *required_contract,
                 arguments,
-                static_reach_arguments,
             });
         }
         E::OwnedTemporary { value: base, .. }
