@@ -19,7 +19,7 @@ pub fn discover_check_root(directory: &Path) -> Result<PathBuf, String> {
         match std::fs::symlink_metadata(&entry) {
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
             Err(error) => return Err(format!("cannot inspect {}: {error}", entry.display())),
-            Ok(metadata) if !metadata.is_file() => {
+            Ok(metadata) if !(metadata.is_file() || metadata.is_symlink()) => {
                 return Err(format!("{} is not a regular Build entry", entry.display()));
             }
             Ok(_) => {}
@@ -36,6 +36,7 @@ pub fn discover_check_root(directory: &Path) -> Result<PathBuf, String> {
     selected.ok_or_else(|| format!("no enclosing build.omg for {}", directory.display()))
 }
 
+/// One validation subject and the outcome of opening its Product for the requested targets.
 pub struct CheckSubject {
     pub entry: PathBuf,
     pub products: Result<ProjectProducts, Vec<Diagnostic>>,
