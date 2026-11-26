@@ -48,7 +48,7 @@ pub struct TerminalBuildBindingHost {
     calls: Arc<[TerminalBuildBindingCall]>,
     group_requests: Vec<source_compiler::publication::TerminalBuildRequestCall>,
     queries: Arc<[source_compiler::publication::TerminalBuildQueryCall]>,
-    product_facet: Option<TerminalStructuralValue>,
+    declarations_facet: Option<TerminalStructuralValue>,
     group_shape: Option<GroupShape>,
     tests_facet: Option<TerminalStructuralValue>, // The original Build's `tests` facet, when a test group is registered.
     account: Option<evaluation_accounting::EvaluationInvocationAccount>,
@@ -142,10 +142,10 @@ impl TerminalBuildBindingHost {
         let queries = bindings
             .queries_for(artifact)
             .ok_or("Build queries belong to another Terminal artifact")?;
-        let product_facet = if queries.is_empty() {
+        let declarations_facet = if queries.is_empty() {
             None
         } else {
-            Some(build_facet(artifact, &original, "product")?)
+            Some(build_facet(artifact, &original, "declarations")?)
         };
         let group_shape = calls
             .iter()
@@ -172,7 +172,7 @@ impl TerminalBuildBindingHost {
                 .filter(|call| call.action.configures_test_group())
                 .cloned()
                 .collect(),
-            product_facet,
+            declarations_facet,
             tests_facet,
             group_shape,
             account: account.cloned(),

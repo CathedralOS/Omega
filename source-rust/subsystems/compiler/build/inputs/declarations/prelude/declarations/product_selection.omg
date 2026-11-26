@@ -1,9 +1,9 @@
-// Compiler-owned product-selection facet. `builder.product.entry`,
-// `builder.product.provider`, and `builder.product.schema` are the only routes
+// Compiler-owned product-selection facet. `builder.declarations.entry`,
+// `builder.declarations.provider`, and `builder.declarations.schema` are the only routes
 // to compiler-issued product descriptions. Normalization retains the authored
 // occurrence on the host call, which resolves the locator in that package's
 // Product scope before the original Build activation resumes.
-public data BuildProduct {
+public data BuildDeclarations {
 }
 // A restricted, non-callable product-entry description. Authored code can
 // retain, copy, and hand it to helpers, but only a `Build::bind` delegated
@@ -15,9 +15,9 @@ public data ProductEntryRef [copy] {
 // The source producer retains each query's lexical occurrence beside its call;
 // the activation mints descriptions only after that exact query is answered.
 public boundary trait BuildProductOperations {
-    machine entry(product: @BuildProduct, path: @[u8], slot: @[u8]) -> ProductEntryRef reaches none crashes none;
-    machine schema(product: @BuildProduct, path: @[u8]) -> ProductTypeSchema reaches none crashes none;
-    machine provider(product: @BuildProduct, path: @[u8]) -> ProductProviderRef reaches none crashes none;
+    machine entry(product: @BuildDeclarations, path: @[u8], slot: @[u8]) -> ProductEntryRef reaches none crashes none;
+    machine schema(product: @BuildDeclarations, path: @[u8]) -> ProductTypeSchema reaches none crashes none;
+    machine provider(product: @BuildDeclarations, path: @[u8]) -> ProductProviderRef reaches none crashes none;
     machine schema_path(schema: @ProductTypeSchema) -> @[u8] reaches none crashes none;
     machine provider_path(provider: @ProductProviderRef) -> @[u8] reaches none crashes none;
 }

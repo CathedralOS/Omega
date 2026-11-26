@@ -20,12 +20,12 @@ use std::sync::Arc;
 const PRELUDE: &str = r#"
 public data Build {
     marker: u64;
-    product: BuildProduct;
+    declarations: BuildDeclarations;
 }
-public data BuildProduct {}
+public data BuildDeclarations {}
 public data ProductEntryRef [copy] {}
 public boundary trait BuildProductOperations {
-    machine entry(product: @BuildProduct, path: @[u8], slot: @[u8]) -> ProductEntryRef reaches none crashes none;
+    machine entry(product: @BuildDeclarations, path: @[u8], slot: @[u8]) -> ProductEntryRef reaches none crashes none;
 }
 public boundary trait BuildBindingOperations {
     machine prepare(builder: @Build) -> u64 reaches none crashes none;
@@ -46,7 +46,7 @@ public const LIMIT: u64 = 4;
 "#;
 
 const BUILD_PRODUCT_MODULE: &str = r#"
-public machine entry(product: @BuildProduct, path: @[u8], slot: @[u8]) -> ProductEntryRef reaches BuildProductOperations invokes BuildProductOperations {
+public machine entry(product: @BuildDeclarations, path: @[u8], slot: @[u8]) -> ProductEntryRef reaches BuildProductOperations invokes BuildProductOperations {
     BuildProductOperations::entry(product, path, slot)
 }
 "#;
@@ -105,7 +105,7 @@ fn typed_with_core_sources(
             source_admission::SourceOrigin::Toolchain,
         ),
         (
-            "<build-prelude>/BuildProduct/mod.omg",
+            "<build-prelude>/BuildDeclarations/mod.omg",
             BUILD_PRODUCT_MODULE,
             "<build-prelude>",
             Some(package()),
@@ -166,7 +166,7 @@ fn typed_with_core_sources(
     request.top_level_bindings = vec![
         source_compiler::representations::source_symbols::SourceScopedTopLevelBinding::new(ids[0], ids[1], "Build"),
     ];
-    for (namespace, module) in [("Build", ids[2]), ("BuildProduct", ids[3])] {
+    for (namespace, module) in [("Build", ids[2]), ("BuildDeclarations", ids[3])] {
         request.top_level_bindings.push(
             source_compiler::representations::source_symbols::SourceScopedTopLevelBinding::module_import(
                 ids[0], module, namespace, 0,
@@ -283,8 +283,8 @@ fn only_the_checked_invocation_can_borrow_its_published_build_receiver() {
 
 #[test]
 fn a_user_declared_build_type_cannot_receive_the_hosts_build() {
-    let text = "data BuildProduct {}
-                data Build { marker: u64; product: BuildProduct; }
+    let text = "data BuildDeclarations {}
+                data Build { marker: u64; declarations: BuildDeclarations; }
                 machine build(builder: @mutable Build) {}";
     let mut files = source_compiler::representations::source_inputs::SourceMap::default();
     let id = files
@@ -1414,8 +1414,8 @@ fn a_provider_selection_keeps_its_exact_generated_protocol_call() {
 fn product_queries_keep_their_selected_operation_in_value_positions() {
     let build = r#"
 machine build(builder: @mutable Build, slot: @[u8]) -> ProductEntryRef {
-    let selected: ProductEntryRef = BuildProduct::entry(@builder.product, "first", slot);
-    BuildProduct::entry(@builder.product, "second", slot)
+    let selected: ProductEntryRef = BuildDeclarations::entry(@builder.declarations, "first", slot);
+    BuildDeclarations::entry(@builder.declarations, "second", slot)
 }
 "#;
     let accepted = accepted(build).unwrap_or_else(|refused| {

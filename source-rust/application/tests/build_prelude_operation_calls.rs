@@ -196,7 +196,7 @@ fn a_build_that_queries_a_product_entry_is_not_refused_for_its_selection() {
     Build::bind(builder, linux_x86_64::ProgramEntry, entry(builder, \"linux_x86_64::ProgramEntry\"));
 }
 machine entry(builder: @mutable Build, slot: @[u8]) -> ProductEntryRef {
-    BuildProduct::entry(@builder.product, \"main\", slot)
+    BuildDeclarations::entry(@builder.declarations, \"main\", slot)
 }
 ",
         "machine main() {}",

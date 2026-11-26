@@ -3,7 +3,7 @@
 // Populates the interpreter's starting `Build` struct with baseline defaults
 // (`x86_deployment_features = Baseline`, `subsystem = Console`),
 // optional `identifier` bytes, zeroed `optimizations` counters, compiler-issued
-// private facet markers (`$OmegaBuildLogFacet`, `$OmegaBuildProductFacet`),
+// private facet markers (`$OmegaBuildLogFacet`, `$OmegaBuildDeclarationsFacet`),
 // an enabled `tests` facet, empty `elf_interpreter` rows for each ELF target
 // profile, and filesystem grant roots (`$OmegaBuildSourceRoot`,
 // `$OmegaBuildOutputRoot`, `$OmegaBuildInputSlots`).
@@ -59,11 +59,11 @@ pub(super) fn initial_value(
             },
         ));
     }
-    if admission.product {
+    if admission.declarations {
         build_fields.push((
-            "product".to_owned(),
+            "declarations".to_owned(),
             BuildTimeValue::Struct {
-                type_name: "$OmegaBuildProductFacet".to_owned(),
+                type_name: "$OmegaBuildDeclarationsFacet".to_owned(),
                 fields: Vec::new(),
             },
         ));

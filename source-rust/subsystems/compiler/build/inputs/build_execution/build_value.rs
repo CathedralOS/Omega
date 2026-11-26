@@ -19,7 +19,7 @@ use source_compiler::representations::source_state::{TypedTrees, data::DataMembe
 pub struct BuildValueAdmission {
     identifier: bool,
     log: bool,
-    product: bool,
+    declarations: bool,
     elf_interpreter: bool,
     tests: bool,
     filesystem_roots: bool,
@@ -36,7 +36,7 @@ impl BuildValueAdmission {
         Ok(Self {
             identifier,
             log: has("BuildLog"),
-            product: has("BuildProduct"),
+            declarations: has("BuildDeclarations"),
             elf_interpreter: has("ElfInterpreterSelection"),
             tests: has("BuildTests"),
             filesystem_roots: has("BuildSource") && has("BuildOutput"),

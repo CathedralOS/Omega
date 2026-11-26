@@ -3669,7 +3669,7 @@ pub(crate) mod product_queries {
         }
         let name = source.symbols.name(declaration);
         let name = match (source.symbols.name(namespace), name) {
-            ("BuildProduct", "entry" | "schema" | "provider") => name,
+            ("BuildDeclarations", "entry" | "schema" | "provider") => name,
             ("ProductTypeSchema", "path") => "schema_path",
             ("ProductProviderRef", "path") => "provider_path",
             _ => return None,

@@ -256,7 +256,7 @@ This adds no general private-symbol enumeration API to build helpers.
 For reusable build helpers, expose owned typed descriptions through the existing
 Build facet: `ProductEntryRef`, `ProductProviderRef`, and `ProductTypeSchema` are
 API vocabulary for distinct roles, not a single untyped compiler handle. A
-fallible query such as `builder.product.entry(path, slot)` resolves a logical
+fallible query such as `builder.declarations.entry(path, slot)` resolves a logical
 product declaration path under the query author's visibility and product
 dependency scope. It binds one exact declaration/application and target or
 reports missing, inaccessible, ambiguous, or incompatible selection. Strings are
