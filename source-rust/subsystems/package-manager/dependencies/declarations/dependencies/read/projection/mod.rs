@@ -30,10 +30,10 @@ fn syntax_trees_for(source: &str) -> Result<SyntaxTrees, DependencyProjectionErr
     source_syntax::parse_text(source)
         .map(|parsed| parsed.syntax)
         .map_err(|error| match error {
-            source_syntax::SourceParseError::Lex { message } => {
+            source_syntax::SourceParseError::Lex { message, .. } => {
                 DependencyProjectionError::Lex { message }
             }
-            source_syntax::SourceParseError::Parse { message } => {
+            source_syntax::SourceParseError::Parse { message, .. } => {
                 DependencyProjectionError::Parse { message }
             }
         })

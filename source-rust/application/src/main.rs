@@ -51,14 +51,17 @@ fn main() -> ExitCode {
     let (invocation, output) = match arguments::parse(std::env::args_os().skip(1)) {
         Ok(parsed) => parsed,
         Err(error) => {
-            eprintln!("{error}");
-            return ExitCode::from(arguments::USAGE_ERROR_EXIT);
+            eprintln!("{}", error.message);
+            return ExitCode::from(error.exit);
         }
     };
     run_with_large_stack(invocation, output)
 }
 
-fn run_with_large_stack(invocation: Invocation, output: diagnostic_output::DiagnosticOutput) -> ExitCode {
+fn run_with_large_stack(
+    invocation: Invocation,
+    output: diagnostic_output::DiagnosticOutput,
+) -> ExitCode {
     let budget = match worker_budget::ExecutionBudget::for_host() {
         Ok(budget) => budget,
         Err(error) => {
@@ -68,6 +71,12 @@ fn run_with_large_stack(invocation: Invocation, output: diagnostic_output::Diagn
     };
     budget.run(move || match invocation {
         Invocation::Compile(request) => commands::compile::run(request, output),
+        Invocation::ParseSource(path) => {
+            if let Err(error) = commands::source::parse(&path) {
+                eprintln!("{error}");
+                std::process::exit(1);
+            }
+        }
         Invocation::Run(request) => commands::run::run(request),
         Invocation::InspectTerminal(request) => commands::inspect::run(request, output),
         Invocation::Package {
