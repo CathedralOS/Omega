@@ -126,7 +126,13 @@ pub fn run_project_cases(
     }
     std::fs::create_dir(directory).map_err(RunError::ReferenceOutput)?;
     let (cases, table) = match request.selection {
-        ExecutionSelection::Terminal => psi_cases(&inputs, directory, &report, budget, &request.run_directories)?,
+        ExecutionSelection::Terminal => psi_cases(
+            &inputs,
+            directory,
+            &report,
+            budget,
+            &request.run_directories,
+        )?,
         ExecutionSelection::Native => {
             let (report, executable) = report.publish(&build_dir).map_err(RunError::Publication)?;
             native_cases(&inputs, directory, &report, &executable)?
@@ -146,8 +152,12 @@ fn psi_cases(
     let mut cases = Vec::with_capacity(inputs.len());
     let mut table = String::from("case\ttermination\tdetail\n");
     for input in inputs {
-        let outcome =
-            TerminalOutcome::from(psi::execute(report, Some(Box::new(input.open()?)), budget, directories.clone()));
+        let outcome = TerminalOutcome::from(psi::execute(
+            report,
+            Some(Box::new(input.open()?)),
+            budget,
+            directories.clone(),
+        ));
         if let TerminalOutcome::Completed(observation) = &outcome {
             input.write_observation(directory, "stdout", &observation.stdout)?;
             input.write_observation(directory, "stderr", &observation.stderr)?;

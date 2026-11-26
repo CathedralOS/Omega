@@ -346,7 +346,9 @@ fn parse_directory(
     use platform_custody::directory_mappings::DirectoryAccess;
     let access = match flag {
         "--build-directories-readonly" | "--run-directories-readonly" => DirectoryAccess::ReadOnly,
-        "--build-directories-readwrite" | "--run-directories-readwrite" => DirectoryAccess::ReadWrite,
+        "--build-directories-readwrite" | "--run-directories-readwrite" => {
+            DirectoryAccess::ReadWrite
+        }
         _ => return Err(format!("unknown directory mapping {flag}")),
     };
     let mapping = option_value(arguments)

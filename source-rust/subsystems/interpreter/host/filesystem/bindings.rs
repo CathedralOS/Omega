@@ -217,9 +217,16 @@ impl FilesystemContext {
                 }));
                 (true, false, Default::default())
             }
-            TerminalFilesystemDelegation::Mapped(mappings) => {
-                (true, false, native_provider_runtime::LinuxFilesystem::mapped(mappings).map_err(|error| TerminalRuntimeError::MissingProvision { capability: "live filesystem directory mappings", reason: error.to_string() })?)
-            }
+            TerminalFilesystemDelegation::Mapped(mappings) => (
+                true,
+                false,
+                native_provider_runtime::LinuxFilesystem::mapped(mappings).map_err(|error| {
+                    TerminalRuntimeError::MissingProvision {
+                        capability: "live filesystem directory mappings",
+                        reason: error.to_string(),
+                    }
+                })?,
+            ),
             TerminalFilesystemDelegation::HostNamespace => (true, false, Default::default()),
             TerminalFilesystemDelegation::HostDirectory(root) => {
                 match native_provider_runtime::LinuxFilesystem::rooted(&root) {

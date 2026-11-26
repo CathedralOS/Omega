@@ -159,7 +159,13 @@ pub fn run_project(
         present_test,
     )?;
     if request.selection == ExecutionSelection::Terminal {
-        return run_terminal(report, request.keep_artifacts, build_dir, psi_work_budget, request.run_directories);
+        return run_terminal(
+            report,
+            request.keep_artifacts,
+            build_dir,
+            psi_work_budget,
+            request.run_directories,
+        );
     }
     if request.keep_artifacts {
         retained_artifacts::retain(&report, &build_dir)?;
