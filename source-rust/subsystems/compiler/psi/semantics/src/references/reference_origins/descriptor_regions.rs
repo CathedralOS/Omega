@@ -257,15 +257,20 @@ pub fn reference_result_contents(
             }
             let declaration = terminal_psi::find_structural_type(types, carrier)
                 .ok_or("unknown contents carrier is absent")?;
-            // An indexed packet can be copied from inline storage. A view or
-            // reference crossing needs the access of its separate backing.
+            // A typed element step selects an array or a view. The access check
+            // below follows the view's backing permission; unrelated indirect
+            // storage still needs its own origin.
             if query.exact_location().is_none()
                 && (!declaration.is_copyable()
                     || !query
                         .inline_steps(types, parameter.structural_type)
-                        .is_some_and(|steps| steps.iter().all(|step| *step)))
+                        .is_some_and(|inline| {
+                            inline.iter().zip(&query.steps).all(|(inside, step)| {
+                                *inside || matches!(step, DescriptorContentsStep::Element { .. })
+                            })
+                        }))
             {
-                return Err("indexed generic contents require a copyable inline element");
+                return Err("indexed generic contents require a copyable element with a known backing");
             }
             let path = contents_path(types, parameter.structural_type, &query.steps)?;
             let requested = if declaration.is_copyable() {
