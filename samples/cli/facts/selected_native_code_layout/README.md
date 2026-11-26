@@ -69,8 +69,7 @@ Every positive and the root bind `ProgramEntry` for Windows x86-64, Linux
 x86-64, macOS ARM64 and Linux ARM64, and declare `Expected exit: 0`. For example:
 
 ```sh
-omega run --both samples/cli/facts/selected_native_code_layout/main.omg
-omega run --both samples/cli/facts/selected_native_code_layout/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/selected_native_code_layout
 ```
 
 Acceptance requires two actual executions with exit zero. A Terminal decline

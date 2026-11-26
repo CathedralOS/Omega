@@ -28,16 +28,7 @@ targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and dec
 `omega run --both` reports Terminal Psi interpreter and native execution agreement:
 
 ```sh
-omega run --both samples/cli/facts/runtime_count_index/main.omg
-omega run --both samples/cli/facts/runtime_count_index/local/main.omg
-omega run --both samples/cli/facts/runtime_count_index/field/main.omg
-omega run --both samples/cli/facts/runtime_count_index/parameter/main.omg
-omega run --both samples/cli/facts/runtime_count_index/call_result/main.omg
-omega run --both samples/cli/facts/runtime_count_index/match_join/main.omg
-omega run --both samples/cli/facts/runtime_count_index/const_name/main.omg
-omega run --both samples/cli/facts/runtime_count_index/other_state/main.omg
-omega run --both samples/cli/facts/runtime_count_index/other_machine/main.omg
-omega run --both samples/cli/facts/runtime_count_index/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/runtime_count_index
 ```
 
 Every positive place and the root witness observe `native exit 0` and `interp exit: 0`.

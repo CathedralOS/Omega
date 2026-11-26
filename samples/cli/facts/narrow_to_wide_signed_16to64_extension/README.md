@@ -28,16 +28,7 @@ authored `expected_native_exit.txt` (`0`), and declares `Expected exit: 0`.
 Each positive place is an application that exits 0 in both Terminal Psi and native execution:
 
 ```sh
-omega run --both samples/cli/facts/narrow_to_wide_signed_16to64_extension/main.omg
-omega run --both samples/cli/facts/narrow_to_wide_signed_16to64_extension/local/main.omg
-omega run --both samples/cli/facts/narrow_to_wide_signed_16to64_extension/field/main.omg
-omega run --both samples/cli/facts/narrow_to_wide_signed_16to64_extension/parameter/main.omg
-omega run --both samples/cli/facts/narrow_to_wide_signed_16to64_extension/call_result/main.omg
-omega run --both samples/cli/facts/narrow_to_wide_signed_16to64_extension/match_join/main.omg
-omega run --both samples/cli/facts/narrow_to_wide_signed_16to64_extension/const_name/main.omg
-omega run --both samples/cli/facts/narrow_to_wide_signed_16to64_extension/other_state/main.omg
-omega run --both samples/cli/facts/narrow_to_wide_signed_16to64_extension/other_machine/main.omg
-omega run --both samples/cli/facts/narrow_to_wide_signed_16to64_extension/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/narrow_to_wide_signed_16to64_extension
 ```
 
 All 10 applications pass with `native exit 0` and `interp exit: 0`.

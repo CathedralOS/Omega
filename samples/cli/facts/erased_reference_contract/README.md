@@ -62,7 +62,7 @@ folders are added.
 Run an existing place and its twin through the ordinary CLI:
 
 ```sh
-omega run --both samples/cli/facts/erased_reference_contract/local/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/erased_reference_contract/local
 omega --check samples/cli/facts/erased_reference_contract/invalid_local/main.omg
 ```
 

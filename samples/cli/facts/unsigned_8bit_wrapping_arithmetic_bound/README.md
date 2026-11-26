@@ -28,19 +28,10 @@ Run each place with `omega run <place>/main.omg`.
 
 Every positive place (and the root `main.omg`) binds `ProgramEntry` for all four hosted targets
 (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) in its `build.omg` and declares
-`Expected exit: 0`. `omega run --both` verifies Terminal Psi interpretation against native execution:
+`Expected exit: 0`. The sample gate verifies Terminal Psi interpretation against native execution:
 
 ```sh
-omega run --both samples/cli/facts/unsigned_8bit_wrapping_arithmetic_bound/main.omg
-omega run --both samples/cli/facts/unsigned_8bit_wrapping_arithmetic_bound/local/main.omg
-omega run --both samples/cli/facts/unsigned_8bit_wrapping_arithmetic_bound/field/main.omg
-omega run --both samples/cli/facts/unsigned_8bit_wrapping_arithmetic_bound/parameter/main.omg
-omega run --both samples/cli/facts/unsigned_8bit_wrapping_arithmetic_bound/call_result/main.omg
-omega run --both samples/cli/facts/unsigned_8bit_wrapping_arithmetic_bound/match_join/main.omg
-omega run --both samples/cli/facts/unsigned_8bit_wrapping_arithmetic_bound/const_name/main.omg
-omega run --both samples/cli/facts/unsigned_8bit_wrapping_arithmetic_bound/other_state/main.omg
-omega run --both samples/cli/facts/unsigned_8bit_wrapping_arithmetic_bound/other_machine/main.omg
-omega run --both samples/cli/facts/unsigned_8bit_wrapping_arithmetic_bound/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/unsigned_8bit_wrapping_arithmetic_bound
 ```
 
 All ten positives (the root and the nine places) report `native exit 0` and `interp exit: 0`.

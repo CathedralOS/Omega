@@ -30,16 +30,7 @@ Every place performs the same operation: compute the unsigned division of divide
 Root `main.omg` and all nine place projects bind `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declare `Expected exit: 0`, and carry `expected_native_exit.txt` (`0`). Run any positive directly:
 
 ```sh
-omega run --both samples/cli/facts/unsigned_division_quotient/main.omg
-omega run --both samples/cli/facts/unsigned_division_quotient/local/main.omg
-omega run --both samples/cli/facts/unsigned_division_quotient/field/main.omg
-omega run --both samples/cli/facts/unsigned_division_quotient/parameter/main.omg
-omega run --both samples/cli/facts/unsigned_division_quotient/call_result/main.omg
-omega run --both samples/cli/facts/unsigned_division_quotient/match_join/main.omg
-omega run --both samples/cli/facts/unsigned_division_quotient/const_name/main.omg
-omega run --both samples/cli/facts/unsigned_division_quotient/other_state/main.omg
-omega run --both samples/cli/facts/unsigned_division_quotient/other_machine/main.omg
-omega run --both samples/cli/facts/unsigned_division_quotient/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/unsigned_division_quotient
 ```
 
 Each place has an `invalid/` twin that divides `396u64` by `4u64` (yielding `99u64`), causing exact subtraction `diff: u64 = quotient - 100u64` to underflow. The control must reject with `may overflow \`u64\``. Check each twin with:

@@ -30,16 +30,7 @@ and declares `Expected exit: 0`. `omega run --both` reports Terminal Psi
 interpreter and native execution agreement (`native exit 0` and `interp exit: 0`):
 
 ```sh
-target/debug/omega run --both samples/cli/facts/match_join_multi_variant_bound/main.omg
-target/debug/omega run --both samples/cli/facts/match_join_multi_variant_bound/local/main.omg
-target/debug/omega run --both samples/cli/facts/match_join_multi_variant_bound/field/main.omg
-target/debug/omega run --both samples/cli/facts/match_join_multi_variant_bound/parameter/main.omg
-target/debug/omega run --both samples/cli/facts/match_join_multi_variant_bound/call_result/main.omg
-target/debug/omega run --both samples/cli/facts/match_join_multi_variant_bound/match_join/main.omg
-target/debug/omega run --both samples/cli/facts/match_join_multi_variant_bound/const_name/main.omg
-target/debug/omega run --both samples/cli/facts/match_join_multi_variant_bound/other_state/main.omg
-target/debug/omega run --both samples/cli/facts/match_join_multi_variant_bound/other_machine/main.omg
-target/debug/omega run --both samples/cli/facts/match_join_multi_variant_bound/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/match_join_multi_variant_bound
 ```
 
 ### The oracle discriminates

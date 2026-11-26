@@ -31,16 +31,7 @@ and root `main.omg` binds `ProgramEntry` for all four hosted targets (`windows_x
 Psi leg reports `interp exit: 0` in exact agreement with native `exit 0`.
 
 ```sh
-omega run --both samples/cli/facts/matched_field_windows/main.omg
-omega run --both samples/cli/facts/matched_field_windows/local/main.omg
-omega run --both samples/cli/facts/matched_field_windows/field/main.omg
-omega run --both samples/cli/facts/matched_field_windows/parameter/main.omg
-omega run --both samples/cli/facts/matched_field_windows/call_result/main.omg
-omega run --both samples/cli/facts/matched_field_windows/match_join/main.omg
-omega run --both samples/cli/facts/matched_field_windows/const_name/main.omg
-omega run --both samples/cli/facts/matched_field_windows/other_state/main.omg
-omega run --both samples/cli/facts/matched_field_windows/other_machine/main.omg
-omega run --both samples/cli/facts/matched_field_windows/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/matched_field_windows
 ```
 
 ## Reject Twins

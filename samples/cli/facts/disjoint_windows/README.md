@@ -6,7 +6,7 @@ The root `main.omg` runs with `// Expected exit: 0` and `crashes Trap` on failur
   `@mutable` subslices of one base borrow at once; writes through both.
 
 ```sh
-omega run --both samples/cli/facts/disjoint_windows/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/disjoint_windows
 ```
 
 ## Nine places

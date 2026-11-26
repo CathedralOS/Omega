@@ -108,16 +108,7 @@ and declares `Expected exit: 0`. `omega run --both` reports Terminal Psi interpr
 and native execution agreement:
 
 ```sh
-omega run --both samples/cli/facts/case_tag_discriminant_layout/main.omg
-omega run --both samples/cli/facts/case_tag_discriminant_layout/local/main.omg
-omega run --both samples/cli/facts/case_tag_discriminant_layout/field/main.omg
-omega run --both samples/cli/facts/case_tag_discriminant_layout/parameter/main.omg
-omega run --both samples/cli/facts/case_tag_discriminant_layout/call_result/main.omg
-omega run --both samples/cli/facts/case_tag_discriminant_layout/match_join/main.omg
-omega run --both samples/cli/facts/case_tag_discriminant_layout/const_name/main.omg
-omega run --both samples/cli/facts/case_tag_discriminant_layout/other_state/main.omg
-omega run --both samples/cli/facts/case_tag_discriminant_layout/other_machine/main.omg
-omega run --both samples/cli/facts/case_tag_discriminant_layout/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/case_tag_discriminant_layout
 ```
 
 Every positive place and the root witness observe `native exit 0` and `interp exit: 0`.
