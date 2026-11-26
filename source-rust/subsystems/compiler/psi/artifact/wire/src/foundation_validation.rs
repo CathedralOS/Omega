@@ -9426,7 +9426,6 @@ pub(crate) mod target_layouts {
         StructuralRecordStorage, StructuralTypeShape, TargetLayoutFieldLayoutSource,
         TargetLayoutSchemaFieldKind, TerminalIdentityIndex, TerminalModule,
     };
-    use terminal_semantics::reference_storage_byte_width;
 
     pub(crate) fn validate(
         module: &TerminalModule,
@@ -9558,6 +9557,7 @@ pub(crate) mod target_layouts {
                     );
                 }
                 let inputs = &realization.schema_argument.fields;
+                let carriers = schema_target_carriers(realization)?;
                 let numbered = inputs.iter().any(|field| field.identity.is_some());
                 if (numbered
                     && (inputs.iter().any(|field| field.identity.is_none())
@@ -9589,13 +9589,12 @@ pub(crate) mod target_layouts {
                         return malformed("layout schema argument has stale field correspondence");
                     }
                     let geometry = if let Some(scalar) = source.field_type.scalar_type() {
-                        reference_storage_byte_width(scalar).map(|width| {
-                            (
-                                u64::from(width),
-                                u64::from(width),
-                                TargetLayoutSchemaFieldKind::Scalar,
-                            )
-                        })
+                        terminal_semantics::scalar_field_storage_geometry(
+                            scalar,
+                            Some(carriers),
+                        )
+                        .ok()
+                        .map(|(size, align)| (size, align, TargetLayoutSchemaFieldKind::Scalar))
                     } else if let Some(terminal_psi::ByteSequenceCarrier::BoundedOwned {
                         capacity,
                     }) = source.field_type.byte_sequence_carrier()
@@ -9711,7 +9710,21 @@ pub(crate) mod target_layouts {
                 ))
             },
         )
-        .with_target_carriers(Some(semantic_vocabulary::TargetCarrierLayout {
+        .with_target_carriers(Some(schema_target_carriers(target)?))
+        .with_record_storage(SchemaStorage { module, target })
+        .layout(identity)
+        .map_err(|error| {
+            CodecError::NativeLayout(format!(
+                "schema {identity:?} under target {} has no represented geometry: {error:?}",
+                target.target,
+            ))
+        })
+    }
+
+    fn schema_target_carriers(
+        target: &terminal_psi::TargetLayoutRealization,
+    ) -> Result<semantic_vocabulary::TargetCarrierLayout, CodecError> {
+        Ok(semantic_vocabulary::TargetCarrierLayout {
             pointer_byte_size: target.pointer_size,
             pointer_byte_alignment: target.pointer_alignment,
             descriptor_byte_size: target.pointer_size.checked_mul(2).ok_or(
@@ -9720,14 +9733,6 @@ pub(crate) mod target_layouts {
             descriptor_byte_alignment: target.pointer_alignment,
             case_tag_byte_size: target.case_tag_size,
             case_tag_byte_alignment: target.case_tag_alignment,
-        }))
-        .with_record_storage(SchemaStorage { module, target })
-        .layout(identity)
-        .map_err(|error| {
-            CodecError::NativeLayout(format!(
-                "schema {identity:?} under target {} has no represented geometry: {error:?}",
-                target.target,
-            ))
         })
     }
 
