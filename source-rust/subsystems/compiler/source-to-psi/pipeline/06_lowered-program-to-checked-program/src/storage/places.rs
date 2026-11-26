@@ -1623,9 +1623,10 @@ impl<'a> Storage<'a> {
     ) -> Checked<Option<(ScalarTerm, ScalarType)>> {
         Ok(match reached {
             Reached::Value(value) => {
-                let scalar_type =
-                    terminal_check_tables::row(&tables.values, value, self.machine, concerns)?
-                        .scalar_type;
+                let scalar_type = tables
+                    .values
+                    .checked(value, self.machine, concerns)?
+                    .scalar_type;
                 Some((ScalarTerm::value(value, scalar_type), scalar_type))
             }
             Reached::ErasedTerm(index) => {
@@ -3686,8 +3687,7 @@ impl<'a> Storage<'a> {
         concerns: Construct,
     ) -> Checked<Option<(&'a Operation, usize, bool)>> {
         let producer = |value| {
-            let origin =
-                terminal_check_tables::row(&tables.values, value, self.machine, concerns)?.origin;
+            let origin = tables.values.checked(value, self.machine, concerns)?.origin;
             match origin {
                 ValueOrigin::Operation(id) => self.operation(id, concerns).map(Some),
                 _ => Ok(None),
@@ -5054,9 +5054,7 @@ impl<'a> Storage<'a> {
                     .map(|start| (leaf.clone(), start, depth))
             }),
             Reached::Value(held) => {
-                match terminal_check_tables::row(&tables.values, held, self.machine, concerns)?
-                    .origin
-                {
+                match tables.values.checked(held, self.machine, concerns)?.origin {
                     ValueOrigin::StorageContent { place, after } => {
                         let arrived = lineage(self.machine, &tables.places, place)?;
                         let start = match after {
@@ -7477,10 +7475,12 @@ impl AtEntry<'_, '_> {
             .ok_or(crate::Unbound::Unproved(
                 "no operation names the field, so its entry content has no value identity",
             ))?;
-        let held_type =
-            terminal_check_tables::row(&self.tables.values, held, storage.machine, concerns)
-                .map_err(crate::Unbound::Refused)?
-                .scalar_type;
+        let held_type = self
+            .tables
+            .values
+            .checked(held, storage.machine, concerns)
+            .map_err(crate::Unbound::Refused)?
+            .scalar_type;
         if held_type != scalar_type {
             return Err(crate::Unbound::Unsupported(
                 "a formal's field holds a value of another type than its clause term",
@@ -8523,13 +8523,12 @@ impl crate::Bindings for AtJoin<'_, '_> {
             .iter()
             .find(|(from, _)| *from == value)
             .map_or(value, |(_, to)| *to);
-        let actual = terminal_check_tables::row(
-            &self.inputs.tables.values,
-            value,
-            self.inputs.storage.machine,
-            self.inputs.concerns,
-        )
-        .map_err(crate::Unbound::Refused)?;
+        let actual = self
+            .inputs
+            .tables
+            .values
+            .checked(value, self.inputs.storage.machine, self.inputs.concerns)
+            .map_err(crate::Unbound::Refused)?;
         if actual.scalar_type != scalar_type {
             return Err(crate::Unbound::Unsupported(
                 "join argument has another scalar carrier",
@@ -8577,13 +8576,12 @@ impl crate::Bindings for AtJoin<'_, '_> {
             .iter()
             .find(|(from, _)| *from == value)
             .map_or(value, |(_, to)| *to);
-        let actual = terminal_check_tables::row(
-            &self.inputs.tables.values,
-            value,
-            self.inputs.storage.machine,
-            self.inputs.concerns,
-        )
-        .map_err(crate::Unbound::Refused)?;
+        let actual = self
+            .inputs
+            .tables
+            .values
+            .checked(value, self.inputs.storage.machine, self.inputs.concerns)
+            .map_err(crate::Unbound::Refused)?;
         let ValueOrigin::StorageContent { place, after: None } = actual.origin else {
             return Err(crate::Unbound::Unproved(
                 "the join has no saved input observation",

@@ -449,13 +449,10 @@ impl<'a> Storage<'a> {
             let Segment::RuntimeIndex { selector } = step else {
                 continue;
             };
-            let current = match terminal_check_tables::row(
-                &tables.values,
-                *selector,
-                self.machine,
-                concerns,
-            )?
-            .origin
+            let current = match tables
+                .values
+                .checked(*selector, self.machine, concerns)?
+                .origin
             {
                 ValueOrigin::MachineParameter { .. } => true,
                 ValueOrigin::BlockParameter { block: defined, .. } => defined == block,
@@ -703,9 +700,10 @@ impl<'a> Storage<'a> {
             let Segment::RuntimeIndex { selector } = step else {
                 continue;
             };
-            let origin =
-                terminal_check_tables::row(&tables.values, *selector, self.machine, concerns)?
-                    .origin;
+            let origin = tables
+                .values
+                .checked(*selector, self.machine, concerns)?
+                .origin;
             let definition = match origin {
                 ValueOrigin::MachineParameter { .. } => continue,
                 ValueOrigin::BlockParameter { block, .. } => ProgramPoint::BlockEntry(block),

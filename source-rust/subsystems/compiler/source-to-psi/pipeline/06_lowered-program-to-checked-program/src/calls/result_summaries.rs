@@ -532,7 +532,7 @@ fn summarize(
                 &prepared.context,
                 &known.assumptions,
                 &known.axioms,
-                &*scratch.values,
+                &scratch.values,
                 activity,
             );
             // A caller's goal on this result then depends on an operation

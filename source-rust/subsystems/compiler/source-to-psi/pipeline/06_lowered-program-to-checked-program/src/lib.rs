@@ -2798,7 +2798,7 @@ fn decide_borrowing(
     if let Some(narrowed) = narrowed
         && let Ok(certificate) = search_certificate(
             context,
-            &*tables.values,
+            &tables.values,
             id,
             obligation,
             &goal,
@@ -2812,7 +2812,7 @@ fn decide_borrowing(
     }
     let certificate = search_certificate(
         context,
-        &*tables.values,
+        &tables.values,
         id,
         obligation,
         &goal,

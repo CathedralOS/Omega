@@ -86,8 +86,7 @@ mod tests {
                 let completed = AtomicUsize::new(0);
                 let result = check(&mut tables, &mut activity, |id, tables, activity| {
                     assert!(worker_budget::on_budget_worker());
-                    let _ =
-                        crate::prove::Prover::new(&context, &[], &[], &*tables.values, activity);
+                    let _ = crate::prove::Prover::new(&context, &[], &[], &tables.values, activity);
                     completed.fetch_add(1, Ordering::SeqCst);
                     let running = active.fetch_add(1, Ordering::SeqCst) + 1;
                     peak.fetch_max(running, Ordering::SeqCst);
