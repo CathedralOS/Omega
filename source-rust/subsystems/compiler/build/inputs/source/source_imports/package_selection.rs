@@ -85,13 +85,6 @@ impl ReconciledPackageImportRequest {
     }
 }
 
-pub(super) fn other_purpose(purpose: DependencyPurpose) -> DependencyPurpose {
-    match purpose {
-        DependencyPurpose::Product => DependencyPurpose::Build,
-        DependencyPurpose::Build => DependencyPurpose::Product,
-    }
-}
-
 pub(crate) fn source_import_scope(
     packages: &PackageCompilationInputs,
     instance_scope: DependencyScope,
