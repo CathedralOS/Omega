@@ -181,14 +181,11 @@ Build's filesystem view. [Build network grants](../spec/build/scoped_execution.m
 
 ## Running a program in a Build
 
-Suppose the board package declares a program identity and calls its vendor's
-packer. This helper returns the outcome to the board Build, which can inspect
-the status before using the output.
+Suppose a board Build needs a vendor packer. With the staged launch interface
+it can call the packer by its path in the board's view.
 
 ```omega
 use {omega}/build/program.omg as program;
-
-public data VendorPacker {}
 
 machine pack_firmware() -> |program|::RunResult
     reaches ProgramLaunch
@@ -196,23 +193,25 @@ machine pack_firmware() -> |program|::RunResult
     crashes none
 {
     let arguments: [@[u8]; 2] = ["firmware.bin", "boot.img"];
-    block |program|::run::<VendorPacker>(@arguments[..])
+    block |program|::launch_program("/tools/packer", @arguments[..])
 }
 ```
 
-For a board Build with readable `firmware.bin` and writable `boot.img` in
-its view, the caller can bind the packer and grant those two paths:
+For a board built directly, bind that name to a host executable.
 
 ```sh
 omega build --allow ProgramLaunch \
-  --program board::VendorPacker /opt/vendor/packer \
+  --program /tools/packer /opt/vendor/packer \
   --program-read firmware.bin --program-write boot.img \
   --program-timeout 30000 board/build.omg
 ```
 
-The host resolves `board::VendorPacker` to the same type the helper uses.
-A missing approval prevents entry. An admitted packer that exits with status
-1 returns that status to the helper. [Program launch contract](../spec/build/program_launch.md)
+If the board is a dependency, its parent must explicitly delegate the
+packer. If the board has launch reach but lacks the path grant, its Build
+can start and the call fails before a process starts. A granted packer
+that exits with status 1 returns that status to the helper.
+The Rust driver's migration to this interface is tracked under
+`BUILD-PROGRAM-LAUNCH`. [Program launch contract](../spec/build/program_launch.md)
 
 ## Packaging several products
 
@@ -285,7 +284,7 @@ before an unaccepted restricted action; accepting it permits the build phase to
 continue only if the host also supplies the required resources. Generated code
 still goes through normal checking and review afterward.
 
-`omega.lock` records accepted requests alongside package acceptance. It does not
+In the version 4 workflow, `omega.lock` records accepted requests alongside package acceptance. It does not
 store credentials, machine-specific grant paths, or temporary capabilities.
 New or expanded authority needs explicit acceptance; unchanged accepted requests
 do not prompt again. A resolution refresh cannot silently grant more access, and

@@ -91,18 +91,19 @@ when it registers that dependency. It may compose a restricted or virtual
 provider without the child knowing its physical representation. Alternative
 providers are legal only with explicitly supplied backing within the parent's grant;
 importing a real-filesystem API cannot create such a grant or bypass a virtual
-view. Unsupported operations do not open a host route. Lock agreement and
-actual capability checks remain separate obligations.
+view. Unsupported operations do not open a host route.
 
-[Install/update review](../packages/acceptance.md#restricted-build-acceptance)
-surfaces those requests before restricted execution. Explicit project decisions
-are retained in `omega.lock`; the executor separately supplies actual scoped
-resources. Neither lock acceptance nor a callee's own lock manufactures a host
-grant. A root's grant is not automatically available to dependency builds.
+In a staged Build, the invoker's grants approve the root's restricted
+actions within their bounds. Each explicit delegation to a dependency
+approves that child's use within its own bounds. A root grant is never
+automatically available to dependencies. The version 4 install/update
+workflow retains its lock-based review decisions.
+[Restricted-build acceptance](../packages/acceptance.md#restricted-build-acceptance)
 
 Checking and audit cannot run an unaccepted restricted action merely to learn
 what it requests. Check each reached Build stage or requested implementation
-before its effects; if further checking needs such an action, retain a
+before its effects. Individual [launch paths](program_launch.md#grant-and-delegation)
+are checked at the call. If further checking needs an unapproved action, retain a
 pending review/incomplete audit until acceptance and actual grants permit
 continuation. Generated source is then checked and audited normally, not trusted
 because its generator was accepted. Benign work needs no approval ceremony;
