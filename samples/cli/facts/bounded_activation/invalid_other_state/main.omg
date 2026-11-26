@@ -1,10 +1,5 @@
 // Fact: Commit three bytes under bound eight, write/read the committed region, release it, and observe checked rejection of a request for nine bytes.
-use omega\language\core\Activation;
-use omega\language\core\Activation::try_claim;
-use omega\language\core\ActivationClaim;
-use omega\language\core\ActivationClaim::bytes;
-use omega\language\core\ActivationClaim::release;
-use omega\language\core\ActivationClaimAttempt;
+use {omega}/language/core/activation.omg;
 
 machine write_read(bytes: @mutable [u8]) -> u8 {
     transition bytes.length >= 3 {
@@ -19,18 +14,18 @@ machine write_read(bytes: @mutable [u8]) -> u8 {
 }
 
 machine main() crashes Trap {
-    transition Activation::try_claim::<8>(3) {
-        ActivationClaimAttempt::Established { claim } -> hop(claim),
-        ActivationClaimAttempt::Rejected -> bad()
+    transition |activation|::Activation::try_claim::<8>(3) {
+        |activation|::ActivationClaimAttempt::Established { claim } -> hop(claim),
+        |activation|::ActivationClaimAttempt::Rejected -> bad()
     }
-    machine hop(claim: ActivationClaim) {
+    machine hop(claim: |activation|::ActivationClaim) {
         transition { _ -> established(claim) }
     }
-    machine established(claim: ActivationClaim) {
-        let mutable live: ActivationClaim = claim;
-        let bytes: @mutable [u8] = ActivationClaim::bytes(@mutable live);
+    machine established(claim: |activation|::ActivationClaim) {
+        let mutable live: |activation|::ActivationClaim = claim;
+        let bytes: @mutable [u8] = |activation|::ActivationClaim::bytes(@mutable live);
         let observed: u8 = write_read(bytes);
-        ActivationClaim::release(live);
+        |activation|::ActivationClaim::release(live);
         let length: u64 = bytes.length;
         transition length == 3 && observed == 37u8 {
             true -> over_bound(),
@@ -38,13 +33,13 @@ machine main() crashes Trap {
         }
     }
     machine over_bound() {
-        transition Activation::try_claim::<8>(9) {
-            ActivationClaimAttempt::Rejected -> done(),
-            ActivationClaimAttempt::Established { claim } -> unexpectedly_established(claim)
+        transition |activation|::Activation::try_claim::<8>(9) {
+            |activation|::ActivationClaimAttempt::Rejected -> done(),
+            |activation|::ActivationClaimAttempt::Established { claim } -> unexpectedly_established(claim)
         }
     }
-    machine unexpectedly_established(claim: ActivationClaim) {
-        ActivationClaim::release(claim);
+    machine unexpectedly_established(claim: |activation|::ActivationClaim) {
+        |activation|::ActivationClaim::release(claim);
         crash Trap;
     }
     machine done() {}

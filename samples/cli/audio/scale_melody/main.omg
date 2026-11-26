@@ -1,8 +1,9 @@
-use omega\language\core\StandardOutput;
-use omega\language\core\FilesystemContentRead;
-use omega\language\core\FilesystemContentWrite;
-use omega\language\core\FilesystemMetadataMutation;
-use omega\language\core\FilesystemNamespaceMutation;
+use {audio_playback}/audio_playback/audio_playback.omg;
+use {omega}/language/core/filesystem_authority.omg;
+use {omega}/language/core/numeric_conversion.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // A two-second C-major scale as a canonical 8-bit WAV file: eight square-wave
 // notes of 2000 samples (0.25 s) each, rendered into one fixed [u8; 16044]
 // buffer — the 44-byte RIFF header followed by 16000 unsigned PCM samples
@@ -14,13 +15,8 @@ use omega\language\core\FilesystemNamespaceMutation;
 // Expected exit: 0 after writing and playback; 1 on write failure, 2 on playback failure.
 // Expected output contains: scale_melody: played scale_melody.wav
 
-use omega\language\core\ProcessExit;
 use {system}/filesystem_host.omg as paths;
 use {wav_output}/wav_output/wav_output.omg as output;
-use audio_playback\audio_playback\AudioPlayback;
-use system\Console;
-use omega\language\core\narrow_i64_to_i32_wrapping;
-use omega\language\core\widen_i32_to_i64;
 
 data Main {
     n: i64;
@@ -36,8 +32,8 @@ data Main {
     byte: u8;
 }
 
-machine render(main: @mutable Main) reaches StandardOutput + |output|::WavOutput + AudioPlayback + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + ProcessExit {
-    Console::write_line("scale_melody: C-major scale, square wave, 8-bit unsigned mono PCM at 8000 Hz, 2 s");
+machine render(main: @mutable Main) reaches |process_authority|::StandardOutput + |output|::WavOutput + |audio_playback|::AudioPlayback + |filesystem_authority|::FilesystemContentRead + |filesystem_authority|::FilesystemContentWrite + |filesystem_authority|::FilesystemMetadataMutation + |filesystem_authority|::FilesystemNamespaceMutation + |process_exit|::ProcessExit {
+    |console|::Console::write_line("scale_melody: C-major scale, square wave, 8-bit unsigned mono PCM at 8000 Hz, 2 s");
 
     // Canonical 44-byte WAV header, little-endian fields.
     main.buffer[0] = 82;  // R
@@ -133,52 +129,52 @@ machine render(main: @mutable Main) reaches StandardOutput + |output|::WavOutput
         transition main.n == 16044 { true -> block play_it(main), _ -> bad(main) }
     }
     machine play_it(main: @mutable Main) {
-        main.rc = block AudioPlayback::play(@main.buffer[0], 16044, @main.buffer[44], 16000);
+        main.rc = block |audio_playback|::AudioPlayback::play(@main.buffer[0], 16044, @main.buffer[44], 16000);
         transition main.rc == 0 { true -> good(main), _ -> play_failed(main) }
     }
     machine good(main: @mutable Main) {
-        Console::write_line("scale_melody: wrote scale_melody.wav (16000 frames)");
-        Console::write_line("scale_melody: played scale_melody.wav");
-        ProcessExit::exit_process(0);
+        |console|::Console::write_line("scale_melody: wrote scale_melody.wav (16000 frames)");
+        |console|::Console::write_line("scale_melody: played scale_melody.wav");
+        |process_exit|::ProcessExit::exit_process(0);
     }
     machine bad(main: @mutable Main) {
-        Console::write_line("scale_melody: write failed");
-        ProcessExit::exit_process(1);
+        |console|::Console::write_line("scale_melody: write failed");
+        |process_exit|::ProcessExit::exit_process(1);
     }
     machine play_failed(main: @mutable Main) {
-        Console::write("scale_melody: playback failed (-");
-        main.magnitude = 0 - widen_i32_to_i64(main.rc);
+        |console|::Console::write("scale_melody: playback failed (-");
+        main.magnitude = 0 - |numeric_conversion|::widen_i32_to_i64(main.rc);
         transition main.magnitude >= 100 { true -> hundreds(main), _ -> tens(main) }
     }
     machine hundreds(main: @mutable Main) {
-        main.digit = narrow_i64_to_i32_wrapping(48 + main.magnitude / 100);
-        Console::write_byte(main.digit);
+        main.digit = |numeric_conversion|::narrow_i64_to_i32_wrapping(48 + main.magnitude / 100);
+        |console|::Console::write_byte(main.digit);
         main.magnitude = main.magnitude % 100;
         transition { _ -> tens_after_hundreds(main) }
     }
     machine tens_after_hundreds(main: @mutable Main) {
-        main.digit = narrow_i64_to_i32_wrapping(48 + main.magnitude / 10);
-        Console::write_byte(main.digit);
+        main.digit = |numeric_conversion|::narrow_i64_to_i32_wrapping(48 + main.magnitude / 10);
+        |console|::Console::write_byte(main.digit);
         transition { _ -> ones(main) }
     }
     machine tens(main: @mutable Main) {
         transition main.magnitude >= 10 { true -> tens_print(main), _ -> ones(main) }
     }
     machine tens_print(main: @mutable Main) {
-        main.digit = narrow_i64_to_i32_wrapping(48 + main.magnitude / 10);
-        Console::write_byte(main.digit);
+        main.digit = |numeric_conversion|::narrow_i64_to_i32_wrapping(48 + main.magnitude / 10);
+        |console|::Console::write_byte(main.digit);
         transition { _ -> ones(main) }
     }
     machine ones(main: @mutable Main) {
-        main.digit = narrow_i64_to_i32_wrapping(48 + main.magnitude % 10);
-        Console::write_byte(main.digit);
-        Console::write_line(")");
-        ProcessExit::exit_process(2);
+        main.digit = |numeric_conversion|::narrow_i64_to_i32_wrapping(48 + main.magnitude % 10);
+        |console|::Console::write_byte(main.digit);
+        |console|::Console::write_line(")");
+        |process_exit|::ProcessExit::exit_process(2);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches StandardOutput + |output|::WavOutput + AudioPlayback + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + ProcessExit {
+machine entry_start() reaches |process_authority|::StandardOutput + |output|::WavOutput + |audio_playback|::AudioPlayback + |filesystem_authority|::FilesystemContentRead + |filesystem_authority|::FilesystemContentWrite + |filesystem_authority|::FilesystemMetadataMutation + |filesystem_authority|::FilesystemNamespaceMutation + |process_exit|::ProcessExit {
     let mutable entry_storage: Main;
     block render(@mutable entry_storage);
 }

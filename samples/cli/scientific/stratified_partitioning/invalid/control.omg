@@ -1,13 +1,13 @@
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_exit.omg;
 // Complete intended-invalid source: an unguarded seventeenth slot must fail.
 data Main { records: [i32; 16]; }
-machine main(context: @mutable Main) reaches ProcessExit {
+machine main(context: @mutable Main) reaches |process_exit|::ProcessExit {
     context.records[16] = 1;
-    ProcessExit::exit_process(0);
+    |process_exit|::ProcessExit::exit_process(0);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit {
+machine entry_start() reaches |process_exit|::ProcessExit {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }

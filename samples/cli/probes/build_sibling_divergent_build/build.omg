@@ -1,5 +1,5 @@
 // Convergent pool: three product siblings whose builds each edge-pool on
-// the shared dep and call `shared\seed()` in build scope after preparing it.
+// the shared dep and call `|shared|::seed()` in build scope after preparing it.
 // Controls beside this sample interleave divergent siblings into the pool.
 
 use {omega}/build/dependency.omg;

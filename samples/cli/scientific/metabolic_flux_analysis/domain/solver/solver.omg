@@ -1,4 +1,4 @@
-use omega\language\core\narrow_i64_to_i32_wrapping;
+use {omega}/language/core/numeric_conversion.omg;
 // Exact bounded vertex enumeration. Bounds are integer nanoflux values.
 // Each ternary assignment fixes reactions at lower/upper bounds or leaves them
 // free. A full-column-rank free system gives one vertex; all vertices occur.
@@ -120,7 +120,7 @@ machine candidate(solver: @mutable Solver, code: i32 in Wrapping) -> bool crashe
     }
     machine free_column(solver: @mutable Solver, row: i32 in Wrapping, column: i32 in Wrapping) -> bool {
         let reaction: i64 in Wrapping = read_six(@solver.free, column);
-        let coefficient: i64 in Wrapping = read_matrix(@solver.matrix, row * 6 + (narrow_i64_to_i32_wrapping(reaction as i64) as i32 +Wrapping));
+        let coefficient: i64 in Wrapping = read_matrix(@solver.matrix, row * 6 + (|numeric_conversion|::narrow_i64_to_i32_wrapping(reaction as i64) as i32 +Wrapping));
         write_work(@mutable solver.work, row * 7 + column, coefficient);
         transition { _ -> free_columns(solver, row, column + 1) }
     }
@@ -194,7 +194,7 @@ machine candidate(solver: @mutable Solver, code: i32 in Wrapping) -> bool crashe
     }
     machine subtracted(solver: @mutable Solver, column: i32 in Wrapping, entry: i32 in Wrapping, numerator: i64 in Wrapping) -> bool {
         let reaction: i64 in Wrapping = read_six(@solver.free, entry);
-        let value: i64 in Wrapping = read_six(@solver.flux, narrow_i64_to_i32_wrapping(reaction as i64) as i32 +Wrapping);
+        let value: i64 in Wrapping = read_six(@solver.flux, |numeric_conversion|::narrow_i64_to_i32_wrapping(reaction as i64) as i32 +Wrapping);
         let coefficient: i64 in Wrapping = read_work(@solver.work, column * 7 + entry);
         transition { _ -> subtract(solver, column, entry + 1, numerator - coefficient * value) }
     }
@@ -202,7 +202,7 @@ machine candidate(solver: @mutable Solver, code: i32 in Wrapping) -> bool crashe
         let diagonal: i64 in Wrapping = read_work(@solver.work, column * 7 + column);
         let value: i64 in Wrapping = quotient(numerator, diagonal);
         let reaction: i64 in Wrapping = read_six(@solver.free, column);
-        write_six(@mutable solver.flux, narrow_i64_to_i32_wrapping(reaction as i64) as i32 +Wrapping, value);
+        write_six(@mutable solver.flux, |numeric_conversion|::narrow_i64_to_i32_wrapping(reaction as i64) as i32 +Wrapping, value);
         transition { _ -> backwards(solver, column - 1) }
     }
     machine normalize(solver: @mutable Solver) -> bool {

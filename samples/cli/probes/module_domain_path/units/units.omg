@@ -1,5 +1,5 @@
 // Sibling file owning the carrier-qualified domain + operator
-// home. `use units;` in main.omg exposes `units\u64::Distance`
+// home. `use units;` in main.omg exposes `|units|::u64::Distance`
 // as a domain path.
 
 public domain u64::Distance requires self > 0;

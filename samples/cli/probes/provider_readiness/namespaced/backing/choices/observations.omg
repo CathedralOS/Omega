@@ -1,9 +1,9 @@
-use omega\language\core\ProgramImage;
+use {omega}/language/core/program_image.omg;
 
-public Observations satisfies ProgramImage {
+public Observations satisfies |program_image|::ProgramImage {
     machine retained_suffix_start() -> address { 64 }
 }
 
-public OtherObservations satisfies ProgramImage {
+public OtherObservations satisfies |program_image|::ProgramImage {
     machine retained_suffix_start() -> address { 128 }
 }

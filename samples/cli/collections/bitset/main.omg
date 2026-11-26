@@ -1,6 +1,6 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Expected exit: 70.
 // A bitset: a set of small integers stored as bits of a single u32 (bit k set <=> k is in the set).
 // Insert is `bits |= 1 << k`; membership is `(bits >> k) & 1`. We insert {3, 5, 7} (one mask built
@@ -8,7 +8,6 @@ use omega\language\core\ProcessExit;
 // membership: 5 present, 4 absent, 7 present. A real data structure over the bitwise ops -- the same
 // primitives a flag set or a Bloom-filter word uses. Exits 70 iff all three checks pass.
 
-use system\Console;
 
 data Main {
     vals: [u32 in Wrapping; 3];
@@ -19,8 +18,8 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("bitset: insert {3, 5, 7} into a u32 bitset via runtime shifts, then test membership of 5, 4, 7");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("bitset: insert {3, 5, 7} into a u32 bitset via runtime shifts, then test membership of 5, 4, 7");
     main.vals[0] = 3u32 as +Wrapping;
     main.vals[1] = 5u32 as +Wrapping;
     main.vals[2] = 7u32 as +Wrapping;
@@ -60,21 +59,21 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         transition main.test == 1 { true -> block ok(main), _ -> block bad(main) }
     }
     machine ok(main: @mutable Main) {
-        Console::write_line("PASS: 5 in, 4 out, 7 in -- bits == 168 behaves as a set (exit 70)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(70);
+        |console|::Console::write_line("PASS: 5 in, 4 out, 7 in -- bits == 168 behaves as a set (exit 70)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(70);
     }
     machine bad(main: @mutable Main) {
-        Console::write_line("FAIL: a membership test gave the wrong bit (exit 71)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(71);
+        |console|::Console::write_line("FAIL: a membership test gave the wrong bit (exit 71)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(71);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

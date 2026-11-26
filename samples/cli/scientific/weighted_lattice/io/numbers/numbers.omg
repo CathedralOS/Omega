@@ -1,8 +1,8 @@
-use omega\language\core\StandardOutput;
-use system\Console;
-use omega\language\core\narrow_u64_to_i32_trapping;
+use {omega}/language/core/numeric_conversion.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 
-public machine decimal(value: u64) reaches StandardOutput {
+public machine decimal(value: u64) reaches |process_authority|::StandardOutput {
     transition value >= 10 {
         true -> prefix(value),
         false -> digit(value)
@@ -12,11 +12,11 @@ public machine decimal(value: u64) reaches StandardOutput {
         transition { _ -> digit(value) }
     }
     machine digit(value: u64) {
-        Console::write_byte(narrow_u64_to_i32_trapping(value % 10 + 48));
+        |console|::Console::write_byte(|numeric_conversion|::narrow_u64_to_i32_trapping(value % 10 + 48));
     }
 }
-public machine number_line(label: @[u8], value: u64) reaches StandardOutput {
-    Console::write(label);
+public machine number_line(label: @[u8], value: u64) reaches |process_authority|::StandardOutput {
+    |console|::Console::write(label);
     decimal(value);
-    Console::write_line("");
+    |console|::Console::write_line("");
 }

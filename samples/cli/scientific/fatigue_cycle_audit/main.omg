@@ -1,46 +1,38 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use domain/cycles/cycles.omg;
+use domain/input/input.omg;
+use domain/report/report.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Expected exit: 64
 // Empty stdin is the frozen invalid case; valid histories exit 0.
-use system\Console;
-use domain\input;
-use domain\input\Input;
-use domain\input\read;
-use domain\input\validate;
-use domain\cycles;
-use domain\cycles\Audit;
-use domain\cycles\prepare;
-use domain\cycles\count;
-use domain\report;
-use domain\report\write;
 
 data Main {
-    input: Input;
-    audit: Audit;
+    input: |input|::Input;
+    audit: |cycles|::Audit;
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    block read(@mutable main.input);
-    validate(@mutable main.input);
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    block |input|::read(@mutable main.input);
+    |input|::validate(@mutable main.input);
     transition main.input.valid {
         true -> calculate(main),
         false -> invalid(main)
     }
     machine calculate(main: @mutable Main) {
-        prepare(@mutable main.audit, @main.input);
-        count(@mutable main.audit);
-        write(@mutable main.audit);
-        ProcessExit::exit_process(0);
+        |cycles|::prepare(@mutable main.audit, @main.input);
+        |cycles|::count(@mutable main.audit);
+        |report|::write(@mutable main.audit);
+        |process_exit|::ProcessExit::exit_process(0);
     }
     machine invalid(main: @mutable Main) {
-        Console::write_line("ERROR: expected exponent(1|2) C(1..1000) count(2..16) and count loads(0..9), at most 256 bytes");
-        ProcessExit::exit_process(64);
+        |console|::Console::write_line("ERROR: expected exponent(1|2) C(1..1000) count(2..16) and count loads(0..9), at most 256 bytes");
+        |process_exit|::ProcessExit::exit_process(64);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

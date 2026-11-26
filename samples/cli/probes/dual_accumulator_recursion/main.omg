@@ -1,6 +1,6 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Dual-accumulator recursion: exercises TWO independent tail-recursive
 // value-returning machines with different accumulator arithmetic,
 // both called sequentially and their results combined in an expression.
@@ -36,7 +36,6 @@ use omega\language\core\ProcessExit;
 // Exit 75 = sum_sq_result wrong in check_sq_in_final (stale slot / misread)
 // Exit 73 = total != 70 in do_total (binary arith miscompile -- both guards passed but sum wrong)
 
-use system\Console;
 
 data Recursor {}
 
@@ -66,8 +65,8 @@ terminates by s -> Slice::Length
     }
 }
 
-machine Main::main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("dual_accumulator_recursion: two recursive reductions over [1..5] -- sum 15 + sum of squares 55");
+machine Main::main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("dual_accumulator_recursion: two recursive reductions over [1..5] -- sum 15 + sum of squares 55");
     // Populate the array: [1, 2, 3, 4, 5]
     main.data[0] = 1;
     main.data[1] = 2;
@@ -90,10 +89,10 @@ machine Main::main(main: @mutable Main) reaches ProcessExit + StandardInput + St
     }
 
     machine bad_sum(main: @mutable Main) {
-        Console::write_line("FAIL: sum != 15 (exit 71)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause);
-        ProcessExit::exit_process(71);
+        |console|::Console::write_line("FAIL: sum != 15 (exit 71)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause);
+        |process_exit|::ProcessExit::exit_process(71);
     }
 
     machine check_sum_sq(main: @mutable Main, sum_sq_result: i32 in Wrapping, sum_result: i32 in Wrapping) {
@@ -105,10 +104,10 @@ machine Main::main(main: @mutable Main) reaches ProcessExit + StandardInput + St
     }
 
     machine bad_sum_sq(main: @mutable Main) {
-        Console::write_line("FAIL: sum of squares != 55 (exit 72)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause);
-        ProcessExit::exit_process(72);
+        |console|::Console::write_line("FAIL: sum of squares != 55 (exit 72)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause);
+        |process_exit|::ProcessExit::exit_process(72);
     }
 
     machine compute_final(main: @mutable Main, sum_result: i32 in Wrapping, sum_sq_result: i32 in Wrapping) {
@@ -120,10 +119,10 @@ machine Main::main(main: @mutable Main) reaches ProcessExit + StandardInput + St
     }
 
     machine bad_final_sum(main: @mutable Main) {
-        Console::write_line("FAIL: sum_result stale in a sibling state -- expected 15 (exit 74)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause);
-        ProcessExit::exit_process(74);
+        |console|::Console::write_line("FAIL: sum_result stale in a sibling state -- expected 15 (exit 74)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause);
+        |process_exit|::ProcessExit::exit_process(74);
     }
 
     machine check_sq_in_final(main: @mutable Main, sum_sq_result: i32 in Wrapping, sum_result: i32 in Wrapping) {
@@ -135,10 +134,10 @@ machine Main::main(main: @mutable Main) reaches ProcessExit + StandardInput + St
     }
 
     machine bad_final_sq(main: @mutable Main) {
-        Console::write_line("FAIL: sum_sq_result stale in a sibling state -- expected 55 (exit 75)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause);
-        ProcessExit::exit_process(75);
+        |console|::Console::write_line("FAIL: sum_sq_result stale in a sibling state -- expected 55 (exit 75)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause);
+        |process_exit|::ProcessExit::exit_process(75);
     }
 
     machine do_total(main: @mutable Main, sum_result: i32 in Wrapping, sum_sq_result: i32 in Wrapping) {
@@ -153,22 +152,22 @@ machine Main::main(main: @mutable Main) reaches ProcessExit + StandardInput + St
     }
 
     machine bad_final(main: @mutable Main) {
-        Console::write_line("FAIL: 15 + 55 != 70 -- combined value-call arithmetic wrong (exit 73)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause);
-        ProcessExit::exit_process(73);
+        |console|::Console::write_line("FAIL: 15 + 55 != 70 -- combined value-call arithmetic wrong (exit 73)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause);
+        |process_exit|::ProcessExit::exit_process(73);
     }
 
     machine good(main: @mutable Main) {
-        Console::write_line("PASS: sum 15 + sum of squares 55 == 70 (exit 70)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause);
-        ProcessExit::exit_process(70);
+        |console|::Console::write_line("PASS: sum 15 + sum of squares 55 == 70 (exit 70)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause);
+        |process_exit|::ProcessExit::exit_process(70);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block Main::main(@mutable entry_storage);
 }

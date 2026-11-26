@@ -1,5 +1,4 @@
-use domain\input;
-use domain\input\Input;
+use domain/input/input.omg;
 
 // Declared synthetic four-point rule: close b,c when its range is no larger
 // than either enclosing range a,b or c,d; remove b,c and re-examine the tail.
@@ -34,33 +33,33 @@ public data Audit {
     fourth: u64;
 }
 
-public machine prepare(audit: @mutable Audit, input: @Input) {
+public machine prepare(audit: @mutable Audit, input: @|input|::Input) {
     audit.exponent = input.values[0];
     audit.denominator = input.values[1] * 2;
     audit.turning_count = 0;
     audit.index = 3;
     transition { _ -> loop(audit, input) }
-    machine loop(audit: @mutable Audit, input: @Input) {
+    machine loop(audit: @mutable Audit, input: @|input|::Input) {
         transition audit.index < input.count && audit.index < 19 {
             true -> load(audit, input),
             false -> done()
         }
     }
-    machine load(audit: @mutable Audit, input: @Input) {
+    machine load(audit: @mutable Audit, input: @|input|::Input) {
         audit.current = input.values[audit.index];
         transition audit.turning_count == 0 { true -> append_guard(audit, input), false -> tail_guard(audit, input) }
     }
-    machine tail_guard(audit: @mutable Audit, input: @Input) {
+    machine tail_guard(audit: @mutable Audit, input: @|input|::Input) {
         transition audit.turning_count >= 1 && audit.turning_count <= 16 {
             true -> tail(audit, input),
             false -> done()
         }
     }
-    machine tail(audit: @mutable Audit, input: @Input) {
+    machine tail(audit: @mutable Audit, input: @|input|::Input) {
         audit.second = audit.turning_count - 1;
         transition audit.second < 16 { true -> compare(audit, input), false -> done() }
     }
-    machine compare(audit: @mutable Audit, input: @Input) {
+    machine compare(audit: @mutable Audit, input: @|input|::Input) {
         audit.right = audit.turning[audit.second];
         transition {
             audit.current == audit.right -> next(audit, input),
@@ -68,36 +67,36 @@ public machine prepare(audit: @mutable Audit, input: @Input) {
             _ -> append_guard(audit, input)
         }
     }
-    machine prior(audit: @mutable Audit, input: @Input) {
+    machine prior(audit: @mutable Audit, input: @|input|::Input) {
         audit.first = audit.turning_count - 2;
         transition audit.first < 16 { true -> direction(audit, input), false -> done() }
     }
-    machine direction(audit: @mutable Audit, input: @Input) {
+    machine direction(audit: @mutable Audit, input: @|input|::Input) {
         audit.left = audit.turning[audit.first];
         transition (audit.left < audit.right && audit.right < audit.current) || (audit.left > audit.right && audit.right > audit.current) {
             true -> replace_guard(audit, input),
             false -> append_guard(audit, input)
         }
     }
-    machine replace_guard(audit: @mutable Audit, input: @Input) {
+    machine replace_guard(audit: @mutable Audit, input: @|input|::Input) {
         transition audit.second < 16 { true -> replace(audit, input), false -> done() }
     }
-    machine replace(audit: @mutable Audit, input: @Input) {
+    machine replace(audit: @mutable Audit, input: @|input|::Input) {
         audit.turning[audit.second] = audit.current;
         transition { _ -> next(audit, input) }
     }
-    machine append_guard(audit: @mutable Audit, input: @Input) {
+    machine append_guard(audit: @mutable Audit, input: @|input|::Input) {
         transition audit.turning_count < 16 { true -> append(audit, input), false -> done() }
     }
-    machine append(audit: @mutable Audit, input: @Input) {
+    machine append(audit: @mutable Audit, input: @|input|::Input) {
         audit.turning[audit.turning_count] = audit.current;
         audit.turning_count = audit.turning_count + 1;
         transition { _ -> next(audit, input) }
     }
-    machine next(audit: @mutable Audit, input: @Input) {
+    machine next(audit: @mutable Audit, input: @|input|::Input) {
         transition audit.index < 19 { true -> increment(audit, input), false -> done() }
     }
-    machine increment(audit: @mutable Audit, input: @Input) {
+    machine increment(audit: @mutable Audit, input: @|input|::Input) {
         audit.index = audit.index + 1;
         transition { _ -> loop(audit, input) }
     }

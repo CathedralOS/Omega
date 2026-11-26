@@ -1,13 +1,13 @@
 // Fact: Authorized declaration inspection describes every field, including erased bindings, with its exact type and owner application while borrowing its context once.
 // Expected exit: 0
-use omega\language\core\reflect;
+use {omega}/language/core/reflect/reflect.omg;
 data Subject { first: u64; second: bool; proof[erased]: u64; }
 data Counts [copy] { fields: u64; erased: u64; order: u64; evaluations: u64; valid: bool; }
 machine once<'input>(counts: @'input mutable Counts) -> @'input mutable Counts {
     counts.evaluations = ((counts.evaluations as u64 +Wrapping) + (1u64 as u64 +Wrapping)) as u64;
     counts
 }
-machine describe<Kind>(counts: @mutable Counts, field: @reflect\FieldInfo)
+machine describe<Kind>(counts: @mutable Counts, field: @|reflect|::FieldInfo)
 requires Kind == u64
 {
     counts.fields = ((counts.fields as u64 +Wrapping) + (1u64 as u64 +Wrapping)) as u64;
@@ -25,7 +25,7 @@ machine valid(counts: @Counts) -> bool {
         && counts.evaluations == 1u64 && counts.valid
 }
 data Inspector {}
-machine Inspector::apply(counts: @mutable Counts) { reflect\inspect_record_fields::<Subject, describe>(once(@mutable counts)); }
+machine Inspector::apply(counts: @mutable Counts) { |reflect|::inspect_record_fields::<Subject, describe>(once(@mutable counts)); }
 machine main() crashes Trap {
     let mutable counts: Counts = Counts { fields: 0u64, erased: 0u64, order: 0u64, evaluations: 0u64, valid: true };
     Inspector::apply(@mutable counts);

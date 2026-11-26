@@ -1,19 +1,13 @@
 // Expected exit: 0
-use omega\language\core\FieldEntry;
-use omega\language\core\FieldPlan;
-use omega\language\core\FixedLayout;
-use omega\language\core\LayoutPlan;
-use omega\language\core\LayoutStorage;
-use omega\language\core\LayoutTarget;
-use omega\language\core\Schema;
-use omega\language\core\widen_u8_to_u64;
+use {omega}/language/core/layout.omg;
+use {omega}/language/core/numeric_conversion.omg;
 data Payload [copy] { first: u64; value: u64; }
-Policy<const Marker: u64> satisfies FixedLayout<Payload> {
-    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches none terminates {
-        let mutable entries: [FieldEntry; 64];
-        entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
-        entries[1] = FieldEntry { key: schema.fields[1].key, representation: FieldPlan::At { offset: 8 } };
-        LayoutPlan { entries: entries, entry_count: 2, size_fixed: 16, size_is_dynamic: false, align: 8 }
+Policy<const Marker: u64> satisfies |layout|::FixedLayout<Payload> {
+    machine plan(schema: |layout|::Schema, target: |layout|::LayoutTarget) -> |layout|::LayoutPlan reaches none terminates {
+        let mutable entries: [|layout|::FieldEntry; 64];
+        entries[0] = |layout|::FieldEntry { key: schema.fields[0].key, representation: |layout|::FieldPlan::At { offset: 0 } };
+        entries[1] = |layout|::FieldEntry { key: schema.fields[1].key, representation: |layout|::FieldPlan::At { offset: 8 } };
+        |layout|::LayoutPlan { entries: entries, entry_count: 2, size_fixed: 16, size_is_dynamic: false, align: 8 }
     }
 }
 boundary trait ReadValue {
@@ -21,11 +15,11 @@ boundary trait ReadValue {
 }
 DefaultRead satisfies ReadValue {
     machine read<const Value: u64>() -> u64 {
-        let mutable storage: LayoutStorage<Payload, Policy<(Value + 1u64)> >;
+        let mutable storage: |layout|::LayoutStorage<Payload, Policy<(Value + 1u64)> >;
         storage.first = 9u64;
         storage.value = Value;
         let bytes: @[u8; 16] = @storage as @[u8; 16];
-        widen_u8_to_u64(bytes[8])
+        |numeric_conversion|::widen_u8_to_u64(bytes[8])
     }
 }
 machine main() reaches ReadValue crashes Trap {

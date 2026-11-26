@@ -11,15 +11,14 @@
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.
 
-use omega\language\core\F32::square_root;
-use omega\language\core\F64::square_root;
+use {omega}/language/core/float_operations.omg;
 
 machine f32_result() -> bool {
-    F32::square_root(64.0f32) == 8.0
+    |float_operations|::F32::square_root(64.0f32) == 8.0
 }
 
 machine f64_result() -> bool {
-    F64::square_root(64.0f64) == 8.0
+    |float_operations|::F64::square_root(64.0f64) == 8.0
 }
 
 data Main { hits: i32 in Wrapping; }
@@ -27,10 +26,10 @@ data Main { hits: i32 in Wrapping; }
 machine Main::main(main: @mutable Main) {
     main.hits = 0;
     transition f32_result() && f64_result()
-        && 8.0 == F64::square_root(64.0f64)
-        && F32::square_root(64.0f32) < 9.0
-        && 7.0 < F64::square_root(64.0f64)
-        && F32::square_root(64.0f32) != 7.0 {
+        && 8.0 == |float_operations|::F64::square_root(64.0f64)
+        && |float_operations|::F32::square_root(64.0f32) < 9.0
+        && 7.0 < |float_operations|::F64::square_root(64.0f64)
+        && |float_operations|::F32::square_root(64.0f32) != 7.0 {
         true -> pass(main),
         _ -> fail(main)
     }

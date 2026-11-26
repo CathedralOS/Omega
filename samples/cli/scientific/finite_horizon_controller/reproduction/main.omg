@@ -1,15 +1,14 @@
-use omega\language\core\StandardInput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Complete positive control: a local fixed byte buffer crosses a case edge
 // after the standard input provider filled it. With input 0 LF, exit 70.
-use system\Console;
-use system\LineReadResult;
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput {
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput {
     let mutable input: [u8; 8];
-    let observed: LineReadResult = block Console::read_line(@mutable input[..]);
+    let observed: |console|::LineReadResult = block |console|::Console::read_line(@mutable input[..]);
     transition observed {
-        LineReadResult::LineComplete { count } -> inspect(main, @input, count),
+        |console|::LineReadResult::LineComplete { count } -> inspect(main, @input, count),
         _ -> bad(main)
     }
     machine inspect(main: @mutable Main, input: @[u8; 8], count: u64) {
@@ -18,12 +17,12 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput {
             _ -> bad(main)
         }
     }
-    machine good(main: @mutable Main) { ProcessExit::exit_process(70); }
-    machine bad(main: @mutable Main) { ProcessExit::exit_process(2); }
+    machine good(main: @mutable Main) { |process_exit|::ProcessExit::exit_process(70); }
+    machine bad(main: @mutable Main) { |process_exit|::ProcessExit::exit_process(2); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

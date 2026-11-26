@@ -1,35 +1,28 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use clock/fit/fit.omg;
+use clock/model/model.omg;
+use clock/reconstruct/reconstruct.omg;
+use input/reader/reader.omg;
+use report/output/output.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // IND17: independent acquisition counter reconstruction and clock fitting.
-use system\Console;
-use clock\model;
-use clock\model\Acquisition;
-use clock\reconstruct;
-use clock\reconstruct\reconstruct;
-use clock\fit;
-use clock\fit\fit_clock;
-use input\reader;
-use input\reader\read_acquisition;
-use report\output;
-use report\output\number;
-use report\output\report;
 
-machine main() reaches ProcessExit + StandardInput + StandardOutput {
-    let mutable acquisition: Acquisition;
-    block read_acquisition(@mutable acquisition);
+machine main() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    let mutable acquisition: |model|::Acquisition;
+    block |reader|::read_acquisition(@mutable acquisition);
     transition acquisition.error == 0 { true -> decode(@mutable acquisition), false -> reject(@acquisition) }
-    machine decode(acquisition: @mutable Acquisition) {
-        reconstruct(acquisition);
+    machine decode(acquisition: @mutable |model|::Acquisition) {
+        |reconstruct|::reconstruct(acquisition);
         transition acquisition.error == 0 { true -> fitted(acquisition), false -> reject(acquisition) }
     }
-    machine fitted(acquisition: @mutable Acquisition) {
-        fit_clock(acquisition);
-        report(acquisition);
-        ProcessExit::exit_process(0);
+    machine fitted(acquisition: @mutable |model|::Acquisition) {
+        |fit|::fit_clock(acquisition);
+        |output|::report(acquisition);
+        |process_exit|::ProcessExit::exit_process(0);
     }
-    machine reject(acquisition: @Acquisition) {
-        Console::write("ERROR "); number(acquisition.error); Console::write_line("");
-        ProcessExit::exit_process(2);
+    machine reject(acquisition: @|model|::Acquisition) {
+        |console|::Console::write("ERROR "); |output|::number(acquisition.error); |console|::Console::write_line("");
+        |process_exit|::ProcessExit::exit_process(2);
     }
 }

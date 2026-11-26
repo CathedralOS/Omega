@@ -1,6 +1,6 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // stack_vm: tiny stack-based bytecode evaluator.
 //
 // Opcodes (case type):
@@ -35,7 +35,6 @@ use omega\language\core\ProcessExit;
 //
 // Expected exit: 70.
 
-use system\Console;
 
 data Opcode {
     case Push(value: i32 in Wrapping);
@@ -181,8 +180,8 @@ machine step(main: @mutable Main, op: Opcode) {
     machine done(main: @mutable Main) {}
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("stack_vm: a tiny bytecode VM runs (3 + 4) * 2 - 1 on a fixed stack");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("stack_vm: a tiny bytecode VM runs (3 + 4) * 2 - 1 on a fixed stack");
     // Initialize VM.
     init(main);
 
@@ -207,21 +206,21 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
 
     machine good(main: @mutable Main) {
-        Console::write_line("PASS: program evaluated to 13, reported as 13 + 57 (exit 70)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(70);
+        |console|::Console::write_line("PASS: program evaluated to 13, reported as 13 + 57 (exit 70)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(70);
     }
     machine bad(main: @mutable Main) {
-        Console::write_line("FAIL: top of stack was not 13 after the program (exit 71)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(71);
+        |console|::Console::write_line("FAIL: top of stack was not 13 after the program (exit 71)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(71);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

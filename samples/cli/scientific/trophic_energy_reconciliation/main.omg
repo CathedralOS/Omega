@@ -1,26 +1,17 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
-use system\Console;
-use platform\input;
-use platform\input\read_number;
-use platform\input\require_end;
-use platform\report;
-use platform\report\number;
-use domain\reconcile;
-use domain\reconcile\Web;
-use domain\reconcile\transfer;
-use domain\reconcile\residual;
-use domain\reconcile\deficit;
-use domain\reconcile\surplus;
+use domain/reconcile/reconcile.omg;
+use platform/input/input.omg;
+use platform/report/report.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 
-data Main { web: Web; }
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("trophic reconciliation v1; hundredths");
+data Main { web: |reconcile|::Web; }
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("trophic reconciliation v1; hundredths");
     transition { _ -> block node_input(main, 0) }
     machine node_input(main: @mutable Main, node: u64) requires node < 3 {
-        let external: i32 in Saturating = block read_number();
-        let maintenance: i32 in Saturating = block read_number();
+        let external: i32 in Saturating = block |input|::read_number();
+        let maintenance: i32 in Saturating = block |input|::read_number();
         transition external >= 0 && maintenance >= 0 {
             true -> block store_node(main, node, external, maintenance),
             false -> invalid(main)
@@ -33,7 +24,7 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         transition next < 3 { true -> block node_input(main, next), false -> block edge_count(main) }
     }
     machine edge_count(main: @mutable Main) {
-        let count: i32 in Saturating = block read_number();
+        let count: i32 in Saturating = block |input|::read_number();
         transition count >= 0 && count <= 6 {
             true -> block edges(main, count, 0),
             false -> invalid(main)
@@ -46,10 +37,10 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         }
     }
     machine edge_input(main: @mutable Main, count: i32 in Saturating, index: u64) requires index <= 6 {
-        let source: i32 in Saturating = block read_number();
-        let destination: i32 in Saturating = block read_number();
-        let intake: i32 in Saturating = block read_number();
-        let efficiency: i32 in Saturating = block read_number();
+        let source: i32 in Saturating = block |input|::read_number();
+        let destination: i32 in Saturating = block |input|::read_number();
+        let intake: i32 in Saturating = block |input|::read_number();
+        let efficiency: i32 in Saturating = block |input|::read_number();
         transition source >= 0 && source < 3 && destination >= 0 && destination < 3 && source != destination && intake >= 0 && efficiency >= 0 && efficiency <= 100 {
             true -> block apply(main, count, index, source as u64, destination as u64, intake, efficiency),
             false -> invalid(main)
@@ -57,33 +48,33 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
     machine apply(main: @mutable Main, count: i32 in Saturating, index: u64, source: u64, destination: u64, intake: i32 in Saturating, efficiency: i32 in Saturating)
     requires index <= 6 requires source < 3 requires destination < 3 {
-        transfer(@mutable main.web, source, destination, intake, efficiency);
-        Console::write_line("flow source destination raw assimilated loss");
-        number(source as i32 +Saturating);
-        number(destination as i32 +Saturating);
-        number(intake * 100);
-        number(intake * efficiency);
-        number(intake * (100 - efficiency));
+        |reconcile|::transfer(@mutable main.web, source, destination, intake, efficiency);
+        |console|::Console::write_line("flow source destination raw assimilated loss");
+        |report|::number(source as i32 +Saturating);
+        |report|::number(destination as i32 +Saturating);
+        |report|::number(intake * 100);
+        |report|::number(intake * efficiency);
+        |report|::number(intake * (100 - efficiency));
         transition index < 6 { true -> block advance(main, count, index), false -> invalid(main) }
     }
     machine advance(main: @mutable Main, count: i32 in Saturating, index: u64) requires index < 6 {
         transition { _ -> block edges(main, count, index + 1) }
     }
     machine end_input(main: @mutable Main) {
-        let ended: bool = block require_end();
+        let ended: bool = block |input|::require_end();
         transition ended { true -> report_nodes(main, 0, 0, 0, 0), false -> invalid(main) }
     }
     machine report_nodes(main: @mutable Main, node: u64, balances: i32 in Saturating, deficits: i32 in Saturating, supplies: i32 in Saturating) requires node < 3 {
-        let balance: i32 in Saturating = residual(@main.web, node);
-        let shortage: i32 in Saturating = deficit(balance);
-        Console::write_line("node intake assimilated outgoing residual deficit surplus");
-        number(node as i32 +Saturating);
-        number(main.web.intake[node]);
-        number(main.web.assimilated[node]);
-        number(main.web.outgoing[node]);
-        number(balance);
-        number(shortage);
-        number(surplus(balance));
+        let balance: i32 in Saturating = |reconcile|::residual(@main.web, node);
+        let shortage: i32 in Saturating = |reconcile|::deficit(balance);
+        |console|::Console::write_line("node intake assimilated outgoing residual deficit surplus");
+        |report|::number(node as i32 +Saturating);
+        |report|::number(main.web.intake[node]);
+        |report|::number(main.web.assimilated[node]);
+        |report|::number(main.web.outgoing[node]);
+        |report|::number(balance);
+        |report|::number(shortage);
+        |report|::number(|reconcile|::surplus(balance));
         let next: u64 = node + 1;
         let next_balance: i32 in Saturating = balances + balance;
         let next_deficit: i32 in Saturating = deficits + shortage;
@@ -95,23 +86,23 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
     machine diagnostic(main: @mutable Main, balances: i32 in Saturating, deficits: i32 in Saturating, supplies: i32 in Saturating) {
         let error: i32 in Saturating = supplies - main.web.loss - balances;
-        Console::write_line("web loss deficit balance_error");
-        number(main.web.loss);
-        number(deficits);
-        number(error);
+        |console|::Console::write_line("web loss deficit balance_error");
+        |report|::number(main.web.loss);
+        |report|::number(deficits);
+        |report|::number(error);
         transition error == 0 { true -> feasibility(main, deficits), false -> broken(main) }
     }
     machine feasibility(main: @mutable Main, deficits: i32 in Saturating) {
         transition deficits == 0 { true -> feasible(main), false -> infeasible(main) }
     }
-    machine feasible(main: @mutable Main) { Console::write_line("FEASIBLE"); ProcessExit::exit_process(0); }
-    machine infeasible(main: @mutable Main) { Console::write_line("INFEASIBLE"); ProcessExit::exit_process(3); }
-    machine invalid(main: @mutable Main) { Console::write_line("INVALID INPUT"); ProcessExit::exit_process(64); }
-    machine broken(main: @mutable Main) { Console::write_line("BALANCE FAILURE"); ProcessExit::exit_process(70); }
+    machine feasible(main: @mutable Main) { |console|::Console::write_line("FEASIBLE"); |process_exit|::ProcessExit::exit_process(0); }
+    machine infeasible(main: @mutable Main) { |console|::Console::write_line("INFEASIBLE"); |process_exit|::ProcessExit::exit_process(3); }
+    machine invalid(main: @mutable Main) { |console|::Console::write_line("INVALID INPUT"); |process_exit|::ProcessExit::exit_process(64); }
+    machine broken(main: @mutable Main) { |console|::Console::write_line("BALANCE FAILURE"); |process_exit|::ProcessExit::exit_process(70); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

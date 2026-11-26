@@ -1,5 +1,6 @@
-use omega\language\core\StandardInput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Read bytes to EOF and exit with the Wrapping sum of bytes plus byte count.
 // ByteRead::Eof is distinct from a zero-valued Byte payload.
 // Expected exit: 0.
@@ -11,19 +12,17 @@ use omega\language\core\ProcessExit;
 //   "!!" -> 68
 // The default input is empty; cases.json pins finite input/output vectors.
 
-use system\ByteRead;
-use system\Console;
 
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput {
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput {
     transition { _ -> block read_next_byte(0 as +Wrapping, 0 as +Wrapping) }
 
     machine read_next_byte(sum: i32 in Wrapping, count: i32 in Wrapping) {
-        let read_result: ByteRead = block Console::read_byte();
+        let read_result: |console|::ByteRead = block |console|::Console::read_byte();
         transition read_result {
-            ByteRead::Error -> ProcessExit::exit_process(74),
-            ByteRead::Byte { value } -> block add_byte(sum, count, value),
-            ByteRead::Eof -> exit_with_checksum(sum, count)
+            |console|::ByteRead::Error -> |process_exit|::ProcessExit::exit_process(74),
+            |console|::ByteRead::Byte { value } -> block add_byte(sum, count, value),
+            |console|::ByteRead::Eof -> exit_with_checksum(sum, count)
         }
     }
 
@@ -35,12 +34,12 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput {
 
     machine exit_with_checksum(sum: i32 in Wrapping, count: i32 in Wrapping) {
         let digest: i32 in Wrapping = sum + count;
-        ProcessExit::exit_process(digest as i32);
+        |process_exit|::ProcessExit::exit_process(digest as i32);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

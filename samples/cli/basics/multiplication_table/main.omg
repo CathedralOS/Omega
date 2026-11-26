@@ -1,7 +1,8 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\byte_observation;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/byte_observation/byte_observation.omg;
+use {omega}/language/core/numeric_conversion.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // A 9x9 multiplication table -- the first sample that produces FORMATTED NUMERIC OUTPUT.
 // Every other sample renders glyphs or animation frames; this one converts computed
 // numbers to text (itoa: a two-digit field, space-padded) and lays them out in an aligned
@@ -11,15 +12,13 @@ use omega\language\core\ProcessExit;
 // two digit chars written per cell, then printed. Pure compute + stdout, no new features.
 // Expected exit: 0.
 // Expected output contains: 81
-use system\Console;
-use omega\language\core\narrow_i32_to_u8_trapping;
 
 domain [u8]::Utf8
 requires
-    byte_observation\valid_utf8(@self[..]);
+    |byte_observation|::valid_utf8(@self[..]);
 domain [u8; 28]::Utf8
 requires
-    byte_observation\valid_utf8(@self[..]);
+    |byte_observation|::valid_utf8(@self[..]);
 data Main {
     line: [u8; 28] in Utf8;
     i: i32 in Wrapping;   // row factor 1..9
@@ -35,8 +34,8 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("multiplication_table: the 9x9 times table, space-padded numeric text");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("multiplication_table: the 9x9 times table, space-padded numeric text");
     main.line = "                            " as +Utf8;
     main.i = 1 as +Wrapping;
     transition { _ -> block row_loop(main) }
@@ -68,11 +67,11 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         main.p = main.i * main.j;
         main.tens = main.p / 10;
         main.ones = main.p % 10;
-        main.oc = narrow_i32_to_u8_trapping((main.ones + 48) as -Wrapping);
+        main.oc = |numeric_conversion|::narrow_i32_to_u8_trapping((main.ones + 48) as -Wrapping);
         transition main.tens > 0 { true -> block cell_tens(main), _ -> block cell_space(main) }
     }
     machine cell_tens(main: @mutable Main) {
-        main.tc = narrow_i32_to_u8_trapping((main.tens + 48) as -Wrapping);
+        main.tc = |numeric_conversion|::narrow_i32_to_u8_trapping((main.tens + 48) as -Wrapping);
         transition { _ -> block cell_write(main) }
     }
     machine cell_space(main: @mutable Main) {
@@ -94,27 +93,27 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         transition { _ -> block col_loop(main) }
     }
     machine emit_row(main: @mutable Main) {
-        Console::write_line((@main.line as -Utf8)[..]);
+        |console|::Console::write_line((@main.line as -Utf8)[..]);
         main.i = main.i + 1;
         transition { _ -> block row_loop(main) }
     }
 
     machine finish(main: @mutable Main) {
-        Console::write_line("PASS: 9 rows rendered (exit 0)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(0);
+        |console|::Console::write_line("PASS: 9 rows rendered (exit 0)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(0);
     }
     machine bad(main: @mutable Main) {
-        Console::write_line("FAIL: internal bounds check failed (exit 1)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(1);
+        |console|::Console::write_line("FAIL: internal bounds check failed (exit 1)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(1);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

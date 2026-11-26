@@ -1,8 +1,8 @@
 // Fact: authorized typed mutation lends each non-erased field exclusively to the selected callback once and restores the caller's access afterward.
 // Expected exit: 0
-use omega\language\core\reflect;
+use {omega}/language/core/reflect/reflect.omg;
 data Subject [copy] { first: u64; second: u64; third: u64; }
-machine increment<Kind>(count: @mutable u64, info: @reflect\FieldInfo, value: @mutable Kind)
+machine increment<Kind>(count: @mutable u64, info: @|reflect|::FieldInfo, value: @mutable Kind)
 requires Kind == u32
 {
     $value = (($value as u64 +Wrapping) + (1u64 as u64 +Wrapping)) as u64;
@@ -11,7 +11,7 @@ requires Kind == u32
 machine main() crashes Trap {
     let mutable value: Subject = Subject { first: 1u64, second: 2u64, third: 18446744073709551615u64 };
     let mutable count: u64 = 0u64;
-    reflect\visit_runtime_fields_mut::<Subject, increment>(@mutable value, @mutable count);
+    |reflect|::visit_runtime_fields_mut::<Subject, increment>(@mutable value, @mutable count);
     transition value.first == 2u64 && value.second == 3u64 && value.third == 0u64 && count == 3u64 {
         true -> done(),
         false -> bad()

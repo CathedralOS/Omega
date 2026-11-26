@@ -1,6 +1,6 @@
 // Specific enthalpy is zero at onset of melting. Both sensible phases
 // use the material's declared heat capacity. Temperature is continuous.
-use omega\language\core\F64::from_i32;
+use {omega}/language/core/float_operations.omg;
 public data Material [copy] { mass: f64; capacity: f64; latent: f64; melting: f64; initial: f64; }
 public data Problem [copy] { first: Material; second: Material; conductance: f64; }
 public data Evolution [copy] { energy: f64; elapsed: f64; success: bool; }
@@ -39,7 +39,7 @@ machine decay(value: f64) -> f64 {
         transition index >= 1 && index < 25 { true -> term(value, count, index, term, sum), _ -> square(sum, count) }
     }
     machine term(value: f64, count: i32, index: i32, term: f64, sum: f64) -> f64 requires index >= 1 && index < 25 {
-        let next: f64 = term * (-value) / F64::from_i32(index);
+        let next: f64 = term * (-value) / |float_operations|::F64::from_i32(index);
         transition { _ -> series(value, count, index + 1, next, sum + next) }
     }
     machine square(value: f64, count: i32) -> f64 {
@@ -55,7 +55,7 @@ machine change(speed: f64, rate: f64, duration: f64) -> f64 {
         transition index >= 1 && index < 12 { true -> term(speed, duration, value, index, term, sum), _ -> (speed * duration * sum) }
     }
     machine term(speed: f64, duration: f64, value: f64, index: i32, term: f64, sum: f64) -> f64 requires index >= 1 && index < 12 {
-        let next: f64 = term * (-value) / F64::from_i32(index + 1);
+        let next: f64 = term * (-value) / |float_operations|::F64::from_i32(index + 1);
         transition { _ -> series(speed, duration, value, index + 1, next, sum + next) }
     }
 }

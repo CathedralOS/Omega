@@ -1,4 +1,4 @@
-use kit\util;
+use {kit}/util/mod.omg;
 machine entry() -> i32 {
-    u()
+    |mod|::u()
 }

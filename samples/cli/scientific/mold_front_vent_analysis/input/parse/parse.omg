@@ -1,13 +1,11 @@
-use omega\language\core\widen_u8_to_i32;
-use model\fill;
-use model\fill\Cavity;
-use model\fill\valid;
+use model/fill/fill.omg;
+use {omega}/language/core/numeric_conversion.omg;
 
 // Fixed grammar: WWWW GGGG VVVV BB, with hex masks and decimal cell budget.
 // The input reader passes only its initialized prefix. No number accepts a
 // sign, junk suffix, overflowing digit sequence, or implicit default.
 machine hexadecimal(byte: u8) -> i32 in Wrapping {
-    let value: i32 in Wrapping = widen_u8_to_i32(byte) as i32 +Wrapping;
+    let value: i32 in Wrapping = |numeric_conversion|::widen_u8_to_i32(byte) as i32 +Wrapping;
     transition {
         value >= 48 && value <= 57 -> (value - 48),
         value >= 65 && value <= 70 -> (value - 55),
@@ -42,12 +40,12 @@ machine parse_hex(text: @[u8], start: i32 in Wrapping) -> i32 in Wrapping {
     }
 }
 
-public machine parse_input(text: @[u8], cavity: @mutable Cavity) -> bool {
+public machine parse_input(text: @[u8], cavity: @mutable |fill|::Cavity) -> bool {
     transition text.length >= 17 && text.length <= 19 {
         true -> ending(text, cavity),
         _ -> false
     }
-    machine ending(text: @[u8], cavity: @mutable Cavity) -> bool
+    machine ending(text: @[u8], cavity: @mutable |fill|::Cavity) -> bool
     requires text.length >= 17
     {
         transition text.length {
@@ -57,7 +55,7 @@ public machine parse_input(text: @[u8], cavity: @mutable Cavity) -> bool {
             _ -> false
         }
     }
-    machine newline(text: @[u8], cavity: @mutable Cavity) -> bool
+    machine newline(text: @[u8], cavity: @mutable |fill|::Cavity) -> bool
     requires text.length >= 18
     {
         transition text[17] == 10 {
@@ -65,7 +63,7 @@ public machine parse_input(text: @[u8], cavity: @mutable Cavity) -> bool {
             _ -> false
         }
     }
-    machine carriage(text: @[u8], cavity: @mutable Cavity) -> bool
+    machine carriage(text: @[u8], cavity: @mutable |fill|::Cavity) -> bool
     requires text.length >= 19
     {
         transition text[17] == 13 && text[18] == 10 {
@@ -73,7 +71,7 @@ public machine parse_input(text: @[u8], cavity: @mutable Cavity) -> bool {
             _ -> false
         }
     }
-    machine separators(text: @[u8], cavity: @mutable Cavity) -> bool
+    machine separators(text: @[u8], cavity: @mutable |fill|::Cavity) -> bool
     requires text.length >= 17
     {
         transition text[4] == 32 && text[9] == 32 && text[14] == 32 {
@@ -81,26 +79,26 @@ public machine parse_input(text: @[u8], cavity: @mutable Cavity) -> bool {
             _ -> false
         }
     }
-    machine numbers(text: @[u8], cavity: @mutable Cavity) -> bool
+    machine numbers(text: @[u8], cavity: @mutable |fill|::Cavity) -> bool
     requires text.length >= 17
     {
         let walls: i32 in Wrapping = parse_hex(text, 0);
         let gates: i32 in Wrapping = parse_hex(text, 5);
         let vents: i32 in Wrapping = parse_hex(text, 10);
-        let tens: i32 in Wrapping = widen_u8_to_i32(text[15]) as i32 +Wrapping;
-        let ones: i32 in Wrapping = widen_u8_to_i32(text[16]) as i32 +Wrapping;
+        let tens: i32 in Wrapping = |numeric_conversion|::widen_u8_to_i32(text[15]) as i32 +Wrapping;
+        let ones: i32 in Wrapping = |numeric_conversion|::widen_u8_to_i32(text[16]) as i32 +Wrapping;
         transition walls >= 0 && gates >= 0 && vents >= 0
             && tens >= 48 && tens <= 57 && ones >= 48 && ones <= 57 {
             true -> store(cavity, walls, gates, vents, (tens - 48) * 10 + ones - 48),
             _ -> false
         }
     }
-    machine store(cavity: @mutable Cavity, walls: i32 in Wrapping, gates: i32 in Wrapping,
+    machine store(cavity: @mutable |fill|::Cavity, walls: i32 in Wrapping, gates: i32 in Wrapping,
                 vents: i32 in Wrapping, budget: i32 in Wrapping) -> bool {
         cavity.walls = walls;
         cavity.gates = gates;
         cavity.vents = vents;
         cavity.budget = budget;
-        valid(cavity)
+        |fill|::valid(cavity)
     }
 }

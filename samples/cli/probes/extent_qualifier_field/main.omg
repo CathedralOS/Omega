@@ -4,7 +4,7 @@
 // shape is an implicit strengthening. `held.e as Extent`
 // erases both qualifications on exit.
 //
-//   * `use omega\language\core\extent` — depend-free
+//   * `use {omega}/language/core/extent.omg` — depend-free
 //     import of the linear `Extent` + `Granted`/`Vacant`
 //     domains.
 //   * `keep(whole: Extent in Granted & Vacant) -> Extent`.
@@ -12,16 +12,16 @@
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.
 
-use omega\language\core\Extent;
+use {omega}/language/core/extent.omg;
 
 data Held {
-    e: Extent in Granted & Vacant;
+    e: |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Vacant;
 }
 
-machine keep(whole: Extent in Granted & Vacant) -> Extent
+machine keep(whole: |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Vacant) -> |extent|::Extent
 {
     let held: Held = Held { e: whole };
-    held.e as Extent
+    held.e as |extent|::Extent
 }
 
 data Main { hits: i32 in Wrapping; }

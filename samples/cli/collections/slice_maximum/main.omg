@@ -1,7 +1,7 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
-use omega\language\core\max_i32;
+use {omega}/language/core/math.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 
 // Maximum of a slice by tail recursion over a shrinking window. find_max walks
 // the slice, carrying the largest value seen so far; for [3, 7, 2, 9, 4] the answer
@@ -11,31 +11,30 @@ use omega\language\core\max_i32;
 // transition (a read in a separate state would not carry the `len > 0` fact).
 // Expected exit: 9.
 
-use system\Console;
 
 machine find_max(s: @[i32], current: i32) -> i32 {
     transition s.length > 0 {
-        true -> find_max(s[1..], max_i32(current, s[0])),
+        true -> find_max(s[1..], |math|::max_i32(current, s[0])),
         false -> (current)
     }
 }
 
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("slice_maximum: tail-recursive max over the slice [3, 7, 2, 9, 4]");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("slice_maximum: tail-recursive max over the slice [3, 7, 2, 9, 4]");
     let values: [i32; 5] = [3, 7, 2, 9, 4];
 
     let s: @[i32] = @values[..];
     let m: i32 = find_max(s, 0);
-    Console::write_line("result: the slice maximum, 9 for this data (the exit code)");
-    Console::write_line("[press Enter to close]");
+    |console|::Console::write_line("result: the slice maximum, 9 for this data (the exit code)");
+    |console|::Console::write_line("[press Enter to close]");
     let mutable pause: [u8; 256];
-    _ = block Console::read_line(@mutable pause[..]);
-    ProcessExit::exit_process(m);
+    _ = block |console|::Console::read_line(@mutable pause[..]);
+    |process_exit|::ProcessExit::exit_process(m);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

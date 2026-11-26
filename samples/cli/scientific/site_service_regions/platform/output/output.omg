@@ -1,19 +1,18 @@
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
-use system\Console;
-use omega\language\core\I64::from_f64;
-use domain\model;
-use domain\model\Partition;
+use domain/model/model.omg;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Runtime recursion is tail-only. Keep pending decimal digits in private
 // fixed storage: every i64 needs at most 19 digits, including i64::MIN.
 data Digits { bytes: [i32; 20]; count: u64; }
-public machine integer(value: i64 in Saturating) reaches ProcessExit + StandardOutput
-invokes Console
+public machine integer(value: i64 in Saturating) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput
+invokes |console|::Console
 {
     let mutable output: Digits;
     transition value < 0 { true -> negative(value, @mutable output), false -> collect(value, @mutable output) }
     machine negative(value: i64 in Saturating, output: @mutable Digits) {
-        Console::write("-");
+        |console|::Console::write("-");
         transition { _ -> collect(value, output) }
     }
     machine collect(value: i64 in Saturating, output: @mutable Digits) {
@@ -56,47 +55,47 @@ invokes Console
     machine write_digit(output: @Digits, index: u64)
     requires index < 20
     {
-        Console::write_byte(output.bytes[index]);
+        |console|::Console::write_byte(output.bytes[index]);
         transition { _ -> emit_digits(output, index) }
     }
-    machine failed() { Console::write_line("FORMAT_FAILED"); ProcessExit::exit_process(70); }
+    machine failed() { |console|::Console::write_line("FORMAT_FAILED"); |process_exit|::ProcessExit::exit_process(70); }
     machine done() { }
 }
 // Emit nearest integer micro-units, with ties away from zero. All geometry
 // remains f64; quantization happens only at this presentation boundary.
-public machine micro(value: f64) reaches ProcessExit + StandardOutput
-invokes Console
+public machine micro(value: f64) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput
+invokes |console|::Console
 {
     transition value < 0.0 { true -> negative(value), false -> positive(value) }
     machine negative(value: f64) {
-        Console::write("-");
-        let rounded: i64 in Saturating = I64::from_f64((0.0 - value) * 1000000.0 + 0.5);
+        |console|::Console::write("-");
+        let rounded: i64 in Saturating = |float_operations|::I64::from_f64((0.0 - value) * 1000000.0 + 0.5);
         integer(rounded);
     }
     machine positive(value: f64) {
-        let rounded: i64 in Saturating = I64::from_f64(value * 1000000.0 + 0.5);
+        let rounded: i64 in Saturating = |float_operations|::I64::from_f64(value * 1000000.0 + 0.5);
         integer(rounded);
     }
 }
-public machine emit(partition: @Partition) reaches ProcessExit + StandardOutput
-invokes Console
+public machine emit(partition: @|model|::Partition) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput
+invokes |console|::Console
 {
-    Console::write_line("SERVICE_REGIONS micro_units=1000000");
+    |console|::Console::write_line("SERVICE_REGIONS micro_units=1000000");
     transition { _ -> cell(partition, 0) }
-    machine cell(partition: @Partition, owner: u64) {
+    machine cell(partition: @|model|::Partition, owner: u64) {
         transition owner < partition.site_count && owner < 8 {
             true -> header(partition, owner),
             false -> finish(partition)
         }
     }
-    machine header(partition: @Partition, owner: u64)
+    machine header(partition: @|model|::Partition, owner: u64)
     requires owner < 8
     {
-        Console::write("CELL "); integer(owner as i64 +Saturating);
-        Console::write(" AREA "); micro(partition.areas[owner]); Console::write_line("");
+        |console|::Console::write("CELL "); integer(owner as i64 +Saturating);
+        |console|::Console::write(" AREA "); micro(partition.areas[owner]); |console|::Console::write_line("");
         transition { _ -> vertex(partition, owner, 0) }
     }
-    machine vertex(partition: @Partition, owner: u64, index: u64)
+    machine vertex(partition: @|model|::Partition, owner: u64, index: u64)
     requires owner < 8
     {
         transition index < partition.cells[owner].count && index < 32 {
@@ -104,14 +103,14 @@ invokes Console
             false -> adjacent(partition, owner, 0)
         }
     }
-    machine coordinate(partition: @Partition, owner: u64, index: u64)
+    machine coordinate(partition: @|model|::Partition, owner: u64, index: u64)
     requires owner < 8
     {
-        Console::write("VERTEX "); micro(partition.cells[owner].x[index]);
-        Console::write(" "); micro(partition.cells[owner].y[index]); Console::write_line("");
+        |console|::Console::write("VERTEX "); micro(partition.cells[owner].x[index]);
+        |console|::Console::write(" "); micro(partition.cells[owner].y[index]); |console|::Console::write_line("");
         transition { _ -> vertex(partition, owner, index + 1) }
     }
-    machine adjacent(partition: @Partition, owner: u64, rival: u64)
+    machine adjacent(partition: @|model|::Partition, owner: u64, rival: u64)
     requires owner < 8
     {
         transition rival < partition.site_count && rival < 8 {
@@ -119,7 +118,7 @@ invokes Console
             false -> checked(partition, owner)
         }
     }
-    machine relation(partition: @Partition, owner: u64, rival: u64)
+    machine relation(partition: @|model|::Partition, owner: u64, rival: u64)
     requires owner < 8 && rival < 8
     {
         transition partition.adjacency[owner * 8 + rival] && rival != owner {
@@ -127,20 +126,20 @@ invokes Console
             false -> adjacent(partition, owner, rival + 1)
         }
     }
-    machine connected(partition: @Partition, owner: u64, rival: u64)
+    machine connected(partition: @|model|::Partition, owner: u64, rival: u64)
     requires owner < 8
     {
-        Console::write("ADJACENT "); integer(rival as i64 +Saturating); Console::write_line("");
+        |console|::Console::write("ADJACENT "); integer(rival as i64 +Saturating); |console|::Console::write_line("");
         transition { _ -> adjacent(partition, owner, rival + 1) }
     }
-    machine checked(partition: @Partition, owner: u64)
+    machine checked(partition: @|model|::Partition, owner: u64)
     requires owner < 8
     {
-        Console::write_line("NEAREST PASS");
+        |console|::Console::write_line("NEAREST PASS");
         transition { _ -> cell(partition, owner + 1) }
     }
-    machine finish(partition: @Partition) {
-        Console::write("TOTAL_AREA "); micro(partition.total); Console::write_line("");
-        Console::write_line("PARTITION PASS");
+    machine finish(partition: @|model|::Partition) {
+        |console|::Console::write("TOTAL_AREA "); micro(partition.total); |console|::Console::write_line("");
+        |console|::Console::write_line("PARTITION PASS");
     }
 }

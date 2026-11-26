@@ -1,37 +1,36 @@
-use omega\language\core\max_f64;
-use spectrometer\model\Spectrum;
-use spectrometer\model\Regions;
-use omega\language\core\F64::from_i32;
+use spectrometer/model/model.omg;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/math.omg;
 
 // Subtract the supplied linear baseline, clip negative residuals, and retain
 // only bins at or above threshold. Adjacent retained bins form one region:
 // overlapping peaks deliberately remain unresolved rather than fabricated.
 // Rectangular area and moment retain integer fifteenths until the final ratio.
 // Their maximum moment is below 2^53, so every accumulation is exact in f64.
-public machine find_regions(spectrum: @Spectrum, regions: @mutable Regions) -> bool {
+public machine find_regions(spectrum: @|model|::Spectrum, regions: @mutable |model|::Regions) -> bool {
     regions.count = 0;
     regions.open = false;
     transition { _ -> scan(spectrum, regions, 0) }
-    machine scan(spectrum: @Spectrum, regions: @mutable Regions,
+    machine scan(spectrum: @|model|::Spectrum, regions: @mutable |model|::Regions,
                index: i32 in Wrapping) -> bool {
         transition index >= 0 && index < 16 {
             true -> residual(spectrum, regions, index),
             false -> flush(spectrum, regions)
         }
     }
-    machine residual(spectrum: @Spectrum, regions: @mutable Regions,
+    machine residual(spectrum: @|model|::Spectrum, regions: @mutable |model|::Regions,
                    index: i32 in Wrapping) -> bool {
         // All accepted values are integers. Multiplying by fifteen keeps
         // linear-baseline residuals exact, including an inclusive threshold.
-        let offset: f64 = F64::from_i32(index as i32);
-        let weight: f64 = max_f64(0.0, spectrum.samples[index] * 15.0 -
+        let offset: f64 = |float_operations|::F64::from_i32(index as i32);
+        let weight: f64 = |math|::max_f64(0.0, spectrum.samples[index] * 15.0 -
             spectrum.baseline_start * (15.0 - offset) - spectrum.baseline_end * offset);
         transition weight >= spectrum.threshold * 15.0 {
             true -> retained(spectrum, regions, index, weight),
             false -> gap(spectrum, regions, index)
         }
     }
-    machine retained(spectrum: @Spectrum, regions: @mutable Regions,
+    machine retained(spectrum: @|model|::Spectrum, regions: @mutable |model|::Regions,
                    index: i32 in Wrapping, weight: f64) -> bool {
         let region: i32 in Wrapping = regions.count;
         transition region >= 0 && region < 8 {
@@ -39,7 +38,7 @@ public machine find_regions(spectrum: @Spectrum, regions: @mutable Regions) -> b
             false -> false
         }
     }
-    machine integrate(spectrum: @Spectrum, regions: @mutable Regions,
+    machine integrate(spectrum: @|model|::Spectrum, regions: @mutable |model|::Regions,
                     index: i32 in Wrapping, weight: f64,
                     region: i32 in Wrapping) -> bool {
         transition regions.open {
@@ -47,7 +46,7 @@ public machine find_regions(spectrum: @Spectrum, regions: @mutable Regions) -> b
             false -> start(spectrum, regions, index, weight, region)
         }
     }
-    machine start(spectrum: @Spectrum, regions: @mutable Regions,
+    machine start(spectrum: @|model|::Spectrum, regions: @mutable |model|::Regions,
                 index: i32 in Wrapping, weight: f64,
                 region: i32 in Wrapping) -> bool {
         regions.starts[region] = index;
@@ -56,23 +55,23 @@ public machine find_regions(spectrum: @Spectrum, regions: @mutable Regions) -> b
         regions.open = true;
         transition { _ -> add(spectrum, regions, index, weight, region) }
     }
-    machine add(spectrum: @Spectrum, regions: @mutable Regions,
+    machine add(spectrum: @|model|::Spectrum, regions: @mutable |model|::Regions,
               index: i32 in Wrapping, weight: f64,
               region: i32 in Wrapping) -> bool {
-        let coordinate: f64 = spectrum.origin + spectrum.spacing * F64::from_i32(index as i32);
+        let coordinate: f64 = spectrum.origin + spectrum.spacing * |float_operations|::F64::from_i32(index as i32);
         regions.ends[region] = index;
         regions.area_fifteenths[region] = regions.area_fifteenths[region] + weight;
         regions.moment_fifteenths[region] = regions.moment_fifteenths[region] + weight * coordinate;
         transition { _ -> scan(spectrum, regions, index + 1) }
     }
-    machine gap(spectrum: @Spectrum, regions: @mutable Regions,
+    machine gap(spectrum: @|model|::Spectrum, regions: @mutable |model|::Regions,
               index: i32 in Wrapping) -> bool {
         transition regions.open {
             true -> close(spectrum, regions, index),
             false -> scan(spectrum, regions, index + 1)
         }
     }
-    machine close(spectrum: @Spectrum, regions: @mutable Regions,
+    machine close(spectrum: @|model|::Spectrum, regions: @mutable |model|::Regions,
                 index: i32 in Wrapping) -> bool {
         let region: i32 in Wrapping = regions.count;
         transition region >= 0 && region < 8 {
@@ -80,7 +79,7 @@ public machine find_regions(spectrum: @Spectrum, regions: @mutable Regions) -> b
             false -> false
         }
     }
-    machine centroid(spectrum: @Spectrum, regions: @mutable Regions,
+    machine centroid(spectrum: @|model|::Spectrum, regions: @mutable |model|::Regions,
                    index: i32 in Wrapping, region: i32 in Wrapping) -> bool {
         // Every open region contains a bin with weight >= positive threshold.
         regions.centroids[region] = regions.moment_fifteenths[region] / regions.area_fifteenths[region] + spectrum.calibration;
@@ -91,7 +90,7 @@ public machine find_regions(spectrum: @Spectrum, regions: @mutable Regions) -> b
             false -> true
         }
     }
-    machine flush(spectrum: @Spectrum, regions: @mutable Regions) -> bool {
+    machine flush(spectrum: @|model|::Spectrum, regions: @mutable |model|::Regions) -> bool {
         transition regions.open {
             true -> close(spectrum, regions, 16),
             false -> true

@@ -1,6 +1,7 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/numeric_conversion.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Hex dump -- renders a fixed 16-byte record as one canonical dump line:
 // offset, sixteen lowercase hex pairs, then an ASCII gutter that maps every
 // byte outside 32..126 to '.'. Bytes are streamed through Console::write_byte
@@ -17,9 +18,6 @@ requires
 domain [u8; 16]::Utf8
 requires
     valid_utf8(self);
-use system\Console;
-use omega\language\core\narrow_u32_to_i32_trapping;
-use omega\language\core\widen_u8_to_u32;
 
 data Main {
     data: [u8; 16] in Utf8;
@@ -34,9 +32,9 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("hex_dump: 16 bytes as one canonical dump line (offset, hex pairs, gutter)");
-    Console::write("0000: ");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("hex_dump: 16 bytes as one canonical dump line (offset, hex pairs, gutter)");
+    |console|::Console::write("0000: ");
     main.data = "Omega Psi tape!!";
     main.data[3] = 0;
     main.data[9] = 127;
@@ -54,7 +52,7 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
 
     machine read_byte(main: @mutable Main) {
         main.b = main.data[main.i];
-        main.bw = widen_u8_to_u32(main.b) as u32 +Wrapping;
+        main.bw = |numeric_conversion|::widen_u8_to_u32(main.b) as u32 +Wrapping;
         main.hi = main.bw / 16;
         main.lo = main.bw - (main.hi * 16);
         transition {
@@ -70,21 +68,21 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
 
     machine hi_num(main: @mutable Main) {
-        main.chi = narrow_u32_to_i32_trapping((main.hi + 48) as u32);
+        main.chi = |numeric_conversion|::narrow_u32_to_i32_trapping((main.hi + 48) as u32);
         transition {
             _ -> block write_hi(main)
         }
     }
 
     machine hi_alpha(main: @mutable Main) {
-        main.chi = narrow_u32_to_i32_trapping((main.hi + 87) as u32);
+        main.chi = |numeric_conversion|::narrow_u32_to_i32_trapping((main.hi + 87) as u32);
         transition {
             _ -> block write_hi(main)
         }
     }
 
     machine write_hi(main: @mutable Main) {
-        Console::write_byte(main.chi);
+        |console|::Console::write_byte(main.chi);
         transition {
             _ -> block lo_digit(main)
         }
@@ -98,22 +96,22 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
 
     machine lo_num(main: @mutable Main) {
-        main.chi = narrow_u32_to_i32_trapping((main.lo + 48) as u32);
+        main.chi = |numeric_conversion|::narrow_u32_to_i32_trapping((main.lo + 48) as u32);
         transition {
             _ -> block write_lo(main)
         }
     }
 
     machine lo_alpha(main: @mutable Main) {
-        main.chi = narrow_u32_to_i32_trapping((main.lo + 87) as u32);
+        main.chi = |numeric_conversion|::narrow_u32_to_i32_trapping((main.lo + 87) as u32);
         transition {
             _ -> block write_lo(main)
         }
     }
 
     machine write_lo(main: @mutable Main) {
-        Console::write_byte(main.chi);
-        Console::write_byte(32);
+        |console|::Console::write_byte(main.chi);
+        |console|::Console::write_byte(32);
         main.i = main.i + 1;
         transition {
             _ -> block hex_loop(main)
@@ -121,7 +119,7 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
 
     machine gutter_start(main: @mutable Main) {
-        Console::write(" ");
+        |console|::Console::write(" ");
         main.i = 0;
         transition {
             _ -> block gutter_loop(main)
@@ -137,7 +135,7 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
 
     machine read_glyph(main: @mutable Main) {
         main.b = main.data[main.i];
-        main.bw = widen_u8_to_u32(main.b) as u32 +Wrapping;
+        main.bw = |numeric_conversion|::widen_u8_to_u32(main.b) as u32 +Wrapping;
         transition main.bw >= 32 && main.bw < 127 {
             true -> keep_glyph(main),
             _ -> dot_glyph(main)
@@ -145,7 +143,7 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
 
     machine keep_glyph(main: @mutable Main) {
-        Console::write_byte(main.b as i32);
+        |console|::Console::write_byte(main.b as i32);
         main.i = main.i + 1;
         transition {
             _ -> block gutter_loop(main)
@@ -153,7 +151,7 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
 
     machine dot_glyph(main: @mutable Main) {
-        Console::write_byte(46);
+        |console|::Console::write_byte(46);
         main.i = main.i + 1;
         transition {
             _ -> block gutter_loop(main)
@@ -161,15 +159,15 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
 
     machine finish(main: @mutable Main) {
-        Console::write_line("");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(0);
+        |console|::Console::write_line("");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(0);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

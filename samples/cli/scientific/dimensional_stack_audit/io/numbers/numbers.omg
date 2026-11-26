@@ -1,12 +1,10 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use system\ByteRead;
-use system\Console;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 public data Input [copy] { value: i32 in Saturating; valid: bool; }
 // One signed decimal token terminated by LF or EOF, at most five digits.
 // Whitespace, CR, empty lines, embedded signs and overflow-shaped tokens reject.
-public machine read_integer(input: @mutable Input) reaches StandardInput
-invokes Console
+public machine read_integer(input: @mutable Input) reaches |process_authority|::StandardInput
+invokes |console|::Console
 blocks
 crashes Trap
 {
@@ -14,11 +12,11 @@ crashes Trap
     input.valid = false;
     transition { _ -> block scan(input, 0, false, false) }
     machine scan(input: @mutable Input, digits: u32, negative: bool, started: bool) {
-        let byte: ByteRead = block Console::read_byte();
+        let byte: |console|::ByteRead = block |console|::Console::read_byte();
         transition byte {
-            ByteRead::Error -> done(),
-            ByteRead::Eof -> finish(input, digits, negative),
-            ByteRead::Byte { value } -> block classify(input, digits, negative, started, value)
+            |console|::ByteRead::Error -> done(),
+            |console|::ByteRead::Eof -> finish(input, digits, negative),
+            |console|::ByteRead::Byte { value } -> block classify(input, digits, negative, started, value)
         }
     }
     machine classify(input: @mutable Input, digits: u32, negative: bool, started: bool, byte: i32) {
@@ -55,19 +53,19 @@ crashes Trap
     machine done() { }
 }
 // Decimal rendering uses byte output, avoiding any invented UTF-8 obligations.
-public machine write_integer(value: i32 in Saturating) reaches StandardOutput
-invokes Console
+public machine write_integer(value: i32 in Saturating) reaches |process_authority|::StandardOutput
+invokes |console|::Console
 {
     transition value == -2147483648 {
         true -> minimum(),
         false -> sign(value)
     }
-    machine minimum() { Console::write_line("-2147483648"); }
+    machine minimum() { |console|::Console::write_line("-2147483648"); }
     machine sign(value: i32 in Saturating) {
         transition value < 0 { true -> negative(value), false -> positive(value) }
     }
     machine negative(value: i32 in Saturating) {
-        Console::write_byte(45);
+        |console|::Console::write_byte(45);
         transition { _ -> positive(0 - value) }
     }
     machine positive(value: i32 in Saturating) {
@@ -83,11 +81,11 @@ invokes Console
     }
     machine emit(value: i32 in Saturating, divisor: i32 in Saturating, character: i32 in Saturating)
     requires divisor > 0 {
-        Console::write_byte((character + 48) as i32);
+        |console|::Console::write_byte((character + 48) as i32);
         transition { _ -> next(value % divisor, divisor, true) }
     }
     machine next(value: i32 in Saturating, divisor: i32 in Saturating, started: bool) {
         transition divisor >= 10 { true -> digit(value, divisor / 10, started), false -> newline() }
     }
-    machine newline() { Console::write_byte(10); }
+    machine newline() { |console|::Console::write_byte(10); }
 }

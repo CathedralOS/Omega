@@ -1,39 +1,30 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use input/tokens/tokens.omg;
+use model/paths/paths.omg;
+use model/records/records.omg;
+use report/output/output.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Complete bounded echo acquisition, validation, prediction and reporting.
-use system\Console;
-use model\records;
-use model\records\Acquisition;
-use model\records\EchoResult;
-use model\records\Token;
-use model\paths;
-use model\paths\build_boundaries;
-use model\paths\match_echo;
-use input\tokens;
-use input\tokens\read_token;
-use input\tokens\at_end;
-use report\output;
-use report\output\write_echo;
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    let mutable acquisition: Acquisition;
-    let layers: Token = block read_token();
-    let echoes: Token = block read_token();
-    let window: Token = block read_token();
-    let present: Token = block read_token();
-    let reference: Token = block read_token();
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    let mutable acquisition: |records|::Acquisition;
+    let layers: |records|::Token = block |tokens|::read_token();
+    let echoes: |records|::Token = block |tokens|::read_token();
+    let window: |records|::Token = block |tokens|::read_token();
+    let present: |records|::Token = block |tokens|::read_token();
+    let reference: |records|::Token = block |tokens|::read_token();
     transition layers.valid && echoes.valid && window.valid && present.valid && reference.valid {
         true -> block header(@mutable acquisition, layers.value, echoes.value, window.value, present.value, reference.value),
         false -> malformed()
     }
-    machine header(acquisition: @mutable Acquisition, layers: i64 in Saturating, echoes: i64 in Saturating, window: i64 in Saturating, present: i64 in Saturating, reference: i64 in Saturating) {
+    machine header(acquisition: @mutable |records|::Acquisition, layers: i64 in Saturating, echoes: i64 in Saturating, window: i64 in Saturating, present: i64 in Saturating, reference: i64 in Saturating) {
         transition layers >= 1 && layers <= 4 && echoes >= 1 && echoes <= 8 && window <= 1000 && reference <= 1000000 && present <= 1 {
             true -> block reference_check(acquisition, layers, echoes, window, present, reference),
             false -> invalid_header()
         }
     }
-    machine reference_check(acquisition: @mutable Acquisition, layers: i64 in Saturating, echoes: i64 in Saturating, window: i64 in Saturating, present: i64 in Saturating, reference: i64 in Saturating)
+    machine reference_check(acquisition: @mutable |records|::Acquisition, layers: i64 in Saturating, echoes: i64 in Saturating, window: i64 in Saturating, present: i64 in Saturating, reference: i64 in Saturating)
     requires layers >= 1 && layers <= 4
     requires echoes >= 1 && echoes <= 8 {
         acquisition.layers = layers as u64 +Saturating;
@@ -46,94 +37,94 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
             false -> missing_reference()
         }
     }
-    machine layer(acquisition: @mutable Acquisition, index: u64 in Saturating) {
+    machine layer(acquisition: @mutable |records|::Acquisition, index: u64 in Saturating) {
         transition index < acquisition.layers && index < 4 {
             true -> block read_layer(acquisition, index),
             false -> block echo(acquisition, 0)
         }
     }
-    machine read_layer(acquisition: @mutable Acquisition, index: u64 in Saturating)
+    machine read_layer(acquisition: @mutable |records|::Acquisition, index: u64 in Saturating)
     requires index < 4 {
-        let speed: Token = block read_token();
-        let thickness: Token = block read_token();
+        let speed: |records|::Token = block |tokens|::read_token();
+        let thickness: |records|::Token = block |tokens|::read_token();
         transition speed.valid && thickness.valid {
             true -> block validate_layer(acquisition, index, speed.value, thickness.value),
             false -> malformed()
         }
     }
-    machine validate_layer(acquisition: @mutable Acquisition, index: u64 in Saturating, speed: i64 in Saturating, thickness: i64 in Saturating)
+    machine validate_layer(acquisition: @mutable |records|::Acquisition, index: u64 in Saturating, speed: i64 in Saturating, thickness: i64 in Saturating)
     requires index < 4 {
         transition speed >= 1000 && speed <= 10000 && thickness >= 1 && thickness <= 1000000 {
             true -> block store_layer(acquisition, index, speed, thickness),
             false -> invalid_layer()
         }
     }
-    machine store_layer(acquisition: @mutable Acquisition, index: u64 in Saturating, speed: i64 in Saturating, thickness: i64 in Saturating)
+    machine store_layer(acquisition: @mutable |records|::Acquisition, index: u64 in Saturating, speed: i64 in Saturating, thickness: i64 in Saturating)
     requires index < 4 {
         acquisition.speeds[index] = speed;
         acquisition.thicknesses[index] = thickness;
         transition { _ -> block layer(acquisition, index + 1) }
     }
-    machine echo(acquisition: @mutable Acquisition, index: u64 in Saturating) {
+    machine echo(acquisition: @mutable |records|::Acquisition, index: u64 in Saturating) {
         transition index < acquisition.echoes && index < 8 {
             true -> block read_echo(acquisition, index),
             false -> block finish_input(acquisition)
         }
     }
-    machine read_echo(acquisition: @mutable Acquisition, index: u64 in Saturating)
+    machine read_echo(acquisition: @mutable |records|::Acquisition, index: u64 in Saturating)
     requires index < 8 {
-        let arrival: Token = block read_token();
+        let arrival: |records|::Token = block |tokens|::read_token();
         transition arrival.valid {
             true -> block validate_echo(acquisition, index, arrival.value),
             false -> malformed()
         }
     }
-    machine validate_echo(acquisition: @mutable Acquisition, index: u64 in Saturating, arrival: i64 in Saturating)
+    machine validate_echo(acquisition: @mutable |records|::Acquisition, index: u64 in Saturating, arrival: i64 in Saturating)
     requires index < 8 {
         transition arrival >= acquisition.reference && arrival <= 9000000 {
             true -> block store_echo(acquisition, index, arrival),
             false -> invalid_echo()
         }
     }
-    machine store_echo(acquisition: @mutable Acquisition, index: u64 in Saturating, arrival: i64 in Saturating)
+    machine store_echo(acquisition: @mutable |records|::Acquisition, index: u64 in Saturating, arrival: i64 in Saturating)
     requires index < 8 {
         acquisition.arrivals[index] = arrival;
         transition { _ -> block echo(acquisition, index + 1) }
     }
-    machine finish_input(acquisition: @mutable Acquisition) {
-        let ended: bool = block at_end();
+    machine finish_input(acquisition: @mutable |records|::Acquisition) {
+        let ended: bool = block |tokens|::at_end();
         transition ended {
             true -> process(acquisition),
             false -> malformed()
         }
     }
-    machine process(acquisition: @mutable Acquisition) {
-        build_boundaries(acquisition);
-        Console::write_line("acoustic thickness echoes: ns / um / m_per_s");
+    machine process(acquisition: @mutable |records|::Acquisition) {
+        |paths|::build_boundaries(acquisition);
+        |console|::Console::write_line("acoustic thickness echoes: ns / um / m_per_s");
         transition { _ -> report(acquisition, 0) }
     }
-    machine report(acquisition: @Acquisition, index: u64 in Saturating) {
+    machine report(acquisition: @|records|::Acquisition, index: u64 in Saturating) {
         transition index < acquisition.echoes && index < 8 {
             true -> report_echo(acquisition, index),
             false -> success()
         }
     }
-    machine report_echo(acquisition: @Acquisition, index: u64 in Saturating)
+    machine report_echo(acquisition: @|records|::Acquisition, index: u64 in Saturating)
     requires index < 8 {
-        let result: EchoResult = match_echo(acquisition, acquisition.arrivals[index]);
-        write_echo(index + 1, result);
+        let result: |records|::EchoResult = |paths|::match_echo(acquisition, acquisition.arrivals[index]);
+        |output|::write_echo(index + 1, result);
         transition { _ -> report(acquisition, index + 1) }
     }
-    machine success() { Console::write_line("complete"); ProcessExit::exit_process(0); }
-    machine malformed() { Console::write_line("error malformed_input"); ProcessExit::exit_process(2); }
-    machine invalid_header() { Console::write_line("error invalid_header"); ProcessExit::exit_process(2); }
-    machine missing_reference() { Console::write_line("error missing_reference"); ProcessExit::exit_process(2); }
-    machine invalid_layer() { Console::write_line("error invalid_layer"); ProcessExit::exit_process(2); }
-    machine invalid_echo() { Console::write_line("error invalid_echo"); ProcessExit::exit_process(2); }
+    machine success() { |console|::Console::write_line("complete"); |process_exit|::ProcessExit::exit_process(0); }
+    machine malformed() { |console|::Console::write_line("error malformed_input"); |process_exit|::ProcessExit::exit_process(2); }
+    machine invalid_header() { |console|::Console::write_line("error invalid_header"); |process_exit|::ProcessExit::exit_process(2); }
+    machine missing_reference() { |console|::Console::write_line("error missing_reference"); |process_exit|::ProcessExit::exit_process(2); }
+    machine invalid_layer() { |console|::Console::write_line("error invalid_layer"); |process_exit|::ProcessExit::exit_process(2); }
+    machine invalid_echo() { |console|::Console::write_line("error invalid_echo"); |process_exit|::ProcessExit::exit_process(2); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

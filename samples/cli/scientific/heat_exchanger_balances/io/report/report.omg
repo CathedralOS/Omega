@@ -1,19 +1,18 @@
-use omega\language\core\StandardOutput;
-use system\Console;
-use omega\language\core\I32::from_f64;
-use omega\language\core\narrow_i32_to_u32_trapping;
-use omega\language\core\narrow_u32_to_i32_trapping;
-use io\input;
-use model\stages;
+use io/input/input.omg;
+use model/stages/stages.omg;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/numeric_conversion.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 
 // Nonnegative values in millidegrees/milliwatts; maximum 2,000,000,000.
-machine number(value: f64) reaches StandardOutput {
+machine number(value: f64) reaches |process_authority|::StandardOutput {
     // Within the declared 1e-7 physical-unit computation tolerance of a
     // half-milli threshold, treat the computed value as a tie. This avoids
     // rounding exact ties downward because affine propagation lost a few ulps.
     // It is a display policy, not an exact-rational promise for every input.
-    let rounded: i32 in Saturating = I32::from_f64(value * 1000.0 + 0.5001);
-    let integer: u32 = narrow_i32_to_u32_trapping(rounded as i32);
+    let rounded: i32 in Saturating = |float_operations|::I32::from_f64(value * 1000.0 + 0.5001);
+    let integer: u32 = |numeric_conversion|::narrow_i32_to_u32_trapping(rounded as i32);
     transition { _ -> digit(integer, 1000000000, false) }
     machine digit(value: u32, place: u32, started: bool) requires place >= 1 {
         let character: u32 = value / place;
@@ -24,7 +23,7 @@ machine number(value: f64) reaches StandardOutput {
     }
     machine write(value: u32, place: u32, character: u32) requires place >= 1 {
         let character_code: u32 in Saturating = (character as +Saturating) + 48;
-        Console::write_byte(narrow_u32_to_i32_trapping(character_code as u32));
+        |console|::Console::write_byte(|numeric_conversion|::narrow_u32_to_i32_trapping(character_code as u32));
         transition { _ -> advance(value, place, true) }
     }
     machine advance(value: u32, place: u32, started: bool) requires place >= 1 {
@@ -35,36 +34,36 @@ machine number(value: f64) reaches StandardOutput {
     }
     machine done() { }
 }
-public machine emit(input: @io\input\Input, solution: @model\stages\Solution) reaches StandardOutput invokes Console crashes Trap {
-    Console::write_line("heat_exchanger_balances midpoint counterflow; temperature=mdegC heat=mW");
+public machine emit(input: @|input|::Input, solution: @|stages|::Solution) reaches |process_authority|::StandardOutput invokes |console|::Console crashes Trap {
+    |console|::Console::write_line("heat_exchanger_balances midpoint counterflow; temperature=mdegC heat=mW");
     transition { _ -> node(input, solution, 0) }
-    machine node(input: @io\input\Input, solution: @model\stages\Solution, position: u32) {
+    machine node(input: @|input|::Input, solution: @|stages|::Solution, position: u32) {
         transition position <= input.stages && position < 9 {
             true -> row(input, solution, position),
             false -> total(solution)
         }
     }
-    machine row(input: @io\input\Input, solution: @model\stages\Solution, position: u32) requires position < 9 {
-        Console::write("node hot cold: ");
+    machine row(input: @|input|::Input, solution: @|stages|::Solution, position: u32) requires position < 9 {
+        |console|::Console::write("node hot cold: ");
         number(solution.hot[position]);
-        Console::write(" ");
+        |console|::Console::write(" ");
         number(solution.cold[position]);
-        Console::write_line("");
+        |console|::Console::write_line("");
         transition position < input.stages && position < 8 {
             true -> heat(input, solution, position),
             false -> total(solution)
         }
     }
-    machine heat(input: @io\input\Input, solution: @model\stages\Solution, position: u32) requires position < 8 {
-        Console::write("stage heat: ");
+    machine heat(input: @|input|::Input, solution: @|stages|::Solution, position: u32) requires position < 8 {
+        |console|::Console::write("stage heat: ");
         number(solution.heat[position]);
-        Console::write_line("");
+        |console|::Console::write_line("");
         transition { _ -> node(input, solution, position + 1) }
     }
-    machine total(solution: @model\stages\Solution) {
-        Console::write("total heat: ");
+    machine total(solution: @|stages|::Solution) {
+        |console|::Console::write("total heat: ");
         number(solution.total);
-        Console::write_line("");
-        Console::write_line("PASS enthalpy and cold boundary tolerance=1e-7");
+        |console|::Console::write_line("");
+        |console|::Console::write_line("PASS enthalpy and cold boundary tolerance=1e-7");
     }
 }

@@ -1,32 +1,25 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use clearance/model/model.omg;
+use clearance/search/search.omg;
+use input/parse/parse.omg;
+use reporting/certificate/certificate.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // With closed stdin the application rejects the missing record.
 // Expected exit: 64.
 // Expected output contains: INVALID: expected
-use system\Console;
-use system\LineReadResult;
-use clearance\model;
-use clearance\model\Plan;
-use clearance\model\Certificate;
-use clearance\search;
-use clearance\search\solve;
-use input\parse;
-use input\parse\parse;
-use reporting\certificate;
-use reporting\certificate\report;
 
 data Clearance {
     input: [u8; 11];
-    plan: Plan;
-    certificate: Certificate;
+    plan: |model|::Plan;
+    certificate: |model|::Certificate;
 }
 
-machine main(clearance: @mutable Clearance) reaches ProcessExit + StandardInput + StandardOutput {
-    let read: LineReadResult = block Console::read_line(@mutable clearance.input[..]);
+machine main(clearance: @mutable Clearance) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    let read: |console|::LineReadResult = block |console|::Console::read_line(@mutable clearance.input[..]);
     transition read {
-        LineReadResult::LineComplete { count } -> newline(clearance, count),
-        LineReadResult::EndOfInput { count } -> eof(clearance, count),
+        |console|::LineReadResult::LineComplete { count } -> newline(clearance, count),
+        |console|::LineReadResult::EndOfInput { count } -> eof(clearance, count),
         _ -> invalid(clearance)
     }
     machine newline(clearance: @mutable Clearance, count: u64) {
@@ -42,24 +35,24 @@ machine main(clearance: @mutable Clearance) reaches ProcessExit + StandardInput 
         }
     }
     machine decode(clearance: @mutable Clearance) {
-        let valid: bool = parse(@clearance.input, @mutable clearance.plan);
+        let valid: bool = |parse|::parse(@clearance.input, @mutable clearance.plan);
         transition valid {
             true -> route(clearance),
             false -> invalid(clearance)
         }
     }
     machine route(clearance: @mutable Clearance) {
-        solve(@clearance.plan, @mutable clearance.certificate);
-        report(@clearance.certificate);
+        |search|::solve(@clearance.plan, @mutable clearance.certificate);
+        |certificate|::report(@clearance.certificate);
     }
     machine invalid(clearance: @mutable Clearance) {
-        Console::write_line("INVALID: expected H0 HE F1 C1 F2 C2 F3 C3 F4 C4, ten digits; each floor<=ceiling");
-        ProcessExit::exit_process(64);
+        |console|::Console::write_line("INVALID: expected H0 HE F1 C1 F2 C2 F3 C3 F4 C4, ten digits; each floor<=ceiling");
+        |process_exit|::ProcessExit::exit_process(64);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Clearance;
     block main(@mutable entry_storage);
 }

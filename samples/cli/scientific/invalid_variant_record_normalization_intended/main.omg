@@ -1,31 +1,29 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
-use system\ByteRead;
-use system\Console;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 
 data Invalid { }
 machine unchecked_base(reference: @[u8; 8], position: u64) -> u8 {
     reference[position]
 }
-machine main(entry: @mutable Invalid) reaches ProcessExit + StandardInput + StandardOutput {
+machine main(entry: @mutable Invalid) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable input: [u8; 8];
-    let observed: ByteRead = block Console::read_byte();
+    let observed: |console|::ByteRead = block |console|::Console::read_byte();
     transition observed {
-        ByteRead::Error -> ProcessExit::exit_process(74),
-        ByteRead::Byte { value } -> index(entry, @input, value as u64),
-        ByteRead::Eof -> done(entry)
+        |console|::ByteRead::Error -> |process_exit|::ProcessExit::exit_process(74),
+        |console|::ByteRead::Byte { value } -> index(entry, @input, value as u64),
+        |console|::ByteRead::Eof -> done(entry)
     }
     machine index(entry: @mutable Invalid, input: @[u8; 8], position: u64) {
         let base: u8 = unchecked_base(input, position);
-        Console::write_byte(base as i32);
+        |console|::Console::write_byte(base as i32);
         transition { _ -> done(entry) }
     }
-    machine done(entry: @mutable Invalid) { ProcessExit::exit_process(0); }
+    machine done(entry: @mutable Invalid) { |process_exit|::ProcessExit::exit_process(0); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Invalid;
     block main(@mutable entry_storage);
 }

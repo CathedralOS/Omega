@@ -1,67 +1,67 @@
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {dungeon_core}/presentation/frame/frame.omg;
+use {dungeon_core}/render.omg;
+use {dungeon_core}/simulation/game/game.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Expected exit: 0.
 // Expected output contains: PASS: dungeon campaign, collision, combat, pixels
-use system\Console;
-use dungeon_core\simulation\game\Game;
-use dungeon_core\presentation\frame\Frame;
-use dungeon_core\render;
 
 data Smoke {
-    game: Game;
+    game: |game|::Game;
 }
 
-machine Smoke::number(value: i32) reaches StandardOutput {
-    Console::write_byte(((value / 100) % 10 + 48) as i32);
-    Console::write_byte(((value / 10) % 10 + 48) as i32);
-    Console::write_byte((value % 10 + 48) as i32);
-    Console::write_byte(32);
+machine Smoke::number(value: i32) reaches |process_authority|::StandardOutput {
+    |console|::Console::write_byte(((value / 100) % 10 + 48) as i32);
+    |console|::Console::write_byte(((value / 10) % 10 + 48) as i32);
+    |console|::Console::write_byte((value % 10 + 48) as i32);
+    |console|::Console::write_byte(32);
 }
 
-machine Smoke::steps(game: @mutable Game, direction: i32, count: u32)
+machine Smoke::steps(game: @mutable |game|::Game, direction: i32, count: u32)
 terminates by count -> Nat::Descending
 requires direction >= -1 && direction < 4 {
     transition count > 0 { true -> step(game, direction, count), _ -> done() }
-    machine step(game: @mutable Game, direction: i32, count: u32) requires count > 0 && direction >= -1 && direction < 4 {
-        Game::walk(game, direction);
+    machine step(game: @mutable |game|::Game, direction: i32, count: u32) requires count > 0 && direction >= -1 && direction < 4 {
+        |game|::Game::walk(game, direction);
         transition { _ -> Smoke::steps(game, direction, count - 1) }
     }
     machine done() {}
 }
 
-machine Smoke::fight(game: @mutable Game, count: u32)
+machine Smoke::fight(game: @mutable |game|::Game, count: u32)
 terminates by count -> Nat::Descending
 {
     transition count > 0 { true -> step(game, count), _ -> done() }
-    machine step(game: @mutable Game, count: u32) requires count > 0 {
-        Game::tick(game, -1, true);
+    machine step(game: @mutable |game|::Game, count: u32) requires count > 0 {
+        |game|::Game::tick(game, -1, true);
         transition { _ -> Smoke::fight(game, count - 1) }
     }
     machine done() {}
 }
 
-machine Smoke::main(smoke: @mutable Smoke) reaches ProcessExit + StandardOutput {
+machine Smoke::main(smoke: @mutable Smoke) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     transition { _ -> rules(smoke) }
     machine rules(smoke: @mutable Smoke) {
-    Console::write_line("check: rules");
-    let rules: bool = Game::verify(@mutable smoke.game);
+    |console|::Console::write_line("check: rules");
+    let rules: bool = |game|::Game::verify(@mutable smoke.game);
     transition rules { true -> pixels(smoke), _ -> failed() }
     }
     machine pixels(smoke: @mutable Smoke) {
-        Console::write_line("check: pixels");
-        Game::reset(@mutable smoke.game);
-        let frame: Frame = Game::capture(@smoke.game);
-        let background: i32 = Art::pixel(@frame, 0, 0);
-        let wall: i32 = Art::pixel(@frame, 0, 32);
-        let player: i32 = Art::pixel(@frame, 128, 144);
-        let heart: i32 = Art::pixel(@frame, 101, 10);
+        |console|::Console::write_line("check: pixels");
+        |game|::Game::reset(@mutable smoke.game);
+        let frame: |frame|::Frame = |game|::Game::capture(@smoke.game);
+        let background: i32 = |render|::Art::pixel(@frame, 0, 0);
+        let wall: i32 = |render|::Art::pixel(@frame, 0, 32);
+        let player: i32 = |render|::Art::pixel(@frame, 128, 144);
+        let heart: i32 = |render|::Art::pixel(@frame, 101, 10);
         transition background == 1119769 && wall == 1779760 && player == 9297344 && heart == 15356527 {
             true -> wall_collision(smoke),
             _ -> failed()
         }
     }
     machine wall_collision(smoke: @mutable Smoke) {
-        Console::write_line("check: wall collision");
+        |console|::Console::write_line("check: wall collision");
         Smoke::steps(@mutable smoke.game, 3, 100);
         transition smoke.game.camera.room == 0 && smoke.game.actors.items[0].position.x >= 20 {
             true -> campaign(smoke),
@@ -69,19 +69,19 @@ machine Smoke::main(smoke: @mutable Smoke) reaches ProcessExit + StandardOutput 
         }
     }
     machine campaign(smoke: @mutable Smoke) {
-        Console::write_line("check: atrium doorway");
-        Game::reset(@mutable smoke.game);
+        |console|::Console::write_line("check: atrium doorway");
+        |game|::Game::reset(@mutable smoke.game);
         Smoke::steps(@mutable smoke.game, 0, 16);
         Smoke::steps(@mutable smoke.game, 1, 62);
         transition smoke.game.camera.room == 1 { true -> archive(smoke), _ -> failed() }
     }
     machine archive(smoke: @mutable Smoke) {
-        Console::write_line("check: moss hall doorway");
+        |console|::Console::write_line("check: moss hall doorway");
         Smoke::steps(@mutable smoke.game, 1, 116);
         transition smoke.game.camera.room == 2 { true -> chest(smoke), _ -> failed() }
     }
     machine chest(smoke: @mutable Smoke) {
-        Console::write_line("check: archive key");
+        |console|::Console::write_line("check: archive key");
         Smoke::steps(@mutable smoke.game, 0, 24);
         Smoke::steps(@mutable smoke.game, 1, 54);
         Smoke::steps(@mutable smoke.game, 2, 8);
@@ -92,35 +92,35 @@ machine Smoke::main(smoke: @mutable Smoke) reaches ProcessExit + StandardOutput 
         Smoke::number(smoke.game.actors.items[1].vitality.current);
         Smoke::number(smoke.game.actors.items[1].position.x);
         Smoke::number(smoke.game.actors.items[1].position.y);
-        Console::write_line("position, health, enemy health/position");
+        |console|::Console::write_line("position, health, enemy health/position");
         transition smoke.game.progress.key && smoke.game.actors.items[1].vitality.current == 0 && smoke.game.actors.items[0].vitality.current > 0 {
             true -> shrine(smoke),
             _ -> failed()
         }
     }
     machine shrine(smoke: @mutable Smoke) {
-        Console::write_line("check: locked shrine doorway");
+        |console|::Console::write_line("check: locked shrine doorway");
         Smoke::steps(@mutable smoke.game, 0, 24);
         transition smoke.game.camera.room == 5 { true -> relic(smoke), _ -> failed() }
     }
     machine relic(smoke: @mutable Smoke) {
-        Console::write_line("check: shrine relic");
+        |console|::Console::write_line("check: shrine relic");
         Smoke::steps(@mutable smoke.game, 0, 45);
         smoke.game.actors.items[0].facing = 1;
         Smoke::fight(@mutable smoke.game, 240);
         transition smoke.game.progress.won && smoke.game.actors.items[0].vitality.current > 0 { true -> passed(), _ -> failed() }
     }
     machine passed() {
-        Console::write_line("PASS: dungeon campaign, collision, combat, pixels");
-        ProcessExit::exit_process(0);
+        |console|::Console::write_line("PASS: dungeon campaign, collision, combat, pixels");
+        |process_exit|::ProcessExit::exit_process(0);
     }
     machine failed() {
-        Console::write_line("FAIL: dungeon acceptance");
-        ProcessExit::exit_process(1);
+        |console|::Console::write_line("FAIL: dungeon acceptance");
+        |process_exit|::ProcessExit::exit_process(1);
     }
 }
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     let mutable entry_storage: Smoke;
     Smoke::main(@mutable entry_storage);
 }

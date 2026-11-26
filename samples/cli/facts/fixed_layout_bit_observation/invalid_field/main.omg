@@ -1,21 +1,15 @@
 // Fact: An ordinary FixedLayout<PackedFlags> application preserves Delivered on mode, so reading mode and subtracting 5u64 remains justified through every transport, and a shared byte observation sees the complete authored fragmented encoding 171u8.
 // Expected exit: 0
-use omega\language\core\FieldEntry;
-use omega\language\core\FieldPlan;
-use omega\language\core\FixedLayout;
-use omega\language\core\LayoutPlan;
-use omega\language\core\LayoutStorage;
-use omega\language\core\LayoutTarget;
-use omega\language\core\Schema;
+use {omega}/language/core/layout.omg;
 public domain u64::Delivered requires self >= 5u64 && self <= 7u64;
 public domain u64::Nibble requires self <= 15u64;
 public data PackedFlags [copy] { present: bool; mode: u64 in Delivered; code: u64 in Nibble; }
-CompactBits satisfies FixedLayout<PackedFlags> {
-    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches none terminates {
-    let mutable entries: [FieldEntry; 64];
-    entries[0] = FieldEntry {
+CompactBits satisfies |layout|::FixedLayout<PackedFlags> {
+    machine plan(schema: |layout|::Schema, target: |layout|::LayoutTarget) -> |layout|::LayoutPlan reaches none terminates {
+    let mutable entries: [|layout|::FieldEntry; 64];
+    entries[0] = |layout|::FieldEntry {
         key: schema.fields[0].key,
-        representation: FieldPlan::Bits {
+        representation: |layout|::FieldPlan::Bits {
             container: 0,
             container_width: 8,
             destination_lsb: 0,
@@ -23,9 +17,9 @@ CompactBits satisfies FixedLayout<PackedFlags> {
             width: 1,
         },
     };
-    entries[1] = FieldEntry {
+    entries[1] = |layout|::FieldEntry {
         key: schema.fields[1].key,
-        representation: FieldPlan::Bits {
+        representation: |layout|::FieldPlan::Bits {
             container: 0,
             container_width: 8,
             destination_lsb: 1,
@@ -33,9 +27,9 @@ CompactBits satisfies FixedLayout<PackedFlags> {
             width: 3,
         },
     };
-    entries[2] = FieldEntry {
+    entries[2] = |layout|::FieldEntry {
         key: schema.fields[2].key,
-        representation: FieldPlan::Bits {
+        representation: |layout|::FieldPlan::Bits {
             container: 0,
             container_width: 8,
             destination_lsb: 4,
@@ -43,9 +37,9 @@ CompactBits satisfies FixedLayout<PackedFlags> {
             width: 2,
         },
     };
-    entries[3] = FieldEntry {
+    entries[3] = |layout|::FieldEntry {
         key: schema.fields[2].key,
-        representation: FieldPlan::Bits {
+        representation: |layout|::FieldPlan::Bits {
             container: 0,
             container_width: 8,
             destination_lsb: 6,
@@ -53,7 +47,7 @@ CompactBits satisfies FixedLayout<PackedFlags> {
             width: 2,
         },
     };
-    LayoutPlan {
+    |layout|::LayoutPlan {
         entries: entries,
         entry_count: 4,
         size_fixed: 1,
@@ -63,14 +57,14 @@ CompactBits satisfies FixedLayout<PackedFlags> {
 }
 }
 
-machine make() -> LayoutStorage<PackedFlags, CompactBits> {
-    let mutable value: LayoutStorage<PackedFlags, CompactBits>;
+machine make() -> |layout|::LayoutStorage<PackedFlags, CompactBits> {
+    let mutable value: |layout|::LayoutStorage<PackedFlags, CompactBits>;
     value.present = true;
     value.mode = 4u64;
     value.code = 10u64;
     value
 }
-data Holder { value: LayoutStorage<PackedFlags, CompactBits>; }
+data Holder { value: |layout|::LayoutStorage<PackedFlags, CompactBits>; }
 machine main() crashes Trap {
     let holder: Holder = Holder { value: make() };
     let difference: u64 = holder.value.mode - 5u64;

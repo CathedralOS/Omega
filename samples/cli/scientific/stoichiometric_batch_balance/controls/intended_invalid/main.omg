@@ -1,14 +1,14 @@
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_exit.omg;
 // Complete intended-invalid application. Species 3 is outside three slots.
 data Main { }
-machine main(context: @mutable Main) reaches ProcessExit {
+machine main(context: @mutable Main) reaches |process_exit|::ProcessExit {
     let inventory: [i64 in Wrapping; 3] = [10, 5, 0];
     let invalid: i64 in Wrapping = inventory[3];
-    ProcessExit::exit_process(0);
+    |process_exit|::ProcessExit::exit_process(0);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit {
+machine entry_start() reaches |process_exit|::ProcessExit {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }

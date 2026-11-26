@@ -1,11 +1,10 @@
 // Retain exact bounded decimal coefficients. Floating conversion happens once,
 // after the coefficient and decimal exponent are complete; boundary decisions
 // never depend on repeated floating-point digit addition or exponent scaling.
-use omega\language\core\StandardInput;
-use system\ByteRead;
-use system\Console;
-use omega\language\core\F64::from_u64;
-use model\scale;
+use model/scale/scale.omg;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 public data Input {
  values:[f64;69]; mantissas:[f64;69]; powers:[i32 in Wrapping;69];
  coefficients:[u64 in Wrapping;69]; negative:[bool;69]; count:u32 in Saturating;
@@ -20,15 +19,15 @@ machine reset(input:@mutable Input) {
  input.active=false; input.decimal=false; input.exponent_mode=false;
  input.negative_token=false; input.exponent_negative=false; input.exponent_sign=false;
 }
-public machine parse(input:@mutable Input) -> bool reaches StandardInput invokes Console blocks crashes Trap {
+public machine parse(input:@mutable Input) -> bool reaches |process_authority|::StandardInput invokes |console|::Console blocks crashes Trap {
  input.count=0; reset(input);
  transition { _ -> read(input,0) }
  machine read(input:@mutable Input,bytes:u32 in Saturating) -> bool {
   transition bytes <= 4096 { true -> receive(input,bytes), false -> bad() }
  }
  machine receive(input:@mutable Input,bytes:u32 in Saturating) -> bool {
-  let observed:ByteRead=block Console::read_byte();
-  transition observed { ByteRead::Error -> bad(), ByteRead::Byte { value } -> classify(input,bytes,value), ByteRead::Eof -> finish(input) }
+  let observed:|console|::ByteRead=block |console|::Console::read_byte();
+  transition observed { |console|::ByteRead::Error -> bad(), |console|::ByteRead::Byte { value } -> classify(input,bytes,value), |console|::ByteRead::Eof -> finish(input) }
  }
  machine classify(input:@mutable Input,bytes:u32 in Saturating,character:i32) -> bool {
   transition bytes < 4096 { true -> byte(input,bytes,character), false -> bad() }
@@ -106,13 +105,13 @@ public machine parse(input:@mutable Input) -> bool reaches StandardInput invokes
  }
  machine save(input:@mutable Input,bytes:u32 in Saturating,ending:bool) -> bool requires input.count < 69 {
   let power:i32 in Wrapping=(match input.exponent_negative { true -> -input.exponent, false -> input.exponent })-input.fraction;
-  let magnitude:f64=F64::from_u64(input.coefficient as u64);
+  let magnitude:f64=|float_operations|::F64::from_u64(input.coefficient as u64);
   let signed:f64=match input.negative_token { true -> -magnitude, false -> magnitude };
   input.coefficients[input.count]=input.coefficient;
   input.negative[input.count]=input.negative_token;
   input.mantissas[input.count]=signed;
   input.powers[input.count]=power;
-  input.values[input.count]=model\scale\apply(signed,power);
+  input.values[input.count]=|scale|::apply(signed,power);
   input.count=input.count+1;
   reset(input);
   transition ending { true -> good(), false -> read(input,bytes+1) }

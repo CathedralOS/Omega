@@ -1,22 +1,19 @@
-use omega\language\core\StandardOutput;
-use domain\input;
-use domain\input\Image;
-use domain\regions;
-use domain\regions\Region;
-use domain\regions\measure;
-use system\Console;
+use domain/input/input.omg;
+use domain/regions/regions.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 
 // All printed values are nonnegative and <= 448. Centroids are exact
 // unreduced fractions sum/area, avoiding rounding and floating tolerances.
-machine number(value: i32 in Wrapping) reaches StandardOutput {
+machine number(value: i32 in Wrapping) reaches |process_authority|::StandardOutput {
     transition value >= 100 {
         true -> hundreds(value),
         false -> tens(value)
     }
     machine hundreds(value: i32 in Wrapping) {
-        Console::write_byte((value / 100 + 48) as i32);
-        Console::write_byte((value / 10 % 10 + 48) as i32);
-        Console::write_byte((value % 10 + 48) as i32);
+        |console|::Console::write_byte((value / 100 + 48) as i32);
+        |console|::Console::write_byte((value / 10 % 10 + 48) as i32);
+        |console|::Console::write_byte((value % 10 + 48) as i32);
     }
     machine tens(value: i32 in Wrapping) {
         transition value >= 10 {
@@ -25,35 +22,35 @@ machine number(value: i32 in Wrapping) reaches StandardOutput {
         }
     }
     machine two(value: i32 in Wrapping) {
-        Console::write_byte((value / 10 + 48) as i32);
-        Console::write_byte((value % 10 + 48) as i32);
+        |console|::Console::write_byte((value / 10 + 48) as i32);
+        |console|::Console::write_byte((value % 10 + 48) as i32);
     }
     machine one(value: i32 in Wrapping) {
-        Console::write_byte((value + 48) as i32);
+        |console|::Console::write_byte((value + 48) as i32);
     }
 }
 
-public machine render(image: @Image)
-invokes Console
-reaches StandardOutput {
-    Console::write_line("P2");
-    Console::write_line("# micrograph region labels; zero is background");
-    number(image.width); Console::write(" "); number(image.height); Console::write_line("");
-    Console::write_line("64");
+public machine render(image: @|input|::Image)
+invokes |console|::Console
+reaches |process_authority|::StandardOutput {
+    |console|::Console::write_line("P2");
+    |console|::Console::write_line("# micrograph region labels; zero is background");
+    number(image.width); |console|::Console::write(" "); number(image.height); |console|::Console::write_line("");
+    |console|::Console::write_line("64");
     transition { _ -> pixel(image, 0) }
-    machine pixel(image: @Image, position: i32 in Wrapping) {
+    machine pixel(image: @|input|::Image, position: i32 in Wrapping) {
         transition position >= 0 && position < 64 && position < image.length {
             true -> emit(image, position),
             false -> heading(image)
         }
     }
-    machine emit(image: @Image, position: i32 in Wrapping) {
+    machine emit(image: @|input|::Image, position: i32 in Wrapping) {
         transition image.width > 0 {
             true -> emit_pixel(image, position),
             false -> stopped()
         }
     }
-    machine emit_pixel(image: @Image, position: i32 in Wrapping) {
+    machine emit_pixel(image: @|input|::Image, position: i32 in Wrapping) {
         let label: i32 in Wrapping = image.labels[position] as i32 +Wrapping;
         number(label);
         transition (position + 1) % image.width == 0 {
@@ -61,34 +58,34 @@ reaches StandardOutput {
             false -> space(image, position)
         }
     }
-    machine newline(image: @Image, position: i32 in Wrapping) {
-        Console::write_line("");
+    machine newline(image: @|input|::Image, position: i32 in Wrapping) {
+        |console|::Console::write_line("");
         transition { _ -> pixel(image, position + 1) }
     }
-    machine space(image: @Image, position: i32 in Wrapping) {
-        Console::write(" ");
+    machine space(image: @|input|::Image, position: i32 in Wrapping) {
+        |console|::Console::write(" ");
         transition { _ -> pixel(image, position + 1) }
     }
-    machine heading(image: @Image) {
-        Console::write("regions "); number(image.components); Console::write_line("");
-        Console::write_line("label area centroid_x centroid_y min_x min_y max_x max_y");
+    machine heading(image: @|input|::Image) {
+        |console|::Console::write("regions "); number(image.components); |console|::Console::write_line("");
+        |console|::Console::write_line("label area centroid_x centroid_y min_x min_y max_x max_y");
         transition { _ -> region(image, 1) }
     }
-    machine region(image: @Image, label: i32 in Wrapping) {
+    machine region(image: @|input|::Image, label: i32 in Wrapping) {
         transition label <= image.components {
             true -> report(image, label),
             false -> stopped()
         }
     }
-    machine report(image: @Image, label: i32 in Wrapping) {
-        let mutable measured: Region;
-        measure(image, label, @mutable measured);
-        number(label); Console::write(" "); number(measured.area);
-        Console::write(" "); number(measured.sum_x); Console::write("/"); number(measured.area);
-        Console::write(" "); number(measured.sum_y); Console::write("/"); number(measured.area);
-        Console::write(" "); number(measured.min_x); Console::write(" "); number(measured.min_y);
-        Console::write(" "); number(measured.max_x); Console::write(" "); number(measured.max_y);
-        Console::write_line("");
+    machine report(image: @|input|::Image, label: i32 in Wrapping) {
+        let mutable measured: |regions|::Region;
+        |regions|::measure(image, label, @mutable measured);
+        number(label); |console|::Console::write(" "); number(measured.area);
+        |console|::Console::write(" "); number(measured.sum_x); |console|::Console::write("/"); number(measured.area);
+        |console|::Console::write(" "); number(measured.sum_y); |console|::Console::write("/"); number(measured.area);
+        |console|::Console::write(" "); number(measured.min_x); |console|::Console::write(" "); number(measured.min_y);
+        |console|::Console::write(" "); number(measured.max_x); |console|::Console::write(" "); number(measured.max_y);
+        |console|::Console::write_line("");
         transition { _ -> region(image, label + 1) }
     }
     machine stopped() {}

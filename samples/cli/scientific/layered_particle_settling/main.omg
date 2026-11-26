@@ -1,41 +1,28 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use physics/model/model.omg;
+use reporting/numbers/numbers.omg;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Closed stdin is an invalid empty request; the generic sample harness uses EOF.
 // Expected exit: 64.
 // Expected output contains: INVALID expected M 0D with M=1..6 density=1..8
-use system\Console;
-use system\LineReadResult;
-use omega\language\core\F64::from_i32;
-use physics\model;
-use physics\model\Layer;
-use physics\model\Particle;
-use physics\model\Step;
-use physics\model\layer_at;
-use physics\model\layer;
-use physics\model\absolute;
-use physics\model\force;
-use physics\model\terminal_velocity;
-use physics\model\advance;
-use reporting\numbers;
-use reporting\numbers\number;
-use reporting\numbers\micro;
 
 data Main {
     input: [u8; 16];
     mode: i32;
-    particle: Particle;
+    particle: |model|::Particle;
     timestep: f64;
     steps: u64;
 }
 
 // Protocol: one bounded line "M 0D", M=1..6 and density D=1..8. EOF without LF
 // is accepted, CRLF is accepted, full buffers and trailing bytes are rejected.
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput crashes Trap {
-    let read: LineReadResult = block Console::read_line(@mutable main.input[..]);
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput crashes Trap {
+    let read: |console|::LineReadResult = block |console|::Console::read_line(@mutable main.input[..]);
     transition read {
-        LineReadResult::LineComplete { count } -> line(main, count),
-        LineReadResult::EndOfInput { count } -> end(main, count),
+        |console|::LineReadResult::LineComplete { count } -> line(main, count),
+        |console|::LineReadResult::EndOfInput { count } -> end(main, count),
         _ -> invalid(main)
     }
     machine line(main: @mutable Main, count: u64) {
@@ -57,30 +44,30 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     machine initialize(main: @mutable Main) {
         main.mode = (main.input[0] as i32) - 48;
         let density: i32 = (main.input[3] as i32) - 48;
-        main.particle.density = F64::from_i32(density);
+        main.particle.density = |float_operations|::F64::from_i32(density);
         main.particle.depth = 0.0;
         main.particle.velocity = 0.0;
         main.timestep = 0.5;
         main.steps = 8;
         configure(main);
-        Console::write_line("MODEL unit-volume unit-gravity semi-implicit sampled-layers microunits");
-        Console::write("INPUT "); number(main.mode);
-        Console::write(" "); number(density); Console::write_line("");
+        |console|::Console::write_line("MODEL unit-volume unit-gravity semi-implicit sampled-layers microunits");
+        |console|::Console::write("INPUT "); |numbers|::number(main.mode);
+        |console|::Console::write(" "); |numbers|::number(density); |console|::Console::write_line("");
         transition { _ -> balances(main, 0) }
     }
     machine balances(main: @mutable Main, index: i32) {
-        let fluid: Layer = layer(index);
-        let speed: f64 = terminal_velocity(main.particle.density, fluid);
-        let residual: f64 = force(main.particle.density, fluid, speed);
-        transition absolute(residual) <= 0.00000001 {
+        let fluid: |model|::Layer = |model|::layer(index);
+        let speed: f64 = |model|::terminal_velocity(main.particle.density, fluid);
+        let residual: f64 = |model|::force(main.particle.density, fluid, speed);
+        transition |model|::absolute(residual) <= 0.00000001 {
             true -> balance_report(main, index, speed, residual),
             false -> failure(main)
         }
     }
     machine balance_report(main: @mutable Main, index: i32, speed: f64, residual: f64) {
-        Console::write("BALANCE "); number(index);
-        Console::write(" "); micro(speed);
-        Console::write(" "); micro(residual); Console::write_line("");
+        |console|::Console::write("BALANCE "); |numbers|::number(index);
+        |console|::Console::write(" "); |numbers|::micro(speed);
+        |console|::Console::write(" "); |numbers|::micro(residual); |console|::Console::write_line("");
         transition index < 2 { true -> balances(main, index + 1), false -> start(main) }
     }
     machine start(main: @mutable Main) {
@@ -94,41 +81,41 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
     machine integrate(main: @mutable Main, remaining: u64, step: i32) {
         let before: i32 = selected_layer(main.mode, main.particle.depth);
-        let fluid: Layer = layer(before);
-        let result: Step = advance(@mutable main.particle, fluid, main.timestep);
-        transition absolute(result.residual) <= 0.00000001 && absolute(main.particle.velocity) < 16.0 && absolute(main.particle.depth) < 16.0 {
+        let fluid: |model|::Layer = |model|::layer(before);
+        let result: |model|::Step = |model|::advance(@mutable main.particle, fluid, main.timestep);
+        transition |model|::absolute(result.residual) <= 0.00000001 && |model|::absolute(main.particle.velocity) < 16.0 && |model|::absolute(main.particle.depth) < 16.0 {
             true -> bounded(main, remaining, step, before, result),
             false -> failure(main)
         }
     }
-    machine bounded(main: @mutable Main, remaining: u64, step: i32, before: i32, result: Step) {
+    machine bounded(main: @mutable Main, remaining: u64, step: i32, before: i32, result: |model|::Step) {
         transition {
             main.particle.depth >= 8.0 -> bottom(main, step, before, result),
             main.particle.depth <= -8.0 -> top(main, step, before, result),
             _ -> report(main, remaining, step, before, result)
         }
     }
-    machine report(main: @mutable Main, remaining: u64, step: i32, before: i32, result: Step) {
+    machine report(main: @mutable Main, remaining: u64, step: i32, before: i32, result: |model|::Step) {
         let after: i32 = selected_layer(main.mode, main.particle.depth);
         crossing(step, before, after, main.particle.density);
         trace(step, before, main.particle, result.force, result.residual);
         transition { _ -> iterate(main, remaining - 1, ((step as +Wrapping) + 1) as i32) }
     }
-    machine bottom(main: @mutable Main, step: i32, before: i32, result: Step) {
+    machine bottom(main: @mutable Main, step: i32, before: i32, result: |model|::Step) {
         main.particle.depth = 8.0;
         trace(step, before, main.particle, result.force, result.residual);
-        Console::write_line("BOUND bottom");
+        |console|::Console::write_line("BOUND bottom");
         transition { _ -> done(main) }
     }
-    machine top(main: @mutable Main, step: i32, before: i32, result: Step) {
+    machine top(main: @mutable Main, step: i32, before: i32, result: |model|::Step) {
         main.particle.depth = -8.0;
         trace(step, before, main.particle, result.force, result.residual);
-        Console::write_line("BOUND top");
+        |console|::Console::write_line("BOUND top");
         transition { _ -> done(main) }
     }
-    machine done(main: @mutable Main) { Console::write_line("DONE"); ProcessExit::exit_process(0); }
-    machine invalid(main: @mutable Main) { Console::write_line("INVALID expected M 0D with M=1..6 density=1..8"); ProcessExit::exit_process(64); }
-    machine failure(main: @mutable Main) { Console::write_line("FAIL force residual or finite envelope"); ProcessExit::exit_process(70); }
+    machine done(main: @mutable Main) { |console|::Console::write_line("DONE"); |process_exit|::ProcessExit::exit_process(0); }
+    machine invalid(main: @mutable Main) { |console|::Console::write_line("INVALID expected M 0D with M=1..6 density=1..8"); |process_exit|::ProcessExit::exit_process(64); }
+    machine failure(main: @mutable Main) { |console|::Console::write_line("FAIL force residual or finite envelope"); |process_exit|::ProcessExit::exit_process(70); }
 }
 
 machine configure(main: @mutable Main) {
@@ -149,37 +136,37 @@ machine configure(main: @mutable Main) {
 machine selected_layer(mode: i32, depth: f64) -> i32 {
     transition mode == 1 || mode == 4 { true -> homogeneous(), false -> layered(depth) }
     machine homogeneous() -> i32 { 0 }
-    machine layered(depth: f64) -> i32 { layer_at(depth) }
+    machine layered(depth: f64) -> i32 { |model|::layer_at(depth) }
 }
 
-machine regime(index: i32, density: f64) reaches ProcessExit + StandardOutput invokes Console {
-    Console::write("REGIME "); number(index);
+machine regime(index: i32, density: f64) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput invokes |console|::Console {
+    |console|::Console::write("REGIME "); |numbers|::number(index);
     transition index == 1 { true -> quadratic(index, density), false -> linear(index, density) }
-    machine quadratic(index: i32, density: f64) { Console::write_line(" quadratic"); neutral(index, density); }
-    machine linear(index: i32, density: f64) { Console::write_line(" linear"); neutral(index, density); }
+    machine quadratic(index: i32, density: f64) { |console|::Console::write_line(" quadratic"); neutral(index, density); }
+    machine linear(index: i32, density: f64) { |console|::Console::write_line(" linear"); neutral(index, density); }
 }
-machine neutral(index: i32, density: f64) reaches ProcessExit + StandardOutput invokes Console {
-    let fluid: Layer = layer(index);
+machine neutral(index: i32, density: f64) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput invokes |console|::Console {
+    let fluid: |model|::Layer = |model|::layer(index);
     transition density == fluid.density { true -> report(index), false -> quiet() }
-    machine report(index: i32) { Console::write("NEUTRAL "); number(index); Console::write_line(""); }
+    machine report(index: i32) { |console|::Console::write("NEUTRAL "); |numbers|::number(index); |console|::Console::write_line(""); }
     machine quiet() {}
 }
-machine crossing(step: i32, before: i32, after: i32, density: f64) reaches ProcessExit + StandardOutput invokes Console {
+machine crossing(step: i32, before: i32, after: i32, density: f64) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput invokes |console|::Console {
     transition before != after { true -> report(step, before, after, density), false -> quiet() }
     machine report(step: i32, before: i32, after: i32, density: f64) {
-        Console::write("CROSS "); number(step); Console::write(" "); number(before); Console::write(" "); number(after); Console::write_line("");
+        |console|::Console::write("CROSS "); |numbers|::number(step); |console|::Console::write(" "); |numbers|::number(before); |console|::Console::write(" "); |numbers|::number(after); |console|::Console::write_line("");
         regime(after, density);
     }
     machine quiet() {}
 }
-machine trace(step: i32, index: i32, particle: Particle, net: f64, residual: f64) reaches StandardOutput invokes Console crashes Trap {
-    Console::write("TRACE "); number(step); Console::write(" "); number(index);
-    Console::write(" "); micro(particle.depth); Console::write(" "); micro(particle.velocity);
-    Console::write(" "); micro(net); Console::write(" "); micro(residual); Console::write_line("");
+machine trace(step: i32, index: i32, particle: |model|::Particle, net: f64, residual: f64) reaches |process_authority|::StandardOutput invokes |console|::Console crashes Trap {
+    |console|::Console::write("TRACE "); |numbers|::number(step); |console|::Console::write(" "); |numbers|::number(index);
+    |console|::Console::write(" "); |numbers|::micro(particle.depth); |console|::Console::write(" "); |numbers|::micro(particle.velocity);
+    |console|::Console::write(" "); |numbers|::micro(net); |console|::Console::write(" "); |numbers|::micro(residual); |console|::Console::write_line("");
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput crashes Trap {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput crashes Trap {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

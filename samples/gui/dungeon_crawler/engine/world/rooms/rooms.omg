@@ -1,9 +1,4 @@
-use configuration\ROOM_LAST_COLUMN;
-use configuration\ROOM_LAST_ROW;
-use configuration\DOOR_COLUMN_START;
-use configuration\DOOR_COLUMN_END;
-use configuration\DOOR_ROW_START;
-use configuration\DOOR_ROW_END;
+use configuration/configuration.omg;
 
 public data Layout [copy] {
     case Pillars;
@@ -64,30 +59,30 @@ public machine tile_at<const Rooms: u64>(room: @Room<Rooms>, column: i32, row: i
 terminates
 requires Rooms >= 1
 ensures result >= 0 && result <= 4 {
-    transition column < 0 || column > ROOM_LAST_COLUMN || row < 0 || row > ROOM_LAST_ROW {
+    transition column < 0 || column > |configuration|::ROOM_LAST_COLUMN || row < 0 || row > |configuration|::ROOM_LAST_ROW {
         true -> (1),
         _ -> boundaries(room, column, row, key)
     }
     machine boundaries(room: @Room<Rooms>, column: i32, row: i32, key: bool) -> i32 {
-        transition row == 0 && column >= DOOR_COLUMN_START && column <= DOOR_COLUMN_END {
+        transition row == 0 && column >= |configuration|::DOOR_COLUMN_START && column <= |configuration|::DOOR_COLUMN_END {
             true -> doorway(room.exits[0], key),
             _ -> south(room, column, row, key)
         }
     }
     machine south(room: @Room<Rooms>, column: i32, row: i32, key: bool) -> i32 {
-        transition row == ROOM_LAST_ROW && column >= DOOR_COLUMN_START && column <= DOOR_COLUMN_END {
+        transition row == |configuration|::ROOM_LAST_ROW && column >= |configuration|::DOOR_COLUMN_START && column <= |configuration|::DOOR_COLUMN_END {
             true -> doorway(room.exits[2], key),
             _ -> sides(room, column, row, key)
         }
     }
     machine sides(room: @Room<Rooms>, column: i32, row: i32, key: bool) -> i32 {
-        transition column == 0 && row >= DOOR_ROW_START && row <= DOOR_ROW_END {
+        transition column == 0 && row >= |configuration|::DOOR_ROW_START && row <= |configuration|::DOOR_ROW_END {
             true -> doorway(room.exits[3], key),
             _ -> east(room, column, row, key)
         }
     }
     machine east(room: @Room<Rooms>, column: i32, row: i32, key: bool) -> i32 {
-        transition column == ROOM_LAST_COLUMN && row >= DOOR_ROW_START && row <= DOOR_ROW_END {
+        transition column == |configuration|::ROOM_LAST_COLUMN && row >= |configuration|::DOOR_ROW_START && row <= |configuration|::DOOR_ROW_END {
             true -> doorway(room.exits[1], key),
             _ -> interior(room, column, row)
         }
@@ -99,7 +94,7 @@ ensures result >= 0 && result <= 4 {
         transition locked && !key { true -> (4), _ -> (3) }
     }
     machine interior(room: @Room<Rooms>, column: i32, row: i32) -> i32 {
-        transition column == 0 || column == ROOM_LAST_COLUMN || row == 0 || row == ROOM_LAST_ROW {
+        transition column == 0 || column == |configuration|::ROOM_LAST_COLUMN || row == 0 || row == |configuration|::ROOM_LAST_ROW {
             true -> (1),
             _ -> layout(room.layout, column, row)
         }

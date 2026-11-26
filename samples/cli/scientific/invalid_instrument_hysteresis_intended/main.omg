@@ -1,4 +1,4 @@
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_exit.omg;
 // Complete intended-invalid application: violates its data invariant.
 // The write opens an invariant window that the helper's normal return must
 // close when it hands the borrowed instrument back; exiting the process
@@ -10,8 +10,8 @@ machine run(instrument: @mutable InvalidInstrument) {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit {
+machine entry_start() reaches |process_exit|::ProcessExit {
     let mutable entry_storage: InvalidInstrument;
     run(@mutable entry_storage);
-    ProcessExit::exit_process(0);
+    |process_exit|::ProcessExit::exit_process(0);
 }

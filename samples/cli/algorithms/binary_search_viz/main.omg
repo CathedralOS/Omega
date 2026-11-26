@@ -1,8 +1,8 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
-use omega\language\core\max_i32;
-use omega\language\core\min_i32;
+use {omega}/language/core/math.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/clock.omg;
+use {system}/console.omg;
 
 // A visual binary search: each step prints one row of a 31-cell strip, so the search's
 // history builds downward as a scrolling trace. A row shows the active `[lo, hi]` range
@@ -12,8 +12,6 @@ use omega\language\core\min_i32;
 // the search itself reads arr[mid] for real. Pure compute + stdout + Clock.sleep.
 // Expected exit: 0.
 // Expected output contains: #
-use system\Console;
-use system\Clock;
 
 domain [u8]::Utf8
 requires
@@ -41,7 +39,7 @@ requires self.x >= 0 && self.x <= 31
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Clock + StandardInput + StandardOutput {
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |clock|::Clock + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     main.line = "                               ";
     main.chars = " -*#";
     main.x = 0;
@@ -70,7 +68,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Clock + StandardInput + 
         // The min/max clamps are the identity for the search's real values
         // (lo in [0,31], hi in [-1,30] whenever this state runs) while giving
         // the fold provable bounds, so the midpoint math is Exact -- no domain.
-        main.mid = (min_i32(max_i32(main.lo, 0), 31) + min_i32(max_i32(main.hi, 0 - 1), 30)) / 2;
+        main.mid = (|math|::min_i32(|math|::max_i32(main.lo, 0), 31) + |math|::min_i32(|math|::max_i32(main.hi, 0 - 1), 30)) / 2;
         transition main.mid >= 0 && main.mid < 31 { true -> block render_init(main), _ -> bad(main) }
     }
 
@@ -108,8 +106,8 @@ machine main(main: @mutable Main) reaches ProcessExit + Clock + StandardInput + 
         transition { _ -> block render_loop(main) }
     }
     machine emit(main: @mutable Main) {
-        Console::write_line(main.line);
-        block Clock::sleep(250);
+        |console|::Console::write_line(main.line);
+        block |clock|::Clock::sleep(250);
         transition { _ -> block probe(main) }
     }
 
@@ -127,29 +125,29 @@ machine main(main: @mutable Main) reaches ProcessExit + Clock + StandardInput + 
     // The clamp on `mid` is the identity (mid is always in [0,30] here) and
     // bounds the +1 / -1 folds, keeping the narrowing steps Exact.
     machine go_right(main: @mutable Main) {
-        main.lo = min_i32(max_i32(main.mid, 0), 30) + 1;
+        main.lo = |math|::min_i32(|math|::max_i32(main.mid, 0), 30) + 1;
         transition { _ -> block search(main) }
     }
     machine go_left(main: @mutable Main) {
-        main.hi = min_i32(max_i32(main.mid, 0), 30) - 1;
+        main.hi = |math|::min_i32(|math|::max_i32(main.mid, 0), 30) - 1;
         transition { _ -> block search(main) }
     }
 
     machine finish(main: @mutable Main) {
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(0);
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(0);
     }
     machine not_found(main: @mutable Main) {
-        ProcessExit::exit_process(1);
+        |process_exit|::ProcessExit::exit_process(1);
     }
     machine bad(main: @mutable Main) {
-        ProcessExit::exit_process(1);
+        |process_exit|::ProcessExit::exit_process(1);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Clock + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |clock|::Clock + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

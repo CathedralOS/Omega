@@ -1,50 +1,49 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use io/input/input.omg;
+use io/report/report.omg;
+use model/flash/flash.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Bounded stdin supplied-K flash at fixed temperature and pressure.
 // Expected exit: 64.
 // Expected output contains: INVALID fractions_or_K
-use system\Console;
-use io\input;
-use io\report;
-use model\flash;
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    let mutable raw: io\input\Raw;
-    let mutable feed: io\input\Feed;
-    let mutable solution: model\flash\Solution;
-    let parsed: bool = block io\input\parse(@mutable raw);
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    let mutable raw: |input|::Raw;
+    let mutable feed: |input|::Feed;
+    let mutable solution: |flash|::Solution;
+    let parsed: bool = block |input|::parse(@mutable raw);
     transition parsed {
         true -> validate(@raw, @mutable feed, @mutable solution),
         false -> invalid()
     }
-    machine validate(raw: @io\input\Raw, feed: @mutable io\input\Feed, solution: @mutable model\flash\Solution) {
-        transition io\input\validate(raw, feed) {
+    machine validate(raw: @|input|::Raw, feed: @mutable |input|::Feed, solution: @mutable |flash|::Solution) {
+        transition |input|::validate(raw, feed) {
             true -> solve(feed, solution),
             false -> invalid()
         }
     }
-    machine solve(feed: @io\input\Feed, solution: @mutable model\flash\Solution) {
-        model\flash\solve(feed, solution);
+    machine solve(feed: @|input|::Feed, solution: @mutable |flash|::Solution) {
+        |flash|::solve(feed, solution);
         transition solution.status == 3 {
             true -> ambiguous(feed, solution),
             false -> verify(feed, solution)
         }
     }
-    machine ambiguous(feed: @io\input\Feed, solution: @model\flash\Solution) { io\report\emit(feed, solution); ProcessExit::exit_process(3); }
-    machine verify(feed: @io\input\Feed, solution: @model\flash\Solution) {
-        transition model\flash\verify(feed, solution) {
+    machine ambiguous(feed: @|input|::Feed, solution: @|flash|::Solution) { |report|::emit(feed, solution); |process_exit|::ProcessExit::exit_process(3); }
+    machine verify(feed: @|input|::Feed, solution: @|flash|::Solution) {
+        transition |flash|::verify(feed, solution) {
             true -> done(feed, solution),
             false -> failed()
         }
     }
-    machine done(feed: @io\input\Feed, solution: @model\flash\Solution) { io\report\emit(feed, solution); ProcessExit::exit_process(0); }
-    machine failed() { Console::write_line("FAIL numerical_closure_or_composition"); ProcessExit::exit_process(65); }
-    machine invalid() { Console::write_line("INVALID fractions_or_K"); ProcessExit::exit_process(64); }
+    machine done(feed: @|input|::Feed, solution: @|flash|::Solution) { |report|::emit(feed, solution); |process_exit|::ProcessExit::exit_process(0); }
+    machine failed() { |console|::Console::write_line("FAIL numerical_closure_or_composition"); |process_exit|::ProcessExit::exit_process(65); }
+    machine invalid() { |console|::Console::write_line("INVALID fractions_or_K"); |process_exit|::ProcessExit::exit_process(64); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

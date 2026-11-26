@@ -1,11 +1,10 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Conditional message construction in explicit capacity and live-length fields.
 // Expected exit: 70.
 // Expected output contains: ALERT temp
 
-use system\Console;
 
 domain [u8; 32]::Ascii requires ascii_only(self);
 domain [u8]::Ascii requires ascii_only(self);
@@ -44,8 +43,8 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("status_report: builds an ALERT/ok status string in conditional arms");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("status_report: builds an ALERT/ok status string in conditional arms");
     main.label = "temp";
     main.reading = 95;
 
@@ -58,7 +57,7 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         copy(@mutable main.message.storage, "ALERT ", 0);
         copy(@mutable main.message.storage, @main.label, 6);
         main.message.used = 10;
-        Console::write_line(live(@main.message));
+        |console|::Console::write_line(live(@main.message));
         transition live(@main.message) == "ALERT temp" { true -> block ok(main), _ -> block bad(main) }
     }
 
@@ -66,26 +65,26 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         copy(@mutable main.message.storage, "ok ", 0);
         copy(@mutable main.message.storage, @main.label, 3);
         main.message.used = 7;
-        Console::write_line(live(@main.message));
+        |console|::Console::write_line(live(@main.message));
         transition live(@main.message) == "ok temp" { true -> block ok(main), _ -> block bad(main) }
     }
 
     machine ok(main: @mutable Main) {
-        Console::write_line("PASS: reading 95 built and verified the ALERT message (exit 70)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(70);
+        |console|::Console::write_line("PASS: reading 95 built and verified the ALERT message (exit 70)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(70);
     }
     machine bad(main: @mutable Main) {
-        Console::write_line("FAIL: the concatenated message did not match (exit 71)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(71);
+        |console|::Console::write_line("FAIL: the concatenated message did not match (exit 71)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(71);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

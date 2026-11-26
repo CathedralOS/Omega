@@ -1,21 +1,19 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use input/input.omg;
+use model/model.omg;
+use planner/planner.omg;
+use report/report.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // NEW071: exhaustive bounded manufacturing cut planner. All data is synthetic.
-use system\Console;
-use system\LineReadResult;
-use model;
-use input;
-use planner;
-use report;
 
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable bytes: [u8; 32];
-    let observed: LineReadResult = block Console::read_line(@mutable bytes[..]);
+    let observed: |console|::LineReadResult = block |console|::Console::read_line(@mutable bytes[..]);
     transition observed {
-        LineReadResult::LineComplete { count } -> line(main, @bytes, count),
-        LineReadResult::EndOfInput { count } -> eof(main, @bytes, count),
+        |console|::LineReadResult::LineComplete { count } -> line(main, @bytes, count),
+        |console|::LineReadResult::EndOfInput { count } -> eof(main, @bytes, count),
         _ -> invalid(main)
     }
     machine line(main: @mutable Main, bytes: @[u8; 32], count: u64) {
@@ -31,35 +29,35 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         }
     }
     machine parse_orders(main: @mutable Main, bytes: @[u8; 32]) {
-        let mutable orders: model\Orders;
-        let valid: bool = input\parse(bytes, @mutable orders);
+        let mutable orders: |model|::Orders;
+        let valid: bool = |input|::parse(bytes, @mutable orders);
         transition valid {
             true -> plan(main, @orders),
             _ -> invalid(main)
         }
     }
-    machine plan(main: @mutable Main, orders: @model\Orders) {
-        let mutable best: model\Plan;
-        planner\solve(orders, @mutable best);
-        let conserved: bool = report\emit(orders, @best);
+    machine plan(main: @mutable Main, orders: @|model|::Orders) {
+        let mutable best: |model|::Plan;
+        |planner|::solve(orders, @mutable best);
+        let conserved: bool = |report|::emit(orders, @best);
         transition conserved {
             true -> done(main),
             _ -> internal(main)
         }
     }
-    machine done(main: @mutable Main) { ProcessExit::exit_process(0); }
+    machine done(main: @mutable Main) { |process_exit|::ProcessExit::exit_process(0); }
     machine internal(main: @mutable Main) {
-        Console::write_line("INTERNAL: conservation certificate failed");
-        ProcessExit::exit_process(70);
+        |console|::Console::write_line("INTERNAL: conservation certificate failed");
+        |process_exit|::ProcessExit::exit_process(70);
     }
     machine invalid(main: @mutable Main) {
-        Console::write_line("INVALID: expected SSS RRR K LLL LLL LLL LLL; stock and orders must be positive");
-        ProcessExit::exit_process(64);
+        |console|::Console::write_line("INVALID: expected SSS RRR K LLL LLL LLL LLL; stock and orders must be positive");
+        |process_exit|::ProcessExit::exit_process(64);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

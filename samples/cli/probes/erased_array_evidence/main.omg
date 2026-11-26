@@ -1,4 +1,4 @@
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_exit.omg;
 // Expected exit: 70
 // The retained runtime argument determines this oracle; erased evidence cannot.
 
@@ -18,18 +18,18 @@ machine relay(witness [erased]: Proof, n: i32, table [erased]: [i32; 2]) -> i32 
 data Main {
 }
 
-machine Main::main(main: @mutable Main) reaches ProcessExit {
+machine Main::main(main: @mutable Main) reaches |process_exit|::ProcessExit {
     let result: i32 = keep(70, Proof { tag: 1, table: [7, 8] });
     transition result == 70 {
         true -> good(main),
         _ -> bad(main)
     }
-    machine good(main: @mutable Main) { ProcessExit::exit_process(70); }
-    machine bad(main: @mutable Main) { ProcessExit::exit_process(71); }
+    machine good(main: @mutable Main) { |process_exit|::ProcessExit::exit_process(70); }
+    machine bad(main: @mutable Main) { |process_exit|::ProcessExit::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit {
+machine entry_start() reaches |process_exit|::ProcessExit {
     let mutable entry_storage: Main;
     Main::main(@mutable entry_storage);
 }

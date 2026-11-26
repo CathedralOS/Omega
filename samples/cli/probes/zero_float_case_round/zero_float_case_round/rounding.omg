@@ -1,12 +1,12 @@
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Expected exit: 0
 // Expected output contains: zero float case rounds -1 and 1
 // A copy record whose first case carries f64 is zero-constructed as +0.0.
 // That payload, and exact ±0.5 ratios taken from a runtime-indexed f64 array,
 // round half away from zero. No passing sample executes this combination.
-use system\Console;
-use omega\language\core\I32::from_f64;
 
 public data Reading [copy] {
     case Value(amount: f64);
@@ -31,11 +31,11 @@ machine round_away(value: f64) -> i32 in Wrapping {
         false -> positive(value)
     }
     machine negative(value: f64) -> i32 in Wrapping {
-        let converted: i32 in Saturating = I32::from_f64(value - 0.5);
+        let converted: i32 in Saturating = |float_operations|::I32::from_f64(value - 0.5);
         converted as -Saturating +Wrapping
     }
     machine positive(value: f64) -> i32 in Wrapping {
-        let converted: i32 in Saturating = I32::from_f64(value + 0.5);
+        let converted: i32 in Saturating = |float_operations|::I32::from_f64(value + 0.5);
         converted as -Saturating +Wrapping
     }
 }
@@ -52,8 +52,8 @@ requires index >= 0 && index < 2
     application.slots[index].ready = true;
 }
 
-public machine Main::main(application: @mutable Main) reaches ProcessExit + StandardOutput
-invokes Console
+public machine Main::main(application: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput
+invokes |console|::Console
 {
     arm(application, 0);
     arm(application, 1);
@@ -88,11 +88,11 @@ invokes Console
         }
     }
     machine report(application: @mutable Main) {
-        Console::write_line("zero float case rounds -1 and 1");
-        ProcessExit::exit_process(0);
+        |console|::Console::write_line("zero float case rounds -1 and 1");
+        |process_exit|::ProcessExit::exit_process(0);
     }
     machine mismatch(application: @mutable Main) {
-        Console::write_line("zero float case mismatch");
-        ProcessExit::exit_process(2);
+        |console|::Console::write_line("zero float case mismatch");
+        |process_exit|::ProcessExit::exit_process(2);
     }
 }

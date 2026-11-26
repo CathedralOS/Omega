@@ -1,50 +1,45 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use domain/input/input.omg;
+use domain/output/output.omg;
+use domain/regions/regions.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Runtime grayscale analysis. No dependency on shared numeric algorithms.
 // Expected exit: 2 (EOF from the generic sample harness is invalid input).
 // Expected output contains: ERROR invalid image:
-use domain\input;
-use domain\input\Image;
-use domain\input\read_image;
-use domain\regions;
-use domain\regions\label_regions;
-use domain\output;
-use domain\output\render;
-use system\Console;
 
 data Main { }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    let mutable image: Image;
-    let valid: bool = block read_image(@mutable image);
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    let mutable image: |input|::Image;
+    let valid: bool = block |input|::read_image(@mutable image);
     transition valid {
         true -> analyze(main, @mutable image),
         false -> invalid(main)
     }
-    machine analyze(main: @mutable Main, image: @mutable Image) {
-        let complete: bool = label_regions(image);
+    machine analyze(main: @mutable Main, image: @mutable |input|::Image) {
+        let complete: bool = |regions|::label_regions(image);
         transition complete {
             true -> report(main, image),
             false -> internal(main)
         }
     }
-    machine report(main: @mutable Main, image: @Image) {
-        render(image);
-        ProcessExit::exit_process(0);
+    machine report(main: @mutable Main, image: @|input|::Image) {
+        |output|::render(image);
+        |process_exit|::ProcessExit::exit_process(0);
     }
     machine invalid(main: @mutable Main) {
-        Console::write_line("ERROR invalid image: width height 1..8, threshold 0..255, connectivity 4 or 8, exact pixels 0..255");
-        ProcessExit::exit_process(2);
+        |console|::Console::write_line("ERROR invalid image: width height 1..8, threshold 0..255, connectivity 4 or 8, exact pixels 0..255");
+        |process_exit|::ProcessExit::exit_process(2);
     }
     machine internal(main: @mutable Main) {
-        Console::write_line("ERROR internal capacity invariant");
-        ProcessExit::exit_process(3);
+        |console|::Console::write_line("ERROR internal capacity invariant");
+        |process_exit|::ProcessExit::exit_process(3);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

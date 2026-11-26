@@ -1,31 +1,22 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use input/parse/parse.omg;
+use model/fill/fill.omg;
+use report/output/output.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // A complete runtime-input model; there is no baked expected map in this entry.
 // Closed stdin is an invalid request; native fixture runs supply data/*.in.
 // Expected exit: 64.
 // Expected output contains: INVALID_INPUT
-use system\Console;
-use system\LineReadResult;
-use model\fill;
-use model\fill\Cavity;
-use model\fill\valid;
-use model\fill\cavity_simulate;
-use model\fill\balanced;
-use model\fill\arrival_row_holds;
-use input\parse;
-use input\parse\parse_input;
-use report\output;
-use report\output\report;
 
 data Main { }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable input: [u8; 32];
-    let result: LineReadResult = block Console::read_line(@mutable input[..]);
+    let result: |console|::LineReadResult = block |console|::Console::read_line(@mutable input[..]);
     transition result {
-        LineReadResult::LineComplete { count } -> prefix(main, @input, count),
-        LineReadResult::EndOfInput { count } -> prefix(main, @input, count),
+        |console|::LineReadResult::LineComplete { count } -> prefix(main, @input, count),
+        |console|::LineReadResult::EndOfInput { count } -> prefix(main, @input, count),
         _ -> invalid(main)
     }
     machine prefix(main: @mutable Main, input: @[u8; 32], count: u64) {
@@ -35,42 +26,42 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         }
     }
     machine parse(main: @mutable Main, text: @[u8]) {
-        let mutable cavity: Cavity;
-        let valid: bool = parse_input(text, @mutable cavity);
+        let mutable cavity: |fill|::Cavity;
+        let valid: bool = |parse|::parse_input(text, @mutable cavity);
         transition valid {
             true -> simulate(main, @mutable cavity),
             _ -> invalid(main)
         }
     }
-    machine simulate(main: @mutable Main, cavity: @mutable Cavity) {
-        transition arrival_row_holds() {
+    machine simulate(main: @mutable Main, cavity: @mutable |fill|::Cavity) {
+        transition |fill|::arrival_row_holds() {
             true -> advance(main, cavity),
             _ -> unbalanced(main)
         }
     }
-    machine advance(main: @mutable Main, cavity: @mutable Cavity) {
-        cavity_simulate(cavity);
-        transition balanced(cavity) {
+    machine advance(main: @mutable Main, cavity: @mutable |fill|::Cavity) {
+        |fill|::cavity_simulate(cavity);
+        transition |fill|::balanced(cavity) {
             true -> publish(main, cavity),
             _ -> unbalanced(main)
         }
     }
-    machine publish(main: @mutable Main, cavity: @Cavity) {
-        report(cavity);
-        ProcessExit::exit_process(0);
+    machine publish(main: @mutable Main, cavity: @|fill|::Cavity) {
+        |output|::report(cavity);
+        |process_exit|::ProcessExit::exit_process(0);
     }
     machine invalid(main: @mutable Main) {
-        Console::write_line("INVALID_INPUT");
-        ProcessExit::exit_process(64);
+        |console|::Console::write_line("INVALID_INPUT");
+        |process_exit|::ProcessExit::exit_process(64);
     }
     machine unbalanced(main: @mutable Main) {
-        Console::write_line("INTERNAL_BALANCE_ERROR");
-        ProcessExit::exit_process(70);
+        |console|::Console::write_line("INTERNAL_BALANCE_ERROR");
+        |process_exit|::ProcessExit::exit_process(70);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

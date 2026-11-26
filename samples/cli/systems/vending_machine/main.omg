@@ -1,4 +1,4 @@
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_exit.omg;
 // vending_machine: a coin-and-change vending flow written in the VALUE-CALL
 // style the compiler now supports end to end (all shapes below are also
 // pinned by discriminating canaries; this sample keeps them exercised as
@@ -63,7 +63,7 @@ machine make_change(paid: i32 in Wrapping, price: i32 in Wrapping) -> Change {
     }
 }
 
-machine main(context: @mutable Main) reaches ProcessExit {
+machine main(context: @mutable Main) reaches |process_exit|::ProcessExit {
     // Same callee, two sites in one state: each site keeps ITS call's result.
     context.a = price_of(context, 0 as +Wrapping);
     context.b = price_of(context, 1 as +Wrapping);
@@ -97,12 +97,12 @@ machine main(context: @mutable Main) reaches ProcessExit {
         transition sum == 70 { true -> good(context), _ -> bad(context, 94) }
     }
 
-    machine good(context: @mutable Main) { ProcessExit::exit_process(70); }
-    machine bad(context: @mutable Main, code: i32) { ProcessExit::exit_process(code); }
+    machine good(context: @mutable Main) { |process_exit|::ProcessExit::exit_process(70); }
+    machine bad(context: @mutable Main, code: i32) { |process_exit|::ProcessExit::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit {
+machine entry_start() reaches |process_exit|::ProcessExit {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }

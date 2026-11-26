@@ -1,24 +1,24 @@
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Complete valid reproduction of three runtime selectors behind a record loan.
-use system\Console;
 data Storage { cells: [[[f64;2];2];2]; }
 data Main { }
 machine read(storage: @Storage,layer: u64,row: u64,column: u64) -> f64
 requires layer <= 1 requires row <= 1 requires column <= 1 {
     storage.cells[layer][row][column]
 }
-machine main(main: @mutable Main) reaches ProcessExit + StandardOutput {
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     let mutable storage: Storage;
     storage.cells[1][0][1] = 41.0;
     let observed: f64 = read(@storage,1,0,1);
     transition observed == 41.0 { true -> yes(main), false -> no(main) }
-    machine yes(main: @mutable Main) { Console::write_line("PROJECTION OK"); ProcessExit::exit_process(0); }
-    machine no(main: @mutable Main) { Console::write_line("PROJECTION WRONG"); ProcessExit::exit_process(4); }
+    machine yes(main: @mutable Main) { |console|::Console::write_line("PROJECTION OK"); |process_exit|::ProcessExit::exit_process(0); }
+    machine no(main: @mutable Main) { |console|::Console::write_line("PROJECTION WRONG"); |process_exit|::ProcessExit::exit_process(4); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }

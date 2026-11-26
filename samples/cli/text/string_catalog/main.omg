@@ -1,6 +1,6 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Text catalog: explicit fixed-capacity text owners in a data type with field copies,
 // concatenation, equality guards, and a numeric score derived from matches.
 //
@@ -60,7 +60,6 @@ ensures buffer in Ascii
     machine done() {}
 }
 
-use system\Console;
 
 // Bounded so `entry1.score + entry2.score` is verifiably at most 200: Exact
 // arithmetic on nested fields carries the overflow obligation, and the `where`
@@ -114,8 +113,8 @@ machine compute_total(main: @mutable Main) {
     main.catalog.total = main.catalog.entry1.score + main.catalog.entry2.score;
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("string_catalog: bounded UTF-8 fields, concatenation, and equality guards");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("string_catalog: bounded UTF-8 fields, concatenation, and equality guards");
     set_entry1(main);
     set_entry2(main);
     build_label(main);
@@ -128,10 +127,10 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
 
     machine bad_name1(main: @mutable Main) {
-        Console::write_line("FAIL: entry1.name did not equal Alpha (exit 71)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(71);
+        |console|::Console::write_line("FAIL: entry1.name did not equal Alpha (exit 71)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(71);
     }
 
     machine check_name2(main: @mutable Main) {
@@ -142,10 +141,10 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
 
     machine bad_name2(main: @mutable Main) {
-        Console::write_line("FAIL: entry2.name did not equal Beta (exit 72)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(72);
+        |console|::Console::write_line("FAIL: entry2.name did not equal Beta (exit 72)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(72);
     }
 
     machine check_label(main: @mutable Main) {
@@ -156,10 +155,10 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
 
     machine bad_label(main: @mutable Main) {
-        Console::write_line("FAIL: concatenated label was not [Alpha+Beta] (exit 73)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(73);
+        |console|::Console::write_line("FAIL: concatenated label was not [Alpha+Beta] (exit 73)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(73);
     }
 
     machine check_total(main: @mutable Main) {
@@ -170,22 +169,22 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
 
     machine bad_total(main: @mutable Main) {
-        Console::write_line("FAIL: score total was not 70 (exit 74)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(74);
+        |console|::Console::write_line("FAIL: score total was not 70 (exit 74)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(74);
     }
 
     machine good(main: @mutable Main) {
-        Console::write_line("PASS: names, label [Alpha+Beta], and total 70 all verified (exit 70)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(70);
+        |console|::Console::write_line("PASS: names, label [Alpha+Beta], and total 70 all verified (exit 70)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(70);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

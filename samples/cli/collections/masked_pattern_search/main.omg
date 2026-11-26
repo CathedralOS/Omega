@@ -1,6 +1,6 @@
 // Expected exit: 0.
 // Search overlapping masked byte patterns and retain the actual matching window.
-use omega\language\core\Optional;
+use {omega}/language/core/option.omg;
 
 data PatternByte [copy] { expected: u8; mask: u8; }
 data Found<'input> { position: u64; bytes: @'input [u8]; }
@@ -27,34 +27,34 @@ requires bytes.length == pattern.length {
 }
 
 machine find<'input>(bytes: @'input [u8], pattern: @[PatternByte], start: u64)
-    -> Optional<Found<'input>> {
+    -> |option|::Optional<Found<'input>> {
     transition start <= bytes.length && pattern.length > 0 {
         true -> next(bytes, pattern, start),
-        false -> Optional::None
+        false -> |option|::Optional::None
     }
     machine next(bytes: @'input [u8], pattern: @[PatternByte], cursor: u64)
-        -> Optional<Found<'input>>
+        -> |option|::Optional<Found<'input>>
     requires cursor <= bytes.length && pattern.length > 0 {
         transition pattern.length <= bytes.length - cursor {
             true -> compare(bytes, pattern, cursor),
-            false -> Optional::None
+            false -> |option|::Optional::None
         }
     }
     machine compare(bytes: @'input [u8], pattern: @[PatternByte], cursor: u64)
-        -> Optional<Found<'input>>
+        -> |option|::Optional<Found<'input>>
     requires cursor <= bytes.length && pattern.length > 0 && pattern.length <= bytes.length - cursor {
         let window: @[u8] = @bytes[cursor..cursor + pattern.length];
         transition matches(window, pattern) {
-            true -> Optional::Some { value: Found { position: cursor, bytes: window } },
+            true -> |option|::Optional::Some { value: Found { position: cursor, bytes: window } },
             false -> next(bytes, pattern, cursor + 1)
         }
     }
 }
 
-machine observed(found: Optional<Found>, position: u64, middle: u8) -> bool {
+machine observed(found: |option|::Optional<Found>, position: u64, middle: u8) -> bool {
     transition found {
-        Optional::Some { value } -> inspect(value, position, middle),
-        Optional::None -> false
+        |option|::Optional::Some { value } -> inspect(value, position, middle),
+        |option|::Optional::None -> false
     }
     machine inspect(found: Found, position: u64, middle: u8) -> bool {
         transition found.bytes.length == 3 {
@@ -69,8 +69,8 @@ machine observed(found: Optional<Found>, position: u64, middle: u8) -> bool {
     }
 }
 
-machine absent(found: Optional<Found>) -> bool {
-    transition found { Optional::Some { value } -> false, Optional::None -> true }
+machine absent(found: |option|::Optional<Found>) -> bool {
+    transition found { |option|::Optional::Some { value } -> false, |option|::Optional::None -> true }
 }
 
 machine main() crashes Trap {
