@@ -112,9 +112,11 @@ pub(crate) fn publish(
     })();
     elaboration.module.identities = identities.build();
     prepared?;
-    elaboration.module.interfaces.service_schemas =
-        terminal_psi::TerminalServiceSchema::join(&elaboration.module.interfaces.service_schemas, &schemas)
-            .map_err(|reason| unavailable(context, reason))?;
+    elaboration.module.interfaces.service_schemas = terminal_psi::TerminalServiceSchema::join(
+        &elaboration.module.interfaces.service_schemas,
+        &schemas,
+    )
+    .map_err(|reason| unavailable(context, reason))?;
     elaboration.module.interfaces.provider_selections = rows;
     Ok(())
 }

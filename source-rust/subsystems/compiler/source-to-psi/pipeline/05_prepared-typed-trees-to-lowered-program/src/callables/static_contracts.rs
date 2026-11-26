@@ -8,7 +8,7 @@ use symbols::SymbolHandle;
 use terminal_check_tables::Checked;
 use terminal_psi::{TerminalCallableInvocation, TerminalCallableTermination, TerminalModule};
 
-use crate::reach::{ServiceMap, SourceInvocation};
+use crate::publication::reach::{ServiceMap, SourceInvocation};
 use crate::{Signature, Unserved, refuse};
 
 pub use terminal_check_tables::contracts::{
@@ -243,7 +243,7 @@ impl StaticContracts {
         outcomes: &IdTable<MachineId, crate::Outcome>,
         records: &crate::lower::places::Records<'_>,
         callables: &crate::callables::CallableNamespace,
-        boundaries: &crate::boundaries::BoundaryNamespace,
+        boundaries: &crate::declare::boundaries::BoundaryNamespace,
         services: &ServiceMap,
         qualifications: &mut crate::qualifications::Qualifications,
         module: &mut TerminalModule,
@@ -404,9 +404,7 @@ impl StaticContracts {
                             provider.declaration,
                             &mut qualifications.identities,
                         )
-                        .map_err(|reason| {
-                            crate::read::services::unavailable(context, reason)
-                        })?;
+                        .map_err(|reason| crate::read::services::unavailable(context, reason))?;
                         Ok(StaticProviderCandidate {
                             boundary: provider.boundary,
                             declaration: terminal_psi::NominalDeclarationIdentity::new(identity),

@@ -121,9 +121,7 @@ impl ServiceMap {
             .collect::<Vec<_>>();
         let schemas = catalog
             .retain_service_applications(&applications)
-            .map_err(|error| {
-                crate::read::services::unavailable(context, error.message)
-            })?;
+            .map_err(|error| crate::read::services::unavailable(context, error.message))?;
         let declarations = registry
             .iter()
             .zip(identities)
@@ -221,9 +219,10 @@ impl ServiceMap {
         let mut schemas = Vec::with_capacity(self.declarations.len());
         let prepared = (|| {
             for source in &self.declarations {
-                let schema = source.schema.surface().map_err(|error| {
-                    crate::read::services::unavailable(context, error.message)
-                })?;
+                let schema = source
+                    .schema
+                    .surface()
+                    .map_err(|error| crate::read::services::unavailable(context, error.message))?;
                 if schema.declaration.root_application_identity() != Some(source.identity.as_str())
                 {
                     return Err(unavailable(
@@ -455,7 +454,8 @@ pub(crate) fn publish(
             for call in machine.callable_invocations() {
                 let contract = elaboration
                     .module
-                    .execution.callables
+                    .execution
+                    .callables
                     .contract(call.inputs.contract)
                     .ok_or_else(|| {
                         unavailable(machine.id, "reach call lost its retained callable contract")
@@ -497,7 +497,8 @@ pub(crate) fn publish(
         machine.published_service_ceiling = row.clone();
         if let Some(named) = elaboration
             .module
-            .execution.callables
+            .execution
+            .callables
             .machine_envelopes
             .get_mut(at)
             .and_then(Option::as_mut)

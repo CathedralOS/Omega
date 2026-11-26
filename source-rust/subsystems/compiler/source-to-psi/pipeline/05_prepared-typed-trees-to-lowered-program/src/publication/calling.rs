@@ -266,8 +266,16 @@ pub(crate) fn publish(
     elaboration: &mut Elaboration,
 ) -> Checked<()> {
     let storage = &descriptions.signatures;
-    if !elaboration.module.interfaces.calling_policy_requests.is_empty()
-        || !elaboration.module.interfaces.program_entry_contracts.is_empty()
+    if !elaboration
+        .module
+        .interfaces
+        .calling_policy_requests
+        .is_empty()
+        || !elaboration
+            .module
+            .interfaces
+            .program_entry_contracts
+            .is_empty()
     {
         return Err(services::unavailable(
             context,
@@ -467,9 +475,11 @@ pub(crate) fn publish(
     )?;
     elaboration.module.interfaces.calling_abi_signatures = declarations;
     elaboration.module.interfaces.calling_policy_requests = requests;
-    elaboration.module.interfaces.service_schemas =
-        terminal_psi::TerminalServiceSchema::join(&elaboration.module.interfaces.service_schemas, &schemas)
-            .map_err(|reason| services::unavailable(context, reason))?;
+    elaboration.module.interfaces.service_schemas = terminal_psi::TerminalServiceSchema::join(
+        &elaboration.module.interfaces.service_schemas,
+        &schemas,
+    )
+    .map_err(|reason| services::unavailable(context, reason))?;
     elaboration.module.interfaces.program_entry_contracts = entries;
     Ok(())
 }

@@ -14,6 +14,9 @@ produces. `ValueType::Record` and `RecordType` name both shapes: a record has
 fields and no case, a sum has cases and no field.
 */
 
+pub(crate) mod inhabitation;
+pub(crate) mod outcome;
+
 use arena::IdTable;
 use semantic_vocabulary::{
     BoundaryMachineId, CrashCause, IntegerValue, MachineId, PlaceId, Proposition, ScalarType,
@@ -668,7 +671,7 @@ pub(crate) struct Signatures<'a> {
     pub declarations: &'a IdTable<semantic_vocabulary::ContractId, Signature>,
     pub declaration_aliases:
         Option<&'a IdTable<semantic_vocabulary::ContractId, semantic_vocabulary::ContractId>>,
-    pub boundaries: &'a crate::boundaries::BoundaryNamespace,
+    pub boundaries: &'a crate::declare::boundaries::BoundaryNamespace,
 }
 
 impl<'a> Signatures<'a> {

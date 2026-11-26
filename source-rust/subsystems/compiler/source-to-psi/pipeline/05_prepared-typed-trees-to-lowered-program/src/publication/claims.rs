@@ -573,7 +573,7 @@ pub(crate) fn publish(diagnostic: MachineId, module: &mut TerminalModule) -> Che
             terminal_semantics::plain_affine::Error,
         >,
     }
-    crate::machine_order::plan_then_apply(
+    crate::lower::machine_order::plan_then_apply(
         module,
         |module, summaries, machine| {
             let reads = machine_ordinals

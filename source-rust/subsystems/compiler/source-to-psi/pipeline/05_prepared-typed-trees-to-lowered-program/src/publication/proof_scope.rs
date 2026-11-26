@@ -138,8 +138,10 @@ pub(crate) fn declare(
         .first()
         .map(|machine| machine.id)
         .unwrap_or_else(|| MachineId::new(1).expect("1 is nonzero"));
-    let mut boundary_declarations = Vec::with_capacity(elaboration.module.interfaces.boundary_machines.len());
-    let mut boundary_headers = Vec::with_capacity(elaboration.module.interfaces.boundary_machines.len());
+    let mut boundary_declarations =
+        Vec::with_capacity(elaboration.module.interfaces.boundary_machines.len());
+    let mut boundary_headers =
+        Vec::with_capacity(elaboration.module.interfaces.boundary_machines.len());
     for boundary in &elaboration.module.interfaces.boundary_machines {
         let unavailable =
             |reason| refuse(context, Construct::Machine, Unserved::Declaration(reason));
@@ -406,13 +408,13 @@ pub(crate) fn declare(
             );
         }
         let package = typed.symbols.symbol_package_identity(symbol);
-        let custody = crate::selection_questions::declaration_custody(typed, symbol)
+        let custody = crate::publication::selection_questions::declaration_custody(typed, symbol)
             .map_err(|reason| terminal_check_tables::Refusal {
-                source_span: None,
-                reason: terminal_check_tables::RefusalReason::Unsupported,
-                site: terminal_check_tables::RefusalSite::Machine(machine.id, Construct::Machine),
-                detail: reason.to_string(),
-            })?;
+            source_span: None,
+            reason: terminal_check_tables::RefusalReason::Unsupported,
+            site: terminal_check_tables::RefusalSite::Machine(machine.id, Construct::Machine),
+            detail: reason.to_string(),
+        })?;
         let evaluation = (|| {
             if let Some(reason) = unavailable {
                 return Err(reason);
@@ -469,7 +471,8 @@ pub(crate) fn declare(
                     .map_err(|_| "proof storage type coordinate is out of range")?;
                 let row = elaboration
                     .module
-                    .types.structural_types
+                    .types
+                    .structural_types
                     .get(position)
                     .filter(|row| row.id == identity)
                     .ok_or("proof storage has no exact structural type declaration")?;
@@ -574,7 +577,9 @@ pub(crate) fn declare(
                 .map(|_| *declaration)
         }));
     scope.plan.has_obligations = !scope.plan.obligation_owners.is_empty();
-    if elaboration.module.scalars.scalar_applications.proof_scope != ProofApplicationScope::default() {
+    if elaboration.module.scalars.scalar_applications.proof_scope
+        != ProofApplicationScope::default()
+    {
         let machine = elaboration
             .module
             .machines
@@ -686,7 +691,8 @@ fn published_services(
         .iter()
         .map(|service| {
             module
-                .interfaces.services
+                .interfaces
+                .services
                 .binary_search_by_key(service, |row| row.id)
                 .ok()
                 .and_then(|position| {

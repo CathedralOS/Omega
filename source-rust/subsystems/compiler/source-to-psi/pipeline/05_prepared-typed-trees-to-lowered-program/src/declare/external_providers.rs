@@ -8,12 +8,12 @@ use symbols::SymbolHandle;
 use terminal_check_tables::Checked;
 use terminal_psi::{ExternalProviderConformance, ExternalProviderOwner, TerminalModule};
 
-use crate::{Signature, boundaries::BoundaryNamespace, callables::CallableNamespace};
+use crate::{Signature, callables::CallableNamespace, declare::boundaries::BoundaryNamespace};
 
 pub use terminal_check_tables::contracts::ExternalProviderCandidate;
 
 #[cfg(any(test, feature = "test-support"))]
-pub type ProviderContractHeader = crate::callable_headers::CallableHeader;
+pub type ProviderContractHeader = crate::callables::headers::CallableHeader;
 
 #[derive(Debug, Clone)]
 pub(crate) struct ProviderOwnerSource {
@@ -28,7 +28,7 @@ pub(crate) struct ExternalProviderSource {
     pub state: SymbolHandle,
     pub requirement: BoundaryMachineId,
     pub signature: Signature,
-    pub envelope: crate::reach::SourceEnvelope,
+    pub envelope: crate::publication::reach::SourceEnvelope,
     pub declaration: crate::declare::BoundaryDeclarationSource,
     pub provider: Option<ProviderOwnerSource>,
     pub package: Option<PackageKeyIdentity>,
@@ -54,7 +54,7 @@ impl ExternalProviderNamespace {
         records: &crate::lower::places::Records<'_>,
         callables: &CallableNamespace,
         boundaries: &BoundaryNamespace,
-        services: &crate::reach::ServiceMap,
+        services: &crate::publication::reach::ServiceMap,
         qualifications: &mut crate::qualifications::Qualifications,
         module: &mut TerminalModule,
         typed_source: Option<&crate::source_state::TypedTrees>,

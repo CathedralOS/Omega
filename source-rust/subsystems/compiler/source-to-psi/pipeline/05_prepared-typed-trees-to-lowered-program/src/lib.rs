@@ -43,49 +43,31 @@ Gaps found against the contract are listed in the crate README, "Findings".
 */
 
 mod body;
-mod boundaries;
-mod callable_formations;
-mod callable_headers;
 mod callables;
-mod calling_publication;
-mod claim_publication;
+mod canonical;
 mod compilation;
-pub mod source_roster;
-pub use compilation::lower_for_publication;
+mod components;
+mod declare;
+mod lower;
+mod mathematics;
+mod policy;
+mod publication;
+mod qualifications;
+mod read;
+mod references;
+
+#[cfg(any(test, feature = "test-support"))]
+pub use canonical::substituted_routes as substituted_call_routes;
+pub use compilation::{lower_for_publication, source_roster};
+pub use declare::provider_selections;
 pub use lowered_source_publication::LoweredSourcePublication;
 pub use prepared_source::PreparedTypedTrees;
-mod publication;
 use publication::PreparedProgram;
 pub use publication::{
     DesignatedOperands, RequirementInvocation, RequirementReview, RequirementReviewMetadata,
     RequirementService, SourceCorrespondence, SourceFormCorrespondence, SourceOrigin,
+    selection_questions,
 };
-mod canonical;
-#[cfg(any(test, feature = "test-support"))]
-pub use canonical::substituted_routes as substituted_call_routes;
-mod components;
-mod declaration_references;
-mod declare;
-mod default_obligations;
-mod external_providers;
-mod inhabitation;
-mod lower;
-mod machine_order;
-mod mathematics;
-
-mod operational;
-mod outcome;
-mod policy;
-mod proof_scope;
-pub mod provider_selections;
-mod qualifications;
-mod reach;
-mod read;
-mod reference_ends;
-mod reference_results;
-pub mod selection_questions;
-mod static_contracts;
-mod suspension;
 
 /// What every elaboration of one typed program reads in common. A
 /// compilation, or a public entry point, prepares it once and lends it to
@@ -115,7 +97,7 @@ pub(crate) struct SharedProgram {
     /// conformance witness check their private helpers' input boundary
     /// against the same program (`Program::private_input_contracts`), so the
     /// first reading that asks walks the program and the rest borrow it.
-    declaration_references: std::sync::OnceLock<declaration_references::DeclarationReferences>,
+    declaration_references: std::sync::OnceLock<declare::references::DeclarationReferences>,
 }
 
 type CallingCatalog = Result<
@@ -167,9 +149,9 @@ impl SharedProgram {
     pub(crate) fn declaration_references(
         &self,
         typed: &TypedTrees,
-    ) -> &declaration_references::DeclarationReferences {
+    ) -> &declare::references::DeclarationReferences {
         self.declaration_references
-            .get_or_init(|| declaration_references::DeclarationReferences::new(typed))
+            .get_or_init(|| declare::references::DeclarationReferences::new(typed))
     }
 
     /// How many purposes have prepared a calling catalog, for tests that pin
@@ -183,6 +165,7 @@ impl SharedProgram {
     }
 }
 
+pub use body::outcome::Outcome;
 #[cfg(any(test, feature = "test-support"))]
 pub use body::{
     ArmGuard, Axis, Body, Borrowed, BorrowedReferent, CaseSelector, CaseType, Ceiling,
@@ -195,25 +178,24 @@ pub use body::{
     ArmGuard, Body, Borrowed, Ceiling, DomainSet, Expression, ExpressionKind, RecordType,
     Signature, Statement, StorageShape, Target, Termination, ValueType,
 };
-pub use callable_formations::check_bound_callable_shapes;
+pub use callables::formations::check_bound_callable_shapes;
 #[cfg(any(test, feature = "test-support"))]
-pub use callable_headers::{CallableCrashPolicy, CallableHeader};
+pub use callables::headers::{CallableCrashPolicy, CallableHeader};
+#[cfg(any(test, feature = "test-support"))]
+pub use callables::static_contracts::{
+    StaticCallableEnvelope, StaticConformanceQuestion, StaticImplementation,
+    StaticProviderCandidate, StaticRequirementSchema, StaticSchemaQuestion, StaticServiceCeiling,
+};
 #[cfg(not(any(test, feature = "test-support")))]
 pub use compilation::prepare_compilation;
 #[cfg(any(test, feature = "test-support"))]
 pub use compilation::{LoweredCompilationWithSource, prepare_compilation};
 #[cfg(not(any(test, feature = "test-support")))]
-pub use external_providers::ExternalProviderCandidate;
+pub use declare::external_providers::ExternalProviderCandidate;
 #[cfg(any(test, feature = "test-support"))]
-pub use external_providers::{ExternalProviderCandidate, ProviderContractHeader};
-pub use outcome::Outcome;
-pub use reach::ServiceReach;
+pub use declare::external_providers::{ExternalProviderCandidate, ProviderContractHeader};
+pub use publication::reach::ServiceReach;
 pub use read::calling::{CallingPolicySelections, ProgramEntryContractSelection};
-#[cfg(any(test, feature = "test-support"))]
-pub use static_contracts::{
-    StaticCallableEnvelope, StaticConformanceQuestion, StaticImplementation,
-    StaticProviderCandidate, StaticRequirementSchema, StaticSchemaQuestion, StaticServiceCeiling,
-};
 // Installed logical calls share source preparation with ordinary refinement;
 // their canonical witnesses are judged by the next stage and never published.
 pub use terminal_check_tables::compilation::{
@@ -1124,7 +1106,7 @@ fn finish_logical_witness<'source>(
     witness.program.applications = program.applications;
     witness.program.selections = program.selections;
     witness.source.selection_questions = Some(
-        selection_questions::bind_invocation_declarations(
+        publication::selection_questions::bind_invocation_declarations(
             source_selection_questions,
             program.typed,
             &mut witness.program,
@@ -1138,9 +1120,9 @@ fn finish_logical_witness<'source>(
 fn capture_source_questions(
     program: &mut read::Program<'_>,
     entry: MachineId,
-) -> Checked<selection_questions::RawSelectionQuestions> {
+) -> Checked<publication::selection_questions::RawSelectionQuestions> {
     program.completed_operators.finish();
-    selection_questions::capture_with_bodies(
+    publication::selection_questions::capture_with_bodies(
         program.typed,
         &program.admitted_declarations,
         &program.admitted_bodies,
@@ -1195,7 +1177,7 @@ fn finish_reading<'source>(
     bodies: IdTable<MachineId, Body>,
     declared: Option<&'source TypedTrees>,
     calling: Option<CallingPolicySelections<'_>>,
-    providers: Option<provider_selections::ProviderSelections<'_>>,
+    providers: Option<declare::provider_selections::ProviderSelections<'_>>,
 ) -> Checked<PreparedProgram<'source>> {
     finish_reading_into(
         program,
@@ -1216,7 +1198,7 @@ fn finish_reading_into<'source>(
     mut bodies: IdTable<MachineId, Body>,
     declared: Option<&'source TypedTrees>,
     calling: Option<CallingPolicySelections<'_>>,
-    providers: Option<provider_selections::ProviderSelections<'_>>,
+    providers: Option<declare::provider_selections::ProviderSelections<'_>>,
     further: &mut Vec<Refusal>,
 ) -> Checked<PreparedProgram<'source>> {
     // Refusals need a coordinate even for an empty declaration module. This
@@ -1360,7 +1342,7 @@ fn finish_reading_into<'source>(
         .rows
         .map(|_, row| row.signature.static_signature());
     source.selection_questions = Some(
-        selection_questions::bind_invocation_declarations(
+        publication::selection_questions::bind_invocation_declarations(
             source_selection_questions,
             program.typed,
             &mut elaboration,
@@ -1374,7 +1356,7 @@ fn finish_reading_into<'source>(
             )
         })?,
     );
-    crate::reach::publish(entry, &services, &mut elaboration)?;
+    publication::reach::publish(entry, &services, &mut elaboration)?;
     calling_abis.publish(&mut elaboration.module)?;
     program.publish_record_layouts(diagnostic, &mut elaboration.module)?;
     let declaration_error = |reason| {
@@ -1461,12 +1443,12 @@ fn finish_reading_into<'source>(
                 })?);
         }
     }
-    reference_results::publish_requirements(
+    references::results::publish_requirements(
         &mut elaboration.module,
         &program,
         &program.requirements,
     )?;
-    reference_results::publish(&mut elaboration, &program.selections).map_err(|refusal| {
+    references::results::publish(&mut elaboration, &program.selections).map_err(|refusal| {
         let span = refusal.source_span.or_else(|| {
             program
                 .names
@@ -1487,7 +1469,7 @@ fn finish_reading_into<'source>(
     )?;
     // A call can forward a loan. Its published result and storage contracts
     // must exist before a crossing can name the borrower's live backing.
-    suspension::publish_crossings(&mut elaboration.module).map_err(declaration_error)?;
+    lower::suspension::publish_crossings(&mut elaboration.module).map_err(declaration_error)?;
     source.review_requirements = program.review_requirements(diagnostic, &elaboration.module);
     elaboration.machines = program.symbols;
     elaboration.private_inputs = private_inputs;
@@ -1577,7 +1559,7 @@ pub fn lower_generic(
             declarations: &IdTable::default(),
             declaration_aliases: None,
             machines: signatures,
-            boundaries: &boundaries::BoundaryNamespace::default(),
+            boundaries: &declare::boundaries::BoundaryNamespace::default(),
         },
         records,
         requirements,
@@ -1610,10 +1592,10 @@ fn lower_generic_for<'source>(
         records,
         requirements,
         &callables::CallableNamespace::default(),
-        &boundaries::BoundaryNamespace::default(),
-        &reach::ServiceMap::default(),
-        &external_providers::ExternalProviderNamespace::default(),
-        &static_contracts::StaticContracts::default(),
+        &declare::boundaries::BoundaryNamespace::default(),
+        &publication::reach::ServiceMap::default(),
+        &declare::external_providers::ExternalProviderNamespace::default(),
+        &callables::static_contracts::StaticContracts::default(),
         publication,
         source.map(|source| source.typed),
         source,
@@ -1627,7 +1609,7 @@ fn prepare_call_components(
     signatures: &mut IdTable<MachineId, Signature>,
 ) -> Checked<components::Components> {
     for (machine, body) in bodies.iter() {
-        operational::positions(machine, body)?;
+        lower::operational::positions(machine, body)?;
     }
     components::components(bodies, signatures)
 }
@@ -1640,10 +1622,10 @@ fn lower_program<'source>(
     records: &IdTable<StructuralTypeId, RecordType>,
     requirements: &[MachineId],
     callables: &callables::CallableNamespace,
-    boundaries: &boundaries::BoundaryNamespace,
-    services: &reach::ServiceMap,
-    external_providers: &external_providers::ExternalProviderNamespace,
-    static_contracts: &static_contracts::StaticContracts,
+    boundaries: &declare::boundaries::BoundaryNamespace,
+    services: &publication::reach::ServiceMap,
+    external_providers: &declare::external_providers::ExternalProviderNamespace,
+    static_contracts: &callables::static_contracts::StaticContracts,
     publication: terminal_codec::TerminalPublication,
     typed_source: Option<&'source TypedTrees>,
     declarations: Option<&read::Program<'source>>,
@@ -1751,7 +1733,7 @@ fn lower_program<'source>(
         typed_source,
         identities,
     )?;
-    let outcomes = outcome::outcomes(
+    let outcomes = body::outcome::outcomes(
         bodies,
         signatures,
         requirements,
@@ -1919,7 +1901,7 @@ fn lower_program<'source>(
             &mut qualifications,
         )?;
         if let Some(typed) = typed_source {
-            operational::retain_callee_spans(typed, &mut lowered);
+            lower::operational::retain_callee_spans(typed, &mut lowered);
         }
         if let Some(bounds) =
             declarations.and_then(|source| source.declared_operational_ceilings(id))
@@ -2129,7 +2111,7 @@ fn lower_program<'source>(
         },
     };
     if declarations.is_none() {
-        reference_results::publish(&mut prepared.program, &[])?;
+        references::results::publish(&mut prepared.program, &[])?;
         finish_storage(diagnostic, &mut prepared.program, &mut Vec::new())?;
     }
     Ok(prepared)
@@ -2148,8 +2130,8 @@ fn finish_storage(
     let module = &mut elaboration.module;
     let tables = &mut elaboration.tables;
     let sources = &mut elaboration.sources;
-    reference_ends::install(module, tables, sources, further)?;
-    default_obligations::install(module, tables, sources)?;
+    references::ends::install(module, tables, sources, further)?;
+    references::default_obligations::install(module, tables, sources)?;
     let sources = &*sources;
     // Each machine's storage plan comes from its own ownership walk over the
     // module; the walks run on the invocation's workers (`plan_then_apply`).
@@ -2157,7 +2139,7 @@ fn finish_storage(
     // blocks of no machine other than those in its descriptor graph
     // (`Plan::graphed_machines`). A refused walk names no graph, so it counts
     // as reading every machine.
-    machine_order::plan_then_apply(
+    lower::machine_order::plan_then_apply(
         module,
         |module, summaries, machine| storage_plan(module, summaries, machine, names, sources),
         |plan| match plan {
@@ -2181,7 +2163,7 @@ fn finish_storage(
         return Err(first);
     }
     lower::publish_write_frames(module, tables)?;
-    claim_publication::publish(diagnostic, module)?;
+    publication::claims::publish(diagnostic, module)?;
     // This is the emitted behavior before proving or publication. Keeping its
     // inventory here lets product consumers retain the exact judged module.
     module.execution.unoptimized_behavior = module
@@ -2419,15 +2401,15 @@ mod publication_scope_tests {
                     declarations: &IdTable::default(),
                     declaration_aliases: None,
                     machines: &signatures,
-                    boundaries: &boundaries::BoundaryNamespace::default(),
+                    boundaries: &declare::boundaries::BoundaryNamespace::default(),
                 },
                 &IdTable::default(),
                 &[],
                 &callables::CallableNamespace::default(),
-                &boundaries::BoundaryNamespace::default(),
-                &reach::ServiceMap::default(),
-                &external_providers::ExternalProviderNamespace::default(),
-                &static_contracts::StaticContracts::default(),
+                &declare::boundaries::BoundaryNamespace::default(),
+                &publication::reach::ServiceMap::default(),
+                &declare::external_providers::ExternalProviderNamespace::default(),
+                &callables::static_contracts::StaticContracts::default(),
                 publication,
                 None,
                 None,

@@ -483,7 +483,10 @@ pub(super) fn publish(
                 identities.as_table(),
                 &application,
             );
-        module.proofs.closed_conformance_applications.push(application);
+        module
+            .proofs
+            .closed_conformance_applications
+            .push(application);
         start = end;
     }
     Ok(links)
