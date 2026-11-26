@@ -55,6 +55,7 @@ macro_rules! copied_state_signature {
             blocks_keyword_source_spans: $signature.blocks_keyword_source_spans.clone(),
             suspends: $signature.suspends,
             blocks: $signature.blocks,
+                admitted_same_stack_bytes: $signature.admitted_same_stack_bytes,
             contracts: $self.copy_capability_contract_span($other, $signature.contracts),
             default_body: $signature.default_body.map(|body| crate::item::MachineBody {
                 statements: $self.copy_statement_handle_span($other, body.statements),

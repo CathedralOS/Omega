@@ -48,6 +48,7 @@ pub struct StateSignatureSnapshot {
     pub invokes: Vec<TypeReferenceSnapshot>,
     pub suspends: bool,
     pub blocks: bool,
+    pub admitted_same_stack_bytes: u64,
     pub contracts: Vec<CapabilityContractSnapshot>,
     pub default_body: Vec<StatementSnapshot>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -265,6 +266,7 @@ macro_rules! state_signature_snapshot {
             invokes: snapshot_type_references($syntax_trees, $signature.invokes),
             suspends: $signature.suspends,
             blocks: $signature.blocks,
+            admitted_same_stack_bytes: $signature.admitted_same_stack_bytes,
             contracts: snapshot_capability_contracts($syntax_trees, $signature.contracts),
             default_body: snapshot_statements($syntax_trees, $signature.default_body.unwrap_or_default().statements),
             nested_machines: $signature.default_body.unwrap_or_default().nested_machines.handles()

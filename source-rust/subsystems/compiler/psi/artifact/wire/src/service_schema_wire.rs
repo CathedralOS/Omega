@@ -186,6 +186,7 @@ wire_record! {
         synchronous_invocations: List<SynchronousInvocation>,
         may_suspend: Flag,
         may_block: Flag,
+        admitted_same_stack_bytes: crate::wire_fields::U64,
         terminates_guarantee: Flag,
         termination_premises: List<ProgressPremise>,
     }
@@ -295,6 +296,7 @@ mod tests {
                 ],
                 may_suspend: true,
                 may_block: false,
+                admitted_same_stack_bytes: 128,
                 terminates_guarantee: true,
                 termination_premises: vec![ServiceProgressPremise {
                     profile: "Finite".into(),
@@ -307,6 +309,9 @@ mod tests {
                 }],
             }],
         });
+        let mut changed = (*surface).clone();
+        changed.methods[0].admitted_same_stack_bytes = 0;
+        assert_ne!(surface.declaration_commitment(), changed.declaration_commitment());
         let mut names = TerminalIdentityTableBuilder::default();
         let declaration = names.intern("toolchain::Service");
         let application = names.intern("applied(Service)");

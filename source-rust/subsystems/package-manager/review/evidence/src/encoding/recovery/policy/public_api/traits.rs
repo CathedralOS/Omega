@@ -61,6 +61,7 @@ pub(in crate::encoding::recovery) fn trait_requirement(
         suspends: reader.boolean()?,
         blocks: reader.boolean()?,
         termination: termination(reader)?,
+        admitted_same_stack_bytes: reader.u64()?,
         returned_borrow_origins: reader.sequence(5, returned_borrow_origin)?,
         parameter_qualification_preconditions: reader.sequence(5, parameter_qualification)?,
     })

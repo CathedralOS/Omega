@@ -129,6 +129,7 @@ pub(in crate::encoding::encode) fn method(
     })?;
     encoder.boolean_field("may_suspend", method.may_suspend)?;
     encoder.boolean_field("may_block", method.may_block)?;
+    encoder.u64_field("admitted_same_stack_bytes", method.admitted_same_stack_bytes)?;
     encoder.boolean_field("terminates_guarantee", method.terminates_guarantee)?;
     encoder.field("termination_premises", |encoder| {
         encoder.sequence(&method.termination_premises, |encoder, premise| {

@@ -1793,7 +1793,7 @@ Provider satisfies Reading {{
 }
 
 #[test]
-fn selected_provider_review_preserves_declared_crash_and_suspend_ceilings() {
+fn selected_provider_review_preserves_declared_crash_suspend_and_stack_contracts() {
     use review_evidence::record::{
         PackagePolicyCrashGuard, PackagePolicyCrashRoute, PackageReviewCrashCause,
     };
@@ -1804,9 +1804,14 @@ fn selected_provider_review_preserves_declared_crash_and_suspend_ceilings() {
     .unwrap();
     let source = fixture_repository::root()
         .join("samples/cli/support/fact_dependencies/scalar_lending_producer");
-    for file in ["build.omg", "main.omg"] {
-        std::fs::copy(source.join(file), temporary.path().join(file)).unwrap();
-    }
+    std::fs::copy(source.join("build.omg"), temporary.path().join("build.omg")).unwrap();
+    let program = std::fs::read_to_string(source.join("main.omg")).unwrap();
+    let observation = "machine seen(value: @Token) reaches none crashes none;";
+    assert_eq!(program.matches(observation).count(), 1);
+    std::fs::write(
+        temporary.path().join("main.omg"),
+        program.replace(observation, "machine seen(value: @Token) reaches none crashes none stack 128 bytes;"),
+    ).unwrap();
     let target = TargetProfile::LinuxX64;
     let (returned, inputs) = run_project_build(&temporary.path().join("build.omg"), &[target]);
     let settled = returned.settle_dependency(inputs.clone()).unwrap();
@@ -1863,6 +1868,9 @@ fn selected_provider_review_preserves_declared_crash_and_suspend_ceilings() {
         };
         assert_eq!(method.requirement, requirement.identity);
         assert_eq!(method.may_suspend, suspends);
+        let bound = if service == "main.omg::Observation" { 128 } else { 0 };
+        assert_eq!(requirement.admitted_same_stack_bytes, bound);
+        assert_eq!(method.admitted_same_stack_bytes, bound);
     }
     let mut narrowed = policy.clone();
     let lending = narrowed
