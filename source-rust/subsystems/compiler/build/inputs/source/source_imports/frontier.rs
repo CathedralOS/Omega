@@ -163,13 +163,11 @@ impl SourceStorage {
     /// A named Product checks every declaration owned by its subject, including
     /// modules that no entry imports. Units already checked under Build authority
     /// enter Product scope only through its normal entry and import requests.
-    pub(crate) fn product_subject_sources(&mut self) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
+    pub(crate) fn product_subject_sources(&self) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
         let root = &self.default_package_root;
-        let excluded = self
-            .package_roots
-            .iter()
-            .filter(|package| package.root != *root && package.root.starts_with(root))
-            .map(|package| package.root.clone())
+        let nested_packages: Vec<_> = self.package_roots.iter()
+            .map(|package| package.root.as_path())
+            .filter(|package| *package != root && package.starts_with(root))
             .collect();
         let build_units = self
             .sources
@@ -178,10 +176,16 @@ impl SourceStorage {
             .map(|file| file.path.as_path())
             .chain(self.previous_build_files.iter().map(PathBuf::as_path))
             .collect::<std::collections::HashSet<_>>();
-        let mut paths = self
-            .package_roots
-            .select_owned(root, &[], &self.filesystem, excluded)?;
-        paths.retain(|path| !build_units.contains(path.as_path()));
+        let mut paths = self.filesystem.captured_files(root).map_err(|reason| {
+            vec![Diagnostic::error(format!(
+                "cannot enumerate Product subject {}: {reason}", root.display()
+            ))]
+        })?;
+        paths.retain(|path| {
+            path.extension().is_some_and(|extension| extension == "omg")
+                && !build_units.contains(path.as_path())
+                && !nested_packages.iter().any(|package| path.starts_with(package))
+        });
         Ok(paths)
     }
 

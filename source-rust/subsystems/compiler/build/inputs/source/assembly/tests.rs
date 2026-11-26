@@ -341,7 +341,9 @@ fn successor_selects_only_the_requested_build_from_its_frozen_package() {
     let root = directory.path().canonicalize().unwrap();
     let stages = root.join("stages");
     std::fs::create_dir(&stages).unwrap();
-    let initial = root.join("build.omg");
+    let initial = root.join("prepare.omg");
+    let ordinary = stages.join("build.omg");
+    std::fs::write(&ordinary, "machine ordinary() {}").unwrap();
     let next = stages.join("build.lock.omg");
     let main = root.join("main.omg");
     std::fs::write(&initial, "machine build() {}").unwrap();
@@ -376,7 +378,7 @@ fn successor_selects_only_the_requested_build_from_its_frozen_package() {
         checkpoint.product_roots.as_deref().unwrap(),
         std::slice::from_ref(&main)
     );
-    let mut storage = (*checkpoint.source_storage).clone();
+    let storage = &checkpoint.source_storage;
     assert!(
         storage
             .sources
@@ -387,14 +389,15 @@ fn successor_selects_only_the_requested_build_from_its_frozen_package() {
     assert!(!subject.contains(&initial));
     assert!(!subject.contains(&next));
     assert!(subject.contains(&main));
+    assert!(subject.contains(&ordinary));
     assert!(prepare(&next, None).is_err());
     for invalid in [
         main,
         stages.clone(),
         stages.join("later.omg"),
         stages.join("../build.omg"),
-        root.join("./build.omg"),
-        root.join("build.omg/"),
+        root.join("./prepare.omg"),
+        root.join("prepare.omg/"),
         stages.join("alias.omg"),
     ] {
         assert!(
