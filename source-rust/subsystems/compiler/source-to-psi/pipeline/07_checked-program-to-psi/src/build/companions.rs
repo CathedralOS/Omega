@@ -348,6 +348,7 @@ fn installed_filesystem_operation(
     let action = match operation {
         "read_all" => TerminalBuildFilesystemOperation::ReadAll,
         "write_all" => TerminalBuildFilesystemOperation::WriteAll,
+        "create_dir" => TerminalBuildFilesystemOperation::CreateDirectory,
         _ => return None,
     };
     let file = source

@@ -11,7 +11,7 @@ use std::fs;
 use target::TargetProfile;
 
 #[test]
-fn the_initial_build_reads_from_a_bound_directory_and_receives_permission_denied_without_it() {
+fn the_initial_build_reads_and_creates_only_with_the_appropriate_directory_grant() {
     let temp = TemporaryDirectory::create("initial-build-directories", false).unwrap();
     let package = temp.path().join("package");
     let host = temp.path().join("host");
@@ -99,8 +99,33 @@ machine build(plan: @mutable BuildPlan) blocks {
         .grant(&host, "/grammar", DirectoryAccess::ReadOnly)
         .unwrap();
     fs::write(host.join("sql.txt"), b"R").unwrap();
-    run(granted, "read_grammar");
+    run(granted.clone(), "read_grammar");
     run(DirectoryMappings::default(), "ungranted");
+
+    fs::write(&entry, r#"use {system}/filesystem.omg as files;
+use {system}/filesystem_host.omg as paths;
+machine build(plan: @mutable BuildPlan) blocks {
+    let made: |files|::UnitResult = block |files|::Filesystem::create_dir(
+        "/grammar/generated" as + |paths|::Path);
+    transition made {
+        |files|::UnitResult::Ok -> { plan.product = BuildProduct::Package { name: "created" }; },
+        |files|::UnitResult::Error { kind } -> refused(plan, kind)
+    }
+    machine refused(plan: @mutable BuildPlan, kind: |files|::ErrorKind) {
+        transition kind {
+            |files|::ErrorKind::PermissionDenied -> { plan.product = BuildProduct::Package { name: "denied" }; },
+            _ -> { plan.product = BuildProduct::Package { name: "unexpected_error" }; }
+        }
+    }
+}"#).unwrap();
+    run(granted, "denied");
+    assert!(!host.join("generated").exists());
+    let mut writable = DirectoryMappings::default();
+    writable
+        .grant(&host, "/grammar", DirectoryAccess::ReadWrite)
+        .unwrap();
+    run(writable, "created");
+    assert!(host.join("generated").is_dir());
 }
 
 #[test]
