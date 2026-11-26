@@ -181,8 +181,8 @@ fn typed_with_core_sources(
     );
     for (namespace, module) in [("Build", ids[2]), ("BuildDeclarations", ids[3])] {
         request.top_level_bindings.push(
-            source_compiler::representations::source_symbols::SourceScopedTopLevelBinding::module_import(
-                ids[0], module, namespace, 0,
+            source_compiler::representations::source_symbols::SourceScopedTopLevelBinding::prelude_module(
+                ids[0], module, namespace,
             ),
         );
     }

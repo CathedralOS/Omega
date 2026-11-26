@@ -78,7 +78,7 @@ pub(crate) fn packages(
     // Bind each authored file alias to its selected source, as package admission does.
     for ((owner, _, _), unit) in units.iter().zip(&parsed_units) {
         for item in unit.root_items() {
-            let syntax_trees::item::Item::Use(syntax_trees::item::UseItem::File {
+            let syntax_trees::item::Item::Use(syntax_trees::item::UseItem {
                 root,
                 components,
                 alias,

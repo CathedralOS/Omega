@@ -3,7 +3,7 @@
 End-to-end CLI check that a Build can ask for a Product declaration by path
 (`omega --check`).
 
-`BuildDeclarations::entry(@builder.declarations, "support::setup::launch", slot)` asks
+`BuildDeclarations::entry(@builder.declarations, "|setup|::launch", slot)` asks
 which machine a path names and hands back a description a root binding can
 use (`wiki/spec/build/scoped_execution.md`, "Selecting product declarations
 without executing them"). The path is read in the package of the Build
@@ -77,7 +77,7 @@ fn an_entry_asked_through_a_build_scope_alias_names_nothing() {
     assert!(!compiled);
     assert!(
         stderr.contains(
-            "product entry `support::setup::launch` names no machine in this build occurrence's package"
+            "product entry `|setup|::launch` names no machine in this build occurrence's package"
         ),
         "{stderr}"
     );

@@ -80,12 +80,7 @@ impl Package {
                         "../tests/fixtures/calls/pass/ordinary_family_binding/main.omg"
                     ),
                 )?;
-                imports.push(SourceScopedTopLevelBinding::logical_module_import(
-                    main,
-                    kit,
-                    "kit::pick",
-                    0,
-                ));
+                imports.push(SourceScopedTopLevelBinding::file_import(main, kit, "kit"));
             }
             "generics" => {
                 add(

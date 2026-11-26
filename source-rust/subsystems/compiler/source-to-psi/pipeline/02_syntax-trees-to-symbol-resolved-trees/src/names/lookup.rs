@@ -153,7 +153,8 @@ fn selection_ambiguity(
     role: &str,
 ) -> String {
     let imports = symbols
-        .source_module_import_paths(reference.source_id)
+        .source_file_aliases(reference.source_id)
+        .map(|alias| format!("|{alias}|"))
         .collect::<Vec<_>>();
     format!(
         "ambiguous {role} `{name}`: competing declarations `{}` and `{}`; source imports: {}",
