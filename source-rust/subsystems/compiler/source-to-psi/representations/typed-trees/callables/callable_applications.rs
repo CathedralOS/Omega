@@ -9403,38 +9403,66 @@ impl TypedTrees {
         &mut self,
         first_parameter: usize,
     ) -> Result<(), &'static str> {
-        let pending = self
-            .data_type_parameters
-            .iter_from(first_parameter)
-            .filter_map(|(handle, parameter)| match &parameter.kind {
-                data::TypeParameterKind::Machine {
+        use data::{MachineParameterContract::Nominal, TypeParameterKind::Machine};
+
+        let mut pending = Vec::new();
+        for (handle, parameter) in self.data_type_parameters.iter_from(first_parameter) {
+            let Machine {
+                contract:
+                    Nominal {
+                        receiving_trait,
+                        requirement,
+                        receiving_arguments,
+                        instantiated: None,
+                        ..
+                    },
+            } = &parameter.kind
+            else {
+                continue;
+            };
+            // A lexical helper captures the supplying declaration's binder. Its
+            // requirement is the same application only for the same receiver
+            // and argument tuple. Find that row before changing the indexed table.
+            let earlier = self.with_type_parameter_declarations(parameter.symbol, |rows| {
+                rows.iter().copied().take_while(|&row| row != handle).find(|&row| {
+                    matches!(&self.data_type_parameters.get(row).kind, Machine {
+                        contract: Nominal {
+                            receiving_trait: receiver, requirement: member, receiving_arguments: arguments, ..
+                        },
+                    } if receiver == receiving_trait && member == requirement && arguments == receiving_arguments)
+                })
+            });
+            pending.push((
+                handle,
+                earlier,
+                parameter.symbol,
+                *receiving_trait,
+                *requirement,
+                receiving_arguments.clone(),
+            ));
+        }
+        for (handle, earlier, binder, receiver, requirement, arguments) in pending {
+            let kind = earlier.map(|row| &self.data_type_parameters.get(row).kind);
+            let kind = if let Some(
+                prepared @ Machine {
                     contract:
-                        data::MachineParameterContract::Nominal {
-                            receiving_trait,
-                            receiving_arguments,
-                            requirement,
-                            instantiated: None,
+                        Nominal {
+                            instantiated: Some(_),
                             ..
                         },
-                } => Some((
-                    handle,
-                    *receiving_trait,
-                    *requirement,
-                    receiving_arguments.clone(),
-                    parameter.symbol,
-                )),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        for (handle, selected_trait, requirement, arguments, parameter) in pending {
-            let lexical_owner = self.declaration_scope_parent(parameter);
-            let contract = CallableApplication {
-                region_scope: lexical_owner,
-                ..CallableApplication::default()
-            }
-            .nominal_contract(self, selected_trait, requirement, arguments)?;
-            self.data_type_parameters.get_mut(handle).kind =
-                data::TypeParameterKind::Machine { contract };
+                },
+            ) = kind
+            {
+                prepared.clone()
+            } else {
+                let contract = CallableApplication {
+                    region_scope: self.declaration_scope_parent(binder),
+                    ..CallableApplication::default()
+                }
+                .nominal_contract(self, receiver, requirement, arguments)?;
+                Machine { contract }
+            };
+            self.data_type_parameters.get_mut(handle).kind = kind;
         }
         Ok(())
     }
