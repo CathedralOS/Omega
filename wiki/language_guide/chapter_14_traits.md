@@ -65,8 +65,8 @@ trait Codec<T> {
 }
 
 WireCodec satisfies Codec<Message> {
-    Codec::encode = lib_a\encode;
-    Codec::decode = lib_b\decode;
+    Codec::encode = |lib_a|::encode;
+    Codec::decode = |lib_b|::decode;
 }
 ```
 

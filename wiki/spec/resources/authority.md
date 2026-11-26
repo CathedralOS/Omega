@@ -113,7 +113,7 @@ from supply and use, not the keyword. None is a substitute for claim evidence.
 
 A domain's `requires` clauses state predicate obligations; its `access` policy
 states [`Issuance::Only`](access.md#plans-and-admitted-supply) with exact
-`reflect\callable` descriptors of trait requirements or machine declarations
+`|reflect|::callable` descriptors of trait requirements or machine declarations
 authorized to establish provenance.
 A domain with no policy, or `Issuance::Unrestricted`, permits qualification wherever
 the predicates and ordinary carrier obligations hold, including on a linear

@@ -7,7 +7,7 @@ Fact: **A granted vacant extent retains actual backing through transport,
 initialization, permitted writes, and extraction.**
 
 The core extent contracts express Granted and Vacant conservation with
-`core\Identity` over `IntervalSet<Nat>`. Each vacancy provider
+`|proof|::Identity` over `IntervalSet<Nat>`. Each vacancy provider
 compares `|extent|::Granted::content` at entry with that projection on
 the returned extent. Establishing backing, vacancy, placement, and field
 access each requires separate authority. The existing allocation, profile,

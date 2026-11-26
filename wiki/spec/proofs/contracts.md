@@ -240,10 +240,10 @@ float meaning uses its separate projection.
 All integer/address carriers embed into signed proof `Int`, so subtraction is
 ordinary signed subtraction even for unsigned source values. Exact conversion
 to `Nat` requires nonnegativity. Ordinary `Nat - Nat` requires right <= left;
-explicit `Nat\saturating_sub` instead denotes `max(left - right, 0)`.
+explicit `|nat|::saturating_sub` instead denotes `max(left - right, 0)`.
 `Nat` includes zero: forming exact `n - 1` needs `1 <= n`, not `1 < n`.
 The two operands being natural numbers alone does not establish their order.
-Named `Nat\subtract(left, right)` has the same order premise as `left - right`;
+Named `|nat|::subtract(left, right)` has the same order premise as `left - right`;
 the total saturating operation remains a distinct contract. This choice of
 subtraction meaning is identical in proof and executable uses wherever admitted.
 Target-relative bounds retain the exact observation dependency. An exclusive
@@ -262,9 +262,9 @@ without fractional-history acknowledgment; a typed `Rat` needs explicit exact
 narrowing for an integer-only use. Other mathematical promotions are not implied.
 
 For admitted computational division, the proof correspondence is
-`embed(a / b) == integer\quotient(embed(a), embed(b))`, subject to the source
+`embed(a / b) == |integer|::quotient(embed(a), embed(b))`, subject to the source
 operation's policy and formation conditions. Computational remainder similarly
-corresponds to `integer\remainder`. The signed quotient truncates toward zero;
+corresponds to `|integer|::remainder`. The signed quotient truncates toward zero;
 its remainder is zero or has the dividend's sign. These operations remain
 available for number-theoretic reasoning; neither is mathematical rational `/`.
 For an overflow-policy result, apply that policy to the operation-specific

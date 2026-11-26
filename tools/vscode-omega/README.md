@@ -49,8 +49,8 @@ nearest scope first and stops at the first one that declares the name:
 
 1. a `let`, parameter or generic parameter of an enclosing machine;
 2. the current file;
-3. the files its `use` lines name, including `|alias|::` paths, `{dependency}/`
-   paths that `build.omg` locates and `omega\language\core\` library imports;
+3. the files its `use` lines name, when a name starts with `|alias|::`. The alias selects
+   the exact package-relative, `{dependency}/` or `{omega}/` file;
 4. its package: the nearest folder with a `build.omg`, without nested packages
    such as test fixtures;
 5. the bundled library in `source/library`;

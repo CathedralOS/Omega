@@ -200,20 +200,20 @@
 </div>
 
 <script>
-const SOURCE = `use omega\\language\\core\\ProcessExit;
-use omega\\language\\core\\StandardInput;
-use system\\ByteRead;
-use system\\Console;
+const SOURCE = `use {omega}/language/core/process_exit.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg
+    as console;
 
-machine main() reaches StandardInput + ProcessExit {
+machine main() reaches |process_authority|::StandardInput + |process_exit|::ProcessExit {
     transition { _ -> block rd(0i32 as +Wrapping, 0i32 as +Wrapping) }
 
     machine rd(sum: i32 in Wrapping, n: i32 in Wrapping) {
-        let r: ByteRead = block Console::read_byte();
+        let r: |console|::ByteRead = block |console|::Console::read_byte();
         transition r {
-            ByteRead::Byte { value } -> block acc(sum, n, value),
-            ByteRead::Eof -> fin(sum, n),
-            ByteRead::Error -> ProcessExit::exit_process(1)
+            |console|::ByteRead::Byte { value } -> block acc(sum, n, value),
+            |console|::ByteRead::Eof -> fin(sum, n),
+            |console|::ByteRead::Error -> |process_exit|::ProcessExit::exit_process(1)
         }
     }
 
@@ -224,7 +224,7 @@ machine main() reaches StandardInput + ProcessExit {
 
     machine fin(sum: i32 in Wrapping, n: i32 in Wrapping) {
         let digest: i32 in Wrapping = sum + n;
-        ProcessExit::exit_process(digest as -Wrapping);
+        |process_exit|::ProcessExit::exit_process(digest as -Wrapping);
     }
 }`;
 const INPUT = [{ ch: "A", byte: 65 }, { ch: "B", byte: 66 }];
@@ -313,7 +313,7 @@ const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyV
 function tokens() {
   const keywords = new Set(["use", "machine", "reaches", "transition", "state", "let", "block", "as", "in"]);
   const out = [];
-  for (const m of SOURCE.matchAll(/[A-Za-z_][A-Za-z_0-9]*|\d+|::|->|[{}();:,+]/g)) {
+  for (const m of SOURCE.matchAll(/[A-Za-z_][A-Za-z_0-9]*|\d+|::|->|[{}();:,+|./]/g)) {
     const t = m[0];
     const kind = keywords.has(t) ? "kw" : /^\d/.test(t) ? "num" : /^[A-Za-z_]/.test(t) ? "id" : "op";
     out.push(`<span class="tok ${kind}">${esc(t)}</span>`);

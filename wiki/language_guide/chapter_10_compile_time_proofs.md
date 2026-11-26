@@ -116,7 +116,7 @@ projects a machine integer to its mathematical value:
 
 ```omega
 requires
-    embed(left) + embed(right) <= embed(integer\max::<i32>())
+    embed(left) + embed(right) <= embed(|integer|::max::<i32>())
 ```
 
 `Nat` and `Int` are mathematical integers. Subtraction on `Nat` still has to stay
