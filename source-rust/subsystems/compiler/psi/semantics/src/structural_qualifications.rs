@@ -368,9 +368,11 @@ pub struct DefaultRequirements<'a> {
     routed: bool,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+type SnapshotIndices<'a> = dyn Fn(PlaceId, &[StructuralPathSegment], u64) -> Option<Vec<u64>> + 'a;
+
+#[derive(Clone, Copy)]
 enum DefaultDemand<'a> {
-    Snapshot(Option<&'a std::collections::BTreeSet<u64>>),
+    Snapshot(&'a SnapshotIndices<'a>),
     Restoration,
 }
 
@@ -505,7 +507,7 @@ impl<'a> DefaultRequirements<'a> {
             // Snapshot demand names predicate operands. Restoring storage additionally
             // owes the value's content, which predicate clauses cannot establish.
             if !domain.complete_predicate_theory
-                || demand == DefaultDemand::Restoration && domain.content_projection.is_some()
+                || matches!(demand, DefaultDemand::Restoration) && domain.content_projection.is_some()
             {
                 return Err(self.error("a named default has no complete storage predicate theory"));
             }
@@ -540,13 +542,12 @@ impl<'a> DefaultRequirements<'a> {
         )
     }
 
-    /// Default clauses needed to name held storage. A read-only machine may
-    /// supply the literal indices its reads can select. An explicit projected
-    /// qualification always retains its own path. Restoration separately walks
-    /// the full declared extent of zeroed arrays.
+    /// Name the held storage visible to the machine. At each fixed array the
+    /// caller can select the observed indices, or request the full extent.
+    /// Explicit projected qualifications and restoration have independent demands.
     pub fn declared(
         &self,
-        observed_indices: Option<&std::collections::BTreeSet<u64>>,
+        observed_indices: impl Fn(PlaceId, &[StructuralPathSegment], u64) -> Option<Vec<u64>>,
     ) -> Judged<Vec<DefaultRequirement>> {
         let mut result = Vec::new();
         for (place, ty, _) in &self.declared.declared {
@@ -562,7 +563,7 @@ impl<'a> DefaultRequirements<'a> {
                 *place,
                 &mut Vec::new(),
                 *ty,
-                DefaultDemand::Snapshot(observed_indices),
+                DefaultDemand::Snapshot(&observed_indices),
                 &mut Vec::new(),
                 &mut result,
             )?;
@@ -599,7 +600,7 @@ impl<'a> DefaultRequirements<'a> {
             return Err(self.error("recursive inline storage has no finite default inventory"));
         }
         active.push(carrier);
-        let zero = demand == DefaultDemand::Restoration;
+        let zero = matches!(demand, DefaultDemand::Restoration);
         result.extend(self.at(root, path, carrier, demand)?);
         match &self.declaration(carrier)?.shape {
             StructuralTypeShape::FixedArray {
@@ -609,10 +610,10 @@ impl<'a> DefaultRequirements<'a> {
                 let element_has_defaults = self.type_has_defaults(*element)?;
                 let mut selected = Vec::new();
                 let mut all = element_has_defaults;
-                if let DefaultDemand::Snapshot(Some(indices)) = demand {
-                    if element_has_defaults {
-                        selected.extend(indices.range(..*length).copied());
-                    }
+                if all && let DefaultDemand::Snapshot(observed) = demand
+                    && let Some(indices) = observed(root, path, *length)
+                {
+                    selected.extend(indices.into_iter().filter(|index| index < length));
                     all = false;
                 }
                 if let Some(row) = self.declared.row(root) {
