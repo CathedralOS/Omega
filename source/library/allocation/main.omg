@@ -1,10 +1,5 @@
-// Package-owned allocation strategies over explicit qualified Extent backing.
-// Bump allocates from its tail; release returns retired storage without
-// rewinding. Reset consumes the complete returned prefix and remaining tail.
-// Checked core split/merge operations conserve both Granted and Vacant;
-// neither scalar geometry nor a strategy counter creates backing authority.
-// Resident values must be extracted or cleaned before their space is reset.
-//
-// `vec.omg` uses this allocation contract for its growable container.
-use bump;
-use vec;
+use {omega}/language/core/extent.omg as range;
+
+// Both strategies receive backing granted by its owner and free of live values.
+// Splitting or rejoining that backing must conserve each qualification.
+public data VacantStorage = |range|::Extent in |range|::Extent::Granted & |range|::Extent::Vacant;
