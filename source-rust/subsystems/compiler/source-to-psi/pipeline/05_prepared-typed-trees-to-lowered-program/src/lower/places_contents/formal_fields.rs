@@ -136,6 +136,68 @@ impl Fields<'_> {
         }
     }
 
+    /// A direct callee restores the domains of a whole borrowed formal.
+    /// The caller checks its own later field reads and each projected loan's
+    /// containing owners. A private inferred contract can name input fields
+    /// beyond the published clauses, so it still observes the whole argument.
+    fn returns_whole_borrows(
+        &self,
+        operation: &terminal_psi::OperationKind,
+        signatures: crate::body::Signatures<'_>,
+    ) -> bool {
+        use crate::body::{BorrowedReferent, Qualification, ValueType};
+
+        let Some(call) = operation.module_invocation() else {
+            return false;
+        };
+        if call.structural_arguments.is_empty()
+            || call.required_contract.is_some()
+            || !call.erased_arguments.is_empty()
+            || !call.erased_proof_arguments.is_empty()
+            || !call.claim_transfers.is_empty()
+            || !call.completion_receipts.is_empty()
+            || !call.crash_continuations.is_empty()
+        {
+            return false;
+        }
+        let Some(private) = signatures.inferred_inputs else {
+            return false;
+        };
+        let Some(callee) = signatures.machines.get(call.callee) else {
+            return false;
+        };
+        if private.binary_search(&call.callee).is_ok()
+            || callee.has_structural_guarantees()
+            || callee.structural_result_place().is_some()
+            || callee.observing_clauses().any(|p| p != &Proposition::Truth)
+        {
+            return false;
+        }
+        let mut actuals = call.structural_arguments.iter();
+        for (position, &ty) in callee.parameters.iter().enumerate() {
+            if !callee.is_place(position) {
+                continue;
+            }
+            let (Some(actual), Some(borrowed), ValueType::Record(carrier, Qualification::NONE, _)) =
+                (actuals.next(), callee.borrowed(position), ty)
+            else {
+                return false;
+            };
+            if !actual.path.is_empty()
+                || borrowed.referent != BorrowedReferent::Value
+                || crate::lower::places::borrowed_access(borrowed.access) != Some(actual.access)
+                || self
+                    .0
+                    .get(actual.place)
+                    .and_then(Option::as_ref)
+                    .is_none_or(|formal| formal.carrier != carrier)
+            {
+                return false;
+            }
+        }
+        actuals.next().is_none()
+    }
+
     fn projection(&mut self, access: OperationProjection<'_>) {
         let field = match access.path.first() {
             Some(StructuralPathSegment::Field(name)) => Some(Field::Name(*name)),
@@ -164,6 +226,7 @@ pub(super) fn observed<'a>(
     machine: &TerminalMachine,
     types: &'a [StructuralTypeDeclaration],
     unconditional: bool,
+    signatures: crate::body::Signatures<'_>,
 ) -> Fields<'a> {
     // Claims, ranked transitions, and content proofs can mention storage
     // outside the body's executable operands.
@@ -226,7 +289,8 @@ pub(super) fn observed<'a>(
         if let Some(result) = operation.result.structural() {
             fields.expose(result.place, None);
         }
-        for (operand, _) in operation.kind.storage_uses() {
+        let handback = fields.returns_whole_borrows(&operation.kind, signatures);
+        for (operand, _) in operation.kind.storage_uses_with_arguments(|_| !handback) {
             match operand {
                 StructuralStorageUse::Projection(access) => fields.projection(access),
                 StructuralStorageUse::Place(root) => {

@@ -1129,6 +1129,7 @@ mod tests {
             &bodies,
             &components,
             crate::body::Signatures {
+                inferred_inputs: None,
                 theorems: &program.theorem_parameters,
                 machines: &program.signatures,
                 declarations: &program.declaration_signatures,
