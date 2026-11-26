@@ -497,7 +497,9 @@ impl SourceStorage {
 
     pub(crate) fn for_compilation(default_package_root: PathBuf, toolchain_root: PathBuf) -> Self {
         Self {
-            default_package_root: normalize_directory(default_package_root),
+            // The acquisition already issued this canonical root. A later host rename
+            // or symlink replacement must not change the captured package owner.
+            default_package_root,
             toolchain_root: Some(normalize_directory(toolchain_root)),
             ..Self::default()
         }

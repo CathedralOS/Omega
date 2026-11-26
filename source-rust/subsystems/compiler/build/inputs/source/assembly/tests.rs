@@ -338,9 +338,9 @@ fn successor_selects_only_the_requested_build_from_its_frozen_package() {
         false,
     )
     .unwrap();
-    let root = directory.path().canonicalize().unwrap();
+    let root = directory.path().canonicalize().unwrap().join("source");
     let stages = root.join("stages");
-    std::fs::create_dir(&stages).unwrap();
+    std::fs::create_dir_all(&stages).unwrap();
     let initial = root.join("prepare.omg");
     let ordinary = stages.join("build.omg");
     std::fs::write(&ordinary, "machine ordinary() {}").unwrap();
@@ -360,6 +360,12 @@ fn successor_selects_only_the_requested_build_from_its_frozen_package() {
     let capture = crate::capture_anonymous_compilation_source(&initial).unwrap();
     std::fs::remove_file(&next).unwrap();
     std::fs::write(stages.join("later.omg"), "machine build() {}").unwrap();
+    #[cfg(unix)]
+    {
+        let moved = directory.path().join("moved");
+        std::fs::rename(&root, &moved).unwrap();
+        std::os::unix::fs::symlink(moved, &root).unwrap();
+    }
     let predecessors = [initial.clone()];
     let prepare = |path: &Path, capture: Option<&crate::CapturedLocalSource>| {
         ImmutableSourceParseCheckpoint::prepare(
