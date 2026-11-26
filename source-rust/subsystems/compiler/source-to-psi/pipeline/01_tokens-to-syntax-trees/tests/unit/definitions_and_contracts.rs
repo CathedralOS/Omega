@@ -1346,7 +1346,7 @@ fn parses_evidence_term_member_as_a_distinct_proof_static_argument() {
 fn named_locals_require_a_type_with_or_without_an_initializer() {
     let parsed = crate::tests::parse_source(
         "machine main() { let value: u64 = produce(); let mutable flag: bool = true; let prepared: u64; } machine produce() -> u64 { 29u64 }",
-        "initialized locals may infer their types",
+        "named locals with explicit types must parse",
     );
     let machine = crate::tests::root_machine(&parsed, "main is the first machine");
     let state = crate::tests::entry_state(&parsed, machine);
@@ -1366,7 +1366,11 @@ fn named_locals_require_a_type_with_or_without_an_initializer() {
     assert!(flag.type_reference.is_valid() && flag.initial_value.is_valid() && flag.is_mutable);
     assert!(prepared.type_reference.is_valid() && !prepared.initial_value.is_valid());
 
-    for binding in ["let absent;", "let value = produce();", "let mutable flag = true;"] {
+    for binding in [
+        "let absent;",
+        "let value = produce();",
+        "let mutable flag = true;",
+    ] {
         let source = format!("machine main() {{ {binding} }}");
         let tokens = Lexer::new(&source).tokenize().unwrap();
         let refusal = parse_syntax_trees(&tokens).expect_err("the local must name its type");
