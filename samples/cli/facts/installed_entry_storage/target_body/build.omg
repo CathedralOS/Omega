@@ -1,11 +1,12 @@
+use main.omg as app;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "installed_entry_storage_target_body" };
-    Build::bind(builder, macos_arm64::ProgramEntry, start);
-    Build::bind(builder, linux_x86_64::ProgramEntry, start);
-    Build::bind(builder, linux_arm64::ProgramEntry, start);
-    Build::bind(builder, windows_x86_64::ProgramEntry, start);
-    Build::select_provider::<TransmitCode, MacosTransmitCode>(builder, macos_arm64);
-    Build::select_provider::<TransmitCode, LinuxX86TransmitCode>(builder, linux_x86_64);
-    Build::select_provider::<TransmitCode, LinuxArmTransmitCode>(builder, linux_arm64);
-    Build::select_provider::<TransmitCode, WindowsTransmitCode>(builder, windows_x86_64);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::start);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::start);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::start);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::start);
+    Build::select_provider::<|app|::TransmitCode, |app|::MacosTransmitCode>(builder, macos_arm64);
+    Build::select_provider::<|app|::TransmitCode, |app|::LinuxX86TransmitCode>(builder, linux_x86_64);
+    Build::select_provider::<|app|::TransmitCode, |app|::LinuxArmTransmitCode>(builder, linux_arm64);
+    Build::select_provider::<|app|::TransmitCode, |app|::WindowsTransmitCode>(builder, windows_x86_64);
 }
