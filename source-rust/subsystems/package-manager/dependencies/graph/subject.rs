@@ -40,7 +40,7 @@ use crate::resolution::source::PackageSourceNavigation;
 use encoding::encode_hex;
 
 pub(super) const SOURCE_CLOSURE_SUBJECT_MAGIC: &[u8] = b"OMEGA-SOURCE-CLOSURE-SUBJECT\0";
-pub(crate) const SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION: u16 = 10;
+pub(crate) const SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION: u16 = 11;
 pub(super) const SOURCE_CLOSURE_SUBJECT_FINGERPRINT_DOMAIN: &[u8] =
     b"OMEGA-SOURCE-CLOSURE-SUBJECT-FINGERPRINT\0";
 
@@ -74,6 +74,7 @@ impl CanonicalSourceClosureSubject {
                         && left.navigation == right.navigation
                         && left.purpose == right.purpose
                         && left.ordinal == right.ordinal
+                        && left.max_reach == right.max_reach
                         && left.request == right.request
                         && left.provider.same_source_graph(&right.provider)
                 })
@@ -143,6 +144,7 @@ pub(crate) struct CanonicalCatalogDependency {
     pub(crate) purpose: DependencyPurpose,
     pub(crate) ordinal: usize,
     pub(crate) request: CanonicalDependencySourceRequest,
+    pub(crate) max_reach: semantic_vocabulary::dependency_reach::DependencyReach,
     pub(crate) provider: CanonicalSourceClosureSubject,
 }
 

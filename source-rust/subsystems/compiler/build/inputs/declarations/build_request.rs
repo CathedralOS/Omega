@@ -6,14 +6,14 @@
 use crate::{DependencyPurpose, ProjectName, WorkspaceMemberPath};
 
 #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
-pub enum BuildRequest {
-    Package(ProjectName),
+pub enum BuildRequest {    Package(ProjectName),
     Application(ProjectName),
     Member(WorkspaceMemberPath),
     BuildEntry(BuildEntryPath),
     ArtifactOnly,
     Dependency {
         purpose: DependencyPurpose,
+        max_reach: semantic_vocabulary::dependency_reach::DependencyReach,
         alias: Option<ProjectName>,
         source: BuildDependencySource,
     },

@@ -1,8 +1,7 @@
 //! Authored Build operations and the declaration references each one selects in the Product.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
-pub enum BuildOperation {
-    ProviderReadiness,
+pub enum BuildOperation {    ProviderReadiness,
     ProviderSelection,
     AssumedBindingContract,
     RepresentationSelection,
@@ -20,6 +19,7 @@ pub enum BuildOperation {
     TestGroupRegistration,
     ParameterDescription,
     FieldDescription,
+    ServiceDescription,
 }
 
 impl BuildOperation {
@@ -27,7 +27,8 @@ impl BuildOperation {
         matches!(self, Self::TestGroupRegistration)
     }
     pub const fn has_designated_operands(self) -> bool {
-        self.selects_product_declarations() || matches!(self, Self::ProviderReadiness)
+        self.selects_product_declarations()
+            || matches!(self, Self::ProviderReadiness | Self::ServiceDescription)
     }
     pub const fn selects_product_declarations(self) -> bool {
         matches!(
@@ -44,8 +45,9 @@ impl BuildOperation {
         )
     }
 
-    pub const ALL: [Self; 14] = [
+    pub const ALL: [Self; 15] = [
         Self::ProviderReadiness,
+        Self::ServiceDescription,
         Self::ProviderSelection,
         Self::AssumedBindingContract,
         Self::RepresentationSelection,
@@ -63,6 +65,7 @@ impl BuildOperation {
 
     pub const fn authored_spelling(self) -> &'static str {
         match self {
+            Self::ServiceDescription => "service",
             Self::ParameterDescription => "reflect::parameter",
             Self::FieldDescription => "reflect::field",
             Self::NativeBinding => "bind_native",
@@ -135,7 +138,7 @@ impl BuildOperation {
 
     pub const fn product_operand_count_valid(self, count: usize) -> bool {
         match self {
-            Self::NativeBinding | Self::ParameterDescription | Self::FieldDescription => count == 1,
+            Self::ServiceDescription | Self::NativeBinding | Self::ParameterDescription | Self::FieldDescription => count == 1,
             Self::ProviderSelection
             | Self::RepresentationSelection
             | Self::AssumedBindingContract => count == 2,

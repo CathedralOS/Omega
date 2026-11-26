@@ -128,7 +128,8 @@ impl<'a> ResolvedPackageSourceRequestSet<'a> {
             );
             requester.dependencies().iter().map(move |dependency| {
                 let request = &custody.dependency_requests(dependency.purpose())
-                    [dependency.dependency_index()];
+                    [dependency.dependency_index()]
+                .source;
                 let selected = closure
                     .graph
                     .package(dependency.target())

@@ -55,6 +55,7 @@ impl<'a> FileImport<'a> {
             self.import.ordinal,
             spelling,
             self.alias,
+            self.root,
         )
     }
 

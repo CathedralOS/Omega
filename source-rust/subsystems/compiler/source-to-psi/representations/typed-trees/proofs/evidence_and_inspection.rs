@@ -5670,6 +5670,7 @@ pub mod inspection {
                     "build_product_operand",
                     Some(format!("{operation:?}:{position}:{role:?}")),
                 ),
+                Intrinsic::BuildServiceDescription => ("build_service_description", None),
                 Intrinsic::BuildProviderReadiness => ("build_provider_readiness", None),
                 Intrinsic::BuildProviderSelection => ("build_provider_selection", None),
                 Intrinsic::BuildAssumedBindingContract => ("build_assumed_binding_contract", None),

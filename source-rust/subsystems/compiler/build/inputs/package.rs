@@ -104,14 +104,25 @@ pub struct PackageDependencyAcquisition {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
+struct PackageUse {
+    target: PackageKeyIdentity,
+    max_reach: semantic_vocabulary::dependency_reach::DependencyReach,
+}
+impl std::borrow::Borrow<PackageKeyIdentity> for PackageUse {
+    fn borrow(&self) -> &PackageKeyIdentity {
+        &self.target
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
 struct PackageCompilationSourceRecord {
     source_root: PathBuf,
     canonical_name: String,
     canonical_source_metadata: Option<CanonicalFilesystemMetadataIndex>,
     captured_source: Option<Arc<source_capture::CapturedSourceTree>>,
     captured_build_source: Option<build_output::CapturedBuildSourceInput>,
-    dependencies: BTreeMap<String, PackageKeyIdentity>,
-    build_dependencies: BTreeMap<String, PackageKeyIdentity>, // Only the compilation root may hold build-scope edges.
+    dependencies: BTreeMap<String, PackageUse>,
+    build_dependencies: BTreeMap<String, PackageUse>, // Only the compilation root may hold build-scope edges.
 }
 
 impl PackageCompilationInputs {
@@ -148,19 +159,9 @@ impl PackageCompilationInputs {
     ) -> Result<Self, String> {
         let mut records = self.source.packages.clone();
         let mut edges = self
-            .dependencies()
-            .map(|(requester, alias, target)| {
-                PackageDependencyBinding::new(requester, alias, target)
-            })
+            .package_uses(DependencyPurpose::Product)
+            .chain(self.package_uses(DependencyPurpose::Build))
             .collect::<Vec<_>>();
-        edges.extend(self.build_dependencies().map(|(requester, alias, target)| {
-            PackageDependencyBinding::for_purpose(
-                requester,
-                alias,
-                target,
-                DependencyPurpose::Build,
-            )
-        }));
         for dependency in prepared {
             // ProductQueryInputs already checked shared captured sources before
             // handing these graphs to this constructor.
@@ -180,7 +181,7 @@ impl PackageCompilationInputs {
                 &dependency.alias,
                 dependency.inputs.root(),
                 DependencyPurpose::Build,
-            ));
+            ).with_max_reach(dependency.max_reach.clone()));
         }
         edges.sort_unstable_by(|left, right| {
             (
@@ -235,7 +236,7 @@ impl PackageCompilationInputs {
         };
         let mut counts = [0usize; 2];
         for acquisition in &acquisitions {
-            let build_declarations::BuildRequest::Dependency { purpose, alias, .. } =
+            let build_declarations::BuildRequest::Dependency { purpose, alias, max_reach, .. } =
                 &acquisition.request
             else {
                 return Err(invalid(
@@ -252,6 +253,9 @@ impl PackageCompilationInputs {
                 .package_name(acquisition.package)
                 .ok_or_else(|| invalid("selected dependency has no acquired source"))?;
             let alias = alias.as_ref().map_or(selected_name, |name| name.as_str());
+            if self.dependency_max_reach(self.root(), *purpose, alias) != Some(max_reach) {
+                return Err(invalid("acquired dependency has a different reach ceiling"));
+            }
             if self.dependency_target_for_purpose(self.root(), *purpose, alias)
                 != Some(acquisition.package)
             {
@@ -585,6 +589,7 @@ mod acquisition_tests {
             .map(|purpose| PackageDependencyAcquisition {
                 request_ordinal: 0,
                 request: BuildRequest::Dependency {
+                    max_reach: Default::default(),
                     purpose: *purpose,
                     alias: Some(ProjectName::parse("shared").unwrap()),
                     source: BuildDependencySource::Path("../child".into()),

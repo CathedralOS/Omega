@@ -21,9 +21,11 @@ use build_declarations::{
 use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
 mod input_bindings;
 mod output;
+mod reach;
 pub use input_bindings::FrozenBuildBinding;
 use input_bindings::InputBindings;
 pub(crate) use output::BuildRequestOutput;
+pub(crate) use reach::ReflectedServices;
 use source_compiler::publication::{
     TerminalBuildRequestCall, TerminalBuildRequestOperation as Operation, TerminalBuildRequests,
 };
@@ -54,6 +56,7 @@ impl IssuedBuildRequest {
 
 pub struct TerminalBuildRequestHost {
     inputs: InputBindings,
+    reach: reach::ReachSets,
     artifact: terminal_codec::TerminalExecutionIdentity,
     calls: Arc<[TerminalBuildRequestCall]>,
     original: TerminalStructuralValue,
@@ -120,6 +123,10 @@ impl TerminalBuildRequestHost {
             artifact: artifact.custody_identity(),
             calls: Arc::clone(calls),
             inputs: InputBindings::new(libraries),
+            reach: reach::ReachSets::from_module(
+                artifact.module(),
+                calls.iter().any(|call| call.action == Operation::ExtendReach),
+            )?,
             original,
             account: account.cloned(),
             requests: Mutex::new(Vec::new()),
@@ -127,6 +134,10 @@ impl TerminalBuildRequestHost {
             output: Mutex::default(),
             original_log,
         }))
+    }
+
+    pub(crate) fn reflected_services(&self) -> Arc<ReflectedServices> {
+        Arc::clone(&self.reach.reflections)
     }
 
     pub fn adapter(
@@ -392,7 +403,11 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
         // request returns nothing.
         let registers = matches!(
             call.action,
-            Operation::PathDependency | Operation::GitDependency | Operation::InputBinding | Operation::AddBinding
+            Operation::PathDependency
+                | Operation::GitDependency
+                | Operation::InputBinding
+                | Operation::AddBinding
+                | Operation::ExtendReach
         );
         if structural_arguments.first() != Some(&self.host.original)
             || byte_sequence_arguments.first() != Some(&None)
@@ -448,9 +463,11 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             | Operation::Application
             | Operation::Member
             | Operation::BuildEntry => (0, 2),
-            Operation::InputBinding | Operation::AddBinding => (0, 2),
-            Operation::PathDependency => (2, 3),
-            Operation::GitDependency => (3, 5),
+            Operation::InputBinding => (0, 2),
+            Operation::AddBinding => (0, 3),
+            Operation::ExtendReach => (1, 2),
+            Operation::PathDependency => (2, 4),
+            Operation::GitDependency => (3, 6),
             Operation::ConfigureTestFixture
             | Operation::ConfigureTestEngine
             | Operation::LogLine
@@ -478,11 +495,53 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                 )
                 .map(TerminalEffectResult::Structural);
         }
+        if call.action == Operation::ExtendReach {
+            let terminal_psi::BoundaryMachineResult::Structural(result) = result else {
+                return Err(refuse("Build service set requires its opaque result"));
+            };
+            let [
+                TerminalScalarValue::Integer {
+                    value: semantic_vocabulary::IntegerValue::Unsigned(id),
+                    ..
+                },
+            ] = arguments.as_slice()
+            else {
+                return Err(refuse("max_reach requires a reflected service reference"));
+            };
+            let id = u32::try_from(*id)
+                .map_err(|_| refuse("reflected service is outside its issuing program"))?;
+            return self
+                .host
+                .reach
+                .extend(
+                    &structural_arguments[1],
+                    terminal_psi::TerminalIdentityIndex(id),
+                    result.structural_type,
+                    self.host.account.as_ref(),
+                )
+                .map(TerminalEffectResult::Structural);
+        }
+        let max_reach = if matches!(
+            call.action,
+            Operation::PathDependency | Operation::GitDependency | Operation::AddBinding
+        ) {
+            self.host.reach.get(
+                structural_arguments
+                    .last()
+                    .ok_or_else(|| refuse("Build dependency lost its service set"))?,
+            )?
+        } else {
+            Default::default()
+        };
         let forwarded = if call.action == Operation::AddBinding {
             if byte_sequence_arguments[1].is_some() {
                 return Err(refuse("dependency::add requires a PackageBinding"));
             }
-            Some(self.host.inputs.require(&structural_arguments[1])?)
+            let binding = self.host.inputs.require(&structural_arguments[1])?;
+            if !max_reach.is_subset_of(binding.library().max_reach()) {
+                return Err(refuse("forwarded dependency exceeds its incoming max_reach"));
+            }
+            Some(binding)
         } else {
             None
         };
@@ -523,13 +582,31 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             }
             _ => {}
         }
+        let mut retained_text: Vec<&str> = max_reach.services().collect();
+        if let Some(BuildRequest::Dependency { alias, source, .. }) = forwarded
+            .as_ref()
+            .map(|binding| binding.library().request())
+        {
+            retained_text.extend(alias.as_ref().map(ProjectName::as_str));
+            match source {
+                BuildDependencySource::Path(path) => retained_text.push(path),
+                BuildDependencySource::Git {
+                    repository,
+                    revision,
+                    package,
+                } => {
+                    retained_text.extend([repository.as_str(), revision.as_str()]);
+                    retained_text.extend(package.as_ref().map(ProjectName::as_str));
+                }
+            }
+        }
         let payload = byte_sequence_arguments
             .iter()
             .flatten()
-            .try_fold(0u64, |total, bytes| {
-                u64::try_from(bytes.len())
-                    .ok()
-                    .and_then(|length| total.checked_add(length))
+            .map(|bytes| bytes.len())
+            .chain(retained_text.into_iter().map(str::len))
+            .try_fold(0u64, |total, length| {
+                total.checked_add(u64::try_from(length).ok()?)
             })
             .ok_or_else(|| refuse("Build request payload count overflowed"))?;
         let storage = self
@@ -569,14 +646,22 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                 BuildRequest::BuildEntry(BuildEntryPath::parse(copy(text(1)?)?).map_err(refuse)?)
             }
             Operation::ArtifactOnly => BuildRequest::ArtifactOnly,
-            Operation::InputBinding => return Err(refuse("Build input binding already returned")),
+            Operation::InputBinding | Operation::ExtendReach => {
+                return Err(refuse("Build input binding or service set already returned"));
+            }
             Operation::AddBinding => {
                 let Some(BuildRequest::Dependency {alias, source, ..}) = forwarded.as_ref().map(|binding|binding.library().request()) else {
                     return Err(refuse("Build input binding lost its frozen dependency"));
                 };
-                BuildRequest::Dependency {purpose: DependencyPurpose::Product, alias: alias.clone(), source: source.clone()}
+                BuildRequest::Dependency {
+                    purpose: DependencyPurpose::Product,
+                    max_reach,
+                    alias: alias.clone(),
+                    source: source.clone(),
+                }
             }
             Operation::PathDependency | Operation::GitDependency => BuildRequest::Dependency {
+                max_reach,
                 purpose: if flag(0)? {
                     DependencyPurpose::Build
                 } else {

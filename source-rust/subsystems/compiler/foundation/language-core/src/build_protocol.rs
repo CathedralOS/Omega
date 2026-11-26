@@ -10,8 +10,7 @@ pub const SELECTION_PROTOCOL: &str = "BuildBindingOperations";
 /// Build host read the recorded operation, so the requirement's
 /// declared name is consulted once, here, to find its declaration.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
-pub enum SelectionProtocolOperation {
-    /// Lends the Build value to the activation and returns its ticket.
+pub enum SelectionProtocolOperation {    /// Lends the Build value to the activation and returns its ticket.
     Prepare,
     /// Authenticates the Build's `tests` facet before a group selection.
     PrepareTests,
@@ -29,6 +28,7 @@ pub enum SelectionProtocolOperation {
     Exclude,
     DescribeParameter,
     DescribeField,
+    DescribeService,
 }
 
 impl SelectionProtocolOperation {
@@ -44,6 +44,7 @@ impl SelectionProtocolOperation {
             Self::BindNative => "bind_native",
             Self::DescribeParameter => "describe_parameter",
             Self::DescribeField => "describe_field",
+            Self::DescribeService => "describe_service",
             Self::Select => "select",
             Self::SelectProvider => "select_provider",
             Self::SelectProviderOption => "select_provider_option",

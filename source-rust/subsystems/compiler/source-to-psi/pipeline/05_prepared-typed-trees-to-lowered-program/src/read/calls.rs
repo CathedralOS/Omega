@@ -1540,6 +1540,7 @@ impl<'t> Program<'t> {
         // parameters (`boundary`), so an applied requirement stays refused.
         let readiness = match request {
             BuildSelectionRequest::ProviderReadiness(readiness) => Some(readiness.requirement),
+            BuildSelectionRequest::Service { requirement, .. } => Some(*requirement),
             BuildSelectionRequest::Entry(_)
             | BuildSelectionRequest::Declaration(_)
             | BuildSelectionRequest::Exclusion(_) => None,
@@ -1557,8 +1558,8 @@ impl<'t> Program<'t> {
                 let scope = typed
                     .build_provider_requirement_scope(requirement, lexical_owner)
                     .map_err(|reason| refuse(id, Construct::Machine, Unserved::Call(reason)))?;
-                if !typed.trait_type_parameters(scope.declaration).is_empty()
-                    || !scope.declaration.lifetime_parameters.is_empty()
+                if matches!(request, BuildSelectionRequest::ProviderReadiness(_)) && (!typed.trait_type_parameters(scope.declaration).is_empty()
+                    || !scope.declaration.lifetime_parameters.is_empty())
                 {
                     return Err(refuse(
                         id,

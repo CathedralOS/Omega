@@ -43,6 +43,7 @@ pub use product_queries::{BuildProductDescription, BuildProductQuery};
 use test_groups::GroupShape;
 
 pub struct TerminalBuildBindingHost {
+    reflected_services: Arc<crate::host::requests::ReflectedServices>,
     artifact: terminal_codec::TerminalExecutionIdentity,
     calls: Arc<[TerminalBuildBindingCall]>,
     group_requests: Vec<source_compiler::publication::TerminalBuildRequestCall>,
@@ -124,12 +125,13 @@ impl BindingState {
 }
 
 impl TerminalBuildBindingHost {
-    pub fn new(
+    pub(crate) fn new(
         artifact: terminal_codec::TerminalExecutionView<'_>,
         bindings: &TerminalBuildBindings,
         requests: &source_compiler::publication::TerminalBuildRequests,
         original: TerminalStructuralValue,
         account: Option<&evaluation_accounting::EvaluationInvocationAccount>,
+        reflected_services: Arc<crate::host::requests::ReflectedServices>,
     ) -> Result<Arc<Self>, String> {
         let calls = bindings
             .calls_for(artifact)
@@ -159,6 +161,7 @@ impl TerminalBuildBindingHost {
             .then(|| build_facet(artifact, &original, "tests"))
             .transpose()?;
         Ok(Arc::new(Self {
+            reflected_services,
             artifact: artifact.custody_identity(),
             calls: Arc::clone(calls),
             queries: Arc::clone(queries),
@@ -592,6 +595,35 @@ impl TerminalBuildBindingAdapter {
             let result = self.host.register_test_group(&mut state, call)?;
             state.pending[ticket] = None;
             return Ok(result);
+        }
+        if let (
+            BuildSelectionRequest::Service { requirement, .. },
+            TerminalBuildBindingOperation::DescribeService,
+            [],
+        ) = (&call.request, call.action, values)
+        {
+            let TerminalEffect::BoundaryCall {
+                result: terminal_psi::BoundaryMachineResult::Scalar(result),
+                ..
+            } = effect
+            else {
+                return Err(refuse(
+                    "service reflection requires its issued scalar result",
+                ));
+            };
+            let semantic_vocabulary::ScalarType::Integer(scalar_type) = result.scalar_type else {
+                return Err(refuse(
+                    "service reflection requires its exact integer carrier",
+                ));
+            };
+            self.host
+                .reflected_services
+                .issue(requirement.application, self.host.account.as_ref())?;
+            state.pending[ticket] = None;
+            return Ok(TerminalEffectResult::Scalar(TerminalScalarValue::Integer {
+                scalar_type,
+                value: IntegerValue::Unsigned(u128::from(requirement.application.0)),
+            }));
         }
         if let (
             BuildSelectionRequest::ProviderReadiness(request),

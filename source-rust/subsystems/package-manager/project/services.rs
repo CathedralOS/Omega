@@ -29,19 +29,24 @@ fn failure(error: PackageCommandError) -> CompileFailure {
     })
 }
 
-fn aliases(
+fn registered_uses(
     activation: &TerminalBuildActivation,
     purpose: DependencyPurpose,
-) -> impl Iterator<Item = Option<&str>> {
+) -> impl Iterator<
+    Item = (
+        Option<&str>,
+        &semantic_vocabulary::dependency_reach::DependencyReach,
+    ),
+> {
     activation
         .requests()
         .iter()
         .filter_map(move |issued| match issued.request() {
             BuildRequest::Dependency {
                 purpose: registered,
-                alias,
+                alias, max_reach,
                 ..
-            } if *registered == purpose => Some(alias.as_ref().map(|alias| alias.as_str())),
+            } if *registered == purpose => Some((alias.as_ref().map(|alias| alias.as_str()), max_reach)),
             _ => None,
         })
 }
@@ -106,11 +111,13 @@ impl SourceHost<'_, '_> {
         settled: &SettledSource,
         purpose: DependencyPurpose,
         alias: String,
+        max_reach: semantic_vocabulary::dependency_reach::DependencyReach,
     ) -> Result<ProductQueryDependency, CompileFailure> {
         let child_build_source = settled.build.evaluated().base_source_consumption_commitment;
         if purpose == DependencyPurpose::Product {
             // Its Build has returned. The Product's consumer will choose its deployment.
             return Ok(ProductQueryDependency {
+                max_reach,
                 alias,
                 child_build_source,
                 inputs: settled.build.inputs().clone(),
@@ -124,6 +131,7 @@ impl SourceHost<'_, '_> {
             &mut DependencyProducts::default(),
         )?;
         Ok(ProductQueryDependency {
+            max_reach,
             alias,
             child_build_source,
             inputs: product
@@ -154,6 +162,7 @@ impl SourceHost<'_, '_> {
         let requests: Vec<_> = libraries
             .iter()
             .map(|library| BuildRequest::Dependency {
+                max_reach: Default::default(),
                 purpose: DependencyPurpose::Build,
                 alias: Some(library.alias.clone()),
                 source: library.source.clone(),
@@ -178,6 +187,7 @@ impl SourceHost<'_, '_> {
                 &self.settled[index],
                 DependencyPurpose::Build,
                 library.alias.as_str().to_owned(),
+                Default::default(),
             )?;
             supplied.push(SuppliedBuildLibrary::new(library.source.clone(), input)?);
         }
@@ -238,12 +248,14 @@ impl PlanningServices for SourceServices<'_, '_, '_> {
             request.request_ordinal,
         )?;
         let settled = &self.host.settled[i];
-        let alias = aliases(activation, request.purpose)
+        let (alias, max_reach) = registered_uses(activation, request.purpose)
             .nth(request.request_ordinal)
-            .ok_or_else(|| refused("Build preparation names no issued dependency"))?
+            .ok_or_else(|| refused("Build preparation names no issued dependency"))?;
+        let alias = alias
             .unwrap_or_else(|| settled.declaration.package_name())
             .to_owned();
-        self.host.library_input(settled, request.purpose, alias)
+        self.host
+            .library_input(settled, request.purpose, alias, max_reach.clone())
     }
 
     fn query_dependencies(
@@ -252,12 +264,13 @@ impl PlanningServices for SourceServices<'_, '_, '_> {
         _query: &BuildProductQuery,
     ) -> Result<Vec<ProductQueryDependency>, CompileFailure> {
         let purpose = DependencyPurpose::Product;
-        aliases(activation, purpose)
+        registered_uses(activation, purpose)
             .enumerate()
-            .map(|(ordinal, alias)| {
+            .map(|(ordinal, (alias, max_reach))| {
                 let i = self.dependency(activation.requests(), purpose, ordinal)?;
                 let settled = &self.host.settled[i];
                 Ok(ProductQueryDependency {
+                    max_reach: max_reach.clone(),
                     alias: alias
                         .unwrap_or_else(|| settled.declaration.package_name())
                         .to_owned(),

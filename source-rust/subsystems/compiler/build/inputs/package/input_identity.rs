@@ -9,11 +9,11 @@ use crate::{
 use filesystem_authority::CanonicalFilesystemMetadataIndex;
 
 // Previously issued Build receipts bind this domain.
-const INPUTS_DIGEST_DOMAIN: &[u8] = b"OMEGA-COMPILED-REVIEW-CACHE-INPUTS\x05";
+const INPUTS_DIGEST_DOMAIN: &[u8] = b"OMEGA-COMPILED-REVIEW-CACHE-INPUTS\x06";
 
 impl PackageBuildHandoff {
     pub fn identity_digest(&self) -> [u8; 32] {
-        let mut digest = DomainDigestEncoder::new(b"omega-package-build-products-v4\0");
+        let mut digest = DomainDigestEncoder::new(b"omega-package-build-products-v5\0");
         hash_generated_bundle(&mut digest, self);
         digest.finish()
     }
@@ -35,17 +35,13 @@ impl PackageCompilationInputs {
                 None => digest.byte(0),
             }
         }
-        for (requester, alias, target) in self.dependencies() {
-            digest.byte(0);
-            digest.raw(&requester.digest());
-            digest.bytes(alias.as_bytes());
-            digest.raw(&target.digest());
-        }
-        digest.byte(1);
-        for (requester, alias, target) in self.build_dependencies() {
-            digest.raw(&requester.digest());
-            digest.bytes(alias.as_bytes());
-            digest.raw(&target.digest());
+        for purpose in build_declarations::DependencyPurpose::ALL {
+            digest.byte(purpose.canonical_tag());
+            let uses = self.package_uses(purpose).collect::<Vec<_>>();
+            digest.u64(uses.len() as u64);
+            for edge in uses {
+                hash_edge(&mut digest, &edge);
+            }
         }
         digest.byte(self.compilation_purpose().canonical_tag());
         for bundle in self.dependency_build_handoffs() {
@@ -89,6 +85,17 @@ fn hash_metadata_index(digest: &mut DomainDigestEncoder, index: &CanonicalFilesy
     }
 }
 
+fn hash_edge(digest: &mut DomainDigestEncoder, edge: &crate::PackageDependencyBinding) {
+    digest.raw(&edge.requester().digest());
+    digest.bytes(edge.alias().as_bytes());
+    digest.raw(&edge.target().digest());
+    digest.byte(edge.purpose().canonical_tag());
+    digest.u64(edge.max_reach().services().count() as u64);
+    for service in edge.max_reach().services() {
+        digest.bytes(service.as_bytes());
+    }
+}
+
 fn hash_dependency_closure(digest: &mut DomainDigestEncoder, closure: &PackageDependencyClosure) {
     digest.raw(&closure.root().digest());
     digest.byte(closure.root_role().canonical_tag());
@@ -98,10 +105,7 @@ fn hash_dependency_closure(digest: &mut DomainDigestEncoder, closure: &PackageDe
     }
     digest.u64(closure.dependencies().len() as u64);
     for binding in closure.dependencies() {
-        digest.raw(&binding.requester().digest());
-        digest.bytes(binding.alias().as_bytes());
-        digest.raw(&binding.target().digest());
-        digest.byte(binding.purpose().canonical_tag());
+        hash_edge(digest, binding);
     }
 }
 

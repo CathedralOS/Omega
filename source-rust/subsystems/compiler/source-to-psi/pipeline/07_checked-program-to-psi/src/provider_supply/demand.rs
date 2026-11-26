@@ -98,9 +98,15 @@ impl SourcePublication {
         selections: &[ProviderSelection],
         native_supplies: &[NativeBuildSupply],
         review_package: bool,
+        dependency_edges: &[semantic_vocabulary::dependency_reach::DependencyServiceEdge],
     ) -> Result<SourceProviderFacts<SourceProviderDemand>, Vec<Diagnostic>> {
         let accepted = self.accepted_owner()?;
         let module = accepted.module();
+        let imported_calls = if dependency_edges.is_empty() {
+            Default::default()
+        } else {
+            accepted.dependency_calls()
+        };
         let entry = match target {
             Some(target)
                 if !(self.roster()?.entries.is_empty()
@@ -147,6 +153,9 @@ impl SourcePublication {
                     })
                 })
                 .collect::<Result<Vec<_>, _>>()?;
+            for &root in &roots {
+                psi_provider_selections::dependency_reach::check(module, semantic_vocabulary::TargetMachineCallable::Machine(root), &[], None, dependency_edges, &imported_calls)?;
+            }
             return Ok(SourceProviderFacts::new(
                 accepted,
                 None,
@@ -154,6 +163,28 @@ impl SourcePublication {
             ));
         };
         let closed = accepted.close_logical_provider_reach(deployment, entry, &selected)?;
+        // An installation may export a selected provider with no process entry. Check its
+        // executable body as a root even when no ordinary entry calls it.
+        let roots = entry
+            .into_iter()
+            .chain(
+                closed
+                    .bindings()
+                    .iter()
+                    .filter(|row| selected.binary_search(&row.boundary).is_ok())
+                    .map(|row| row.machine),
+            )
+            .collect::<std::collections::BTreeSet<_>>();
+        for root in roots {
+            psi_provider_selections::dependency_reach::check(
+                module,
+                semantic_vocabulary::TargetMachineCallable::Machine(root),
+                closed.bindings(),
+                Some(deployment),
+                dependency_edges,
+                &imported_calls,
+            )?;
+        }
         let bindings =
             accepted.reached_native_bindings(deployment, native_supplies, closed.requirements());
         let review = (review_package && !accepted.is_invocation()).then(|| {
