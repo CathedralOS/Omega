@@ -2734,6 +2734,7 @@ mod integer_types {
         BuiltinTypeAtom, SymbolKind, SymbolNameRef, SymbolTableBuilder, builtin_type_symbols,
     };
     use numerics::integer_carrier::FixedInteger;
+    use semantic_vocabulary::compiler_evaluation::DeclarationCustody;
 
     #[test]
     fn a_carrier_without_a_fixed_slot_has_one_installed_symbol() {
@@ -2751,6 +2752,10 @@ mod integer_types {
         assert_eq!(table.builtin_atom_symbol(odd), None);
         let fixed = table.builtin_atom_symbol(word).unwrap();
         assert_eq!(table.builtin_type_atom(fixed), Some(word));
+        assert_eq!(
+            table.declaration_custody(fixed),
+            DeclarationCustody::Toolchain
+        );
 
         table.install_integer_types([
             FixedInteger::unsigned(13),
@@ -2762,6 +2767,10 @@ mod integer_types {
         assert_eq!(table.name(installed), "u13");
         assert_eq!(table.get(installed).kind, SymbolKind::BuiltinType);
         assert_eq!(table.builtin_type_atom(installed), Some(odd));
+        assert_eq!(
+            table.declaration_custody(installed),
+            DeclarationCustody::Toolchain
+        );
         assert_ne!(
             table.builtin_atom_symbol(BuiltinTypeAtom::Integer(FixedInteger::signed(13))),
             Some(installed)
@@ -2777,6 +2786,10 @@ mod integer_types {
         /* A declaration spelled like a carrier is that declaration, not the carrier. */
         let declared = table.root_children_named("u7").next().unwrap();
         assert_eq!(table.builtin_type_atom(declared), None);
+        assert_eq!(
+            table.declaration_custody(declared),
+            DeclarationCustody::Missing
+        );
         let seven = BuiltinTypeAtom::Integer(FixedInteger::unsigned(7));
         assert_eq!(table.builtin_atom_symbol(seven), None);
         table.install_integer_types([FixedInteger::unsigned(7)]);

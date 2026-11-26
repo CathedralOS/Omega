@@ -2433,6 +2433,7 @@ mod source_queries {
                 }
                 Some(SourceOrigin::ToolchainContract) => DeclarationCustody::ToolchainContract,
                 Some(SourceOrigin::User) => DeclarationCustody::UnownedUser,
+                None if self.builtin_type_atom(symbol).is_some() => DeclarationCustody::Toolchain,
                 None => DeclarationCustody::Missing,
             }
         }
