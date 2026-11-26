@@ -1,21 +1,22 @@
 // Invalid control for executable custody-free quotient realization.
-use omega\language\core\Equivalence;
+use {omega}/language/core/relation.omg;
+use {omega}/language/core/foundation.omg as proof;
 
 domain i32::Issued established by Issuer::issue;
 trait Issuer { machine issue() -> i32 ensures result in i32::Issued; }
 data Representative [copy] { value: i32 in Issued; }
 
-proposition equivalent(a: Representative, b: Representative) = core\Identity::<Representative>(a, b);
+proposition equivalent(a: Representative, b: Representative) = |proof|::Identity::<Representative>(a, b);
 
 machine equivalent_reflexive(a: Representative)
-ensures core\Identity::<Representative>(a, a)
+ensures |proof|::Identity::<Representative>(a, a)
 {
 }
 
 machine equivalent_symmetric(a: Representative, b: Representative)
 requires
-    core\Identity::<Representative>(a, b)
-ensures core\Identity::<Representative>(b, a)
+    |proof|::Identity::<Representative>(a, b)
+ensures |proof|::Identity::<Representative>(b, a)
 {
 }
 
@@ -25,13 +26,13 @@ machine equivalent_transitive(
     c: Representative
 )
 requires
-    core\Identity::<Representative>(a, b),
-    core\Identity::<Representative>(b, c)
-ensures core\Identity::<Representative>(a, c)
+    |proof|::Identity::<Representative>(a, b),
+    |proof|::Identity::<Representative>(b, c)
+ensures |proof|::Identity::<Representative>(a, c)
 {
 }
 
-RepresentativeEquivalence satisfies Equivalence<Representative, equivalent> {
+RepresentativeEquivalence satisfies |relation|::Equivalence<Representative, equivalent> {
     machine reflexive(value: Representative) ensures equivalent(value, value) { equivalent_reflexive(value) }
     machine symmetric(left: Representative, right: Representative) requires equivalent(left, right) ensures equivalent(right, left) { equivalent_symmetric(left, right) }
     machine transitive(left: Representative, middle: Representative, right: Representative) requires equivalent(left, middle), equivalent(middle, right) ensures equivalent(left, right) { equivalent_transitive(left, middle, right) }
@@ -39,7 +40,7 @@ RepresentativeEquivalence satisfies Equivalence<Representative, equivalent> {
 
 data EquivalenceClass [copy] = Representative % equivalent
 requires equivalent satisfies
-    Equivalence<Representative, equivalent>
+    |relation|::Equivalence<Representative, equivalent>
     as RepresentativeEquivalence;
 
 machine representative(value: Representative) -> Representative {

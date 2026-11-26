@@ -1,5 +1,7 @@
 // A transparent definition reads `4 * 1024` as the exact integer 4096, as
 // a machine's own clause does. The caller's bound proves the premise.
-public let fits(length: u64): core\Strict<0> = embed(length) <= 4 * 1024;
+use {omega}/language/core/foundation.omg as proof;
+
+public let fits(length: u64): |proof|::Strict<0> = embed(length) <= 4 * 1024;
 machine consume(length: u64) requires fits(length) { }
 machine build_entry(length: u64) requires length <= 4096 { consume(length); }

@@ -4,7 +4,8 @@
 // rearrange tier has no license and the shuffle lemma must fence exactly as
 // before the tier existed. Whether a proof compiles must never depend on
 // what happens to be in scope (the Lean CommRing-instance precedent).
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_exit.omg;
+use {omega}/language/core/foundation.omg as proof;
 
 data Peano {
     case Zero;
@@ -23,7 +24,7 @@ terminates by a
 machine plus_assoc(a: Peano, b: Peano, c: Peano) -> Peano
 terminates by a
 ensures
-    core\Identity::<Peano>((plus(plus(a, b), c)), (plus(a, plus(b, c))))
+    |proof|::Identity::<Peano>((plus(plus(a, b), c)), (plus(a, plus(b, c))))
 {
     transition a {
         Peano::Zero -> Peano::Zero,
@@ -37,7 +38,7 @@ ensures
 machine needs_rearrange(a: Peano, b: Peano, c: Peano) -> Peano
 terminates by a
 ensures
-    core\Identity::<Peano>((plus(b, plus(a, c))), (plus(a, plus(b, c))))
+    |proof|::Identity::<Peano>((plus(b, plus(a, c))), (plus(a, plus(b, c))))
 {
     transition a {
         Peano::Zero -> Peano::Zero,
@@ -46,7 +47,7 @@ ensures
 }
 
 data Main { }
-machine exit_with_status(main: @mutable Main) reaches ProcessExit { ProcessExit::exit_process(70); }
+machine exit_with_status(main: @mutable Main) reaches |process_exit|::ProcessExit { |process_exit|::ProcessExit::exit_process(70); }
 
 // Individually checked rows retain the whole trait application. Neither one
 // below supplies both laws for one application over Peano.
@@ -55,9 +56,9 @@ data SecondTag {}
 trait ApplicationJoin<T, Marker> {
     machine combine(a: T, b: T) -> T reaches none crashes none terminates;
     machine comm(a: T, b: T)
-    ensures core\Identity::<T>(combine(a, b), combine(b, a));
+    ensures |proof|::Identity::<T>(combine(a, b), combine(b, a));
     machine assoc(a: T, b: T, c: T)
-    ensures core\Identity::<T>(combine(combine(a, b), c), combine(a, combine(b, c)));
+    ensures |proof|::Identity::<T>(combine(combine(a, b), c), combine(a, combine(b, c)));
 }
 
 machine application_nand(a: Peano, b: Peano) -> Peano
@@ -96,7 +97,7 @@ terminates
 
 machine application_comm(a: Peano, b: Peano)
 satisfies ApplicationJoin<Peano, FirstTag>::comm as FirstApplication
-ensures core\Identity::<Peano>(application_nand(a, b), application_nand(b, a))
+ensures |proof|::Identity::<Peano>(application_nand(a, b), application_nand(b, a))
 {
     transition a {
         Peano::Zero -> case_zero(b),
@@ -130,7 +131,7 @@ ensures core\Identity::<Peano>(application_nand(a, b), application_nand(b, a))
 
 machine application_assoc(a: Peano, b: Peano, c: Peano)
 satisfies ApplicationJoin<Peano, SecondTag>::assoc as SecondApplication
-ensures core\Identity::<Peano>(application_and(application_and(a, b), c), application_and(a, application_and(b, c)))
+ensures |proof|::Identity::<Peano>(application_and(application_and(a, b), c), application_and(a, application_and(b, c)))
 {
     transition a {
         Peano::Zero -> case_zero(b, c),
@@ -201,7 +202,7 @@ ensures core\Identity::<Peano>(application_and(application_and(a, b), c), applic
 // This is false at Zero, Zero, Succ { pred: Zero }. The checked
 // commutative NAND row cannot borrow the associative AND row's license.
 machine mixed_application_associativity(a: Peano, b: Peano, c: Peano)
-ensures core\Identity::<Peano>(application_nand(application_nand(a, b), c), application_nand(a, application_nand(b, c)))
+ensures |proof|::Identity::<Peano>(application_nand(application_nand(a, b), c), application_nand(a, application_nand(b, c)))
 {}
 
 // Even the same complete trait application cannot combine laws whose
@@ -209,9 +210,9 @@ ensures core\Identity::<Peano>(application_nand(application_nand(a, b), c), appl
 trait FamilyJoin<T> {
     machine combine(a: T, b: T) -> T reaches none crashes none terminates;
     machine comm(a: T, b: T)
-    ensures core\Identity::<T>(combine(a, b), combine(b, a));
+    ensures |proof|::Identity::<T>(combine(a, b), combine(b, a));
     machine assoc(a: T, b: T, c: T)
-    ensures core\Identity::<T>(combine(combine(a, b), c), combine(a, combine(b, c)));
+    ensures |proof|::Identity::<T>(combine(combine(a, b), c), combine(a, combine(b, c)));
 }
 
 machine family_nand(a: Peano, b: Peano) -> Peano
@@ -250,7 +251,7 @@ terminates
 
 machine family_comm(a: Peano, b: Peano)
 satisfies FamilyJoin<Peano>::comm as CommutativeNand
-ensures core\Identity::<Peano>(family_nand(a, b), family_nand(b, a))
+ensures |proof|::Identity::<Peano>(family_nand(a, b), family_nand(b, a))
 {
     transition a {
         Peano::Zero -> case_zero(b),
@@ -284,7 +285,7 @@ ensures core\Identity::<Peano>(family_nand(a, b), family_nand(b, a))
 
 machine family_assoc(a: Peano, b: Peano, c: Peano)
 satisfies FamilyJoin<Peano>::assoc as AssociativeAnd
-ensures core\Identity::<Peano>(family_and(family_and(a, b), c), family_and(a, family_and(b, c)))
+ensures |proof|::Identity::<Peano>(family_and(family_and(a, b), c), family_and(a, family_and(b, c)))
 {
     transition a {
         Peano::Zero -> case_zero(b, c),
@@ -355,5 +356,5 @@ ensures core\Identity::<Peano>(family_and(family_and(a, b), c), family_and(a, fa
 // This is false at Zero, Zero, Succ { pred: Zero }. The checked
 // commutative NAND row cannot borrow the associative AND row's license.
 machine mixed_family_associativity(a: Peano, b: Peano, c: Peano)
-ensures core\Identity::<Peano>(family_nand(family_nand(a, b), c), family_nand(a, family_nand(b, c)))
+ensures |proof|::Identity::<Peano>(family_nand(family_nand(a, b), c), family_nand(a, family_nand(b, c)))
 {}
