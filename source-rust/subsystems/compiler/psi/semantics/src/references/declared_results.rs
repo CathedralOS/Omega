@@ -127,6 +127,17 @@ pub fn requirement_reference_result(
     if !machine.blocks.is_empty() {
         return Ok(None);
     }
+    if machine.contract.result_lifetimes.is_none()
+        && let Some(leaves) =
+            static_shared_byte_view_only_result(&module.types.structural_types, &machine.contract)
+    {
+        return Ok(Some(DeclaredReferenceResult {
+            types: &module.types.structural_types,
+            contract: &machine.contract,
+            groups: &[],
+            leaves,
+        }));
+    }
     let declared = declared_reference_result(&module.types.structural_types, &machine.contract)?;
     if let Some(result) = machine.contract.result.structural()
         && crate::borrowed_result_leaves(
@@ -141,6 +152,54 @@ pub fn requirement_reference_result(
         return Err("requirement view result needs its admitted completion resource");
     }
     Ok(Some(declared))
+}
+
+/// Returns the number of result view leaves when `contract` takes no borrowed
+/// storage and every borrowed leaf in its result is a shared byte view (such
+/// as a static `+ Utf8` literal inside `BoundaryPlanResult`).
+fn static_shared_byte_view_only_result(
+    types: &[StructuralTypeDeclaration],
+    contract: &MachineContract,
+) -> Option<usize> {
+    let result = contract.result.structural()?;
+    let no_borrowed_inputs = contract.structural_parameters.iter().all(|parameter| {
+        parameter.access == StructuralAccess::Owned
+            && crate::borrowed_result_leaves(
+                types.iter(),
+                parameter.structural_type,
+                parameter.multiplicity,
+                0,
+            )
+            .is_ok()
+    });
+    if !no_borrowed_inputs {
+        return None;
+    }
+    let leaves = crate::borrowed_result_leaves(
+        types.iter(),
+        result.structural_type,
+        result.multiplicity,
+        usize::MAX,
+    )
+    .ok()?;
+    if leaves.is_empty() {
+        return None;
+    }
+    let all_shared_byte_views = leaves.iter().all(|leaf| {
+        matches!(leaf.kind, crate::BorrowedResultLeafKind::View)
+            && crate::runtime_structural_path_tip(types.iter(), result.structural_type, &leaf.path)
+                .is_some_and(|tip| {
+                    matches!(
+                        tip.shape,
+                        StructuralTypeShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BorrowedView {
+                                access: Some(StructuralAccess::SharedBorrow),
+                            }
+                        )
+                    )
+                })
+    });
+    all_shared_byte_views.then_some(leaves.len())
 }
 
 fn declared_reference_result<'module>(
