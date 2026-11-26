@@ -5,18 +5,12 @@
 //! lowered-form checker reads its routes: the machine the plan lists may cast,
 //! and the twin whose plan lists another machine is refused for that.
 
+#[path = "support/project.rs"]
+mod project;
 mod support;
 
-use std::process::{Command, Stdio};
-
-fn invoke(route: &[&str], project: &std::path::Path, arguments: &[&str]) -> (bool, String) {
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(route)
-        .args(arguments)
-        .current_dir(project)
-        .stdin(Stdio::null())
-        .output()
-        .expect("omega runs on the hosted target");
+fn invoke(route: &[&str], directory: &std::path::Path, arguments: &[&str]) -> (bool, String) {
+    let output = project::omega(directory, &[route, arguments].concat());
     let report = format!(
         "{}{}",
         String::from_utf8_lossy(&output.stdout),
@@ -54,12 +48,12 @@ fn a_machine_the_domain_plan_does_not_list_is_refused() {
 
 #[test]
 fn an_unrestricted_policy_checks_its_predicates_on_an_unissued_value() {
-    use platform_custody::temporary_directory::TemporaryDirectory;
-
-    let project = TemporaryDirectory::create("unrestricted-membership-test", false).unwrap();
     let build = include_str!("fixtures/domains/run/unrestricted_membership_test/build.omg");
     let source = include_str!("fixtures/domains/run/unrestricted_membership_test/main.omg");
-    std::fs::write(project.path().join("build.omg"), build).unwrap();
+    let project = project::stage(
+        "unrestricted-membership-test",
+        &[("build.omg", build), ("main.omg", source)],
+    );
     let arguments = [
         "--build-input",
         "build.omg",
@@ -67,7 +61,6 @@ fn an_unrestricted_policy_checks_its_predicates_on_an_unissued_value() {
         "main.omg",
         "build.omg",
     ];
-    std::fs::write(project.path().join("main.omg"), source).unwrap();
     for (engine, receipt) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
         let (succeeded, report) = invoke(&["run", "--engine", engine], project.path(), &arguments);
         assert!(succeeded, "{report}");
@@ -104,8 +97,6 @@ fn assert_denied_cast(report: &str, source: &str, domain: &str) {
 
 #[test]
 fn scalar_casts_name_the_denied_issuer_and_its_cast() {
-    use platform_custody::temporary_directory::TemporaryDirectory;
-    let project = TemporaryDirectory::create("scalar-domain-issuers", false).unwrap();
     let source = r#"use {omega}/language/core/layout.omg as layout;
 use {omega}/language/core/access/access.omg as plans;
 use {omega}/language/core/reflect/reflect.omg as reflection;
@@ -124,11 +115,13 @@ machine main() crashes Trap {
     machine wrong() { crash Trap; }
 }
 "#;
-    std::fs::write(
-        project.path().join("build.omg"),
-        include_str!("fixtures/domains/run/access_plan_issuer/build.omg"),
-    )
-    .unwrap();
+    let project = project::stage(
+        "scalar-domain-issuers",
+        &[(
+            "build.omg",
+            include_str!("fixtures/domains/run/access_plan_issuer/build.omg"),
+        )],
+    );
     for (route, allowed) in [
         ("|reflection|::callable(stamp)", true),
         ("|reflection|::callable(unrelated)", false),
@@ -166,10 +159,6 @@ machine main() crashes Trap {
 /// keeps a reader rule, which a removal cannot carry, so it stays refused.
 #[test]
 fn a_domain_only_a_selected_dependency_provider_uses_has_its_plan_run() {
-    use platform_custody::temporary_directory::TemporaryDirectory;
-    let project = TemporaryDirectory::create("provider-domain-plans", false).unwrap();
-    let kit = project.path().join("kit");
-    std::fs::create_dir_all(kit.join("main")).unwrap();
     let targets = [
         "linux_x86_64",
         "linux_arm64",
@@ -196,12 +185,15 @@ machine build(builder: @mutable Build) {
     }
     kit_build.push_str("}\n");
     consumer_build.push_str("}\n");
-    std::fs::write(kit.join("build.omg"), kit_build).unwrap();
-    std::fs::write(kit.join("main.omg"), "use main;\n").unwrap();
-    std::fs::write(project.path().join("build.omg"), consumer_build).unwrap();
-    std::fs::write(
-        project.path().join("main.omg"),
-        r#"use stamp_kit\main\Probe;
+    let project = project::stage(
+        "provider-domain-plans",
+        &[
+            ("kit/build.omg", &kit_build),
+            ("kit/main.omg", "use main;\n"),
+            ("build.omg", &consumer_build),
+            (
+                "main.omg",
+                r#"use stamp_kit\main\Probe;
 machine main() crashes Trap {
     let value: i64 = Probe::probe();
     transition value == 4i64 { true -> done(), _ -> wrong() }
@@ -209,8 +201,9 @@ machine main() crashes Trap {
     machine wrong() { crash Trap; }
 }
 "#,
-    )
-    .unwrap();
+            ),
+        ],
+    );
     let issued = "|plans|::new_plan(@schema, |layout|::Issuance::Only { routes: [|reflection|::callable(stamp)] })";
     let source = r#"use {omega}/language/core/layout.omg as layout;
 use {omega}/language/core/access/access.omg as plans;
@@ -237,7 +230,7 @@ public StampedProbe satisfies Probe {
     );
     for (plan, runs) in [(issued.to_owned(), true), (read_restricted, false)] {
         let program = source.replace("PLAN", &plan);
-        std::fs::write(kit.join("main").join("stamps.omg"), &program).unwrap();
+        project::write(project.path(), &[("kit/main/stamps.omg", &program)]);
         if runs {
             for (engine, receipt) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
                 let (succeeded, report) =

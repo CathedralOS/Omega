@@ -4,19 +4,15 @@
 //! the next copy still needs to know that the source room kept its ASCII
 //! commands. The reader has to work that out from the saved file alone.
 
+#[path = "support/project.rs"]
+mod project;
 mod support;
 
 use platform_custody::temporary_directory::TemporaryDirectory;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output, Stdio};
+use std::process::Output;
 use terminal_codec::{CanonicalTerminalArtifact, ClosedTerminalModule, CodecError};
 use terminal_psi::{OperationKind, OperationResult, TerminalMachine, TerminalModule};
-
-fn omega(directory: &Path) -> Command {
-    let mut command = Command::new(env!("CARGO_BIN_EXE_omega"));
-    command.current_dir(directory).stdin(Stdio::null());
-    command
-}
 
 fn report(output: &Output) -> String {
     format!(
@@ -41,12 +37,10 @@ fn saved_artifact(scratch: &Path) -> PathBuf {
     let saved = scratch.join("saved");
     std::fs::create_dir(&saved).unwrap();
     let artifact = saved.join("rooms.psi");
-    let emitted = omega(&source)
-        .arg("--emit-psi")
-        .arg(&artifact)
-        .arg("main.omg")
-        .output()
-        .expect("compile the room copy");
+    let emitted = project::omega(
+        &source,
+        &["--emit-psi", artifact.to_str().unwrap(), "main.omg"],
+    );
     assert!(emitted.status.success(), "{}", report(&emitted));
     std::fs::remove_dir_all(&source).unwrap();
     artifact
@@ -85,10 +79,10 @@ fn reopen_with(
 fn a_saved_copy_between_two_slices_reopens_without_its_source() {
     let scratch = TemporaryDirectory::create("saved-slice-element-store", false).unwrap();
     let artifact = saved_artifact(scratch.path());
-    let reopened = omega(artifact.parent().unwrap())
-        .args(["psi", "inspect", "--artifact", "rooms.psi"])
-        .output()
-        .expect("read the saved file back");
+    let reopened = project::omega(
+        artifact.parent().unwrap(),
+        &["psi", "inspect", "--artifact", "rooms.psi"],
+    );
     assert!(reopened.status.success(), "{}", report(&reopened));
 }
 
@@ -99,10 +93,7 @@ fn the_copied_room_runs_natively_and_in_psi() {
     let scratch = TemporaryDirectory::create("slice-element-store-run", false).unwrap();
     std::fs::copy(project.join("main.omg"), scratch.path().join("main.omg")).unwrap();
     for (engine, receipt) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
-        let ran = omega(scratch.path())
-            .args(["run", "--engine", engine, "main.omg"])
-            .output()
-            .expect("run the room copy on both engines");
+        let ran = project::omega(scratch.path(), &["run", "--engine", engine, "main.omg"]);
         let ran = report(&ran);
         assert!(ran.lines().any(|line| line == receipt), "{ran}");
     }
@@ -184,12 +175,10 @@ fn the_compiler_refuses_a_source_slice_that_borrows_the_destination_room() {
     )
     .unwrap();
     let artifact = scratch.path().join("rooms.psi");
-    let refused = omega(scratch.path())
-        .arg("--emit-psi")
-        .arg(&artifact)
-        .arg("main.omg")
-        .output()
-        .expect("compile the overlapping room copy");
+    let refused = project::omega(
+        scratch.path(),
+        &["--emit-psi", artifact.to_str().unwrap(), "main.omg"],
+    );
     let refusal = report(&refused);
     assert!(!refused.status.success(), "{refusal}");
     for expected in [

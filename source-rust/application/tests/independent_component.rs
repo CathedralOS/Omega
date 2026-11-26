@@ -4,22 +4,23 @@
     all(target_os = "windows", target_arch = "aarch64"),
 ))]
 
+#[path = "support/project.rs"]
+mod project;
+
 use platform_custody::temporary_directory::TemporaryDirectory;
 use std::{fs, path::Path, process::Command};
 
 fn entryless_supplier_sources(root: &Path) -> std::path::PathBuf {
-    let package = root.join("supplier");
-    let consumer = root.join("application");
-    fs::create_dir_all(&package).unwrap();
-    fs::create_dir_all(&consumer).unwrap();
-    fs::write(
-        package.join("build.omg"),
-        r#"machine build(builder: @mutable Build) { Build::package(builder, "numbers"); }"#,
-    )
-    .unwrap();
-    fs::write(
-        package.join("main.omg"),
-        r#"
+    project::write(
+        root,
+        &[
+            (
+                "supplier/build.omg",
+                r#"machine build(builder: @mutable Build) { Build::package(builder, "numbers"); }"#,
+            ),
+            (
+                "supplier/main.omg",
+                r#"
 public boundary trait Reading {
     machine value(input: u64) -> u64 reaches none crashes none;
     machine unused() -> u64 reaches none crashes none;
@@ -29,9 +30,10 @@ public ConstantReading satisfies Reading {
     machine unused() -> u64 { 11u64 }
 }
 "#,
-    )
-    .unwrap();
-    fs::write(consumer.join("build.omg"), r#"
+            ),
+            (
+                "application/build.omg",
+                r#"
 use {omega}/build/dependency.omg;
 machine build(builder: @mutable Build) {
     Build::application(builder, "number_application");
@@ -41,10 +43,11 @@ machine build(builder: @mutable Build) {
     Build::bind(builder, windows_arm64::ProgramEntry, main);
 }
 machine independent_mode() -> CompositionMode { CompositionMode::Independent }
-"#).unwrap();
-    fs::write(
-        consumer.join("main.omg"),
-        r#"
+"#,
+            ),
+            (
+                "application/main.omg",
+                r#"
 use numbers\Reading;
 machine main() reaches Reading crashes Trap {
     let number: u64 = Reading::value(73u64);
@@ -53,9 +56,10 @@ machine main() reaches Reading crashes Trap {
     machine bad() { crash Trap; }
 }
 "#,
-    )
-    .unwrap();
-    consumer
+            ),
+        ],
+    );
+    root.join("application")
 }
 
 #[cfg(target_os = "linux")]
@@ -254,9 +258,6 @@ fn independent_packages_can_call_an_independently_compiled_supplier() {
 
 #[cfg(target_os = "linux")]
 fn nested_sources(root: &Path, mode: &str) {
-    for package in ["leaf", "supplier", "application"] {
-        fs::create_dir(root.join(package)).unwrap();
-    }
     let root_build = format!(
         r#"use {{omega}}/build/dependency.omg;
 machine build(builder: @mutable Build) {{
@@ -312,7 +313,5 @@ machine main() crashes Trap {
 }"#,
         ),
     ];
-    for (path, source) in sources {
-        fs::write(root.join(path), source).unwrap();
-    }
+    project::write(root, &sources);
 }

@@ -1,21 +1,19 @@
 //! A Product imports the exact files its Build emitted. The producing Build retains its own inputs.
+#[path = "support/project.rs"]
+mod project;
+
 use platform_custody::temporary_directory::TemporaryDirectory;
 use std::fs;
 use std::path::Path;
-use std::process::{Command, Output, Stdio};
+use std::process::Output;
 
 fn run(project: &Path, engine: &str, inputs: &[&str]) -> Output {
-    let mut command = Command::new(env!("CARGO_BIN_EXE_omega"));
-    command.args(["run", "--engine", engine, "--outputs", engine]);
+    let mut arguments = vec!["run", "--engine", engine, "--outputs", engine];
     for path in inputs {
-        command.args(["--build-input", path]);
+        arguments.extend(["--build-input", *path]);
     }
-    command
-        .arg("build.omg")
-        .current_dir(project)
-        .stdin(Stdio::null())
-        .output()
-        .unwrap()
+    arguments.push("build.omg");
+    project::omega(project, &arguments)
 }
 
 fn report(result: &Output) -> String {
@@ -45,8 +43,6 @@ fn handwritten_product_calls_a_generated_file() {
     let Some(host) = target::TargetProfile::host_if_supported() else {
         return;
     };
-    let project =
-        TemporaryDirectory::create("handwritten-import-of-generated-file", false).unwrap();
     let main = r#"use generated.omg;
 public machine launch() crashes Trap {
     transition |generated|::read() == 17u8 { true -> done(), false -> wrong() }
@@ -61,8 +57,10 @@ machine build(plan: @mutable BuildPlan) {{
 }}"#,
         host.target_name()
     );
-    fs::write(project.path().join("main.omg"), main).unwrap();
-    fs::write(project.path().join("next.template"), &entry).unwrap();
+    let project = project::stage(
+        "handwritten-import-of-generated-file",
+        &[("main.omg", main), ("next.template", &entry)],
+    );
     for (body, valid) in [
         ("public machine read() -> u8 { 17u8 }", true),
         (
@@ -121,10 +119,11 @@ machine copy<const N: u64>(plan: @mutable BuildPlan, source: @[u8], destination:
 
 #[test]
 fn a_build_cannot_import_its_own_future_product_file() {
-    let project = TemporaryDirectory::create("build-import-of-future-product-file", false).unwrap();
-    fs::write(
-        project.path().join("build.omg"),
-        r#"
+    let project = project::stage(
+        "build-import-of-future-product-file",
+        &[(
+            "build.omg",
+            r#"
         use generated.omg;
         machine build(plan: @mutable BuildPlan) {
             let file: BuildPath = BuildOutput::resolve(@plan.output, "generated.omg");
@@ -135,8 +134,8 @@ fn a_build_cannot_import_its_own_future_product_file() {
             plan.product = BuildProduct::Package { name: "future" };
         }
     "#,
-    )
-    .unwrap();
+        )],
+    );
     let result = run(project.path(), "psi", &["build.omg"]);
     assert!(!result.status.success());
     assert!(report(&result).contains("no admitted logical file `generated.omg`"));

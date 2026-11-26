@@ -18,28 +18,16 @@ We stage a program with one aliased dependency and require it to compile.
 
 */
 
-use std::process::Command;
+#[path = "support/project.rs"]
+mod project;
 
 #[test]
 fn a_build_that_aliases_a_path_dependency_compiles() {
     let Some(host) = target::TargetProfile::host_if_supported() else {
         return;
     };
-    let root = std::env::temp_dir().join(format!(
-        "omega-build-dependency-alias-{}",
-        std::process::id()
-    ));
-    let _ = std::fs::remove_dir_all(&root);
-    std::fs::create_dir_all(root.join("dep")).expect("staging directory");
-    std::fs::write(
-        root.join("main.omg"),
-        "use {kit}/main.omg as answers;\n\nmachine main() {\n    _ = |answers|::value();\n}\n",
-    )
-    .expect("staged program");
-    std::fs::write(
-        root.join("build.omg"),
-        format!(
-            r#"use {{omega}}/build/dependency.omg;
+    let build = format!(
+        r#"use {{omega}}/build/dependency.omg;
 machine build(builder: @mutable Build) {{
     Build::application(builder, "consumer");
     let mutable description: DependencyDescription = |dependency|::from_source(Source::Path {{ location: "dep" }});
@@ -48,28 +36,26 @@ machine build(builder: @mutable Build) {{
     Build::bind(builder, {}::ProgramEntry, main);
 }}
 "#,
-            host.target_name()
-        ),
-    )
-    .expect("staged Build");
-    std::fs::write(
-        root.join("dep").join("main.omg"),
-        "public machine value() -> i32 {\n    7\n}\n",
-    )
-    .expect("staged dependency");
-    std::fs::write(
-        root.join("dep").join("build.omg"),
-        "machine build(builder: @mutable Build) {\n    Build::package(builder, \"kernel\");\n}\n",
-    )
-    .expect("dependency Build");
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .arg("--check")
-        .arg("main.omg")
-        .current_dir(&root)
-        .stdin(std::process::Stdio::null())
-        .output()
-        .expect("omega runs");
-    let _ = std::fs::remove_dir_all(&root);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(output.status.success(), "{stderr}");
+        host.target_name()
+    );
+    let (compiled, stderr) = project::check(
+        "build-dependency-alias",
+        &[
+            (
+                "main.omg",
+                "use {kit}/main.omg as answers;\n\nmachine main() {\n    _ = |answers|::value();\n}\n",
+            ),
+            ("build.omg", &build),
+            (
+                "dep/main.omg",
+                "public machine value() -> i32 {\n    7\n}\n",
+            ),
+            (
+                "dep/build.omg",
+                "machine build(builder: @mutable Build) {\n    Build::package(builder, \"kernel\");\n}\n",
+            ),
+        ],
+        &["--check", "main.omg"],
+    );
+    assert!(compiled, "{stderr}");
 }

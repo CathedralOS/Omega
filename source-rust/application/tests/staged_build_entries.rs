@@ -1,26 +1,19 @@
 //! Follow the Build entry chosen by each executed plan, then run its final product.
-use platform_custody::temporary_directory::TemporaryDirectory;
-use std::fs;
-use std::process::{Command, ExitStatus, Stdio};
+#[path = "support/project.rs"]
+mod project;
+
+use std::process::ExitStatus;
 
 fn invoke(files: &[(&str, &str)], arguments: &[&str]) -> (ExitStatus, String) {
-    let project = TemporaryDirectory::create("staged-build-entries", false).unwrap();
-    let mut command = Command::new(env!("CARGO_BIN_EXE_omega"));
-    command.args(arguments);
-    for (name, source) in files {
-        let path = project.path().join(name);
-        fs::create_dir_all(path.parent().unwrap()).unwrap();
-        fs::write(path, source).unwrap();
+    let scratch = project::stage("staged-build-entries", files);
+    let mut command = arguments.to_vec();
+    for (name, _) in files {
         if !arguments.contains(&"--build-input") {
-            command.args(["--build-input", name]);
+            command.extend(["--build-input", *name]);
         }
     }
-    let output = command
-        .arg("build.omg")
-        .current_dir(project.path())
-        .stdin(Stdio::null())
-        .output()
-        .unwrap();
+    command.push("build.omg");
+    let output = project::omega(scratch.path(), &command);
     let report = format!(
         "{}{}",
         String::from_utf8_lossy(&output.stdout),
