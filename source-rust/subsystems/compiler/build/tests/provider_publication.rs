@@ -166,6 +166,19 @@ fn one_portable_program_carries_the_four_selected_entry_contracts() {
     std::fs::write(other, "public data UnrelatedEntry {}").unwrap();
     let (returned, inputs) = run_project_build_with_sources(&root.join("main.omg"), &targets, &["main.omg", "build.omg", relative]);
     let project = returned.open_product(Some(&inputs)).unwrap();
+    let firmware = TargetProfile::UefiX64
+        .program_entry_slot()
+        .physical_contract_package
+        .unwrap();
+    assert!(
+        project
+            .source()
+            .parsed
+            .files
+            .selected_files()
+            .all(|file| !file.path.ends_with(firmware.package_relative_source())),
+        "this four-target executable did not declare a UEFI entry"
+    );
     let stage = project.product_stage(&targets).unwrap();
     let Artifact::Psi(published) =
         compiler::compile(CompileRequest::Psi(stage.source()), Default::default())

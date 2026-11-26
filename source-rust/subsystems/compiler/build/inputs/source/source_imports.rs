@@ -31,7 +31,7 @@ pub(crate) use bindings::{
     retain_import_bindings,
 };
 pub(crate) use build_prelude::prepare_build_prelude;
-pub(crate) use entry_contract_seed::entry_contract_seeds;
+pub(crate) use entry_contract_seed::seed_entry_contracts;
 pub(crate) use frontier::{
     SourceStorage, ToolchainContractCustody, validate_package_source_frontier,
 };

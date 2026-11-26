@@ -53,8 +53,10 @@ An authored `use` never falls back to a filename; direct source inputs the
 compiler issues are tracked separately.
 
 [Entry-contract seeds](source/source_imports/entry_contract_seed.rs) load each
-target profile's exact file from the installed target contract package into
-Product scope. A reconciled package mounted at the installation keeps its
+bound target profile's exact file from the installed target contract package into
+Product scope. Declaration queries and products with no entry use their own
+source closures. An implicit main keeps every profile available until its
+deployments are chosen. A reconciled package mounted at the installation keeps its
 identity after its complete captured tree matches the installation. Other
 builds retain a closed toolchain capture across Product joins. The installed
 source, its checked schema and its content commitment identify the entry

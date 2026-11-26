@@ -1,6 +1,7 @@
 //! Admit the package installed for the target profiles before enqueuing their entry files.
-use super::SourceStorage;
+use super::{ImportQueue, SourceStorage};
 use diagnostics::Diagnostic;
+use source_compiler::representations::declaration_selection::ProductEntryBinding;
 use std::path::{Path, PathBuf};
 
 pub(super) const ENTRY_PACKAGE: &str = "system";
@@ -9,15 +10,38 @@ pub(crate) fn entry_contract_root() -> Result<PathBuf, Vec<Diagnostic>> {
     Ok(super::bundled_omega_root()?.join(ENTRY_PACKAGE))
 }
 
-pub(crate) fn entry_contract_seeds(
+pub(crate) fn seed_entry_contracts(
     storage: &mut SourceStorage,
-) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
+    imports: &mut ImportQueue,
+    bindings: &[ProductEntryBinding],
+    implicit_main: bool,
+) -> Result<(), Vec<Diagnostic>> {
+    let mut contracts = Vec::new();
+    if implicit_main {
+        // Deployments for the default main are chosen after source assembly.
+        contracts.extend(
+            target::TargetProfile::ALL
+                .into_iter()
+                .filter_map(|profile| profile.program_entry_slot().physical_contract_package),
+        );
+    } else {
+        for binding in bindings {
+            let slot = target::ProgramEntrySlots::resolve(&binding.slot)
+                .map_err(|error| vec![Diagnostic::error(error)])?;
+            contracts.extend(slot.physical_contract_package);
+        }
+    }
+    if contracts.is_empty() {
+        return Ok(());
+    }
     let root = register_contract_root(storage, &entry_contract_root()?)?;
-    Ok(target::TargetProfile::ALL
-        .into_iter()
-        .filter_map(|profile| profile.program_entry_slot().physical_contract_package)
-        .map(|package| root.join(package.package_relative_source()))
-        .collect())
+    for contract in contracts {
+        imports.seed(
+            root.join(contract.package_relative_source()),
+            source_provenance::DependencyScope::Product,
+        );
+    }
+    Ok(())
 }
 
 fn register_contract_root(
