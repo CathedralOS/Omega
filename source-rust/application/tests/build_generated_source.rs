@@ -190,8 +190,8 @@ public machine choose(value: bool) -> u32 { |future|::read() }"#,
             format!(
                 r#"use choices.omg;
 machine build(plan: @mutable BuildPlan) {{
-    _ = |choices|::choose({argument});
     _ = BuildSource::resolve(@plan.source, "../entered");
+    _ = |choices|::choose({argument});
     plan.product = BuildProduct::Package {{ name: "overloaded" }};
 }}"#
             ),
