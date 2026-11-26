@@ -1,14 +1,14 @@
-use {omega}/language/core/external_binding.omg as foreign;
+use {omega}/language/core/external_binding.omg as native;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "external_boundary_contracts" };
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
-    Build::bind_native::<Magnitude::absolute>(builder, macos_arm64, |foreign|::ForeignBinding::DllImport {
-        import: |foreign|::DllImport::MachODylibSymbol { install_name: "/usr/lib/libSystem.B.dylib", symbol: "_abs" },
+    Build::bind_native::<Magnitude::absolute>(builder, macos_arm64, |native|::ForeignBinding::DllImport {
+        import: |native|::DllImport::MachODylibSymbol { install_name: "/usr/lib/libSystem.B.dylib", symbol: "_abs" },
     });
-    Build::bind_native::<Magnitude::ordinary>(builder, macos_arm64, |foreign|::ForeignBinding::DllImport {
-        import: |foreign|::DllImport::MachODylibSymbol { install_name: "/usr/lib/libSystem.B.dylib", symbol: "_abs" },
+    Build::bind_native::<Magnitude::ordinary>(builder, macos_arm64, |native|::ForeignBinding::DllImport {
+        import: |native|::DllImport::MachODylibSymbol { install_name: "/usr/lib/libSystem.B.dylib", symbol: "_abs" },
     });
-    Build::bind_native::<Magnitude::exported>(builder, macos_arm64, |foreign|::ForeignBinding::DllImport {
-        import: |foreign|::DllImport::MachODylibSymbol { install_name: "/usr/lib/libSystem.B.dylib", symbol: "_abs" },
+    Build::bind_native::<Magnitude::exported>(builder, macos_arm64, |native|::ForeignBinding::DllImport {
+        import: |native|::DllImport::MachODylibSymbol { install_name: "/usr/lib/libSystem.B.dylib", symbol: "_abs" },
     });
 }

@@ -31,8 +31,8 @@ public boundary trait Host {
 machine main() { }
 ";
 
-const SLEEP: &str = "|foreign|::ForeignBinding::DllImport { import: |foreign|::DllImport::PeByName { library: \"kernel32.dll\", export: \"Sleep\" } }";
-const OTHER: &str = "|foreign|::ForeignBinding::DllImport { import: |foreign|::DllImport::PeByName { library: \"kernel32.dll\", export: \"SleepEx\" } }";
+const SLEEP: &str = "|native|::ForeignBinding::DllImport { import: |native|::DllImport::PeByName { library: \"kernel32.dll\", export: \"Sleep\" } }";
+const OTHER: &str = "|native|::ForeignBinding::DllImport { import: |native|::DllImport::PeByName { library: \"kernel32.dll\", export: \"SleepEx\" } }";
 
 fn omega_check(directory: &std::path::Path, target: &str) -> Result<(), String> {
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
@@ -63,7 +63,7 @@ fn check_product(name: &str, product: &str, bindings: &str) -> Result<(), String
     std::fs::write(
         root.join("build.omg"),
         format!(
-            "use {{omega}}/language/core/external_binding.omg as foreign;
+            "use {{omega}}/language/core/external_binding.omg as native;
 machine build(builder: @mutable BuildPlan) {{
     builder.product = BuildProduct::Application {{ name: \"bound\" }};
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
@@ -183,7 +183,7 @@ fn check_with_bound_library(name: &str, body: &str) -> String {
     std::fs::write(
         library.join("build.omg"),
         format!(
-            "use {{omega}}/language/core/external_binding.omg as foreign;
+            "use {{omega}}/language/core/external_binding.omg as native;
 machine build(builder: @mutable BuildPlan) {{
     builder.product = BuildProduct::Package {{ name: \"bound_library\" }};
     Build::bind_native::<Raw::read>(builder, macos_arm64, {SLEEP});

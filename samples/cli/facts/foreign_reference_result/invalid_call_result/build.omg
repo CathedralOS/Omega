@@ -1,12 +1,12 @@
-use {omega}/language/core/external_binding.omg as foreign;
+use {omega}/language/core/external_binding.omg as native;
 machine build(builder: @mutable BuildPlan) {
  builder.product = BuildProduct::Application { name: "foreign_reference_result_call_result" };
  Build::bind(builder, macos_arm64::ProgramEntry, main);
  Build::bind(builder, linux_x86_64::ProgramEntry, main);
  Build::bind(builder, linux_arm64::ProgramEntry, main);
  Build::bind(builder, windows_x86_64::ProgramEntry, main);
- Build::bind_native::<Memory::fill>(builder, macos_arm64, |foreign|::ForeignBinding::DllImport { import: |foreign|::DllImport::MachODylibSymbol { install_name: "/usr/lib/libSystem.B.dylib", symbol: "_memset" } });
- Build::bind_native::<Memory::fill>(builder, linux_x86_64, |foreign|::ForeignBinding::DllImport { import: |foreign|::DllImport::ElfVersioned { object: "libc.so.6", symbol: "memset", version: "GLIBC_2.2.5" } });
- Build::bind_native::<Memory::fill>(builder, linux_arm64, |foreign|::ForeignBinding::DllImport { import: |foreign|::DllImport::ElfVersioned { object: "libc.so.6", symbol: "memset", version: "GLIBC_2.17" } });
- Build::bind_native::<Memory::fill>(builder, windows_x86_64, |foreign|::ForeignBinding::DllImport { import: |foreign|::DllImport::PeByName { library: "api-ms-win-crt-string-l1-1-0.dll", export: "memset" } });
+ Build::bind_native::<Memory::fill>(builder, macos_arm64, |native|::ForeignBinding::DllImport { import: |native|::DllImport::MachODylibSymbol { install_name: "/usr/lib/libSystem.B.dylib", symbol: "_memset" } });
+ Build::bind_native::<Memory::fill>(builder, linux_x86_64, |native|::ForeignBinding::DllImport { import: |native|::DllImport::ElfVersioned { object: "libc.so.6", symbol: "memset", version: "GLIBC_2.2.5" } });
+ Build::bind_native::<Memory::fill>(builder, linux_arm64, |native|::ForeignBinding::DllImport { import: |native|::DllImport::ElfVersioned { object: "libc.so.6", symbol: "memset", version: "GLIBC_2.17" } });
+ Build::bind_native::<Memory::fill>(builder, windows_x86_64, |native|::ForeignBinding::DllImport { import: |native|::DllImport::PeByName { library: "api-ms-win-crt-string-l1-1-0.dll", export: "memset" } });
 }

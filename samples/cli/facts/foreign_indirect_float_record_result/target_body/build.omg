@@ -1,4 +1,4 @@
-use {omega}/language/core/external_binding.omg as foreign;
+use {omega}/language/core/external_binding.omg as native;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "foreign_indirect_float_record_result" };
     Build::bind(builder, macos_arm64::ProgramEntry, main);
@@ -6,7 +6,7 @@ machine build(builder: @mutable BuildPlan) {
     Build::bind(builder, linux_arm64::ProgramEntry, main);
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind_native::<AffineTransforms::make>(builder, macos_arm64,
-        |foreign|::ForeignBinding::DllImport { import: |foreign|::DllImport::MachODylibSymbol {
+        |native|::ForeignBinding::DllImport { import: |native|::DllImport::MachODylibSymbol {
             install_name: "/System/Library/Frameworks/CoreGraphics.framework/Versions/A/CoreGraphics",
             symbol: "_CGAffineTransformMake"
         } });

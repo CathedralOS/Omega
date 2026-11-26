@@ -1,4 +1,4 @@
-use {omega}/language/core/external_binding.omg as foreign;
+use {omega}/language/core/external_binding.omg as native;
 machine build(builder: @mutable BuildPlan) {
  builder.product = BuildProduct::Package { name: "opaque_address_producer" };
  Build::select_representation::<InternetAddress, AddressRepresentation>(builder);
@@ -16,32 +16,32 @@ machine build(builder: @mutable BuildPlan) {
  Build::bind(builder, macos_arm64::ProgramEntry, component_entry);
  Build::bind(builder, windows_x86_64::ProgramEntry, component_entry);
 
-    Build::bind_native::<AddressParts::make>(builder, macos_arm64, |foreign|::ForeignBinding::DllImport {
-        import: |foreign|::DllImport::MachODylibSymbol {
+    Build::bind_native::<AddressParts::make>(builder, macos_arm64, |native|::ForeignBinding::DllImport {
+        import: |native|::DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib",
             symbol: "_inet_makeaddr",
         },
     });
-    Build::bind_native::<AddressParts::make>(builder, linux_x86_64, |foreign|::ForeignBinding::DllImport {
-        import: |foreign|::DllImport::ElfVersioned {
+    Build::bind_native::<AddressParts::make>(builder, linux_x86_64, |native|::ForeignBinding::DllImport {
+        import: |native|::DllImport::ElfVersioned {
             object: "libc.so.6",
             symbol: "inet_makeaddr", version: "GLIBC_2.2.5",
         },
     });
-    Build::bind_native::<AddressParts::host>(builder, macos_arm64, |foreign|::ForeignBinding::DllImport {
-        import: |foreign|::DllImport::MachODylibSymbol {
+    Build::bind_native::<AddressParts::host>(builder, macos_arm64, |native|::ForeignBinding::DllImport {
+        import: |native|::DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib",
             symbol: "_inet_lnaof",
         },
     });
-    Build::bind_native::<AddressParts::host>(builder, linux_x86_64, |foreign|::ForeignBinding::DllImport {
-        import: |foreign|::DllImport::ElfVersioned {
+    Build::bind_native::<AddressParts::host>(builder, linux_x86_64, |native|::ForeignBinding::DllImport {
+        import: |native|::DllImport::ElfVersioned {
             object: "libc.so.6",
             symbol: "inet_lnaof", version: "GLIBC_2.2.5",
         },
     });
-    Build::bind_native::<AddressParts::make>(builder, linux_arm64, |foreign|::ForeignBinding::DllImport { import: |foreign|::DllImport::ElfVersioned { object: "libc.so.6", symbol: "inet_makeaddr", version: "GLIBC_2.17" } });
-    Build::bind_native::<AddressParts::host>(builder, linux_arm64, |foreign|::ForeignBinding::DllImport { import: |foreign|::DllImport::ElfVersioned { object: "libc.so.6", symbol: "inet_lnaof", version: "GLIBC_2.17" } });
-    Build::bind_native::<AddressParts::make>(builder, windows_x86_64, |foreign|::ForeignBinding::DllImport { import: |foreign|::DllImport::PeByName { library: "omega_host.dll", export: "inet_makeaddr" } });
-    Build::bind_native::<AddressParts::host>(builder, windows_x86_64, |foreign|::ForeignBinding::DllImport { import: |foreign|::DllImport::PeByName { library: "omega_host.dll", export: "inet_lnaof" } });
+    Build::bind_native::<AddressParts::make>(builder, linux_arm64, |native|::ForeignBinding::DllImport { import: |native|::DllImport::ElfVersioned { object: "libc.so.6", symbol: "inet_makeaddr", version: "GLIBC_2.17" } });
+    Build::bind_native::<AddressParts::host>(builder, linux_arm64, |native|::ForeignBinding::DllImport { import: |native|::DllImport::ElfVersioned { object: "libc.so.6", symbol: "inet_lnaof", version: "GLIBC_2.17" } });
+    Build::bind_native::<AddressParts::make>(builder, windows_x86_64, |native|::ForeignBinding::DllImport { import: |native|::DllImport::PeByName { library: "omega_host.dll", export: "inet_makeaddr" } });
+    Build::bind_native::<AddressParts::host>(builder, windows_x86_64, |native|::ForeignBinding::DllImport { import: |native|::DllImport::PeByName { library: "omega_host.dll", export: "inet_lnaof" } });
 }

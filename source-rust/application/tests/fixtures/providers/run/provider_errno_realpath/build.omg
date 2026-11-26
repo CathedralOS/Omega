@@ -1,23 +1,23 @@
-use {omega}/language/core/external_binding.omg as foreign;
+use {omega}/language/core/external_binding.omg as native;
 
 machine build(builder: @mutable Build) {
     Build::application(builder, "provider_errno_realpath");
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, macos_arm64::ProgramEntry, main);
     Build::bind_native::<HostRealpath::resolve>(builder, linux_x86_64,
-        |foreign|::ForeignBinding::DllImport { import: |foreign|::DllImport::ElfVersioned {
+        |native|::ForeignBinding::DllImport { import: |native|::DllImport::ElfVersioned {
             object: "libc.so.6", symbol: "realpath", version: "GLIBC_2.3"
         } });
     Build::bind_native::<HostErrno::slot>(builder, linux_x86_64,
-        |foreign|::ForeignBinding::DllImport { import: |foreign|::DllImport::ElfVersioned {
+        |native|::ForeignBinding::DllImport { import: |native|::DllImport::ElfVersioned {
             object: "libc.so.6", symbol: "__errno_location", version: "GLIBC_2.2.5"
         } });
     Build::bind_native::<HostRealpath::resolve>(builder, macos_arm64,
-        |foreign|::ForeignBinding::DllImport { import: |foreign|::DllImport::MachODylibSymbol {
+        |native|::ForeignBinding::DllImport { import: |native|::DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_realpath"
         } });
     Build::bind_native::<HostErrno::slot>(builder, macos_arm64,
-        |foreign|::ForeignBinding::DllImport { import: |foreign|::DllImport::MachODylibSymbol {
+        |native|::ForeignBinding::DllImport { import: |native|::DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "___error"
         } });
 }

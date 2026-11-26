@@ -105,8 +105,8 @@ machine main() reaches Source invokes Source crashes Trap {
     let profile = target::TargetProfile::host();
     let forwarding_binding = if forward {
         format!(
-            r#"    Build::bind_native::<Sink::read>(builder, {target}, |foreign|::ForeignBinding::DllImport {{
-        import: |foreign|::DllImport::ElfVersioned {{ object: "{library}", symbol: "omega_reference_read", version: "REFERENCE_1.0" }}
+            r#"    Build::bind_native::<Sink::read>(builder, {target}, |native|::ForeignBinding::DllImport {{
+        import: |native|::DllImport::ElfVersioned {{ object: "{library}", symbol: "omega_reference_read", version: "REFERENCE_1.0" }}
     }});
 "#,
             target = profile.target_name(),
@@ -119,15 +119,15 @@ machine main() reaches Source invokes Source crashes Trap {
         root.join("build.omg"),
         format!(
             r#"
-use {{omega}}/language/core/external_binding.omg as foreign;
+use {{omega}}/language/core/external_binding.omg as native;
 machine build(builder: @mutable BuildPlan) {{
     builder.product = BuildProduct::Application {{ name: "provider_reference" }};
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);
     Build::bind(builder, macos_arm64::ProgramEntry, main);
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
-    Build::bind_native::<Source::cell>(builder, {target}, |foreign|::ForeignBinding::DllImport {{
-        import: |foreign|::DllImport::ElfVersioned {{ object: "{library}", symbol: "omega_reference_cell", version: "REFERENCE_1.0" }}
+    Build::bind_native::<Source::cell>(builder, {target}, |native|::ForeignBinding::DllImport {{
+        import: |native|::DllImport::ElfVersioned {{ object: "{library}", symbol: "omega_reference_cell", version: "REFERENCE_1.0" }}
     }});
 {forwarding_binding}}}
 "#,

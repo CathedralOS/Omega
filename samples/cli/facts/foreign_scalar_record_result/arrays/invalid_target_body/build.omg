@@ -1,4 +1,4 @@
-use {omega}/language/core/external_binding.omg as foreign;
+use {omega}/language/core/external_binding.omg as native;
 machine build(builder: @mutable BuildPlan) {
  builder.product = BuildProduct::Application { name: "foreign_owned_array_record" };
  Build::bind(builder, macos_arm64::ProgramEntry, main);
@@ -6,15 +6,15 @@ machine build(builder: @mutable BuildPlan) {
  Build::bind(builder, linux_arm64::ProgramEntry, main);
  Build::bind(builder, windows_x86_64::ProgramEntry, main);
 
- Build::bind_native::<IntegerDivision::divide>(builder, macos_arm64, |foreign|::ForeignBinding::DllImport { import: |foreign|::DllImport::MachODylibSymbol { install_name: "libomega_arraydiv_fixture.dylib", symbol: "_arraydiv_lldiv" } });
- Build::bind_native::<IntegerDivision::divide>(builder, linux_x86_64, |foreign|::ForeignBinding::DllImport { import: |foreign|::DllImport::ElfVersioned { object: "libomega_arraydiv_fixture.so", symbol: "arraydiv_lldiv", version: "ARRAYDIV_1.0" } });
- Build::bind_native::<IntegerDivision::divide>(builder, linux_arm64, |foreign|::ForeignBinding::DllImport { import: |foreign|::DllImport::ElfVersioned { object: "libomega_arraydiv_fixture.so", symbol: "arraydiv_lldiv", version: "ARRAYDIV_1.0" } });
- Build::bind_native::<IntegerDivision::divide>(builder, windows_x86_64, |foreign|::ForeignBinding::DllImport { import: |foreign|::DllImport::PeByName { library: "omega_arraydiv_fixture.dll", export: "arraydiv_lldiv" } });
+ Build::bind_native::<IntegerDivision::divide>(builder, macos_arm64, |native|::ForeignBinding::DllImport { import: |native|::DllImport::MachODylibSymbol { install_name: "libomega_arraydiv_fixture.dylib", symbol: "_arraydiv_lldiv" } });
+ Build::bind_native::<IntegerDivision::divide>(builder, linux_x86_64, |native|::ForeignBinding::DllImport { import: |native|::DllImport::ElfVersioned { object: "libomega_arraydiv_fixture.so", symbol: "arraydiv_lldiv", version: "ARRAYDIV_1.0" } });
+ Build::bind_native::<IntegerDivision::divide>(builder, linux_arm64, |native|::ForeignBinding::DllImport { import: |native|::DllImport::ElfVersioned { object: "libomega_arraydiv_fixture.so", symbol: "arraydiv_lldiv", version: "ARRAYDIV_1.0" } });
+ Build::bind_native::<IntegerDivision::divide>(builder, windows_x86_64, |native|::ForeignBinding::DllImport { import: |native|::DllImport::PeByName { library: "omega_arraydiv_fixture.dll", export: "arraydiv_lldiv" } });
 
- Build::bind_native::<IntegerDivision::verify>(builder, macos_arm64, |foreign|::ForeignBinding::DllImport { import: |foreign|::DllImport::MachODylibSymbol { install_name: "libomega_arraydiv_fixture.dylib", symbol: "_arraydiv_verify" } });
- Build::bind_native::<IntegerDivision::verify>(builder, linux_x86_64, |foreign|::ForeignBinding::DllImport { import: |foreign|::DllImport::ElfVersioned { object: "libomega_arraydiv_fixture.so", symbol: "arraydiv_verify", version: "ARRAYDIV_1.0" } });
- Build::bind_native::<IntegerDivision::verify>(builder, linux_arm64, |foreign|::ForeignBinding::DllImport { import: |foreign|::DllImport::ElfVersioned { object: "libomega_arraydiv_fixture.so", symbol: "arraydiv_verify", version: "ARRAYDIV_1.0" } });
- Build::bind_native::<IntegerDivision::verify>(builder, windows_x86_64, |foreign|::ForeignBinding::DllImport { import: |foreign|::DllImport::PeByName { library: "omega_arraydiv_fixture.dll", export: "arraydiv_verify" } });
+ Build::bind_native::<IntegerDivision::verify>(builder, macos_arm64, |native|::ForeignBinding::DllImport { import: |native|::DllImport::MachODylibSymbol { install_name: "libomega_arraydiv_fixture.dylib", symbol: "_arraydiv_verify" } });
+ Build::bind_native::<IntegerDivision::verify>(builder, linux_x86_64, |native|::ForeignBinding::DllImport { import: |native|::DllImport::ElfVersioned { object: "libomega_arraydiv_fixture.so", symbol: "arraydiv_verify", version: "ARRAYDIV_1.0" } });
+ Build::bind_native::<IntegerDivision::verify>(builder, linux_arm64, |native|::ForeignBinding::DllImport { import: |native|::DllImport::ElfVersioned { object: "libomega_arraydiv_fixture.so", symbol: "arraydiv_verify", version: "ARRAYDIV_1.0" } });
+ Build::bind_native::<IntegerDivision::verify>(builder, windows_x86_64, |native|::ForeignBinding::DllImport { import: |native|::DllImport::PeByName { library: "omega_arraydiv_fixture.dll", export: "arraydiv_verify" } });
 
  Build::select_provider::<Observation, ObservationBody>(builder, macos_arm64);
  Build::select_provider::<Observation, ObservationBody>(builder, linux_x86_64);

@@ -1,4 +1,4 @@
-use {omega}/language/core/external_binding.omg as foreign;
+use {omega}/language/core/external_binding.omg as native;
 // Differs from the parent probe only by a native binding. Artifact-only mode
 // builds no product for the binding to apply to, so the Build must be refused
 // instead of completing its output and dropping the binding.
@@ -6,7 +6,7 @@ use {omega}/language/core/external_binding.omg as foreign;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "invalid_artifact_native_binding" };
     Build::artifact_only(builder);
-    Build::bind_native::<Distance::absolute>(builder, linux_x86_64, |foreign|::ForeignBinding::DllImport { import: |foreign|::DllImport::ElfVersioned { object: "libc.so.6", symbol: "abs", version: "GLIBC_2.2.5" } });
+    Build::bind_native::<Distance::absolute>(builder, linux_x86_64, |native|::ForeignBinding::DllImport { import: |native|::DllImport::ElfVersioned { object: "libc.so.6", symbol: "abs", version: "GLIBC_2.2.5" } });
     let obligation: RequiredOutput = BuildOutput::require(@mutable builder.output, "blob.bin");
     let path: BuildPath = BuildOutput::resolve(@builder.output, "blob.bin");
     let writer: i32 = BuildOutput::create(@mutable builder.output, path, 0);
