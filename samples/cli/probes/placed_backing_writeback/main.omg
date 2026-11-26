@@ -1,108 +1,48 @@
 // Expected exit: 0. Placed accessor writes affect their original RAM backing.
-use omega\language\core\Access;
-use omega\language\core\Access::view_mut;
-use omega\language\core\AccessPlan;
-use omega\language\core\AccessPlan::inaccessible;
-use omega\language\core\AccessPlan::with;
-use omega\language\core\AccessPlan::with_reach;
-use omega\language\core\BoundaryReach;
-use omega\language\core\Exposure;
-use omega\language\core\ExternalRead;
-use omega\language\core\FieldAccess;
-use omega\language\core\FieldEntry;
-use omega\language\core\FieldPlan;
-use omega\language\core\LayoutPlan;
-use omega\language\core\Schema;
-use omega\language\core\read;
-use omega\language\core\write;
+use {omega}/language/core/access/access.omg;
+use {omega}/language/core/layout.omg;
+use {omega}/language/core/reflect/reflect.omg;
 
 public data Registers requires transmit <= 10 {
     status: u32;
     transmit: u8;
 }
 
-public data RegPlacement {}
+public domain Registers::Placed access RegisterAccess;
+public data RegisterStorage = |layout|::LayoutStorage<Registers, RegisterLayout>;
 
-machine RegPlacement::plan(schema: Schema) -> AccessPlan {
-    let mutable entries: [FieldEntry; 64];
-    entries[0] = FieldEntry {
-        key: schema.fields[0].key,
-        representation: FieldPlan::At { offset: 0 },
-    };
-    entries[1] = FieldEntry {
-        key: schema.fields[1].key,
-        representation: FieldPlan::At { offset: 4 },
-    };
-    let layout: LayoutPlan = LayoutPlan {
-            entries: entries,
-            entry_count: 2,
-            size_fixed: 8,
-            size_is_dynamic: false,
-            align: 4,
-        };
-    let access: AccessPlan = AccessPlan::inaccessible(layout);
-    transition { _ -> place_status(schema, access) }
-
-    machine place_status(
-        schema: Schema,
-        access: AccessPlan
-    ) -> AccessPlan {
-        let status_key: u64 = schema.fields[0].key;
-        transition { _ -> place_transmit(
-            schema,
-            AccessPlan::with(
-                access,
-                status_key,
-                FieldAccess::External {
-                    read: ExternalRead::Read,
-                    write: false,
-                    exposure: Exposure::Exported,
-                },
-            )) }
-    }
-
-    machine place_transmit(
-        schema: Schema,
-        access: AccessPlan
-    ) -> AccessPlan {
-        transition { _ -> finish(
-            AccessPlan::with(
-                access,
-                schema.fields[1].key,
-                FieldAccess::External {
-                    read: ExternalRead::None,
-                    write: true,
-                    exposure: Exposure::Exported,
-                },
-            )) }
-    }
-
-    machine finish(
-        access: AccessPlan
-    ) -> AccessPlan {
-        let mutable services: [u64; 32];
-        services[0] = 7;
-        AccessPlan::with_reach(
-            access,
-            BoundaryReach {
-                services: services,
-                service_count: 0,
-            }
-        )
+public RegisterLayout satisfies |layout|::FixedLayout<Registers> {
+    machine plan(schema: |layout|::Schema, target: |layout|::LayoutTarget) -> |layout|::LayoutPlan
+    reaches none crashes none terminates {
+        let mutable entries: [|layout|::FieldEntry; 64];
+        entries[0] = |layout|::FieldEntry { key: schema.fields[0].key, representation: |layout|::FieldPlan::At { offset: 0 } };
+        entries[1] = |layout|::FieldEntry { key: schema.fields[1].key, representation: |layout|::FieldPlan::At { offset: 4 } };
+        |layout|::LayoutPlan { entries: entries, entry_count: 2, size_fixed: 8, size_is_dynamic: false, align: 4 }
     }
 }
 
+public RegisterAccess satisfies |layout|::AccessPolicy {
+    machine plan(schema: |reflect|::TypeSchema) -> |layout|::AccessPlan
+    reaches none crashes none terminates {
+        let mutable plan: |layout|::AccessPlan = |access|::new_plan(@schema, |layout|::Issuance::Unrestricted);
+        |access|::observe(@mutable plan, |reflect|::field(Registers::status),
+            |layout|::FieldAccess::External { read: |layout|::ExternalRead::Read, write: false, exposure: |layout|::Exposure::Exported });
+        |access|::observe(@mutable plan, |reflect|::field(Registers::transmit),
+            |layout|::FieldAccess::External { read: |layout|::ExternalRead::None, write: true, exposure: |layout|::Exposure::Exported });
+        plan
+    }
+}
 
-machine mutate(view: @mutable Access<RegPlacement, Registers>) -> u32 {
+machine mutate(view: @mutable RegisterStorage in Registers::Placed) -> u32 {
     transition { _ -> access(view) }
-    machine access(view: @mutable Access<RegPlacement, Registers>) -> u32 {
-        view.transmit.write(@mutable view.transmit, 9);
-        view.status.read(@view.status)
+    machine access(view: @mutable RegisterStorage in Registers::Placed) -> u32 {
+        |layout|::write::<|layout|::Accessor<u8>, u8>(@mutable view.transmit, 9u8);
+        |layout|::read::<|layout|::Accessor<u32>, u32>(@view.status)
     }
 }
-machine choose<'a>(left: @'a mutable Access<RegPlacement, Registers>,
-                   right: @'a mutable Access<RegPlacement, Registers>,
-                   first: bool) -> @'a mutable Access<RegPlacement, Registers> {
+machine choose<'a>(left: @'a mutable RegisterStorage in Registers::Placed,
+                   right: @'a mutable RegisterStorage in Registers::Placed,
+                   first: bool) -> @'a mutable RegisterStorage in Registers::Placed {
     transition first {
         true -> left,
         _ -> right
@@ -112,9 +52,9 @@ machine choose<'a>(left: @'a mutable Access<RegPlacement, Registers>,
 machine exercise(first: bool) crashes Trap {
     let mutable left: Registers = Registers { status: 41, transmit: 3 };
     let mutable right: Registers = Registers { status: 73, transmit: 5 };
-    let left_view: @mutable Access<RegPlacement, Registers> = Access::view_mut::<RegPlacement, Registers>(@mutable left);
-    let right_view: @mutable Access<RegPlacement, Registers> = Access::view_mut::<RegPlacement, Registers>(@mutable right);
-    let selected: @mutable Access<RegPlacement, Registers> = choose(left_view, right_view, first);
+    let left_view: @mutable RegisterStorage in Registers::Placed = |access|::view_mut::<Registers, RegisterStorage in Registers::Placed>(@mutable left);
+    let right_view: @mutable RegisterStorage in Registers::Placed = |access|::view_mut::<Registers, RegisterStorage in Registers::Placed>(@mutable right);
+    let selected: @mutable RegisterStorage in Registers::Placed = choose(left_view, right_view, first);
     let observed: u32 = mutate(selected);
     transition first {
         true -> check(observed == 41 && left.transmit == 9 && right.transmit == 5),
@@ -131,7 +71,7 @@ machine main() crashes Trap {
     exercise(true);
     exercise(false);
     let mutable registers: Registers = Registers { status: 41, transmit: 3 };
-    let view: @mutable Access<RegPlacement, Registers> = Access::view_mut::<RegPlacement, Registers>(@mutable registers);
+    let view: @mutable RegisterStorage in Registers::Placed = |access|::view_mut::<Registers, RegisterStorage in Registers::Placed>(@mutable registers);
     let observed: u32 = mutate(view);
     transition observed == 41 && registers.transmit == 9 {
         true -> done(),
