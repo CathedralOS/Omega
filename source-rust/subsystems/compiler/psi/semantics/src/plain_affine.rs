@@ -395,6 +395,15 @@ impl Region {
     }
 }
 
+/// Whether opening an owned wrapper must account for the wrapper itself or
+/// for qualifications travelling with its component values.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum Decomposition {
+    Plain,
+    QualifiedFields,
+    QualifiedRoot,
+}
+
 #[derive(Debug, Clone)]
 struct Root {
     structural_type: StructuralTypeId,
@@ -409,7 +418,7 @@ struct Root {
     whole_restoration: bool,
     /// Decomposition may end a linear wrapper, but cannot settle qualifications
     /// or independent content custody attached to its storage.
-    unqualified_owned: bool,
+    decomposition: Decomposition,
     parameter: bool,
     /// A machine or block header lent with `@mutable`. A block's incoming edges
     /// authenticate the requested access; renaming storage grants none.
@@ -1672,13 +1681,14 @@ fn analyze(
     // Read static whole-origin restrictions once with the custody declarations.
     // Actual loan authority and the current value remain separate judgments.
     let mut whole_restoration = vec![true; machine.structural_places.len()];
-    let mut unqualified_owned = vec![true; machine.structural_places.len()];
-    let mut exclude_decomposition = |place: PlaceId| -> Result<(), Error> {
-        *unqualified_owned
+    let mut qualified = vec![Decomposition::Plain; machine.structural_places.len()];
+    let mut restrict_decomposition = |place: PlaceId, restriction| -> Result<(), Error> {
+        let current = qualified
             .get_mut(index(place.get())?)
             .ok_or(Error::malformed(
                 "decomposition contract is outside the machine",
-            ))? = false;
+            ))?;
+        *current = (*current).max(restriction);
         Ok(())
     };
     let mut exclude_whole = |place: PlaceId| -> Result<(), Error> {
@@ -1728,10 +1738,12 @@ fn analyze(
         }
         if parameter.access != StructuralAccess::Owned
             || !parameter.qualifications.is_empty()
-            || !parameter.projected_qualifications.is_empty()
             || !parameter.additional_input_qualifications.is_empty()
+            || parameter.projected_qualifications.iter().any(|row| row.path.is_empty())
         {
-            exclude_decomposition(parameter.place)?;
+            restrict_decomposition(parameter.place, Decomposition::QualifiedRoot)?;
+        } else if !parameter.projected_qualifications.is_empty() {
+            restrict_decomposition(parameter.place, Decomposition::QualifiedFields)?;
         }
         let required = machine
             .structural_places
@@ -1781,11 +1793,13 @@ fn analyze(
         );
         if let Some(result) = operation.result.as_structural() {
             if !result.qualifications.is_empty()
-                || !result.projected_qualifications.is_empty()
                 || !result.additional_input_qualifications.is_empty()
                 || !result.qualification_establishments.is_empty()
+                || result.projected_qualifications.iter().any(|row| row.path.is_empty())
             {
-                exclude_decomposition(result.place)?;
+                restrict_decomposition(result.place, Decomposition::QualifiedRoot)?;
+            } else if !result.projected_qualifications.is_empty() {
+                restrict_decomposition(result.place, Decomposition::QualifiedFields)?;
             }
             if !(result.is_affine_plain() || result.is_unrestricted_plain())
                 || !result.additional_input_qualifications.is_empty()
@@ -1830,7 +1844,7 @@ fn analyze(
             && !qualifications.is_empty()
         {
             exclude_whole(*destination)?;
-            exclude_decomposition(*destination)?;
+            restrict_decomposition(*destination, Decomposition::QualifiedRoot)?;
         }
     }
     for claim in machine
@@ -1842,7 +1856,12 @@ fn analyze(
     }
     for claim in &machine.content_entry_claims {
         exclude_whole(claim.input.root)?;
-        exclude_decomposition(claim.input.root)?;
+        let restriction = if claim.input.segments.is_empty() {
+            Decomposition::QualifiedRoot
+        } else {
+            Decomposition::QualifiedFields
+        };
+        restrict_decomposition(claim.input.root, restriction)?;
     }
     if let TerminalMachineResult::Structural(result) = &machine.result {
         insert_contract(
@@ -1995,7 +2014,7 @@ fn analyze(
                 affine: tracked,
                 multiplicity,
                 whole_restoration: owned && whole_restoration[roots.len()],
-                unqualified_owned: owned && unqualified_owned[roots.len()],
+                decomposition: if owned { qualified[roots.len()] } else { Decomposition::QualifiedRoot },
                 parameter,
                 exclusive,
             }),
@@ -3381,7 +3400,7 @@ impl<'a> Analysis<'a> {
                     "decomposition requires owned affine custody",
                 ));
             }
-            if !root.unqualified_owned {
+            if root.decomposition != Decomposition::Plain {
                 let machine = self.body.ok_or(Error::malformed("decomposition has no machine"))?;
                 crate::content_transformations::partition::require_decomposition_laws(module, machine, subject)
                     .map_err(Error::unsupported)?;
@@ -4250,7 +4269,14 @@ impl<'a> Analysis<'a> {
             // Components mode can only be reached by the checked consuming
             // operation on this exact root. Its content obligations survive
             // retirement of the storage that held the opened wrapper.
-            if !info.unqualified_owned && region.mode != Mode::Components {
+            if region.mode != Mode::Components && info.decomposition != Decomposition::Plain {
+                // A projected qualification moves with its component. Once every
+                // component has moved, only the vacant storage home remains.
+                if info.owned && info.decomposition == Decomposition::QualifiedFields
+                    && self.vacant_region(place, region, &[])?
+                {
+                    return Ok(vec![TerminalAffineCleanupAction::RetireHome(place)]);
+                }
                 return Err(Error::unsupported(
                     "component cleanup cannot settle qualifications or independent content custody",
                 ));

@@ -420,3 +420,48 @@ machine hold(input: Region in {incoming}) -> Region in First & Second {{
     let missing = check("First");
     assert!(!matches!(missing, Ok(RouteVerdict::Accepted(_))), "{missing:?}");
 }
+
+#[test]
+fn a_returned_record_retires_after_its_qualified_fields_move() {
+    let (partition, _) = include_str!(
+        "../../../../../../../../samples/cli/facts/independent_content_partition/local/main.omg"
+    )
+    .split_once("machine exercise(")
+    .unwrap();
+    let check = |body| {
+        let typed = with_content(&format!(
+            "{partition}
+machine consume(a: Region in First & Second, b: Region in First & Second) {{
+    drop_region(a as -First -Second);
+    drop_region(b as -First -Second);
+}}
+machine run(whole: Region in First & Second)
+requires whole.base == 10 && whole.length == 48 {{
+    let parts: Parts = partition(whole, 16);
+    {body}
+}}"
+        ));
+        let entry = symbol(&typed, "run");
+        let prepared = crate::prepare_fixture(typed);
+        crate::verdict::judge(crate::lowering::elaborate_for(
+            prepared.trees(),
+            roster(&[entry], &[], DependencyScope::Product),
+            terminal_codec::TerminalPublication::Invocation,
+        ))
+    };
+    let RouteVerdict::Accepted(checked) = check("consume(parts.left, parts.right);").unwrap()
+    else {
+        panic!("both qualified components have moved to the callee");
+    };
+    checked.publish_invocation().unwrap();
+    for invalid in [
+        "consume(parts.left, parts.left);",
+        "drop_region(parts.left as -First -Second);",
+    ] {
+        let verdict = check(invalid);
+        assert!(
+            !matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+            "{verdict:?}"
+        );
+    }
+}
