@@ -1,18 +1,19 @@
+use main.omg as app;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "nested_suspending_cycle_target_body_invalid" };
-    Build::select_provider::<Scheduler, InlineScheduler>(builder, windows_x86_64);
-    Build::select_provider::<SelectedCycle, X86Cycle>(builder, windows_x86_64);
-    Build::bind(builder, windows_x86_64::ProgramEntry, x86_entry);
-    Build::select_provider::<Scheduler, InlineScheduler>(builder, linux_x86_64);
-    Build::select_provider::<SelectedCycle, X86Cycle>(builder, linux_x86_64);
-    Build::bind(builder, linux_x86_64::ProgramEntry, x86_entry);
-    Build::select_provider::<Scheduler, InlineScheduler>(builder, macos_x86_64);
-    Build::select_provider::<SelectedCycle, X86Cycle>(builder, macos_x86_64);
-    Build::bind(builder, macos_x86_64::ProgramEntry, x86_entry);
-    Build::select_provider::<Scheduler, InlineScheduler>(builder, linux_arm64);
-    Build::select_provider::<SelectedCycle, ArmCycle>(builder, linux_arm64);
-    Build::bind(builder, linux_arm64::ProgramEntry, arm_entry);
-    Build::select_provider::<Scheduler, InlineScheduler>(builder, macos_arm64);
-    Build::select_provider::<SelectedCycle, ArmCycle>(builder, macos_arm64);
-    Build::bind(builder, macos_arm64::ProgramEntry, arm_entry);
+    Build::select_provider::<|app|::Scheduler, |app|::InlineScheduler>(builder, windows_x86_64);
+    Build::select_provider::<|app|::SelectedCycle, |app|::X86Cycle>(builder, windows_x86_64);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::x86_entry);
+    Build::select_provider::<|app|::Scheduler, |app|::InlineScheduler>(builder, linux_x86_64);
+    Build::select_provider::<|app|::SelectedCycle, |app|::X86Cycle>(builder, linux_x86_64);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::x86_entry);
+    Build::select_provider::<|app|::Scheduler, |app|::InlineScheduler>(builder, macos_x86_64);
+    Build::select_provider::<|app|::SelectedCycle, |app|::X86Cycle>(builder, macos_x86_64);
+    Build::bind(builder, macos_x86_64::ProgramEntry, |app|::x86_entry);
+    Build::select_provider::<|app|::Scheduler, |app|::InlineScheduler>(builder, linux_arm64);
+    Build::select_provider::<|app|::SelectedCycle, |app|::ArmCycle>(builder, linux_arm64);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::arm_entry);
+    Build::select_provider::<|app|::Scheduler, |app|::InlineScheduler>(builder, macos_arm64);
+    Build::select_provider::<|app|::SelectedCycle, |app|::ArmCycle>(builder, macos_arm64);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::arm_entry);
 }
