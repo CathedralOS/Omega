@@ -2056,14 +2056,17 @@ fn adapt_flow(
                             let view = descriptor_location_type(types, root, &parent.path)?;
                             find_structural_type(types, view)
                         });
-                        // An indexed borrow keeps its parent view live. A
-                        // descriptor inside its element can retain other loans.
-                        let plain_element = matches!(
+                        // The successor holds the indexed address and the
+                        // element's loan observations. Moving them into a local
+                        // header keeps its source live through uses of that header.
+                        let tracked_element = matches!(
                             parent_type.map(|declaration| &declaration.shape),
                             Some(StructuralTypeShape::ElementView { element, .. })
                                 if *element == parameter.structural_type
-                        ) && plain_owned_shape(types.iter(), parameter.structural_type);
-                        step.may_escape |= !plain_element;
+                        ) && slot_kind.owned_inventory(
+                            types, parameter.place, parameter.structural_type,
+                        ).is_some();
+                        step.may_escape |= !tracked_element;
                     }
                     bindings.push(binding);
                 }
