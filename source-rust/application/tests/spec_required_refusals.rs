@@ -96,9 +96,9 @@ fn each_program_runs_in_both_engines() {
         "member_namespace",
         "public_signature",
     ] {
-        let (success, report) = omega(&fixture(case), &["run", "--both", "main.omg"]);
-        assert!(success, "{case}: {report}");
-        for receipt in ["native exit 0", "interp exit: 0"] {
+        for (engine, receipt) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+            let (success, report) = omega(&fixture(case), &["run", "--engine", engine, "main.omg"]);
+            assert!(success, "{case}: {report}");
             assert!(
                 report.lines().any(|line| line == receipt),
                 "{case}: {report}"

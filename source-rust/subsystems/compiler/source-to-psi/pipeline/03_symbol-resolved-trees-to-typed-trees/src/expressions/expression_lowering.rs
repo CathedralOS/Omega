@@ -1060,6 +1060,9 @@ pub(crate) mod expression {
                 /// Tracks proposition-only placement diagnostics. Calls and value
                 /// children leave this context explicitly; comparison meaning is unchanged.
                 pub(crate) fact_position: bool,
+                /// True anywhere inside a contract/proof fact (including
+                /// arguments to mathematical definitions like `IsMere(R(a, b))`).
+                proof_context: bool,
                 /// Whether a suffixed policy operator may appear here.
                 /// Preparation types one against its operands' carrier, and it
                 /// reads executable statements and the contracts of machines
@@ -1099,6 +1102,7 @@ pub(crate) mod expression {
                         symbol_substitution,
                         source_owner: symbols::SymbolHandle::invalid(),
                         fact_position: false,
+                        proof_context: false,
                         admits_policy_operators: false,
                         lowered_expressions: Vec::new(),
                         match_captures: Vec::new(),
@@ -1198,6 +1202,7 @@ pub(crate) mod expression {
 
                 pub(crate) fn in_fact_position(mut self) -> Self {
                     self.fact_position = true;
+                    self.proof_context = true;
                     self
                 }
 
@@ -1713,12 +1718,11 @@ pub(crate) mod expression {
                             }
                             if let Some(program) = self.program
                                 && is_proposition_call_target(&program.symbols, call.target_symbol)
+                                && !self.proof_context
                             {
-                                return Err(Diagnostic::error(if self.fact_position {
-                                    "a proposition application must be the complete fact in this implementation slice"
-                                } else {
-                                    "a proposition application is proof-only and cannot appear in a runtime value expression"
-                                }));
+                                return Err(Diagnostic::error(
+                                    "a proposition application is proof-only and cannot appear in a runtime value expression",
+                                ));
                             }
                             if let Some(program) = self.program {
                                 let facet =

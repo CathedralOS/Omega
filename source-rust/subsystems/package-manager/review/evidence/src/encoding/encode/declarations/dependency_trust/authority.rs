@@ -30,6 +30,7 @@ fn encode_authority_class(encoder: &mut Encoder, class: PackageReviewDangerousAu
         PackageReviewDangerousAuthorityClass::RootMemory => encoder.tag("root_memory", 5),
         PackageReviewDangerousAuthorityClass::Process => encoder.tag("process", 6),
         PackageReviewDangerousAuthorityClass::ConsumerAudit => encoder.tag("consumer_audit", 7),
+        PackageReviewDangerousAuthorityClass::Network => encoder.tag("network", 8),
     }
 }
 

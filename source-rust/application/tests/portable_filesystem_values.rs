@@ -44,11 +44,19 @@ fn report(output: &Output) -> String {
     )
 }
 
-fn both_zero(output: Output) {
-    let text = report(&output);
-    assert!(output.status.success(), "{text}");
-    for receipt in ["native exit 0", "interp exit: 0"] {
-        assert!(text.lines().any(|line| line == receipt), "{text}");
+fn check_program(project: &Project, build: impl AsRef<Path>, psi_work_budget: Option<&str>) {
+    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+        let mut options = vec!["run", "--engine", engine];
+        if engine == "psi"
+            && let Some(budget) = psi_work_budget
+        {
+            options.extend(["--psi-work-budget", budget]);
+        }
+        let output = project.observe(&options, &build);
+        let text = report(&output);
+        assert!(output.status.success(), "{text}");
+        assert!(text.lines().any(|line| line == expected), "{text}");
+        assert!(output.stdout.is_empty(), "{output:?}");
     }
 }
 
@@ -171,7 +179,7 @@ fn windows_adapter_values_preserve_counts_timestamps_and_whole_names() {
     project.write("main.omg", main);
     stage_adapter_operations(&project, &library);
     project.write("build.omg", &build());
-    both_zero(project.observe(&["run", "--both"], "build.omg"));
+    check_program(&project, "build.omg", None);
 
     // Only the requested extent changes: the same copy must refuse byte 766.
     let invalid = main.replacen(
@@ -205,6 +213,10 @@ fn windows_directory_names_retain_unsigned_counts_and_the_first_error() {
         &std::fs::read_to_string(system_library.join("filesystem_host.omg")).unwrap(),
     );
     project.write(
+        "private_handle.omg",
+        "domain i64::WindowsPrivateNonalertFileOrAbsent requires self != -1;",
+    );
+    project.write(
         "control.omg",
         "public machine windows_filesystem_native_close_handle(handle: u64) -> i32 { -6 }\n\
          public machine windows_filesystem_native_last_error() -> u32 { 6 }",
@@ -230,7 +242,7 @@ fn windows_directory_names_retain_unsigned_counts_and_the_first_error() {
     }
     project.write("main.omg", &program);
     project.write("build.omg", &build());
-    both_zero(project.observe(&["run", "--both"], "build.omg"));
+    check_program(&project, "build.omg", None);
 }
 
 #[test]
@@ -253,7 +265,7 @@ fn windows_canonicalize_preserves_a_long_resolved_path_and_short_buffers() {
     }
     project.write("main.omg", &program);
     project.write("build.omg", &build());
-    both_zero(project.observe(&["run", "--both"], "build.omg"));
+    check_program(&project, "build.omg", None);
 }
 
 #[test]
@@ -269,10 +281,7 @@ fn windows_input_paths_preserve_a_surrogate_pair_at_the_native_limit() {
         include_str!("fixtures/filesystem/run/windows_input_path/main.omg"),
     );
     project.write("build.omg", &build());
-    both_zero(project.observe(
-        &["run", "--both", "--psi-work-budget", "80000000"],
-        "build.omg",
-    ));
+    check_program(&project, "build.omg", Some("80000000"));
 }
 
 #[test]
@@ -282,7 +291,7 @@ fn portable_filesystem_public_calls_preserve_neighboring_bytes() {
     let build = support::repository_root()
         .join("source-rust/application/tests/fixtures/filesystem/run/public_values/build.omg");
     let project = Project::new("public");
-    both_zero(project.observe(&["run", "--both"], &build));
+    check_program(&project, &build, None);
 }
 
 // This rule checks POSIX mode bits and consumes its input directory.
@@ -390,5 +399,5 @@ machine posix_filesystem_last_error_i64(filesystem: @mutable PosixFilesystem, re
     }
     settings.push('}');
     project.write("build.omg", &settings);
-    both_zero(project.observe(&["run", "--both"], "build.omg"));
+    check_program(&project, "build.omg", None);
 }

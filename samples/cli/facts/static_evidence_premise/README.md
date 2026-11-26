@@ -25,8 +25,9 @@ The same sentence is copied through local, field, parameter, call result, match 
 Each positive place binds `ProgramEntry` for all four hosted targets and declares `Expected exit: 0`, carries `expected_native_exit.txt` = 0 and `expected_interpreter_exit.txt` = 0, and passes `omega run --both` — Terminal Psi and native execution agreeing:
 
 ```sh
-omega run --both samples/cli/facts/static_evidence_premise/local/main.omg
-omega run --both samples/cli/facts/static_evidence_premise/<place>/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/static_evidence_premise/local
+omega run --engine native samples/cli/facts/static_evidence_premise/<place>/main.omg
+omega run --engine psi samples/cli/facts/static_evidence_premise/<place>/main.omg
 ```
 
 ## Reject twins

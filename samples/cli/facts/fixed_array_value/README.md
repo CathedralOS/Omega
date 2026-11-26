@@ -39,15 +39,15 @@ Each place is an application that binds `ProgramEntry` for `windows_x86_64`,
 `omega run --both`:
 
 ```sh
-omega run --both samples/cli/facts/fixed_array_value/local/main.omg
-omega run --both samples/cli/facts/fixed_array_value/field/main.omg
-omega run --both samples/cli/facts/fixed_array_value/parameter/main.omg
-omega run --both samples/cli/facts/fixed_array_value/call_result/main.omg
-omega run --both samples/cli/facts/fixed_array_value/match_join/main.omg
-omega run --both samples/cli/facts/fixed_array_value/const_name/main.omg
-omega run --both samples/cli/facts/fixed_array_value/other_state/main.omg
-omega run --both samples/cli/facts/fixed_array_value/other_machine/main.omg
-omega run --both samples/cli/facts/fixed_array_value/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/fixed_array_value/local
+mbx xtask sample-gate --filter samples/cli/facts/fixed_array_value/field
+mbx xtask sample-gate --filter samples/cli/facts/fixed_array_value/parameter
+mbx xtask sample-gate --filter samples/cli/facts/fixed_array_value/call_result
+mbx xtask sample-gate --filter samples/cli/facts/fixed_array_value/match_join
+mbx xtask sample-gate --filter samples/cli/facts/fixed_array_value/const_name
+mbx xtask sample-gate --filter samples/cli/facts/fixed_array_value/other_state
+mbx xtask sample-gate --filter samples/cli/facts/fixed_array_value/other_machine
+mbx xtask sample-gate --filter samples/cli/facts/fixed_array_value/target_body
 ```
 
 Each place has an `invalid/` twin that weakens the index bound (e.g. to `index <= 2` or `LIMIT = 3`),

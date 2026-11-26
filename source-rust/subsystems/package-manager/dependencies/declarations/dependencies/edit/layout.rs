@@ -99,14 +99,12 @@ pub(super) fn discover_build_layout(
 ) -> Option<Option<BuildLayout>> {
     let source_syntax::ParsedText { tokens, syntax } = parsed;
     let source = tokens.source_text();
-    let Some(build) = syntax.root_items().find_map(|item| match item {
+    let build = syntax.root_items().find_map(|item| match item {
         Item::Machine(machine) if machine.name.as_str(syntax) == BUILD_MACHINE_NAME => {
             Some(machine)
         }
         _ => None,
-    }) else {
-        return None;
-    };
+    })?;
     let semantic = semantic_indices(tokens);
     let name_span = build.name.source_span().span;
     let Some(name_position) = semantic.iter().position(|index| {
@@ -119,7 +117,7 @@ pub(super) fn discover_build_layout(
         .checked_sub(1)
         .and_then(|position| semantic.get(position))
         .is_some_and(|index| tokens.spelling(&tokens[*index]) == "machine");
-    let expected_after = ["(", receiver, ":", "@", "mutable", "Build", ")", "{"];
+    let expected_after = ["(", receiver, ":", "@", "mutable", "BuildPlan", ")", "{"];
     if !expected_before
         || expected_after.iter().enumerate().any(|(offset, expected)| {
             semantic
@@ -349,8 +347,8 @@ mod tests {
     #[test]
     fn quoted_delimiters_leave_the_build_body_and_dependency_row_intact() {
         let source = r#"use {omega}/build/dependency.omg;
-machine build(builder: @mutable Build) {
-    Build::application(builder, "}");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "}" };
     _ = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "(" }));
 }
 "#;

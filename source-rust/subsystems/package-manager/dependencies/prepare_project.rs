@@ -253,11 +253,13 @@ pub fn begin_local_project_preparation(
     targets: &[TargetProfile],
     offline: bool,
 ) -> Result<LocalProjectPreparation, PrepareLocalProjectError> {
-    begin_local_project_preparation_in_storage(entry_path, targets, offline, |root| {
-        SourceResolver::for_current_user(PrimaryGitChoices {
-            excluded_controlled_roots: std::slice::from_ref(&root.to_path_buf()),
-            ..PrimaryGitChoices::default()
-        })
+    begin_local_project_preparation_in_storage(entry_path, targets, offline, local_project_storage)
+}
+
+fn local_project_storage(root: &Path) -> Result<SourceResolver, SourceResolveError> {
+    SourceResolver::for_current_user(PrimaryGitChoices {
+        excluded_controlled_roots: std::slice::from_ref(&root.to_path_buf()),
+        ..PrimaryGitChoices::default()
     })
 }
 
@@ -386,6 +388,34 @@ fn begin_local_project_preparation_in_storage(
 }
 
 impl LocalProjectPreparation {
+    /// Each workspace member starts as its own subject with the source issued by the catalog.
+    /// A version 4 lock accepts a single package. Member-local locks cannot authorize a sibling.
+    pub(crate) fn for_unlocked_member(
+        source: &AcquiredBuildSource,
+        profiles: &[TargetProfile],
+        offline: bool,
+    ) -> Result<Self, PrepareLocalProjectError> {
+        let canonical_root = source.source_capture().canonical_live_root().to_path_buf();
+        let storage =
+            local_project_storage(&canonical_root).map_err(PrepareLocalProjectError::Storage)?;
+        Ok(Self {
+            transaction: None,
+            baseline: None,
+            accepted: None,
+            targets: profiles
+                .iter()
+                .map(|&profile| PreparedProjectTarget {
+                    profile,
+                    accepted: Ok(None),
+                })
+                .collect(),
+            canonical_root,
+            entry_relative: PathBuf::from("build.omg"),
+            storage,
+            offline,
+        })
+    }
+
     fn require_current_files(&self) -> Result<(), PrepareLocalProjectError> {
         if let (Some(transaction), Some(baseline)) = (&self.transaction, &self.baseline) {
             let current = transaction
@@ -496,6 +526,11 @@ impl LocalProjectPreparation {
         );
         if let Some(source) = source {
             acquisitions.require_locked_activations(source);
+            acquisitions.root_policies = self
+                .targets
+                .iter()
+                .filter_map(|row| row.accepted.as_ref().ok()?.as_ref())
+                .collect();
         }
         Ok(acquisitions)
     }

@@ -2,6 +2,9 @@
 mod services;
 mod stages;
 mod successor_inputs;
+mod validation;
+mod workspace_check;
+pub use workspace_check::{CheckSubject, discover_check_root, open_check_subjects};
 #[cfg(all(test, unix))]
 mod workspace_tests;
 
@@ -62,7 +65,9 @@ impl PackageReviewBuilds {
             )]
             .into());
         }
-        build.open_product(inputs.clone())
+        build
+            .open_pending(inputs.clone(), project_build::DependencyCheck::FullPackage)?
+            .settle()
     }
 }
 
@@ -71,12 +76,13 @@ pub fn resolve_build_sources(
     session: &mut PackageBuildSession,
     acquired: AcquiredBuildSource,
     acquisitions: &mut BuildSourceAcquisitions<'_>,
-    snapshot: Option<BuildSnapshotRequest>,
+    inputs: RootBuildInputs,
 ) -> Result<ResolvedPackageProject, PackageCommandError> {
     let profile = TargetProfile::host_if_supported()
         .ok_or_else(|| "package Build execution requires a supported host".to_owned())?;
     let acquired = acquisitions.retain_root(acquired)?;
     let mut host = SourceHost {
+        root_programs: inputs.programs,
         session,
         acquisitions,
         profile,
@@ -85,7 +91,7 @@ pub fn resolve_build_sources(
         active: Vec::new(),
         settled: Vec::new(),
     };
-    let result = host.resolve(&acquired.entry_path(), acquired, snapshot);
+    let result = host.resolve(&acquired.entry_path(), acquired, inputs.snapshot);
     if let Err(error) = &result {
         host.session
             .record_source_completion(error.source_completion_accounting().clone());
@@ -221,6 +227,7 @@ impl ExecutedBuild {
 }
 
 struct SourceHost<'session, 'policy> {
+    root_programs: package_compilation::build_execution::BuildProgramInvocation,
     session: &'session mut PackageBuildSession,
     acquisitions: &'session mut BuildSourceAcquisitions<'policy>,
     profile: TargetProfile,
@@ -445,7 +452,7 @@ impl ProjectProducts {
 
     /// Open the one Product a root without dependencies shares across its
     /// targets. With `alongside`, the root's own Build recheck may still be
-    /// running when this returns, as in [`open_products_alongside_rechecks`].
+    /// running when this returns, as in [`open_check_subjects`].
     fn open_shared(
         profiles: &[TargetProfile],
         root: ReturnedPlanningStage,
@@ -531,22 +538,19 @@ pub struct BuildLibraryRequest {
     pub source: build_declarations::BuildDependencySource,
 }
 
-/// A package check can name its conventional main file to select that existing package.
 pub enum ProjectInput<'a> {
+    /// The caller's explicit source entry.
     File(&'a Path),
     WithBuildLibraries {
         file: &'a Path,
         libraries: &'a [BuildLibraryRequest],
     },
-    PackageCheck(&'a Path),
 }
 
 impl ProjectInput<'_> {
     fn path(&self) -> &Path {
         match self {
-            Self::File(path)
-            | Self::PackageCheck(path)
-            | Self::WithBuildLibraries { file: path, .. } => path,
+            Self::File(path) | Self::WithBuildLibraries { file: path, .. } => path,
         }
     }
 }
@@ -565,13 +569,24 @@ pub fn open_product(
         offline,
         false,
         build_directory,
-        snapshot,
+        RootBuildInputs {
+            snapshot,
+            ..Default::default()
+        },
     )?
     .0
     .into_iter()
     .next()
     .expect("one deployment was requested")
     .1
+}
+
+/// The caller's activation-specific resources. Only the root Build receives
+/// these program selectors; registering a dependency does not grant it one.
+#[derive(Default)]
+pub struct RootBuildInputs {
+    pub snapshot: Option<BuildSnapshotRequest>,
+    pub programs: package_compilation::build_execution::BuildProgramInvocation,
 }
 
 /// Resolve and execute the authored Build once for the entire deployment set.
@@ -583,7 +598,7 @@ pub fn open_products(
     offline: bool,
     timings: bool,
     build_directory: &Path,
-    snapshot: Option<BuildSnapshotRequest>,
+    root_inputs: RootBuildInputs,
 ) -> Result<ProjectProducts, Vec<diagnostics::Diagnostic>> {
     open_products_with(
         input,
@@ -591,32 +606,36 @@ pub fn open_products(
         offline,
         timings,
         build_directory,
-        snapshot,
-        false,
-    )
+        root_inputs,
+        OpenPurpose::Product,
+    )?
+    .into_product()
 }
 
-/// [`open_products`], except that a dependency Build recheck may still be
-/// running when it returns, so the caller can check the Product meanwhile.
-/// Call [`ProjectProducts::settle_rechecks`] for a target before reporting
-/// anything about its Product.
-pub fn open_products_alongside_rechecks(
-    input: ProjectInput<'_>,
-    profiles: &[TargetProfile],
-    offline: bool,
-    timings: bool,
-    build_directory: &Path,
-    snapshot: Option<BuildSnapshotRequest>,
-) -> Result<ProjectProducts, Vec<diagnostics::Diagnostic>> {
-    open_products_with(
-        input,
-        profiles,
-        offline,
-        timings,
-        build_directory,
-        snapshot,
-        true,
-    )
+/// A catalog may produce check subjects only when the invocation requests a check.
+enum OpenPurpose<'a> {
+    Product,
+    Check,
+    Member(
+        &'a AcquiredBuildSource,
+        &'a Arc<crate::resolution::source::LocalWorkspaceMembers>,
+    ),
+}
+
+enum OpenedRoot {
+    Product(ProjectProducts, Option<build_declarations::ProjectName>),
+    Catalog(build_execution::SourceBuildDeclaration),
+}
+
+impl OpenedRoot {
+    fn into_product(self) -> Result<ProjectProducts, Vec<Diagnostic>> {
+        match self {
+            Self::Product(products, _) => Ok(products),
+            Self::Catalog(_) => Err(vec![Diagnostic::error(
+                "a workspace catalog has no Product",
+            )]),
+        }
+    }
 }
 
 const OPEN_PREPARE: StageMeta = StageMeta::new("prepare", "ProjectInput", "LocalPreparation");
@@ -636,9 +655,11 @@ fn open_products_with(
     offline: bool,
     timings: bool,
     build_directory: &Path,
-    snapshot: Option<BuildSnapshotRequest>,
-    alongside: bool,
-) -> Result<ProjectProducts, Vec<diagnostics::Diagnostic>> {
+    root_inputs: RootBuildInputs,
+    purpose: OpenPurpose<'_>,
+) -> Result<OpenedRoot, Vec<diagnostics::Diagnostic>> {
+    let snapshot = root_inputs.snapshot;
+    let alongside = !matches!(purpose, OpenPurpose::Product);
     use crate::operations::begin_local_project_preparation;
     use package_compilation::build_execution::BuildSnapshotCapture;
     let mut open_timings = planning_timings(timings);
@@ -656,8 +677,13 @@ fn open_products_with(
     })?;
     let root = input.path();
     let preparation = open_timings
-        .record_result(OPEN_PREPARE, || {
-            begin_local_project_preparation(root, profiles, offline)
+        .record_result(OPEN_PREPARE, || match purpose {
+            OpenPurpose::Member(source, _) => {
+                crate::operations::LocalProjectPreparation::for_unlocked_member(
+                    source, profiles, offline,
+                )
+            }
+            _ => begin_local_project_preparation(root, profiles, offline),
         })
         .map_err(|e| error(e.into()))?;
     let mut session = PackageBuildSession::create(&build_directory.join("package-manager"))
@@ -668,23 +694,31 @@ fn open_products_with(
             .map(|(target, reason)| (target, Err(vec![Diagnostic::error(reason.to_string())])))
             .collect();
         if rejected.len() == profiles.len() {
-            return Ok(ProjectProducts(rejected, Vec::new(), open_timings.clone()));
+            return Ok(OpenedRoot::Product(
+                ProjectProducts(rejected, Vec::new(), open_timings.clone()),
+                None,
+            ));
         }
         let step = timings.then(std::time::Instant::now);
         let selected = match snapshot.as_ref().map(|snapshot| snapshot.capture()) {
             Some(BuildSnapshotCapture::Scoped(selected)) => Some(selected),
             _ => None,
         };
-        let acquired = match selected {
-            Some(selection) => preparation.acquire_selected_root(selection)?,
-            None => preparation.acquire_root()?,
+        let acquired = match (&purpose, selected) {
+            (OpenPurpose::Member(source, _), _) => (*source).clone(),
+            (_, Some(selection)) => preparation.acquire_selected_root(selection)?,
+            (_, None) => preparation.acquire_root()?,
         };
         let mut acquisitions = preparation.source_acquisitions()?;
+        if let OpenPurpose::Member(_, members) = purpose {
+            acquisitions.local_members = Some(Arc::clone(members));
+        }
         let acquired = acquisitions.retain_root(acquired)?;
         if let Some(started) = step {
             open_timings.add_completed(OPEN_ACQUIRE_ROOT, started.elapsed().as_micros());
         }
         let mut host = SourceHost {
+            root_programs: root_inputs.programs,
             session: &mut session,
             acquisitions: &mut acquisitions,
             profile,
@@ -693,13 +727,12 @@ fn open_products_with(
             active: Vec::new(),
             settled: Vec::new(),
         };
-        let entry = match input {
-            ProjectInput::PackageCheck(path)
-                if path.file_name().is_some_and(|name| name == "main.omg") =>
-            {
-                acquired.entry_path()
-            }
-            _ => preparation.entry_path(),
+        let entry = if matches!(purpose, OpenPurpose::Check)
+            && root.file_name().is_some_and(|name| name == "main.omg")
+        {
+            acquired.entry_path()
+        } else {
+            preparation.entry_path()
         };
         let libraries = match input {
             ProjectInput::WithBuildLibraries { libraries, .. } => libraries,
@@ -710,15 +743,54 @@ fn open_products_with(
                 host.execute(&entry, &acquired, snapshot, false, libraries)
             })?
             .stage;
+        let name = match returned.returned().declaration() {
+            Some(build_declarations::BuildDeclaration::Workspace(_)) => match purpose {
+                OpenPurpose::Check => {
+                    preparation.require_unlocked_anonymous()?;
+                    return Ok(OpenedRoot::Catalog(
+                        returned.settle_workspace_declaration()?,
+                    ));
+                }
+                OpenPurpose::Member(..) => {
+                    return Err("a workspace member cannot itself be a catalog"
+                        .to_owned()
+                        .into());
+                }
+                OpenPurpose::Product => {
+                    return Err(
+                        "a workspace declaration does not name a Product source owner"
+                            .to_owned()
+                            .into(),
+                    );
+                }
+            },
+            Some(build_declarations::BuildDeclaration::Package(package)) => {
+                Some(package.name.clone())
+            }
+            Some(build_declarations::BuildDeclaration::Application(application)) => {
+                Some(application.name.clone())
+            }
+            None if matches!(purpose, OpenPurpose::Member(..)) => {
+                return Err(
+                    "a workspace member must declare a package or application name"
+                        .to_owned()
+                        .into(),
+                );
+            }
+            None => None,
+        };
         if returned.returned().declaration().is_none() {
             preparation.require_unlocked_anonymous()?;
-            return Ok(ProjectProducts::open_shared(
-                profiles,
-                returned,
-                None,
-                alongside,
-                open_timings.clone(),
-            )?);
+            return Ok(OpenedRoot::Product(
+                ProjectProducts::open_shared(
+                    profiles,
+                    returned,
+                    None,
+                    alongside,
+                    open_timings.clone(),
+                )?,
+                name,
+            ));
         }
         let step = timings.then(std::time::Instant::now);
         let resolved = host.join(acquired, returned)?;
@@ -742,21 +814,25 @@ fn open_products_with(
         if let Some(started) = step {
             open_timings.add_completed(OPEN_RESOLVE_SOURCES, started.elapsed().as_micros());
         }
-        if resolved
-            .inputs
-            .required_dependency_source_instances()
-            .is_empty()
+        if !resolved.root.has_dependency_validation()
+            && resolved
+                .inputs
+                .required_dependency_source_instances()
+                .is_empty()
             && decisions
                 .iter()
                 .all(|(_, policy)| matches!(policy, Ok(None)))
         {
-            return Ok(ProjectProducts::open_shared(
-                profiles,
-                resolved.root,
-                Some(&resolved.inputs),
-                alongside,
-                open_timings.clone(),
-            )?);
+            return Ok(OpenedRoot::Product(
+                ProjectProducts::open_shared(
+                    profiles,
+                    resolved.root,
+                    Some(&resolved.inputs),
+                    alongside,
+                    open_timings.clone(),
+                )?,
+                name,
+            ));
         }
         let step = timings.then(std::time::Instant::now);
         let root = resolved.root.settle_dependency(resolved.inputs)?;
@@ -777,12 +853,16 @@ fn open_products_with(
                         .map(|policy| policy.root_permissions())
                         .transpose()
                         .map_err(|reason| vec![Diagnostic::error(reason)])?;
+                    sources
+                        .validate_dependencies(&root, target)
+                        .map_err(|failure| error(failure.into()))?;
                     let (planned, rechecks) = sources
                         .dependency_product(
                             &root,
                             build_declarations::DependencyPurpose::Product,
                             target,
                             &mut dependencies,
+                            project_build::DependencyCheck::DemandedClosure,
                             alongside,
                         )
                         .map_err(|failure| error(failure.into()))?;
@@ -804,7 +884,10 @@ fn open_products_with(
         if let Some(started) = step {
             open_timings.add_completed(OPEN_DEPENDENCY_HANDOFF, started.elapsed().as_micros());
         }
-        Ok(ProjectProducts(products, owed, open_timings.clone()))
+        Ok(OpenedRoot::Product(
+            ProjectProducts(products, owed, open_timings.clone()),
+            name,
+        ))
     })();
     let (dispose_us, result) = if timings {
         let dispose_start = std::time::Instant::now();
@@ -814,7 +897,7 @@ fn open_products_with(
         (None, session.dispose(result))
     };
     let mut products = result.map_err(error)?;
-    if let Some(microseconds) = dispose_us {
+    if let (Some(microseconds), OpenedRoot::Product(products, _)) = (dispose_us, &mut products) {
         products.2.add_completed(OPEN_DISPOSE_SESSION, microseconds);
     }
     Ok(products)

@@ -4,15 +4,16 @@ This sample explores Omega as a console program rather than a windowed game.
 
 The closed-stdin oracle is the complete `expected_stdout.txt`; `input.txt` is
 empty. The separate `help_exit.stdin` route has its complete output in
-`expected_help_exit_stdout.txt`. From this folder, run both through one compilation:
+`expected_help_exit_stdout.txt`. From this folder, run both cases once per engine, using a fresh output directory for each run:
 
 ```sh
-omega run --both --input input.txt --input help_exit.stdin --outputs build/acceptance build.omg
+omega run --engine native --input input.txt --input help_exit.stdin --outputs build/acceptance-native build.omg
+omega run --engine psi --input input.txt --input help_exit.stdin --outputs build/acceptance-psi build.omg
 ```
 
-Both cases must exit zero in both engines. Compare `input.stdout` and
-`input.terminal.stdout` with `expected_stdout.txt`, and `help_exit.stdout` and
-`help_exit.terminal.stdout` with `expected_help_exit_stdout.txt`. These authored
+Both cases must exit zero in both engines. In each output directory, compare `input.stdout` with
+`expected_stdout.txt` and `help_exit.stdout` with
+`expected_help_exit_stdout.txt`. These authored
 oracles include the opening room, paths, command help, prompts and goodbye.
 
 For `CANONICALIZE-SCALAR-RANGE-CONTRACTS`, `Level.room_count` and both private

@@ -49,27 +49,27 @@ fn run_example(source: &str) {
     let fixture = support::repository_root().join("samples/cli/probes/direct_file_imports");
     let scratch = TemporaryDirectory::create("direct-file-imports", false).unwrap();
     std::fs::create_dir(scratch.path().join("m")).unwrap();
-    let mut command = Command::new(env!("CARGO_BIN_EXE_omega"));
-    command.args(["run", "--both"]);
-    std::fs::write(scratch.path().join("main.omg"), source).unwrap();
-    command.args(["--build-input", "main.omg"]);
-    for file in ["build.omg", "m/b.omg", "m/value-cell.omg"] {
-        std::fs::copy(fixture.join(file), scratch.path().join(file)).unwrap();
-        command.args(["--build-input", file]);
-    }
-    let output = command
-        .arg("main.omg")
-        .current_dir(scratch.path())
-        .stdin(Stdio::null())
-        .output()
-        .unwrap();
-    let report = format!(
-        "{}{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert!(output.status.success(), "{report}");
-    for receipt in ["native exit 0", "interp exit: 0"] {
+    for (engine, receipt) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_omega"));
+        command.args(["run", "--engine", engine]);
+        std::fs::write(scratch.path().join("main.omg"), source).unwrap();
+        command.args(["--build-input", "main.omg"]);
+        for file in ["build.omg", "m/b.omg", "m/value-cell.omg"] {
+            std::fs::copy(fixture.join(file), scratch.path().join(file)).unwrap();
+            command.args(["--build-input", file]);
+        }
+        let output = command
+            .arg("main.omg")
+            .current_dir(scratch.path())
+            .stdin(Stdio::null())
+            .output()
+            .unwrap();
+        let report = format!(
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(output.status.success(), "{report}");
         assert!(report.lines().any(|line| line == receipt), "{report}");
     }
 }
@@ -116,6 +116,42 @@ fn a_selection_row_names_the_exact_file_that_declares_its_requirement() {
                 report.contains(&format!("no inherited requirement slot `{owner}::apply`")),
                 "{report}"
             );
+        }
+    }
+}
+
+#[test]
+fn imported_domains_with_the_same_name_select_the_subjects_carrier() {
+    let scratch = TemporaryDirectory::create("file-domain-carriers", false).unwrap();
+    let root = scratch.path();
+    std::fs::write(
+        root.join("limits.omg"),
+        "public domain u16::Small requires self < 10u16;\n\
+         public domain u32::Small requires self >= 10u32;",
+    )
+    .unwrap();
+    for (carrier, value, error) in [
+        ("u16", 3, None),
+        ("u32", 30, None),
+        ("u8", 3, Some("does not qualify carrier `u8`")),
+        ("u32", 3, Some("domain `u32::Small` requires `self >= 10`")),
+    ] {
+        let source = format!(
+            "use limits.omg;\n\
+             machine small(value: {carrier} in |limits|::Small) -> bool {{ value in |limits|::Small }}\n\
+             public machine main() {{ _ = small({value}{carrier} as + |limits|::Small); }}"
+        );
+        std::fs::write(root.join("main.omg"), source).unwrap();
+        let output = Command::new(env!("CARGO_BIN_EXE_omega"))
+            .args(["--check", "--offline", "main.omg"])
+            .current_dir(root)
+            .stdin(Stdio::null())
+            .output()
+            .unwrap();
+        let diagnostics = String::from_utf8_lossy(&output.stderr);
+        assert_eq!(output.status.success(), error.is_none(), "{diagnostics}");
+        if let Some(error) = error {
+            assert!(diagnostics.contains(error), "{diagnostics}");
         }
     }
 }

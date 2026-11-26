@@ -80,7 +80,7 @@ impl StaticSourceEnvelope {
 }
 #[derive(Debug, Clone)]
 pub(crate) struct SourceSchemaRequirement {
-    pub instance: Option<MachineId>,
+    pub instance: Option<(MachineId, Option<SymbolHandle>)>,
     pub declaration: SymbolHandle,
     pub abstract_types: u32,
     /// `None` for a template requirement (`StaticRequirementSchema::signature`).
@@ -102,6 +102,7 @@ pub(crate) struct SourceRecordBinding {
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum SourceImplementation {
     Machine(MachineId),
+    Parameter(terminal_psi::static_reach::StaticReachParameter),
     Native(SymbolHandle),
 }
 #[derive(Debug, Clone)]
@@ -268,7 +269,7 @@ impl StaticContracts {
                         .map(|requirement| {
                             let instance = requirement
                                 .instance
-                                .map(|machine| {
+                                .map(|(machine, nominal_requirement)| {
                                     // Earlier declaration contracts can shift this contract
                                     // away from the machine ID. Read its allocated ID
                                     // from the machine rows, which are stored in ID order.
@@ -314,7 +315,7 @@ impl StaticContracts {
                                         boundaries,
                                         qualifications,
                                     )
-                                    .map(|header| StaticRequirementInstance { machine, member, header })
+                                    .map(|header| StaticRequirementInstance { machine, nominal_requirement, member, header })
                                 })
                                 .transpose()?;
                             Ok(StaticRequirementSchema {
@@ -359,6 +360,7 @@ impl StaticContracts {
                     }
                     StaticImplementation::Machine(machine)
                 }
+                SourceImplementation::Parameter(parameter) => StaticImplementation::Parameter(parameter),
                 SourceImplementation::Native(source) => {
                     let candidate = native
                         .iter()

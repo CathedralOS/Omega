@@ -199,6 +199,59 @@ fn captured_address_prefix_refuses_missing_erased_and_non_path_accounts() {
 }
 
 #[test]
+fn successive_windows_from_one_site_keep_their_source_without_claiming_an_offset() {
+    let at = (semantic_vocabulary::BlockId::new(1).unwrap(), 2);
+    let start = ValueId::new(1).unwrap();
+    let end = ValueId::new(2).unwrap();
+    let window = Projection::window(start, end, at);
+    let recurring = window.then(&window);
+    assert_eq!(recurring.then(&window), recurring);
+    assert_eq!(
+        recurring.validate_captured_storage_address(|pos| pos == at),
+        Ok(None)
+    );
+    assert!(
+        recurring
+            .validate_captured_storage_address(|_| false)
+            .is_err()
+    );
+    assert!(!recurring.captured_address_is_prefix_of(&recurring));
+    assert_eq!(recurring.captured_at, None);
+    // Index zero is in the current window. Its offset in the original
+    // descriptor depends on how many times the loop selected a tail.
+    let head = Projection::new(&[StructuralPathSegment::FixedIndex(0)]);
+    let selected = recurring.then(&head).without_runtime_coordinates_with(
+        |value| Some(if value == start { 1 } else { 8 }),
+        |_| true,
+    );
+    assert_eq!(
+        selected.stripped_origin_path(),
+        Some(vec![terminal_psi::ReferenceOriginProjection::Element])
+    );
+    assert!(selected.captured_address_path().is_err());
+    assert!(
+        recurring
+            .clone()
+            .without_runtime_coordinates()
+            .validate_captured_storage_address(|_| true)
+            .is_err()
+    );
+    assert!(
+        window
+            .then(&head)
+            .then(&window)
+            .validate_captured_storage_address(|_| true)
+            .is_err()
+    );
+    assert!(
+        window
+            .then(&Projection::window(end, start, at))
+            .validate_captured_storage_address(|_| true)
+            .is_err()
+    );
+}
+
+#[test]
 fn full_captured_address_keeps_reference_crossings_without_inline_permission() {
     let path = vec![
         StructuralPathSegment::Referent,

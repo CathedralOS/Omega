@@ -98,12 +98,12 @@ fn the_copied_room_runs_natively_and_in_psi() {
         .join("source-rust/application/tests/fixtures/ownership/run/slice_element_store");
     let scratch = TemporaryDirectory::create("slice-element-store-run", false).unwrap();
     std::fs::copy(project.join("main.omg"), scratch.path().join("main.omg")).unwrap();
-    let ran = omega(scratch.path())
-        .args(["run", "--both", "main.omg"])
-        .output()
-        .expect("run the room copy on both engines");
-    let ran = report(&ran);
-    for receipt in ["native exit 0", "interp exit: 0"] {
+    for (engine, receipt) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+        let ran = omega(scratch.path())
+            .args(["run", "--engine", engine, "main.omg"])
+            .output()
+            .expect("run the room copy on both engines");
+        let ran = report(&ran);
         assert!(ran.lines().any(|line| line == receipt), "{ran}");
     }
 }

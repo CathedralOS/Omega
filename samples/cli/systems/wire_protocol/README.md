@@ -6,7 +6,8 @@ with status 70 after printing
 `PASS: 13 bytes round-tripped with every field intact (exit 70)`.
 
 ```sh
-mbx run -p omega -- run --both samples/cli/systems/wire_protocol/main.omg < /dev/null
+mbx run -p omega -- run --engine native samples/cli/systems/wire_protocol/main.omg < /dev/null
+mbx run -p omega -- run --engine psi samples/cli/systems/wire_protocol/main.omg < /dev/null
 ```
 
 The packet carries room 300, samples `[150, -2]` in a fixed vector with capacity

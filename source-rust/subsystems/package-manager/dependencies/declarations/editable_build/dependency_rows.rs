@@ -169,7 +169,7 @@ fn registration(
         return Ok(None);
     };
     let owner = expression_owner(syntax_trees, call.receiver);
-    if owner != Some(build_declarations::BUILD_TYPE_NAME)
+    if owner != Some(build_declarations::BUILD_MODULE_NAME)
         && (owner.is_some() || discarded.is_none())
     {
         return Ok(None);
@@ -306,11 +306,12 @@ fn aliased_row(
 
 #[cfg(test)]
 mod tests {
-    use super::super::{BuildDeclarationError, project_build_entry_syntax};
+    use super::super::project_build_entry_syntax;
     use super::{
         DependencyOperation, DependencyPurpose, DependencyRow, DependencyRowError,
         project_dependency_rows,
     };
+    use crate::declarations::dependencies::read::DependencyProjectionError;
     use syntax_trees::SyntaxTrees;
     use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 
@@ -333,8 +334,8 @@ mod tests {
     fn rows_retain_their_purpose_alias_and_literal_occurrences() {
         let (trees, rows) = rows(
             r#"use {omega}/build/dependency.omg;
-machine build(builder: @mutable Build) {
-    Build::application(builder, "probe");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "probe" };
     _ = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "math" }));
     let mutable other: DependencyDescription = |dependency|::from_source(Source::Path { location: "other" });
     |dependency|::with_alias(@mutable other, "other");
@@ -386,7 +387,7 @@ machine build(builder: @mutable Build) {
         ];
         for statements in wrong_receiver {
             let source = format!(
-                "use {{omega}}/build/dependency.omg;\nmachine build(builder: @mutable Build) {{\n{statements}\n}}\n"
+                "use {{omega}}/build/dependency.omg;\nmachine build(builder: @mutable BuildPlan) {{\n{statements}\n}}\n"
             );
             assert_eq!(
                 rows(&source).map(|pair| pair.1),
@@ -407,7 +408,7 @@ machine build(builder: @mutable Build) {
         ];
         for statement in wrong_arguments {
             let source = format!(
-                "use {{omega}}/build/dependency.omg;\nmachine build(builder: @mutable Build) {{\n    Build::application(builder, \"probe\");\n    {statement};\n}}\n"
+                "use {{omega}}/build/dependency.omg;\nmachine build(builder: @mutable BuildPlan) {{\n    builder.product = BuildProduct::Application {{ name: \"probe\" }};\n    {statement};\n}}\n"
             );
             assert_eq!(
                 rows(&source).map(|pair| pair.1),
@@ -439,7 +440,7 @@ machine build(builder: @mutable Build) {
         .syntax;
         assert!(matches!(
             project_build_entry_syntax(&syntax_trees),
-            Err(BuildDeclarationError::MissingBuildDeclaration)
+            Err(DependencyProjectionError::MissingBuildMachine)
         ));
     }
 }

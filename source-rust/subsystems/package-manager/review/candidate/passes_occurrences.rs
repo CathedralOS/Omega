@@ -404,12 +404,13 @@ impl<'pass> PackageReviewRound<'pass> {
                     },
                 )
             })?;
-        let build_snapshot = if key == closure.graph().root() {
-            self.root_build_snapshot.cloned()
-        } else {
+        let is_dependency = key != closure.graph().root();
+        let build_snapshot = if is_dependency {
             None
+        } else {
+            self.root_build_snapshot.cloned()
         }
-        .unwrap_or_else(|| BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>()));
+        .unwrap_or_else(|| BuildSnapshotRequest::for_activation(is_dependency));
         Ok((inputs, build_snapshot))
     }
 
@@ -443,7 +444,9 @@ impl<'pass> PackageReviewRound<'pass> {
         // Source and snapshot identity can match even if this Build's restricted
         // grants, observations, generated source or provider decisions changed.
         if occurrence.resolution != review.resolution()
-            || evaluated.restricted_build_requests != review.restricted_build_requests()
+            || product.reviewed_build_requests(checked_target)
+                .map_err(|diagnostics| occurrence.compilation_error(self.execution_profile, diagnostics.into()))?
+                != review.restricted_build_requests()
             || evaluated.configuration.evaluation_usage != review.build_evaluation_usage()
             || evaluated.configuration.observation_summary.as_ref()
                 != review.build_observation_summary()

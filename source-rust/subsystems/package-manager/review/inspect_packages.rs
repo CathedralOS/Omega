@@ -36,6 +36,7 @@ use target::TargetProfile;
 
 #[derive(Debug, Clone)]
 pub struct PackageInspectionOptions {
+    pub programs: package_compilation::build_execution::BuildProgramInvocation,
     pub project_root: PathBuf,
     pub targets: Vec<TargetProfile>, // empty selects every accepted target, or the host for an unlocked project
     pub details: bool, // include full compiler-owned normalized policy after the readable summary
@@ -195,7 +196,7 @@ impl PreparedPackageInspection<'_> {
             .map(|snapshot| snapshot.capture())
         {
             Some(BuildSnapshotCapture::Scoped(selected)) => selected,
-            Some(BuildSnapshotCapture::PackageInventory) | None => &entire,
+            Some(BuildSnapshotCapture::PackageInventory | BuildSnapshotCapture::RequiredSources) | None => &entire,
         };
         let acquired = AcquiredBuildSource::capture_selected_local(
             self.transaction.project_root(),
@@ -248,6 +249,9 @@ impl PreparedPackageInspection<'_> {
             },
             self.root_request(),
         );
+        acquisitions
+            .select_reviewed_root(self.accepted.as_ref(), &self.targets)
+            .map_err(failure)?;
         if let Some(source) = source {
             acquisitions.require_locked_graph(source);
         }

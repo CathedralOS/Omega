@@ -9,7 +9,8 @@ the unused output suffix untouched. Success is exit 0.
 After ordinary package review:
 
 ```sh
-cargo run -p omega -- run --both samples/cli/text/byte_pattern_search/main.omg
+mbx run -p omega -- run --engine native samples/cli/text/byte_pattern_search/main.omg
+mbx run -p omega -- run --engine psi samples/cli/text/byte_pattern_search/main.omg
 ```
 
 At `81a0434130f`, first-match search ran, but the collector's nonempty-pattern

@@ -40,7 +40,7 @@ Additional [shared-input control](controls/shared_predicate_inputs/main.omg) ret
 Every runnable positive binds all four hosted targets and declares `Expected exit: 0`. Ordinary core slice operations provide the window; no `system` dependency or data-owned helper is introduced.
 
 ```sh
-omega run --both samples/cli/facts/computed_subslice_extent/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/computed_subslice_extent/target_body
 ```
 
 ## Validation

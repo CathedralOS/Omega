@@ -32,16 +32,7 @@ and declares `Expected exit: 0`. `omega run --both` reports Terminal Psi interpr
 and native execution agreement:
 
 ```sh
-omega run --both samples/cli/facts/signed_exact_addition_bound/main.omg
-omega run --both samples/cli/facts/signed_exact_addition_bound/local/main.omg
-omega run --both samples/cli/facts/signed_exact_addition_bound/field/main.omg
-omega run --both samples/cli/facts/signed_exact_addition_bound/parameter/main.omg
-omega run --both samples/cli/facts/signed_exact_addition_bound/call_result/main.omg
-omega run --both samples/cli/facts/signed_exact_addition_bound/match_join/main.omg
-omega run --both samples/cli/facts/signed_exact_addition_bound/const_name/main.omg
-omega run --both samples/cli/facts/signed_exact_addition_bound/other_state/main.omg
-omega run --both samples/cli/facts/signed_exact_addition_bound/other_machine/main.omg
-omega run --both samples/cli/facts/signed_exact_addition_bound/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/signed_exact_addition_bound
 ```
 
 Every positive place and the root witness observe `native exit 0` and `interp exit: 0`.

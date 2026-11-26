@@ -135,27 +135,31 @@ impl SourceRouting<'_> {
         source_storage: &mut SourceStorage,
         retained_requests: &mut Vec<PendingPackageImport>,
     ) -> Result<Vec<(PathBuf, source_provenance::DependencyScope)>, Vec<Diagnostic>> {
-        match self {
+        let (result, packages) = match *self {
             SourceRouting::Compilation {
-                package_inputs: Some(package_inputs),
+                package_inputs: Some(packages),
                 phase,
-                ..
             } => {
-                let (discovered, mut requests) = discover_package_imports(
-                    parsed,
-                    package_inputs,
-                    *phase,
-                    source_storage,
-                )?;
-                retained_requests.append(&mut requests);
-                Ok(discovered)
+                let result = discover_package_imports(parsed, packages, phase, source_storage).map(
+                    |(discovered, mut pending)| {
+                        retained_requests.append(&mut pending);
+                        discovered
+                    },
+                );
+                (result, Some(packages))
             }
             SourceRouting::Compilation {
                 package_inputs: None,
                 ..
-            } => discover_imports(parsed, source_storage),
-            SourceRouting::Query(inputs) => inputs.discover(parsed, source_storage),
-        }
+            } => (discover_imports(parsed, source_storage), None),
+            SourceRouting::Query(inputs) => {
+                (inputs.discover(parsed, source_storage), inputs.original())
+            }
+        };
+        result.map_err(|mut diagnostics| {
+            crate::attribute_diagnostics(&mut diagnostics, &source_storage.sources, packages);
+            diagnostics
+        })
     }
 }
 

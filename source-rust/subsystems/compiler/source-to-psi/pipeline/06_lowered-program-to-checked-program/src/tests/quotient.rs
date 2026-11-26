@@ -19,19 +19,21 @@ fn proofs(source: &str) -> String {
     source[start..end].replace("use omega\\language\\core\\ProcessExit;\n", "")
 }
 
+const RELATION: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../../../../source/library/core/relation.omg"
+));
+
 fn judged(source: &str) -> Vec<RouteVerdict> {
     let typed = super::build_purpose::frontier_with_core(
         source,
         "machine build_entry() {}",
         source_provenance::DependencyScope::Product,
-        &[(
-            "relation.omg",
-            "Equivalence",
-            include_str!(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/../../../../../../source/library/core/relation.omg"
-            )),
-        )],
+        &[
+            ("relation.omg", "MereEquivalence", RELATION),
+            ("relation.omg", "Equivalence", RELATION),
+            ("relation.omg", "IsMere", RELATION),
+        ],
     );
     let prepared = crate::prepare_fixture(typed);
     let scope = source_provenance::DependencyScope::Product;
@@ -88,11 +90,13 @@ fn related_representatives_have_one_class() {
         eprintln!("{machine}: {} conversion steps", law.conversion_steps);
         receipt.assumption_closure
     };
-    // The three laws of the relation are about the data alone.
+    // All four laws of the relation (including `proofs_agree` via Hedberg's
+    // theorem, with no UIP) are about the data alone and rest on zero assumptions.
     for row in [
         "SameSign::reflexive",
         "SameSign::symmetric",
         "SameSign::transitive",
+        "SameSign::proofs_agree",
     ] {
         assert_eq!(closure(row), 0);
     }
@@ -388,4 +392,150 @@ fn a_program_may_hold_a_quotient_and_data_indexed_by_values() {
         matches!(unproved.as_slice(), [law] if law.machine == "vector_bound"),
         "{verdicts:?}"
     );
+}
+
+#[test]
+fn level_binders_u_and_v_work_in_mathematical_definitions() {
+    // Both `u: core\Level` and `v: core\Level` resolve in `core\Type<u>` and
+    // `core\Type<v>` without hitting builtin-type-name refusal.
+    let source = r#"
+let keep_u<u: core\Level>(P: core\Type<u>): core\Type<u> = P;
+let keep_v<v: core\Level>(P: core\Type<v>): core\Type<v> = P;
+
+machine check_u(x: i32)
+ensures keep_u::<0>(core\Identity::<i32>(x, x))
+{
+}
+
+machine check_v(x: i32)
+ensures keep_v::<0>(core\Identity::<i32>(x, x))
+{
+}
+"#;
+    let verdicts = judged(source);
+    for verdict in &verdicts {
+        assert!(
+            matches!(verdict, RouteVerdict::Accepted(_) | RouteVerdict::Laws(_)),
+            "expected acceptance for u/v level binders: {verdict:?}"
+        );
+    }
+
+    // Negative twin: a non-Level binder `T` in `core\Type<T>` is refused.
+    let bad = r#"
+let bad_level<T>(P: core\Type<T>): core\Type<T> = P;
+
+machine check_bad(x: i32)
+ensures bad_level::<i32>(core\Identity::<i32>(x, x))
+{
+}
+"#;
+    let verdicts = judged(bad);
+    assert!(
+        verdicts
+            .iter()
+            .any(|verdict| matches!(verdict, RouteVerdict::FallBack(_))),
+        "expected refusal for non-Level binder in core\\Type<T>: {verdicts:?}"
+    );
+}
+
+#[test]
+fn quotient_refuses_conformance_proved_for_another_relation() {
+    let source = format!(
+        "{}\n\
+         proposition other_rel(a: Representative, b: Representative) =\n\
+             core\\Identity::<Representative>(a, b);\n\
+         OtherRel satisfies MereEquivalence<Representative, other_rel> {{\n\
+             machine reflexive(value: Representative) ensures other_rel(value, value) {{ }}\n\
+             machine symmetric(left: Representative, right: Representative) requires other_rel(left, right) ensures other_rel(right, left) {{ }}\n\
+             machine transitive(left: Representative, middle: Representative, right: Representative) requires other_rel(left, middle), other_rel(middle, right) ensures other_rel(left, right) {{ }}\n\
+             machine proofs_agree(a: Representative, b: Representative) ensures IsMere(other_rel(a, b)) {{ }}\n\
+         }}\n",
+        proofs(CLASS).replace("as SameSign;", "as OtherRel;")
+    );
+    let verdicts = judged(&source);
+    let refused: Vec<_> = verdicts
+        .iter()
+        .filter_map(|verdict| match verdict {
+            RouteVerdict::FallBack(refusal) => Some(refusal.detail.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        refused
+            .iter()
+            .any(|detail| detail.contains("proved for a different relation")),
+        "expected refusal for wrong-relation conformance: {verdicts:?}"
+    );
+}
+
+#[test]
+fn quotient_refuses_plain_equivalence_without_mere_relation() {
+    let source = proofs(CLASS)
+        .replace(
+            "use omega\\language\\core\\MereEquivalence;",
+            "use omega\\language\\core\\Equivalence;",
+        )
+        .replace(
+            "SameSign satisfies MereEquivalence<Representative, same_sign>",
+            "SameSign satisfies Equivalence<Representative, same_sign>",
+        )
+        .replace(
+            "    machine proofs_agree(a: Representative, b: Representative) ensures IsMere(same_sign(a, b)) { }\n",
+            "",
+        )
+        .replace(
+            "MereEquivalence<Representative, same_sign>",
+            "Equivalence<Representative, same_sign>",
+        );
+    let verdicts = judged(&source);
+    let refused: Vec<_> = verdicts
+        .iter()
+        .filter_map(|verdict| match verdict {
+            RouteVerdict::FallBack(refusal) => Some(refusal.detail.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        refused
+            .iter()
+            .any(|detail| detail.contains("MereEquivalence")),
+        "expected refusal for plain Equivalence without MereRelation: {verdicts:?}"
+    );
+}
+
+#[test]
+fn quotient_effectivity_uses_selected_mere_equivalence_laws() {
+    let source = format!(
+        "{}\n\
+         machine equal_classes_are_related(a: Representative, b: Representative)\n\
+         requires core\\Identity::<Sign>(a as Sign, b as Sign)\n\
+         ensures same_sign(a, b)\n\
+         {{\n\
+         }}\n",
+        proofs(CLASS)
+    );
+    let verdicts = judged(&source);
+    let judgment = signature(&verdicts);
+    let law = judgment
+        .laws
+        .iter()
+        .find(|law| law.machine == "equal_classes_are_related")
+        .unwrap_or_else(|| panic!("expected effectivity law: {judgment:?}"));
+    let MathematicalCoreDecision::Judged(receipt) = law.decision;
+    // Effectivity cites the quotient, projection, effectivity assumption,
+    // and the four selected `MereEquivalence` law statements.
+    assert!(
+        receipt.assumption_closure >= 3,
+        "effectivity must report its assumption closure: {receipt:?}"
+    );
+
+    // Negative twin: without the class-equality premise, `same_sign(a, b)` is refused.
+    let unproved_source = source.replace(
+        "requires core\\Identity::<Sign>(a as Sign, b as Sign)\n",
+        "",
+    );
+    let verdicts = judged(&unproved_source);
+    let law = unproved(&verdicts);
+    assert_eq!(law.machine, "equal_classes_are_related");
+    assert_eq!(law.cause, UnprovedCause::NoDerivation);
 }

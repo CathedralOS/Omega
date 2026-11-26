@@ -308,6 +308,7 @@ impl Program<'_> {
             parameter_policies,
             suspends: envelope.suspends,
             blocks: envelope.blocks,
+            admitted_same_stack_bytes: source.admitted_same_stack_bytes,
             terminates,
         })
     }

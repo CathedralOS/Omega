@@ -73,6 +73,12 @@ struct PackedRegKeys {
     shuffle_reg: RegisterConstraintKey,
     widen_u8x8_reg: RegisterConstraintKey,
     narrow_u8x8_reg: RegisterConstraintKey,
+    add_u8x16_reg: RegisterConstraintKey,
+    min_i16x8_reg: RegisterConstraintKey,
+    cmpgt_i16x8_reg: RegisterConstraintKey,
+    bit_and_i16x8_reg: RegisterConstraintKey,
+    bit_andnot_i16x8_reg: RegisterConstraintKey,
+    abs_i16x8_reg: RegisterConstraintKey,
 }
 
 impl PackedRegKeys {
@@ -96,6 +102,12 @@ impl PackedRegKeys {
             shuffle_reg: keys.packed_shuffle_i16x8_reg?,
             widen_u8x8_reg: keys.packed_widen_u8x8_to_i16x8_reg?,
             narrow_u8x8_reg: keys.packed_narrow_i16x8_to_u8x8_saturating_reg?,
+            add_u8x16_reg: keys.packed_add_u8x16_reg?,
+            min_i16x8_reg: keys.packed_min_i16x8_reg?,
+            cmpgt_i16x8_reg: keys.packed_cmpgt_i16x8_reg?,
+            bit_and_i16x8_reg: keys.packed_bit_and_i16x8_reg?,
+            bit_andnot_i16x8_reg: keys.packed_bit_andnot_i16x8_reg?,
+            abs_i16x8_reg: keys.packed_abs_i16x8_reg?,
         };
         for key in [
             out.load_128,
@@ -113,6 +125,12 @@ impl PackedRegKeys {
             out.shuffle_reg,
             out.widen_u8x8_reg,
             out.narrow_u8x8_reg,
+            out.add_u8x16_reg,
+            out.min_i16x8_reg,
+            out.cmpgt_i16x8_reg,
+            out.bit_and_i16x8_reg,
+            out.bit_andnot_i16x8_reg,
+            out.abs_i16x8_reg,
         ] {
             environment.constraint(key)?;
         }
@@ -177,6 +195,20 @@ struct ExtStore8Info {
 }
 
 #[derive(Clone, Copy)]
+struct ExtLoad8Origin {
+    base: VirtualRegisterId,
+    offset: u32,
+    inst_id: SelectedInstructionId,
+}
+
+#[derive(Clone, Copy)]
+struct FoldedExtLoadGroup {
+    lo_id: SelectedInstructionId,
+    hi_id: Option<SelectedInstructionId>,
+    replacement_id: SelectedInstructionId,
+}
+
+#[derive(Clone, Copy)]
 struct PackedOpSpec {
     in_widths: [u32; 2],
     in_count: usize,
@@ -187,12 +219,18 @@ fn packed_op_spec(kind: &SelectedInstructionKind) -> Option<PackedOpSpec> {
     match kind {
         SelectedInstructionKind::PackedAddI16x8
         | SelectedInstructionKind::PackedSubI16x8
-        | SelectedInstructionKind::PackedShuffleI16x8 { .. } => Some(PackedOpSpec {
+        | SelectedInstructionKind::PackedShuffleI16x8 { .. }
+        | SelectedInstructionKind::PackedAddU8x16
+        | SelectedInstructionKind::PackedMinI16x8
+        | SelectedInstructionKind::PackedCmpGtI16x8
+        | SelectedInstructionKind::PackedBitAndI16x8
+        | SelectedInstructionKind::PackedBitAndNotI16x8 => Some(PackedOpSpec {
             in_widths: [16, 16],
             in_count: 2,
             out_bytes: 16,
         }),
-        SelectedInstructionKind::PackedShiftRightArithmeticI16x8 { .. } => Some(PackedOpSpec {
+        SelectedInstructionKind::PackedShiftRightArithmeticI16x8 { .. }
+        | SelectedInstructionKind::PackedAbsI16x8 => Some(PackedOpSpec {
             in_widths: [16, 0],
             in_count: 1,
             out_bytes: 16,
@@ -265,6 +303,7 @@ fn promote_function(
     let mut mem_remap: HashMap<SelectedInstructionId, Vec<(bool, SelectedInstructionId)>> =
         HashMap::new();
     let mut mem_delete: HashSet<SelectedInstructionId> = HashSet::new();
+    let mut folded_ext_load_groups: Vec<FoldedExtLoadGroup> = Vec::new();
 
     // Extract virtual registers mutably around block iteration.
     let mut new_vregs = Vec::new();
@@ -308,6 +347,10 @@ fn promote_function(
             cached_scaled_mul: HashMap::new(),
             cached_indexed_base: HashMap::new(),
             ext_store8_info: HashMap::new(),
+            ext_load8_origin: HashMap::new(),
+            ext_load_pair_vec: HashMap::new(),
+            ext_load_single_vec: HashMap::new(),
+            folded_ext_load_groups: &mut folded_ext_load_groups,
             mem_remap: &mut mem_remap,
             mem_delete: &mut mem_delete,
         };
@@ -333,13 +376,52 @@ fn promote_function(
 
     function.virtual_registers.extend(new_vregs);
 
+    let folded_ext_load_ids: HashSet<SelectedInstructionId> = folded_ext_load_groups
+        .iter()
+        .flat_map(|g| std::iter::once(g.lo_id).chain(g.hi_id))
+        .collect();
+
     // Fixpoint CopyI64 alias propagation and pure dead-code elimination per block.
     dce_and_copy_prop(
         function,
         &slot_sizes,
         &non_escaping_by_block,
         &multi_def_vregs,
+        &folded_ext_load_ids,
     );
+
+    // Map any deleted external Load64 halves onto their replacement PackedLoad* instruction.
+    if !folded_ext_load_groups.is_empty() {
+        let mut surviving_insts = HashSet::new();
+        for block in &function.blocks {
+            for inst in &block.instructions {
+                surviving_insts.insert(inst.id);
+            }
+            surviving_insts.insert(terminator_instruction(&block.terminator).id);
+        }
+        let mut remapped_replacements: HashSet<SelectedInstructionId> = HashSet::new();
+        for group in &folded_ext_load_groups {
+            if !surviving_insts.contains(&group.replacement_id) {
+                continue;
+            }
+            for old_id in [Some(group.lo_id), group.hi_id].into_iter().flatten() {
+                if surviving_insts.contains(&old_id)
+                    || mem_remap.contains_key(&old_id)
+                    || mem_delete.contains(&old_id)
+                {
+                    continue;
+                }
+                if remapped_replacements.insert(group.replacement_id) {
+                    mem_remap
+                        .entry(old_id)
+                        .or_default()
+                        .push((true, group.replacement_id));
+                } else {
+                    mem_delete.insert(old_id);
+                }
+            }
+        }
+    }
 
     // Reconcile memory_accesses after rewrites/deletions.
     reconcile_memory_accesses(function, &mem_remap, &mem_delete);
@@ -691,11 +773,21 @@ struct BlockCtx<'a> {
     cached_scaled_mul: HashMap<(VirtualRegisterId, u64), VirtualRegisterId>,
     cached_indexed_base: HashMap<(VirtualRegisterId, VirtualRegisterId), VirtualRegisterId>,
     ext_store8_info: HashMap<SelectedInstructionId, ExtStore8Info>,
+    ext_load8_origin: HashMap<VirtualRegisterId, ExtLoad8Origin>,
+    ext_load_pair_vec: HashMap<(VirtualRegisterId, VirtualRegisterId), VirtualRegisterId>,
+    ext_load_single_vec: HashMap<VirtualRegisterId, VirtualRegisterId>,
+    folded_ext_load_groups: &'a mut Vec<FoldedExtLoadGroup>,
     mem_remap: &'a mut HashMap<SelectedInstructionId, Vec<(bool, SelectedInstructionId)>>,
     mem_delete: &'a mut HashSet<SelectedInstructionId>,
 }
 
 impl<'a> BlockCtx<'a> {
+    fn invalidate_ext_loads(&mut self) {
+        self.ext_load8_origin.clear();
+        self.ext_load_pair_vec.clear();
+        self.ext_load_single_vec.clear();
+    }
+
     fn alloc_vreg(
         &mut self,
         class: RegisterClassId,
@@ -1133,6 +1225,31 @@ impl<'a> BlockCtx<'a> {
                 if width == 8
                     && let Some(g) = match_gpr_bytes(&slice[..8])
                 {
+                    if let Some(&orig) = self.ext_load8_origin.get(&g) {
+                        if p_pure && let Some(&v) = self.ext_load_single_vec.get(&g) {
+                            return Ok((None, v));
+                        }
+                        let (id, v) = self.emit_def_inst(
+                            out,
+                            SelectedInstructionKind::PackedLoad64ZeroExtend {
+                                byte_offset: orig.offset,
+                            },
+                            self.packed_keys.load_64,
+                            &[orig.base],
+                            true,
+                            prov_for_only_op.unwrap_or_default(),
+                        )?;
+                        self.vec_high8_zero.insert(v, true);
+                        if p_pure {
+                            self.ext_load_single_vec.insert(g, v);
+                        }
+                        self.folded_ext_load_groups.push(FoldedExtLoadGroup {
+                            lo_id: orig.inst_id,
+                            hi_id: None,
+                            replacement_id: id,
+                        });
+                        return Ok((Some(id), v));
+                    }
                     let (id, v) = self.emit_def_inst(
                         out,
                         SelectedInstructionKind::PackedFromGpr64ZeroExtend,
@@ -1166,6 +1283,31 @@ impl<'a> BlockCtx<'a> {
                     && let Some(g_lo) = match_gpr_bytes(&slice[0..8])
                 {
                     if slice[8..16].iter().all(|b| matches!(b, SymByte::Const(0))) {
+                        if let Some(&orig) = self.ext_load8_origin.get(&g_lo) {
+                            if p_pure && let Some(&v) = self.ext_load_single_vec.get(&g_lo) {
+                                return Ok((None, v));
+                            }
+                            let (id, v) = self.emit_def_inst(
+                                out,
+                                SelectedInstructionKind::PackedLoad64ZeroExtend {
+                                    byte_offset: orig.offset,
+                                },
+                                self.packed_keys.load_64,
+                                &[orig.base],
+                                true,
+                                prov_for_only_op.unwrap_or_default(),
+                            )?;
+                            self.vec_high8_zero.insert(v, true);
+                            if p_pure {
+                                self.ext_load_single_vec.insert(g_lo, v);
+                            }
+                            self.folded_ext_load_groups.push(FoldedExtLoadGroup {
+                                lo_id: orig.inst_id,
+                                hi_id: None,
+                                replacement_id: id,
+                            });
+                            return Ok((Some(id), v));
+                        }
                         let (id, v) = self.emit_def_inst(
                             out,
                             SelectedInstructionKind::PackedFromGpr64ZeroExtend,
@@ -1178,6 +1320,36 @@ impl<'a> BlockCtx<'a> {
                         return Ok((Some(id), v));
                     }
                     if let Some(g_hi) = match_gpr_bytes(&slice[8..16]) {
+                        if let (Some(&orig_lo), Some(&orig_hi)) = (
+                            self.ext_load8_origin.get(&g_lo),
+                            self.ext_load8_origin.get(&g_hi),
+                        ) && orig_lo.base == orig_hi.base
+                            && orig_lo.offset.checked_add(8) == Some(orig_hi.offset)
+                        {
+                            if p_pure && let Some(&v) = self.ext_load_pair_vec.get(&(g_lo, g_hi)) {
+                                return Ok((None, v));
+                            }
+                            let (id, v) = self.emit_def_inst(
+                                out,
+                                SelectedInstructionKind::PackedLoad128 {
+                                    byte_offset: orig_lo.offset,
+                                },
+                                self.packed_keys.load_128,
+                                &[orig_lo.base],
+                                true,
+                                prov_for_only_op.unwrap_or_default(),
+                            )?;
+                            self.vec_high8_zero.insert(v, false);
+                            if p_pure {
+                                self.ext_load_pair_vec.insert((g_lo, g_hi), v);
+                            }
+                            self.folded_ext_load_groups.push(FoldedExtLoadGroup {
+                                lo_id: orig_lo.inst_id,
+                                hi_id: Some(orig_hi.inst_id),
+                                replacement_id: id,
+                            });
+                            return Ok((Some(id), v));
+                        }
                         let (id, v) = self.emit_def_inst(
                             out,
                             SelectedInstructionKind::PackedFromGpr64Pair,
@@ -1527,6 +1699,27 @@ impl<'a> BlockCtx<'a> {
                                 self.gpr_const.insert(dst, c);
                             }
                         }
+                    } else if matches!(inst.kind, SelectedInstructionKind::Load64 { .. })
+                        && inst.operands.len() == 2
+                        && is_pure_provenance(&inst.provenance)
+                        && let Some(PtrOrigin::External { base, offset }) =
+                            self.resolve_ptr(inst.operands[0].virtual_register)
+                    {
+                        let dst = inst.operands[1].virtual_register;
+                        if !self.multi_def_vregs.contains(&base)
+                            && !self.multi_def_vregs.contains(&dst)
+                            && let Some(eff_off) = offset.checked_add(*byte_offset)
+                            && eff_off <= i32::MAX as u32
+                        {
+                            self.ext_load8_origin.insert(
+                                dst,
+                                ExtLoad8Origin {
+                                    base,
+                                    offset: eff_off,
+                                    inst_id: inst.id,
+                                },
+                            );
+                        }
                     }
                     out.push(inst.clone());
                 }
@@ -1630,14 +1823,19 @@ impl<'a> BlockCtx<'a> {
                                 }
                                 out.push(inst.clone());
                             }
+                            self.invalidate_ext_loads();
                         }
-                        _ => out.push(inst.clone()),
+                        _ => {
+                            self.invalidate_ext_loads();
+                            out.push(inst.clone());
+                        }
                     }
                 }
                 _ => {
                     if let Some(spec) = packed_op_spec(&inst.kind) {
                         self.promote_packed_inst(&mut out, inst, spec)?;
                     } else {
+                        self.invalidate_ext_loads();
                         out.push(inst.clone());
                     }
                 }
@@ -1977,6 +2175,57 @@ impl<'a> BlockCtx<'a> {
                 self.vec_high8_zero.insert(v, false);
                 (Some(id), v)
             }
+            SelectedInstructionKind::PackedAddU8x16
+            | SelectedInstructionKind::PackedMinI16x8
+            | SelectedInstructionKind::PackedCmpGtI16x8
+            | SelectedInstructionKind::PackedBitAndI16x8
+            | SelectedInstructionKind::PackedBitAndNotI16x8 => {
+                let (reg_kind, reg_key) = match inst.kind {
+                    SelectedInstructionKind::PackedAddU8x16 => (
+                        SelectedInstructionKind::PackedAddU8x16Reg,
+                        self.packed_keys.add_u8x16_reg,
+                    ),
+                    SelectedInstructionKind::PackedMinI16x8 => (
+                        SelectedInstructionKind::PackedMinI16x8Reg,
+                        self.packed_keys.min_i16x8_reg,
+                    ),
+                    SelectedInstructionKind::PackedCmpGtI16x8 => (
+                        SelectedInstructionKind::PackedCmpGtI16x8Reg,
+                        self.packed_keys.cmpgt_i16x8_reg,
+                    ),
+                    SelectedInstructionKind::PackedBitAndI16x8 => (
+                        SelectedInstructionKind::PackedBitAndI16x8Reg,
+                        self.packed_keys.bit_and_i16x8_reg,
+                    ),
+                    SelectedInstructionKind::PackedBitAndNotI16x8 => (
+                        SelectedInstructionKind::PackedBitAndNotI16x8Reg,
+                        self.packed_keys.bit_andnot_i16x8_reg,
+                    ),
+                    _ => unreachable!(),
+                };
+                let (id, v) = self.emit_def_inst(
+                    out,
+                    reg_kind,
+                    reg_key,
+                    &[inputs[0], inputs[1]],
+                    true,
+                    inst.provenance.clone(),
+                )?;
+                self.vec_high8_zero.insert(v, false);
+                (Some(id), v)
+            }
+            SelectedInstructionKind::PackedAbsI16x8 => {
+                let (id, v) = self.emit_def_inst(
+                    out,
+                    SelectedInstructionKind::PackedAbsI16x8Reg,
+                    self.packed_keys.abs_i16x8_reg,
+                    &[inputs[0]],
+                    true,
+                    inst.provenance.clone(),
+                )?;
+                self.vec_high8_zero.insert(v, false);
+                (Some(id), v)
+            }
             SelectedInstructionKind::PackedLoadI16x4ZeroExtend => {
                 // resolve_packed_input already got prov_for_only and returned zero-extended v.
                 if remapped_reads.is_empty() && !is_pure_provenance(&inst.provenance) {
@@ -2054,6 +2303,7 @@ impl<'a> BlockCtx<'a> {
                 )?;
                 store_id_opt = Some(s_inst.id);
                 out.push(s_inst);
+                self.invalidate_ext_loads();
             }
             None => return Err(SelectedInstructionError::custody()),
         }
@@ -2307,7 +2557,13 @@ fn is_memory_barrier_free_for_coalesce(
         | SelectedInstructionKind::PackedShiftRightArithmeticI16x8Reg { .. }
         | SelectedInstructionKind::PackedShuffleI16x8Reg { .. }
         | SelectedInstructionKind::PackedWidenU8x8ToI16x8Reg
-        | SelectedInstructionKind::PackedNarrowI16x8ToU8x8SaturatingReg => true,
+        | SelectedInstructionKind::PackedNarrowI16x8ToU8x8SaturatingReg
+        | SelectedInstructionKind::PackedAddU8x16Reg
+        | SelectedInstructionKind::PackedMinI16x8Reg
+        | SelectedInstructionKind::PackedCmpGtI16x8Reg
+        | SelectedInstructionKind::PackedBitAndI16x8Reg
+        | SelectedInstructionKind::PackedBitAndNotI16x8Reg
+        | SelectedInstructionKind::PackedAbsI16x8Reg => true,
         SelectedInstructionKind::Store64 {
             slot: FrameStorageSlotId::Local(s),
             ..
@@ -2498,6 +2754,7 @@ fn dce_and_copy_prop(
     slot_sizes: &HashMap<LocalStorageSlotId, usize>,
     non_escaping_by_block: &HashMap<usize, HashSet<LocalStorageSlotId>>,
     multi_def_vregs: &HashSet<VirtualRegisterId>,
+    folded_ext_loads: &HashSet<SelectedInstructionId>,
 ) {
     let reg_class_map: HashMap<VirtualRegisterId, RegisterClassId> = function
         .virtual_registers
@@ -2675,7 +2932,13 @@ fn dce_and_copy_prop(
                     | SelectedInstructionKind::PackedShiftRightArithmeticI16x8Reg { .. }
                     | SelectedInstructionKind::PackedShuffleI16x8Reg { .. }
                     | SelectedInstructionKind::PackedWidenU8x8ToI16x8Reg
-                    | SelectedInstructionKind::PackedNarrowI16x8ToU8x8SaturatingReg => {
+                    | SelectedInstructionKind::PackedNarrowI16x8ToU8x8SaturatingReg
+                    | SelectedInstructionKind::PackedAddU8x16Reg
+                    | SelectedInstructionKind::PackedMinI16x8Reg
+                    | SelectedInstructionKind::PackedCmpGtI16x8Reg
+                    | SelectedInstructionKind::PackedBitAndI16x8Reg
+                    | SelectedInstructionKind::PackedBitAndNotI16x8Reg
+                    | SelectedInstructionKind::PackedAbsI16x8Reg => {
                         if !is_pure_provenance(&inst.provenance) {
                             return true;
                         }
@@ -2691,8 +2954,9 @@ fn dce_and_copy_prop(
                         if !is_pure_provenance(&inst.provenance) {
                             return true;
                         }
-                        !inst.operands.is_empty()
-                            && local_addrs.contains(&inst.operands[0].virtual_register)
+                        (!inst.operands.is_empty()
+                            && local_addrs.contains(&inst.operands[0].virtual_register))
+                            || folded_ext_loads.contains(&inst.id)
                     }
                     _ => false,
                 };
@@ -4914,5 +5178,385 @@ mod tests {
         assert!(
             kinds.contains(&SelectedInstructionKind::PackedLoad64ZeroExtend { byte_offset: 72 })
         );
+    }
+
+    #[test]
+    fn folds_paired_external_load64_through_local_slot_to_packed_load128_and_drops_dead_loads() {
+        let env =
+            register_environment::baseline_target_register_environment(NativeTarget::windows_x64())
+                .unwrap();
+        let keys = env.selected_keys();
+        let fa_key = keys.frame_address.unwrap();
+        let ao_key = keys.address_offset.unwrap();
+        let add_key = keys.add_i64;
+        let mul_key = keys.multiply_i64;
+        let load64_key = keys.load64.unwrap();
+        let store64_key = keys.store64.unwrap();
+        let pack_add_key = keys.packed_add_u8x16.unwrap();
+        let ret_key = keys.return_unit;
+
+        let fa_row = env.constraint(fa_key).unwrap();
+        let ao_row = env.constraint(ao_key).unwrap();
+        let add_row = env.constraint(add_key).unwrap();
+        let mul_row = env.constraint(mul_key).unwrap();
+        let load64_row = env.constraint(load64_key).unwrap();
+        let store64_row = env.constraint(store64_key).unwrap();
+        let pack_add_row = env.constraint(pack_add_key).unwrap();
+
+        let src1 = VirtualRegisterId(0);
+        let src2 = VirtualRegisterId(1);
+        let dst = VirtualRegisterId(2);
+        let idx = VirtualRegisterId(3);
+        let c16 = VirtualRegisterId(4);
+        let off1 = VirtualRegisterId(5);
+        let p1 = VirtualRegisterId(6);
+        let p1_8 = VirtualRegisterId(7);
+        let lo1 = VirtualRegisterId(8);
+        let hi1 = VirtualRegisterId(9);
+        let lp1 = VirtualRegisterId(10);
+        let off2 = VirtualRegisterId(11);
+        let p2 = VirtualRegisterId(12);
+        let p2_8 = VirtualRegisterId(13);
+        let lo2 = VirtualRegisterId(14);
+        let hi2 = VirtualRegisterId(15);
+        let lp2 = VirtualRegisterId(16);
+        let lp_out = VirtualRegisterId(17);
+
+        let slot1 = LocalStorageSlotId::Structural {
+            operation: semantic_vocabulary::OperationId::new(1).unwrap(),
+            place: semantic_vocabulary::PlaceId::new(1).unwrap(),
+        };
+        let slot2 = LocalStorageSlotId::Structural {
+            operation: semantic_vocabulary::OperationId::new(2).unwrap(),
+            place: semantic_vocabulary::PlaceId::new(2).unwrap(),
+        };
+        let gpr = fa_row.operands[0].class;
+        let mut vregs: Vec<VirtualRegister> = [src1, src2, dst, idx]
+            .into_iter()
+            .enumerate()
+            .map(|(i, id)| VirtualRegister {
+                id,
+                scalar_type: i64_ty(),
+                class: gpr,
+                origin: VirtualRegisterOrigin::EntryParameter {
+                    source_value: ValueId::new(i as u64 + 1).unwrap(),
+                    parameter_index: i,
+                },
+                definition_site: None,
+                entry_fixed_view: None,
+            })
+            .collect();
+        for (vid, iid) in [
+            (c16, 0),
+            (off1, 1),
+            (p1, 2),
+            (p1_8, 3),
+            (lo1, 4),
+            (hi1, 5),
+            (lp1, 6),
+            (off2, 9),
+            (p2, 10),
+            (p2_8, 11),
+            (lo2, 12),
+            (hi2, 13),
+            (lp2, 14),
+            (lp_out, 17),
+        ] {
+            vregs.push(VirtualRegister {
+                id: vid,
+                scalar_type: i64_ty(),
+                class: gpr,
+                origin: VirtualRegisterOrigin::InstructionScratch {
+                    instruction: SelectedInstructionId(iid),
+                    operand: 0,
+                },
+                definition_site: None,
+                entry_fixed_view: None,
+            });
+        }
+
+        let insts = vec![
+            SelectedInstruction {
+                id: SelectedInstructionId(0),
+                kind: SelectedInstructionKind::MaterializeI64 {
+                    value: IntegerValue::Unsigned(16),
+                },
+                constraint: keys.materialize_i64,
+                operands: vec![op_from(
+                    env.constraint(keys.materialize_i64).unwrap(),
+                    0,
+                    c16,
+                )],
+                implicit_uses: vec![],
+                implicit_defs: vec![],
+                clobbers: vec![],
+                provenance: SelectedInstructionProvenance::default(),
+            },
+            SelectedInstruction {
+                id: SelectedInstructionId(1),
+                kind: SelectedInstructionKind::WrappingMultiplyI64,
+                constraint: mul_key,
+                operands: vec![
+                    op_from(mul_row, 0, idx),
+                    op_from(mul_row, 1, c16),
+                    op_from(mul_row, 2, off1),
+                ],
+                implicit_uses: vec![],
+                implicit_defs: vec![],
+                clobbers: vec![],
+                provenance: SelectedInstructionProvenance::default(),
+            },
+            SelectedInstruction {
+                id: SelectedInstructionId(2),
+                kind: SelectedInstructionKind::ByteViewAddress,
+                constraint: add_key,
+                operands: vec![
+                    op_from(add_row, 0, src1),
+                    op_from(add_row, 1, off1),
+                    op_from(add_row, 2, p1),
+                ],
+                implicit_uses: vec![],
+                implicit_defs: vec![],
+                clobbers: vec![],
+                provenance: SelectedInstructionProvenance::default(),
+            },
+            SelectedInstruction {
+                id: SelectedInstructionId(3),
+                kind: SelectedInstructionKind::AddressOffset { byte_offset: 8 },
+                constraint: ao_key,
+                operands: vec![op_from(ao_row, 0, p1), op_from(ao_row, 1, p1_8)],
+                implicit_uses: vec![],
+                implicit_defs: vec![],
+                clobbers: vec![],
+                provenance: SelectedInstructionProvenance::default(),
+            },
+            SelectedInstruction {
+                id: SelectedInstructionId(4),
+                kind: SelectedInstructionKind::Load64 { byte_offset: 0 },
+                constraint: load64_key,
+                operands: vec![op_from(load64_row, 0, p1), op_from(load64_row, 1, lo1)],
+                implicit_uses: vec![],
+                implicit_defs: vec![],
+                clobbers: vec![],
+                provenance: SelectedInstructionProvenance::default(),
+            },
+            SelectedInstruction {
+                id: SelectedInstructionId(5),
+                kind: SelectedInstructionKind::Load64 { byte_offset: 0 },
+                constraint: load64_key,
+                operands: vec![op_from(load64_row, 0, p1_8), op_from(load64_row, 1, hi1)],
+                implicit_uses: vec![],
+                implicit_defs: vec![],
+                clobbers: vec![],
+                provenance: SelectedInstructionProvenance::default(),
+            },
+            SelectedInstruction {
+                id: SelectedInstructionId(6),
+                kind: SelectedInstructionKind::FrameAddress {
+                    slot: FrameStorageSlotId::Local(slot1),
+                    byte_offset: 0,
+                },
+                constraint: fa_key,
+                operands: vec![op_from(fa_row, 0, lp1)],
+                implicit_uses: vec![],
+                implicit_defs: vec![],
+                clobbers: vec![],
+                provenance: SelectedInstructionProvenance::default(),
+            },
+            SelectedInstruction {
+                id: SelectedInstructionId(7),
+                kind: SelectedInstructionKind::Store64 {
+                    slot: FrameStorageSlotId::Local(slot1),
+                    byte_offset: 0,
+                },
+                constraint: store64_key,
+                operands: vec![op_from(store64_row, 0, lo1)],
+                implicit_uses: vec![],
+                implicit_defs: vec![],
+                clobbers: vec![],
+                provenance: SelectedInstructionProvenance::default(),
+            },
+            SelectedInstruction {
+                id: SelectedInstructionId(8),
+                kind: SelectedInstructionKind::Store64 {
+                    slot: FrameStorageSlotId::Local(slot1),
+                    byte_offset: 8,
+                },
+                constraint: store64_key,
+                operands: vec![op_from(store64_row, 0, hi1)],
+                implicit_uses: vec![],
+                implicit_defs: vec![],
+                clobbers: vec![],
+                provenance: SelectedInstructionProvenance::default(),
+            },
+            SelectedInstruction {
+                id: SelectedInstructionId(9),
+                kind: SelectedInstructionKind::WrappingMultiplyI64,
+                constraint: mul_key,
+                operands: vec![
+                    op_from(mul_row, 0, idx),
+                    op_from(mul_row, 1, c16),
+                    op_from(mul_row, 2, off2),
+                ],
+                implicit_uses: vec![],
+                implicit_defs: vec![],
+                clobbers: vec![],
+                provenance: SelectedInstructionProvenance::default(),
+            },
+            SelectedInstruction {
+                id: SelectedInstructionId(10),
+                kind: SelectedInstructionKind::ByteViewAddress,
+                constraint: add_key,
+                operands: vec![
+                    op_from(add_row, 0, src2),
+                    op_from(add_row, 1, off2),
+                    op_from(add_row, 2, p2),
+                ],
+                implicit_uses: vec![],
+                implicit_defs: vec![],
+                clobbers: vec![],
+                provenance: SelectedInstructionProvenance::default(),
+            },
+            SelectedInstruction {
+                id: SelectedInstructionId(11),
+                kind: SelectedInstructionKind::AddressOffset { byte_offset: 8 },
+                constraint: ao_key,
+                operands: vec![op_from(ao_row, 0, p2), op_from(ao_row, 1, p2_8)],
+                implicit_uses: vec![],
+                implicit_defs: vec![],
+                clobbers: vec![],
+                provenance: SelectedInstructionProvenance::default(),
+            },
+            SelectedInstruction {
+                id: SelectedInstructionId(12),
+                kind: SelectedInstructionKind::Load64 { byte_offset: 0 },
+                constraint: load64_key,
+                operands: vec![op_from(load64_row, 0, p2), op_from(load64_row, 1, lo2)],
+                implicit_uses: vec![],
+                implicit_defs: vec![],
+                clobbers: vec![],
+                provenance: SelectedInstructionProvenance::default(),
+            },
+            SelectedInstruction {
+                id: SelectedInstructionId(13),
+                kind: SelectedInstructionKind::Load64 { byte_offset: 0 },
+                constraint: load64_key,
+                operands: vec![op_from(load64_row, 0, p2_8), op_from(load64_row, 1, hi2)],
+                implicit_uses: vec![],
+                implicit_defs: vec![],
+                clobbers: vec![],
+                provenance: SelectedInstructionProvenance::default(),
+            },
+            SelectedInstruction {
+                id: SelectedInstructionId(14),
+                kind: SelectedInstructionKind::FrameAddress {
+                    slot: FrameStorageSlotId::Local(slot2),
+                    byte_offset: 0,
+                },
+                constraint: fa_key,
+                operands: vec![op_from(fa_row, 0, lp2)],
+                implicit_uses: vec![],
+                implicit_defs: vec![],
+                clobbers: vec![],
+                provenance: SelectedInstructionProvenance::default(),
+            },
+            SelectedInstruction {
+                id: SelectedInstructionId(15),
+                kind: SelectedInstructionKind::Store64 {
+                    slot: FrameStorageSlotId::Local(slot2),
+                    byte_offset: 0,
+                },
+                constraint: store64_key,
+                operands: vec![op_from(store64_row, 0, lo2)],
+                implicit_uses: vec![],
+                implicit_defs: vec![],
+                clobbers: vec![],
+                provenance: SelectedInstructionProvenance::default(),
+            },
+            SelectedInstruction {
+                id: SelectedInstructionId(16),
+                kind: SelectedInstructionKind::Store64 {
+                    slot: FrameStorageSlotId::Local(slot2),
+                    byte_offset: 8,
+                },
+                constraint: store64_key,
+                operands: vec![op_from(store64_row, 0, hi2)],
+                implicit_uses: vec![],
+                implicit_defs: vec![],
+                clobbers: vec![],
+                provenance: SelectedInstructionProvenance::default(),
+            },
+            SelectedInstruction {
+                id: SelectedInstructionId(17),
+                kind: SelectedInstructionKind::FrameAddress {
+                    slot: FrameStorageSlotId::Local(slot1),
+                    byte_offset: 0,
+                },
+                constraint: fa_key,
+                operands: vec![op_from(fa_row, 0, lp_out)],
+                implicit_uses: vec![],
+                implicit_defs: vec![],
+                clobbers: vec![],
+                provenance: SelectedInstructionProvenance::default(),
+            },
+            SelectedInstruction {
+                id: SelectedInstructionId(18),
+                kind: SelectedInstructionKind::PackedAddU8x16,
+                constraint: pack_add_key,
+                operands: vec![
+                    op_from(pack_add_row, 0, lp1),
+                    op_from(pack_add_row, 1, lp2),
+                    op_from(pack_add_row, 2, dst),
+                ],
+                implicit_uses: vec![],
+                implicit_defs: vec![],
+                clobbers: vec![],
+                provenance: SelectedInstructionProvenance::default(),
+            },
+        ];
+
+        let mut func = base_function(
+            vec![
+                SelectedLocalStorageSlot {
+                    id: slot1,
+                    byte_size: 16,
+                    alignment: 16,
+                },
+                SelectedLocalStorageSlot {
+                    id: slot2,
+                    byte_size: 16,
+                    alignment: 16,
+                },
+            ],
+            vregs,
+            insts,
+            SelectedInstructionId(19),
+            ret_key,
+        );
+        promote_and_simplify(std::slice::from_mut(&mut func), &env).unwrap();
+
+        let kinds: Vec<_> = func.blocks[0].instructions.iter().map(|i| i.kind).collect();
+        let load128_count = kinds
+            .iter()
+            .filter(|k| matches!(k, SelectedInstructionKind::PackedLoad128 { byte_offset: 0 }))
+            .count();
+        let scalar_load64_count = kinds
+            .iter()
+            .filter(|k| matches!(k, SelectedInstructionKind::Load64 { .. }))
+            .count();
+        let pair_count = kinds
+            .iter()
+            .filter(|k| matches!(k, SelectedInstructionKind::PackedFromGpr64Pair))
+            .count();
+        let mul_count = kinds
+            .iter()
+            .filter(|k| matches!(k, SelectedInstructionKind::WrappingMultiplyI64))
+            .count();
+        assert_eq!(load128_count, 2, "kinds={kinds:?}");
+        assert_eq!(scalar_load64_count, 0, "kinds={kinds:?}");
+        assert_eq!(pair_count, 0, "kinds={kinds:?}");
+        assert_eq!(mul_count, 2, "kinds={kinds:?}");
+        assert!(kinds.contains(&SelectedInstructionKind::PackedAddU8x16Reg));
+        assert!(kinds.contains(&SelectedInstructionKind::PackedStore128 { byte_offset: 0 }));
     }
 }

@@ -6,12 +6,14 @@ use diagnostics::Diagnostic;
 
 #[derive(Clone, PartialEq, Eq, Default)]
 pub(crate) struct BuildProviderScope {
+    owner: Option<semantic_vocabulary::PackageKeyIdentity>,
     packages: Option<package_compilation::PackageCompilationInputs>,
     supplied_scope: Option<declaration_scope::PackageDeclarationScope>,
     dependency_edges: Vec<semantic_vocabulary::dependency_reach::DependencyServiceEdge>,
 }
 
 pub(crate) struct BuildProviderInstallation {
+    pub(crate) diagnostic_output_bytes: Option<u64>,
     pub(crate) supplies: terminal_interpreter::TerminalRuntimeSupplies,
     pub(crate) awaited: Vec<semantic_vocabulary::BoundaryMachineId>,
 }
@@ -20,6 +22,7 @@ impl BuildProviderScope {
     pub(crate) fn for_packages(
         packages: Option<&package_compilation::PackageCompilationInputs>,
         libraries: &[package_compilation::source_imports::SuppliedBuildLibrary],
+        owner: Option<semantic_vocabulary::PackageKeyIdentity>,
     ) -> Self {
         use build_declarations::DependencyPurpose;
         let mut dependency_edges = packages
@@ -29,7 +32,7 @@ impl BuildProviderScope {
             let dependency = library.dependency();
             dependency_edges.push(
                 semantic_vocabulary::dependency_reach::DependencyServiceEdge {
-                    requester: packages.map(|inputs| inputs.root()),
+                    requester: owner,
                     package: dependency.inputs.root(),
                     alias: dependency.alias.clone(),
                     max_reach: library.max_reach().clone(),
@@ -42,11 +45,12 @@ impl BuildProviderScope {
             );
         }
         Self {
+            owner,
             packages: packages.cloned(),
             dependency_edges,
             supplied_scope:
                 package_compilation::source_imports::SuppliedBuildLibrary::declaration_scope(
-                    libraries, None,
+                    libraries, owner,
                 ),
         }
     }
@@ -64,7 +68,14 @@ impl BuildProviderScope {
     pub(crate) fn admit(
         &self,
         program: &source_compiler::publication::ProducedTerminalProgram,
-    ) -> Result<BuildProviderInstallation, Vec<Diagnostic>> {
+        diagnostic_output_bytes: Option<u64>,
+    ) -> Result<
+        (
+            BuildProviderInstallation,
+            Vec<semantic_vocabulary::BoundaryMachineId>,
+        ),
+        Vec<Diagnostic>,
+    > {
         let artifact = program.view();
         let module = artifact.module();
         let entry = module
@@ -105,9 +116,7 @@ impl BuildProviderScope {
             None,
             entry,
             &checked,
-            self.packages
-                .as_ref()
-                .map(package_compilation::PackageCompilationInputs::root),
+            self.owner,
             authority
                 .as_ref()
                 .map(|a| a as &dyn declaration_scope::DeclarationSelectionAuthority),
@@ -178,6 +187,20 @@ impl BuildProviderScope {
                     "Build selected provider execution closure: {reason:?}"
                 ))
             })?;
+        use source_compiler::publication::TerminalBuildRequestOperation as Action;
+        if diagnostic_output_bytes.is_none()
+            && let Some(call) = requests.iter().find(|row| {
+                row.action == Action::SandboxWrite && demand.imports.contains(&row.site.boundary)
+            })
+        {
+            let name = module
+                .boundary_machine(call.site.boundary)
+                .and_then(|decl| module.identities.text(decl.identity))
+                .unwrap_or("<unknown boundary>");
+            return Err(failure(format!(
+                "Build requires `{name}` before entry; the caller supplied no bounded StandardOutput diagnostic sink"
+            )));
+        }
         let missing = demand
             .missing_providers
             .iter()
@@ -195,7 +218,14 @@ impl BuildProviderScope {
         if !errors.is_empty() {
             return Err(errors);
         }
-        Ok(BuildProviderInstallation { supplies, awaited })
+        Ok((
+            BuildProviderInstallation {
+                supplies,
+                awaited,
+                diagnostic_output_bytes,
+            },
+            demand.imports,
+        ))
     }
 }
 

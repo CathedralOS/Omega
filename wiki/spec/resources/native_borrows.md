@@ -95,20 +95,20 @@ The example uses the core service declarations specified in
 
 ```omega
 // updater/build.omg
-machine build(build: @mutable Build) {
-    Build::package(build, "updater");
+machine build(build: @mutable BuildPlan) {
+    build.product = BuildProduct::Package { name: "updater" };
     Build::enable_unsafe::<ForeignCodeExecution>(build);
 }
 ```
 
 ```omega
 // cathedral/build.omg
-machine build(build: @mutable Build) {
-    Build::application(build, "cathedral");
+machine build(build: @mutable BuildPlan) {
+    build.product = BuildProduct::Application { name: "cathedral" };
     Build::enable_unsafe::<ForeignCodeExecution>(build);
     let updater: DependencyDescription =
         |dependency|::from_source(Source::Path { location: "updater" });
-    let allowed: [BoundaryServiceRef; 2] = [
+    let allowed: [BoundaryServiceReference; 2] = [
         Build::service::<NativeImageLoad>(build),
         Build::service::<ForeignCodeExecution>(build)
     ];

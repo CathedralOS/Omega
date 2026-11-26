@@ -23,19 +23,10 @@ Only the transport mechanism of the read-only byte-pool slice literal changes ac
 
 ## Execution
 
-Each positive place is an application that exits 0, binds `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), and carries an authored `expected_native_exit.txt` declaring `0`. `omega run --both` verifies agreement between Terminal Psi interpreter and native compilation:
+Each positive place is an application that exits 0, binds `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), and carries an authored `expected_native_exit.txt` declaring `0`. The sample gate verifies agreement between Terminal Psi interpreter and native compilation:
 
 ```sh
-omega run --both samples/cli/facts/readonly_byte_pool_relocation_bound/main.omg
-omega run --both samples/cli/facts/readonly_byte_pool_relocation_bound/local/main.omg
-omega run --both samples/cli/facts/readonly_byte_pool_relocation_bound/field/main.omg
-omega run --both samples/cli/facts/readonly_byte_pool_relocation_bound/parameter/main.omg
-omega run --both samples/cli/facts/readonly_byte_pool_relocation_bound/call_result/main.omg
-omega run --both samples/cli/facts/readonly_byte_pool_relocation_bound/match_join/main.omg
-omega run --both samples/cli/facts/readonly_byte_pool_relocation_bound/const_name/main.omg
-omega run --both samples/cli/facts/readonly_byte_pool_relocation_bound/other_state/main.omg
-omega run --both samples/cli/facts/readonly_byte_pool_relocation_bound/other_machine/main.omg
-omega run --both samples/cli/facts/readonly_byte_pool_relocation_bound/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/readonly_byte_pool_relocation_bound
 ```
 
 All ten positive places produce `native exit 0` and `interp exit: 0`.

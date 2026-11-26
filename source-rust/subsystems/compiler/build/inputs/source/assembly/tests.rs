@@ -77,6 +77,7 @@ fn collection_catalog_keeps_its_build_product_and_query_source_cohorts() {
             None,
             Default::default(),
             &[],
+            &[],
             &Default::default(),
             &mut timings,
             &mut catalogue,
@@ -392,6 +393,7 @@ fn successor_selects_only_the_requested_build_from_its_frozen_package() {
     let prepare = |path: &Path, capture: Option<&crate::CapturedLocalSource>| {
         ImmutableSourceParseCheckpoint::prepare(
             super::CapturedBuildEntry::Successor {
+                source_owner: None,
                 path,
                 previous_build_files: &predecessors,
             },

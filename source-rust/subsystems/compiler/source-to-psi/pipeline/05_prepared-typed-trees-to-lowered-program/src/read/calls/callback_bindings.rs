@@ -295,11 +295,113 @@ impl Program<'_> {
             source: required,
             signature,
         } = required;
-        self.static_argument_selection(caller, argument)?;
+        let unavailable = |reason| refuse(caller, Construct::Machine, Unserved::Call(reason));
         let supplier = self
             .typed
             .static_operand_region_supplier(argument, lexical_owner)
-            .map_err(|reason| refuse(caller, Construct::Machine, Unserved::Call(reason)))?;
+            .map_err(unavailable)?;
+        let (implementation, selected, nested) = if self
+            .typed
+            .symbols
+            .symbols()
+            .nodes()
+            .is_valid(argument.symbol)
+            && self.typed.symbols.get(argument.symbol).kind == SymbolKind::MachineParameter
+        {
+            if argument.application.is_some() {
+                return Err(unavailable(
+                    "a forwarded callback parameter carries another application",
+                ));
+            }
+            let supplied = self
+                .symbols
+                .get(caller)
+                .and_then(|owner| self.typed.machine_by_symbol(*owner))
+                .and_then(|owner| {
+                    self.typed
+                        .machine_parameter_signature_in(owner, argument.symbol)
+                })
+                .ok_or_else(|| {
+                    unavailable("forwarded callback is outside its caller's lexical context")
+                })?;
+            let projection = self.binder_requirement(argument.symbol, supplied, &[])?;
+            let position = self.static_reach_parameter(caller, argument.symbol, projection)?;
+            let parameter = terminal_psi::static_reach::StaticReachParameter {
+                owner: caller,
+                parameter: position,
+                requirement: projection,
+            };
+            (
+                crate::callables::static_contracts::SourceImplementation::Parameter(parameter),
+                projection,
+                Vec::new(),
+            )
+        } else {
+            self.static_argument_selection(caller, argument)?;
+            let (body, nested) = self.selected_callback_body(caller, argument, supplier)?;
+            (
+                crate::callables::static_contracts::SourceImplementation::Machine(body),
+                body,
+                nested,
+            )
+        };
+        let application = self
+            .typed
+            .static_operand_identity(
+                crate::source_state::type_identity::StaticOperandIdentityRequest {
+                    operand:
+                        crate::source_state::type_identity::IndexIdentityArgument::StaticArgument(
+                            argument,
+                        ),
+                    lexical_owner: supplier,
+                    substitutions: &[],
+                },
+            )
+            .and_then(|identity| self.typed.type_identity_text(identity))
+            .filter(|identity| !identity.is_empty())
+            .ok_or_else(|| {
+                refuse(
+                    caller,
+                    Construct::Machine,
+                    Unserved::Call("callable argument lost its exact application identity"),
+                )
+            })?;
+        let envelope = self.static_envelope(caller, required, false)?;
+        let conformance =
+            u32::try_from(self.static_contracts.conformances.len()).map_err(|_| {
+                refuse(
+                    caller,
+                    Construct::Machine,
+                    Unserved::Call("too many callback conformance questions"),
+                )
+            })?;
+        self.static_contracts.conformances.push(
+            crate::callables::static_contracts::SourceConformance {
+                declaration: parameter,
+                requirement: required.symbol,
+                application,
+                implementation,
+                signature,
+                envelope,
+                provider: None,
+            },
+        );
+        Ok(CallbackConformance {
+            selected,
+            arguments: nested,
+            ordinal: conformance,
+        })
+    }
+
+    fn selected_callback_body(
+        &mut self,
+        caller: MachineId,
+        argument: &StaticMachineArgument,
+        supplier: SymbolHandle,
+    ) -> Checked<(
+        MachineId,
+        Vec<terminal_psi::static_reach::StaticReachArgument>,
+    )> {
         let target = self.entered_machine(argument.symbol).ok_or_else(|| {
             refuse(
                 caller,
@@ -354,53 +456,7 @@ impl Program<'_> {
         };
         self.fixed_contracts
             .push(super::super::FixedContract::Interface(body));
-        let application = self
-            .typed
-            .static_operand_identity(
-                crate::source_state::type_identity::StaticOperandIdentityRequest {
-                    operand:
-                        crate::source_state::type_identity::IndexIdentityArgument::StaticArgument(
-                            argument,
-                        ),
-                    lexical_owner: supplier,
-                    substitutions: &[],
-                },
-            )
-            .and_then(|identity| self.typed.type_identity_text(identity))
-            .filter(|identity| !identity.is_empty())
-            .ok_or_else(|| {
-                refuse(
-                    caller,
-                    Construct::Machine,
-                    Unserved::Call("callable argument lost its exact application identity"),
-                )
-            })?;
-        let envelope = self.static_envelope(caller, required, false)?;
-        let conformance =
-            u32::try_from(self.static_contracts.conformances.len()).map_err(|_| {
-                refuse(
-                    caller,
-                    Construct::Machine,
-                    Unserved::Call("too many callback conformance questions"),
-                )
-            })?;
-        self.static_contracts.conformances.push(
-            crate::callables::static_contracts::SourceConformance {
-                declaration: parameter,
-                requirement: required.symbol,
-                application,
-                implementation: crate::callables::static_contracts::SourceImplementation::Machine(
-                    body,
-                ),
-                signature,
-                envelope,
-                provider: None,
-            });
-        Ok(CallbackConformance {
-            selected: body,
-            arguments: nested,
-            ordinal: conformance,
-        })
+        Ok((body, nested))
     }
 
     /// The source binder and its full applied requirement travel together.

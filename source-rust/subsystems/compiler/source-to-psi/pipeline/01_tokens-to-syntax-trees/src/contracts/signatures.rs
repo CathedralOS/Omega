@@ -9,6 +9,7 @@ use tokens::{KeywordKind, PunctuationKind};
 fn signature_clause_boundary(input: Input<'_, '_>) -> bool {
     input.at_punctuation(PunctuationKind::Semicolon)
         || input.at_punctuation(PunctuationKind::LeftBrace)
+        || input.at_same_stack_demand()
         || input.at_contextual("requires")
         || input.at_contextual("ensures")
         || ((input.at_contextual("terminates")
@@ -31,6 +32,7 @@ pub(crate) struct SignatureClauses {
     pub blocks_keyword_source_spans: Vec<source_text::SourceSpan>,
     pub suspends: bool,
     pub blocks: bool,
+    pub admitted_same_stack_bytes: u64,
     pub contracts: HandleSpan<CapabilityContract>,
     pub terminates_guarantee: bool,
     /// The signature wrote `crashes none` (see `MachineClauses`).
@@ -53,6 +55,7 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
     let mut blocks_keyword_source_spans = Vec::new();
     let mut suspends = false;
     let mut blocks = false;
+    let mut admitted_same_stack_bytes = 0;
     let mut contracts = Vec::new();
     let mut crashes_none_declared = false;
     let mut terminates_guarantee = false;
@@ -61,6 +64,11 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
         && !input.at_punctuation(PunctuationKind::LeftBrace)
         && !input.tokens.is_empty()
     {
+        if input.at_same_stack_demand() {
+            (admitted_same_stack_bytes, input) =
+                crate::contracts::effects::same_stack_demand(input, admitted_same_stack_bytes)?;
+            continue;
+        }
         if input.at_contextual("requires")
             && input
                 .take_contextual("requires")?
@@ -238,6 +246,7 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
             blocks_keyword_source_spans,
             suspends,
             blocks,
+            admitted_same_stack_bytes,
             contracts: crate::contracts::effects::publish_capability_contracts(
                 syntax_trees,
                 contracts,

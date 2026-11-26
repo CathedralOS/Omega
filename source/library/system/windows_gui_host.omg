@@ -1,21 +1,11 @@
-use targets\windows_x86_64\WindowsGuiIo;
-use omega\language\core\WindowManagement;
-use omega\language\core\SurfacePresentation;
-use omega\language\core\WindowEventObservation;
-use omega\language\core\WindowEventDispatch;
-use omega\language\core\GlobalInputObservation;
-use omega\language\core\ClockObservation;
-use omega\language\core\ExecutionDelay;
-use omega\language\core\NativeCodeExecution;
-use omega\language\core\FilesystemContentRead;
-use omega\language\core\FilesystemContentWrite;
-use omega\language\core\FilesystemMetadataQuery;
-use omega\language\core\FilesystemMetadataMutation;
-use omega\language\core\DirectoryEnumeration;
-use omega\language\core\FilesystemNamespaceMutation;
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use targets/windows_x86_64/windows_gui_impl.omg;
+use {omega}/language/core/filesystem_authority.omg as authority;
+use {omega}/language/core/native_execution_authority.omg as native_execution;
+use {omega}/language/core/presentation_authority.omg as presentation;
+use {omega}/language/core/process_authority.omg as process;
+use {omega}/language/core/process_exit.omg;
+use {omega}/language/core/time_authority.omg as time;
+
 // The Windows window and thread-message service. Handles and message storage
 // belong to the caller; the provider keeps no virtual desktop or hidden state.
 // Class and title use the Windows ANSI API encoding and include a terminating
@@ -41,80 +31,80 @@ public machine windows_message_word_parameter(message: @WindowsMessage) -> u64 {
 public boundary trait WindowsGuiHost {
     machine window_create(class_name: @[u8], title: @[u8], style: u32,
         x: i32, y: i32, width: i32, height: i32) -> u64 reaches
-            NativeCodeExecution + WindowManagement + SurfacePresentation +
-            WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-            ClockObservation + ExecutionDelay + FilesystemContentRead +
-            FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-            DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-            StandardOutput + ProcessExit
-    invokes WindowsGuiIo
+            |native_execution|::NativeCodeExecution + |presentation|::WindowManagement + |presentation|::SurfacePresentation +
+            |presentation|::WindowEventObservation + |presentation|::WindowEventDispatch + |presentation|::GlobalInputObservation +
+            |time|::ClockObservation + |time|::ExecutionDelay + |authority|::FilesystemContentRead +
+            |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation +
+            |authority|::DirectoryEnumeration + |authority|::FilesystemNamespaceMutation + |process|::StandardInput +
+            |process|::StandardOutput + |process_exit|::ProcessExit
+    invokes |windows_gui_impl|::WindowsGuiIo
     crashes none;
-    machine foreground_window() -> u64 reaches WindowManagement
-    invokes WindowsGuiIo
+    machine foreground_window() -> u64 reaches |presentation|::WindowManagement
+    invokes |windows_gui_impl|::WindowsGuiIo
     crashes none;
-    machine is_window(window: u64) -> bool reaches WindowManagement
-    invokes WindowsGuiIo
+    machine is_window(window: u64) -> bool reaches |presentation|::WindowManagement
+    invokes |windows_gui_impl|::WindowsGuiIo
     crashes none;
     machine window_destroy(window: u64) -> bool reaches
-        NativeCodeExecution + WindowManagement + SurfacePresentation +
-        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-        ClockObservation + ExecutionDelay + FilesystemContentRead +
-        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-        DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-        StandardOutput + ProcessExit
-    invokes WindowsGuiIo
+        |native_execution|::NativeCodeExecution + |presentation|::WindowManagement + |presentation|::SurfacePresentation +
+        |presentation|::WindowEventObservation + |presentation|::WindowEventDispatch + |presentation|::GlobalInputObservation +
+        |time|::ClockObservation + |time|::ExecutionDelay + |authority|::FilesystemContentRead +
+        |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation +
+        |authority|::DirectoryEnumeration + |authority|::FilesystemNamespaceMutation + |process|::StandardInput +
+        |process|::StandardOutput + |process_exit|::ProcessExit
+    invokes |windows_gui_impl|::WindowsGuiIo
     crashes none;
     // Remove at most one message from this thread, translate and dispatch it.
     // A false result means the queue had no message; this operation never waits.
     machine pump_message(message: @mutable WindowsMessage) -> bool reaches
-        NativeCodeExecution + WindowManagement + SurfacePresentation +
-        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-        ClockObservation + ExecutionDelay + FilesystemContentRead +
-        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-        DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-        StandardOutput + ProcessExit
-    invokes WindowsGuiIo
+        |native_execution|::NativeCodeExecution + |presentation|::WindowManagement + |presentation|::SurfacePresentation +
+        |presentation|::WindowEventObservation + |presentation|::WindowEventDispatch + |presentation|::GlobalInputObservation +
+        |time|::ClockObservation + |time|::ExecutionDelay + |authority|::FilesystemContentRead +
+        |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation +
+        |authority|::DirectoryEnumeration + |authority|::FilesystemNamespaceMutation + |process|::StandardInput +
+        |process|::StandardOutput + |process_exit|::ProcessExit
+    invokes |windows_gui_impl|::WindowsGuiIo
     crashes none;
     // Add native frame metrics to the requested client size. Windows may
     // enforce its own minimum window size during creation.
     machine window_create_client(class_name: @[u8], title: @[u8], style: u32,
         x: i32, y: i32, width: i32, height: i32) -> u64 reaches
-            NativeCodeExecution + WindowManagement + SurfacePresentation +
-            WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-            ClockObservation + ExecutionDelay + FilesystemContentRead +
-            FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-            DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-            StandardOutput + ProcessExit
-    invokes WindowsGuiIo
+            |native_execution|::NativeCodeExecution + |presentation|::WindowManagement + |presentation|::SurfacePresentation +
+            |presentation|::WindowEventObservation + |presentation|::WindowEventDispatch + |presentation|::GlobalInputObservation +
+            |time|::ClockObservation + |time|::ExecutionDelay + |authority|::FilesystemContentRead +
+            |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation +
+            |authority|::DirectoryEnumeration + |authority|::FilesystemNamespaceMutation + |process|::StandardInput +
+            |process|::StandardOutput + |process_exit|::ProcessExit
+    invokes |windows_gui_impl|::WindowsGuiIo
     crashes none;
     machine get_dc(window: u64) -> u64 reaches
-        SurfacePresentation + FilesystemContentRead + FilesystemContentWrite +
-        FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration +
-        FilesystemNamespaceMutation
-    invokes WindowsGuiIo
+        |presentation|::SurfacePresentation + |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite +
+        |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation + |authority|::DirectoryEnumeration +
+        |authority|::FilesystemNamespaceMutation
+    invokes |windows_gui_impl|::WindowsGuiIo
     crashes none;
     machine release_dc(window: u64, device: u64) -> i32 reaches
-        SurfacePresentation + FilesystemContentRead + FilesystemContentWrite +
-        FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration +
-        FilesystemNamespaceMutation
-    invokes WindowsGuiIo
+        |presentation|::SurfacePresentation + |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite +
+        |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation + |authority|::DirectoryEnumeration +
+        |authority|::FilesystemNamespaceMutation
+    invokes |windows_gui_impl|::WindowsGuiIo
     crashes none;
-    machine client_rectangle(window: u64, rectangle: @mutable WindowsRectangle) -> i32 reaches WindowManagement
-    invokes WindowsGuiIo
+    machine client_rectangle(window: u64, rectangle: @mutable WindowsRectangle) -> i32 reaches |presentation|::WindowManagement
+    invokes |windows_gui_impl|::WindowsGuiIo
     crashes none;
     // The caller lends live BITMAPINFO and pixel storage for this synchronous call.
     machine stretch_dibits(device: u64, destination_x: i32, destination_y: i32,
         destination_width: i32, destination_height: i32, source_x: i32, source_y: i32,
         source_width: i32, source_height: i32, pixels: @i32, info: @i32,
         usage: u32, raster_operation: u32) -> i32 reaches
-            SurfacePresentation + FilesystemContentRead + FilesystemContentWrite +
-            FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration +
-            FilesystemNamespaceMutation
-    invokes WindowsGuiIo
+            |presentation|::SurfacePresentation + |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite +
+            |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation + |authority|::DirectoryEnumeration +
+            |authority|::FilesystemNamespaceMutation
+    invokes |windows_gui_impl|::WindowsGuiIo
     crashes none;
     // Asynchronous virtual-key state. One means the key was down at call time;
     // the raw pressed-since-last-call latch of GetAsyncKeyState is discarded.
-    machine key_state(virtual_key: u32) -> u64 reaches GlobalInputObservation
-    invokes WindowsGuiIo
+    machine key_state(virtual_key: u32) -> u64 reaches |presentation|::GlobalInputObservation
+    invokes |windows_gui_impl|::WindowsGuiIo
     crashes none;
 }

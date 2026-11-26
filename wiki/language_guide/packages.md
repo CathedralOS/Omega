@@ -47,13 +47,17 @@ and describes a Linux editor. Both programs import the same helper.
 
 ```omega
 // build.omg
+use {omega}/language/core/process_authority.omg as process;
 use {omega}/build/dependency.omg;
 use {system}/console.omg;
 
 machine build(build: @mutable Build) {
     let system: DependencyDescription =
         |dependency|::from_source(Source::Path { location: "vendor/system" });
-    |dependency|::add(build, system, max_reach: [StandardOutput]);
+    let allowed: [BoundaryServiceReference; 1] = [
+        Build::service::<|process|::StandardOutput>(build)
+    ];
+    _ = |dependency|::add(build, system, @allowed[..]);
     Build::build_entry(build, "build_0.omg");
     Build::select_provider::<|console|::Console, |console|::InterpreterConsole>(
         build, interpreter
@@ -67,33 +71,39 @@ calls the console. Its caller supplies the child's admitted output sink.
 
 ```omega
 // build_0.omg
+use {omega}/language/core/process_authority.omg as process;
 use {omega}/build/dependency.omg;
 use generated.omg;
 use main.omg as editor;
 
-machine build(build: @mutable Build) reaches StandardOutput {
+machine build(build: @mutable Build) {
     |generated|::announce("configuring editor");
     Build::application(build, "editor");
     let system: PackageBinding = |dependency|::input(build, "system");
-    |dependency|::add(build, system, max_reach: [StandardOutput]);
+    let allowed: [BoundaryServiceReference; 1] = [
+        Build::service::<|process|::StandardOutput>(build)
+    ];
+    _ = |dependency|::add(build, system, @allowed[..]);
     Build::bind(build, linux_x86_64::ProgramEntry, |editor|::main);
 }
 ```
 
 ```omega
 // generated.omg, supplied in the frozen source view of both programs
+use {omega}/language/core/process_authority.omg as process;
 use {system}/console.omg;
 
-public machine announce(message: @[u8]) reaches StandardOutput {
+public machine announce(message: @[u8]) reaches |process|::StandardOutput {
     |console|::Console::write_line(message);
 }
 ```
 
 ```omega
 // main.omg
+use {omega}/language/core/process_authority.omg as process;
 use generated.omg;
 
-machine main() reaches StandardOutput {
+machine main() reaches |process|::StandardOutput {
     |generated|::announce("editor started");
 }
 ```
@@ -101,9 +111,7 @@ machine main() reaches StandardOutput {
 The first message reaches the interpreter's diagnostic sink. When the editor
 runs, its message reaches Linux standard output through the provider selected
 by the `system` package for that target. The intermediate Build forwards the
-package once. Individual callers just use `Console`. A generator can supply
-`generated.omg` by writing it into the source view before handoff.
-The successor API and interpreter adapter are specified implementation work.
+package once. Both entries read `generated.omg` from the supplied source view.
 [Stage admission and acceptance cases](../spec/build/scoped_execution.md#providers-for-an-interpreted-successor)
 
 ## Giving one dependency a filesystem

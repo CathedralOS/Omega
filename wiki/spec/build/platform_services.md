@@ -21,6 +21,13 @@ events are outside these two contracts. A host can provide the standard library
 interface wherever it can preserve its byte-stream semantics. The
 [bounded input contract](../resources/bounded_input.md) defines read outcomes.
 
+An interpreted Build can import `use {omega}/language/core/sandbox/streams.omg as sandbox;`.
+`|sandbox|::SandboxOutput::write` appends the supplied bytes to the caller’s
+bounded diagnostic sink. The system package’s `InterpreterConsole::write_byte`
+supplies a one-byte view and `write_line` supplies its trailing LF. A caller must
+supply an input endpoint separately for code that reaches `SandboxInput`.
+[Build sandbox bindings](scoped_execution.md#build-sandbox-bindings)
+
 ## Network reach
 
 A helper can send a reply on a flow its caller already opened without acquiring
@@ -29,8 +36,9 @@ with a peer. A connected socket is one possible implementation. The
 `network-service-reach` decision (2026-11-23) applies to both hosted sockets
 and protocol stacks that run in the application.
 
-Core declares `Network` as a memberless boundary trait. Its five memberless
-boundary children identify operations. Reaching any child also reaches
+Import `{omega}/language/core/network_authority.omg` to name the memberless
+core boundary trait `Network` and its five memberless children. Each child
+identifies an operation. Reaching any child also reaches
 `Network` under the ordinary [boundary-parent rules](../language/effects.md#boundary-services-with-parameters).
 
 | Service | What the operation permits |

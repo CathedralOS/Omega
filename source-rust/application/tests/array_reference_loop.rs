@@ -39,12 +39,12 @@ fn observe(fixture: &str, arguments: &[&str]) -> (bool, String) {
 
 #[test]
 fn a_loop_keeps_the_selected_shape_in_native_and_psi_execution() {
-    let (success, report) = observe(
-        "source-rust/application/tests/fixtures/references/run/array_reference_loop",
-        &["run", "--both", "main.omg"],
-    );
-    assert!(success, "{report}");
-    for receipt in ["native exit 0", "interp exit: 0"] {
+    for (engine, receipt) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+        let (success, report) = observe(
+            "source-rust/application/tests/fixtures/references/run/array_reference_loop",
+            &["run", "--engine", engine, "main.omg"],
+        );
+        assert!(success, "{report}");
         assert!(report.lines().any(|line| line == receipt), "{report}");
     }
 }

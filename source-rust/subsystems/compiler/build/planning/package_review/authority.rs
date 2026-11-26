@@ -10,6 +10,7 @@ use review_evidence::record::{
 /// Core vocabulary lookup authenticates the toolchain declaration's full source bytes.
 fn critical_class(vocabulary: CoreVocabulary) -> Option<Class> {
     match vocabulary {
+        CoreVocabulary::NetworkService => Some(Class::Network),
         CoreVocabulary::FilesystemService(_) => Some(Class::Filesystem),
         CoreVocabulary::StandardInputService
         | CoreVocabulary::StandardOutputService

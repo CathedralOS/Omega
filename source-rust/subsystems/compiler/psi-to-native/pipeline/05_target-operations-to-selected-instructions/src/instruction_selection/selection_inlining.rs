@@ -15,21 +15,21 @@ use register_model::{
     RegisterClassId, RegisterInstructionConstraint, RegisterOperandAccess, RegisterViewId,
 };
 use selected_instructions::{
-    FrameStorageSlotId, LocalStorageSlotId, SelectedAddressBase, SelectedBlock, SelectedBlockId,
-    SelectedBlockOrigin, SelectedCallTarget, SelectedFunction, SelectedInstruction,
-    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionProvenance,
-    SelectedLocalStorageSlot, SelectedMemoryAccessOrigin, SelectedMemoryAccessRole,
-    SelectedOperand, SelectedStructuralTransport, SelectedSuccessor, SelectedSuccessorRole,
-    SelectedTerminator, VirtualRegisterId, VirtualRegisterOrigin, terminator_instruction,
-    terminator_instruction_mut, terminator_successors, terminator_successors_mut,
+    FrameStorageSlotId, LocalStorageSlotId, SelectedBlock, SelectedBlockId, SelectedBlockOrigin,
+    SelectedCallTarget, SelectedFunction, SelectedInstruction, SelectedInstructionId,
+    SelectedInstructionKind, SelectedInstructionProvenance, SelectedLocalStorageSlot,
+    SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, SelectedOperand, SelectedSuccessor,
+    SelectedSuccessorRole, SelectedTerminator, VirtualRegisterId, VirtualRegisterOrigin,
+    terminator_instruction, terminator_instruction_mut, terminator_successors,
+    terminator_successors_mut,
 };
 use semantic_vocabulary::{BlockId, MachineId, OperationId};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use target_vocabulary::CallSiteOwner;
 
-const MAX_INLINED_CALLEE_INSTRUCTIONS: usize = 4096;
-const MAX_INLINED_CALLEE_BLOCKS: usize = 256;
-const MAX_CALLER_INSTRUCTIONS_AFTER_INLINE: usize = 16384;
+const MAX_INLINED_CALLEE_INSTRUCTIONS: usize = 16384;
+const MAX_INLINED_CALLEE_BLOCKS: usize = 1024;
+const MAX_CALLER_INSTRUCTIONS_AFTER_INLINE: usize = 65536;
 
 pub(crate) fn inline_and_simplify(
     functions: &mut [SelectedFunction],
@@ -463,15 +463,14 @@ fn check_inline_eligibility(
             | SelectedTerminator::OperationInvokeNoNormal { .. }
             | SelectedTerminator::HostedExitProcess { .. } => return None,
         }
-        for succ in terminator_successors(&block.terminator) {
-            if succ.structural_case.is_some() {
-                return None;
-            }
-            for sb in &succ.structural_bindings {
-                if !structural_transport_slots_mapped(&sb.transport, &slot_map) {
-                    return None;
-                }
-            }
+        // Cloned branches become continuations of the caller's operation.
+        // A callee block parameter or case payload belongs to its original Psi edge.
+        if terminator_successors(&block.terminator).iter().any(|edge| {
+            !edge.bindings.is_empty()
+                || !edge.structural_bindings.is_empty()
+                || edge.structural_case.is_some()
+        }) {
+            return None;
         }
     }
     for access in &callee.memory_accesses {
@@ -592,30 +591,6 @@ fn instruction_is_inline_safe(
             FrameStorageSlotId::Incoming { .. } | FrameStorageSlotId::Outgoing(_) => false,
         },
         _ => true,
-    }
-}
-
-fn structural_transport_slots_mapped(
-    transport: &SelectedStructuralTransport,
-    slot_map: &HashMap<LocalStorageSlotId, LocalStorageSlotId>,
-) -> bool {
-    match transport {
-        SelectedStructuralTransport::Unused => true,
-        SelectedStructuralTransport::ScalarReference {
-            base, destination, ..
-        }
-        | SelectedStructuralTransport::Address {
-            base, destination, ..
-        } => {
-            slot_map.contains_key(destination)
-                && match base {
-                    SelectedAddressBase::Register(_) => true,
-                    SelectedAddressBase::Local(slot) => slot_map.contains_key(slot),
-                }
-        }
-        SelectedStructuralTransport::WholeValue { destination, .. } => {
-            slot_map.contains_key(destination)
-        }
     }
 }
 
@@ -864,23 +839,6 @@ fn apply_inline(
                     succ.block = block_map[&succ.block];
                     succ.source_target = caller_src_block;
                     succ.work.clear();
-                    for binding in &mut succ.bindings {
-                        if let selected_instructions::SelectedValueTransport::Registers {
-                            argument,
-                            parameter,
-                        } = &mut binding.transport
-                        {
-                            *argument = plan.reg_map[argument];
-                            *parameter = plan.reg_map[parameter];
-                        }
-                    }
-                    for sb in &mut succ.structural_bindings {
-                        remap_structural_transport(
-                            &mut sb.transport,
-                            &plan.reg_map,
-                            &plan.slot_map,
-                        );
-                    }
                 }
                 cloned_term
             }
@@ -1056,36 +1014,6 @@ fn remap_callee_instruction(
         _ => {}
     }
     cloned
-}
-
-fn remap_structural_transport(
-    transport: &mut SelectedStructuralTransport,
-    reg_map: &HashMap<VirtualRegisterId, VirtualRegisterId>,
-    slot_map: &HashMap<LocalStorageSlotId, LocalStorageSlotId>,
-) {
-    match transport {
-        SelectedStructuralTransport::Unused => {}
-        SelectedStructuralTransport::ScalarReference {
-            base, destination, ..
-        }
-        | SelectedStructuralTransport::Address {
-            base, destination, ..
-        } => {
-            *destination = slot_map[destination];
-            match base {
-                SelectedAddressBase::Register(reg) => *reg = reg_map[reg],
-                SelectedAddressBase::Local(slot) => *slot = slot_map[slot],
-            }
-        }
-        SelectedStructuralTransport::WholeValue {
-            argument,
-            destination,
-            ..
-        } => {
-            *argument = reg_map[argument];
-            *destination = slot_map[destination];
-        }
-    }
 }
 
 fn merge_single_predecessor_blocks(function: &mut SelectedFunction) {
@@ -1665,6 +1593,29 @@ mod tests {
             ]
             .into(),
         };
+
+        let mut with_binding = [caller.clone(), callee.clone()];
+        let SelectedTerminator::Jump { successor, .. } = &mut with_binding[1].blocks[0].terminator
+        else {
+            unreachable!()
+        };
+        let binding = selected_instructions::SelectedValueBinding {
+            semantic: operation_operands::values::ValueBinding {
+                parameter: ValueId::new(3).unwrap(),
+                argument: ValueId::new(1).unwrap(),
+                scalar_type: i64_type(),
+            },
+            transport: selected_instructions::SelectedValueTransport::Unused,
+        };
+        successor.bindings.push(binding.clone());
+        inline_and_simplify(&mut with_binding, &environment).unwrap();
+        assert_eq!(with_binding[0].calls.as_slice(), caller.calls.as_slice());
+        let SelectedTerminator::Jump { successor, .. } = &with_binding[1].blocks[0].terminator
+        else {
+            panic!("callee lost its branch")
+        };
+        assert_eq!(successor.bindings, [binding]);
+        assert_eq!(successor.role, SelectedSuccessorRole::Semantic);
 
         let mut functions = vec![caller, callee];
         inline_and_simplify(&mut functions, &environment).unwrap();

@@ -91,8 +91,8 @@ mod facts {
         use selected_instructions::{
             MachineAlternative, MachineEffectDeclaration, MachineEncodedControlEffect,
             MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
-            MachineSemanticKind, PreparedMachineEffectCatalog,
-            SelectedFunction, SelectedInstruction, SelectedInstructionKind,
+            MachineSemanticKind, PreparedMachineEffectCatalog, SelectedFunction,
+            SelectedInstruction, SelectedInstructionKind,
         };
 
         use crate::MachineEffectError;
@@ -646,24 +646,28 @@ mod facts {
                 SelectedInstructionKind::PackedNarrowI16x8ToU8x4Saturating => {
                     MachineSemanticKind::PackedNarrowI16x8ToU8x4Saturating
                 }
-                SelectedInstructionKind::PackedLoad128 { .. } => {
-                    MachineSemanticKind::PackedLoad128
+                SelectedInstructionKind::PackedAddU8x16 => MachineSemanticKind::PackedAddU8x16,
+                SelectedInstructionKind::PackedMinI16x8 => MachineSemanticKind::PackedMinI16x8,
+                SelectedInstructionKind::PackedCmpGtI16x8 => MachineSemanticKind::PackedCmpGtI16x8,
+                SelectedInstructionKind::PackedBitAndI16x8 => {
+                    MachineSemanticKind::PackedBitAndI16x8
                 }
+                SelectedInstructionKind::PackedBitAndNotI16x8 => {
+                    MachineSemanticKind::PackedBitAndNotI16x8
+                }
+                SelectedInstructionKind::PackedAbsI16x8 => MachineSemanticKind::PackedAbsI16x8,
+                SelectedInstructionKind::PackedLoad128 { .. } => MachineSemanticKind::PackedLoad128,
                 SelectedInstructionKind::PackedStore128 { .. } => {
                     MachineSemanticKind::PackedStore128
                 }
                 SelectedInstructionKind::PackedLoad64ZeroExtend { .. } => {
                     MachineSemanticKind::PackedLoad64ZeroExtend
                 }
-                SelectedInstructionKind::PackedStore64 { .. } => {
-                    MachineSemanticKind::PackedStore64
-                }
+                SelectedInstructionKind::PackedStore64 { .. } => MachineSemanticKind::PackedStore64,
                 SelectedInstructionKind::PackedLoad32ZeroExtend { .. } => {
                     MachineSemanticKind::PackedLoad32ZeroExtend
                 }
-                SelectedInstructionKind::PackedStore32 { .. } => {
-                    MachineSemanticKind::PackedStore32
-                }
+                SelectedInstructionKind::PackedStore32 { .. } => MachineSemanticKind::PackedStore32,
                 SelectedInstructionKind::PackedMaterializeZero => {
                     MachineSemanticKind::PackedMaterializeZero
                 }
@@ -690,6 +694,24 @@ mod facts {
                 }
                 SelectedInstructionKind::PackedNarrowI16x8ToU8x8SaturatingReg => {
                     MachineSemanticKind::PackedNarrowI16x8ToU8x8SaturatingReg
+                }
+                SelectedInstructionKind::PackedAddU8x16Reg => {
+                    MachineSemanticKind::PackedAddU8x16Reg
+                }
+                SelectedInstructionKind::PackedMinI16x8Reg => {
+                    MachineSemanticKind::PackedMinI16x8Reg
+                }
+                SelectedInstructionKind::PackedCmpGtI16x8Reg => {
+                    MachineSemanticKind::PackedCmpGtI16x8Reg
+                }
+                SelectedInstructionKind::PackedBitAndI16x8Reg => {
+                    MachineSemanticKind::PackedBitAndI16x8Reg
+                }
+                SelectedInstructionKind::PackedBitAndNotI16x8Reg => {
+                    MachineSemanticKind::PackedBitAndNotI16x8Reg
+                }
+                SelectedInstructionKind::PackedAbsI16x8Reg => {
+                    MachineSemanticKind::PackedAbsI16x8Reg
                 }
                 SelectedInstructionKind::CopyBytes => MachineSemanticKind::CopyBytes,
                 SelectedInstructionKind::LoadEncodedScalar => {
@@ -1076,7 +1098,8 @@ mod catalog_handoff_tests {
 
     #[test]
     fn catalog_handoff_propagates_an_architecture_mismatch() {
-        let environment = baseline_target_register_environment(NativeTarget::windows_x64()).unwrap();
+        let environment =
+            baseline_target_register_environment(NativeTarget::windows_x64()).unwrap();
         let target = NativeTarget::windows_arm64();
         assert!(matches!(
             prepared_machine_effect_catalog(target, environment.constraints()),

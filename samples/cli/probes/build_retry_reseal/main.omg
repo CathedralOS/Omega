@@ -1,7 +1,7 @@
-use {kit}/generated.omg as generated;
+use {kit}/main.omg as kit;
 
 machine entry() -> i32 {
-    |generated|::value()
+    |kit|::value()
 }
 
 machine main() crashes Trap {

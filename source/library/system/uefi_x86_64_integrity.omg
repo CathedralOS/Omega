@@ -1,5 +1,5 @@
-use targets\uefi_x86_64\read_u32;
-use targets\uefi_x86_64\table_crc;
+use targets/uefi_x86_64/integrity.omg;
+
 public machine validate_table(
     bytes: @[u8],
     signature: u64,
@@ -16,13 +16,13 @@ terminates
     machine header(bytes: @[u8], signature: u64, minimum_revision: u32, minimum_size: u32) -> bool
     requires bytes.length >= 24
     {
-        let signature_low: u32 = read_u32(bytes);
-        let signature_high: u32 = read_u32(bytes[4..]);
+        let signature_low: u32 = |integrity|::read_u32(bytes);
+        let signature_high: u32 = |integrity|::read_u32(bytes[4..]);
         let actual_signature: u64 = (signature_low as u64) | ((signature_high as u64) << 32);
-        let revision: u32 = read_u32(bytes[8..]);
-        let header_size: u32 = read_u32(bytes[12..]);
-        let expected_crc: u32 = read_u32(bytes[16..]);
-        let reserved: u32 = read_u32(bytes[20..]);
+        let revision: u32 = |integrity|::read_u32(bytes[8..]);
+        let header_size: u32 = |integrity|::read_u32(bytes[12..]);
+        let expected_crc: u32 = |integrity|::read_u32(bytes[16..]);
+        let reserved: u32 = |integrity|::read_u32(bytes[20..]);
         transition actual_signature == signature && revision >= minimum_revision
             && reserved == 0 && header_size >= 24 && header_size >= minimum_size
             && header_size <= bytes.length {
@@ -34,7 +34,7 @@ terminates
     machine checksum(bytes: @[u8], header_size: u64, expected_crc: u32) -> bool
     requires header_size <= bytes.length
     {
-        let computed: u32 = table_crc(bytes[..header_size], 0, 0xFFFFFFFF, header_size);
+        let computed: u32 = |integrity|::table_crc(bytes[..header_size], 0, 0xFFFFFFFF, header_size);
         computed == expected_crc
     }
 }

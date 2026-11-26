@@ -1,55 +1,24 @@
 //! Copying a generic helper preserves its authored invocation ceiling.
 
+#[path = "support/build_fixture.rs"]
+mod build_fixture;
 mod support;
 
-use platform_custody::temporary_directory::TemporaryDirectory;
-use std::process::{Command, Output, Stdio};
-
-fn invoke(tier: &str) -> (Output, String) {
-    let fixture = support::repository_root()
+fn fixture_path(tier: &str) -> std::path::PathBuf {
+    support::repository_root()
         .join("source-rust/application/tests/fixtures/calls")
         .join(tier)
-        .join("copied_invocation_contracts");
-    let scratch = TemporaryDirectory::create("copied-invocation-contracts", false).unwrap();
-    for name in ["main.omg", "build.omg"] {
-        std::fs::copy(fixture.join(name), scratch.path().join(name)).unwrap();
-    }
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args([
-            "run",
-            "--both",
-            "--build-input",
-            "build.omg",
-            "--build-input",
-            "main.omg",
-            "build.omg",
-        ])
-        .current_dir(scratch.path())
-        .stdin(Stdio::null())
-        .output()
-        .expect("the compiler runs with the fixture's explicit inputs");
-    let report = format!(
-        "{}{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    eprintln!("{report}");
-    (output, report)
+        .join("copied_invocation_contracts")
 }
 
 #[test]
 fn copied_invocation_contracts_run_in_both_engines() {
-    let (output, report) = invoke("run");
-    assert!(output.status.success(), "{report}");
-    assert!(output.stdout.is_empty(), "{report}");
-    for receipt in ["native exit 0", "interp exit: 0"] {
-        assert!(report.lines().any(|line| line == receipt), "{report}");
-    }
+    build_fixture::assert_silent_return(&fixture_path("run"));
 }
 
 #[test]
 fn a_copied_helper_cannot_enter_outside_its_written_ceiling() {
-    let (output, report) = invoke("fail");
+    let (output, report) = build_fixture::check(&fixture_path("fail"));
     assert!(!output.status.success(), "{report}");
     assert!(
         report.contains("machine `relay` invokes")

@@ -180,6 +180,8 @@ pub struct ServiceMethod {
     pub synchronous_invocations: Vec<ServiceSynchronousInvocation>,
     pub may_suspend: bool,
     pub may_block: bool,
+    /// Authored positive bound for an opaque foreign callee on this requirement; zero supplies no bound.
+    pub admitted_same_stack_bytes: u64,
     pub terminates_guarantee: bool,
     pub termination_premises: Vec<ServiceProgressPremise>,
 }
@@ -228,6 +230,7 @@ impl ServiceMethod {
             && self.synchronous_invocations == other.synchronous_invocations
             && self.may_suspend == other.may_suspend
             && self.may_block == other.may_block
+            && self.admitted_same_stack_bytes == other.admitted_same_stack_bytes
             && self.terminates_guarantee == other.terminates_guarantee
             && self.termination_premises.len() == other.termination_premises.len()
             && self

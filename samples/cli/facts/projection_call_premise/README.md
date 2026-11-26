@@ -43,15 +43,15 @@ Every positive place binds `ProgramEntry` for all four hosted targets
 native execution agreement (`native exit 0` and `interp exit: 0`):
 
 ```sh
-target/debug/omega run --both samples/cli/facts/projection_call_premise/local/main.omg
-target/debug/omega run --both samples/cli/facts/projection_call_premise/field/main.omg
-target/debug/omega run --both samples/cli/facts/projection_call_premise/parameter/main.omg
-target/debug/omega run --both samples/cli/facts/projection_call_premise/call_result/main.omg
-target/debug/omega run --both samples/cli/facts/projection_call_premise/match_join/main.omg
-target/debug/omega run --both samples/cli/facts/projection_call_premise/const_name/main.omg
-target/debug/omega run --both samples/cli/facts/projection_call_premise/other_state/main.omg
-target/debug/omega run --both samples/cli/facts/projection_call_premise/other_machine/main.omg
-target/debug/omega run --both samples/cli/facts/projection_call_premise/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/projection_call_premise/local
+mbx xtask sample-gate --filter samples/cli/facts/projection_call_premise/field
+mbx xtask sample-gate --filter samples/cli/facts/projection_call_premise/parameter
+mbx xtask sample-gate --filter samples/cli/facts/projection_call_premise/call_result
+mbx xtask sample-gate --filter samples/cli/facts/projection_call_premise/match_join
+mbx xtask sample-gate --filter samples/cli/facts/projection_call_premise/const_name
+mbx xtask sample-gate --filter samples/cli/facts/projection_call_premise/other_state
+mbx xtask sample-gate --filter samples/cli/facts/projection_call_premise/other_machine
+mbx xtask sample-gate --filter samples/cli/facts/projection_call_premise/target_body
 ```
 
 ### The oracle discriminates

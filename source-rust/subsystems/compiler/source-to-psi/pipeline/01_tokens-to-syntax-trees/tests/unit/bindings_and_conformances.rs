@@ -1044,3 +1044,30 @@ fn external_stack_demand_reads_three_semantic_tokens_across_trivia() {
     let error = crate::parse_syntax_trees(&tokens).unwrap_err();
     assert!(error.message.contains("positive byte count"));
 }
+
+#[test]
+fn caller_stack_is_an_explicit_external_requirement() {
+    let text = "boundary trait Firmware { machine emit() reaches none crashes none stack 128 bytes; }";
+    let parsed = crate::tests::parse_source(text, "foreign requirement with a stack bound");
+    let Some(Item::Trait(interface)) = parsed.root_items().next() else {
+        panic!("boundary trait");
+    };
+    let [emit] = parsed.items.state_signatures(interface.machines) else {
+        panic!("one method");
+    };
+    assert_eq!(
+        parsed.items.state_signature(*emit).admitted_same_stack_bytes,
+        128
+    );
+
+    for (wrong, expected) in [
+        (text.replace("128 bytes", "0 bytes"), "positive byte count"),
+        (text.replace("128 bytes;", "128 bytes stack 64 bytes;"), "duplicate"),
+        (text.replace("boundary trait", "trait"), "bodyless foreign boundary requirement"),
+        (text.replace("128 bytes;", "128 bytes { }"), "bodyless foreign boundary requirement"),
+    ] {
+        let tokens = crate::frontend_fixture::Lexer::new(&wrong).tokenize().unwrap();
+        let error = crate::parse_syntax_trees(&tokens).unwrap_err();
+        assert!(error.message.contains(expected), "{}", error.message);
+    }
+}

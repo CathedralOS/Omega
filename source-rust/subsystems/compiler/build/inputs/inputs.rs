@@ -7,7 +7,7 @@
 
 #![forbid(unsafe_code)]
 
-pub use source::anonymous_owner::AnonymousSourceCapture;
+pub use source::anonymous_owner::{AnonymousSourceCapture, CompletedAnonymousSource};
 pub use source_acquisition::local::resolution_observations::CapturedLocalSource;
 pub mod build_execution;
 use wire::codec_bytes;

@@ -7,30 +7,30 @@ public machine with_alias<'storage>(description: @mutable DependencyDescription<
     description.alias = alias;
 }
 
-public machine input(builder: @Build, alias: @[u8]) -> PackageBinding reaches BuildRequestOperations {
+public machine input(builder: @BuildPlan, alias: @[u8]) -> PackageBinding reaches BuildRequestOperations {
     BuildRequestOperations::input_binding(builder, alias)
 }
 
-public machine add(builder: @mutable Build, binding: PackageBinding) -> DependencyRegistration reaches BuildRequestOperations {
+public machine add(builder: @mutable BuildPlan, binding: PackageBinding) -> DependencyRegistration reaches BuildRequestOperations {
     BuildRequestOperations::add_binding(builder, binding, PackageReach {})
 }
 
-public machine add(builder: @mutable Build, binding: PackageBinding, max_reach: @[BoundaryServiceRef]) -> DependencyRegistration reaches BuildRequestOperations {
+public machine add(builder: @mutable BuildPlan, binding: PackageBinding, max_reach: @[BoundaryServiceReference]) -> DependencyRegistration reaches BuildRequestOperations {
     BuildRequestOperations::add_binding(builder, binding, ceiling(builder, max_reach))
 }
 
-public machine add(builder: @mutable Build, description: DependencyDescription) -> DependencyRegistration reaches BuildRequestOperations {
+public machine add(builder: @mutable BuildPlan, description: DependencyDescription) -> DependencyRegistration reaches BuildRequestOperations {
     Build::dependency(builder, description)
 }
 
-public machine add(builder: @mutable Build, description: DependencyDescription, max_reach: @[BoundaryServiceRef]) -> DependencyRegistration reaches BuildRequestOperations {
+public machine add(builder: @mutable BuildPlan, description: DependencyDescription, max_reach: @[BoundaryServiceReference]) -> DependencyRegistration reaches BuildRequestOperations {
     Build::request_dependency(builder, false, description.explicit_alias, description.alias, description.source, ceiling(builder, max_reach))
 }
 
-machine ceiling(builder: @Build, services: @[BoundaryServiceRef]) -> PackageReach reaches BuildRequestOperations {
+machine ceiling(builder: @BuildPlan, services: @[BoundaryServiceReference]) -> PackageReach reaches BuildRequestOperations {
     collect(builder, services, 0u64, PackageReach {})
 
-    machine collect(builder: @Build, services: @[BoundaryServiceRef], index: u64, so_far: PackageReach) -> PackageReach
+    machine collect(builder: @BuildPlan, services: @[BoundaryServiceReference], index: u64, so_far: PackageReach) -> PackageReach
     reaches BuildRequestOperations
     {
         transition index < services.length {
@@ -39,7 +39,7 @@ machine ceiling(builder: @Build, services: @[BoundaryServiceRef]) -> PackageReac
         }
     }
 
-    machine add_one(builder: @Build, services: @[BoundaryServiceRef], index: u64, so_far: PackageReach) -> PackageReach
+    machine add_one(builder: @BuildPlan, services: @[BoundaryServiceReference], index: u64, so_far: PackageReach) -> PackageReach
     reaches BuildRequestOperations
     requires index < services.length
     {

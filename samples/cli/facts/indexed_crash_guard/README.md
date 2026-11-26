@@ -24,16 +24,7 @@ The root application and nine fact-place projects expose the public omitted-caus
 The root application and all nine place projects bind `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and declare `Expected exit: 0`. Run any positive directly:
 
 ```sh
-omega run --both samples/cli/facts/indexed_crash_guard/main.omg
-omega run --both samples/cli/facts/indexed_crash_guard/local/main.omg
-omega run --both samples/cli/facts/indexed_crash_guard/field/main.omg
-omega run --both samples/cli/facts/indexed_crash_guard/parameter/main.omg
-omega run --both samples/cli/facts/indexed_crash_guard/call_result/main.omg
-omega run --both samples/cli/facts/indexed_crash_guard/match_join/main.omg
-omega run --both samples/cli/facts/indexed_crash_guard/const_name/main.omg
-omega run --both samples/cli/facts/indexed_crash_guard/other_state/main.omg
-omega run --both samples/cli/facts/indexed_crash_guard/other_machine/main.omg
-omega run --both samples/cli/facts/indexed_crash_guard/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/indexed_crash_guard
 ```
 
 `parameter`, `local`, `const_name` and `other_machine` pass `omega --check` and run with native/Psi agreement on `windows_x86_64` (exit 0, empty stdout and stderr on both engines); `field`, `call_result` and `match_join` do the same on `linux_x86_64`. `target_body` passes `omega --check`; `omega run` on `windows_x86_64` stops at Build provider selection ("boundary requirement `SelectedForward::forward` has no provider"). `other_state` calls a nested machine whose omitted crash route is inferred as unconditional. The root application's own machines raise no error, but the root package also compiles every subdirectory, `invalid_*` twins included, as one of its modules, so it is refused for their errors. `TASKS.md` (**PROOF-KERNEL-CORE**, step 5) tracks these.

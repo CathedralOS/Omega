@@ -1,12 +1,25 @@
+use main.omg as program;
 use {omega}/build/dependency.omg;
+use {omega}/language/core/filesystem_authority.omg as authority;
+use {omega}/language/core/process_exit.omg;
 
 machine build(builder: @mutable Build) {
     Build::application(builder, "filesystem_portable_rules");
-    let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {
+    let system: DependencyDescription = |dependency|::from_source(Source::Path {
         location: "../../../../../../../source/library/system"
-    }));
-    Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
-    Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
-    Build::bind(builder, linux_arm64::ProgramEntry, entry_start);
-    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
+    });
+    let allowed: [BoundaryServiceReference; 7] = [
+        Build::service::<|authority|::FilesystemContentRead>(builder),
+        Build::service::<|authority|::FilesystemContentWrite>(builder),
+        Build::service::<|authority|::FilesystemMetadataQuery>(builder),
+        Build::service::<|authority|::FilesystemMetadataMutation>(builder),
+        Build::service::<|authority|::FilesystemNamespaceMutation>(builder),
+        Build::service::<|authority|::DirectoryEnumeration>(builder),
+        Build::service::<|process_exit|::ProcessExit>(builder)
+    ];
+    _ = |dependency|::add(builder, system, @allowed[..]);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |program|::entry_start);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |program|::entry_start);
+    Build::bind(builder, linux_arm64::ProgramEntry, |program|::entry_start);
+    Build::bind(builder, macos_arm64::ProgramEntry, |program|::entry_start);
 }

@@ -80,9 +80,26 @@ pub(crate) fn parse_let_definition<'tokens, 'source>(
              is spelled `boundary let`",
         ));
     }
-    let input = input.take_punctuation(PunctuationKind::Equal, "=")?;
+    let mut input = input.take_punctuation(PunctuationKind::Equal, "=")?;
+    let mut arrow_binders = arena::HandleSpan::empty();
+    while let Some((parameter, rest)) = try_parse_dependent_arrow_binder(syntax_trees, input) {
+        let handle = syntax_trees.items.insert_mathematical_parameter(parameter);
+        let handle = syntax_trees
+            .items
+            .append_mathematical_parameter_handle(handle);
+        arrow_binders.push_contiguous(handle);
+        input = rest;
+    }
     let (term, input) = parse_expression_handle(syntax_trees, input)?;
     let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
+    let body = if arrow_binders.is_empty() {
+        MathematicalDefinitionBody::Definition(term)
+    } else {
+        MathematicalDefinitionBody::DependentArrow {
+            binders: arrow_binders,
+            body: term,
+        }
+    };
     Ok((
         MathematicalDefinition {
             name,
@@ -90,10 +107,50 @@ pub(crate) fn parse_let_definition<'tokens, 'source>(
             type_parameters: generics.type_parameters,
             parameters,
             result,
-            body: MathematicalDefinitionBody::Definition(term),
+            body,
         },
         input,
     ))
+}
+
+fn try_parse_dependent_arrow_binder<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> Option<(MathematicalParameterNode, Input<'tokens, 'source>)> {
+    if !input.at_punctuation(PunctuationKind::LeftParen) {
+        return None;
+    }
+    let checkpoint = syntax_trees.append_checkpoint();
+    let parsed = (|| {
+        let after_paren = input
+            .take_punctuation(PunctuationKind::LeftParen, "(")
+            .ok()?;
+        let (name, after_name) = after_paren.take_identifier().ok()?;
+        let (relevance, after_relevance) =
+            parse_binding_relevance_brackets(after_name, "parameter").ok()?;
+        let after_colon = after_relevance
+            .take_punctuation(PunctuationKind::Colon, ":")
+            .ok()?;
+        let (ty, after_ty) = parse_mathematical_type(syntax_trees, after_colon).ok()?;
+        let after_rparen = after_ty
+            .take_punctuation(PunctuationKind::RightParen, ")")
+            .ok()?;
+        let rest = after_rparen
+            .take_punctuation(PunctuationKind::Arrow, "->")
+            .ok()?;
+        Some((
+            MathematicalParameterNode {
+                name,
+                relevance,
+                ty,
+            },
+            rest,
+        ))
+    })();
+    if parsed.is_none() {
+        syntax_trees.rewind_appended(checkpoint);
+    }
+    parsed
 }
 
 fn parse_mathematical_parameter<'tokens, 'source>(

@@ -17,7 +17,8 @@ The build binds all four hosted entries. After normal package review:
 
 ```sh
 omega packages update --project samples/cli/probes/loc1_045_integer_selected_bound --target macos_arm64
-omega run --both samples/cli/probes/loc1_045_integer_selected_bound/main.omg
+omega run --engine native samples/cli/probes/loc1_045_integer_selected_bound/main.omg
+omega run --engine psi samples/cli/probes/loc1_045_integer_selected_bound/main.omg
 ```
 
 The command above demonstrates native and Terminal execution on macOS ARM64;

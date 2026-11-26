@@ -29,8 +29,9 @@ declares `Expected exit: 0`, and passes `omega run --both` — Terminal Psi and
 native execution agreeing:
 
 ```sh
-omega run --both samples/cli/facts/scalar_width_shifts/main.omg
-omega run --both samples/cli/facts/scalar_width_shifts/<place>/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/scalar_width_shifts
+omega run --engine native samples/cli/facts/scalar_width_shifts/<place>/main.omg
+omega run --engine psi samples/cli/facts/scalar_width_shifts/<place>/main.omg
 ```
 
 ## Reject twins

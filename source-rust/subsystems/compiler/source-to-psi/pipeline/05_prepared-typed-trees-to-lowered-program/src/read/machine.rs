@@ -1454,11 +1454,17 @@ impl<'t> Program<'t> {
         declared: &StateSignature,
         arguments: &[semantic_vocabulary::ScalarTerm],
     ) -> Checked<MachineId> {
-        self.requirement_form(
+        // The selected trait member supplies its signature. Type arguments in
+        // that signature can refer to binders in the declaration that uses it.
+        let owner = self.typed.symbols.get(parameter).parent;
+        let previous = self.signature_view_owner.replace(owner);
+        let applied = self.requirement_form(
             RequirementHeaderOrigin::CallableParameter(parameter),
             declared,
             RequirementValues::Bound(arguments),
-        )
+        );
+        self.signature_view_owner = previous;
+        applied
     }
 
     fn requirement_form(
@@ -3772,10 +3778,15 @@ impl<'t> Program<'t> {
 
     fn retain_signature_view(&mut self, signature: &StateSignature) {
         self.admitted_declarations.include(signature.symbol);
-        if !self.admitted_signature_views.contains(signature) {
+        let owner = self.signature_view_owner.unwrap_or(signature.symbol);
+        if !self
+            .admitted_signature_views
+            .iter()
+            .zip(&self.admitted_signature_view_owners)
+            .any(|(retained, reader)| retained == signature && *reader == owner)
+        {
             self.admitted_signature_views.push(signature.clone());
-            self.admitted_signature_view_owners
-                .push(self.signature_view_owner.unwrap_or(signature.symbol));
+            self.admitted_signature_view_owners.push(owner);
         }
     }
 

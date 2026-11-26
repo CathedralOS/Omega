@@ -77,7 +77,7 @@ retirement rule.
 ## Development evidence
 
 ```text
-omega run --both samples/cli/facts/checked_asm_flag_snapshot/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/checked_asm_flag_snapshot
 omega --check samples/cli/facts/checked_asm_flag_snapshot/invalid/main.omg
 ```
 

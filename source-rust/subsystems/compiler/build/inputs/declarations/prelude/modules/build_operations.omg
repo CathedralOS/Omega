@@ -1,63 +1,52 @@
-public machine dependency(builder: @mutable Build, description: DependencyDescription) -> DependencyRegistration reaches BuildRequestOperations invokes BuildRequestOperations {
+public machine dependency(builder: @mutable BuildPlan, description: DependencyDescription) -> DependencyRegistration reaches BuildRequestOperations invokes BuildRequestOperations {
     Build::request_dependency(builder, false, description.explicit_alias, description.alias, description.source, PackageReach {})
 }
 
-public machine build_dependency(builder: @mutable Build, description: DependencyDescription) -> DependencyRegistration reaches BuildRequestOperations invokes BuildRequestOperations {
+public machine build_dependency(builder: @mutable BuildPlan, description: DependencyDescription) -> DependencyRegistration reaches BuildRequestOperations invokes BuildRequestOperations {
     Build::request_dependency(builder, true, description.explicit_alias, description.alias, description.source, PackageReach {})
+}
+
+// Checking the selected dependency is scheduled after this Build returns.
+public machine validate(builder: @mutable BuildPlan, registered: @DependencyRegistration) reaches BuildRequestOperations invokes BuildRequestOperations {
+    BuildRequestOperations::validate_dependency(builder, $registered);
 }
 
 // The readiness boundary for one exact registration: the Build parks here
 // until the evaluator has acquired that dependency, run its Build and
 // prepared it, then resumes. Earlier statements never run again.
-public machine prepare_dependency(builder: @mutable Build, registered: DependencyRegistration) reaches BuildRequestOperations invokes BuildRequestOperations suspends {
+public machine prepare_dependency(builder: @mutable BuildPlan, registered: DependencyRegistration) reaches BuildRequestOperations invokes BuildRequestOperations suspends {
     suspend BuildRequestOperations::prepare_dependency(builder, registered);
 }
 
-public machine request_dependency(builder: @Build, build_scope: bool, explicit_alias: bool, alias: @[u8], source: Source, max_reach: PackageReach) -> DependencyRegistration reaches BuildRequestOperations {
+public machine request_dependency(builder: @BuildPlan, build_scope: bool, explicit_alias: bool, alias: @[u8], source: Source, max_reach: PackageReach) -> DependencyRegistration reaches BuildRequestOperations {
     transition source {
         Source::Path { location } -> Build::request_path(builder, build_scope, explicit_alias, alias, location, max_reach),
         Source::Git { repository, revision, selection } -> Build::request_git(builder, build_scope, explicit_alias, alias, repository, revision, selection, max_reach),
     }
 }
 
-machine request_path(builder: @Build, build_scope: bool, explicit_alias: bool, alias: @[u8], location: @[u8], max_reach: PackageReach) -> DependencyRegistration reaches BuildRequestOperations {
+machine request_path(builder: @BuildPlan, build_scope: bool, explicit_alias: bool, alias: @[u8], location: @[u8], max_reach: PackageReach) -> DependencyRegistration reaches BuildRequestOperations {
     BuildRequestOperations::register_path_dependency(builder, build_scope, explicit_alias, alias, location, max_reach)
 }
 
-machine request_git(builder: @Build, build_scope: bool, explicit_alias: bool, alias: @[u8], repository: @[u8], revision: @[u8], selection: PackageSelection, max_reach: PackageReach) -> DependencyRegistration reaches BuildRequestOperations {
+machine request_git(builder: @BuildPlan, build_scope: bool, explicit_alias: bool, alias: @[u8], repository: @[u8], revision: @[u8], selection: PackageSelection, max_reach: PackageReach) -> DependencyRegistration reaches BuildRequestOperations {
     transition selection {
         PackageSelection::Root -> Build::request_selected_git(builder, build_scope, explicit_alias, alias, repository, revision, false, "", max_reach),
         PackageSelection::Named { package } -> Build::request_selected_git(builder, build_scope, explicit_alias, alias, repository, revision, true, package, max_reach),
     }
 }
 
-machine request_selected_git(builder: @Build, build_scope: bool, explicit_alias: bool, alias: @[u8], repository: @[u8], revision: @[u8], named_package: bool, package: @[u8], max_reach: PackageReach) -> DependencyRegistration reaches BuildRequestOperations {
+machine request_selected_git(builder: @BuildPlan, build_scope: bool, explicit_alias: bool, alias: @[u8], repository: @[u8], revision: @[u8], named_package: bool, package: @[u8], max_reach: PackageReach) -> DependencyRegistration reaches BuildRequestOperations {
     BuildRequestOperations::register_git_dependency(builder, build_scope, explicit_alias, alias, repository, revision, named_package, package, max_reach)
 }
 
 // Publish a snapshot of these bytes under a package-relative source filename.
-public machine include_source(builder: @mutable Build, name: @[u8], source: @[u8]) reaches BuildRequestOperations invokes BuildRequestOperations {
+public machine include_source(builder: @mutable BuildPlan, name: @[u8], source: @[u8]) reaches BuildRequestOperations invokes BuildRequestOperations {
     BuildRequestOperations::publish_source(builder, name, source);
 }
 
-public machine package(builder: @mutable Build, name: @[u8]) reaches BuildRequestOperations invokes BuildRequestOperations {
-    BuildRequestOperations::package(builder, name);
-}
-
-public machine application(builder: @mutable Build, name: @[u8]) reaches BuildRequestOperations invokes BuildRequestOperations {
-    BuildRequestOperations::application(builder, name);
-}
-
-public machine member(builder: @mutable Build, path: @[u8]) reaches BuildRequestOperations invokes BuildRequestOperations {
-    BuildRequestOperations::member(builder, path);
-}
-
-public machine build_entry(builder: @mutable Build, path: @[u8]) reaches BuildRequestOperations invokes BuildRequestOperations {
-    BuildRequestOperations::build_entry(builder, path);
-}
-
 // The executed request is joined with the application role and required outputs.
-public machine artifact_only(builder: @mutable Build) reaches BuildRequestOperations invokes BuildRequestOperations {
+public machine artifact_only(builder: @mutable BuildPlan) reaches BuildRequestOperations invokes BuildRequestOperations {
     BuildRequestOperations::artifact_only(builder);
 }
 
@@ -67,10 +56,10 @@ public machine artifact_only(builder: @mutable Build) reaches BuildRequestOperat
 // recorded when this call executes against the original Build value;
 // typing normalizes the declaration to the authenticated selection protocol. A
 // declaration that permits Trap cannot override it.
-public machine exclude_crash(builder: @mutable Build, cause: CrashCause) {
+public machine exclude_crash(builder: @mutable BuildPlan, cause: CrashCause) {
 }
 
 // Native realization checks this executed selection using the shared
 // physical mechanism classifier, independently of receiver permissions.
-public machine exclude_physical_authority(builder: @mutable Build, authority: PhysicalAuthorityClass) {
+public machine exclude_physical_authority(builder: @mutable BuildPlan, authority: PhysicalAuthorityClass) {
 }

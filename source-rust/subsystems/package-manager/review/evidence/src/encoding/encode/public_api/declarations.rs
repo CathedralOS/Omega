@@ -111,6 +111,7 @@ pub(in crate::encoding::encode) fn trait_shape(
                 )?;
             }
             encode_callable_behavior_tail!(encoder, requirement, optional)?;
+            encoder.u64_field("admitted_same_stack_bytes", requirement.admitted_same_stack_bytes)?;
             encoder.field("returned_borrow_origins", |encoder| {
                 encoder.sequence(
                     &requirement.returned_borrow_origins,
@@ -212,11 +213,10 @@ pub(in crate::encoding::encode) fn domain_shape(
             Ok(())
         })
     })?;
-    encoder.field("establishment_routes", |encoder| {
-        encoder.sequence(
-            &shape.establishment_routes,
-            encode_domain_establishment_route,
-        )
+    encoder.field("issuance", |encoder| {
+        encoder.option(shape.issuance.as_deref(), |encoder, routes| {
+            encoder.sequence(routes, encode_domain_establishment_route)
+        })
     })
 }
 

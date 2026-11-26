@@ -57,7 +57,6 @@ fn product<'a>(
             build_accounting: None,
             declaration_scope: None,
             build_host: ProductTarget::LinuxX86_64,
-            generated: None,
             targets: &[],
             calling_targets: &[],
             subject: Some(package),
@@ -83,6 +82,22 @@ fn an_entryless_checked_product_publishes_reopenable_psi() {
     let bytes = program.to_bytes();
     let reopened = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes).unwrap();
     assert_eq!(reopened.to_bytes(), bytes);
+}
+
+#[test]
+fn a_static_callback_requirement_reads_the_type_supplied_by_its_generic_machine() {
+    let package = PackageKeyIdentity::from_digest([0x75; 32]).unwrap();
+    let source = "data Item { value: i32; }
+        trait Modify<T> { machine apply(value: @mutable T) terminates; }
+        machine mark(value: @mutable Item) satisfies Modify<Item>::apply { value.value = 42; }
+        machine modify<T, const F: Modify<T>::apply>(value: @mutable T) terminates { F(value); }
+        public machine run() -> i32 {
+            let mutable item: Item = Item { value: 1 };
+            modify::<Item, mark>(@mutable item);
+            item.value
+        }";
+    let (files, root) = captured(package, source);
+    compile(product(files, root, package, &[]).unwrap(), None).unwrap();
 }
 
 #[test]
@@ -293,6 +308,29 @@ fn a_generic_call_forwards_the_callers_const_service_argument() {
     );
     let (files, root) = captured(package, &wrong);
     assert!(compile(product(files, root, package, &[]).unwrap(), None).is_err());
+}
+
+#[test]
+fn a_forwarded_static_callback_keeps_its_declared_requirement() {
+    let package = PackageKeyIdentity::from_digest([0x73; 32]).unwrap();
+    let source = "trait Number { machine number() -> i32 terminates; }
+        trait Other { machine number() -> i32 terminates; }
+        machine answer() -> i32 satisfies Number::number { 42 }
+        machine inner<const G: Number::number>() -> i32 terminates { G() }
+        machine outer<const F: Number::number>() -> i32 terminates { inner::<F>() }
+        public machine run() -> i32 { outer::<answer>() }";
+    let (files, root) = captured(package, source);
+    compile(product(files, root, package, &[]).unwrap(), None).unwrap();
+
+    let wrong = source.replace("G: Number::number", "G: Other::number");
+    let (files, root) = captured(package, &wrong);
+    let diagnostics = compile(product(files, root, package, &[]).unwrap(), None).unwrap_err();
+    assert!(
+        diagnostics
+            .iter()
+            .any(|error| error.message.contains("another requirement binding")),
+        "{diagnostics:?}"
+    );
 }
 
 #[test]

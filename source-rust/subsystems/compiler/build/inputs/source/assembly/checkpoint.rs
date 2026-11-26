@@ -41,6 +41,7 @@ impl DeferredProductSources {
         self,
         package_inputs: Option<&PackageCompilationInputs>,
         entries: ProductEntrySources<'_>,
+        generated: &[build_output::PackageGeneratedSource],
         declarations: &[Arc<ProductDeclarationRequest>],
         build_providers: &crate::InterpretedProviderSelections,
         timings: &mut CompileTimings,
@@ -57,6 +58,7 @@ impl DeferredProductSources {
             package_inputs,
             Some(ProductSourceSelection {
                 roots,
+                generated,
                 entries,
                 declarations,
             }),
@@ -76,6 +78,7 @@ pub struct ProductEntrySources<'a> {
 
 pub(super) struct ProductSourceSelection<'a> {
     roots: Arc<[std::path::PathBuf]>,
+    pub(super) generated: &'a [build_output::PackageGeneratedSource],
     entries: ProductEntrySources<'a>,
     declarations: &'a [Arc<ProductDeclarationRequest>],
 }
@@ -284,7 +287,7 @@ impl ImmutableSourceParseCheckpoint {
         let (discovered, _) = discover_package_imports(
             &parsed,
             inputs,
-            PackageImportPhase::ExactTarget(None),
+            PackageImportPhase::FrozenView,
             storage,
         )?;
         storage.attach_parsed(parsed);
@@ -297,7 +300,7 @@ impl ImmutableSourceParseCheckpoint {
             storage,
             &mut imports,
             Some(inputs),
-            PackageImportPhase::ExactTarget(None),
+            PackageImportPhase::FrozenView,
             timings,
             catalogue,
         )?;
@@ -380,6 +383,9 @@ impl ImmutableSourceParseCheckpoint {
         let root_path = entry.path();
         let mut source_storage =
             SourceStorage::prepare(root_path, package_inputs, source_capture, catalogue)?;
+        if let CapturedBuildEntry::Successor { source_owner, .. } = entry {
+            source_storage.build_owner = source_owner.map(|source| source.owner());
+        }
         let project = StageRoots::prepare(entry, &mut source_storage)?;
         let predecessors = match entry {
             CapturedBuildEntry::Initial(_) => &[][..],
@@ -405,7 +411,7 @@ impl ImmutableSourceParseCheckpoint {
             &mut source_storage,
             &mut imports,
             package_inputs,
-            PackageImportPhase::TargetIndependent,
+            PackageImportPhase::CapturedPrefix,
             timings,
             catalogue,
         )?;
@@ -484,7 +490,7 @@ impl ImmutableSourceParseCheckpoint {
             Some(inputs) => discover_package_imports(
                 &parsed,
                 inputs,
-                PackageImportPhase::TargetIndependent,
+                PackageImportPhase::CapturedPrefix,
                 storage,
             )?,
             None => (
@@ -502,7 +508,7 @@ impl ImmutableSourceParseCheckpoint {
             storage,
             &mut imports,
             package_inputs,
-            PackageImportPhase::TargetIndependent,
+            PackageImportPhase::CapturedPrefix,
             timings,
             catalogue,
         )?);

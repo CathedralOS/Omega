@@ -2134,8 +2134,14 @@ impl TypedReferences for TypeOccurrences {
         if self.operand_owners_only {
             return;
         }
-        if program.static_record_schema(reference, self.owner).is_some() {
-            let occurrence = TypeOccurrence { lexical_owner: self.owner, reference };
+        if program
+            .static_record_schema(reference, self.owner)
+            .is_some()
+        {
+            let occurrence = TypeOccurrence {
+                lexical_owner: self.owner,
+                reference,
+            };
             if !self.requirement_applications.contains(&occurrence) {
                 self.requirement_applications.push(occurrence);
             }
@@ -2838,7 +2844,19 @@ pub fn visit_static_argument(
     }
     // A literal supplies its value, not a declaration. Keep every nonempty
     // handle so the receiving owner still authenticates malformed references.
-    if argument.symbol != SymbolHandle::invalid() {
+    // A named data argument already selects its declaration through its
+    // type occurrence. The occurrence retains the supplying invocation even
+    // when a generic callable forwards it across a source boundary.
+    let named_data = program.symbols.symbols().nodes().is_valid(argument.symbol)
+        && program.symbols.get(argument.symbol).kind == symbols::SymbolKind::Data
+        && program
+            .type_reference_table
+            .contains_type_reference(argument.type_reference)
+        && matches!(program.type_reference_node(argument.type_reference),
+            TypeReferenceNode::Named { symbol, .. }
+            | TypeReferenceNode::Generic { base_symbol: symbol, .. }
+            if *symbol == argument.symbol);
+    if argument.symbol != SymbolHandle::invalid() && !named_data {
         visit_callable_symbol(program, retained, argument.symbol);
     }
     visit_type_reference(program, retained, argument.type_reference);
@@ -3199,10 +3217,20 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
             visit_mathematical_type(program, retained, parameter.ty);
         }
         visit_mathematical_type(program, retained, definition.result);
-        if let crate::source_state::mathematical::MathematicalBody::Definition(expression) =
-            definition.body
-        {
-            visit_expression(program, retained, expression);
+        match definition.body {
+            crate::source_state::mathematical::MathematicalBody::Definition(expression) => {
+                visit_expression(program, retained, expression);
+            }
+            crate::source_state::mathematical::MathematicalBody::DependentArrow {
+                binders,
+                body,
+            } => {
+                for binder in program.mathematical_parameters(binders) {
+                    visit_mathematical_type(program, retained, binder.ty);
+                }
+                visit_expression(program, retained, body);
+            }
+            crate::source_state::mathematical::MathematicalBody::Assumption => {}
         }
     }
 
@@ -3291,9 +3319,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         // Source selection visits the arguments on the actual type, cast or
         // membership in its lexical scope. Reachability also needs the
         // instantiated theory, including types introduced by preparation.
-        if !retained.inferred_type_references()
-            || !retained.declaration(application.declaration)
-        {
+        if !retained.inferred_type_references() || !retained.declaration(application.declaration) {
             continue;
         }
         for argument in &application.arguments {

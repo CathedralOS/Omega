@@ -19,11 +19,23 @@ const REQUIRED_OUTPUT_MINIMUM_BYTES: usize = 8;
 pub(in crate::encoding::recovery) fn request(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyRestrictedBuildRequest, Error> {
+    let operation = super::super::tag!(reader => {
+        0 => PackagePolicyRestrictedBuildOperation::ScopedFilesystemExecution,
+        1 => PackagePolicyRestrictedBuildOperation::UnscopedFilesystemExecution,
+        2 => PackagePolicyRestrictedBuildOperation::ProgramLaunch(Box::new(build_consent::RestrictedProgramLaunch {
+            owner: super::super::tag!(reader => {
+                0 => build_consent::ProgramDeclarationOwner::RequestingSource,
+                1 => build_consent::ProgramDeclarationOwner::Package(reader.digest()?),
+                2 => build_consent::ProgramDeclarationOwner::Toolchain(reader.digest()?),
+            }),
+            declaration: reader.string()?, file: reader.string()?, image_sha256: reader.digest()?,
+            readable: reader.sequence(REQUIRED_OUTPUT_MINIMUM_BYTES, Reader::bytes)?,
+            writable: reader.sequence(REQUIRED_OUTPUT_MINIMUM_BYTES, Reader::bytes)?,
+            timeout_ms: reader.u64()?,
+        })),
+    });
     Ok(PackagePolicyRestrictedBuildRequest {
-        operation: super::super::tag!(reader => {
-            0 => PackagePolicyRestrictedBuildOperation::ScopedFilesystemExecution,
-            1 => PackagePolicyRestrictedBuildOperation::UnscopedFilesystemExecution,
-        }),
+        operation,
         read_grants: reader.sequence(GRANT_MINIMUM_BYTES, grant)?,
         write_grants: reader.sequence(GRANT_MINIMUM_BYTES, grant)?,
         bounds: bounds(reader)?,

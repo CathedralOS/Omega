@@ -84,7 +84,7 @@ binding `layout`, a helper can call the supplied library as soon as its Build st
 ```omega
 use {layout}/api.omg as layout;
 
-machine configure(builder: @mutable Build) {
+machine configure(builder: @mutable BuildPlan) {
     |layout|::configure_product(builder);
 }
 ```
@@ -256,7 +256,7 @@ This adds no general private-symbol enumeration API to build helpers.
 For reusable build helpers, expose owned typed descriptions through the existing
 Build facet: `ProductEntryRef`, `ProductProviderRef`, and `ProductTypeSchema` are
 API vocabulary for distinct roles, not a single untyped compiler handle. A
-fallible query such as `builder.product.entry(path, slot)` resolves a logical
+fallible query such as `builder.declarations.entry(path, slot)` resolves a logical
 product declaration path under the query author's visibility and product
 dependency scope. It binds one exact declaration/application and target or
 reports missing, inaccessible, ambiguous, or incompatible selection. Strings are
@@ -505,9 +505,11 @@ can outlive the helper.
 
 ### Build sandbox bindings
 
-The stock Build sandbox is an execution environment. Its host interface lives
-in the toolchain package `omega::build`. That package declares the typed host
-operations that library providers can use in this environment. For example, a
+The stock Build sandbox is an execution environment. The toolchain package
+`omega::build` supplies its Build operations. A library used in both checked
+contexts can import the shared stream contracts from
+`{omega}/language/core/sandbox/streams.omg`. The interpreted activation alone
+supplies the sandbox stream backing. For example, a
 filesystem provider can forward a read to the sandbox file service, and a
 console provider can forward output to the activation's bounded diagnostic
 sink. The host may also bind the exact required service directly. The host interface can be used independently of the optional system library.

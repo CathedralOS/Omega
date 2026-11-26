@@ -148,7 +148,7 @@ impl PreparedBuildEvaluation {
                     self.source_completion_accounting.clone(),
                 )
             })?;
-        self.finish(|execution| execution.complete(returned))
+        self.finish(returned, |execution, returned| execution.complete(returned))
     }
 
     pub fn complete_successor(
@@ -156,13 +156,17 @@ impl PreparedBuildEvaluation {
         returned: crate::ReturnedBuild,
         libraries: &[package_compilation::source_imports::SuppliedBuildLibrary],
     ) -> Result<EvaluatedBuild, CompileFailure> {
-        self.finish(|execution| execution.complete_successor(returned, libraries))
+        self.finish(returned, |execution, returned| {
+            execution.complete_successor(returned, libraries)
+        })
     }
 
     fn finish(
         self,
+        mut returned: crate::ReturnedBuild,
         settle: impl FnOnce(
             PreparedBuildExecution,
+            crate::ReturnedBuild,
         ) -> Result<crate::ComputedBuildConfig, Vec<Diagnostic>>,
     ) -> Result<EvaluatedBuild, CompileFailure> {
         let Self {
@@ -178,11 +182,18 @@ impl PreparedBuildEvaluation {
         let failure = |diagnostics| {
             CompileFailure::source_completion(diagnostics, source_completion_accounting.clone())
         };
-        let configuration = Arc::new(settle(execution).map_err(failure)?);
+        if !returned.validation_requests.is_empty() {
+            return Err(failure(vec![Diagnostic::error(
+                "Build validation requires its registered package occurrence",
+            )]));
+        }
+        let dependency_validation = std::mem::take(&mut returned.validation_subjects);
+        let configuration = Arc::new(settle(execution, returned).map_err(failure)?);
         drop(restricted_build_grants);
         Ok(EvaluatedBuild {
             preparations: Vec::new(),
             configuration,
+            dependency_validation,
             restricted_build_requests,
             base_source_consumption_commitment,
             constants,
@@ -214,8 +225,10 @@ pub fn prepare_build_evaluation(
     } = request;
     let typed = interval.program.as_ref();
     let checks_whole_subject_first =
-        execution.checks_whole_subject_first(package_inputs, anonymous_source.is_some());
+        execution.checks_whole_subject_first(package_inputs, anonymous_source);
     let BuildExecutionInputs {
+        diagnostic_output_bytes,
+        programs,
         interpreter_providers,
         profile: execution_profile,
         directory: build_directory,
@@ -268,7 +281,7 @@ pub fn prepare_build_evaluation(
     let subject_validation = if dependency_activation {
         BuildSubjectValidation::EntryOnly
     } else if check_only.is_some() {
-        BuildSubjectValidation::CheckedUnderProvisionalOwner
+        BuildSubjectValidation::NeedsOwnerCheck
     } else {
         BuildSubjectValidation::Checked
     };
@@ -324,6 +337,7 @@ pub fn prepare_build_evaluation(
         )?;
         let admitted = crate::admit_build_program(
             prepared,
+            diagnostic_output_bytes,
             providers,
             selected_machine,
             &filesystem_scope,
@@ -332,17 +346,36 @@ pub fn prepare_build_evaluation(
             artifact_only,
             build_source,
             package_inputs,
+            &programs,
         )?;
         let restricted_build_requests = admitted.restricted_build_requests();
-        if let Some(grants) = restricted_build_grants.as_mut() {
+        if !restricted_build_requests.is_empty() {
+            let site = package_compilation::build_execution::RestrictedBuildSite {
+                entry: admitted.machine.normalized_callable_identity.clone(),
+                program: *admitted
+                    .produced
+                    .view()
+                    .identity()
+                    .program_fingerprint
+                    .as_bytes(),
+            };
+            let mut pending = Vec::new();
             for request in &restricted_build_requests {
-                grants.admit(request)?;
+                let accepted = match restricted_build_grants.as_mut() {
+                    Some(grants) => grants.admits(&site, request)?,
+                    None => false,
+                };
+                if !accepted {
+                    pending.push(request.clone());
+                }
             }
-        } else if !restricted_build_requests.is_empty() {
-            return Err(CompileFailure::BuildConsentRequired {
-                requests: restricted_build_requests,
-                accounting: source_completion_accounting.clone(),
-            });
+            if !pending.is_empty() {
+                return Err(CompileFailure::BuildConsentRequired {
+                    site,
+                    requests: pending,
+                    accounting: source_completion_accounting.clone(),
+                });
+            }
         }
         let original_sources = capture
             .map(|capture| {

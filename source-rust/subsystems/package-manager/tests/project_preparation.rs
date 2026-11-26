@@ -22,6 +22,68 @@ fn write_package(root: &Path, build: &str, main: &str) {
 }
 
 #[test]
+fn workspace_members_resolve_sibling_dependencies_from_the_catalog_capture() {
+    configure();
+    let temp = TemporaryDirectory::create("workspace-sibling-custody", false).unwrap();
+    let catalog = temp.path().join("catalog");
+    let consumer = catalog.join("consumer");
+    let provider = catalog.join("provider");
+    write_package(
+        &consumer,
+        r#"use {omega}/build/dependency.omg;
+machine build(b: @mutable Build) {
+    Build::package(b, "consumer");
+    _ = Build::dependency(b, |dependency|::from_source(Source::Path { location: "../provider" }));
+}"#,
+        "public machine consume() {}",
+    );
+    write_package(
+        &provider,
+        r#"machine build(b: @mutable Build) { Build::package(b, "original"); }"#,
+        "public machine serve() {}",
+    );
+    let entry = catalog.join("build.omg");
+    fs::write(
+        &entry,
+        r#"machine build(b: @mutable Build) { Build::member(b, "consumer"); Build::member(b, "provider"); }"#,
+    )
+    .unwrap();
+    let targets = [TargetProfile::LinuxX64];
+    let out = temp.path().join("out");
+    let mut subjects = package_manager::project::open_check_subjects(
+        &entry,
+        &targets,
+        true,
+        false,
+        &out,
+        Default::default(),
+    )
+    .unwrap();
+    // Both the provider's own subject and the consumer's authored request must keep
+    // the declaration captured before either member Build runs.
+    fs::write(provider.join("build.omg"), "invalid replacement").unwrap();
+    let first = subjects.next().unwrap();
+    assert_eq!(first.entry, consumer.join("build.omg"));
+    let products = first.products.unwrap();
+    let selected = products.select(targets[0]).unwrap();
+    let inputs = selected.package_inputs().unwrap();
+    let dependency = inputs
+        .dependency_target_for_purpose(inputs.root(), DependencyPurpose::Product, "original")
+        .unwrap();
+    assert_eq!(inputs.package_name(dependency), Some("original"));
+    products.settle_rechecks(targets[0]).unwrap();
+
+    let second = subjects.next().unwrap();
+    assert_eq!(second.entry, provider.join("build.omg"));
+    let products = second.products.unwrap();
+    let selected = products.select(targets[0]).unwrap();
+    let inputs = selected.package_inputs().unwrap();
+    assert_eq!(inputs.package_name(inputs.root()), Some("original"));
+    products.settle_rechecks(targets[0]).unwrap();
+    assert!(subjects.next().is_none());
+}
+
+#[test]
 fn build_dependencies_use_the_host_and_product_dependencies_use_the_requested_target() {
     configure();
     let temp = TemporaryDirectory::create("project-targets", false).unwrap();
@@ -81,7 +143,7 @@ machine build(builder: @mutable Build) {
             true,
             false,
             &temp.path().join("out"),
-            None,
+            Default::default(),
         )
         .unwrap();
         let product = products.select(deployment).unwrap();
@@ -149,7 +211,7 @@ public TestImage satisfies |image|::ProgramImage {
         true,
         false,
         &temp.path().join("out"),
-        None,
+        Default::default(),
     );
     let Err(errors) = result else {
         panic!("the invocation supplied two libraries as backing")
@@ -160,6 +222,43 @@ public TestImage satisfies |image|::ProgramImage {
             .contains("duplicate supplied Build library alias `backing`")),
         "{errors:?}"
     );
+}
+
+fn open_recheck_case(
+    entry: &Path,
+    target: TargetProfile,
+    directory: &Path,
+    alongside: bool,
+) -> package_manager::project::ProjectProducts {
+    let targets = [target];
+    if alongside {
+        let mut subjects = package_manager::project::open_check_subjects(
+            entry,
+            &targets,
+            true,
+            true,
+            directory,
+            Default::default(),
+        )
+        .unwrap();
+        let product = subjects
+            .next()
+            .expect("the named check subject")
+            .products
+            .unwrap();
+        assert!(subjects.next().is_none());
+        product
+    } else {
+        open_products(
+            ProjectInput::File(entry),
+            &targets,
+            true,
+            true,
+            directory,
+            Default::default(),
+        )
+        .unwrap()
+    }
 }
 
 /// A dependency whose Build read a constant is checked again on its Product's
@@ -221,22 +320,7 @@ machine build(builder: @mutable Build) {
             })
             .collect::<Vec<_>>()
     };
-    let open = |alongside| {
-        let open = if alongside {
-            package_manager::project::open_products_alongside_rechecks
-        } else {
-            open_products
-        };
-        open(
-            ProjectInput::File(&entry),
-            &[target],
-            true,
-            true,
-            &temp.path().join("out"),
-            None,
-        )
-        .unwrap()
-    };
+    let open = |alongside| open_recheck_case(&entry, target, &temp.path().join("out"), alongside);
     let settled = open(false);
     // `open_products` finished every recheck, so none is left to settle.
     assert!(!settled.settle_rechecks(target).unwrap().is_enabled());
@@ -304,22 +388,7 @@ machine build(builder: @mutable Build) {{
     );
     let target = TargetProfile::host_if_supported().unwrap();
     let entry = client.join("build.omg");
-    let open = |alongside| {
-        let open = if alongside {
-            package_manager::project::open_products_alongside_rechecks
-        } else {
-            open_products
-        };
-        open(
-            ProjectInput::File(&entry),
-            &[target],
-            true,
-            true,
-            &temp.path().join("out"),
-            None,
-        )
-        .unwrap()
-    };
+    let open = |alongside| open_recheck_case(&entry, target, &temp.path().join("out"), alongside);
     let validation = |products: &package_manager::project::ProjectProducts| {
         products
             .select(target)
@@ -389,7 +458,7 @@ machine build(builder: @mutable Build) {{
             true,
             false,
             &temp.path().join("out"),
-            None,
+            Default::default(),
         );
         if export == "free" {
             result.unwrap();
@@ -419,7 +488,7 @@ fn dependency_input_forwards_the_frozen_alias_to_the_product() {
         r#"use {omega}/build/dependency.omg as dep;
 machine build(builder: @mutable Build) {
     let input: PackageBinding = |dep|::input(builder, "layout");
-    let empty: [BoundaryServiceRef; 0] = [];
+    let empty: [BoundaryServiceReference; 0] = [];
     let registration: DependencyRegistration = |dep|::add(builder, input, @empty[..]);
     Build::package(builder, "client");
 }"#,
@@ -445,7 +514,7 @@ public machine answer() -> i32 { |layout|::answer() }"#,
         true,
         false,
         &temp.path().join("out"),
-        None,
+        Default::default(),
     )
     .unwrap();
     let product = products.select(target).unwrap();
@@ -476,7 +545,7 @@ fn package_bindings_and_service_references_require_values_issued_by_the_build() 
         ),
         (
             r#"let dependency: DependencyDescription = |dep|::from_source(Source::Path { location: "unread" });
-              let forged: [BoundaryServiceRef; 1] = [BoundaryServiceRef {}];
+              let forged: [BoundaryServiceReference; 1] = [BoundaryServiceReference {}];
               _ = |dep|::add(builder, dependency, @forged[..]);"#,
             "requires a service reference this Build issued",
         ),
@@ -498,7 +567,7 @@ machine build(builder: @mutable Build) {{ Build::package(builder, "project"); {o
             true,
             false,
             &temp.path().join("out"),
-            None,
+            Default::default(),
         );
         let Err(error) = result else {
             panic!("invalid binding accepted")
@@ -528,9 +597,9 @@ public machine free() {}"#,
 use {policy}/main.omg as policy;
 machine build(builder: @mutable Build) {
     Build::package(builder, "client");
-    let app: BoundaryServiceRef = Build::service::<|policy|::Sensor<17u32>>(builder);
+    let app: BoundaryServiceReference = Build::service::<|policy|::Sensor<17u32>>(builder);
     let description: DependencyDescription = |dep|::from_source(Source::Path { location: "library" });
-    let services: [BoundaryServiceRef; 2] = [app, app];
+    let services: [BoundaryServiceReference; 2] = [app, app];
     _ = |dep|::add(builder, description, @services[..]);
 }"#,
         "public machine free() {}",
@@ -548,7 +617,7 @@ machine build(builder: @mutable Build) {
         true,
         false,
         &temp.path().join("out"),
-        None,
+        Default::default(),
     )
     .unwrap();
     let inputs = products.select(target).unwrap().package_inputs().unwrap();
@@ -578,9 +647,9 @@ public machine free() {}",
 use {helper}/main.omg as helper;
 machine build(builder: @mutable Build) {
     Build::package(builder, "client");
-    let app: BoundaryServiceRef = Build::service::<|helper|::MotorControl>(builder);
+    let app: BoundaryServiceReference = Build::service::<|helper|::MotorControl>(builder);
     let binding: PackageBinding = |dep|::input(builder,"helper");
-    let services: [BoundaryServiceRef; 1] = [app];
+    let services: [BoundaryServiceReference; 1] = [app];
     _ = |dep|::add(builder,binding,@services[..]);
 }"#,
         "public machine free() {}",
@@ -598,7 +667,7 @@ machine build(builder: @mutable Build) {
         true,
         false,
         &temp.path().join("out"),
-        None,
+        Default::default(),
     );
     let Err(error) = outcome else {
         panic!("a forwarded package widened its incoming ceiling")
@@ -638,7 +707,7 @@ public machine free() {}"#,
         let registration = match allowed_channel {
             None => "_ = |dep|::add(builder, dependency);".to_owned(),
             Some(channel) => format!(
-                "let allowed: [BoundaryServiceRef; 1] = [Build::service::<|policy|::Sensor<{channel}u32>>(builder)];
+                "let allowed: [BoundaryServiceReference; 1] = [Build::service::<|policy|::Sensor<{channel}u32>>(builder)];
     _ = |dep|::add(builder, dependency, @allowed[..]);"
             ),
         };
@@ -669,7 +738,7 @@ machine build(builder: @mutable Build) {{
             true,
             false,
             &temp.path().join("out"),
-            None,
+            Default::default(),
         )
         .unwrap();
         let stage = opened
@@ -717,7 +786,7 @@ machine build(builder: @mutable Build) {{
     _ = |dep|::add(builder, limited);
     let mutable enabled: DependencyDescription = |dep|::from_source(Source::Path {{ location: "library" }});
     |dep|::with_alias(@mutable enabled, "wide");
-    let allowed: [BoundaryServiceRef; 1] = [Build::service::<|policy|::Meter>(builder)];
+    let allowed: [BoundaryServiceReference; 1] = [Build::service::<|policy|::Meter>(builder)];
     _ = |dep|::add(builder, enabled, @allowed[..]);
     Build::bind(builder, {}\{}, |app|::entry);
 }}"#,
@@ -750,7 +819,7 @@ machine build(builder: @mutable Build) {{
             true,
             false,
             &temp.path().join("out"),
-            None,
+            Default::default(),
         )
         .unwrap();
         let stage = products

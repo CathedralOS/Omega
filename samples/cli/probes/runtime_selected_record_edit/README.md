@@ -6,7 +6,8 @@ changes implementation between calls, and checks both edits, the untouched
 middle record and exact 64-bit identifiers. Expected exit: 0; a mismatch traps.
 
 ```sh
-omega run --both samples/cli/collections/runtime_selected_record_edit/main.omg
+omega run --engine native samples/cli/collections/runtime_selected_record_edit/main.omg
+omega run --engine psi samples/cli/collections/runtime_selected_record_edit/main.omg
 ```
 
 The program runs with exit 0 natively and in Terminal interpretation on Intel

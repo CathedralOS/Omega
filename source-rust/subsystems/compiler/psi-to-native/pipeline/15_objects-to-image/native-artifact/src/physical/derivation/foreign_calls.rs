@@ -390,22 +390,15 @@ pub(crate) fn derive_normalized_foreign_child(
     // Native-only callbacks occupy ABI slots, not semantic formals. Walk the
     // complete operand roster once so consecutive callbacks and callbacks after
     // the last semantic argument retain the same correspondence as lowering.
-    let dispatch_count = foreign.binding.dispatch_operand_count();
-    let operand_count = foreign
-        .binding
-        .boundary_entry_plan
-        .call
-        .parameters
-        .len()
-        .checked_add(dispatch_count)
-        .ok_or("normalized foreign D41 operand count overflow")?;
-    let semantic_positions: Vec<_> = (0..operand_count)
-        .filter(|position| {
-            position
-                .checked_sub(dispatch_count)
-                .is_none_or(|ordinal| callback_ordinals.binary_search(&ordinal).is_err())
-        })
-        .collect();
+    let operand_placements = foreign.binding.operand_placements();
+    let operand_count = operand_placements.len();
+    let private_positions = callback_ordinals
+        .iter()
+        .map(|&ordinal| foreign.binding.operand_for_native_ordinal(ordinal))
+        .collect::<Vec<_>>();
+    let semantic_positions = operand_placements
+        .semantic_positions(&private_positions)
+        .ok_or("normalized foreign D41 callback has no distinct native position")?;
     if semantic_positions.len() != declaration.parameter_order.len() {
         return Err("normalized foreign D41 child changed its complete native signature");
     }
@@ -445,9 +438,7 @@ pub(crate) fn derive_normalized_foreign_child(
         }
         let ordinal = usize::try_from(callback.target.application.native_ordinal)
             .map_err(|_| "normalized foreign D41 callback ordinal does not fit this target")?;
-        let position = ordinal
-            .checked_add(dispatch_count)
-            .ok_or("normalized foreign D41 callback position overflow")?;
+        let position = foreign.binding.operand_for_native_ordinal(ordinal);
         let slot = native_parameter_shapes
             .get_mut(position)
             .ok_or("normalized foreign D41 callback ordinal is outside its native signature")?;
@@ -456,9 +447,9 @@ pub(crate) fn derive_normalized_foreign_child(
         }
     }
     let signature = calling_conventions::CallSignature {
-        parameters: native_parameter_shapes
-            .into_iter()
-            .skip(dispatch_count)
+        parameters: foreign
+            .binding
+            .passed_operands(native_parameter_shapes)
             .collect::<Option<Vec<_>>>()
             .ok_or("normalized foreign D41 child lost a native parameter")?,
         result: result_shape,

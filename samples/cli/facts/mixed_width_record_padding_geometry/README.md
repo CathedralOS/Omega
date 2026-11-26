@@ -28,16 +28,7 @@ Every positive place and the root `main.omg` probe binds `ProgramEntry` for
 Each positive place is an application that exits 0 in both Terminal Psi and native execution:
 
 ```sh
-omega run --both samples/cli/facts/mixed_width_record_padding_geometry/main.omg
-omega run --both samples/cli/facts/mixed_width_record_padding_geometry/local/main.omg
-omega run --both samples/cli/facts/mixed_width_record_padding_geometry/field/main.omg
-omega run --both samples/cli/facts/mixed_width_record_padding_geometry/parameter/main.omg
-omega run --both samples/cli/facts/mixed_width_record_padding_geometry/call_result/main.omg
-omega run --both samples/cli/facts/mixed_width_record_padding_geometry/match_join/main.omg
-omega run --both samples/cli/facts/mixed_width_record_padding_geometry/const_name/main.omg
-omega run --both samples/cli/facts/mixed_width_record_padding_geometry/other_state/main.omg
-omega run --both samples/cli/facts/mixed_width_record_padding_geometry/other_machine/main.omg
-omega run --both samples/cli/facts/mixed_width_record_padding_geometry/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/mixed_width_record_padding_geometry
 ```
 
 All 10 applications pass with `native exit 0` and `interp exit: 0`.

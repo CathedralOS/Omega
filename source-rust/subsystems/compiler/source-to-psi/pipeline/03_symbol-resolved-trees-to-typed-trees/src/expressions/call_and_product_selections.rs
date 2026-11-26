@@ -1503,7 +1503,11 @@ pub(crate) mod construction_destinations {
                                     if program.symbols.fixed_core_declaration_for_symbol(actual.target_symbol)
                                         == Some(symbols::FixedCoreDeclaration::Identity)
                                         || (program.symbols.symbols().nodes().is_valid(actual.target_symbol)
-                                            && program.symbols.get(actual.target_symbol).kind == symbols::SymbolKind::MathematicalDefinition))
+                                            && matches!(
+                                                program.symbols.get(actual.target_symbol).kind,
+                                                symbols::SymbolKind::MathematicalDefinition
+                                                    | symbols::SymbolKind::Proposition
+                                            )))
                         })
                         {
                             deferred
@@ -3665,7 +3669,7 @@ pub(crate) mod product_queries {
         }
         let name = source.symbols.name(declaration);
         let name = match (source.symbols.name(namespace), name) {
-            ("BuildProduct", "entry" | "schema" | "provider") => name,
+            ("BuildDeclarations", "entry" | "schema" | "provider") => name,
             ("ProductTypeSchema", "path") => "schema_path",
             ("ProductProviderRef", "path") => "provider_path",
             _ => return None,

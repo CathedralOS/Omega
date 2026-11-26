@@ -510,7 +510,7 @@ limits differ by nature. Each reviewed row sits in
 `known` plus the `OWNER_CODE_CONCERNS.md` heading that queues it). The check
 fails on a row the baseline lacks and on a baseline row that no longer
 appears. A review may list exact members together, as in
-`FilesystemService.{read,write}`. Each member still has its own comparison row.
+`Filesystem.{read,write}`. Each member still has its own comparison row.
 When the check reports a new row, read the call in both adapter families,
 then fix the divergence or record the row with its reason. `--list` prints
 every current row.

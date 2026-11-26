@@ -1,4 +1,4 @@
 // Portable Windows filesystem entrance. Target-neutral callers retain one
-// FilesystemService slot; ordinary operation owners compose the real Windows
+// Filesystem slot; ordinary operation owners compose the real Windows
 // raw family below that slot, never call the portable boundary recursively.
 

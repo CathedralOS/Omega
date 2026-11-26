@@ -208,6 +208,15 @@ mod children {
             definition: &crate::source_resolved::mathematical::MathematicalDefinition,
             has_sources: bool,
         ) {
+            let arrow_binders = match definition.body {
+                crate::source_resolved::mathematical::MathematicalBody::DependentArrow {
+                    binders,
+                    ..
+                } => resolved_declarations(program)
+                    .mathematical_parameters
+                    .span_or_empty(binders),
+                _ => &[],
+            };
             builder.insert_children(
                 definition_symbol,
                 type_parameter_seeds(
@@ -222,6 +231,7 @@ mod children {
                         .mathematical_parameters
                         .span_or_empty(definition.parameters)
                         .iter()
+                        .chain(arrow_binders.iter())
                         .map(|parameter| {
                             symbol_seed(SymbolKind::Parameter, &parameter.name, has_sources)
                         }),

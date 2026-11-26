@@ -52,7 +52,8 @@ omega packages update --project samples/cli/independent/error_correcting_telemet
 # Read and explicitly resolve pending package decisions, then update --resume.
 omega --check samples/cli/independent/error_correcting_telemetry/main.omg
 omega run samples/cli/independent/error_correcting_telemetry/main.omg < samples/cli/independent/error_correcting_telemetry/data/exhaustive.stdin
-omega run --both samples/cli/independent/error_correcting_telemetry/main.omg < samples/cli/independent/error_correcting_telemetry/data/exhaustive.stdin
+omega run --engine native samples/cli/scientific/error_correcting_telemetry/main.omg < samples/cli/scientific/error_correcting_telemetry/data/exhaustive.stdin
+omega run --engine psi samples/cli/scientific/error_correcting_telemetry/main.omg < samples/cli/scientific/error_correcting_telemetry/data/exhaustive.stdin
 omega --check samples/cli/independent/error_correcting_telemetry/controls/out_of_bounds/main.omg
 ```
 

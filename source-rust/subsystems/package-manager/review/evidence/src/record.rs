@@ -121,9 +121,10 @@ pub use data::{
     PackageReviewDataField, PackageReviewDataKind, PackageReviewDataMember,
     PackageReviewDataProperties,
 };
+pub use domains::PackageReviewDomainEstablishmentRoute;
 pub(crate) use domains::{
     PackageReviewDomainClassification, PackageReviewDomainEstablishmentKind,
-    PackageReviewDomainEstablishmentRoute, PackageReviewDomainSemanticRole,
+    PackageReviewDomainSemanticRole,
 };
 pub use identity::{
     PackageReviewNominalIdentity, PackageReviewNominalOwner, PackageReviewServiceIdentity,

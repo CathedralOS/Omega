@@ -1187,6 +1187,12 @@ mod owned_value_tests {
             unary(LoadI16x4ZeroExtend),
             unary(WidenU8x4ToI16x8),
             unary(NarrowI16x8ToU8x4Saturating),
+            unary(AbsI16x8),
+            binary(WrappingAddU8x16),
+            binary(MinI16x8),
+            binary(CmpGtI16x8),
+            binary(BitAndI16x8),
+            binary(BitAndNotI16x8),
         ] {
             let encoded = bytes(kind.clone());
             assert_eq!(

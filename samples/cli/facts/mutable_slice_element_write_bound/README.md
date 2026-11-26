@@ -42,7 +42,8 @@ Native/Terminal execution in this repair is measured on macOS ARM64 only.
 Other target bodies are checked as source; that is not native execution there.
 
 ```sh
-omega run --both samples/cli/facts/mutable_slice_element_write_bound/<place>/main.omg
+omega run --engine native samples/cli/facts/mutable_slice_element_write_bound/<place>/main.omg
+omega run --engine psi samples/cli/facts/mutable_slice_element_write_bound/<place>/main.omg
 omega --check samples/cli/facts/mutable_slice_element_write_bound/<place>/invalid/main.omg
 ```
 

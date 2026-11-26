@@ -149,7 +149,7 @@ pub use embedding::adapters::{
 };
 pub use embedding::instance::{
     TerminalBindingRejection, TerminalComponentBinding, TerminalEntryCall, TerminalEntryCalls,
-    TerminalInstance, TerminalInstanceCloseError, TerminalInstanceError,
+    TerminalInstance, TerminalInstanceCloseError, TerminalInstanceError, TerminalObservationRoot,
     TerminalProcessExitAdmission, TerminalReturnedLoan, TerminalReturnedLoanError,
     TerminalStorageObservationError, TerminalStorageObservationValue,
 };

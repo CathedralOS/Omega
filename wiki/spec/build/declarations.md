@@ -62,28 +62,56 @@ author API for manufacturing trusted plan rows.
 
 ## Project role
 
-A selected build file has exactly one free entry, `machine build(build: @mutable Build)`.
-The invoker supplies the plan and installs the activation's [sandbox
-bindings](scoped_execution.md#build-sandbox-bindings) before entry. Filesystem
-and network use follow normal service calls and reach accounting. A parent
-can [choose its child's filesystem](scoped_execution.md#supplying-a-filesystem-to-a-child-build)
-without changing the child's entry signature.
+A selected build file has one free entry. The invoker owns the plan and
+passes it by mutable borrow.
 
-The Build declares its project role through one of the following operations.
+```omega
+machine build(plan: @mutable BuildPlan) {
+    plan.product = BuildProduct::InterpretedBuild { entry: "configure.omg" };
+}
+```
 
-| Build result | Role |
+The example uses the package already supplied to this invocation. A helper edits the
+same plan. When the driver runs the selected successor, it supplies that
+activation with a fresh plan of its own.
+
+The invoker installs the activation's [sandbox bindings](scoped_execution.md#build-sandbox-bindings)
+before entry. Filesystem and console use ordinary provider selection. Selection
+identifies the implementation. The caller supplies its admitted backing, such
+as a confined disk directory or a bounded output sink. The first filesystem
+implementation may use disk throughout. A Git package that performs a live
+fetch declares its network and filesystem effects and runs within its
+invocation's grants. A later consumer of the fetched package has its own grants.
+[Dependency-use ceilings](../packages/staged_inputs.md#dependency-reach)
+
+The invoker initializes `plan.product` to `BuildProduct::Unselected`. The Build
+or an ordinary helper assigns the product before returning.
+
+| Product | Meaning |
 | --- | --- |
-| `Build::package(builder, "name")` | Package |
-| `Build::application(builder, "name")` | Application |
-| One or more `Build::member(builder, "path")` calls | Workspace |
-| `Build::build_entry(build, "configure.omg")` | Interpret the named Build and use the plan it produces for this project |
+| `BuildProduct::Package { name: "kit" }` | Publish the named package. |
+| `BuildProduct::Application { name: "editor" }` | Build the named application. |
+| `BuildProduct::Workspace { members: paths }` | Declare the workspace's member paths. |
+| `BuildProduct::InterpretedBuild { entry: "configure.omg" }` | Run another Build in the selected package source. |
 
-Each activation chooses exactly one row. Mixed, missing, duplicate, and
-noncanonical results reject. A helper passed the current mutable Build edits
-this same plan. A successor receives a fresh Build. After the current entry
+The driver reads the value in the returned plan. A helper may assign the field
+again before return. The final value must describe one complete product.
+Name and entry views must live through that return. A helper can accept
+`plan: @mutable BuildPlan<'s>` and `name: @'s [u8]` to assign a name with
+the plan's storage lifetime. Borrowing an array local to the Build cannot
+establish that lifetime. [Stored views](../language/lifetimes.md)
+An authored Build that returns an unselected product, an invalid name or
+path, an empty workspace, or a repeated member rejects. The `with_member(plan, catalog, path)` operation in
+`{omega}/build/workspace.omg` returns a new `WorkspaceMembers` value with
+that pathname appended. The invocation owns the copied pathname bytes.
+`WorkspaceMembers {}` starts an empty catalog. Only the
+catalog stored in the returned Workspace contributes member paths.
+A query that requires a named Product uses the name
+and role in the plan at that call; the returned plan must preserve the identity
+that issued its description. A successor receives a fresh plan. After the current entry
 returns successfully and its dependency join completes, the driver freezes
 the selected source view, resolves the named file within it, and checks its
-free `machine build(build: @mutable Build)` against the registered package
+free Build entry against the registered package
 inputs for the interpreter target. Missing or invalid entries reject. The
 driver admits the successor before running it and follows its plan to the
 project's final result. Any failed stage fails that chain. A dependency still
@@ -95,7 +123,8 @@ An ordinary same-spelled machine remains ordinary source.
 
 With no selected build file, the compiler supplies ordinary default Build
 source and runs it through the same one-entry checking, interpretation, join,
-and freeze route. No file need be written. A standalone loose root defaults to
+and freeze route. The default entry leaves the initial product field unselected
+and retains the invoker's supplied role. No file need be written. A standalone loose root defaults to
 application role; an already resolved package retains its supplied role and
 owner. Checking source does not require an executable entry. Executable output
 still needs ordinary target-slot selections and provider checks. When the
@@ -103,8 +132,7 @@ named root has no build entry, core supplies the product entry binding under
 [build-first entry selection](command_line.md#build-first-entry-selection).
 The target checks that binding under [entry admission](entry_roots.md).
 
-`package`, `application`, `member` and `dependency` operate on this
-activation's Build value. The invoker's bindings determine which libraries
+Product selection and dependency registration operate on this activation's Build plan. The invoker's bindings determine which libraries
 Build code can import. The executed plan determines which libraries Product
 code can import. Aliases are unique within each scope. A package used in both
 scopes needs a binding in each, including system. Package tooling may persist a

@@ -64,16 +64,7 @@ native and Terminal exit 0 on macOS ARM64, with all nine ownership twins
 rejecting. The retained Windows report was not revalidated by those runs.
 
 ```sh
-omega run --both samples/cli/facts/content_reunion/main.omg
-omega run --both samples/cli/facts/content_reunion/local/main.omg
-omega run --both samples/cli/facts/content_reunion/field/main.omg
-omega run --both samples/cli/facts/content_reunion/parameter/main.omg
-omega run --both samples/cli/facts/content_reunion/call_result/main.omg
-omega run --both samples/cli/facts/content_reunion/match_join/main.omg
-omega run --both samples/cli/facts/content_reunion/const_name/main.omg
-omega run --both samples/cli/facts/content_reunion/other_state/main.omg
-omega run --both samples/cli/facts/content_reunion/other_machine/main.omg
-omega run --both samples/cli/facts/content_reunion/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/content_reunion
 ```
 
 Each original twin keeps the reunion expression and changes only the

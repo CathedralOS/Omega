@@ -30,6 +30,7 @@ macro_rules! bundled_library_files {
             CoreInterrupt => "core/interrupt.omg",
             CoreLayout => "core/layout.omg",
             CoreNat => "core/nat.omg",
+            CoreNetworkAuthority => "core/network_authority.omg",
             CoreNever => "core/never.omg",
             CoreProcessAuthority => "core/process_authority.omg",
             CoreProcessExit => "core/process_exit.omg",

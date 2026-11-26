@@ -1089,14 +1089,17 @@ crossing id binding the call-side suspension demand; 0 records none).
 | 143 | PackedIntegerUnary | selector byte, optional shift count, source structural argument |
 
 Tag 142 selects wrapping 16-bit addition (0), wrapping 16-bit subtraction
-(1), or a two-input shuffle (2). A shuffle encodes eight index bytes in
-result order. Indices 0 through 7 select from the left input and indices 8
-through 15 select from the right. Tag 143 selects arithmetic right shift
-(0, followed by a count byte from 0 through 15), 8-byte widening (1),
-8-byte saturating narrowing (2), zero-extended 4-word load (3), 4-byte
-widening (4), or 4-byte saturating narrowing (5). Selectors 0 through 4
-produce eight 16-bit lanes and selector 2 produces eight unsigned bytes;
-selector 5 produces four unsigned bytes.
+(1), a two-input shuffle (2), wrapping 16-byte unsigned addition (3),
+signed 16-bit minimum (4), signed 16-bit greater-than mask (5), bitwise
+128-bit and (6), or bitwise 128-bit and-not (7, computing `(!left) & right`).
+A shuffle encodes eight index bytes in result order. Indices 0 through 7
+select from the left input and indices 8 through 15 select from the right.
+Tag 143 selects arithmetic right shift (0, followed by a count byte from 0
+through 15), 8-byte widening (1), 8-byte saturating narrowing (2),
+zero-extended 4-word load (3), 4-byte widening (4), 4-byte saturating
+narrowing (5), or 8-word saturating/wrapping absolute value (6). Selectors
+0, 1, 3, 4, and 6 produce eight 16-bit lanes and selector 2 produces eight
+unsigned bytes; selector 5 produces four unsigned bytes.
 
 An element descriptor source in tags 81 and 92 is encoded as the existing
 nonzero place ID when selecting a whole descriptor. A zero `u64` introduces
@@ -1423,6 +1426,10 @@ Older markers are rejected before their payload is read.
 | 52 | installed interrupt registrations | counted exact installation, registrar and callback rows, below |
 | 53 | boundary application candidates | counted checked bodies for closed applications |
 | 54 | task activation demands | counted task activation demand rows |
+
+Marker 298 encodes each service method’s declared caller-stack bound as a
+little-endian `u64` after its blocking flag and before its termination flag.
+Zero denotes an absent bound. A positive value counts bytes.
 
 Marker 258 stores each normalized service schema as its module identity-table
 indices for the source declaration and full applied owner, followed by the
@@ -2278,7 +2285,7 @@ structural declaration carries a supplied provider.
 | --- | --- | --- |
 | 1 | Scalar | scalar type |
 | 2 | Structural | structural type id |
-| 3 | Erased | type identity string |
+| 3 | Erased | type identity index (u32) |
 | 4 | IeeeFloat | IEEE float format |
 | 5 | ByteSequence | byte-sequence carrier |
 | 6 | BoundedInteger | integer type + integer value minimum + integer value maximum |
@@ -2286,6 +2293,7 @@ structural declaration carries a supplied provider.
 | 8 | Atomic | scalar type; only Boolean and fixed-width, non-address integers are admitted |
 | 9 | RefinedScalar | scalar type + proposition the value satisfies |
 | 10 | AtomicBoundedInteger | integer type + integer value minimum + integer value maximum |
+| 11 | Erased scalar | type identity index (u32) + scalar type |
 
 <!-- structural-access-tags -->
 

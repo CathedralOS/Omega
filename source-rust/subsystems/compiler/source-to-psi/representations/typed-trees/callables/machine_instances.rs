@@ -359,6 +359,52 @@ impl TypedTrees {
         Ok(identity(left, left_owner)? == identity(right, right_owner)?)
     }
 
+    /// Recover the caller's input when an applied callable contains a type
+    /// supplied at a different lexical scope. A retained region owner by
+    /// itself cannot authorize a declaration read. The actual invocation
+    /// must carry the same type from that owner.
+    pub fn supplied_invocation_type(
+        &self,
+        reader: SymbolHandle,
+        reference: crate::source_state::types::TypeReferenceHandle,
+    ) -> Result<
+        Option<(
+            SymbolHandle,
+            crate::source_state::types::TypeReferenceHandle,
+        )>,
+        &'static str,
+    > {
+        use crate::source_state::static_applications::StaticMachineBindingValue;
+
+        let source = self.type_reference_table.operand_lifetime_owner(reference);
+        if !source.is_valid() || source == reader {
+            return Ok(None);
+        }
+        for frame in self.enclosing_invocation_frames(reader)? {
+            if frame.argument_owner != source {
+                continue;
+            }
+            for binding in frame.bindings {
+                let StaticMachineBindingValue::Type(actual) = binding.value else {
+                    continue;
+                };
+                let table = &self.type_reference_table;
+                if actual == reference
+                    || (table.operand_lifetime_owner(actual) == source
+                        && table.type_symbol(actual) == table.type_symbol(reference)
+                        && table.operand_origin(actual) == table.operand_origin(reference)
+                        && table
+                            .type_alias_applications(actual)
+                            .eq(table.type_alias_applications(reference))
+                        && self.specialization_carriers_match(actual, source, reference, source)?)
+                {
+                    return Ok(Some((source, actual)));
+                }
+            }
+        }
+        Ok(None)
+    }
+
     /// Read enclosing applications from their exact instance receipts, from
     /// the immediate caller out to the original supplying declaration.
     pub fn enclosing_invocation_frames(

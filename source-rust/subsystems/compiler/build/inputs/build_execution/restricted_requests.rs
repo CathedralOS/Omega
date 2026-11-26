@@ -8,17 +8,18 @@
 use super::{BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY, BuildMachineFilesystemScope};
 use super::{BuildMachineExecutionMode, BuildMachineFilesystemAccess};
 pub use build_consent::{
-    RestrictedBuildBounds, RestrictedBuildGrant, RestrictedBuildGrantRoot,
-    RestrictedBuildOperation, RestrictedBuildRequest,
+    ProgramDeclarationOwner, RestrictedBuildBounds, RestrictedBuildGrant, RestrictedBuildGrantRoot,
+    RestrictedBuildOperation, RestrictedBuildRequest, RestrictedBuildSite, RestrictedProgramLaunch,
 };
 use evaluation_accounting::BuildEvaluationSponsor;
 use filesystem_authority::FilesystemGrantRoot;
 
 pub trait RestrictedBuildGrants: Send {
-    fn admit(
+    fn admits(
         &mut self,
+        site: &RestrictedBuildSite,
         request: &RestrictedBuildRequest,
-    ) -> Result<(), Vec<diagnostics::Diagnostic>>;
+    ) -> Result<bool, Vec<diagnostics::Diagnostic>>;
 }
 
 impl BuildMachineFilesystemScope {

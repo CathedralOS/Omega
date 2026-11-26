@@ -126,6 +126,6 @@ Applicable requirement layers:
   execute against Terminal. No unobserved target receives engine credit.
 
 ```sh
-omega run --both samples/cli/facts/foreign_scalar_record_result/local/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/foreign_scalar_record_result/local
 omega --check samples/cli/facts/foreign_scalar_record_result/invalid_local/main.omg
 ```

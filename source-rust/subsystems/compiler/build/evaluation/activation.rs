@@ -94,6 +94,8 @@ pub struct ReturnedBuild {
     destination: Option<project::Destination>,
     pub(crate) source_join: Option<Arc<package_compilation::PackageCompilationSourceInputs>>,
     pub(crate) requests: Vec<IssuedBuildRequest>,
+    pub(crate) validation_requests: Vec<(build_declarations::DependencyPurpose, usize)>,
+    pub(crate) validation_subjects: Vec<crate::DependencyValidationSubject>,
     pub(crate) demanded_sources: Vec<BuildDependencySelection>,
     pub(crate) settings: EvaluatedBuildSettings,
     pub(crate) optimization_report: optimization_requests::OptimizationReportRequest,
@@ -108,6 +110,41 @@ pub struct ReturnedBuild {
 }
 
 impl ReturnedBuild {
+    /// Replace this activation's issued coordinates with their frozen subjects after return.
+    pub fn resolve_validation_requests(
+        &mut self,
+        mut resolve: impl FnMut(
+            &[IssuedBuildRequest],
+            build_declarations::DependencyPurpose,
+            usize,
+        )
+            -> Result<crate::DependencyValidationSubject, crate::CompileFailure>,
+    ) -> Result<(), crate::CompileFailure> {
+        let prepares_build = self.successor_entry().is_some();
+        for &(purpose, ordinal) in &self.validation_requests {
+            let mut subject = resolve(&self.requests, purpose, ordinal)?;
+            if subject.purpose != purpose {
+                return Err(vec![diagnostics::Diagnostic::error(
+                    "validation subject changed its registration purpose",
+                )]
+                .into());
+            }
+            // A preparation's immediate consumer is the interpreter for the successor.
+            if prepares_build {
+                subject.purpose = build_declarations::DependencyPurpose::Build;
+            }
+            if !self.validation_subjects.contains(&subject) {
+                self.validation_subjects.push(subject);
+            }
+        }
+        self.validation_requests.clear();
+        Ok(())
+    }
+
+    pub fn has_dependency_validation(&self) -> bool {
+        !self.validation_subjects.is_empty()
+    }
+
     pub(crate) fn original_acquisition(&self) -> Option<&package_compilation::CapturedLocalSource> {
         self.original_sources
             .as_ref()
@@ -253,6 +290,7 @@ impl TerminalBuildHost {
         account: &EvaluationInvocationAccount,
         machine: Arc<package_compilation::build_execution::SelectedBuildMachine>,
         filesystem_scope: &package_compilation::BuildMachineFilesystemScope,
+        programs: Arc<crate::host::programs::ProgramInstallation>,
         execution_profile: Option<target::TargetProfile>,
         default_source: bool,
         default_sources: Option<Arc<package_compilation::PackageCompilationSourceInputs>>,
@@ -292,12 +330,27 @@ impl TerminalBuildHost {
         );
         original.projected_qualifications = parameter.projected_qualifications.clone();
         let output = OriginalOutput::new(artifact, &original)?;
+        let filesystem = crate::host::filesystem::TerminalBuildFilesystemHost::new(
+            &produced,
+            &original,
+            &output.value,
+            account,
+            filesystem_scope,
+            &machine.name,
+            programs.uses_files(),
+        )?;
         let requests = TerminalBuildRequestHost::new(
             artifact,
             produced.build_requests(),
+            programs,
+            Arc::clone(&filesystem),
             original.clone(),
+            providers.diagnostic_output_bytes,
             Some(account),
-            original_sources.as_ref().map(|sources| Arc::clone(&sources.libraries)).unwrap_or_default(),
+            original_sources
+                .as_ref()
+                .map(|sources| Arc::clone(&sources.libraries))
+                .unwrap_or_default(),
         )?;
         let bindings = TerminalBuildBindingHost::new(
             artifact,
@@ -306,14 +359,6 @@ impl TerminalBuildHost {
             original.clone(),
             Some(account),
             requests.reflected_services(),
-        )?;
-        let filesystem = crate::host::filesystem::TerminalBuildFilesystemHost::new(
-            &produced,
-            &original,
-            &output.value,
-            account,
-            filesystem_scope,
-            &machine.name,
         )?;
         Ok(Arc::new(Self {
             original_sources,
@@ -370,6 +415,7 @@ impl TerminalBuildHost {
             ready_providers,
             work,
             state: ActivationState::Running,
+            described_product: None,
             requests: Vec::new(),
             demanded_sources: Vec::new(),
             helper_accounting: Default::default(),
@@ -454,7 +500,10 @@ impl TerminalBuildHost {
                     .bind_import(boundary, self.filesystem.adapter(declaration.into()))
                     .map_err(describe)?;
             } else {
-                let operation = artifact.module().identities.text(declaration.identity)
+                let operation = artifact
+                    .module()
+                    .identities
+                    .text(declaration.identity)
                     .ok_or("Build import has no callable identity")?;
                 return Err(format!(
                     "Build import `{operation}` has no admitted host operation or installed provider"
@@ -482,6 +531,10 @@ pub struct TerminalBuildActivation {
     )>,
     work: EvaluationWorkMeter,
     state: ActivationState,
+    described_product: Option<(
+        build_declarations::BuildDeclarationKind,
+        build_declarations::ProjectName,
+    )>,
     requests: Vec<IssuedBuildRequest>,
     demanded_sources: Vec<BuildDependencySelection>,
     helper_accounting: source_compiler::compile_time_invocations::SourceCompletionAccounting,
@@ -541,23 +594,45 @@ impl TerminalBuildActivation {
                 return Err("Product query dependency has no issued Product request".into());
             }
         }
+        if request.operation.requires_named_source() {
+            let current = self.project_declaration()?;
+            let key = project::named_identity(&current)
+                .ok_or("Product query requires a named product")?;
+            if self
+                .described_product
+                .as_ref()
+                .is_some_and(|issued| issued != &key)
+            {
+                return Err(
+                    "Build changed the product that issued an earlier declaration description"
+                        .into(),
+                );
+            }
+            self.described_product = Some(key);
+        }
         self.host.bindings.answer_query(request, answer)?;
         self.demanded_sources.extend_from_slice(dependencies);
         self.state = ActivationState::Running;
         Ok(())
     }
 
-    /// A named query uses only the role already issued by this activation.
-    /// This validates the current ledger; it does not complete the Build or
-    /// promise that a later request will preserve the same declaration.
+    /// A paused declaration query reads the product currently stored in this activation's plan.
     pub fn project_declaration(&self) -> Result<build_declarations::BuildDeclaration, String> {
-        let current = project::destination(&self.requests).map_err(|reason| format!(
-            "Product declaration query requires an already-issued named package or application: {reason}"
-        ))?;
+        let current = project::destination(
+            &self.instance,
+            &self.host.machine,
+            terminal_interpreter::TerminalObservationRoot::ArgumentAtHostCall(0),
+            &self.requests,
+            &self.host.requests,
+        )
+        .map_err(|reason| {
+            format!("Product declaration query requires a named package or application: {reason}")
+        })?;
         current
-            .project()
+            .as_ref()
+            .and_then(project::Destination::project)
             .cloned()
-            .ok_or_else(|| "successor Build has no named product declaration".into())
+            .ok_or_else(|| "Build query requires a selected named Product".into())
     }
 
     pub fn requests(&self) -> &[IssuedBuildRequest] {
@@ -777,16 +852,31 @@ impl TerminalBuildActivation {
         }
         let (settings, optimization_report) =
             build_settings::extract(&self.instance, &self.host.machine)?;
+        let destination = project::destination(
+            &self.instance,
+            &self.host.machine,
+            terminal_interpreter::TerminalObservationRoot::ReturnedArgument(0),
+            &self.requests,
+            &self.host.requests,
+        )?;
+        if self.host.default_source {
+            if destination.is_some() || !self.requests.is_empty() {
+                return Err("default Build changed the product supplied by its invoker".into());
+            }
+        } else if destination.is_none() {
+            return Err("Build returned no project role".into());
+        }
+        if let Some(issued) = &self.described_product {
+            let returned = destination
+                .as_ref()
+                .and_then(project::Destination::project)
+                .and_then(project::named_identity);
+            if returned.as_ref() != Some(issued) {
+                return Err("returned Build product differs from the product that issued a declaration description".into());
+            }
+        }
         self.instance.close().map_err(describe)?;
         drop(self.instance);
-        let destination = if self.host.default_source {
-            if !self.requests.is_empty() {
-                return Err("default Build unexpectedly issued project requests".into());
-            }
-            None
-        } else {
-            Some(project::destination(&self.requests)?)
-        };
         let mut root_bindings = Vec::new();
         let mut product_selections = Vec::new();
         let mut exclusions = Vec::new();
@@ -811,6 +901,8 @@ impl TerminalBuildActivation {
             destination,
             source_join: self.host.default_sources.clone(),
             requests: self.requests,
+            validation_requests: self.host.requests.validation_requests()?,
+            validation_subjects: Vec::new(),
             demanded_sources: self.demanded_sources,
             settings,
             optimization_report,

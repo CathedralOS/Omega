@@ -1452,6 +1452,26 @@ pub(crate) mod values {
             }
         }
 
+        /// Payload paths are relative to the active outer case. A contract uses
+        /// the full path from the result place, including that case selection.
+        pub(crate) fn case_at_path(
+            &self,
+            path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+        ) -> Option<StructuralCaseId> {
+            use semantic_vocabulary::CanonicalStructuralPathSegment as Path;
+            if path.is_empty() {
+                return self.result_case;
+            }
+            let payload = match self.result_case {
+                Some(case) => path.strip_prefix(&[Path::Case(case)])?,
+                None => path,
+            };
+            self.fields.iter().find_map(|field| match field.contents {
+                crate::TerminalStorageContents::Case(case) if field.path == payload => Some(case),
+                _ => None,
+            })
+        }
+
         pub(crate) fn canonical_contents(&self) -> Vec<crate::TerminalBoundaryStorageValue> {
             use semantic_vocabulary::CanonicalStructuralPathSegment as Path;
             let Some(case) = self.result_case else {

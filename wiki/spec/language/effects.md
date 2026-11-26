@@ -765,7 +765,7 @@ public boundary trait Registrar {
         crashes none;                     // keeps it; enters nothing
 }
 
-public boundary trait FilesystemService {
+public boundary trait Filesystem {
     machine read(file: File, buffer: @mutable [u8], count: u64) -> IoResult
         blocks
         reaches FilesystemContentRead

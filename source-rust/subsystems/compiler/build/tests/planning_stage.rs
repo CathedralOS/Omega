@@ -453,12 +453,13 @@ fn an_artifact_only_build_requests_its_scoped_filesystem_once() {
 
     struct Consent(Arc<Mutex<Vec<RestrictedBuildRequest>>>);
     impl RestrictedBuildGrants for Consent {
-        fn admit(
+        fn admits(
             &mut self,
+            _: &package_compilation::build_execution::RestrictedBuildSite,
             request: &RestrictedBuildRequest,
-        ) -> Result<(), Vec<diagnostics::Diagnostic>> {
+        ) -> Result<bool, Vec<diagnostics::Diagnostic>> {
             self.0.lock().unwrap().push(request.clone());
-            Ok(())
+            Ok(true)
         }
     }
 
@@ -513,7 +514,7 @@ fn an_artifact_only_build_requests_its_scoped_filesystem_once() {
     };
     assert_eq!(
         request.operation(),
-        RestrictedBuildOperation::ScopedFilesystemExecution
+        &RestrictedBuildOperation::ScopedFilesystemExecution
     );
     assert!(request.bounds().artifact_only());
 }
@@ -573,7 +574,7 @@ machine build(builder: @mutable Build) {
             true,
             false,
             &temp.path().join("out"),
-            None,
+            Default::default(),
         )
     };
     let products = compile().unwrap();
@@ -773,5 +774,116 @@ fn authored_queries_describe_the_deferred_product_before_build_returns() {
     assert_eq!(
         services.0,
         [TerminalBuildQueryOperation::Schema, TerminalBuildQueryOperation::Provider]
+    );
+}
+
+#[test]
+fn sandbox_standard_output_requires_a_bounded_sink_and_preserves_exact_bytes() {
+    configure_library();
+    let directory = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "build-standard-output",
+        false,
+    )
+    .unwrap();
+    let entry = directory.path().join("build.omg");
+    std::fs::write(
+        &entry,
+        r#"use main.omg as product;
+use {omega}/language/core/sandbox/streams.omg as sandbox;
+machine build(builder: @mutable Build) {
+    Build::application(builder, "with_output");
+    Build::bind(builder, linux_x86_64::ProgramEntry, |product|::main);
+    |sandbox|::SandboxOutput::write("x");
+    let tail: [u8; 1] = [255u8];
+    |sandbox|::SandboxOutput::write(@tail[..]);
+}"#,
+    )
+    .unwrap();
+    std::fs::write(
+        directory.path().join("main.omg"),
+        r#"use {omega}/language/core/sandbox/streams.omg as sandbox;
+use {omega}/language/core/process_authority.omg as streams;
+public machine main() reaches |streams|::StandardOutput {
+    |sandbox|::SandboxOutput::write("outside the Build");
+}"#,
+    )
+    .unwrap();
+    let project =
+        begin_local_project_preparation(&entry, &[TargetProfile::LinuxX64], true).unwrap();
+    let acquired = project.acquire_root().unwrap();
+    let run = |limit| {
+        let prepared = prepare(
+            PlanningRequest {
+                root: &entry,
+                sources: PlanningSources::Captured(acquired.source_capture()),
+                execution: BuildExecutionInputs {
+                    diagnostic_output_bytes: limit,
+                    ..Default::default()
+                },
+                artifact_only: false,
+            },
+            Default::default(),
+            Default::default(),
+        )?;
+        interpret(prepared, &mut ())
+    };
+    let refused = run(None)
+        .err()
+        .expect("no sink supplied")
+        .into_diagnostics();
+    assert!(
+        refused.iter().any(|d| d.message.contains("before entry")
+            && d.message.contains("StandardOutput diagnostic sink")),
+        "{refused:?}"
+    );
+    let refused = run(Some(1))
+        .err()
+        .expect("second byte exceeds the activation limit")
+        .into_diagnostics();
+    assert!(
+        refused
+            .iter()
+            .any(|d| d.message.contains("diagnostic sink byte limit exceeded")),
+        "{refused:?}"
+    );
+    let mut stage = run(Some(2)).unwrap();
+    let declaration = acquired.declare_build(stage.returned()).unwrap();
+    let subject = declaration.identity();
+    let ExecutedSourceResolution::Complete(graph) = declaration.resolve().unwrap() else {
+        panic!("stock sandbox operations require no package registration")
+    };
+    let inputs = graph
+        .join_source_result(subject, &mut stage.source_result().unwrap())
+        .unwrap();
+    let product = stage.open_product(Some(&inputs)).unwrap();
+    assert_eq!(
+        product
+            .evaluated()
+            .configuration
+            .observation_summary
+            .as_ref()
+            .unwrap()
+            .build_log(),
+        b"x\xff"
+    );
+    let planned = product.product_stage(&[TargetProfile::LinuxX64]).unwrap();
+    let program = planned
+        .program(TargetProfile::LinuxX64, Vec::new())
+        .unwrap();
+    let rejected = compiler::compile(
+        compiler::CompileRequest::Native {
+            program,
+            entry_memory: &[],
+        },
+        Default::default(),
+    )
+    .err()
+    .expect("the Build's stream backing cannot supply its native Product")
+    .into_diagnostics();
+    assert!(
+        rejected
+            .iter()
+            .any(|d| d.message.contains("SandboxOutput") && d.message.contains("provider")),
+        "{rejected:?}"
     );
 }

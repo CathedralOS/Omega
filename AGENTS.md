@@ -199,10 +199,10 @@ are the one looking at it, it is yours: finish it or close it.
    boundary. For a program whose expected behavior includes Terminal Psi and
    native execution, check the expected result independently on each engine,
    then compare termination, stdout, stderr and any outputs the test declares.
-   Honor the required exit of the original program. The current
-   `omega run --both` can report agreement for different
-   streams. Until **BUILD-TEST-COMPARISON** lands, check the captured bytes
-   explicitly. [Comparison contract](wiki/spec/build/testing.md#comparing-native-and-psi-tests)
+   Honor the required exit of the original program. Use
+   `omega build --compare-tests build.omg` for registered tests and
+   `mbx xtask sample-gate --filter <sample-path>` for repository samples.
+   [Comparison contract](wiki/spec/build/testing.md#comparing-native-and-psi-tests)
 5. **Board closure:** Delete completed bullets from `TASKS.md` outright (never
    rewrite into `"preserving / keeping / now passes"` history prose).
 6. **Generalize instead of adding special cases:** If your fix needs a second

@@ -36,6 +36,6 @@ pub(in crate::encoding::recovery) fn domain_shape(
                 1 => PackageReviewDomainSemanticRole::ArithmeticPolicy,
             }))
         })?,
-        establishment_routes: reader.sequence(42, establishment_route)?,
+        issuance: reader.option(|reader| reader.sequence(42, establishment_route))?,
     })
 }

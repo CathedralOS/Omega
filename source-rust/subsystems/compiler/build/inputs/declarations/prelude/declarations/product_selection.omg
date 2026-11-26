@@ -1,9 +1,9 @@
-// Compiler-owned product-selection facet. `builder.product.entry`,
-// `builder.product.provider`, and `builder.product.schema` are the only routes
+// Compiler-owned product-selection facet. `builder.declarations.entry`,
+// `builder.declarations.provider`, and `builder.declarations.schema` are the only routes
 // to compiler-issued product descriptions. Normalization retains the authored
 // occurrence on the host call, which resolves the locator in that package's
 // Product scope before the original Build activation resumes.
-public data BuildProduct {
+public data BuildDeclarations {
 }
 // A restricted, non-callable product-entry description. Authored code can
 // retain, copy, and hand it to helpers, but only a `Build::bind` delegated
@@ -15,9 +15,9 @@ public data ProductEntryRef [copy] {
 // The source producer retains each query's lexical occurrence beside its call;
 // the activation mints descriptions only after that exact query is answered.
 public boundary trait BuildProductOperations {
-    machine entry(product: @BuildProduct, path: @[u8], slot: @[u8]) -> ProductEntryRef reaches none crashes none;
-    machine schema(product: @BuildProduct, path: @[u8]) -> ProductTypeSchema reaches none crashes none;
-    machine provider(product: @BuildProduct, path: @[u8]) -> ProductProviderRef reaches none crashes none;
+    machine entry(product: @BuildDeclarations, path: @[u8], slot: @[u8]) -> ProductEntryRef reaches none crashes none;
+    machine schema(product: @BuildDeclarations, path: @[u8]) -> ProductTypeSchema reaches none crashes none;
+    machine provider(product: @BuildDeclarations, path: @[u8]) -> ProductProviderRef reaches none crashes none;
     machine schema_path(schema: @ProductTypeSchema) -> @[u8] reaches none crashes none;
     machine provider_path(provider: @ProductProviderRef) -> @[u8] reaches none crashes none;
 }
@@ -29,10 +29,10 @@ public boundary trait BuildProductOperations {
 // Selection first calls the checked mutable-receiver helper below. The host
 // only observes identity; it cannot replace Build's reference-bearing fields.
 public boundary trait BuildBindingOperations {
-    machine describe_service(activation: u64) -> BoundaryServiceRef reaches none crashes none;
+    machine describe_service(activation: u64) -> BoundaryServiceReference reaches none crashes none;
     machine describe_parameter() -> omega\language\core\reflect\ParameterInfo reaches none crashes none;
     machine describe_field() -> omega\language\core\reflect\FieldInfo reaches none crashes none;
-    machine prepare(builder: @Build) -> u64 reaches none crashes none;
+    machine prepare(builder: @BuildPlan) -> u64 reaches none crashes none;
     machine prepare_tests(tests: @BuildTests) -> u64 reaches none crashes none;
     machine await_provider(activation: u64) reaches none crashes none suspends;
     machine bind(activation: u64) reaches none crashes none;
@@ -46,7 +46,7 @@ public boundary trait BuildBindingOperations {
 }
 // The ordinary call establishes exclusive activation access and retains that
 // loan through the returned original view, without granting an opaque host writes.
-public machine build_selection_receiver<'activation, 'storage>(builder: @'activation mutable Build<'storage>) -> @'activation mutable Build<'storage> {
+public machine build_selection_receiver<'activation, 'storage>(builder: @'activation mutable BuildPlan<'storage>) -> @'activation mutable BuildPlan<'storage> {
     builder
 }
 public machine build_exclusion_crash_code(cause: CrashCause) -> u64 {

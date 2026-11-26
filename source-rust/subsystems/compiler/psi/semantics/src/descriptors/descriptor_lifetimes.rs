@@ -457,11 +457,15 @@ fn location_live_positions(
                 if cutoff.is_some_and(|c| c.stops_after(output.root, *position)) {
                     continue;
                 }
-                let destinations = if borrowed_authority {
+                let mut destinations = if borrowed_authority {
                     edge.forward_authority(output)
                 } else {
                     edge.forward(output)
                 };
+                destinations.extend(edge.bindings.iter().filter_map(|binding| {
+                    let source = binding.indexed_borrow_source()?;
+                    source.overlaps(output).then(|| binding.parameter.clone())
+                }));
                 for destination in destinations {
                     let next = (edge.target, destination);
                     predecessors

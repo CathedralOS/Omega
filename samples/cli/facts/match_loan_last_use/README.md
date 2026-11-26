@@ -46,16 +46,7 @@ and declares `Expected exit: 0`. `omega run --both` reports Terminal Psi
 interpreter and native execution agreement (`native exit 0` and `interp exit: 0`):
 
 ```sh
-target/debug/omega run --both samples/cli/facts/match_loan_last_use/main.omg
-target/debug/omega run --both samples/cli/facts/match_loan_last_use/local/main.omg
-target/debug/omega run --both samples/cli/facts/match_loan_last_use/field/main.omg
-target/debug/omega run --both samples/cli/facts/match_loan_last_use/parameter/main.omg
-target/debug/omega run --both samples/cli/facts/match_loan_last_use/call_result/main.omg
-target/debug/omega run --both samples/cli/facts/match_loan_last_use/match_join/main.omg
-target/debug/omega run --both samples/cli/facts/match_loan_last_use/const_name/main.omg
-target/debug/omega run --both samples/cli/facts/match_loan_last_use/other_state/main.omg
-target/debug/omega run --both samples/cli/facts/match_loan_last_use/other_machine/main.omg
-target/debug/omega run --both samples/cli/facts/match_loan_last_use/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/match_loan_last_use
 ```
 
 ### The oracle discriminates

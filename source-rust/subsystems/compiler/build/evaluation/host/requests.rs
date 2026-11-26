@@ -14,14 +14,12 @@ carries its own storage lease, and `BuildLog` retains its line leases until
 normal-return settlement charges result custody and publishes the log bytes.
 */
 
-use build_declarations::{
-    BuildDependencySource, BuildEntryPath, BuildRequest, DependencyPurpose, ProjectName,
-    WorkspaceMemberPath,
-};
+use build_declarations::{BuildDependencySource, BuildRequest, DependencyPurpose, ProjectName};
 use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
 mod input_bindings;
 mod output;
 mod reach;
+mod workspace;
 pub use input_bindings::FrozenBuildBinding;
 use input_bindings::InputBindings;
 pub(crate) use output::BuildRequestOutput;
@@ -55,8 +53,11 @@ impl IssuedBuildRequest {
 }
 
 pub struct TerminalBuildRequestHost {
+    programs: Arc<super::programs::ProgramInstallation>,
+    filesystem: Arc<super::filesystem::TerminalBuildFilesystemHost>,
     inputs: InputBindings,
     reach: reach::ReachSets,
+    workspace: workspace::WorkspaceCatalogs,
     artifact: terminal_codec::TerminalExecutionIdentity,
     calls: Arc<[TerminalBuildRequestCall]>,
     original: TerminalStructuralValue,
@@ -65,6 +66,7 @@ pub struct TerminalBuildRequestHost {
     registrations: Mutex<Registrations>,
     output: Mutex<BuildRequestOutput>,
     original_log: Option<TerminalStructuralValue>,
+    diagnostic_output_bytes: Option<u64>,
 }
 
 /// One dependency registration this activation issued a marker for. The
@@ -77,6 +79,7 @@ struct Registration {
     /// coordinate the coordinator acquires an issued request by.
     request_ordinal: usize,
     prepared: bool,
+    validate: bool,
     _storage: Option<EvaluationStorageLease>,
 }
 
@@ -104,10 +107,13 @@ pub struct BuildDependencyPreparation {
 }
 
 impl TerminalBuildRequestHost {
-    pub fn new(
+    pub(crate) fn new(
         artifact: terminal_codec::TerminalExecutionView<'_>,
         requests: &TerminalBuildRequests,
+        programs: Arc<super::programs::ProgramInstallation>,
+        filesystem: Arc<super::filesystem::TerminalBuildFilesystemHost>,
         original: TerminalStructuralValue,
+        diagnostic_output_bytes: Option<u64>,
         account: Option<&EvaluationInvocationAccount>,
         libraries: Arc<[package_compilation::source_imports::SuppliedBuildLibrary]>,
     ) -> Result<Arc<Self>, String> {
@@ -120,9 +126,12 @@ impl TerminalBuildRequestHost {
             None
         };
         Ok(Arc::new(Self {
+            programs,
+            filesystem,
             artifact: artifact.custody_identity(),
             calls: Arc::clone(calls),
             inputs: InputBindings::new(libraries),
+            workspace: Default::default(),
             reach: reach::ReachSets::from_module(
                 artifact.module(),
                 calls
@@ -135,11 +144,19 @@ impl TerminalBuildRequestHost {
             registrations: Mutex::new(Registrations::default()),
             output: Mutex::default(),
             original_log,
+            diagnostic_output_bytes,
         }))
     }
 
     pub(crate) fn reflected_services(&self) -> Arc<ReflectedServices> {
         Arc::clone(&self.reach.reflections)
+    }
+
+    pub(crate) fn workspace_members(
+        &self,
+        marker: &TerminalStructuralValue,
+    ) -> Result<Vec<build_declarations::WorkspaceMemberPath>, String> {
+        self.workspace.paths(marker)
     }
 
     pub fn adapter(
@@ -199,6 +216,19 @@ impl TerminalBuildRequestHost {
             .map_err(|_| "Build request output lock was poisoned")
     }
 
+    pub(crate) fn validation_requests(&self) -> Result<Vec<(DependencyPurpose, usize)>, String> {
+        let registrations = self
+            .registrations
+            .lock()
+            .map_err(|_| REGISTRATIONS_POISONED)?;
+        Ok(registrations
+            .issued
+            .iter()
+            .filter(|r| r.validate)
+            .map(|r| (r.purpose, r.request_ordinal))
+            .collect())
+    }
+
     pub(crate) fn take_output(&self) -> Result<BuildRequestOutput, String> {
         let mut output = self.output()?;
         Ok(std::mem::take(&mut *output))
@@ -252,12 +282,12 @@ impl TerminalImportAdapter for TerminalBuildRequestAdapter {
 }
 
 impl TerminalBuildRequestAdapter {
-    /// Authenticates a `Build::prepare_dependency` call and names the issued
-    /// registration its marker stands for.
-    fn preparation(
+    /// Authenticate the receiver and the registration named by a Build operation.
+    fn registration(
         &self,
         effect: &TerminalEffect,
         registrations: &Registrations,
+        action: Operation,
     ) -> Result<usize, TerminalEffectRejection> {
         let refuse = TerminalEffectRejection::new;
         let TerminalEffect::BoundaryCall {
@@ -272,7 +302,7 @@ impl TerminalBuildRequestAdapter {
         };
         let [receiver, marker] = structural_arguments.as_slice() else {
             return Err(refuse(
-                "Build dependency preparation has an invalid argument roster",
+                "Build registration operation has an invalid argument roster",
             ));
         };
         if !arguments.is_empty()
@@ -280,7 +310,7 @@ impl TerminalBuildRequestAdapter {
             || *result != terminal_psi::BoundaryMachineResult::Unit
         {
             return Err(refuse(
-                "Build dependency preparation differs from its protocol",
+                "Build registration operation differs from its protocol",
             ));
         }
         if receiver != &self.host.original {
@@ -291,9 +321,12 @@ impl TerminalBuildRequestAdapter {
         let position = registrations
             .position(marker)
             .ok_or_else(|| {
-                refuse(
-                    "Build::prepare_dependency requires a registration this activation issued; an authored `DependencyRegistration {}` names none",
-                )
+                let operation = if action == Operation::ValidateDependency {
+                    "Build::validate"
+                } else {
+                    "Build::prepare_dependency"
+                };
+                TerminalEffectRejection::new(format!("{operation} requires a registration this activation issued; an authored `DependencyRegistration {{}}` names none"))
             })?;
         Ok(position)
     }
@@ -320,7 +353,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             .registrations
             .lock()
             .map_err(|_| refuse(REGISTRATIONS_POISONED))?;
-        let position = self.preparation(effect, &registrations)?;
+        let position = self.registration(effect, &registrations, call.action)?;
         if registrations.issued[position].prepared {
             return Ok(true);
         }
@@ -340,6 +373,56 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
         Err(TerminalEffectRejection::new(
             "Build requests require result-aware dispatch",
         ))
+    }
+
+    fn storage_requirements(
+        &self,
+        boundary: semantic_vocabulary::BoundaryMachineId,
+        _: &[TerminalScalarValue],
+    ) -> terminal_interpreter::TerminalCallStorageRequirements<'_> {
+        let program = self.host.calls.iter().any(|call| {
+            call.site.boundary == boundary && matches!(call.action, Operation::LaunchProgram { .. })
+        });
+        terminal_interpreter::TerminalCallStorageRequirements {
+            arguments: if program { &[0] } else { &[] },
+            original: false,
+        }
+    }
+
+    fn handle_effect_with_buffers(
+        &mut self,
+        effect: &TerminalEffect,
+        bytes: &mut [terminal_interpreter::TerminalBoundaryByteBuffer],
+        storage: &mut [terminal_interpreter::TerminalBoundaryStorageBuffer],
+    ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
+        crate::host::require_effect_owner(effect, &self.host.artifact)?;
+        let launch = self.host.calls.iter().find_map(|call| {
+            if crate::host::is_call_at(effect, call.site)
+                && let Operation::LaunchProgram { program } = call.action
+            {
+                Some(program)
+            } else {
+                None
+            }
+        });
+        if let Some(program) = launch {
+            if !bytes.is_empty() {
+                return Err(TerminalEffectRejection::new(
+                    "program arguments may only borrow immutable byte views",
+                ));
+            }
+            return self
+                .host
+                .programs
+                .run(program, storage, &self.host.filesystem)
+                .map_err(TerminalEffectRejection::new);
+        }
+        if !bytes.is_empty() || !storage.is_empty() {
+            return Err(TerminalEffectRejection::new(
+                "unexpected storage in a Build request",
+            ));
+        }
+        self.handle_effect_result(effect)
     }
 
     fn handle_effect_result(
@@ -364,6 +447,26 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             .iter()
             .find(|call| crate::host::is_call_at(effect, call.site))
             .ok_or_else(|| refuse("Build request has no source-issued protocol call"))?;
+        if call.action == Operation::SandboxWrite {
+            let ([], [_], [Some(bytes)], terminal_psi::BoundaryMachineResult::Unit) = (
+                arguments.as_slice(),
+                structural_arguments.as_slice(),
+                byte_sequence_arguments.as_slice(),
+                result,
+            ) else {
+                return Err(refuse("sandbox output differs from its admitted signature"));
+            };
+            let limit = self
+                .host
+                .diagnostic_output_bytes
+                .ok_or_else(|| refuse("Build has no admitted diagnostic sink"))?;
+            self.host
+                .output()
+                .map_err(refuse)?
+                .write_stream(bytes, limit, self.host.account.as_ref())
+                .map_err(TerminalEffectRejection::new)?;
+            return Ok(TerminalEffectResult::Unit);
+        }
         if call.action == Operation::LogLine {
             let [facet, _] = structural_arguments.as_slice() else {
                 return Err(refuse("Build log request has an invalid argument roster"));
@@ -383,17 +486,24 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                 .output()
                 .map_err(TerminalEffectRejection::new)?
                 .log
-                .append_line(bytes, self.host.account.as_ref())
+                .append(bytes, true, self.host.account.as_ref())
                 .map_err(TerminalEffectRejection::new)?;
             return Ok(TerminalEffectResult::Unit);
         }
-        if call.action == Operation::PrepareDependency {
-            let registrations = self
+        if matches!(
+            call.action,
+            Operation::PrepareDependency | Operation::ValidateDependency
+        ) {
+            let mut registrations = self
                 .host
                 .registrations
                 .lock()
                 .map_err(|_| refuse(REGISTRATIONS_POISONED))?;
-            let position = self.preparation(effect, &registrations)?;
+            let position = self.registration(effect, &registrations, call.action)?;
+            if call.action == Operation::ValidateDependency {
+                registrations.issued[position].validate = true;
+                return Ok(TerminalEffectResult::Unit);
+            }
             if !registrations.issued[position].prepared {
                 return Err(refuse(
                     "Build dependency preparation requires its completed preparation",
@@ -410,6 +520,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                 | Operation::InputBinding
                 | Operation::AddBinding
                 | Operation::ExtendReach
+                | Operation::ExtendWorkspace
         );
         if structural_arguments.first() != Some(&self.host.original)
             || byte_sequence_arguments.first() != Some(&None)
@@ -460,20 +571,21 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             }
         };
         let (scalar_count, structural_count) = match call.action {
+            Operation::LaunchProgram { .. } => {
+                return Err(refuse("program call lost its borrowed argument list"));
+            }
             Operation::ArtifactOnly => (0, 1),
-            Operation::Package
-            | Operation::Application
-            | Operation::Member
-            | Operation::BuildEntry => (0, 2),
             Operation::InputBinding => (0, 2),
             Operation::AddBinding => (0, 3),
-            Operation::ExtendReach => (0, 3),
+            Operation::ExtendReach | Operation::ExtendWorkspace => (0, 3),
             Operation::PathDependency => (2, 4),
             Operation::GitDependency => (3, 6),
             Operation::ConfigureTestFixture
             | Operation::ConfigureTestEngine
+            | Operation::SandboxWrite
             | Operation::LogLine
             | Operation::PrepareDependency
+            | Operation::ValidateDependency
             | Operation::PublishSource => {
                 return Err(refuse("Build request did not complete its host request"));
             }
@@ -493,6 +605,28 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                 .select(
                     text(1)?,
                     binding.structural_type,
+                    self.host.account.as_ref(),
+                )
+                .map(TerminalEffectResult::Structural);
+        }
+        if call.action == Operation::ExtendWorkspace {
+            let terminal_psi::BoundaryMachineResult::Structural(result) = result else {
+                return Err(refuse(
+                    "workspace member extension requires a snapshot result",
+                ));
+            };
+            let [None, None, Some(path)] = byte_sequence_arguments.as_slice() else {
+                return Err(refuse(
+                    "workspace member extension requires its pathname bytes",
+                ));
+            };
+            return self
+                .host
+                .workspace
+                .extend(
+                    &structural_arguments[1],
+                    path,
+                    result.structural_type,
                     self.host.account.as_ref(),
                 )
                 .map(TerminalEffectResult::Structural);
@@ -526,7 +660,9 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
         };
         let forwarded = if call.action == Operation::AddBinding {
             if byte_sequence_arguments[1].is_some() {
-                return Err(refuse("Build dependency registration requires a PackageBinding"));
+                return Err(refuse(
+                    "Build dependency registration requires a PackageBinding",
+                ));
             }
             let binding = self.host.inputs.require(&structural_arguments[1])?;
             if !max_reach.is_subset_of(binding.library().max_reach()) {
@@ -545,11 +681,6 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             }
         };
         match call.action {
-            Operation::Package | Operation::Application => name(text(1)?)?,
-            Operation::BuildEntry => BuildEntryPath::validate(text(1)?).map_err(refuse)?,
-            Operation::Member if !WorkspaceMemberPath::is_valid(text(1)?) => {
-                return Err(refuse("Build workspace member path is not canonical"));
-            }
             Operation::PathDependency | Operation::GitDependency => {
                 flag(0)?;
                 if flag(1)? {
@@ -622,30 +753,29 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
         let project_name =
             |value: &str| ProjectName::parse(copy(value)?).map_err(TerminalEffectRejection::new);
         let request = match call.action {
+            Operation::LaunchProgram { .. } => {
+                return Err(refuse("program call lost its borrowed argument list"));
+            }
             Operation::ConfigureTestFixture
             | Operation::ConfigureTestEngine
+            | Operation::SandboxWrite
             | Operation::LogLine
             | Operation::PrepareDependency
+            | Operation::ValidateDependency
             | Operation::PublishSource => {
                 return Err(refuse("Build request did not complete its host request"));
             }
-            Operation::Package => BuildRequest::Package(project_name(text(1)?)?),
-            Operation::Application => BuildRequest::Application(project_name(text(1)?)?),
-            Operation::Member => BuildRequest::Member(
-                WorkspaceMemberPath::parse(copy(text(1)?)?)
-                    .map_err(|error| TerminalEffectRejection::new(error.to_string()))?,
-            ),
-            Operation::BuildEntry => {
-                BuildRequest::BuildEntry(BuildEntryPath::parse(copy(text(1)?)?).map_err(refuse)?)
-            }
             Operation::ArtifactOnly => BuildRequest::ArtifactOnly,
-            Operation::InputBinding | Operation::ExtendReach => {
+            Operation::InputBinding | Operation::ExtendReach | Operation::ExtendWorkspace => {
                 return Err(refuse(
                     "Build input binding or service set already returned",
                 ));
             }
             Operation::AddBinding => {
-                let Some(BuildRequest::Dependency {alias, source, ..}) = forwarded.as_ref().map(|binding|binding.library().request()) else {
+                let Some(BuildRequest::Dependency { alias, source, .. }) = forwarded
+                    .as_ref()
+                    .map(|binding| binding.library().request())
+                else {
                     return Err(refuse("Build input binding lost its frozen dependency"));
                 };
                 BuildRequest::Dependency {
@@ -741,6 +871,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             purpose,
             request_ordinal,
             prepared: false,
+            validate: false,
             _storage: storage,
         });
         Ok(TerminalEffectResult::Structural(marker))

@@ -412,3 +412,31 @@ fn each_arm_of_a_reference_join_hands_the_join_its_own_formal() {
         .refused();
     assert!(refusal.detail.contains(LOAN_ROW), "{refusal:?}");
 }
+
+#[test]
+fn an_indexed_borrow_only_holds_the_owner_through_its_last_use() {
+    let source = r#"
+        data Item { value: i32; }
+        machine clear_one(cell: @mutable Item) terminates { cell.value = 1; }
+        machine main() crashes Trap {
+            let mutable items: [Item; 2] = [Item { value: 0 }, Item { value: 0 }];
+            let view: @mutable [Item] = @mutable items[..];
+            clear_one(@mutable view[0]);
+            clear_one(@mutable items[0]);
+        }
+    "#;
+    Program::of(source).judged(|_| {}).accepted();
+
+    let retained = source.replace(
+        "clear_one(@mutable items[0]);",
+        "clear_one(@mutable items[0]); clear_one(@mutable view[0]);",
+    );
+    match Program::of(&retained).judged(|_| {}) {
+        program::Verdict::Refused(refusal) => assert_eq!(
+            refusal.reason,
+            terminal_check_tables::RefusalReason::Conflict
+        ),
+        program::Verdict::Rejected(rejection) => assert!(!rejection.conflicts.is_empty()),
+        other => panic!("expected overlapping exclusive loans, got {other:?}"),
+    }
+}

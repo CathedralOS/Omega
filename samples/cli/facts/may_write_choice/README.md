@@ -47,16 +47,7 @@ are focused controls, not another place matrix.
 Every positive place, including root `main.omg`, binds `ProgramEntry` for `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64`, and declares `Expected exit: 0`.
 
 ```sh
-omega run --both samples/cli/facts/may_write_choice/main.omg
-omega run --both samples/cli/facts/may_write_choice/local/main.omg
-omega run --both samples/cli/facts/may_write_choice/field/main.omg
-omega run --both samples/cli/facts/may_write_choice/parameter/main.omg
-omega run --both samples/cli/facts/may_write_choice/call_result/main.omg
-omega run --both samples/cli/facts/may_write_choice/match_join/main.omg
-omega run --both samples/cli/facts/may_write_choice/const_name/main.omg
-omega run --both samples/cli/facts/may_write_choice/other_state/main.omg
-omega run --both samples/cli/facts/may_write_choice/other_machine/main.omg
-omega run --both samples/cli/facts/may_write_choice/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/may_write_choice
 ```
 
 The byte `7` is `items[1]`. A preserved other-input of `1` reads that byte. A write that fails to store `9` into the chosen input takes the `bad` arm and crashes `Trap`.

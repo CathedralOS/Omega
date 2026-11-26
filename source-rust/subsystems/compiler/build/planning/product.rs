@@ -268,12 +268,12 @@ impl ProductStage<'_> {
                 declaration_scope: self.scope.clone(),
                 build_host: self.build_host,
                 build_accounting: Some(&self.product.evaluated().source_completion_accounting),
-                generated: self.product.generated.clone(),
                 targets: &self.targets,
                 calling_targets: &self.deployments,
                 subject: self.product.package_inputs().map(|inputs| inputs.root()),
                 root_binding_requests: &self.entries,
                 policy: ProductPolicyInputs {
+                    activation_owner: source.build_owner(),
                     activation: build.selected_build_declaration(),
                     declared: &build.declared_product_selections,
                     executed: &build.product_selection_requests,

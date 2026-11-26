@@ -22,8 +22,9 @@ Every place establishes an immutable byte-view literal of 14 bytes (`"0123456789
 Run each positive place or root with:
 
 ```sh
-omega run --both samples/cli/facts/readonly_byte_literal_subslice/main.omg
-omega run --both samples/cli/facts/readonly_byte_literal_subslice/<place>/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/readonly_byte_literal_subslice
+omega run --engine native samples/cli/facts/readonly_byte_literal_subslice/<place>/main.omg
+omega run --engine psi samples/cli/facts/readonly_byte_literal_subslice/<place>/main.omg
 ```
 
 Each place has an `invalid/` twin that takes a 9-byte subslice (`[2u64..11u64]`), causing the product `90u64` to underflow unsigned exact subtraction `total - 100u64`. Each invalid twin rejects during proof checking with `may overflow \`u64\``. Check each twin with:
