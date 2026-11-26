@@ -145,6 +145,27 @@ impl<'scope> CapturedBuildObservations<'scope> {
             staged_output_tree.as_ref(),
             machine_name,
         )?;
+        let product_source_tree = match scope.product_source_directory.as_deref() {
+            Some(directory) => {
+                let staging = staged_output_tree.as_ref().ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "a selected Product source directory requires private activation staging",
+                    )]
+                })?;
+                Some(staging.select_directory(directory)?)
+            }
+            None => None,
+        };
+        let published = self.generated_sources.unwrap_or_default();
+        let generated_sources = match &product_source_tree {
+            None => published,
+            Some(tree) if published.is_empty() => tree.source_files()?,
+            Some(_) => {
+                return Err(vec![Diagnostic::error(
+                    "a Build with a selected Product source directory cannot also publish files individually",
+                )]);
+            }
+        };
         Ok(BuildObservationSummary {
             filesystem_host_observed: self.filesystem_host_observed,
             filesystem_operation_schema_version: self.filesystem_operation_schema_version,
@@ -153,7 +174,8 @@ impl<'scope> CapturedBuildObservations<'scope> {
             activation: scope.activation(),
             captured_source_inventory: scope.captured_source_inventory(),
             named_input_inventories: scope.named_input_inventories(),
-            generated_sources: self.generated_sources.unwrap_or_default(),
+            product_source_tree,
+            generated_sources,
             required_output_settlements,
             staged_output_tree,
             build_log: self.build_log,

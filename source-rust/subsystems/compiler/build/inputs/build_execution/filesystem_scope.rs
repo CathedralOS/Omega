@@ -92,11 +92,12 @@ pub struct BuildMachineFilesystemScope {
     canonical_source_metadata_required: bool, // Whether package/anonymous custody requires canonical metadata.
     build_dir: PathBuf,                       // Physical Output staging root path.
     admitted_build_dir_key: PathBuf,          // Overlap key of `build_dir` recorded at admission.
-    sponsor: Option<FilesystemSponsor>, // Staging directory quota and custody sponsor.
+    sponsor: Option<FilesystemSponsor>,       // Staging directory quota and custody sponsor.
     root_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>, // Bound root package identity.
     root_role: Option<crate::BuildDeclarationKind>, // Bound root declaration role (`Library` or `Product`).
     build_execution_profile: Option<target::TargetProfile>, // Admitted execution profile for build-scope evaluation.
     captured_source_input: Option<CapturedBuildSourceInput>, // Immutable captured Source inventory.
+    pub(super) product_source_directory: Option<Vec<u8>>,
     required_outputs: BTreeSet<Vec<u8>>, // Declared required sealed output paths in canonical order.
     named_inputs: Vec<NamedBuildInput>,  // Assigned named input roots (`3..`).
 }
@@ -198,6 +199,7 @@ impl BuildMachineFilesystemScope {
             build_execution_profile: None,
             captured_source_input: None,
             required_outputs: BTreeSet::new(),
+            product_source_directory: None,
             named_inputs: Vec::new(),
         }
     }
@@ -223,6 +225,7 @@ impl BuildMachineFilesystemScope {
             build_execution_profile: None,
             captured_source_input: None,
             required_outputs: BTreeSet::new(),
+            product_source_directory: None,
             named_inputs: Vec::new(),
         }
     }
