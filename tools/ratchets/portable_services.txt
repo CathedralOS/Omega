@@ -1,4 +1,4 @@
-# Reviewed differences between std's target families, one per portable call
+# Reviewed differences between system's target families, one per portable call
 # and fact. `mbx xtask check-portable-services` fails on a row it finds that is
 # not here, and on a row here that it no longer finds; delete stale rows.
 #
@@ -23,262 +23,262 @@ TimeHost.sleep | const sleep(..2147483648..) | windows_x86_64,windows_arm64 | no
 TimeHost.sleep | limit == 4294967295 | windows_x86_64,windows_arm64 | noise | each family splits u32 maximum to fit its wait call (INFINITE on Windows, i32 poll on POSIX); all wait the full time
 TimeHost.sleep | limit > 2147483647 | linux_x86_64,macos_arm64 | noise | each family splits u32 maximum to fit its wait call (INFINITE on Windows, i32 poll on POSIX); all wait the full time
 TimeHost.wall_clock_raw | clamp narrow_i64_to_u64_saturating | linux_x86_64,linux_arm64 | noise | converting the OS clock record into raw platform units
-FilesystemService.append | const create_file(..1048704..) | windows_x86_64,windows_arm64 | noise | Win32 CreateFileW access, share and flag words
-FilesystemService.append | const writable(..2147483648..) | windows_x86_64,windows_arm64 | noise | Win32 CreateFileW access, share and flag words
-FilesystemService.append | refuse InvalidInput | windows_x86_64,windows_arm64 | noise | open_options_truncate_conflict guard; it cannot fire for these fixed options
-FilesystemService.canonicalize | limit < 4096 | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX realpath buffer and its terminating NUL
-FilesystemService.canonicalize | limit < out.length | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
-FilesystemService.close | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
-FilesystemService.close | refuse BadDescriptor | windows_x86_64,windows_arm64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
-FilesystemService.copy | clamp narrow_i32_to_u32_wrapping | macos_arm64 | noise | macOS record decoders narrow fields of fixed width
-FilesystemService.copy | const create_file(..1048704..) | windows_x86_64,windows_arm64 | noise | Win32 CreateFileW access, share and flag words
-FilesystemService.copy | const create_file(..1073741952..) | windows_x86_64,windows_arm64 | noise | Win32 CreateFileW access, share and flag words
-FilesystemService.copy | const open_create(..438..) | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX open mode 0666, filtered by the umask
-FilesystemService.copy | const writable(..2147483648..) | windows_x86_64,windows_arm64 | noise | Win32 CreateFileW access, share and flag words
-FilesystemService.copy | limit <= 4294967295 | windows_x86_64,windows_arm64 | noise | Windows bounds the native request to DWORD and returns an actual short count; a larger valid portable request is not refused
-FilesystemService.copy | limit == -4 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX retries EINTR; Windows has no interrupted writes
-FilesystemService.copy | limit > 4294967295 | windows_x86_64,windows_arm64 | noise | Windows writes in 4 GiB chunks and POSIX loops on short writes; both write everything
-FilesystemService.copy | refuse BadDescriptor | windows_x86_64,windows_arm64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
-FilesystemService.copy | refuse Unsupported | linux_x86_64,linux_arm64,windows_x86_64,windows_arm64 | allowed | creation time is Unsupported where the OS gives none (Linux stat); macOS has a birthtime
-FilesystemService.create | const create_file(..1048704..) | windows_x86_64,windows_arm64 | noise | Win32 CreateFileW access, share and flag words
-FilesystemService.create | const open_create(..438..) | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX open mode 0666, filtered by the umask
-FilesystemService.create | const writable(..2147483648..) | windows_x86_64,windows_arm64 | noise | Win32 CreateFileW access, share and flag words
-FilesystemService.create | refuse InvalidInput | windows_x86_64,windows_arm64 | noise | open_options_truncate_conflict guard; it cannot fire for these fixed options
-FilesystemService.create_dir_all | clamp narrow_i32_to_u32_wrapping | macos_arm64 | noise | macOS record decoders narrow fields of fixed width
-FilesystemService.create_dir_all | limit == 17 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX reads EEXIST from mkdir, then checks the existing kind as Windows does
-FilesystemService.create_dir_all | limit == 47 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX splits components at '/'
-FilesystemService.create_dir_all | limit == 58 | windows_x86_64,windows_arm64 | noise | Windows parses drive letters and \\?\ and UNC roots before walking components
-FilesystemService.create_dir_all | limit == 63 | windows_x86_64,windows_arm64 | noise | Windows parses drive letters and \\?\ and UNC roots before walking components
-FilesystemService.create_dir_all | limit >= 2 | windows_x86_64,windows_arm64 | noise | Windows parses drive letters and \\?\ and UNC roots before walking components
-FilesystemService.create_dir_all | limit >= 3 | windows_x86_64,windows_arm64 | noise | Windows parses drive letters and \\?\ and UNC roots before walking components
-FilesystemService.create_dir_all | limit >= 4 | windows_x86_64,windows_arm64 | noise | Windows parses drive letters and \\?\ and UNC roots before walking components
-FilesystemService.create_dir_all | limit >= 8 | windows_x86_64,windows_arm64 | noise | Windows parses drive letters and \\?\ and UNC roots before walking components
-FilesystemService.create_dir_all | refuse AlreadyExists | windows_x86_64,windows_arm64 | noise | Windows checks a bare drive or UNC root itself; POSIX mkdir('/') gives EEXIST, then the same kind check
-FilesystemService.create_dir_all | refuse InvalidInput | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX guard against a malformed stat record (negative block counts); the OS never returns one
-FilesystemService.create_dir_all | refuse Other | windows_x86_64,windows_arm64 | noise | Windows guard against a malformed OS reply (count above request, negative length)
-FilesystemService.create_dir_all | refuse Unsupported | linux_x86_64,linux_arm64,windows_x86_64,windows_arm64 | allowed | creation time is Unsupported where the OS gives none (Linux stat); macOS has a birthtime
-FilesystemService.create_new | const create_file(..1048704..) | windows_x86_64,windows_arm64 | noise | Win32 CreateFileW access, share and flag words
-FilesystemService.create_new | const open_create(..438..) | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX open mode 0666, filtered by the umask
-FilesystemService.create_new | const writable(..2147483648..) | windows_x86_64,windows_arm64 | noise | Win32 CreateFileW access, share and flag words
-FilesystemService.create_new | refuse InvalidInput | windows_x86_64,windows_arm64 | noise | open_options_truncate_conflict guard; it cannot fire for these fixed options
-FilesystemService.exists | refuse Other | windows_x86_64,windows_arm64 | noise | Windows guard against a malformed OS reply (count above request, negative length)
-FilesystemService.exists | refuse Unsupported | windows_x86_64,windows_arm64 | allowed | Windows metadata reports POSIX details as Unsupported, which Metadata.posix allows
-FilesystemService.lock | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
-FilesystemService.lock_shared | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
-FilesystemService.metadata | clamp narrow_i32_to_u32_wrapping | macos_arm64 | noise | macOS record decoders narrow fields of fixed width
-FilesystemService.metadata | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
-FilesystemService.metadata | refuse BadDescriptor | windows_x86_64,windows_arm64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
-FilesystemService.metadata | refuse InvalidInput | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX guard against a malformed stat record (negative block counts); the OS never returns one
-FilesystemService.metadata | refuse Other | windows_x86_64,windows_arm64 | noise | Windows guard against a malformed OS reply (count above request, negative length)
-FilesystemService.metadata | refuse Unsupported | linux_x86_64,linux_arm64,windows_x86_64,windows_arm64 | allowed | creation time is Unsupported where the OS gives none (Linux stat); macOS has a birthtime
-FilesystemService.metadata_path | clamp narrow_i32_to_u32_wrapping | macos_arm64 | noise | macOS record decoders narrow fields of fixed width
-FilesystemService.metadata_path | refuse InvalidInput | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX guard against a malformed stat record (negative block counts); the OS never returns one
-FilesystemService.metadata_path | refuse Other | windows_x86_64,windows_arm64 | noise | Windows guard against a malformed OS reply (count above request, negative length)
-FilesystemService.metadata_path | refuse Unsupported | linux_x86_64,linux_arm64,windows_x86_64,windows_arm64 | allowed | creation time is Unsupported where the OS gives none (Linux stat); macOS has a birthtime
-FilesystemService.open | const create_file(..1048704..) | windows_x86_64,windows_arm64 | noise | Win32 CreateFileW access, share and flag words
-FilesystemService.open | const writable(..2147483648..) | windows_x86_64,windows_arm64 | noise | Win32 CreateFileW access, share and flag words
-FilesystemService.open | refuse InvalidInput | windows_x86_64,windows_arm64 | noise | open_options_truncate_conflict guard; it cannot fire for these fixed options
-FilesystemService.open_with | const create_file(..1048704..) | windows_x86_64,windows_arm64 | noise | Win32 CreateFileW access, share and flag words
-FilesystemService.open_with | const open_create(..438..) | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX open mode 0666, filtered by the umask
-FilesystemService.open_with | const writable(..2147483648..) | windows_x86_64,windows_arm64 | noise | Win32 CreateFileW access, share and flag words
-FilesystemService.read | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
-FilesystemService.read | limit <= 4294967295 | windows_x86_64,windows_arm64 | noise | Windows bounds the native request to DWORD and returns an actual short count; a larger valid portable request is not refused
-FilesystemService.read | refuse BadDescriptor | windows_x86_64,windows_arm64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
-FilesystemService.read_all | const create_file(..1048704..) | windows_x86_64,windows_arm64 | noise | Win32 CreateFileW access, share and flag words
-FilesystemService.read_all | const writable(..2147483648..) | windows_x86_64,windows_arm64 | noise | Win32 CreateFileW access, share and flag words
-FilesystemService.read_all | limit <= 4294967295 | windows_x86_64,windows_arm64 | noise | Windows bounds the native request to DWORD and returns an actual short count; a larger valid portable request is not refused
-FilesystemService.read_all | refuse BadDescriptor | windows_x86_64,windows_arm64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
-FilesystemService.read_at | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
-FilesystemService.read_at | limit <= 4294967295 | windows_x86_64,windows_arm64 | noise | Windows bounds the native request to DWORD and returns an actual short count; a larger valid portable request is not refused
-FilesystemService.read_at | refuse BadDescriptor | windows_x86_64,windows_arm64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
-FilesystemService.read_dir_count | const read_dir(..512..) | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
-FilesystemService.read_dir_count | limit < 495 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
-FilesystemService.read_dir_is_empty | const read_dir(..512..) | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
-FilesystemService.read_dir_is_empty | limit < 512 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
-FilesystemService.read_dir_is_empty | limit <= 20 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
-FilesystemService.read_dir_is_empty | limit <= 21 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
-FilesystemService.read_dir_is_empty | limit >= 18 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
-FilesystemService.read_dir_is_empty | limit >= 19 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
-FilesystemService.read_dir_nth | const read_dir(..512..) | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
-FilesystemService.read_dir_nth | limit < 256 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX NAME_MAX of 255 bytes and its 256-byte name buffer, the OS limit there
-FilesystemService.read_dir_nth | limit < 512 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
-FilesystemService.read_dir_nth | limit <= 20 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
-FilesystemService.read_dir_nth | limit <= 21 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
-FilesystemService.read_dir_nth | limit <= 765 | windows_x86_64,windows_arm64 | noise | UTF-8 output fits the shared 765-byte component storage; every valid Windows component of at most 255 UTF-16 units fits without truncation
-FilesystemService.read_dir_nth | limit == 8 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
-FilesystemService.read_dir_nth | limit >= 18 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
-FilesystemService.read_dir_nth | limit >= 19 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
-FilesystemService.remove_dir_all | const posix_filesystem_release_directory_stack(..4096..) | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX 4096-level directory stack; Windows has 4096 handle frames as an array length (#3864)
-FilesystemService.remove_dir_all | const read_dir(..512..) | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
-FilesystemService.remove_dir_all | limit < 256 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX NAME_MAX of 255 bytes and its 256-byte name buffer, the OS limit there
-FilesystemService.remove_dir_all | limit < 512 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
-FilesystemService.remove_dir_all | limit <= 20 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
-FilesystemService.remove_dir_all | limit <= 21 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
-FilesystemService.remove_dir_all | limit <= 255 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX NAME_MAX of 255 bytes and its 256-byte name buffer, the OS limit there
-FilesystemService.remove_dir_all | limit <= 4095 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX 4096-level directory stack; Windows has 4096 handle frames as an array length (#3864)
-FilesystemService.remove_dir_all | limit == 4 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
-FilesystemService.remove_dir_all | limit == 8 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
-FilesystemService.remove_dir_all | limit >= 18 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
-FilesystemService.remove_dir_all | limit >= 19 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
-FilesystemService.remove_dir_all | refuse Other | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX guard against a malformed dirent record
-FilesystemService.set_file_owner | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
-FilesystemService.set_file_owner | refuse Unsupported | windows_x86_64,windows_arm64 | allowed | Windows has no POSIX owners, modes or symlink creation here; the contract allows Unsupported
-FilesystemService.set_file_permissions | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
-FilesystemService.set_file_permissions | refuse BadDescriptor | windows_x86_64,windows_arm64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
-FilesystemService.set_file_permissions | refuse Unsupported | windows_x86_64,windows_arm64 | allowed | Windows has no POSIX owners, modes or symlink creation here; the contract allows Unsupported
-FilesystemService.set_len | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
-FilesystemService.set_len | refuse BadDescriptor | windows_x86_64,windows_arm64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
-FilesystemService.set_len | refuse InvalidInput | windows_x86_64,windows_arm64 | noise | Windows refuses a negative length itself; POSIX ftruncate gives EINVAL, also InvalidInput
-FilesystemService.set_owner | refuse Unsupported | windows_x86_64,windows_arm64 | allowed | Windows has no POSIX owners, modes or symlink creation here; the contract allows Unsupported
-FilesystemService.set_owner_no_follow | refuse Unsupported | windows_x86_64,windows_arm64 | allowed | Windows has no POSIX owners, modes or symlink creation here; the contract allows Unsupported
-FilesystemService.set_permissions | refuse Unsupported | windows_x86_64,windows_arm64 | allowed | Windows has no POSIX owners, modes or symlink creation here; the contract allows Unsupported
-FilesystemService.set_times | clamp narrow_i64_to_u8_wrapping | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX dirent and timespec decoders narrow fields of fixed width
-FilesystemService.set_times | limit <= 1833029933770 | windows_x86_64,windows_arm64 | allowed | signed Unix times unrepresentable as a Windows FILETIME update return Unsupported; platform_services.md#filesystem-values-and-partial-results
-FilesystemService.set_times | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
-FilesystemService.set_times | limit == -11644473600 | windows_x86_64,windows_arm64 | allowed | signed Unix times unrepresentable as a Windows FILETIME update return Unsupported; platform_services.md#filesystem-values-and-partial-results
-FilesystemService.set_times | limit > -11644473600 | windows_x86_64,windows_arm64 | allowed | signed Unix times unrepresentable as a Windows FILETIME update return Unsupported; platform_services.md#filesystem-values-and-partial-results
-FilesystemService.set_times | refuse BadDescriptor | windows_x86_64,windows_arm64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
-FilesystemService.set_times | refuse Unsupported | windows_x86_64,windows_arm64 | allowed | signed Unix times unrepresentable as a Windows FILETIME update return Unsupported; platform_services.md#filesystem-values-and-partial-results
-FilesystemService.symlink | refuse Unsupported | windows_x86_64,windows_arm64 | allowed | Windows has no POSIX owners, modes or symlink creation here; the contract allows Unsupported
-FilesystemService.symlink_metadata | clamp narrow_i32_to_u32_wrapping | macos_arm64 | noise | macOS record decoders narrow fields of fixed width
-FilesystemService.symlink_metadata | refuse InvalidInput | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX guard against a malformed stat record (negative block counts); the OS never returns one
-FilesystemService.symlink_metadata | refuse Other | windows_x86_64,windows_arm64 | noise | Windows guard against a malformed OS reply (count above request, negative length)
-FilesystemService.symlink_metadata | refuse Unsupported | linux_x86_64,linux_arm64,windows_x86_64,windows_arm64 | allowed | creation time is Unsupported where the OS gives none (Linux stat); macOS has a birthtime
-FilesystemService.sync | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
-FilesystemService.sync | refuse BadDescriptor | windows_x86_64,windows_arm64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
-FilesystemService.sync_data | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
-FilesystemService.sync_data | refuse BadDescriptor | windows_x86_64,windows_arm64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
-FilesystemService.try_clone | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
-FilesystemService.try_clone | refuse BadDescriptor | windows_x86_64,windows_arm64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
-FilesystemService.try_exists | limit == 2 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX maps ENOENT to false; Windows maps its not-found codes the same way
-FilesystemService.try_exists | refuse Other | windows_x86_64,windows_arm64 | noise | Windows guard against a malformed OS reply (count above request, negative length)
-FilesystemService.try_exists | refuse Unsupported | windows_x86_64,windows_arm64 | allowed | Windows metadata reports POSIX details as Unsupported, which Metadata.posix allows
-FilesystemService.try_lock | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
-FilesystemService.try_lock_shared | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
-FilesystemService.unlock | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
-FilesystemService.write | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
-FilesystemService.write | limit <= 4294967295 | windows_x86_64,windows_arm64 | noise | Windows bounds the native request to DWORD and returns an actual short count; a larger valid portable request is not refused
-FilesystemService.write | refuse BadDescriptor | windows_x86_64,windows_arm64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
-FilesystemService.write_all | const create_file(..1048704..) | windows_x86_64,windows_arm64 | noise | Win32 CreateFileW access, share and flag words
-FilesystemService.write_all | const open_create(..438..) | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX open mode 0666, filtered by the umask
-FilesystemService.write_all | const writable(..2147483648..) | windows_x86_64,windows_arm64 | noise | Win32 CreateFileW access, share and flag words
-FilesystemService.write_all | limit == -4 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX retries EINTR; Windows has no interrupted writes
-FilesystemService.write_all | limit > 4294967295 | windows_x86_64,windows_arm64 | noise | Windows writes in 4 GiB chunks and POSIX loops on short writes; both write everything
-FilesystemService.write_all | refuse BadDescriptor | windows_x86_64,windows_arm64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
-FilesystemService.write_all | refuse InvalidInput | windows_x86_64,windows_arm64 | noise | open_options_truncate_conflict guard; it cannot fire for these fixed options
-FilesystemService.write_at | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
-FilesystemService.write_at | limit <= 4294967295 | windows_x86_64,windows_arm64 | noise | Windows bounds the native request to DWORD and returns an actual short count; a larger valid portable request is not refused
-FilesystemService.write_at | refuse BadDescriptor | windows_x86_64,windows_arm64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
-FilesystemService.write_at | refuse InvalidInput | windows_x86_64,windows_arm64 | noise | Windows validates a negative positioned offset before native acquisition; POSIX reports EINVAL for the same malformed request
+Filesystem.append | const create_file(..1048704..) | windows_x86_64,windows_arm64 | noise | Win32 CreateFileW access, share and flag words
+Filesystem.append | const writable(..2147483648..) | windows_x86_64,windows_arm64 | noise | Win32 CreateFileW access, share and flag words
+Filesystem.append | refuse InvalidInput | windows_x86_64,windows_arm64 | noise | open_options_truncate_conflict guard; it cannot fire for these fixed options
+Filesystem.canonicalize | limit < 4096 | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX realpath buffer and its terminating NUL
+Filesystem.canonicalize | limit < out.length | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+Filesystem.close | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
+Filesystem.close | refuse BadDescriptor | windows_x86_64,windows_arm64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
+Filesystem.copy | clamp narrow_i32_to_u32_wrapping | macos_arm64 | noise | macOS record decoders narrow fields of fixed width
+Filesystem.copy | const create_file(..1048704..) | windows_x86_64,windows_arm64 | noise | Win32 CreateFileW access, share and flag words
+Filesystem.copy | const create_file(..1073741952..) | windows_x86_64,windows_arm64 | noise | Win32 CreateFileW access, share and flag words
+Filesystem.copy | const open_create(..438..) | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX open mode 0666, filtered by the umask
+Filesystem.copy | const writable(..2147483648..) | windows_x86_64,windows_arm64 | noise | Win32 CreateFileW access, share and flag words
+Filesystem.copy | limit <= 4294967295 | windows_x86_64,windows_arm64 | noise | Windows bounds the native request to DWORD and returns an actual short count; a larger valid portable request is not refused
+Filesystem.copy | limit == -4 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX retries EINTR; Windows has no interrupted writes
+Filesystem.copy | limit > 4294967295 | windows_x86_64,windows_arm64 | noise | Windows writes in 4 GiB chunks and POSIX loops on short writes; both write everything
+Filesystem.copy | refuse BadDescriptor | windows_x86_64,windows_arm64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
+Filesystem.copy | refuse Unsupported | linux_x86_64,linux_arm64,windows_x86_64,windows_arm64 | allowed | creation time is Unsupported where the OS gives none (Linux stat); macOS has a birthtime
+Filesystem.create | const create_file(..1048704..) | windows_x86_64,windows_arm64 | noise | Win32 CreateFileW access, share and flag words
+Filesystem.create | const open_create(..438..) | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX open mode 0666, filtered by the umask
+Filesystem.create | const writable(..2147483648..) | windows_x86_64,windows_arm64 | noise | Win32 CreateFileW access, share and flag words
+Filesystem.create | refuse InvalidInput | windows_x86_64,windows_arm64 | noise | open_options_truncate_conflict guard; it cannot fire for these fixed options
+Filesystem.create_dir_all | clamp narrow_i32_to_u32_wrapping | macos_arm64 | noise | macOS record decoders narrow fields of fixed width
+Filesystem.create_dir_all | limit == 17 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX reads EEXIST from mkdir, then checks the existing kind as Windows does
+Filesystem.create_dir_all | limit == 47 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX splits components at '/'
+Filesystem.create_dir_all | limit == 58 | windows_x86_64,windows_arm64 | noise | Windows parses drive letters and \\?\ and UNC roots before walking components
+Filesystem.create_dir_all | limit == 63 | windows_x86_64,windows_arm64 | noise | Windows parses drive letters and \\?\ and UNC roots before walking components
+Filesystem.create_dir_all | limit >= 2 | windows_x86_64,windows_arm64 | noise | Windows parses drive letters and \\?\ and UNC roots before walking components
+Filesystem.create_dir_all | limit >= 3 | windows_x86_64,windows_arm64 | noise | Windows parses drive letters and \\?\ and UNC roots before walking components
+Filesystem.create_dir_all | limit >= 4 | windows_x86_64,windows_arm64 | noise | Windows parses drive letters and \\?\ and UNC roots before walking components
+Filesystem.create_dir_all | limit >= 8 | windows_x86_64,windows_arm64 | noise | Windows parses drive letters and \\?\ and UNC roots before walking components
+Filesystem.create_dir_all | refuse AlreadyExists | windows_x86_64,windows_arm64 | noise | Windows checks a bare drive or UNC root itself; POSIX mkdir('/') gives EEXIST, then the same kind check
+Filesystem.create_dir_all | refuse InvalidInput | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX guard against a malformed stat record (negative block counts); the OS never returns one
+Filesystem.create_dir_all | refuse Other | windows_x86_64,windows_arm64 | noise | Windows guard against a malformed OS reply (count above request, negative length)
+Filesystem.create_dir_all | refuse Unsupported | linux_x86_64,linux_arm64,windows_x86_64,windows_arm64 | allowed | creation time is Unsupported where the OS gives none (Linux stat); macOS has a birthtime
+Filesystem.create_new | const create_file(..1048704..) | windows_x86_64,windows_arm64 | noise | Win32 CreateFileW access, share and flag words
+Filesystem.create_new | const open_create(..438..) | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX open mode 0666, filtered by the umask
+Filesystem.create_new | const writable(..2147483648..) | windows_x86_64,windows_arm64 | noise | Win32 CreateFileW access, share and flag words
+Filesystem.create_new | refuse InvalidInput | windows_x86_64,windows_arm64 | noise | open_options_truncate_conflict guard; it cannot fire for these fixed options
+Filesystem.exists | refuse Other | windows_x86_64,windows_arm64 | noise | Windows guard against a malformed OS reply (count above request, negative length)
+Filesystem.exists | refuse Unsupported | windows_x86_64,windows_arm64 | allowed | Windows metadata reports POSIX details as Unsupported, which Metadata.posix allows
+Filesystem.lock | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
+Filesystem.lock_shared | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
+Filesystem.metadata | clamp narrow_i32_to_u32_wrapping | macos_arm64 | noise | macOS record decoders narrow fields of fixed width
+Filesystem.metadata | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
+Filesystem.metadata | refuse BadDescriptor | windows_x86_64,windows_arm64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
+Filesystem.metadata | refuse InvalidInput | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX guard against a malformed stat record (negative block counts); the OS never returns one
+Filesystem.metadata | refuse Other | windows_x86_64,windows_arm64 | noise | Windows guard against a malformed OS reply (count above request, negative length)
+Filesystem.metadata | refuse Unsupported | linux_x86_64,linux_arm64,windows_x86_64,windows_arm64 | allowed | creation time is Unsupported where the OS gives none (Linux stat); macOS has a birthtime
+Filesystem.metadata_path | clamp narrow_i32_to_u32_wrapping | macos_arm64 | noise | macOS record decoders narrow fields of fixed width
+Filesystem.metadata_path | refuse InvalidInput | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX guard against a malformed stat record (negative block counts); the OS never returns one
+Filesystem.metadata_path | refuse Other | windows_x86_64,windows_arm64 | noise | Windows guard against a malformed OS reply (count above request, negative length)
+Filesystem.metadata_path | refuse Unsupported | linux_x86_64,linux_arm64,windows_x86_64,windows_arm64 | allowed | creation time is Unsupported where the OS gives none (Linux stat); macOS has a birthtime
+Filesystem.open | const create_file(..1048704..) | windows_x86_64,windows_arm64 | noise | Win32 CreateFileW access, share and flag words
+Filesystem.open | const writable(..2147483648..) | windows_x86_64,windows_arm64 | noise | Win32 CreateFileW access, share and flag words
+Filesystem.open | refuse InvalidInput | windows_x86_64,windows_arm64 | noise | open_options_truncate_conflict guard; it cannot fire for these fixed options
+Filesystem.open_with | const create_file(..1048704..) | windows_x86_64,windows_arm64 | noise | Win32 CreateFileW access, share and flag words
+Filesystem.open_with | const open_create(..438..) | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX open mode 0666, filtered by the umask
+Filesystem.open_with | const writable(..2147483648..) | windows_x86_64,windows_arm64 | noise | Win32 CreateFileW access, share and flag words
+Filesystem.read | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
+Filesystem.read | limit <= 4294967295 | windows_x86_64,windows_arm64 | noise | Windows bounds the native request to DWORD and returns an actual short count; a larger valid portable request is not refused
+Filesystem.read | refuse BadDescriptor | windows_x86_64,windows_arm64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
+Filesystem.read_all | const create_file(..1048704..) | windows_x86_64,windows_arm64 | noise | Win32 CreateFileW access, share and flag words
+Filesystem.read_all | const writable(..2147483648..) | windows_x86_64,windows_arm64 | noise | Win32 CreateFileW access, share and flag words
+Filesystem.read_all | limit <= 4294967295 | windows_x86_64,windows_arm64 | noise | Windows bounds the native request to DWORD and returns an actual short count; a larger valid portable request is not refused
+Filesystem.read_all | refuse BadDescriptor | windows_x86_64,windows_arm64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
+Filesystem.read_at | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
+Filesystem.read_at | limit <= 4294967295 | windows_x86_64,windows_arm64 | noise | Windows bounds the native request to DWORD and returns an actual short count; a larger valid portable request is not refused
+Filesystem.read_at | refuse BadDescriptor | windows_x86_64,windows_arm64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
+Filesystem.read_dir_count | const read_dir(..512..) | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+Filesystem.read_dir_count | limit < 495 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+Filesystem.read_dir_is_empty | const read_dir(..512..) | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+Filesystem.read_dir_is_empty | limit < 512 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+Filesystem.read_dir_is_empty | limit <= 20 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+Filesystem.read_dir_is_empty | limit <= 21 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+Filesystem.read_dir_is_empty | limit >= 18 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+Filesystem.read_dir_is_empty | limit >= 19 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+Filesystem.read_dir_nth | const read_dir(..512..) | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+Filesystem.read_dir_nth | limit < 256 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX NAME_MAX of 255 bytes and its 256-byte name buffer, the OS limit there
+Filesystem.read_dir_nth | limit < 512 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+Filesystem.read_dir_nth | limit <= 20 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+Filesystem.read_dir_nth | limit <= 21 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+Filesystem.read_dir_nth | limit <= 765 | windows_x86_64,windows_arm64 | noise | UTF-8 output fits the shared 765-byte component storage; every valid Windows component of at most 255 UTF-16 units fits without truncation
+Filesystem.read_dir_nth | limit == 8 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+Filesystem.read_dir_nth | limit >= 18 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+Filesystem.read_dir_nth | limit >= 19 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+Filesystem.remove_dir_all | const posix_filesystem_release_directory_stack(..4096..) | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX 4096-level directory stack; Windows has 4096 handle frames as an array length (#3864)
+Filesystem.remove_dir_all | const read_dir(..512..) | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+Filesystem.remove_dir_all | limit < 256 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX NAME_MAX of 255 bytes and its 256-byte name buffer, the OS limit there
+Filesystem.remove_dir_all | limit < 512 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+Filesystem.remove_dir_all | limit <= 20 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+Filesystem.remove_dir_all | limit <= 21 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+Filesystem.remove_dir_all | limit <= 255 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX NAME_MAX of 255 bytes and its 256-byte name buffer, the OS limit there
+Filesystem.remove_dir_all | limit <= 4095 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX 4096-level directory stack; Windows has 4096 handle frames as an array length (#3864)
+Filesystem.remove_dir_all | limit == 4 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+Filesystem.remove_dir_all | limit == 8 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+Filesystem.remove_dir_all | limit >= 18 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+Filesystem.remove_dir_all | limit >= 19 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+Filesystem.remove_dir_all | refuse Other | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX guard against a malformed dirent record
+Filesystem.set_file_owner | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
+Filesystem.set_file_owner | refuse Unsupported | windows_x86_64,windows_arm64 | allowed | Windows has no POSIX owners, modes or symlink creation here; the contract allows Unsupported
+Filesystem.set_file_permissions | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
+Filesystem.set_file_permissions | refuse BadDescriptor | windows_x86_64,windows_arm64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
+Filesystem.set_file_permissions | refuse Unsupported | windows_x86_64,windows_arm64 | allowed | Windows has no POSIX owners, modes or symlink creation here; the contract allows Unsupported
+Filesystem.set_len | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
+Filesystem.set_len | refuse BadDescriptor | windows_x86_64,windows_arm64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
+Filesystem.set_len | refuse InvalidInput | windows_x86_64,windows_arm64 | noise | Windows refuses a negative length itself; POSIX ftruncate gives EINVAL, also InvalidInput
+Filesystem.set_owner | refuse Unsupported | windows_x86_64,windows_arm64 | allowed | Windows has no POSIX owners, modes or symlink creation here; the contract allows Unsupported
+Filesystem.set_owner_no_follow | refuse Unsupported | windows_x86_64,windows_arm64 | allowed | Windows has no POSIX owners, modes or symlink creation here; the contract allows Unsupported
+Filesystem.set_permissions | refuse Unsupported | windows_x86_64,windows_arm64 | allowed | Windows has no POSIX owners, modes or symlink creation here; the contract allows Unsupported
+Filesystem.set_times | clamp narrow_i64_to_u8_wrapping | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX dirent and timespec decoders narrow fields of fixed width
+Filesystem.set_times | limit <= 1833029933770 | windows_x86_64,windows_arm64 | allowed | signed Unix times unrepresentable as a Windows FILETIME update return Unsupported; platform_services.md#filesystem-values-and-partial-results
+Filesystem.set_times | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
+Filesystem.set_times | limit == -11644473600 | windows_x86_64,windows_arm64 | allowed | signed Unix times unrepresentable as a Windows FILETIME update return Unsupported; platform_services.md#filesystem-values-and-partial-results
+Filesystem.set_times | limit > -11644473600 | windows_x86_64,windows_arm64 | allowed | signed Unix times unrepresentable as a Windows FILETIME update return Unsupported; platform_services.md#filesystem-values-and-partial-results
+Filesystem.set_times | refuse BadDescriptor | windows_x86_64,windows_arm64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
+Filesystem.set_times | refuse Unsupported | windows_x86_64,windows_arm64 | allowed | signed Unix times unrepresentable as a Windows FILETIME update return Unsupported; platform_services.md#filesystem-values-and-partial-results
+Filesystem.symlink | refuse Unsupported | windows_x86_64,windows_arm64 | allowed | Windows has no POSIX owners, modes or symlink creation here; the contract allows Unsupported
+Filesystem.symlink_metadata | clamp narrow_i32_to_u32_wrapping | macos_arm64 | noise | macOS record decoders narrow fields of fixed width
+Filesystem.symlink_metadata | refuse InvalidInput | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX guard against a malformed stat record (negative block counts); the OS never returns one
+Filesystem.symlink_metadata | refuse Other | windows_x86_64,windows_arm64 | noise | Windows guard against a malformed OS reply (count above request, negative length)
+Filesystem.symlink_metadata | refuse Unsupported | linux_x86_64,linux_arm64,windows_x86_64,windows_arm64 | allowed | creation time is Unsupported where the OS gives none (Linux stat); macOS has a birthtime
+Filesystem.sync | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
+Filesystem.sync | refuse BadDescriptor | windows_x86_64,windows_arm64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
+Filesystem.sync_data | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
+Filesystem.sync_data | refuse BadDescriptor | windows_x86_64,windows_arm64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
+Filesystem.try_clone | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
+Filesystem.try_clone | refuse BadDescriptor | windows_x86_64,windows_arm64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
+Filesystem.try_exists | limit == 2 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX maps ENOENT to false; Windows maps its not-found codes the same way
+Filesystem.try_exists | refuse Other | windows_x86_64,windows_arm64 | noise | Windows guard against a malformed OS reply (count above request, negative length)
+Filesystem.try_exists | refuse Unsupported | windows_x86_64,windows_arm64 | allowed | Windows metadata reports POSIX details as Unsupported, which Metadata.posix allows
+Filesystem.try_lock | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
+Filesystem.try_lock_shared | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
+Filesystem.unlock | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
+Filesystem.write | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
+Filesystem.write | limit <= 4294967295 | windows_x86_64,windows_arm64 | noise | Windows bounds the native request to DWORD and returns an actual short count; a larger valid portable request is not refused
+Filesystem.write | refuse BadDescriptor | windows_x86_64,windows_arm64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
+Filesystem.write_all | const create_file(..1048704..) | windows_x86_64,windows_arm64 | noise | Win32 CreateFileW access, share and flag words
+Filesystem.write_all | const open_create(..438..) | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX open mode 0666, filtered by the umask
+Filesystem.write_all | const writable(..2147483648..) | windows_x86_64,windows_arm64 | noise | Win32 CreateFileW access, share and flag words
+Filesystem.write_all | limit == -4 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX retries EINTR; Windows has no interrupted writes
+Filesystem.write_all | limit > 4294967295 | windows_x86_64,windows_arm64 | noise | Windows writes in 4 GiB chunks and POSIX loops on short writes; both write everything
+Filesystem.write_all | refuse BadDescriptor | windows_x86_64,windows_arm64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
+Filesystem.write_all | refuse InvalidInput | windows_x86_64,windows_arm64 | noise | open_options_truncate_conflict guard; it cannot fire for these fixed options
+Filesystem.write_at | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
+Filesystem.write_at | limit <= 4294967295 | windows_x86_64,windows_arm64 | noise | Windows bounds the native request to DWORD and returns an actual short count; a larger valid portable request is not refused
+Filesystem.write_at | refuse BadDescriptor | windows_x86_64,windows_arm64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
+Filesystem.write_at | refuse InvalidInput | windows_x86_64,windows_arm64 | noise | Windows validates a negative positioned offset before native acquisition; POSIX reports EINVAL for the same malformed request
 
 # Differences reached through the selected raw providers. Braces name the exact
 # portable members reviewed together. Each is checked independently.
-FilesystemService.{copy,read,read_all,read_at,read_dir_count,read_dir_is_empty,read_dir_nth,read_link,remove_dir_all} | clamp min_u64 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX caps a syscall count at its scratch or caller buffer after the shared count check
-FilesystemService.{copy,create,create_dir,create_dir_all,create_new,open_with,write_all} | clamp narrow_i32_to_u16_wrapping | macos_arm64 | noise | macOS record decoders narrow fields of fixed width
-FilesystemService.{set_file_owner,set_owner,set_owner_no_follow} | clamp narrow_i32_to_u32_wrapping | macos_arm64 | noise | macOS record decoders narrow fields of fixed width
-FilesystemService.{append,create,create_new,open,open_with,set_file_owner,set_owner,set_owner_no_follow,symlink,try_clone} | clamp narrow_i64_to_i32_wrapping | macos_arm64 | noise | Darwin returns the negated native i32 errno through its shared i64 decoder; the final narrowing retains that status, not a caller byte count
-FilesystemService.{close,copy,create_dir,create_dir_all,exists,hard_link,lock,lock_shared,metadata,metadata_path,read_all,remove,remove_dir,rename,set_file_permissions,set_len,set_permissions,set_times,symlink_metadata,sync,sync_data,try_exists,try_lock,try_lock_shared,unlock,write_all} | clamp narrow_i64_to_i32_wrapping | macos_arm64,windows_x86_64,windows_arm64 | noise | the native adapters narrow host status to the signed error representation after checking its range
-FilesystemService.{canonicalize,read,read_at,read_link,write,write_at} | clamp narrow_i64_to_i32_wrapping | windows_x86_64,windows_arm64 | noise | the native adapters narrow host status to the signed error representation after checking its range
-FilesystemService.{append,canonicalize,copy,create,create_dir_all,create_new,exists,lock,lock_shared,metadata,metadata_path,open,open_with,read,read_all,read_at,read_link,set_file_permissions,set_len,set_permissions,symlink_metadata,try_clone,try_exists,try_lock,try_lock_shared,unlock,write,write_all,write_at} | clamp narrow_i64_to_u64_wrapping | windows_x86_64,windows_arm64 | noise | Windows reinterprets the native handle bits or converts a successful native result for the portable return
-FilesystemService.set_file_permissions | clamp narrow_u32_to_u16_wrapping | macos_arm64 | noise | macOS record decoders narrow fields of fixed width
-FilesystemService.{copy,set_permissions} | clamp narrow_u32_to_u16_wrapping | macos_arm64,windows_x86_64,windows_arm64 | noise | Windows writes UTF-16 code units and Darwin decodes fixed-width native fields
-FilesystemService.{append,canonicalize,create,create_dir,create_dir_all,create_new,exists,hard_link,metadata_path,open,open_with,read_all,read_dir_count,read_dir_is_empty,read_dir_nth,read_link,remove,remove_dir,remove_dir_all,rename,symlink_metadata,try_exists,write_all} | clamp narrow_u32_to_u16_wrapping | windows_x86_64,windows_arm64 | noise | Windows writes UTF-16 code units and Darwin decodes fixed-width native fields
-FilesystemService.set_times | clamp narrow_u64_to_i64_wrapping | macos_arm64,windows_x86_64,windows_arm64 | noise | Windows passes the original handle bits in the signed raw ABI carrier
-FilesystemService.{append,canonicalize,close,copy,create,create_dir,create_dir_all,create_new,exists,hard_link,lock,lock_shared,metadata,metadata_path,open,open_with,read,read_all,read_at,read_dir_count,read_dir_is_empty,read_dir_nth,read_link,remove,remove_dir,remove_dir_all,rename,set_file_permissions,set_len,set_permissions,symlink_metadata,sync,sync_data,try_clone,try_exists,try_lock,try_lock_shared,unlock,write,write_all,write_at} | clamp narrow_u64_to_i64_wrapping | windows_x86_64,windows_arm64 | noise | Windows passes the original handle bits in the signed raw ABI carrier
-FilesystemService.set_times | clamp narrow_u64_to_u32_wrapping | windows_x86_64,windows_arm64 | noise | Windows splits checked FILETIME ticks into low and high DWORDs
-FilesystemService.{lock,lock_shared,try_lock,try_lock_shared} | const acquire(..4294967295..) | windows_x86_64,windows_arm64 | noise | LockFileEx covers the full 64-bit lock interval with two all-ones length words
-FilesystemService.remove_dir_all | const c_create_file(..1114241..) | windows_x86_64,windows_arm64 | noise | open the removal root with the requested directory and remove rights
-FilesystemService.remove_dir_all | const c_create_file(..36700160..) | windows_x86_64,windows_arm64 | noise | open the removal root with Win32 directory and reparse-point flags
-FilesystemService.set_owner_no_follow | const fchownat(..256..) | linux_x86_64,linux_arm64 | noise | Linux AT_REMOVEDIR / AT_SYMLINK_NOFOLLOW flag words; macOS passes its own
-FilesystemService.canonicalize | const final_path(..32768..) | windows_x86_64,windows_arm64 | noise | the Win32 extended-length path buffer holds 32767 UTF-16 units plus its terminator
-FilesystemService.canonicalize | limit < 32768 | windows_x86_64,windows_arm64 | noise | GetFinalPathNameByHandleW returns the required size when its buffer cannot contain the whole name and terminator
-FilesystemService.symlink_metadata | const linux_arm64_posix_query_metadata_at(..256..) | linux_arm64 | noise | Linux AT_SYMLINK_NOFOLLOW is 256; the target-specific metadata helper retains the same no-follow request
-FilesystemService.symlink_metadata | const linux_x86_64_posix_query_metadata_at(..256..) | linux_x86_64 | noise | Linux AT_SYMLINK_NOFOLLOW is 256; the target-specific metadata helper retains the same no-follow request
-FilesystemService.{read_dir_count,read_dir_is_empty,read_dir_nth,read_link,remove_dir_all} | const min_u64(..2147483647..) | linux_x86_64,linux_arm64 | allowed | Linux caps one read at 2^31-1 bytes; the bounded-read contract allows the short read
-FilesystemService.{read_dir_nth,remove_dir_all} | const next_entry(..8256..) | windows_x86_64,windows_arm64 | noise | native enumeration supplies the complete FileDirectoryInformation record buffer
-FilesystemService.{read_dir_count,read_dir_is_empty} | const next_name(..8208..) | windows_x86_64,windows_arm64 | noise | native names-only enumeration supplies its full FileNamesInformation record buffer
-FilesystemService.remove_dir_all | const open(..1114240..) | windows_x86_64,windows_arm64 | noise | Windows opens the child relative to its parent with the required removal access mask
-FilesystemService.remove_dir_all | const open(..1114241..) | windows_x86_64,windows_arm64 | noise | Windows opens the child with removal and directory-list access
-FilesystemService.remove_dir_all | const open(..2113568..) | windows_x86_64,windows_arm64 | noise | NT relative directory open uses the selected synchronous and reparse-point options
-FilesystemService.{create_dir_all,exists,metadata_path,symlink_metadata,try_exists} | const open(..34603008..) | windows_x86_64,windows_arm64 | noise | Win32 opens a directory-capable handle and follows the final reparse point
-FilesystemService.{create_dir_all,exists,metadata_path,symlink_metadata,try_exists} | const open(..36700160..) | windows_x86_64,windows_arm64 | noise | Win32 opens the reparse point itself when following is disabled
-FilesystemService.{canonicalize,create_dir_all,exists,metadata_path,read_link,symlink_metadata,try_exists} | const open_attributes(..128..) | windows_x86_64,windows_arm64 | noise | FILE_READ_ATTRIBUTES requests the metadata used by this operation
-FilesystemService.{canonicalize,set_permissions} | const open_attributes(..34603008..) | windows_x86_64,windows_arm64 | noise | Win32 attribute query opens the final referent
-FilesystemService.read_link | const open_attributes(..36700160..) | windows_x86_64,windows_arm64 | noise | Win32 attribute query opens the reparse point itself
-FilesystemService.set_permissions | const open_attributes(..384..) | windows_x86_64,windows_arm64 | noise | the Windows attribute update requests read and write attribute access
-FilesystemService.read_link | const query(..16384..) | windows_x86_64,windows_arm64 | noise | the reparse query supplies the 16 KiB native reparse data buffer
-FilesystemService.read_link | const query(..589992..) | windows_x86_64,windows_arm64 | noise | FSCTL_GET_REPARSE_POINT selects the native link query
-FilesystemService.remove_dir_all | const refuse(..267..) | windows_x86_64,windows_arm64 | noise | POSIX ENOTDIR and Windows ERROR_DIRECTORY both report InvalidInput for a non-directory root
-FilesystemService.unlock | const release(..4294967295..) | windows_x86_64,windows_arm64 | noise | UnlockFileEx releases the same full interval
-FilesystemService.read_at | const reopen_read(..1048577..) | windows_x86_64,windows_arm64 | noise | the independent positioned handle requests SYNCHRONIZE and FILE_READ_DATA
-FilesystemService.write_at | const reopen_write(..1048578..) | windows_x86_64,windows_arm64 | noise | the independent positioned handle requests SYNCHRONIZE and FILE_WRITE_DATA
-FilesystemService.remove_dir | const unlinkat(..512..) | linux_x86_64,linux_arm64 | noise | Linux AT_REMOVEDIR / AT_SYMLINK_NOFOLLOW flag words; macOS passes its own
-FilesystemService.remove_dir_all | const unlinkat(..512..) | linux_x86_64,linux_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
-FilesystemService.{copy,set_file_permissions,set_permissions} | const update(..128..) | windows_x86_64,windows_arm64 | noise | the Windows attribute update uses FILE_ATTRIBUTE_NORMAL
-FilesystemService.{read_dir_count,read_dir_is_empty,read_dir_nth} | const windows_filesystem_native_create_file(..1048577..) | windows_x86_64,windows_arm64 | noise | the directory handle requests SYNCHRONIZE and FILE_LIST_DIRECTORY
-FilesystemService.{read_dir_count,read_dir_is_empty,read_dir_nth} | const windows_filesystem_native_create_file(..34603008..) | windows_x86_64,windows_arm64 | noise | Windows uses its directory-capable open flags for enumeration
-FilesystemService.remove_dir_all | const windows_removal_unwind(..122..) | windows_x86_64,windows_arm64 | noise | an exhausted Windows traversal buffer unwinds with ERROR_INSUFFICIENT_BUFFER
-FilesystemService.{append,canonicalize,copy,create,create_dir,create_dir_all,create_new,exists,hard_link,metadata_path,open,open_with,read_all,read_dir_count,read_dir_is_empty,read_dir_nth,read_link,remove,remove_dir,remove_dir_all,rename,set_permissions,symlink_metadata,try_exists,write_all} | limit < 128 | windows_x86_64,windows_arm64 | noise | UTF-8 decoding checks byte classes, scalar ranges and surrogate pairs while encoding the Windows pathname
-FilesystemService.{append,canonicalize,copy,create,create_dir,create_dir_all,create_new,exists,hard_link,metadata_path,open,open_with,read_all,read_dir_count,read_dir_is_empty,read_dir_nth,read_link,remove,remove_dir,remove_dir_all,rename,set_permissions,symlink_metadata,try_exists,write_all} | limit < 192 | windows_x86_64,windows_arm64 | noise | UTF-8 decoding checks byte classes, scalar ranges and surrogate pairs while encoding the Windows pathname
-FilesystemService.{append,canonicalize,copy,create,create_dir,create_dir_all,create_new,exists,hard_link,metadata_path,open,open_with,read_all,read_dir_count,read_dir_is_empty,read_dir_nth,read_link,remove,remove_dir,remove_dir_all,rename,set_permissions,symlink_metadata,try_exists,write_all} | limit < 224 | windows_x86_64,windows_arm64 | noise | UTF-8 decoding checks byte classes, scalar ranges and surrogate pairs while encoding the Windows pathname
-FilesystemService.{append,canonicalize,copy,create,create_dir,create_dir_all,create_new,exists,hard_link,metadata_path,open,open_with,read_all,read_dir_count,read_dir_is_empty,read_dir_nth,read_link,remove,remove_dir,remove_dir_all,rename,set_permissions,symlink_metadata,try_exists,write_all} | limit < 240 | windows_x86_64,windows_arm64 | noise | UTF-8 decoding checks byte classes, scalar ranges and surrogate pairs while encoding the Windows pathname
-FilesystemService.{append,canonicalize,copy,create,create_dir,create_dir_all,create_new,exists,hard_link,metadata_path,open,open_with,read_all,read_dir_count,read_dir_is_empty,read_dir_nth,read_link,remove,remove_dir,remove_dir_all,rename,set_permissions,symlink_metadata,try_exists,write_all} | limit < 55296 | windows_x86_64,windows_arm64 | noise | UTF-8 decoding checks byte classes, scalar ranges and surrogate pairs while encoding the Windows pathname
-FilesystemService.{append,canonicalize,copy,create,create_dir,create_dir_all,create_new,exists,hard_link,metadata_path,open,open_with,read_all,read_dir_count,read_dir_is_empty,read_dir_nth,read_link,remove,remove_dir,remove_dir_all,rename,set_permissions,symlink_metadata,try_exists,write_all} | limit < 65536 | windows_x86_64,windows_arm64 | noise | UTF-8 decoding checks byte classes, scalar ranges and surrogate pairs while encoding the Windows pathname
-FilesystemService.read_link | limit < 8192 | windows_x86_64,windows_arm64 | noise | UTF-16 reparse target must fit its native staging buffer including the terminator
-FilesystemService.{append,copy,create,create_dir,create_dir_all,create_new,exists,hard_link,metadata_path,open,open_with,read_all,read_dir_count,read_dir_is_empty,read_dir_nth,read_link,remove,remove_dir,remove_dir_all,rename,set_owner,set_owner_no_follow,set_permissions,symlink,symlink_metadata,try_exists,write_all} | limit < out.length | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
-FilesystemService.{append,copy,create,create_dir,create_dir_all,create_new,exists,hard_link,metadata_path,open,open_with,read_all,read_dir_count,read_dir_is_empty,read_dir_nth,read_link,remove,remove_dir,remove_dir_all,rename,set_permissions,symlink_metadata,try_exists,write_all} | limit < output.length | windows_x86_64,windows_arm64 | noise | the pathname encoder checks space before writing each UTF-16 unit
-FilesystemService.{set_owner,set_owner_no_follow,symlink} | limit < path.length | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
-FilesystemService.{append,canonicalize,copy,create,create_dir,create_dir_all,create_new,exists,hard_link,metadata_path,open,open_with,read_all,read_dir_count,read_dir_is_empty,read_dir_nth,read_link,remove,remove_dir,remove_dir_all,rename,set_permissions,symlink_metadata,try_exists,write_all} | limit <= 1114111 | windows_x86_64,windows_arm64 | noise | UTF-8 decoding checks byte classes, scalar ranges and surrogate pairs while encoding the Windows pathname
-FilesystemService.read_link | limit <= 12 | windows_x86_64,windows_arm64 | noise | the reparse decoder checks the native header and payload extent
-FilesystemService.canonicalize | limit <= source.length | windows_x86_64,windows_arm64 | noise | the complete converted path and terminator must fit their source before copying to the caller
-FilesystemService.read_link | limit <= 16384 | windows_x86_64,windows_arm64 | noise | the reparse header and payload must fit the native 16 KiB query buffer
-FilesystemService.read_link | limit <= 2 | windows_x86_64,windows_arm64 | noise | validate the Windows reparse header or the relative child name used for removal
-FilesystemService.{canonicalize,close,copy,create_dir,create_dir_all,exists,hard_link,lock,lock_shared,metadata,metadata_path,read,read_all,read_at,read_dir_count,read_dir_is_empty,read_dir_nth,read_link,remove,remove_dir,remove_dir_all,rename,set_file_permissions,set_len,set_permissions,set_times,symlink_metadata,sync,sync_data,try_exists,try_lock,try_lock_shared,unlock,write,write_all,write_at} | limit <= 2147483647 | windows_x86_64,windows_arm64 | noise | Win32 error codes must fit the negative i32 raw-error representation
-FilesystemService.{append,canonicalize,copy,create,create_dir,create_dir_all,create_new,exists,hard_link,metadata_path,open,open_with,read_all,read_dir_count,read_dir_is_empty,read_dir_nth,read_link,remove,remove_dir,remove_dir_all,rename,set_permissions,symlink_metadata,try_exists,write_all} | limit <= 244 | windows_x86_64,windows_arm64 | noise | UTF-8 decoding checks byte classes, scalar ranges and surrogate pairs while encoding the Windows pathname
-FilesystemService.read_link | limit <= 24576 | windows_x86_64,windows_arm64 | noise | the reparse conversion checks the initialized extent of its UTF-8 staging buffer
-FilesystemService.{lock,lock_shared,try_lock,try_lock_shared} | limit <= 3 | windows_x86_64,windows_arm64 | noise | LockFileEx accepts the supported immediate and exclusive flag combination
-FilesystemService.write_all | limit <= 4294967295 | windows_x86_64,windows_arm64 | noise | each native write submits a DWORD-sized prefix of the remaining bytes
-FilesystemService.read_link | limit <= 65535 | windows_x86_64,windows_arm64 | noise | the reparse decoder checks native 16-bit length fields
-FilesystemService.read_link | limit <= 8184 | windows_x86_64,windows_arm64 | noise | the decoded reparse names fit the payload after the fixed header
-FilesystemService.{read_dir_count,read_dir_is_empty,read_dir_nth,remove_dir_all} | limit <= 8192 | windows_x86_64,windows_arm64 | noise | the Windows enumeration name length is checked against the native name storage
-FilesystemService.{read_dir_count,read_dir_is_empty} | limit <= 8208 | windows_x86_64,windows_arm64 | noise | the returned names-only record fits the native query extent
-FilesystemService.{read_dir_nth,remove_dir_all} | limit <= 8256 | windows_x86_64,windows_arm64 | noise | the returned directory record fits the native query extent
-FilesystemService.{canonicalize,read_link} | limit <= output.length | windows_x86_64,windows_arm64 | noise | copy the complete converted name only when the caller supplied enough space
-FilesystemService.{read_dir_count,read_dir_is_empty,read_dir_nth,remove_dir_all} | limit == -1073741809 | windows_x86_64,windows_arm64 | noise | NT status STATUS_NO_SUCH_FILE is recognized at native directory enumeration
-FilesystemService.{read_dir_count,read_dir_is_empty,read_dir_nth,remove_dir_all} | limit == -2147483642 | windows_x86_64,windows_arm64 | noise | NT status STATUS_NO_MORE_FILES terminates native enumeration
-FilesystemService.read_at | limit == 1048577 | windows_x86_64,windows_arm64 | noise | ReOpenFile uses the authorized read and synchronize access mask
-FilesystemService.write_at | limit == 1048578 | windows_x86_64,windows_arm64 | noise | ReOpenFile uses the authorized write and synchronize access mask
-FilesystemService.{read_dir_count,read_dir_is_empty,read_dir_nth,remove_dir_all} | limit == 2 | windows_x86_64,windows_arm64 | noise | native directory-name byte count used when recognizing dot entries
-FilesystemService.{create_dir_all,exists,metadata_path,symlink_metadata,try_exists} | limit == 34603008 | windows_x86_64,windows_arm64 | noise | Windows validates the flags for opening metadata and following the final link
-FilesystemService.{create_dir_all,exists,metadata_path,symlink_metadata,try_exists} | limit == 36700160 | windows_x86_64,windows_arm64 | noise | Windows validates the flags for querying the reparse point itself
-FilesystemService.read_dir_count | limit == 4 | windows_x86_64,windows_arm64 | noise | the two UTF-16 units in dot-dot occupy four bytes in a native directory record
-FilesystemService.{read_dir_count,read_dir_is_empty,read_dir_nth,remove_dir_all} | limit == 46 | windows_x86_64,windows_arm64 | noise | the native directory walker recognizes a literal dot in dot and dot-dot names
-FilesystemService.remove_dir_all | limit == 47 | windows_x86_64,windows_arm64 | noise | recognize a slash while validating a relative removal name
-FilesystemService.{read_at,write_at} | limit == 56 | windows_x86_64,windows_arm64 | noise | NtQueryObject must return the complete 56-byte ObjectBasicInformation record before the positioned handle grants access
-FilesystemService.remove_dir_all | limit == 58 | windows_x86_64,windows_arm64 | noise | validate the drive separator in a Windows path or a relative removal name
-FilesystemService.read_link | limit == 63 | windows_x86_64,windows_arm64 | noise | recognize the NT namespace prefix in a reparse target
-FilesystemService.set_times | limit == 8 | macos_arm64 | noise | macOS timespec encoder writes 8-byte fields
-FilesystemService.{read_link,remove_dir_all} | limit == 92 | windows_x86_64,windows_arm64 | noise | recognize a Windows path separator in a relative name or NT namespace prefix
-FilesystemService.read_link | limit > 4 | windows_x86_64,windows_arm64 | noise | the NT absolute link prefix must have a following path
-FilesystemService.{append,canonicalize,copy,create,create_dir,create_dir_all,create_new,exists,hard_link,metadata_path,open,open_with,read_all,read_dir_count,read_dir_is_empty,read_dir_nth,read_link,remove,remove_dir,remove_dir_all,rename,set_permissions,symlink_metadata,try_exists,write_all} | limit > 57343 | windows_x86_64,windows_arm64 | noise | UTF-8 decoding checks byte classes, scalar ranges and surrogate pairs while encoding the Windows pathname
-FilesystemService.{read_dir_count,read_dir_is_empty,read_dir_nth,remove_dir_all} | limit >= 1024 | macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
-FilesystemService.{read_dir_count,read_dir_is_empty,read_link} | limit >= 12 | windows_x86_64,windows_arm64 | noise | validate the names-information or reparse header before reading its fields
-FilesystemService.{append,canonicalize,copy,create,create_dir,create_dir_all,create_new,exists,hard_link,metadata_path,open,open_with,read_all,read_dir_count,read_dir_is_empty,read_dir_nth,read_link,remove,remove_dir,remove_dir_all,rename,set_permissions,symlink_metadata,try_exists,write_all} | limit >= 128 | windows_x86_64,windows_arm64 | noise | UTF-8 decoding checks byte classes, scalar ranges and surrogate pairs while encoding the Windows pathname
-FilesystemService.{append,canonicalize,copy,create,create_dir,create_dir_all,create_new,exists,hard_link,metadata_path,open,open_with,read_all,read_dir_count,read_dir_is_empty,read_dir_nth,read_link,remove,remove_dir,remove_dir_all,rename,set_permissions,symlink_metadata,try_exists,write_all} | limit >= 194 | windows_x86_64,windows_arm64 | noise | UTF-8 decoding checks byte classes, scalar ranges and surrogate pairs while encoding the Windows pathname
-FilesystemService.{append,canonicalize,copy,create,create_dir,create_dir_all,create_new,exists,hard_link,metadata_path,open,open_with,read_all,read_dir_count,read_dir_is_empty,read_dir_nth,read_link,remove,remove_dir,remove_dir_all,rename,set_permissions,symlink_metadata,try_exists,write_all} | limit >= 2048 | windows_x86_64,windows_arm64 | noise | UTF-8 decoding checks byte classes, scalar ranges and surrogate pairs while encoding the Windows pathname
-FilesystemService.{read_dir_nth,remove_dir_all} | limit >= 64 | windows_x86_64,windows_arm64 | noise | validate the native directory record header before reading its name
-FilesystemService.{append,canonicalize,copy,create,create_dir,create_dir_all,create_new,exists,hard_link,metadata_path,open,open_with,read_all,read_dir_count,read_dir_is_empty,read_dir_nth,read_link,remove,remove_dir,remove_dir_all,rename,set_permissions,symlink_metadata,try_exists,write_all} | limit >= 65536 | windows_x86_64,windows_arm64 | noise | UTF-8 decoding checks byte classes, scalar ranges and surrogate pairs while encoding the Windows pathname
-FilesystemService.read_link | limit >= 8 | windows_x86_64,windows_arm64 | noise | validate the reparse header before reading its length and tag
-FilesystemService.read_dir_count | refuse Other | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX reports malformed native directory records directly; Windows maps native enumeration failures through its error translator
-FilesystemService.{read_dir_count,read_dir_is_empty,read_dir_nth,remove_dir_all} | clamp narrow_i64_to_u64_wrapping | windows_x86_64,windows_arm64 | noise | Windows converts the successful signed native count or native handle bits to the portable unsigned representation
-FilesystemService.{read_dir_is_empty,read_dir_nth,remove_dir_all} | limit < 495 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX bounds the record header and NUL-terminated name by the returned directory batch and its 512-byte backing
-FilesystemService.read_dir_count | limit < 512 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX bounds the record header and NUL-terminated name by the returned directory batch and its 512-byte backing
-FilesystemService.{read_dir_count,read_dir_is_empty,read_dir_nth,remove_dir_all} | limit < bytes.length | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX bounds the record header and NUL-terminated name by the returned directory batch and its 512-byte backing
-FilesystemService.{read_dir_count,read_dir_is_empty,read_dir_nth} | limit <= 2 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX skips names made of one or two literal dot bytes
-FilesystemService.read_dir_count | limit <= 20 | linux_x86_64,linux_arm64,macos_arm64 | noise | The selected POSIX directory layout supplies the offsets of d_type and d_name in the native record
-FilesystemService.read_dir_count | limit <= 21 | linux_x86_64,linux_arm64,macos_arm64 | noise | The selected POSIX directory layout supplies the offsets of d_type and d_name in the native record
-FilesystemService.{read_dir_count,read_dir_is_empty,read_dir_nth,remove_dir_all} | limit <= 512 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX bounds the record header and NUL-terminated name by the returned directory batch and its 512-byte backing
-FilesystemService.{read_dir_count,read_dir_is_empty,read_dir_nth,remove_dir_all} | limit <= bytes.length | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX bounds the record header and NUL-terminated name by the returned directory batch and its 512-byte backing
-FilesystemService.read_dir_is_empty | limit == 4 | windows_x86_64,windows_arm64 | noise | Windows dot-dot uses four bytes of UTF-16 in the native record
-FilesystemService.read_dir_count | limit >= 18 | linux_x86_64,linux_arm64,macos_arm64 | noise | The selected POSIX directory layout supplies the offsets of d_type and d_name in the native record
-FilesystemService.read_dir_count | limit >= 19 | linux_x86_64,linux_arm64,macos_arm64 | noise | The selected POSIX directory layout supplies the offsets of d_type and d_name in the native record
+Filesystem.{copy,read,read_all,read_at,read_dir_count,read_dir_is_empty,read_dir_nth,read_link,remove_dir_all} | clamp min_u64 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX caps a syscall count at its scratch or caller buffer after the shared count check
+Filesystem.{copy,create,create_dir,create_dir_all,create_new,open_with,write_all} | clamp narrow_i32_to_u16_wrapping | macos_arm64 | noise | macOS record decoders narrow fields of fixed width
+Filesystem.{set_file_owner,set_owner,set_owner_no_follow} | clamp narrow_i32_to_u32_wrapping | macos_arm64 | noise | macOS record decoders narrow fields of fixed width
+Filesystem.{append,create,create_new,open,open_with,set_file_owner,set_owner,set_owner_no_follow,symlink,try_clone} | clamp narrow_i64_to_i32_wrapping | macos_arm64 | noise | Darwin returns the negated native i32 errno through its shared i64 decoder; the final narrowing retains that status, not a caller byte count
+Filesystem.{close,copy,create_dir,create_dir_all,exists,hard_link,lock,lock_shared,metadata,metadata_path,read_all,remove,remove_dir,rename,set_file_permissions,set_len,set_permissions,set_times,symlink_metadata,sync,sync_data,try_exists,try_lock,try_lock_shared,unlock,write_all} | clamp narrow_i64_to_i32_wrapping | macos_arm64,windows_x86_64,windows_arm64 | noise | the native adapters narrow host status to the signed error representation after checking its range
+Filesystem.{canonicalize,read,read_at,read_link,write,write_at} | clamp narrow_i64_to_i32_wrapping | windows_x86_64,windows_arm64 | noise | the native adapters narrow host status to the signed error representation after checking its range
+Filesystem.{append,canonicalize,copy,create,create_dir_all,create_new,exists,lock,lock_shared,metadata,metadata_path,open,open_with,read,read_all,read_at,read_link,set_file_permissions,set_len,set_permissions,symlink_metadata,try_clone,try_exists,try_lock,try_lock_shared,unlock,write,write_all,write_at} | clamp narrow_i64_to_u64_wrapping | windows_x86_64,windows_arm64 | noise | Windows reinterprets the native handle bits or converts a successful native result for the portable return
+Filesystem.set_file_permissions | clamp narrow_u32_to_u16_wrapping | macos_arm64 | noise | macOS record decoders narrow fields of fixed width
+Filesystem.{copy,set_permissions} | clamp narrow_u32_to_u16_wrapping | macos_arm64,windows_x86_64,windows_arm64 | noise | Windows writes UTF-16 code units and Darwin decodes fixed-width native fields
+Filesystem.{append,canonicalize,create,create_dir,create_dir_all,create_new,exists,hard_link,metadata_path,open,open_with,read_all,read_dir_count,read_dir_is_empty,read_dir_nth,read_link,remove,remove_dir,remove_dir_all,rename,symlink_metadata,try_exists,write_all} | clamp narrow_u32_to_u16_wrapping | windows_x86_64,windows_arm64 | noise | Windows writes UTF-16 code units and Darwin decodes fixed-width native fields
+Filesystem.set_times | clamp narrow_u64_to_i64_wrapping | macos_arm64,windows_x86_64,windows_arm64 | noise | Windows passes the original handle bits in the signed raw ABI carrier
+Filesystem.{append,canonicalize,close,copy,create,create_dir,create_dir_all,create_new,exists,hard_link,lock,lock_shared,metadata,metadata_path,open,open_with,read,read_all,read_at,read_dir_count,read_dir_is_empty,read_dir_nth,read_link,remove,remove_dir,remove_dir_all,rename,set_file_permissions,set_len,set_permissions,symlink_metadata,sync,sync_data,try_clone,try_exists,try_lock,try_lock_shared,unlock,write,write_all,write_at} | clamp narrow_u64_to_i64_wrapping | windows_x86_64,windows_arm64 | noise | Windows passes the original handle bits in the signed raw ABI carrier
+Filesystem.set_times | clamp narrow_u64_to_u32_wrapping | windows_x86_64,windows_arm64 | noise | Windows splits checked FILETIME ticks into low and high DWORDs
+Filesystem.{lock,lock_shared,try_lock,try_lock_shared} | const acquire(..4294967295..) | windows_x86_64,windows_arm64 | noise | LockFileEx covers the full 64-bit lock interval with two all-ones length words
+Filesystem.remove_dir_all | const c_create_file(..1114241..) | windows_x86_64,windows_arm64 | noise | open the removal root with the requested directory and remove rights
+Filesystem.remove_dir_all | const c_create_file(..36700160..) | windows_x86_64,windows_arm64 | noise | open the removal root with Win32 directory and reparse-point flags
+Filesystem.set_owner_no_follow | const fchownat(..256..) | linux_x86_64,linux_arm64 | noise | Linux AT_REMOVEDIR / AT_SYMLINK_NOFOLLOW flag words; macOS passes its own
+Filesystem.canonicalize | const final_path(..32768..) | windows_x86_64,windows_arm64 | noise | the Win32 extended-length path buffer holds 32767 UTF-16 units plus its terminator
+Filesystem.canonicalize | limit < 32768 | windows_x86_64,windows_arm64 | noise | GetFinalPathNameByHandleW returns the required size when its buffer cannot contain the whole name and terminator
+Filesystem.symlink_metadata | const linux_arm64_posix_query_metadata_at(..256..) | linux_arm64 | noise | Linux AT_SYMLINK_NOFOLLOW is 256; the target-specific metadata helper retains the same no-follow request
+Filesystem.symlink_metadata | const linux_x86_64_posix_query_metadata_at(..256..) | linux_x86_64 | noise | Linux AT_SYMLINK_NOFOLLOW is 256; the target-specific metadata helper retains the same no-follow request
+Filesystem.{read_dir_count,read_dir_is_empty,read_dir_nth,read_link,remove_dir_all} | const min_u64(..2147483647..) | linux_x86_64,linux_arm64 | allowed | Linux caps one read at 2^31-1 bytes; the bounded-read contract allows the short read
+Filesystem.{read_dir_nth,remove_dir_all} | const next_entry(..8256..) | windows_x86_64,windows_arm64 | noise | native enumeration supplies the complete FileDirectoryInformation record buffer
+Filesystem.{read_dir_count,read_dir_is_empty} | const next_name(..8208..) | windows_x86_64,windows_arm64 | noise | native names-only enumeration supplies its full FileNamesInformation record buffer
+Filesystem.remove_dir_all | const open(..1114240..) | windows_x86_64,windows_arm64 | noise | Windows opens the child relative to its parent with the required removal access mask
+Filesystem.remove_dir_all | const open(..1114241..) | windows_x86_64,windows_arm64 | noise | Windows opens the child with removal and directory-list access
+Filesystem.remove_dir_all | const open(..2113568..) | windows_x86_64,windows_arm64 | noise | NT relative directory open uses the selected synchronous and reparse-point options
+Filesystem.{create_dir_all,exists,metadata_path,symlink_metadata,try_exists} | const open(..34603008..) | windows_x86_64,windows_arm64 | noise | Win32 opens a directory-capable handle and follows the final reparse point
+Filesystem.{create_dir_all,exists,metadata_path,symlink_metadata,try_exists} | const open(..36700160..) | windows_x86_64,windows_arm64 | noise | Win32 opens the reparse point itself when following is disabled
+Filesystem.{canonicalize,create_dir_all,exists,metadata_path,read_link,symlink_metadata,try_exists} | const open_attributes(..128..) | windows_x86_64,windows_arm64 | noise | FILE_READ_ATTRIBUTES requests the metadata used by this operation
+Filesystem.{canonicalize,set_permissions} | const open_attributes(..34603008..) | windows_x86_64,windows_arm64 | noise | Win32 attribute query opens the final referent
+Filesystem.read_link | const open_attributes(..36700160..) | windows_x86_64,windows_arm64 | noise | Win32 attribute query opens the reparse point itself
+Filesystem.set_permissions | const open_attributes(..384..) | windows_x86_64,windows_arm64 | noise | the Windows attribute update requests read and write attribute access
+Filesystem.read_link | const query(..16384..) | windows_x86_64,windows_arm64 | noise | the reparse query supplies the 16 KiB native reparse data buffer
+Filesystem.read_link | const query(..589992..) | windows_x86_64,windows_arm64 | noise | FSCTL_GET_REPARSE_POINT selects the native link query
+Filesystem.remove_dir_all | const refuse(..267..) | windows_x86_64,windows_arm64 | noise | POSIX ENOTDIR and Windows ERROR_DIRECTORY both report InvalidInput for a non-directory root
+Filesystem.unlock | const release(..4294967295..) | windows_x86_64,windows_arm64 | noise | UnlockFileEx releases the same full interval
+Filesystem.read_at | const reopen_read(..1048577..) | windows_x86_64,windows_arm64 | noise | the independent positioned handle requests SYNCHRONIZE and FILE_READ_DATA
+Filesystem.write_at | const reopen_write(..1048578..) | windows_x86_64,windows_arm64 | noise | the independent positioned handle requests SYNCHRONIZE and FILE_WRITE_DATA
+Filesystem.remove_dir | const unlinkat(..512..) | linux_x86_64,linux_arm64 | noise | Linux AT_REMOVEDIR / AT_SYMLINK_NOFOLLOW flag words; macOS passes its own
+Filesystem.remove_dir_all | const unlinkat(..512..) | linux_x86_64,linux_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+Filesystem.{copy,set_file_permissions,set_permissions} | const update(..128..) | windows_x86_64,windows_arm64 | noise | the Windows attribute update uses FILE_ATTRIBUTE_NORMAL
+Filesystem.{read_dir_count,read_dir_is_empty,read_dir_nth} | const windows_filesystem_native_create_file(..1048577..) | windows_x86_64,windows_arm64 | noise | the directory handle requests SYNCHRONIZE and FILE_LIST_DIRECTORY
+Filesystem.{read_dir_count,read_dir_is_empty,read_dir_nth} | const windows_filesystem_native_create_file(..34603008..) | windows_x86_64,windows_arm64 | noise | Windows uses its directory-capable open flags for enumeration
+Filesystem.remove_dir_all | const windows_removal_unwind(..122..) | windows_x86_64,windows_arm64 | noise | an exhausted Windows traversal buffer unwinds with ERROR_INSUFFICIENT_BUFFER
+Filesystem.{append,canonicalize,copy,create,create_dir,create_dir_all,create_new,exists,hard_link,metadata_path,open,open_with,read_all,read_dir_count,read_dir_is_empty,read_dir_nth,read_link,remove,remove_dir,remove_dir_all,rename,set_permissions,symlink_metadata,try_exists,write_all} | limit < 128 | windows_x86_64,windows_arm64 | noise | UTF-8 decoding checks byte classes, scalar ranges and surrogate pairs while encoding the Windows pathname
+Filesystem.{append,canonicalize,copy,create,create_dir,create_dir_all,create_new,exists,hard_link,metadata_path,open,open_with,read_all,read_dir_count,read_dir_is_empty,read_dir_nth,read_link,remove,remove_dir,remove_dir_all,rename,set_permissions,symlink_metadata,try_exists,write_all} | limit < 192 | windows_x86_64,windows_arm64 | noise | UTF-8 decoding checks byte classes, scalar ranges and surrogate pairs while encoding the Windows pathname
+Filesystem.{append,canonicalize,copy,create,create_dir,create_dir_all,create_new,exists,hard_link,metadata_path,open,open_with,read_all,read_dir_count,read_dir_is_empty,read_dir_nth,read_link,remove,remove_dir,remove_dir_all,rename,set_permissions,symlink_metadata,try_exists,write_all} | limit < 224 | windows_x86_64,windows_arm64 | noise | UTF-8 decoding checks byte classes, scalar ranges and surrogate pairs while encoding the Windows pathname
+Filesystem.{append,canonicalize,copy,create,create_dir,create_dir_all,create_new,exists,hard_link,metadata_path,open,open_with,read_all,read_dir_count,read_dir_is_empty,read_dir_nth,read_link,remove,remove_dir,remove_dir_all,rename,set_permissions,symlink_metadata,try_exists,write_all} | limit < 240 | windows_x86_64,windows_arm64 | noise | UTF-8 decoding checks byte classes, scalar ranges and surrogate pairs while encoding the Windows pathname
+Filesystem.{append,canonicalize,copy,create,create_dir,create_dir_all,create_new,exists,hard_link,metadata_path,open,open_with,read_all,read_dir_count,read_dir_is_empty,read_dir_nth,read_link,remove,remove_dir,remove_dir_all,rename,set_permissions,symlink_metadata,try_exists,write_all} | limit < 55296 | windows_x86_64,windows_arm64 | noise | UTF-8 decoding checks byte classes, scalar ranges and surrogate pairs while encoding the Windows pathname
+Filesystem.{append,canonicalize,copy,create,create_dir,create_dir_all,create_new,exists,hard_link,metadata_path,open,open_with,read_all,read_dir_count,read_dir_is_empty,read_dir_nth,read_link,remove,remove_dir,remove_dir_all,rename,set_permissions,symlink_metadata,try_exists,write_all} | limit < 65536 | windows_x86_64,windows_arm64 | noise | UTF-8 decoding checks byte classes, scalar ranges and surrogate pairs while encoding the Windows pathname
+Filesystem.read_link | limit < 8192 | windows_x86_64,windows_arm64 | noise | UTF-16 reparse target must fit its native staging buffer including the terminator
+Filesystem.{append,copy,create,create_dir,create_dir_all,create_new,exists,hard_link,metadata_path,open,open_with,read_all,read_dir_count,read_dir_is_empty,read_dir_nth,read_link,remove,remove_dir,remove_dir_all,rename,set_owner,set_owner_no_follow,set_permissions,symlink,symlink_metadata,try_exists,write_all} | limit < out.length | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+Filesystem.{append,copy,create,create_dir,create_dir_all,create_new,exists,hard_link,metadata_path,open,open_with,read_all,read_dir_count,read_dir_is_empty,read_dir_nth,read_link,remove,remove_dir,remove_dir_all,rename,set_permissions,symlink_metadata,try_exists,write_all} | limit < output.length | windows_x86_64,windows_arm64 | noise | the pathname encoder checks space before writing each UTF-16 unit
+Filesystem.{set_owner,set_owner_no_follow,symlink} | limit < path.length | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+Filesystem.{append,canonicalize,copy,create,create_dir,create_dir_all,create_new,exists,hard_link,metadata_path,open,open_with,read_all,read_dir_count,read_dir_is_empty,read_dir_nth,read_link,remove,remove_dir,remove_dir_all,rename,set_permissions,symlink_metadata,try_exists,write_all} | limit <= 1114111 | windows_x86_64,windows_arm64 | noise | UTF-8 decoding checks byte classes, scalar ranges and surrogate pairs while encoding the Windows pathname
+Filesystem.read_link | limit <= 12 | windows_x86_64,windows_arm64 | noise | the reparse decoder checks the native header and payload extent
+Filesystem.canonicalize | limit <= source.length | windows_x86_64,windows_arm64 | noise | the complete converted path and terminator must fit their source before copying to the caller
+Filesystem.read_link | limit <= 16384 | windows_x86_64,windows_arm64 | noise | the reparse header and payload must fit the native 16 KiB query buffer
+Filesystem.read_link | limit <= 2 | windows_x86_64,windows_arm64 | noise | validate the Windows reparse header or the relative child name used for removal
+Filesystem.{canonicalize,close,copy,create_dir,create_dir_all,exists,hard_link,lock,lock_shared,metadata,metadata_path,read,read_all,read_at,read_dir_count,read_dir_is_empty,read_dir_nth,read_link,remove,remove_dir,remove_dir_all,rename,set_file_permissions,set_len,set_permissions,set_times,symlink_metadata,sync,sync_data,try_exists,try_lock,try_lock_shared,unlock,write,write_all,write_at} | limit <= 2147483647 | windows_x86_64,windows_arm64 | noise | Win32 error codes must fit the negative i32 raw-error representation
+Filesystem.{append,canonicalize,copy,create,create_dir,create_dir_all,create_new,exists,hard_link,metadata_path,open,open_with,read_all,read_dir_count,read_dir_is_empty,read_dir_nth,read_link,remove,remove_dir,remove_dir_all,rename,set_permissions,symlink_metadata,try_exists,write_all} | limit <= 244 | windows_x86_64,windows_arm64 | noise | UTF-8 decoding checks byte classes, scalar ranges and surrogate pairs while encoding the Windows pathname
+Filesystem.read_link | limit <= 24576 | windows_x86_64,windows_arm64 | noise | the reparse conversion checks the initialized extent of its UTF-8 staging buffer
+Filesystem.{lock,lock_shared,try_lock,try_lock_shared} | limit <= 3 | windows_x86_64,windows_arm64 | noise | LockFileEx accepts the supported immediate and exclusive flag combination
+Filesystem.write_all | limit <= 4294967295 | windows_x86_64,windows_arm64 | noise | each native write submits a DWORD-sized prefix of the remaining bytes
+Filesystem.read_link | limit <= 65535 | windows_x86_64,windows_arm64 | noise | the reparse decoder checks native 16-bit length fields
+Filesystem.read_link | limit <= 8184 | windows_x86_64,windows_arm64 | noise | the decoded reparse names fit the payload after the fixed header
+Filesystem.{read_dir_count,read_dir_is_empty,read_dir_nth,remove_dir_all} | limit <= 8192 | windows_x86_64,windows_arm64 | noise | the Windows enumeration name length is checked against the native name storage
+Filesystem.{read_dir_count,read_dir_is_empty} | limit <= 8208 | windows_x86_64,windows_arm64 | noise | the returned names-only record fits the native query extent
+Filesystem.{read_dir_nth,remove_dir_all} | limit <= 8256 | windows_x86_64,windows_arm64 | noise | the returned directory record fits the native query extent
+Filesystem.{canonicalize,read_link} | limit <= output.length | windows_x86_64,windows_arm64 | noise | copy the complete converted name only when the caller supplied enough space
+Filesystem.{read_dir_count,read_dir_is_empty,read_dir_nth,remove_dir_all} | limit == -1073741809 | windows_x86_64,windows_arm64 | noise | NT status STATUS_NO_SUCH_FILE is recognized at native directory enumeration
+Filesystem.{read_dir_count,read_dir_is_empty,read_dir_nth,remove_dir_all} | limit == -2147483642 | windows_x86_64,windows_arm64 | noise | NT status STATUS_NO_MORE_FILES terminates native enumeration
+Filesystem.read_at | limit == 1048577 | windows_x86_64,windows_arm64 | noise | ReOpenFile uses the authorized read and synchronize access mask
+Filesystem.write_at | limit == 1048578 | windows_x86_64,windows_arm64 | noise | ReOpenFile uses the authorized write and synchronize access mask
+Filesystem.{read_dir_count,read_dir_is_empty,read_dir_nth,remove_dir_all} | limit == 2 | windows_x86_64,windows_arm64 | noise | native directory-name byte count used when recognizing dot entries
+Filesystem.{create_dir_all,exists,metadata_path,symlink_metadata,try_exists} | limit == 34603008 | windows_x86_64,windows_arm64 | noise | Windows validates the flags for opening metadata and following the final link
+Filesystem.{create_dir_all,exists,metadata_path,symlink_metadata,try_exists} | limit == 36700160 | windows_x86_64,windows_arm64 | noise | Windows validates the flags for querying the reparse point itself
+Filesystem.read_dir_count | limit == 4 | windows_x86_64,windows_arm64 | noise | the two UTF-16 units in dot-dot occupy four bytes in a native directory record
+Filesystem.{read_dir_count,read_dir_is_empty,read_dir_nth,remove_dir_all} | limit == 46 | windows_x86_64,windows_arm64 | noise | the native directory walker recognizes a literal dot in dot and dot-dot names
+Filesystem.remove_dir_all | limit == 47 | windows_x86_64,windows_arm64 | noise | recognize a slash while validating a relative removal name
+Filesystem.{read_at,write_at} | limit == 56 | windows_x86_64,windows_arm64 | noise | NtQueryObject must return the complete 56-byte ObjectBasicInformation record before the positioned handle grants access
+Filesystem.remove_dir_all | limit == 58 | windows_x86_64,windows_arm64 | noise | validate the drive separator in a Windows path or a relative removal name
+Filesystem.read_link | limit == 63 | windows_x86_64,windows_arm64 | noise | recognize the NT namespace prefix in a reparse target
+Filesystem.set_times | limit == 8 | macos_arm64 | noise | macOS timespec encoder writes 8-byte fields
+Filesystem.{read_link,remove_dir_all} | limit == 92 | windows_x86_64,windows_arm64 | noise | recognize a Windows path separator in a relative name or NT namespace prefix
+Filesystem.read_link | limit > 4 | windows_x86_64,windows_arm64 | noise | the NT absolute link prefix must have a following path
+Filesystem.{append,canonicalize,copy,create,create_dir,create_dir_all,create_new,exists,hard_link,metadata_path,open,open_with,read_all,read_dir_count,read_dir_is_empty,read_dir_nth,read_link,remove,remove_dir,remove_dir_all,rename,set_permissions,symlink_metadata,try_exists,write_all} | limit > 57343 | windows_x86_64,windows_arm64 | noise | UTF-8 decoding checks byte classes, scalar ranges and surrogate pairs while encoding the Windows pathname
+Filesystem.{read_dir_count,read_dir_is_empty,read_dir_nth,remove_dir_all} | limit >= 1024 | macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+Filesystem.{read_dir_count,read_dir_is_empty,read_link} | limit >= 12 | windows_x86_64,windows_arm64 | noise | validate the names-information or reparse header before reading its fields
+Filesystem.{append,canonicalize,copy,create,create_dir,create_dir_all,create_new,exists,hard_link,metadata_path,open,open_with,read_all,read_dir_count,read_dir_is_empty,read_dir_nth,read_link,remove,remove_dir,remove_dir_all,rename,set_permissions,symlink_metadata,try_exists,write_all} | limit >= 128 | windows_x86_64,windows_arm64 | noise | UTF-8 decoding checks byte classes, scalar ranges and surrogate pairs while encoding the Windows pathname
+Filesystem.{append,canonicalize,copy,create,create_dir,create_dir_all,create_new,exists,hard_link,metadata_path,open,open_with,read_all,read_dir_count,read_dir_is_empty,read_dir_nth,read_link,remove,remove_dir,remove_dir_all,rename,set_permissions,symlink_metadata,try_exists,write_all} | limit >= 194 | windows_x86_64,windows_arm64 | noise | UTF-8 decoding checks byte classes, scalar ranges and surrogate pairs while encoding the Windows pathname
+Filesystem.{append,canonicalize,copy,create,create_dir,create_dir_all,create_new,exists,hard_link,metadata_path,open,open_with,read_all,read_dir_count,read_dir_is_empty,read_dir_nth,read_link,remove,remove_dir,remove_dir_all,rename,set_permissions,symlink_metadata,try_exists,write_all} | limit >= 2048 | windows_x86_64,windows_arm64 | noise | UTF-8 decoding checks byte classes, scalar ranges and surrogate pairs while encoding the Windows pathname
+Filesystem.{read_dir_nth,remove_dir_all} | limit >= 64 | windows_x86_64,windows_arm64 | noise | validate the native directory record header before reading its name
+Filesystem.{append,canonicalize,copy,create,create_dir,create_dir_all,create_new,exists,hard_link,metadata_path,open,open_with,read_all,read_dir_count,read_dir_is_empty,read_dir_nth,read_link,remove,remove_dir,remove_dir_all,rename,set_permissions,symlink_metadata,try_exists,write_all} | limit >= 65536 | windows_x86_64,windows_arm64 | noise | UTF-8 decoding checks byte classes, scalar ranges and surrogate pairs while encoding the Windows pathname
+Filesystem.read_link | limit >= 8 | windows_x86_64,windows_arm64 | noise | validate the reparse header before reading its length and tag
+Filesystem.read_dir_count | refuse Other | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX reports malformed native directory records directly; Windows maps native enumeration failures through its error translator
+Filesystem.{read_dir_count,read_dir_is_empty,read_dir_nth,remove_dir_all} | clamp narrow_i64_to_u64_wrapping | windows_x86_64,windows_arm64 | noise | Windows converts the successful signed native count or native handle bits to the portable unsigned representation
+Filesystem.{read_dir_is_empty,read_dir_nth,remove_dir_all} | limit < 495 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX bounds the record header and NUL-terminated name by the returned directory batch and its 512-byte backing
+Filesystem.read_dir_count | limit < 512 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX bounds the record header and NUL-terminated name by the returned directory batch and its 512-byte backing
+Filesystem.{read_dir_count,read_dir_is_empty,read_dir_nth,remove_dir_all} | limit < bytes.length | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX bounds the record header and NUL-terminated name by the returned directory batch and its 512-byte backing
+Filesystem.{read_dir_count,read_dir_is_empty,read_dir_nth} | limit <= 2 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX skips names made of one or two literal dot bytes
+Filesystem.read_dir_count | limit <= 20 | linux_x86_64,linux_arm64,macos_arm64 | noise | The selected POSIX directory layout supplies the offsets of d_type and d_name in the native record
+Filesystem.read_dir_count | limit <= 21 | linux_x86_64,linux_arm64,macos_arm64 | noise | The selected POSIX directory layout supplies the offsets of d_type and d_name in the native record
+Filesystem.{read_dir_count,read_dir_is_empty,read_dir_nth,remove_dir_all} | limit <= 512 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX bounds the record header and NUL-terminated name by the returned directory batch and its 512-byte backing
+Filesystem.{read_dir_count,read_dir_is_empty,read_dir_nth,remove_dir_all} | limit <= bytes.length | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX bounds the record header and NUL-terminated name by the returned directory batch and its 512-byte backing
+Filesystem.read_dir_is_empty | limit == 4 | windows_x86_64,windows_arm64 | noise | Windows dot-dot uses four bytes of UTF-16 in the native record
+Filesystem.read_dir_count | limit >= 18 | linux_x86_64,linux_arm64,macos_arm64 | noise | The selected POSIX directory layout supplies the offsets of d_type and d_name in the native record
+Filesystem.read_dir_count | limit >= 19 | linux_x86_64,linux_arm64,macos_arm64 | noise | The selected POSIX directory layout supplies the offsets of d_type and d_name in the native record

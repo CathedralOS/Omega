@@ -28,7 +28,7 @@ use {{omega}}/language/core/process_exit.omg;
 machine build(builder: @mutable Build) {{
     Build::application(builder, \"{application}\");
     let adapter: DependencyDescription = |dependency|::from_source(Source::Path {{ location: \"{library}\" }});
-    let allowed: [BoundaryServiceRef; 1] = [Build::service::<|process_exit|::ProcessExit>(builder)];
+    let allowed: [BoundaryServiceReference; 1] = [Build::service::<|process_exit|::ProcessExit>(builder)];
     _ = |dependency|::add(builder, adapter, @allowed[..]);
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);

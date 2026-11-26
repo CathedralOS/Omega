@@ -135,13 +135,13 @@ public machine start(args: @|linux_args|::Arguments) -> i32 blocks {
 public data OpenDocument<'a> { path: @'a [u8] in |paths|::Path; }
 
 public machine main(document: OpenDocument) -> i32 blocks {
-    let opened = block |filesystem|::FilesystemService::open(document.path);
+    let opened = block |filesystem|::Filesystem::open(document.path);
     transition opened {
         |filesystem|::OpenResult::Ok { file } -> block finish(file),
         _ -> 66
     }
     machine finish(file: |filesystem|::File) -> i32 blocks {
-        let closed = block |filesystem|::FilesystemService::close(file);
+        let closed = block |filesystem|::Filesystem::close(file);
         transition closed { |filesystem|::UnitResult::Ok -> 0, _ -> 74 }
     }
 }

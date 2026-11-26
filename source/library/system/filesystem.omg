@@ -270,7 +270,7 @@ public data MetadataResult {
 // Native filesystem operations may occupy the caller's worker. This ceiling
 // stays identical on every target; a nonblocking implementation may fit it but
 // cannot remove the caller's acknowledgement of the portable requirement.
-public boundary trait FilesystemService {
+public boundary trait Filesystem {
     machine create(path: @[u8] in |paths|::Path) -> OpenResult
     blocks
     reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation

@@ -460,7 +460,7 @@ mod tests {
     #[test]
     fn providers_name_bare_and_aliased_traits() {
         assert!(matches!(
-            classify("FilesystemPosixProvider satisfies |filesystem|::FilesystemService {"),
+            classify("FilesystemPosixProvider satisfies |filesystem|::Filesystem {"),
             Some(TopLevel::Provider("FilesystemPosixProvider"))
         ));
         assert!(matches!(
