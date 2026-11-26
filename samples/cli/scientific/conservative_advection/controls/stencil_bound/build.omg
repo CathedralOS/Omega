@@ -1,1 +1,1 @@
-machine build(builder:@mutable Build) { Build::application(builder,"invalid_stencil_bound"); }
+machine build(builder:@mutable BuildPlan) { builder.product = BuildProduct::Application { name: "invalid_stencil_bound" }; }

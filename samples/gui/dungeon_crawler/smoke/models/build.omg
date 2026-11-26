@@ -1,7 +1,7 @@
 use {omega}/build/dependency.omg;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "dungeon_models");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "dungeon_models" };
     let engine_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../../engine" }));
     let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../../../../../source/library/system" }));
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);

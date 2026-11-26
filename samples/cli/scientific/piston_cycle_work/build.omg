@@ -1,7 +1,7 @@
 use {omega}/build/dependency.omg;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "piston_cycle_work");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "piston_cycle_work" };
     let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../../../../source/library/system" }));
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
 }

@@ -1,7 +1,7 @@
 use {omega}/build/dependency.omg;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "horner_eval");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "horner_eval" };
     let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {
         location: "../../../../source/library/system"
     }));

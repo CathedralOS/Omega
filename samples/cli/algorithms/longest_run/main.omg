@@ -1,6 +1,3 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
 // Longest run of equal bytes, the measure behind run-length encoding.
 // The input belongs to the invocation. States carry the cursor, previous byte,
 // current run length and maximum; the current byte is an iteration-local value.
@@ -13,20 +10,24 @@ requires
 domain [u8; 12]::Utf8
 requires
     valid_utf8(self);
-use system\Console;
+use {system}/console.omg;
+use {omega}/language/core/process_authority.omg as streams;
+use {omega}/language/core/process_exit.omg as process;
 
 data Main {
 }
 
-machine main(context: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("longest_run: finding the longest run of equal bytes in aaabbbbccdaa");
+machine main(context: @mutable Main)
+blocks
+reaches |process|::ProcessExit + |streams|::StandardInput + |streams|::StandardOutput {
+    |console|::Console::write_line("longest_run: finding the longest run of equal bytes in aaabbbbccdaa");
     let text: [u8; 12] in Utf8 = "aaabbbbccdaa";
     let maximum: i32 in Wrapping = longest_run(@text);
-    Console::write_line("result: the longest run length, 4 (the bbbb) for this text (the exit code)");
-    Console::write_line("[press Enter to close]");
+    |console|::Console::write_line("result: the longest run length, 4 (the bbbb) for this text (the exit code)");
+    |console|::Console::write_line("[press Enter to close]");
     let mutable pause: [u8; 256];
-    _ = block Console::read_line(@mutable pause[..]);
-    ProcessExit::exit_process(maximum as i32);
+    _ = block |console|::Console::read_line(@mutable pause[..]);
+    |process|::ProcessExit::exit_process(maximum as i32);
 }
 
 machine longest_run(text: @[u8; 12] in Utf8) -> i32 in Wrapping {
@@ -79,7 +80,9 @@ machine longest_run(text: @[u8; 12] in Utf8) -> i32 in Wrapping {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+public machine entry_start()
+blocks
+reaches |process|::ProcessExit + |streams|::StandardInput + |streams|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

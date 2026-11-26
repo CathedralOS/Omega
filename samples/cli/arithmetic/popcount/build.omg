@@ -5,8 +5,8 @@ use {omega}/build/dependency.omg;
 use {omega}/language/core/process_authority.omg;
 use {omega}/language/core/process_exit.omg;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "popcount");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "popcount" };
     let allowed: [BoundaryServiceReference; 3] = [
         Build::service::<|process_authority|::StandardInput>(builder),
         Build::service::<|process_authority|::StandardOutput>(builder),

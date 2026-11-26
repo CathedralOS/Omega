@@ -1,7 +1,7 @@
 use {omega}/build/dependency.omg;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "collatz_sequence");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "collatz_sequence" };
     let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {
         location: "../../../../source/library/system"
     }));

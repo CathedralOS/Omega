@@ -1,1 +1,1 @@
-machine build(builder: @mutable Build) { Build::application(builder, "invalid_survival_table_access"); }
+machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Application { name: "invalid_survival_table_access" }; }

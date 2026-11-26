@@ -1,7 +1,7 @@
 use {omega}/build/dependency.omg;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "sort_visualizer");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "sort_visualizer" };
     let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {
         location: "../../../../source/library/system"
     }));
