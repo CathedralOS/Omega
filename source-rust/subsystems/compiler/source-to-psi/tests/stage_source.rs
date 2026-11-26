@@ -1441,7 +1441,7 @@ fn transparent_aliases_check_their_const_arguments_even_when_expansion_erases_th
         ),
         (
             "machine missing() -> u8 { crash Trap; } machine f(x: Plain<missing()>) {}",
-            Some("const argument typing does not admit"),
+            Some("checked Trap crash route can occur"),
         ),
     ] {
         let (files, root) = captured(package, &format!("{declarations} {source}"));
