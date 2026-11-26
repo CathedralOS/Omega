@@ -326,9 +326,9 @@ requires
     embed(left.length) + embed(right.length) <= 18446744073709551615,
     left.length == 0 || right.length == 0 || embed(right.base) == embed(left.base) + embed(left.length)
 ensures
-    core\Identity::<IntervalSet<Nat>>(
+    |proof|::Identity::<|content|::IntervalSet<|nat|::Nat>>(
         separate(First::content(old(@left)), First::content(old(@right))), First::content(@result)),
-    core\Identity::<IntervalSet<Nat>>(
+    |proof|::Identity::<|content|::IntervalSet<|nat|::Nat>>(
         separate(Second::content(old(@left)), Second::content(old(@right))), Second::content(@result))
 {
     let { base as a, length as x } = left;
