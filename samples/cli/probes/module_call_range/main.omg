@@ -5,8 +5,7 @@
 // files each define their own `limit()`; the qualified
 // spelling keeps them distinct.
 //
-//   * `use other;` + `use selected;` — sibling-file
-//     modules.
+//   * `use selected/selected.omg;` selects the sibling file owning the called limit.
 //   * `requires GOOD <= |selected|::limit()` — module-qualified
 //     call endpoint.
 //
