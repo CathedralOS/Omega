@@ -1,11 +1,9 @@
 // Exact input equivalence keys (`SourceAssemblyInputs`, `ProductSourceInputs`)
 // for source assembly, resolution, and typing checkpoints. These keys project
-// only the source content, package scopes, generated-source bytes, and
-// entry-contract supplier selections that affect frontend preparation; every
+// only the source content, package scopes, and generated-source bytes that affect frontend preparation; every
 // consumer still validates live package closure, target custody, and consumed
 // source bytes before admitting a reused checkpoint.
 
-use crate::source::source_imports::EntryContractSource;
 use crate::{PackageCompilationInputs, PackageCompilationSourceInputs};
 use build_declarations::DependencyPurpose;
 use build_output::PackageGeneratedSource;
@@ -17,10 +15,6 @@ use target::TargetProfile;
 pub struct SourceAssemblyInputs {
     build_execution_profile: Option<TargetProfile>,
     package: Option<PackageSourceContent>,
-    entry_sources: Vec<(
-        target::ProgramEntryPhysicalContractPackage,
-        EntryContractSource,
-    )>,
 }
 
 impl SourceAssemblyInputs {
@@ -31,11 +25,6 @@ impl SourceAssemblyInputs {
         Self {
             build_execution_profile,
             package: packages.map(PackageSourceContent::new),
-            entry_sources: TargetProfile::ALL
-                .into_iter()
-                .filter_map(|profile| profile.program_entry_slot().physical_contract_package)
-                .map(|contract| (contract, EntryContractSource::select(contract, packages)))
-                .collect(),
         }
     }
 }

@@ -38,7 +38,7 @@ pub(super) fn contract_package_prefix(root: &Path, first: &str) -> Result<usize,
     if first != "system" {
         return Ok(0);
     }
-    Ok(usize::from(root == bundled_omega_root()?.join("system")))
+    Ok(usize::from(root == super::entry_contract_seed::entry_contract_root()?))
 }
 
 #[cfg(test)]

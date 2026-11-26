@@ -6,7 +6,7 @@ fn an_entryless_product_does_not_demand_every_library_layout() {
         &[],
         &[],
         &[],
-        &package_compilation::source_imports::source_targets(None),
+        &package_compilation::source_imports::source_targets().unwrap(),
     )
     .unwrap();
     assert!(
@@ -51,7 +51,7 @@ fn a_claimed_native_binding_is_a_layout_root_on_its_own_target() {
         &[],
         &[],
         &[&selection],
-        &package_compilation::source_imports::source_targets(None),
+        &package_compilation::source_imports::source_targets().unwrap(),
     )
     .unwrap();
     for scope in &scopes {

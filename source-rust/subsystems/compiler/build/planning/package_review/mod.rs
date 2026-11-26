@@ -33,7 +33,6 @@ pub struct CheckedPackagePolicy {
     pub selected_build_machine_identity: String,
     pub policy: PackagePolicyBaseline,
     pub semantic_binding_candidates: Vec<SemanticBindingReviewCandidate>,
-    pub target_entry_candidate: Option<SemanticBindingReviewCandidate>,
     pub component_description: Option<IndependentComponentDescription>,
 }
 
@@ -90,9 +89,16 @@ impl crate::ProductStage<'_> {
             input.sources().exact_toolchain_sources(),
             source_provenance::DependencyScope::Product,
         )?;
-        let policy = policy::project(&services, &input, &selected, profile, package, component_assumptions)?;
-        let (semantic_binding_candidates, target_entry_candidate) =
-            semantic_bindings::candidates(&services, &input, &selected, &policy, profile, package)?;
+        let policy = policy::project(
+            &services,
+            &input,
+            &selected,
+            profile,
+            package,
+            component_assumptions,
+        )?;
+        let semantic_binding_candidates =
+            semantic_bindings::candidates(&services, &input, &selected, &policy, profile)?;
         let selected_build_machine_identity = evaluation
             .configuration
             .selected_machine_identity(input.typed())?
@@ -107,7 +113,6 @@ impl crate::ProductStage<'_> {
             source_completion_accounting: std::mem::take(accounting),
             selected_build_machine_identity,
             semantic_binding_candidates,
-            target_entry_candidate,
             component_description: component,
         })
     }

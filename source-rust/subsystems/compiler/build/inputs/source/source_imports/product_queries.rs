@@ -684,15 +684,4 @@ impl ProductQueryInputs {
         }
         Ok(validated)
     }
-
-    pub(crate) fn entry_contract_seeds(
-        &self,
-        storage: &SourceStorage,
-    ) -> Result<Vec<super::entry_contract_seed::EntryContractSeed>, Vec<Diagnostic>> {
-        super::entry_contract_seed::entry_contract_seeds_from_graphs(
-            self.original.as_ref(),
-            &self.graphs().collect::<Vec<_>>(),
-            storage,
-        )
-    }
 }

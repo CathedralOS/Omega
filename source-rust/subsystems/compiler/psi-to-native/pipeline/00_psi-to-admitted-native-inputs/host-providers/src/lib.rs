@@ -2,7 +2,6 @@
 #![forbid(unsafe_code)]
 pub use provider_acceptance::{
     AcceptedSemanticBinding, AcceptedSemanticBindingRole, ServiceTerminalAuthorityPermission,
-    program_entry_semantic_binding_role,
 };
 pub use semantic_vocabulary::{
     PortableFilesystemAuthorityFacet, TerminalAuthorityClass, TerminalAuthorityDisposition,

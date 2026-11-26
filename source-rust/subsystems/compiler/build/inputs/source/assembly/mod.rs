@@ -278,16 +278,13 @@ impl ImmutableSourceParseCheckpoint {
         }
         load_phase!(PackageImportPhase::ExactTarget(None))?;
         let seeds = if deferred_product.is_none() {
-            crate::source::source_imports::entry_contract_seeds(package_inputs, &source_storage)?
+            crate::source::source_imports::entry_contract_seeds(&mut source_storage)?
         } else {
             Vec::new()
         };
         if !seeds.is_empty() {
             for seed in seeds {
-                imports.seed(
-                    seed.register_custody(&mut source_storage)?,
-                    source_provenance::DependencyScope::Product,
-                );
+                imports.seed(seed, source_provenance::DependencyScope::Product);
             }
             load_phase!(PackageImportPhase::ExactTarget(None))?;
         }

@@ -21,7 +21,7 @@ impl SemanticBindingReviewCandidate {
     pub fn new(binding: AcceptedSemanticBinding, service_schema: ServiceSchema) -> Self {
         debug_assert_eq!(
             binding.normalized_schema_digest(),
-            provider_acceptance::accepted_service_schema_digest(binding.role(), &service_schema,),
+            service_schema.identity_digest(),
         );
         Self {
             binding,

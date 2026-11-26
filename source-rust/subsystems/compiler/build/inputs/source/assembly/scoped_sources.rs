@@ -115,11 +115,8 @@ impl DeferredProductSources {
                 imports.seed(core_root.join("float_operations.omg"), scope);
             }
         }
-        for seed in inputs.entry_contract_seeds(&storage)? {
-            imports.seed(
-                seed.register_custody(&mut storage)?,
-                source_provenance::DependencyScope::Product,
-            );
+        for seed in crate::source::source_imports::entry_contract_seeds(&mut storage)? {
+            imports.seed(seed, source_provenance::DependencyScope::Product);
         }
         load_source_frontiers(
             &mut storage,

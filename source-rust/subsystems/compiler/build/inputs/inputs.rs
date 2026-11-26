@@ -31,10 +31,7 @@ pub use package::{
     PackageDependencyAcquisition, PackageDependencyBinding, PackageDependencyClosure,
     PackageSourceBinding,
 };
-pub use provider_acceptance::{
-    AcceptedSemanticBinding, AcceptedSemanticBindingRole, accepted_service_schema_digest,
-    program_entry_semantic_binding_role,
-};
+pub use provider_acceptance::{AcceptedSemanticBinding, AcceptedSemanticBindingRole};
 pub use reuse::compilation_reuse::{ProductSourceInputs, SourceAssemblyInputs};
 pub use source::source_consumption::{
     BuildSourceCustody, CheckedSourceCustody, ConsumedSourceUnit, ConsumedSourceUnitKind,

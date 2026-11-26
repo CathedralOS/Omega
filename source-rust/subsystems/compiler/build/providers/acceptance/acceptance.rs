@@ -8,47 +8,12 @@ use semantic_vocabulary::{
     provider_identity::{ProviderPlanDigest, ServiceSchemaDigest},
 };
 
-pub fn program_entry_semantic_binding_role(
-    package: target::ProgramEntryPhysicalContractPackage,
-) -> AcceptedSemanticBindingRole {
-    match package {
-        target::ProgramEntryPhysicalContractPackage::UefiX64 => {
-            AcceptedSemanticBindingRole::UefiX64ProgramEntry
-        }
-        target::ProgramEntryPhysicalContractPackage::MacosArm64 => {
-            AcceptedSemanticBindingRole::MacosArm64ProgramEntry
-        }
-        target::ProgramEntryPhysicalContractPackage::MacosX64 => {
-            AcceptedSemanticBindingRole::MacosX64ProgramEntry
-        }
-        target::ProgramEntryPhysicalContractPackage::LinuxX86_64 => {
-            AcceptedSemanticBindingRole::LinuxX86_64ProgramEntry
-        }
-        target::ProgramEntryPhysicalContractPackage::LinuxArm64 => {
-            AcceptedSemanticBindingRole::LinuxArm64ProgramEntry
-        }
-        target::ProgramEntryPhysicalContractPackage::WindowsX64 => {
-            AcceptedSemanticBindingRole::WindowsX64ProgramEntry
-        }
-        target::ProgramEntryPhysicalContractPackage::WindowsArm64 => {
-            AcceptedSemanticBindingRole::WindowsArm64ProgramEntry
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
 pub enum AcceptedSemanticBindingRole {
     ConsoleIo, // Explicit Console input/output policy; grants no process termination.
     ProcessExitExitProcessI32, // Target-independent recognition of the canonical core `ProcessExit` boundary requirement realized by the bound package's provider.
     FilesystemHostService, // Exact package-owned raw filesystem service classified as filesystem authority.
     TimeHostService,       // Exact package-owned raw clock service.
-    UefiX64ProgramEntry,   // Exact package-owned UEFI x86-64 application schema.
-    MacosArm64ProgramEntry, // Exact package-owned macOS ARM64 application schema.
-    MacosX64ProgramEntry,  // Exact package-owned macOS x86-64 application schema.
-    LinuxX86_64ProgramEntry, // Exact package-owned Linux x86-64 application schema.
-    LinuxArm64ProgramEntry, // Exact package-owned Linux ARM64 application schema.
-    WindowsX64ProgramEntry, // Exact package-owned Windows x86-64 application schema.
-    WindowsArm64ProgramEntry, // Exact package-owned Windows ARM64 application schema.
 }
 
 impl AcceptedSemanticBindingRole {
@@ -59,13 +24,6 @@ impl AcceptedSemanticBindingRole {
             Self::ProcessExitExitProcessI32 => 1,
             Self::FilesystemHostService => 2,
             Self::TimeHostService => 3,
-            Self::UefiX64ProgramEntry => 4,
-            Self::MacosArm64ProgramEntry => 5,
-            Self::MacosX64ProgramEntry => 6,
-            Self::LinuxX86_64ProgramEntry => 7,
-            Self::LinuxArm64ProgramEntry => 8,
-            Self::WindowsX64ProgramEntry => 9,
-            Self::WindowsArm64ProgramEntry => 11,
         }
     }
 
@@ -75,36 +33,8 @@ impl AcceptedSemanticBindingRole {
             1 => Self::ProcessExitExitProcessI32,
             2 => Self::FilesystemHostService,
             3 => Self::TimeHostService,
-            4 => Self::UefiX64ProgramEntry,
-            5 => Self::MacosArm64ProgramEntry,
-            6 => Self::MacosX64ProgramEntry,
-            7 => Self::LinuxX86_64ProgramEntry,
-            8 => Self::LinuxArm64ProgramEntry,
-            9 => Self::WindowsX64ProgramEntry,
-            11 => Self::WindowsArm64ProgramEntry,
             _ => return None,
         })
-    }
-}
-
-/// Exact schema accepted by the receiver for this compiler-recognized role.
-/// Entry slots identify the declared service independently of its selected calling plan.
-pub fn accepted_service_schema_digest(
-    role: AcceptedSemanticBindingRole,
-    schema: &provider_plans::ServiceSchema,
-) -> ServiceSchemaDigest {
-    use AcceptedSemanticBindingRole::*;
-    match role {
-        UefiX64ProgramEntry
-        | MacosArm64ProgramEntry
-        | MacosX64ProgramEntry
-        | LinuxX86_64ProgramEntry
-        | LinuxArm64ProgramEntry
-        | WindowsX64ProgramEntry
-        | WindowsArm64ProgramEntry => schema.declaration_identity_digest(),
-        ConsoleIo | ProcessExitExitProcessI32 | FilesystemHostService | TimeHostService => {
-            schema.identity_digest()
-        }
     }
 }
 
@@ -160,12 +90,6 @@ impl AcceptedSemanticBinding {
             role,
             AcceptedSemanticBindingRole::FilesystemHostService
                 | AcceptedSemanticBindingRole::TimeHostService
-                | AcceptedSemanticBindingRole::UefiX64ProgramEntry
-                | AcceptedSemanticBindingRole::MacosArm64ProgramEntry
-                | AcceptedSemanticBindingRole::MacosX64ProgramEntry
-                | AcceptedSemanticBindingRole::LinuxX86_64ProgramEntry
-                | AcceptedSemanticBindingRole::LinuxArm64ProgramEntry
-                | AcceptedSemanticBindingRole::WindowsX64ProgramEntry
         ) {
             return Err("accepted semantic role requires a selected provider plan");
         }
@@ -290,74 +214,18 @@ mod tests {
     #[test]
     fn reviewed_binding_roles_keep_their_persisted_tags() {
         use AcceptedSemanticBindingRole::*;
-        let roles = [
-            ProcessExitExitProcessI32,
-            FilesystemHostService,
-            TimeHostService,
-            UefiX64ProgramEntry,
-            MacosArm64ProgramEntry,
-            MacosX64ProgramEntry,
-            LinuxX86_64ProgramEntry,
-            LinuxArm64ProgramEntry,
-            WindowsX64ProgramEntry,
-            ConsoleIo,
-        ];
-        assert_eq!(AcceptedSemanticBindingRole::from_canonical_tag(0), None);
-        for (tag, role) in (1u8..).zip(roles) {
-            assert_eq!(role.canonical_tag(), tag);
-            assert_eq!(
-                AcceptedSemanticBindingRole::from_canonical_tag(tag),
-                Some(role)
-            );
-        }
-        assert!(
-            (11..=u8::MAX)
-                .all(|tag| AcceptedSemanticBindingRole::from_canonical_tag(tag).is_none())
-        );
-    }
-
-    #[test]
-    fn entry_acceptance_compares_the_declaration_and_host_services_compare_the_full_schema() {
-        use AcceptedSemanticBindingRole::*;
-        use provider_plans::{ServiceMethod, ServiceSchema, ServiceSurface};
-
-        let mut declaration = ServiceSurface::default();
-        declaration.trait_name = declaration.identities.intern("Entry");
-        let requirement = declaration.identities.intern("Entry::enter");
-        declaration.methods.push(ServiceMethod {
-            name: "enter".into(),
-            requirement_owner: "Entry".into(),
-            requirement_identity: requirement,
-            ..Default::default()
-        });
-        let schema = ServiceSchema::from_declaration(std::sync::Arc::new(declaration));
-        assert_ne!(
-            schema.identity_digest(),
-            schema.declaration_identity_digest()
-        );
-        for role in [
-            UefiX64ProgramEntry,
-            MacosArm64ProgramEntry,
-            MacosX64ProgramEntry,
-            LinuxX86_64ProgramEntry,
-            LinuxArm64ProgramEntry,
-            WindowsX64ProgramEntry,
-        ] {
-            assert_eq!(
-                accepted_service_schema_digest(role, &schema),
-                schema.declaration_identity_digest()
-            );
-        }
-        for role in [
-            ConsoleIo,
-            ProcessExitExitProcessI32,
-            FilesystemHostService,
-            TimeHostService,
-        ] {
-            assert_eq!(
-                accepted_service_schema_digest(role, &schema),
-                schema.identity_digest()
-            );
+        for tag in 0..=u8::MAX {
+            let role = match tag {
+                1 => Some(ProcessExitExitProcessI32),
+                2 => Some(FilesystemHostService),
+                3 => Some(TimeHostService),
+                10 => Some(ConsoleIo),
+                _ => None,
+            };
+            assert_eq!(AcceptedSemanticBindingRole::from_canonical_tag(tag), role);
+            if let Some(role) = role {
+                assert_eq!(role.canonical_tag(), tag);
+            }
         }
     }
 
