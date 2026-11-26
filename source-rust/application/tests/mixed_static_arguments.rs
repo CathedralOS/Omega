@@ -68,6 +68,25 @@ fn nominal_callback_parameters_keep_their_distinct_selections() {
 }
 
 #[test]
+fn a_generic_trait_callback_is_judged_at_the_call_type_arguments() {
+    let (output, report) = invoke("run", "generic_nominal_static_arguments");
+    assert!(output.status.success(), "{report}");
+    for receipt in ["native exit 0", "interp exit: 0"] {
+        assert!(report.lines().any(|line| line == receipt), "{report}");
+    }
+}
+
+#[test]
+fn a_callback_for_another_trait_argument_is_refused() {
+    let (output, report) = invoke("fail", "generic_nominal_static_arguments");
+    assert!(!output.status.success(), "{report}");
+    assert!(
+        report.contains("callback `left_step` must satisfy the exact requirement of `Step`"),
+        "{report}"
+    );
+}
+
+#[test]
 fn a_matching_signature_does_not_bind_a_callback_to_the_requirement() {
     let (output, report) = invoke("fail", "nominal_static_arguments");
     assert!(!output.status.success(), "{report}");

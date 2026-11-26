@@ -1,7 +1,7 @@
 /*
 Editable dependency projection from parsed `build.omg` syntax trees.
 
-`extract_scoped_requests_from_source` projects every unconditional direct
+`extract_scoped_from_source` projects every unconditional direct
 dependency row in authored order, tagged with the scope it authorizes, so
 edit planning can correlate row positions to one flat list across both
 purposes. We validate the editable shape without treating its literal role as
@@ -11,7 +11,7 @@ source identity or a declaration from an interpreted activation.
 use super::error::DependencyProjectionError;
 use super::policy::{reject_authored_toolchain_vocabulary, reject_unprojected_dependency_syntax};
 use super::{DependencyPurpose, DependencySourceRequest};
-use crate::declarations::editable_build;
+use crate::declarations::editable_build::{self, DependencyImport};
 use syntax_trees::SyntaxTrees;
 
 mod calls;
@@ -19,24 +19,40 @@ mod declaration;
 
 use declaration::map_build_declaration_error;
 
-pub(super) fn extract_scoped_requests_from_source(
-    source: &str,
-) -> Result<Vec<(DependencyPurpose, DependencySourceRequest)>, DependencyProjectionError> {
-    let syntax_trees = syntax_trees_for(source)?;
-    project_editable_dependencies(&syntax_trees)
+pub(crate) struct EditableSource<'a> {
+    pub parsed: source_syntax::ParsedText<'a>,
+    pub requests: Vec<(DependencyPurpose, DependencySourceRequest)>,
+    pub import: DependencyImport,
 }
 
-fn syntax_trees_for(source: &str) -> Result<SyntaxTrees, DependencyProjectionError> {
-    source_syntax::parse_text(source)
-        .map(|parsed| parsed.syntax)
-        .map_err(|error| match error {
-            source_syntax::SourceParseError::Lex { message, .. } => {
-                DependencyProjectionError::Lex { message }
-            }
-            source_syntax::SourceParseError::Parse { message, .. } => {
-                DependencyProjectionError::Parse { message }
-            }
-        })
+pub(crate) fn extract_scoped_from_source(
+    source: &str,
+) -> Result<Vec<(DependencyPurpose, DependencySourceRequest)>, DependencyProjectionError> {
+    project_editable_dependencies(&parse_build(source)?.syntax)
+}
+
+pub(crate) fn project_source_for_edit(
+    source: &str,
+) -> Result<EditableSource<'_>, DependencyProjectionError> {
+    let parsed = parse_build(source)?;
+    let requests = project_editable_dependencies(&parsed.syntax)?;
+    let import = DependencyImport::for_edit(&parsed.syntax);
+    Ok(EditableSource {
+        parsed,
+        requests,
+        import,
+    })
+}
+
+fn parse_build(source: &str) -> Result<source_syntax::ParsedText<'_>, DependencyProjectionError> {
+    source_syntax::parse_text(source).map_err(|error| match error {
+        source_syntax::SourceParseError::Lex { message, .. } => {
+            DependencyProjectionError::Lex { message }
+        }
+        source_syntax::SourceParseError::Parse { message, .. } => {
+            DependencyProjectionError::Parse { message }
+        }
+    })
 }
 
 fn project_editable_dependencies(

@@ -1,0 +1,25 @@
+// A callback that satisfies the trait for another type argument is refused:
+// at `Tag = Right` the call needs `Tagged<Right>::enter`, and `left_step`
+// satisfies only `Tagged<Left>::enter`.
+data Left [copy] { unused: u64; }
+data Right [copy] { unused: u64; }
+trait Tagged<Tag> {
+    machine enter(value: u64) -> u64;
+}
+machine left_step(value: u64) -> u64
+satisfies Tagged<Left>::enter {
+    value ^ 1u64
+}
+
+machine apply<Tag, const Step: Tagged<Tag>::enter>(value: u64) -> u64 {
+    Step(value)
+}
+machine main() crashes Trap {
+    let result: u64 = apply::<Right, left_step>(8u64);
+    transition result == 9u64 {
+        true -> done(),
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}

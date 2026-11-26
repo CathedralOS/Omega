@@ -168,7 +168,7 @@ fn write_catalog(directory: &Path, fixture: &Path) {
     let build = fs::read_to_string(fixture.join("unselected/build.omg")).unwrap();
     // Looking up the default name of this candidate settles its dependencies first.
     // The subsequent explicit "naming" request reaches its child through a different Git ref.
-    let build = build.replace("    let mutable naming_dependency:", r#"    let candidate: DependencyDescription = dependency\from_source(Source::Git {
+    let build = build.replace("    let mutable naming_dependency:", r#"    let candidate: DependencyDescription = |dependency|::from_source(Source::Git {
         repository: "ssh://git@candidate-fixture.invalid/candidate.git", revision: "executed-build-fixture-v1",
         selection: PackageSelection::Root
     });
@@ -190,9 +190,10 @@ fn write_catalog(directory: &Path, fixture: &Path) {
     let candidate = directory.join("candidate");
     write_package(
         &candidate,
-        r#"machine build(builder: @mutable Build) {
+        r#"use {omega}/build/dependency.omg;
+machine build(builder: @mutable Build) {
         Build::package(builder, "candidate");
-        let helper: DependencyDescription = dependency\from_source(Source::Git {
+        let helper: DependencyDescription = |dependency|::from_source(Source::Git {
             repository: "ssh://git@helper-fixture.invalid/catalog-helper.git", revision: "also-helper",
             selection: PackageSelection::Root
         });
@@ -213,9 +214,10 @@ fn write_catalog(directory: &Path, fixture: &Path) {
     git(&helper, &["branch", "also-helper", "HEAD"]);
     write_package(
         &directory.join("client"),
-        r#"machine build(builder: @mutable Build) {
+        r#"use {omega}/build/dependency.omg;
+machine build(builder: @mutable Build) {
         Build::application(builder, "client");
-        let member: DependencyDescription = dependency\from_source(Source::Git {
+        let member: DependencyDescription = |dependency|::from_source(Source::Git {
             repository: "ssh://git@omega-fixture.invalid/workspace.git", revision: "executed-build-fixture-v1",
             selection: PackageSelection::Named { package: "workspace_selected" }
         });

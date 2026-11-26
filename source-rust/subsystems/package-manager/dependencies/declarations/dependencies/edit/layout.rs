@@ -1,9 +1,8 @@
 // Source layout discovery and insertion boundaries for conservative `build.omg` dependency edits.
-// `discover_build_layout` returns `Ok(None)` when no `build` machine exists and `Ok(Some(None))` when a valid `build` machine has a noncanonical signature or body layout requiring manual editing.
+// `discover_build_layout` returns `None` when no `build` machine exists and `Some(None)` when a valid `build` machine has a noncanonical signature or body layout requiring manual editing.
 // Dependency declarations belong to the implicit entry before its first transition or nested state; `entry_insertion_start` locates the last top-level semicolon preceding that boundary so adding a dependency never splits a transition or makes the row conditional.
 
-use crate::declarations::dependencies::edit::{BUILD_MACHINE_NAME, BuildDependencyEditError};
-use crate::declarations::dependencies::read::DependencyProjectionError;
+use crate::declarations::dependencies::edit::BUILD_MACHINE_NAME;
 use crate::declarations::editable_build::{project_build_entry_syntax, project_dependency_rows};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::Item;
@@ -95,34 +94,25 @@ pub(super) struct DependencyRow {
 }
 
 pub(super) fn discover_build_layout(
-    source: &str,
-) -> Result<Option<Option<BuildLayout>>, BuildDependencyEditError> {
-    let source_syntax::ParsedText { tokens, syntax } =
-        source_syntax::parse_text(source).map_err(|error| {
-            BuildDependencyEditError::InvalidBuild(match error {
-                source_syntax::SourceParseError::Lex { message, .. } => {
-                    DependencyProjectionError::Lex { message }
-                }
-                source_syntax::SourceParseError::Parse { message, .. } => {
-                    DependencyProjectionError::Parse { message }
-                }
-            })
-        })?;
+    parsed: &source_syntax::ParsedText<'_>,
+) -> Option<Option<BuildLayout>> {
+    let source_syntax::ParsedText { tokens, syntax } = parsed;
+    let source = tokens.source_text();
     let Some(build) = syntax.root_items().find_map(|item| match item {
-        Item::Machine(machine) if machine.name.as_str(&syntax) == BUILD_MACHINE_NAME => {
+        Item::Machine(machine) if machine.name.as_str(syntax) == BUILD_MACHINE_NAME => {
             Some(machine)
         }
         _ => None,
     }) else {
-        return Ok(None);
+        return None;
     };
-    let semantic = semantic_indices(&tokens);
+    let semantic = semantic_indices(tokens);
     let name_span = build.name.source_span().span;
     let Some(name_position) = semantic.iter().position(|index| {
         let token = &tokens[*index];
         token.span == name_span && tokens.spelling(token) == BUILD_MACHINE_NAME
     }) else {
-        return Ok(Some(None));
+        return Some(None);
     };
     let expected_before = name_position
         .checked_sub(1)
@@ -136,22 +126,22 @@ pub(super) fn discover_build_layout(
                 .is_none_or(|index| tokens.spelling(&tokens[*index]) != *expected)
         })
     {
-        return Ok(Some(None));
+        return Some(None);
     }
     let machine_token = semantic[name_position - 1];
     let body_open = semantic[name_position + expected_after.len()];
-    let Some(body_close) = matching_brace(&tokens, body_open) else {
-        return Ok(Some(None));
+    let Some(body_close) = matching_brace(tokens, body_open) else {
+        return Some(None);
     };
     let machine_indent = line_indent(source, tokens[machine_token].span.start)
         .unwrap_or_default()
         .to_owned();
-    let Some(dependency_rows) = dependency_rows(&syntax, &tokens, body_open, body_close) else {
-        return Ok(Some(None));
+    let Some(dependency_rows) = dependency_rows(syntax, tokens, body_open, body_close) else {
+        return Some(None);
     };
     let states = syntax.items.state_handles(build.states);
     let Some(entry) = states.first().map(|handle| syntax.items.state(*handle)) else {
-        return Ok(Some(None));
+        return Some(None);
     };
     let entry_boundary = syntax
         .items
@@ -171,20 +161,20 @@ pub(super) fn discover_build_layout(
             })
         });
     let entry_end_start = if let Some(bound) = entry_boundary {
-        let Some(start) = entry_insertion_start(&tokens, body_open, body_close, bound) else {
-            return Ok(Some(None));
+        let Some(start) = entry_insertion_start(tokens, body_open, body_close, bound) else {
+            return Some(None);
         };
         start
     } else {
         tokens[body_close].span.start
     };
-    Ok(Some(Some(BuildLayout {
+    Some(Some(BuildLayout {
         machine_indent,
         body_open_end: tokens[body_open].span.end,
         body_close_start: tokens[body_close].span.start,
         entry_end_start,
         dependency_rows,
-    })))
+    }))
 }
 
 fn entry_insertion_start(
@@ -357,20 +347,22 @@ mod tests {
 
     #[test]
     fn quoted_delimiters_leave_the_build_body_and_dependency_row_intact() {
-        let source = r#"
+        let source = r#"use {omega}/build/dependency.omg;
 machine build(builder: @mutable Build) {
     Build::application(builder, "}");
-    _ = Build::dependency(builder, dependency\from_source(Source::Path { location: "(" }));
+    _ = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "(" }));
 }
 "#;
-        let layout = discover_build_layout(source).unwrap().unwrap().unwrap();
+        let layout = discover_build_layout(&source_syntax::parse_text(source).unwrap())
+            .unwrap()
+            .unwrap();
         assert_eq!(layout.body_close_start, source.rfind('}').unwrap());
         let [row] = layout.dependency_rows() else {
             panic!("one dependency row");
         };
         assert_eq!(
             &source[row.start..row.end],
-            r#"_ = Build::dependency(builder, dependency\from_source(Source::Path { location: "(" }));"#
+            r#"_ = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "(" }));"#
         );
     }
 }
