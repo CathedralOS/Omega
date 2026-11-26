@@ -36,42 +36,36 @@ pub(crate) fn join(mut joined: Summary, summaries: &[Summary]) -> Summary {
     }
     let has_unobserved = std::iter::once(&joined)
         .chain(summaries)
-        .any(|summary| matches!(summary.effects, EffectObservations::Unobserved(_)));
+        .any(|summary| matches!(summary.effects, EffectObservations::Incomplete { .. }));
     if has_unobserved {
-        let mut writes = Some(Vec::new());
+        let mut writes = Vec::new();
+        let mut located = true;
         for summary in std::iter::once(&joined).chain(summaries) {
-            match &summary.effects {
-                EffectObservations::Unobserved(None) => {
-                    writes = None;
+            if let EffectObservations::Incomplete { unobserved, .. } = &summary.effects {
+                let Some(unknown) = unobserved else {
+                    located = false;
                     break;
-                }
-                EffectObservations::Unobserved(Some(unknown)) => {
-                    for write in unknown {
-                        let writes = writes
-                            .as_mut()
-                            .expect("a preceding unavailable ceiling exits the join");
-                        if !writes.contains(write) {
-                            writes.push(write.clone());
-                        }
-                    }
-                }
-                EffectObservations::Observed(effects) => {
-                    for effect in effects {
-                        let write = UnobservedWrite {
-                            parameter: effect.parameter,
-                            steps: effect.steps.clone(),
-                        };
-                        let writes = writes
-                            .as_mut()
-                            .expect("a preceding unavailable ceiling exits the join");
-                        if !writes.contains(&write) {
-                            writes.push(write);
-                        }
+                };
+                for write in unknown {
+                    if !writes.contains(write) {
+                        writes.push(write.clone());
                     }
                 }
             }
+            for effect in summary.effects.known_writes() {
+                let write = UnobservedWrite {
+                    parameter: effect.parameter,
+                    steps: effect.steps.clone(),
+                };
+                if !writes.contains(&write) {
+                    writes.push(write);
+                }
+            }
         }
-        joined.effects = EffectObservations::Unobserved(writes);
+        joined.effects = EffectObservations::Incomplete {
+            observed: Vec::new(),
+            unobserved: located.then_some(writes),
+        };
         return joined;
     }
     let EffectObservations::Observed(effects) = &mut joined.effects else {

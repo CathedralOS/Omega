@@ -211,6 +211,22 @@ fn unshared(
     (answer, left(&alone))
 }
 
+fn mutable_parameter(identity: u64, ty: StructuralTypeId) -> DescriptorMachine {
+    let mut machine = returning(identity, None);
+    machine.returns = None;
+    machine.originations.clear();
+    machine.flow.get_mut(&point(0)).unwrap().definitions.clear();
+    let parameter = &mut machine.places[0];
+    parameter.producer = None;
+    parameter.definition = DescriptorDefinition::Parameter {
+        position: 0,
+        structural_type: ty,
+        access: terminal_psi::StructuralAccess::MutableBorrow,
+    };
+    machine.place_types.insert(parameter.place, ty);
+    machine
+}
+
 #[test]
 fn replay_requires_the_exact_opaque_entry_contents_even_after_summary_sharing() {
     let mut types = types();
@@ -218,18 +234,7 @@ fn replay_requires_the_exact_opaque_entry_contents_even_after_summary_sharing() 
     types[0].shape = StructuralTypeShape::TypeParameter;
     let parameter_type = types[0].id;
     for invalidate in [false, true] {
-        let mut leaf = returning(LEAF, None);
-        leaf.returns = None;
-        leaf.originations.clear();
-        leaf.flow.get_mut(&point(0)).unwrap().definitions.clear();
-        let parameter = &mut leaf.places[0];
-        parameter.producer = None;
-        parameter.definition = DescriptorDefinition::Parameter {
-            position: 0,
-            structural_type: parameter_type,
-            access: terminal_psi::StructuralAccess::MutableBorrow,
-        };
-        leaf.place_types.insert(parameter.place, parameter_type);
+        let mut leaf = mutable_parameter(LEAF, parameter_type);
         if invalidate {
             leaf.unresolved_contents_writes.insert(point(0));
         }
@@ -246,6 +251,93 @@ fn replay_requires_the_exact_opaque_entry_contents_even_after_summary_sharing() 
             );
         }
     }
+}
+
+#[test]
+fn an_opaque_write_invalidates_its_argument_and_requires_concrete_loan_origins() {
+    use crate::descriptors::descriptor_lifetimes::DescriptorContentsQuery;
+    let mut types = types();
+    let scalar = types[0].id;
+    let view = types[1].id;
+    let generic = StructuralTypeId::new(3).unwrap();
+    types.push(StructuralTypeDeclaration {
+        id: generic,
+        identity: terminal_psi::TerminalIdentityIndex(3),
+        shape: StructuralTypeShape::TypeParameter,
+        ..types[0].clone()
+    });
+    for actual in [generic, scalar, view] {
+        let mut leaf = mutable_parameter(LEAF, generic);
+        leaf.unresolved_contents_writes.insert(point(0));
+        let mut caller = mutable_parameter(TOP, actual);
+        let argument = DescriptorLocation::whole(caller.places[0].place);
+        caller
+            .insert_call(
+                point(0),
+                DescriptorInvocation {
+                    scalar_arguments: Vec::new(),
+                    owner: DescriptorInvocationOwner::Operation(OperationId::new(1).unwrap()),
+                    target: DescriptorInvocationTarget::Machine(id(LEAF)),
+                    arguments: vec![Some(argument.clone())],
+                    argument_contents: vec![Some(DescriptorContentsQuery::from_location(
+                        &argument,
+                    ))],
+                    result: None,
+                },
+            )
+            .unwrap();
+        let graph = [leaf, caller];
+        let mut analysis = DescriptorAnalysis::with_borrowed_storage_slots(&types, &graph);
+        assert!(analysis.stored_effects(id(LEAF)).is_none());
+        // A bare payload can be forgotten; concrete borrowed storage requires
+        // an actual post-call backing, so its receipt cannot be discarded.
+        assert_eq!(analysis.flow_arc(id(TOP)).is_ok(), actual != view);
+        if actual == generic {
+            let packet = DescriptorLocation {
+                root: argument.root,
+                path: vec![DescriptorPathSegment::UnknownContents],
+            };
+            let mut replay = replay(&types, &graph, None);
+            let states = replay.states(id(TOP), 0).unwrap();
+            assert!(
+                replay
+                    .read(&graph[1], &states[&point(0)], &packet)
+                    .is_some()
+            );
+            assert!(
+                replay
+                    .read(&graph[1], &states[&point(1)], &packet)
+                    .is_none()
+            );
+            assert!(analysis.stored_effects(id(TOP)).is_none());
+        }
+    }
+}
+
+#[test]
+fn an_unknown_write_cannot_hide_an_observed_replacement_packet() {
+    let mut types = types();
+    types[0].shape = StructuralTypeShape::TypeParameter;
+    let mut machine = mutable_parameter(LEAF, types[0].id);
+    let packet = DescriptorLocation {
+        root: machine.places[0].place,
+        path: vec![DescriptorPathSegment::UnknownContents],
+    };
+    machine.unresolved_contents_writes.insert(point(0));
+    machine.originations.insert(
+        point(0),
+        vec![(packet.clone(), DescriptorCallOrigin::Empty)],
+    );
+    let graph = [machine];
+    let mut replay = replay(&types, &graph, None);
+    let states = replay.states(id(LEAF), 0).unwrap();
+    assert_eq!(
+        replay.read(&graph[0], &states[&point(1)], &packet),
+        Some(BTreeSet::from([
+            crate::descriptors::replay::engine::Origin::Backing(DescriptorCallOrigin::Empty)
+        ])),
+    );
+    assert!(replay.summary(id(LEAF), 0).is_none());
 }
 
 #[test]
