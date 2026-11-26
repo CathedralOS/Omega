@@ -96,7 +96,7 @@ fn a_match_whose_arms_are_qualified_delivers_their_domain() {
         "{NEED}
 machine echo(x: u8 in Mark) -> u8 in Mark {{ x }}
 machine choose(flag: bool, a: u8 in Mark, b: u8 in Mark) -> u8 {{
-    let chosen = match flag {{ true -> a, false -> b, }};
+    let chosen: u8 in Mark = match flag {{ true -> a, false -> b, }};
     let echoed: u8 = need(echo(chosen) as -Mark);
     need(chosen as -Mark)
 }}"
@@ -128,7 +128,7 @@ fn a_match_cannot_join_a_qualified_arm_with_a_plain_one() {
         "domain u8::Mark requires self > 0u8;
 machine echo(x: u8 in Mark) -> u8 in Mark { x }
 machine choose(flag: bool, a: u8 in Mark, b: u8) -> u8 in Mark {
-    let chosen = match flag { true -> a, false -> b, };
+    let chosen: u8 in Mark = match flag { true -> a, false -> b, };
     echo(chosen)
 }",
     )])

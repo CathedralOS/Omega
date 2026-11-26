@@ -1,10 +1,10 @@
-//! An inferred binding keeps the initializer's actual type and ownership.
+//! Initializing a declared generic record preserves its element’s linear ownership.
 use super::*;
 
 const SOURCE: &str =
-    include_str!("../../tests/fixtures/ownership/run/inferred_generic_record/main.omg");
+    include_str!("../../tests/fixtures/ownership/run/declared_generic_record/main.omg");
 const REPEATED: &str =
-    include_str!("../../tests/fixtures/ownership/fail/inferred_generic_record_reuse/main.omg");
+    include_str!("../../tests/fixtures/ownership/fail/declared_generic_record_reuse/main.omg");
 
 fn judged(text: &str) -> Vec<Result<RouteVerdict, crate::CompilationRefusal>> {
     let typed = crate::preparation::prepare_typed_trees(super::boundary_calls::typed(text), &[], &[])
@@ -31,10 +31,10 @@ fn judged(text: &str) -> Vec<Result<RouteVerdict, crate::CompilationRefusal>> {
 }
 
 #[test]
-fn inferred_locals_keep_actual_generic_results_and_linear_ownership() {
+fn typed_locals_keep_actual_generic_results_and_linear_ownership() {
     let accepted = judged(SOURCE);
     for verdict in &accepted {
-        println!("inferred generic result: {verdict:?}");
+        println!("declared generic result: {verdict:?}");
     }
     assert!(!accepted.is_empty());
     assert!(
@@ -46,7 +46,7 @@ fn inferred_locals_keep_actual_generic_results_and_linear_ownership() {
 
     let rejected = judged(REPEATED);
     for verdict in &rejected {
-        println!("repeated inferred result: {verdict:?}");
+        println!("repeated generic result: {verdict:?}");
     }
     assert!(
         rejected.iter().any(|verdict| match verdict {

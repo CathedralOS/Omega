@@ -3,7 +3,7 @@ use platform_custody::temporary_directory::TemporaryDirectory;
 use std::{fs, process::Command};
 
 #[test]
-fn binding_a_transitive_result_keeps_its_type_without_granting_member_access() {
+fn passing_a_transitive_result_keeps_its_type_without_granting_member_access() {
     let project = TemporaryDirectory::create("carried-result", false).unwrap();
     let root = project.path().join("consumer");
     let supplier = project.path().join("supplier");
@@ -54,7 +54,6 @@ fn binding_a_transitive_result_keeps_its_type_without_granting_member_access() {
                 r#"use packet_api\exported_packet;
                    use packet_api\read_packet;
                    machine main() crashes Trap {{
-                       let value = exported_packet();
                        transition {observation} == 41u32 {{ true -> done(), _ -> wrong() }}
                        machine done() {{}}
                        machine wrong() {{ crash Trap; }}
@@ -72,9 +71,9 @@ fn binding_a_transitive_result_keeps_its_type_without_granting_member_access() {
     let publish = ["--emit-psi", "app.psi", "--target", "linux_x86_64"];
     let check = ["--check", "--target", "linux_x86_64"];
     for arguments in [check.as_slice(), publish.as_slice()] {
-        let carried = compile(arguments, "read_packet(value)");
+        let carried = compile(arguments, "read_packet(exported_packet())");
         assert!(carried.status.success(), "{carried:?}");
-        let selected = compile(arguments, "value.count");
+        let selected = compile(arguments, "exported_packet().count");
         let diagnostic = String::from_utf8_lossy(&selected.stderr);
         assert!(!selected.status.success());
         assert!(

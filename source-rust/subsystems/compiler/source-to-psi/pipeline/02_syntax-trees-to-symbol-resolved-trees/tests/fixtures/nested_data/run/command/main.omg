@@ -24,7 +24,7 @@ machine targets_one_user(op: @Command::Operation) -> bool {
 }
 
 machine main() crashes Trap {
-    let command = Command {
+    let command: Command = Command {
         command_id: 17,
         op: Command::Operation::GetUser { user: Command::Operation::Account { id: 42 } },
     };

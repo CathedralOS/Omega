@@ -81,13 +81,13 @@ machine has_error(result: |win_fs|::WindowsDirectoryCountResult, expected: u32) 
 }
 
 machine main() crashes Trap {
-    let empty = block scan(1 as +WindowsPrivateNonalertFileOrAbsent, 0, true);
-    let first = block scan(2 as +WindowsPrivateNonalertFileOrAbsent, 0, true);
-    let counted = block scan(3 as +WindowsPrivateNonalertFileOrAbsent, 9223372036854775807, false);
-    let full = block scan(1 as +WindowsPrivateNonalertFileOrAbsent, 18446744073709551615, false);
-    let overflow = block scan(3 as +WindowsPrivateNonalertFileOrAbsent, 18446744073709551615, false);
-    let close_error = block windows_directory_count_names("." as + |paths|::Path, true);
-    let earlier_error = block windows_directory_count_names("." as + |paths|::Path, false);
+    let empty: |win_fs|::WindowsDirectoryCountResult = block scan(1 as +WindowsPrivateNonalertFileOrAbsent, 0, true);
+    let first: |win_fs|::WindowsDirectoryCountResult = block scan(2 as +WindowsPrivateNonalertFileOrAbsent, 0, true);
+    let counted: |win_fs|::WindowsDirectoryCountResult = block scan(3 as +WindowsPrivateNonalertFileOrAbsent, 9223372036854775807, false);
+    let full: |win_fs|::WindowsDirectoryCountResult = block scan(1 as +WindowsPrivateNonalertFileOrAbsent, 18446744073709551615, false);
+    let overflow: |win_fs|::WindowsDirectoryCountResult = block scan(3 as +WindowsPrivateNonalertFileOrAbsent, 18446744073709551615, false);
+    let close_error: |win_fs|::WindowsDirectoryCountResult = block windows_directory_count_names("." as + |paths|::Path, true);
+    let earlier_error: |win_fs|::WindowsDirectoryCountResult = block windows_directory_count_names("." as + |paths|::Path, false);
     transition has_count(empty, 0) && has_count(first, 1) && has_count(counted, 9223372036854775808)
         && has_count(full, 18446744073709551615) && has_error(overflow, 534)
         && has_error(close_error, 6) && has_error(earlier_error, 5) {

@@ -13,13 +13,17 @@ machine finish<'lender>(value: Loan<'lender>) {
 machine main() crashes Trap {
     let mutable target: Counter = Counter { value: 17 };
     let mutable neighbor: Counter = Counter { value: 23 };
-    let loan = relay(Loan { counter: @mutable target });
-    neighbor.value = 29;
-    finish(move loan);
+    exercise(@mutable target, @mutable neighbor);
     transition target.value == 41 && neighbor.value == 29 {
         true -> done(),
         false -> wrong()
     }
     machine done() {}
     machine wrong() crashes Trap { crash Trap; }
+}
+
+machine exercise<'lender>(target: @'lender mutable Counter, neighbor: @mutable Counter) {
+    let loan: Loan<'lender> = relay(Loan { counter: target });
+    neighbor.value = 29;
+    finish(move loan);
 }

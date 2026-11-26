@@ -1,14 +1,12 @@
-// Expected diagnostic: decomposition source is not a complete live value
+// Expected exit: 0
 data Ticket [linear] { number: u64; }
 data Envelope<T> { item: T; }
 machine identity<T>(value: T) -> T { move value }
 machine main() crashes Trap {
-    let ticket = Ticket { number: 29u64 };
+    let ticket: Ticket = Ticket { number: 29u64 };
     let envelope: Envelope<Ticket> = Envelope { item: move ticket };
-    let wrapped = identity::<Envelope<Ticket>>(move envelope);
+    let wrapped: Envelope<Ticket> = identity::<Envelope<Ticket>>(move envelope);
     let { item } = move wrapped;
-    let { item as again } = move wrapped;
-    let { number as ignored } = move again;
     let { number } = move item;
     transition number == 29u64 { true -> done(), false -> wrong() }
     machine done() {}

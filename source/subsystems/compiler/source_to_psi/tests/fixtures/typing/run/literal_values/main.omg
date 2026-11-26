@@ -35,8 +35,8 @@ machine check_integers() crashes Trap {
         magnitude: 0 as +Wrapping, exact: false, empty_digits: false, suffix: |numeric|::IntegerSuffix::U64
     };
     let suffixed: |literals|::LiteralValue = |literals|::literal_value(@syntax, 0 as +Trapping);
-    let anonymous = |literals|::literal_value(@syntax, 1 as +Trapping);
-    let inexact = |literals|::literal_value(@syntax, 2 as +Trapping);
+    let anonymous: |literals|::LiteralValue = |literals|::literal_value(@syntax, 1 as +Trapping);
+    let inexact: |literals|::LiteralValue = |literals|::literal_value(@syntax, 2 as +Trapping);
     transition suffixed.valid && suffixed.has_suffix && suffixed.suffix == |names|::BuiltinType::U16
         && suffixed.magnitude == 65535 && anonymous.valid && !anonymous.has_suffix
         && anonymous.magnitude == 37 && !inexact.valid {
@@ -72,11 +72,11 @@ machine check_spelling(spelling: @[u8], length: u64 in Trapping, roster: u64 in 
         sources.unit_count = 1;
         sources.byte_count = extent;
         sources.units[0] = |source|::SourceRange { start: 0 as +Trapping, length: extent as +Trapping };
-        let span = |source|::SourceSpan {
+        let span: |source|::SourceSpan = |source|::SourceSpan {
             source: |source|::SourceId { value: 0 as +Trapping },
             span: |source|::Span { start: 0 as +Trapping, end: extent as +Trapping }
         };
-        let result = |quoted_literals|::inspect_quoted(@sources, span);
+        let result: |quoted_literals|::QuotedLiteral = |quoted_literals|::inspect_quoted(@sources, span);
         transition result.length == length && result.roster == roster { true -> done(), _ -> wrong() }
     }
     machine done() {}

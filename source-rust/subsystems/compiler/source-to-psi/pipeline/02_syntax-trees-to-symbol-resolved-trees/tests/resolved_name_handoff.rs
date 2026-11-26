@@ -175,34 +175,34 @@ fn every_use_after_a_let_selects_the_local_it_introduces() {
     );
 }
 
-/// A local is in scope only after its initializer. In `let x = x;` the
+/// A local is in scope only after its initializer. In `let x: u32 = x;` the
 /// initializer's `x` selects nothing (there is no other `x`), and the tail
 /// selects the local. In the control, the initializer reads the parameter
 /// and the tail reads the local.
 #[test]
 fn a_local_is_not_in_scope_in_its_own_initializer() {
-    let program = "machine read_count(count: u32) -> u32 { let x = x; x }";
+    let program = "machine read_count(count: u32) -> u32 { let x: u32 = x; x }";
     let trees = resolved(&[("main.omg", program)]);
     assert_eq!(
         uses(&trees, "x"),
         [
-            ((0, 48), None),
-            ((0, 51), declared("Local", "read_count\\entry\\x", 0, 44)),
+            ((0, 53), None),
+            ((0, 56), declared("Local", "read_count\\entry\\x", 0, 44)),
         ]
     );
-    let control = "machine read_count(count: u32) -> u32 { let saved = count; saved }";
+    let control = "machine read_count(count: u32) -> u32 { let saved: u32 = count; saved }";
     let trees = resolved(&[("main.omg", control)]);
     assert_eq!(
         uses(&trees, "count"),
         [(
-            (0, 52),
+            (0, 57),
             declared("Parameter", "read_count\\entry\\count", 0, 19)
         )]
     );
     assert_eq!(
         uses(&trees, "saved"),
         [(
-            (0, 59),
+            (0, 64),
             declared("Local", "read_count\\entry\\saved", 0, 44)
         )]
     );

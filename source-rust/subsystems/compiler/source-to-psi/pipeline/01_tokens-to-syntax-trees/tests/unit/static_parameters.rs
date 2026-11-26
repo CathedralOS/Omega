@@ -58,8 +58,8 @@ fn only_the_current_mutability_modifier_is_accepted() {
         "machine f() { let mut local: u8 = 1; }",
         "machine f(cell: @mut u8) {}",
         "machine f<'cell>(cell: @'cell mut u8) {}",
-        "machine f(value: u8) { let loan = @mut value; }",
-        "machine f(value: @mutable u8) { let loan = value as @mut u8; }",
+        "machine f(value: u8) { let loan: @u8 = @mut value; }",
+        "machine f(value: @mutable u8) { let loan: @u8 = value as @mut u8; }",
     ] {
         let tokens = Lexer::new(source).tokenize().unwrap();
         let error = parse_syntax_trees(&tokens).expect_err("old modifier must reject");
@@ -85,8 +85,8 @@ fn reference_introduction_uses_at_and_leaves_ampersand_as_an_operator() {
         "machine f(value: &mutable u8) {}",
         "machine f(value: &mut u8) {}",
         "machine f(value: &write u8) {}",
-        "machine f(value: u8) { let loan = &value; }",
-        "machine f(value: u8) { let loan = @state value; }",
+        "machine f(value: u8) { let loan: @u8 = &value; }",
+        "machine f(value: u8) { let loan: @u8 = @state value; }",
     ] {
         let tokens = Lexer::new(source).tokenize().unwrap();
         assert!(parse_syntax_trees(&tokens).is_err(), "{source}");
