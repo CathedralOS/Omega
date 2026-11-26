@@ -12,7 +12,7 @@ public boundary trait Firmware {
     machine write(text: @[u16; 2], table: @Protocol) reaches none crashes none;
     machine clear(text: @[u16; 2], table: @Protocol) reaches none crashes none;
 }
-machine main() -> i32 { 0 }
+machine main() {}
 ";
     for (formal, field, expected) in [
         ("Firmware::write::table", "Protocol::output", None),
