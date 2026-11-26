@@ -16,7 +16,9 @@ pub(crate) mod boundary_predicates {
     use terminal_psi::{BoundaryMachineDeclaration, StructuralArgument};
 
     use crate::boundary::errors::{TerminalInterpretError, malformed};
-    use crate::boundary::values::{TerminalScalarValue, TerminalStructuralValue};
+    use crate::boundary::values::{
+        TerminalAggregateValue, TerminalScalarValue, TerminalStructuralValue,
+    };
     use crate::engine::execution::TerminalExecution;
     use terminal_semantics::substitution::substitute_proposition_values_with;
 
@@ -140,6 +142,7 @@ pub(crate) mod boundary_predicates {
             boundary,
             arguments: structural_arguments,
             values: structural_values,
+            result: None,
             phase: ObservationPhase::Entry,
         };
         for requirement in &boundary.scalar_requires {
@@ -224,6 +227,15 @@ pub(crate) mod boundary_predicates {
             boundary,
             arguments: structural_arguments,
             values: structural_values,
+            result: match (boundary.structural_contract_result(), returned) {
+                (Some((place, ty)), crate::TerminalEffectResult::Aggregate(value)) => {
+                    if value.structural_type != ty {
+                        return Err(malformed());
+                    }
+                    Some((place, value))
+                }
+                _ => None,
+            },
             phase: ObservationPhase::Completion,
         };
         for guarantee in &boundary.scalar_ensures {
@@ -255,8 +267,8 @@ pub(crate) mod boundary_predicates {
         Entry,
         /// Output guarantees read only shared borrows after the call. A
         /// mutable or write-only borrow's completion contents are not yet
-        /// committed, an owned argument has moved, and the result is not an
-        /// argument, so a read of any of them stays unknown.
+        /// committed and an owned argument has moved. The returned aggregate
+        /// supplies its own completion image.
         Completion,
     }
 
@@ -265,6 +277,7 @@ pub(crate) mod boundary_predicates {
         boundary: &'call BoundaryMachineDeclaration,
         arguments: &'call [StructuralArgument],
         values: &'call [TerminalStructuralValue],
+        result: Option<(PlaceId, &'call TerminalAggregateValue)>,
         phase: ObservationPhase,
     }
 
@@ -320,6 +333,18 @@ pub(crate) mod boundary_predicates {
             predicate: &mut Proposition,
         ) -> Result<(), TerminalInterpretError> {
             match predicate {
+                Proposition::StructuralCaseMembership { subject, case } => {
+                    if let Some((result, value)) = self.result
+                        && subject.root() == result
+                        && let Some(observed) = value.case_at_path(subject.path())
+                    {
+                        *predicate = if observed == *case {
+                            Proposition::Truth
+                        } else {
+                            Proposition::Falsehood
+                        };
+                    }
+                }
                 semantic_vocabulary::ordered_comparison_operands!(left, right)
                 | Proposition::ScalarIeeeFloatComparison { left, right, .. } => {
                     self.close_scalar(left)?;
@@ -626,6 +651,7 @@ pub(crate) mod boundary_predicates {
                     boundary: &boundary,
                     arguments: &[],
                     values: &[],
+                    result: None,
                     phase,
                 };
                 [1, 2, 3].map(|place| {
@@ -681,6 +707,7 @@ pub(crate) mod boundary_predicates {
                 boundary: &boundary,
                 arguments: &[],
                 values: &[],
+                result: None,
                 phase: ObservationPhase::Entry,
             };
             let mut integers = ClosedIntegerEvaluator::default();
@@ -774,6 +801,49 @@ pub(crate) mod boundary_predicates {
                     .literal()
                     .is_none()
             );
+        }
+
+        #[test]
+        fn a_boundary_guarantee_observes_the_returned_case() {
+            use semantic_vocabulary::{StructuralCaseId, StructuralCaseSubject, StructuralTypeId};
+            use terminal_psi::{
+                BoundaryMachineResult, BoundaryStructuralResultDeclaration, StructuralMultiplicity,
+            };
+
+            let mut boundary = idle_boundary();
+            let ty = StructuralTypeId::new(1).unwrap();
+            boundary.result =
+                BoundaryMachineResult::Structural(BoundaryStructuralResultDeclaration {
+                    structural_type: ty,
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                });
+            let (place, _) = boundary.structural_contract_result().unwrap();
+            let expected = StructuralCaseId::new(1).unwrap();
+            boundary.scalar_ensures = vec![Proposition::StructuralCaseMembership {
+                subject: StructuralCaseSubject::new(place, Vec::new()),
+                case: expected,
+            }];
+            let returned =
+                |selected| {
+                    crate::TerminalEffectResult::Aggregate(
+                        crate::TerminalAggregateValue::from_scalars(ty, selected, Vec::new()),
+                    )
+                };
+            validate_output(&boundary, &[], &returned(Some(expected))).unwrap();
+            assert!(matches!(
+                validate_output(&boundary, &[], &returned(StructuralCaseId::new(2))),
+                Err(crate::TerminalInterpretError::UnsupportedSemanticVariant(
+                    "boundary output guarantee is false for this invocation"
+                ))
+            ));
+            assert!(matches!(
+                validate_output(&boundary, &[], &returned(None)),
+                Err(crate::TerminalInterpretError::UnsupportedSemanticVariant(
+                    "boundary output guarantee has no supported closed evaluation"
+                ))
+            ));
         }
 
         #[test]
