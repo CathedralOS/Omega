@@ -100,6 +100,37 @@ fn lower_mathematical_definition(
                 })?,
             )
         }
+        syntax::item::MathematicalDefinitionBody::DependentArrow { binders, body } => {
+            use crate::declaration_selection::AuthoredDeclarationSelectionExposure as Exposure;
+            let mut arrow_binders = Vec::new();
+            for handle in syntax.items.mathematical_parameters(binders) {
+                let parameter = syntax.items.mathematical_parameter(*handle);
+                arrow_binders.push(MathematicalParameter {
+                    symbol: SymbolHandle::invalid(),
+                    name: lower_name(syntax, &parameter.name),
+                    relevance: parameter.relevance,
+                    ty: lower_mathematical_type(lowerer, syntax, parameter.ty)?,
+                });
+            }
+            let arrow_binders = lowerer
+                .symbol_resolved_trees
+                .tables
+                .declarations
+                .mathematical_parameters
+                .insert_many(arrow_binders);
+            let exposure = if definition.is_public {
+                Exposure::PublicInterface
+            } else {
+                Exposure::PrivateImplementation
+            };
+            let body = lowerer.with_authored_expression_exposure(exposure, |lowerer| {
+                lower_expression_into_table(lowerer, syntax, body)
+            })?;
+            MathematicalBody::DependentArrow {
+                binders: arrow_binders,
+                body,
+            }
+        }
         syntax::item::MathematicalDefinitionBody::Assumption => MathematicalBody::Assumption,
     };
 

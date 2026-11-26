@@ -606,7 +606,7 @@ pub(crate) mod boundary_call {
                     .ok_or(LoweringError::BoundaryRealizationMismatch(boundary))
                 })
                 .collect::<Result<Vec<_>, _>>()?;
-            for (insertion, callback) in callback_inserts {
+            for &(insertion, callback) in &callback_inserts {
                 if insertion > parameter_shapes.len() {
                     return Err(LoweringError::BoundaryRealizationMismatch(boundary));
                 }
@@ -649,10 +649,6 @@ pub(crate) mod boundary_call {
             {
                 return Err(LoweringError::BoundaryRealizationMismatch(boundary));
             }
-            let inserted_ordinals = callback_inserts
-                .iter()
-                .map(|(ordinal, _)| *ordinal)
-                .collect::<Vec<_>>();
             arguments
                 .iter()
                 .zip(&declaration.scalar_parameters)
@@ -661,9 +657,9 @@ pub(crate) mod boundary_call {
                 .map(
                     |(((source_value, parameter), shape), semantic_parameter_index)| {
                         let parameter_index = semantic_parameter_index
-                            + inserted_ordinals
+                            + callback_inserts
                                 .iter()
-                                .filter(|ordinal| semantic_parameter_index >= **ordinal)
+                                .filter(|(ordinal, _)| semantic_parameter_index >= *ordinal)
                                 .count();
                         let placement = operands
                             .get(parameter_index)

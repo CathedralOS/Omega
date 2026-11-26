@@ -3,7 +3,8 @@
 // the symmetry an equivalence owes: it says nothing about two different
 // numbers of one sign. The conformance is refused, and with it the
 // quotient that selects it.
-use omega\language\core\Equivalence;
+use omega\language\core\IsMere;
+use omega\language\core\MereEquivalence;
 use omega\language\core\ProcessExit;
 
 data Representative {
@@ -22,15 +23,16 @@ machine sign(a: Representative) -> Representative {
 proposition same_sign(a: Representative, b: Representative) =
     core\Identity::<Representative>(sign(a), sign(b));
 
-SameSign satisfies Equivalence<Representative, same_sign> {
+SameSign satisfies MereEquivalence<Representative, same_sign> {
     machine reflexive(value: Representative) ensures same_sign(value, value) { }
     machine symmetric(left: Representative, right: Representative) requires same_sign(left, right), core\Identity::<Representative>(left, right) ensures same_sign(right, left) { }
     machine transitive(left: Representative, middle: Representative, right: Representative) requires same_sign(left, middle), same_sign(middle, right) ensures same_sign(left, right) { }
+    machine proofs_agree(a: Representative, b: Representative) ensures IsMere(same_sign(a, b)) { }
 }
 
 data Sign = Representative % same_sign
 requires same_sign satisfies
-    Equivalence<Representative, same_sign>
+    MereEquivalence<Representative, same_sign>
     as SameSign;
 
 machine related_representatives_have_one_class(a: Representative, b: Representative)

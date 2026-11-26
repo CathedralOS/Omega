@@ -1296,41 +1296,7 @@ mod modules {
                         || (import.exact_source
                             && !import.logical_selection
                             && !self.source_module(declaration.source_id).is_valid()
-                            && self.exact_import_exposes_source(
-                                binding.declaration_source,
-                                declaration,
-                            ))
-                })
-        }
-
-        /*
-            Whether an exact-source import of `imported_source` exposes a
-            declaration at `declaration`: it is authored in that file, or it is a
-            generated unit of the same checked package instance. A package's
-            module-less files form one logical module, and the units its build
-            handed off (`SourceResolutionStratum::DependencyActivationExtension`)
-            are that module's later stratum, so importing the package's root file
-            imports them too. Two checked instances of one package never expose
-            each other's units.
-        */
-        pub(super) fn exact_import_exposes_source(
-            &self,
-            imported_source: SourceId,
-            declaration: SourceSpan,
-        ) -> bool {
-            if declaration.source_id == imported_source {
-                return true;
-            }
-            !self.source_module(imported_source).is_valid()
-                && self.source_file(declaration).is_some_and(|file| {
-                    file.resolution_stratum
-                        == source_admission::SourceResolutionStratum::DependencyActivationExtension
-                })
-                && self.sources.as_deref().is_some_and(|sources| {
-                    sources.same_checked_instance(
-                        declaration,
-                        SourceSpan::new(imported_source, declaration.span),
-                    )
+                            && (binding.declaration_source == declaration.source_id))
                 })
         }
 
@@ -1568,10 +1534,7 @@ mod modules {
                                 && !self.source_module(binding.declaration_source).is_valid()
                                 && self.symbol_provenance_source_span(*candidate).is_some_and(
                                     |span| {
-                                        self.exact_import_exposes_source(
-                                            binding.declaration_source,
-                                            span,
-                                        )
+                                        binding.declaration_source == span.source_id
                                     },
                                 ))
                     })
@@ -1642,7 +1605,7 @@ mod modules {
                             SourceSpan::new(binding.declaration_source, span.span),
                         )
                     } else {
-                        self.exact_import_exposes_source(binding.declaration_source, span)
+                        binding.declaration_source == span.source_id
                     }
                 })
         }
@@ -4203,17 +4166,7 @@ impl SymbolTable {
                 self.sources.as_deref().and_then(|sources| {
                     candidates.iter().copied().find(|symbol| {
                         self.symbol_source_span(*symbol).is_some_and(|declaration| {
-                            !sources.resolution_strata_separate(reference, declaration)
-                                && sources.same_checked_instance(reference, declaration)
-                        })
-                    })
-                })
-            })
-            .or_else(|| {
-                self.sources.as_deref().and_then(|sources| {
-                    candidates.iter().copied().find(|symbol| {
-                        self.symbol_source_span(*symbol).is_some_and(|declaration| {
-                            !sources.resolution_strata_separate(reference, declaration)
+                            sources.same_checked_instance(reference, declaration)
                         })
                     })
                 })

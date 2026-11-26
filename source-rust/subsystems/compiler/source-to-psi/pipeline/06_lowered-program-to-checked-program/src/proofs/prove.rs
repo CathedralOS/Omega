@@ -2524,6 +2524,9 @@ impl<'a> Prover<'a> {
                 premise,
                 conclusion,
             } => self.implication(premise, conclusion, goal),
+            Proposition::IsMere(_) => self
+                .closed(goal.clone())
+                .ok_or("mere-proposition obligation is not established"),
         }
     }
 

@@ -1,14 +1,5 @@
-use EFI_ALLOCATE_ANY_PAGES;
-use EFI_LOADER_DATA;
-use EFI_MEMORY_DESCRIPTOR_MINIMUM_SIZE;
-use EFI_MEMORY_DESCRIPTOR_VERSION;
-use EfiBootServicesTable;
-use UefiBootServices;
-use UefiOsHandoffCycle;
-use UefiOsHandoffLegs;
-use UefiOsHandoffTermination;
-use uefi_os_handoff_terminal_firmware_return;
-use uefi_os_handoff_terminal_transfer;
+use uefi_x86_64_handoff.omg as handoff;
+
 // Source-owned UEFI x86-64 Boot Services map/exit protocol.
 //
 // `complete_boot_services` performs the firmware calls and returns a decision
@@ -24,14 +15,14 @@ use uefi_os_handoff_terminal_transfer;
 // `descriptor_size`/`descriptor_version` evidence or the required size. The
 // checked helper calls the firmware requirement and stores its scalar result
 // on `status` for the enclosing cycle's dispatch.
-machine uefi_os_handoff_legs_acquire(uefi_os_handoff_legs: @mutable UefiOsHandoffLegs)
-    reaches UefiBootServices
-    invokes UefiBootServices
+machine uefi_os_handoff_legs_acquire(uefi_os_handoff_legs: @mutable |handoff|::UefiOsHandoffLegs)
+    reaches |handoff|::UefiBootServices
+    invokes |handoff|::UefiBootServices
 {
     uefi_os_handoff_legs.map_size = uefi_os_handoff_legs.map_capacity;
-    let table_in: @EfiBootServicesTable = uefi_os_handoff_legs.table;
+    let table_in: @|handoff|::EfiBootServicesTable = uefi_os_handoff_legs.table;
     let map_in: u64 = uefi_os_handoff_legs.map;
-    let status_out: u64 = UefiBootServices::get_memory_map(
+    let status_out: u64 = |handoff|::UefiBootServices::get_memory_map(
         table_in,
         @mutable uefi_os_handoff_legs.map_size,
         map_in,
@@ -44,16 +35,16 @@ machine uefi_os_handoff_legs_acquire(uefi_os_handoff_legs: @mutable UefiOsHandof
 
 // Allocate the staged replacement buffer. A rejected grow leaves the retained
 // `map`/`map_pages` storage live and untouched.
-machine uefi_os_handoff_legs_grow(uefi_os_handoff_legs: @mutable UefiOsHandoffLegs)
-    reaches UefiBootServices
-    invokes UefiBootServices
+machine uefi_os_handoff_legs_grow(uefi_os_handoff_legs: @mutable |handoff|::UefiOsHandoffLegs)
+    reaches |handoff|::UefiBootServices
+    invokes |handoff|::UefiBootServices
 {
-    let table_in: @EfiBootServicesTable = uefi_os_handoff_legs.table;
+    let table_in: @|handoff|::EfiBootServicesTable = uefi_os_handoff_legs.table;
     let pages_in: u64 = uefi_os_handoff_legs.pages;
-    let status_out: u64 = UefiBootServices::allocate_pages(
+    let status_out: u64 = |handoff|::UefiBootServices::allocate_pages(
         table_in,
-        EFI_ALLOCATE_ANY_PAGES,
-        EFI_LOADER_DATA,
+        |handoff|::EFI_ALLOCATE_ANY_PAGES,
+        |handoff|::EFI_LOADER_DATA,
         pages_in,
         @mutable uefi_os_handoff_legs.next_map
     );
@@ -61,79 +52,79 @@ machine uefi_os_handoff_legs_grow(uefi_os_handoff_legs: @mutable UefiOsHandoffLe
 }
 
 // Release the superseded map storage before the grown buffer is adopted.
-machine uefi_os_handoff_legs_free_map(uefi_os_handoff_legs: @mutable UefiOsHandoffLegs)
-    reaches UefiBootServices
-    invokes UefiBootServices
+machine uefi_os_handoff_legs_free_map(uefi_os_handoff_legs: @mutable |handoff|::UefiOsHandoffLegs)
+    reaches |handoff|::UefiBootServices
+    invokes |handoff|::UefiBootServices
 {
-    let table_in: @EfiBootServicesTable = uefi_os_handoff_legs.table;
+    let table_in: @|handoff|::EfiBootServicesTable = uefi_os_handoff_legs.table;
     let map_in: u64 = uefi_os_handoff_legs.map;
     let map_pages_in: u64 = uefi_os_handoff_legs.map_pages;
-    let status_out: u64 = UefiBootServices::free_pages(table_in, map_in, map_pages_in);
+    let status_out: u64 = |handoff|::UefiBootServices::free_pages(table_in, map_in, map_pages_in);
     uefi_os_handoff_legs.status = status_out;
 }
 
 // The successful leg transfers custody out of Boot Services entirely; a
 // rejected exit leaves the retained evidence live for the cycle's retry.
-machine uefi_os_handoff_legs_attempt_exit(uefi_os_handoff_legs: @mutable UefiOsHandoffLegs)
-    reaches UefiBootServices
-    invokes UefiBootServices
+machine uefi_os_handoff_legs_attempt_exit(uefi_os_handoff_legs: @mutable |handoff|::UefiOsHandoffLegs)
+    reaches |handoff|::UefiBootServices
+    invokes |handoff|::UefiBootServices
 {
-    let table_in: @EfiBootServicesTable = uefi_os_handoff_legs.table;
+    let table_in: @|handoff|::EfiBootServicesTable = uefi_os_handoff_legs.table;
     let image_in: u64 = uefi_os_handoff_legs.image;
     let key_in: u64 = uefi_os_handoff_legs.key;
-    let status_out: u64 = UefiBootServices::exit_boot_services(table_in, image_in, key_in);
+    let status_out: u64 = |handoff|::UefiBootServices::exit_boot_services(table_in, image_in, key_in);
     uefi_os_handoff_legs.status = status_out;
 }
 
-machine uefi_os_handoff_cycle_acquire(uefi_os_handoff_cycle: @mutable UefiOsHandoffCycle)
-    reaches UefiBootServices
-    invokes UefiBootServices
+machine uefi_os_handoff_cycle_acquire(uefi_os_handoff_cycle: @mutable |handoff|::UefiOsHandoffCycle)
+    reaches |handoff|::UefiBootServices
+    invokes |handoff|::UefiBootServices
 {
     uefi_os_handoff_legs_acquire(@mutable uefi_os_handoff_cycle.legs);
 }
 
-machine uefi_os_handoff_cycle_grow(uefi_os_handoff_cycle: @mutable UefiOsHandoffCycle)
-    reaches UefiBootServices
-    invokes UefiBootServices
+machine uefi_os_handoff_cycle_grow(uefi_os_handoff_cycle: @mutable |handoff|::UefiOsHandoffCycle)
+    reaches |handoff|::UefiBootServices
+    invokes |handoff|::UefiBootServices
 {
     uefi_os_handoff_legs_grow(@mutable uefi_os_handoff_cycle.legs);
 }
 
-machine uefi_os_handoff_cycle_free_map(uefi_os_handoff_cycle: @mutable UefiOsHandoffCycle)
-    reaches UefiBootServices
-    invokes UefiBootServices
+machine uefi_os_handoff_cycle_free_map(uefi_os_handoff_cycle: @mutable |handoff|::UefiOsHandoffCycle)
+    reaches |handoff|::UefiBootServices
+    invokes |handoff|::UefiBootServices
 {
     uefi_os_handoff_legs_free_map(@mutable uefi_os_handoff_cycle.legs);
 }
 
-machine uefi_os_handoff_cycle_attempt_exit(uefi_os_handoff_cycle: @mutable UefiOsHandoffCycle)
-    reaches UefiBootServices
-    invokes UefiBootServices
+machine uefi_os_handoff_cycle_attempt_exit(uefi_os_handoff_cycle: @mutable |handoff|::UefiOsHandoffCycle)
+    reaches |handoff|::UefiBootServices
+    invokes |handoff|::UefiBootServices
 {
     uefi_os_handoff_legs_attempt_exit(@mutable uefi_os_handoff_cycle.legs);
 }
 
-machine uefi_os_handoff_cycle_firmware_return(uefi_os_handoff_cycle: @mutable UefiOsHandoffCycle, status: u64)
-    reaches UefiOsHandoffTermination
-    invokes UefiOsHandoffTermination
+machine uefi_os_handoff_cycle_firmware_return(uefi_os_handoff_cycle: @mutable |handoff|::UefiOsHandoffCycle, status: u64)
+    reaches |handoff|::UefiOsHandoffTermination
+    invokes |handoff|::UefiOsHandoffTermination
 {
-    uefi_os_handoff_terminal_firmware_return(@mutable uefi_os_handoff_cycle.terminal, status);
+    |handoff|::uefi_os_handoff_terminal_firmware_return(@mutable uefi_os_handoff_cycle.terminal, status);
 }
 
-machine uefi_os_handoff_cycle_transfer(uefi_os_handoff_cycle: @mutable UefiOsHandoffCycle)
-    reaches UefiOsHandoffTermination
-    invokes UefiOsHandoffTermination
+machine uefi_os_handoff_cycle_transfer(uefi_os_handoff_cycle: @mutable |handoff|::UefiOsHandoffCycle)
+    reaches |handoff|::UefiOsHandoffTermination
+    invokes |handoff|::UefiOsHandoffTermination
 {
-    uefi_os_handoff_terminal_transfer(@mutable uefi_os_handoff_cycle.terminal);
+    |handoff|::uefi_os_handoff_terminal_transfer(@mutable uefi_os_handoff_cycle.terminal);
 }
 
 machine valid_map_geometry(size: u64, capacity: u64, stride: u64, version: u32) -> bool {
-    transition stride >= EFI_MEMORY_DESCRIPTOR_MINIMUM_SIZE && version == EFI_MEMORY_DESCRIPTOR_VERSION {
+    transition stride >= |handoff|::EFI_MEMORY_DESCRIPTOR_MINIMUM_SIZE && version == |handoff|::EFI_MEMORY_DESCRIPTOR_VERSION {
         true -> tiled(size, capacity, stride),
         _ -> (false)
     }
     machine tiled(size: u64, capacity: u64, stride: u64) -> bool
-    requires stride >= EFI_MEMORY_DESCRIPTOR_MINIMUM_SIZE
+    requires stride >= |handoff|::EFI_MEMORY_DESCRIPTOR_MINIMUM_SIZE
     {
         size > 0 && size <= capacity && size % stride == 0
     }

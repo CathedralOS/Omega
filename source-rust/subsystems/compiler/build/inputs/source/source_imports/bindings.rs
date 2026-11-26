@@ -111,18 +111,38 @@ impl PendingPackageImport {
         &self,
         packages: &PackageCompilationInputs,
         discovery: &mut impl super::LogicalSourceDiscovery,
+        sources: &source_compiler::representations::source_inputs::SourceMap,
     ) -> Result<Vec<ResolvedSourceImport>, Vec<Diagnostic>> {
-        self.resolve_with_prepared_build(packages, discovery, None)
+        self.resolve_with_prepared_build(packages, discovery, sources, None)
     }
 
     pub(super) fn resolve_with_prepared_build(
         &self,
         packages: &PackageCompilationInputs,
         discovery: &mut impl super::LogicalSourceDiscovery,
+        sources: &source_compiler::representations::source_inputs::SourceMap,
         prepared: Option<&crate::PackageBuildHandoff>,
     ) -> Result<Vec<ResolvedSourceImport>, Vec<Diagnostic>> {
         let mut paths = self.physical_sources(packages, discovery)?;
         let exact_file = matches!(self.occurrence.binding, ImportBinding::File { .. });
+        // The ordinary import uses the file already selected for this exact
+        // package and scope. Authored/issued name collisions are refused when
+        // mounting the view, before any of its files is parsed.
+        if exact_file && paths.is_empty() {
+            let emitted = self
+                .request
+                .expected_root
+                .join(source_admission::GENERATED_SOURCE_DIRECTORY)
+                .join(&self.request.relative_path);
+            if sources.selected_files().any(|file| {
+                file.path == emitted
+                    && file.package_identity == Some(self.request.package)
+                    && file.dependency_scope == self.scope
+                    && file.resolution_stratum != source_admission::SourceResolutionStratum::Base
+            }) {
+                paths.push(emitted);
+            }
+        }
         if exact_file || paths.is_empty() {
             let purpose = match self.scope {
                 DependencyScope::Product => build_declarations::DependencyPurpose::Product,
@@ -151,10 +171,12 @@ impl PendingPackageImport {
                     bundle.sources().first()
                 };
                 if let Some(unit) = unit {
-                    paths.push(super::generated::dependency_generated_source_logical_path(
-                        &self.request.expected_root,
-                        unit,
-                    )?);
+                    let path = super::generated::generated_file_path(
+                        &self.request.expected_root, unit,
+                    )?;
+                    if !paths.contains(&path) {
+                        paths.push(path);
+                    }
                 }
             }
         }

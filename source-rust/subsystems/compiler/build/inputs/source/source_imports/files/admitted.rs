@@ -1,8 +1,6 @@
 //! Bind file aliases in a checked Product source set without acquiring any new inputs.
 
-use super::{FileImport, core_relative_path};
-use crate::PackageCompilationInputs;
-use build_declarations::DependencyPurpose;
+use super::core_relative_path;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 use source_admission::{SourceFile, SourceResolutionStratum};
@@ -80,19 +78,11 @@ impl SelectedFiles<'_> {
     }
 }
 
-enum ImportUse {
-    GeneratedProduct,
-    BuildProductOperand,
-}
-
-/// An extension and a designated Product operand can select only a Product
-/// source already admitted in that package. The two kinds of use grant different
-/// lookup permissions to the referring file.
+/// A designated Product operand can select a source already admitted in its package.
 fn bind_admitted(
     sources: &source_compiler::representations::source_inputs::SourceMap,
     aliases: &[AdmittedFileAlias<'_>],
     filesystem: &SourceFileSystem,
-    use_site: ImportUse,
 ) -> Result<
     Vec<source_compiler::representations::source_symbols::SourceScopedTopLevelBinding>,
     Vec<Diagnostic>,
@@ -144,69 +134,13 @@ fn bind_admitted(
                 .map(|alias| (alias, *package)),
             FileOwner::Root(_) => None,
         };
-        match (target, &use_site) {
-            (None, ImportUse::GeneratedProduct) => {
-                return Err(import.error(format!("no admitted logical file `{}`", import.filename)));
-            }
-            (None, ImportUse::BuildProductOperand) => continue,
-            (Some(target), ImportUse::BuildProductOperand) => bindings.push(
-                SourceScopedTopLevelBinding::product_file_import(
-                    import.source,
-                    target,
-                    import.alias,
-                )
-                .from_dependency(dependency),
-            ),
-            (Some(target), ImportUse::GeneratedProduct) => bindings.push(
-                SourceScopedTopLevelBinding::file_import(import.source, target, import.alias)
-                    .from_dependency(dependency),
-            ),
+        if let Some(target) = target {
+            bindings.push(SourceScopedTopLevelBinding::product_file_import(
+                import.source, target, import.alias,
+            ).from_dependency(dependency));
         }
     }
     Ok(bindings)
-}
-
-pub(crate) fn generated_file_imports(
-    parsed: &source_compiler::ParsedSourceBatch,
-    sources: &source_compiler::representations::source_inputs::SourceMap,
-    inputs: &PackageCompilationInputs,
-) -> Result<
-    Vec<source_compiler::representations::source_symbols::SourceScopedTopLevelBinding>,
-    Vec<Diagnostic>,
-> {
-    let mut aliases = Vec::new();
-    for unit in parsed.sources.span_or_empty(parsed.batch) {
-        for import in &unit.imports {
-            let Some(file) = FileImport::from(unit, import) else {
-                continue;
-            };
-            let (owner, filename) = if file.root == Some("omega") {
-                (
-                    FileOwner::Root(super::super::bundled_core_root()?),
-                    core_relative_path(file.path).map_err(|reason| file.error(reason.into()))?,
-                )
-            } else {
-                let owner = file
-                    .package_owner(inputs, inputs.root(), DependencyPurpose::Product)?
-                    .expect("only Build dependencies can remain unprepared");
-                (FileOwner::Package(owner), file.path)
-            };
-            aliases.push(AdmittedFileAlias {
-                source: unit.source_id,
-                span: import.span,
-                alias: file.alias,
-                package_alias: file.root,
-                owner,
-                filename,
-            });
-        }
-    }
-    bind_admitted(
-        sources,
-        &aliases,
-        inputs.source_filesystem(),
-        ImportUse::GeneratedProduct,
-    )
 }
 
 pub(crate) fn build_product_file_imports(
@@ -266,6 +200,5 @@ pub(crate) fn build_product_file_imports(
         &storage.sources,
         &aliases,
         &storage.filesystem,
-        ImportUse::BuildProductOperand,
     )
 }

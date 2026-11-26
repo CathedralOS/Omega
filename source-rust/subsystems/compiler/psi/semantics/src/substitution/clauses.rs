@@ -507,8 +507,8 @@ pub fn substitute_clause_with_computation_names<Error: From<&'static str>>(
 ) -> Result<Proposition, Error> {
     Ok(match proposition {
         Proposition::DeclarationIdentity(clause) if clause.is_float_meaning() => {
-            let mapped =
-                clause.map_float_sources(|source| bound_term(source, bindings, computation_names))?;
+            let mapped = clause
+                .map_float_sources(|source| bound_term(source, bindings, computation_names))?;
             for source in mapped.float_projection_sources() {
                 bindings.validate_float_meaning_source(source)?;
             }
@@ -521,16 +521,30 @@ pub fn substitute_clause_with_computation_names<Error: From<&'static str>>(
                     // The input that supplied the whole value supplied each
                     // of its fields, at the same path.
                     semantic_vocabulary::ClauseOperand::Input(subject) => {
-                        *subject = semantic_vocabulary::StructuralCaseSubject::new(bindings.whole_input(subject.root())?, subject.path().to_vec());
+                        *subject = semantic_vocabulary::StructuralCaseSubject::new(
+                            bindings.whole_input(subject.root())?,
+                            subject.path().to_vec(),
+                        );
                     }
-                    semantic_vocabulary::ClauseOperand::Scalar(term) => *term = bound_term(term, bindings, computation_names)?,
-                    semantic_vocabulary::ClauseOperand::Formal(_) => return Err(Error::from("a schema formal has no applied value")),
+                    semantic_vocabulary::ClauseOperand::Scalar(term) => {
+                        *term = bound_term(term, bindings, computation_names)?
+                    }
+                    semantic_vocabulary::ClauseOperand::Formal(_) => {
+                        return Err(Error::from("a schema formal has no applied value"));
+                    }
                     semantic_vocabulary::ClauseOperand::Application { .. } => {}
-                    semantic_vocabulary::ClauseOperand::FloatMeaning(_) => return Err(Error::from("a float meaning outside a FloatMeaning Identity")),
+                    semantic_vocabulary::ClauseOperand::FloatMeaning(_) => {
+                        return Err(Error::from(
+                            "a float meaning outside a FloatMeaning Identity",
+                        ));
+                    }
                 }
             }
             Proposition::DeclarationIdentity(mapped)
         }
+        Proposition::IsMere(inner) => Proposition::IsMere(Box::new(
+            substitute_clause_with_computation_names(inner, bindings, computation_names)?,
+        )),
         Proposition::FloatIntegerConversion(clause) => {
             clause
                 .validate()
@@ -743,7 +757,11 @@ fn bound_term<Error: From<&'static str>>(
                     root,
                     path,
                 } => bindings.byte_predicate(predicate, root, &path)?,
-                ScalarTerm::DeclarationApplication { ref arguments, .. } if arguments.is_empty() => term,
+                ScalarTerm::DeclarationApplication { ref arguments, .. }
+                    if arguments.is_empty() =>
+                {
+                    term
+                }
                 ScalarTerm::Application { .. }
                 | ScalarTerm::Integer { .. }
                 | ScalarTerm::Boolean(_)

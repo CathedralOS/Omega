@@ -57,7 +57,6 @@ fn product<'a>(
             build_accounting: None,
             declaration_scope: None,
             build_host: ProductTarget::LinuxX86_64,
-            generated: None,
             targets: &[],
             calling_targets: &[],
             subject: Some(package),

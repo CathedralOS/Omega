@@ -115,6 +115,9 @@ pub fn substitute_proposition_values_with<'input>(
             }
             Proposition::DeclarationIdentity(mapped)
         }
+        Proposition::IsMere(inner) => Proposition::IsMere(Box::new(
+            substitute_proposition_values_with(inner, substitutions),
+        )),
         Proposition::StructuralCaseMembership { subject, case } => {
             Proposition::StructuralCaseMembership {
                 subject: subject.clone(),
@@ -191,7 +194,12 @@ pub(crate) fn substitute_result_place(
         &|path| {
             let types = &module.types.structural_types;
             let storage = crate::canonical_structural_storage_path(types.iter(), carrier, path)?;
-            crate::content_transformations::content_path(types.iter(), &module.identities, carrier, &storage)
+            crate::content_transformations::content_path(
+                types.iter(),
+                &module.identities,
+                carrier,
+                &storage,
+            )
         },
     )
 }
@@ -305,7 +313,9 @@ fn substitute_structural_places<'input>(
             let mut mapped = clause.clone();
             for value in &mut mapped.values {
                 match &mut value.operand {
-                    semantic_vocabulary::ClauseOperand::Scalar(term) => *term = substitute_scalar_term_places(term, substitutions),
+                    semantic_vocabulary::ClauseOperand::Scalar(term) => {
+                        *term = substitute_scalar_term_places(term, substitutions)
+                    }
                     semantic_vocabulary::ClauseOperand::Input(subject) => {
                         if let Some((next, prefix)) = substitutions(subject.root()) {
                             let mut path = prefix.to_vec();
@@ -318,6 +328,11 @@ fn substitute_structural_places<'input>(
             }
             Proposition::DeclarationIdentity(mapped)
         }
+        Proposition::IsMere(inner) => Proposition::IsMere(Box::new(substitute_structural_places(
+            inner,
+            substitutions,
+            content_prefix,
+        )?)),
         Proposition::Conjunction(conjuncts) => Proposition::Conjunction(
             conjuncts
                 .iter()
@@ -640,13 +655,15 @@ pub(crate) fn substitute_scalar_term_values_with<'input>(
         | ScalarTerm::Integer { .. }
         | ScalarTerm::IeeeFloatLiteral(_)
         | ScalarTerm::Application { .. } => term.clone(),
-        ScalarTerm::DeclarationApplication { declaration, arguments, scalar_type } => {
-            ScalarTerm::DeclarationApplication {
-                declaration: *declaration,
-                arguments: arguments.iter().map(recurse).collect(),
-                scalar_type: *scalar_type,
-            }
-        }
+        ScalarTerm::DeclarationApplication {
+            declaration,
+            arguments,
+            scalar_type,
+        } => ScalarTerm::DeclarationApplication {
+            declaration: *declaration,
+            arguments: arguments.iter().map(recurse).collect(),
+            scalar_type: *scalar_type,
+        },
         ScalarTerm::BooleanNot { operand } => ScalarTerm::BooleanNot {
             operand: Box::new(recurse(operand)),
         },

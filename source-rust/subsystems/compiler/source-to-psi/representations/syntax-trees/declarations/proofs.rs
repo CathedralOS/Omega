@@ -59,6 +59,10 @@ pub struct MathematicalDefinition {
 )]
 pub enum MathematicalDefinitionBody {
     Definition(ExpressionHandle),
+    DependentArrow {
+        binders: HandleSpan<MathematicalParameterHandle>,
+        body: ExpressionHandle,
+    },
     Assumption,
 }
 

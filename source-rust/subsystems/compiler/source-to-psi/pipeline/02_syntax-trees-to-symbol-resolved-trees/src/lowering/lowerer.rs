@@ -446,16 +446,6 @@ impl Lowerer {
             .is_none_or(|sources| sources.reference_can_see_declaration(reference, declaration))
     }
 
-    pub(crate) fn source_resolution_strata_separate(
-        &self,
-        left: source_text::SourceSpan,
-        right: source_text::SourceSpan,
-    ) -> bool {
-        self.sources
-            .as_deref()
-            .is_some_and(|sources| sources.resolution_strata_separate(left, right))
-    }
-
     pub(crate) fn with_authored_expression_exposure<T>(
         &mut self,
         exposure: AuthoredDeclarationSelectionExposure,

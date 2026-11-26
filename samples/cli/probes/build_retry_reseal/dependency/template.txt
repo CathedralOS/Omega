@@ -1,2 +1,2 @@
-use main.omg as seed;
+use seed.omg as seed;
 public machine value() -> i32 { |seed|::seed() }

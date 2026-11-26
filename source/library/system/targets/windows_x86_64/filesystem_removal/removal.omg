@@ -1,52 +1,47 @@
+use filesystem_host.omg as paths;
 use targets/windows_x86_64/filesystem_removal/acquisition.omg as removal;
+use targets/windows_x86_64/filesystem_removal/attributes.omg as attrs;
 use targets/windows_x86_64/filesystem_removal/completion.omg as removal_completion;
 use targets/windows_x86_64/filesystem_removal/traversal.omg as removal_traversal;
-use filesystem_host.omg as paths;
-use targets/windows_x86_64/filesystem_removal/attributes.omg as attrs;
 use targets/windows_x86_64/windows_filesystem_native.omg as win_io;
-use system;
-use targets\windows_x86_64;
+use targets/windows_x86_64/windows_filesystem_private_handles.omg as private_handle;
+use {omega}/language/core/filesystem_authority.omg as authority;
+
 // Recursive removal entrance: acquire one no-follow root, inspect that exact
 // object, then walk retained parent handles. A reparse root is refused; child
 // reparse objects are deleted as leaves, never traversed. Success includes
 // disposing and closing every owned handle, including the root. Failures keep
 // the first native error while releasing the remaining private handles once.
-use omega\language\core\FilesystemContentRead;
-use omega\language\core\FilesystemContentWrite;
-use omega\language\core\FilesystemMetadataQuery;
-use omega\language\core\FilesystemMetadataMutation;
-use omega\language\core\DirectoryEnumeration;
-use omega\language\core\FilesystemNamespaceMutation;
 
 machine windows_remove_tree(path: @[u8] in |paths|::Path) -> i32
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery + DirectoryEnumeration {
-    let root: i64 in WindowsPrivateNonalertFileOrAbsent = block |removal|::windows_removal_open_root(path);
-    transition (root as -WindowsPrivateNonalertFileOrAbsent) != 0 { true -> block inspect(root), false -> failed() }
+reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation + |authority|::FilesystemMetadataQuery + |authority|::DirectoryEnumeration {
+    let root: i64 in |private_handle|::WindowsPrivateNonalertFileOrAbsent = block |removal|::windows_removal_open_root(path);
+    transition (root as - |private_handle|::WindowsPrivateNonalertFileOrAbsent) != 0 { true -> block inspect(root), false -> failed() }
     machine failed() -> i32 {
         |removal_completion|::windows_removal_status(|removal_completion|::windows_removal_error(|win_io|::WindowsFilesystemIo::c_get_last_error()))
     }
-    machine inspect(root: i64 in WindowsPrivateNonalertFileOrAbsent) -> i32
-    requires (root as -WindowsPrivateNonalertFileOrAbsent) != 0 {
+    machine inspect(root: i64 in |private_handle|::WindowsPrivateNonalertFileOrAbsent) -> i32
+    requires (root as - |private_handle|::WindowsPrivateNonalertFileOrAbsent) != 0 {
         let information: |attrs|::WindowsRemovalAttributes = block |attrs|::windows_removal_attributes(root);
         transition information {
             |attrs|::WindowsRemovalAttributes::Error { code } -> block refuse(root, code),
             |attrs|::WindowsRemovalAttributes::Value { attributes } -> block kind(root, attributes)
         }
     }
-    machine kind(root: i64 in WindowsPrivateNonalertFileOrAbsent, attributes: u32) -> i32
-    requires (root as -WindowsPrivateNonalertFileOrAbsent) != 0 {
+    machine kind(root: i64 in |private_handle|::WindowsPrivateNonalertFileOrAbsent, attributes: u32) -> i32
+    requires (root as - |private_handle|::WindowsPrivateNonalertFileOrAbsent) != 0 {
         transition (attributes & 16) != 0 && (attributes & 1024) == 0 {
             true -> block walk(root),
             false -> block refuse(root, 267)
         }
     }
-    machine refuse(root: i64 in WindowsPrivateNonalertFileOrAbsent, code: u32) -> i32
-    requires (root as -WindowsPrivateNonalertFileOrAbsent) != 0 {
+    machine refuse(root: i64 in |private_handle|::WindowsPrivateNonalertFileOrAbsent, code: u32) -> i32
+    requires (root as - |private_handle|::WindowsPrivateNonalertFileOrAbsent) != 0 {
         let failure: u32 = block |removal_completion|::windows_removal_close(root, |removal_completion|::windows_removal_error(code));
         |removal_completion|::windows_removal_status(failure)
     }
-    machine walk(root: i64 in WindowsPrivateNonalertFileOrAbsent) -> i32
-    requires (root as -WindowsPrivateNonalertFileOrAbsent) != 0 {
+    machine walk(root: i64 in |private_handle|::WindowsPrivateNonalertFileOrAbsent) -> i32
+    requires (root as - |private_handle|::WindowsPrivateNonalertFileOrAbsent) != 0 {
         let code: u32 = block |removal_traversal|::windows_removal_walk(root);
         |removal_completion|::windows_removal_status(code)
     }

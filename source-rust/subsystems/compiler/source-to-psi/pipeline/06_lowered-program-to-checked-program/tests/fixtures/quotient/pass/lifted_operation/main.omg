@@ -5,7 +5,8 @@
 // selects that theorem. `normal` asks something of its argument, so
 // `normal_transports` shows that what `normal_class` asks of a class gives
 // what `normal` asks of each representative.
-use omega\language\core\Equivalence;
+use omega\language\core\IsMere;
+use omega\language\core\MereEquivalence;
 use omega\language\core\ProcessExit;
 
 data Representative {
@@ -30,15 +31,16 @@ ensures same_sign(b, a)
 {
 }
 
-SameSign satisfies Equivalence<Representative, same_sign> {
+SameSign satisfies MereEquivalence<Representative, same_sign> {
     machine reflexive(value: Representative) ensures same_sign(value, value) { }
     machine symmetric(left: Representative, right: Representative) requires same_sign(left, right) ensures same_sign(right, left) { }
     machine transitive(left: Representative, middle: Representative, right: Representative) requires same_sign(left, middle), same_sign(middle, right) ensures same_sign(left, right) { }
+    machine proofs_agree(a: Representative, b: Representative) ensures IsMere(same_sign(a, b)) { }
 }
 
 data Sign = Representative % same_sign
 requires same_sign satisfies
-    Equivalence<Representative, same_sign>
+    MereEquivalence<Representative, same_sign>
     as SameSign;
 
 machine normal(value: Representative) -> Representative

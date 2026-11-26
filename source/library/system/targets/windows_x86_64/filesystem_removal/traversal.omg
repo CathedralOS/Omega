@@ -1,32 +1,28 @@
-use targets/windows_x86_64/windows_filesystem_directory_entry.omg as directory_entry;
 use targets/windows_x86_64/filesystem_removal/acquisition.omg as removal;
-use targets/windows_x86_64/filesystem_removal/completion.omg as removal_completion;
 use targets/windows_x86_64/filesystem_removal/attributes.omg as attrs;
+use targets/windows_x86_64/filesystem_removal/completion.omg as removal_completion;
 use targets/windows_x86_64/windows_filesystem_directory.omg as directory;
+use targets/windows_x86_64/windows_filesystem_directory_entry.omg as directory_entry;
 use targets/windows_x86_64/windows_filesystem_directory_native.omg as directory_io;
 use targets/windows_x86_64/windows_filesystem_native.omg as win_io;
-use targets\windows_x86_64\windows_directory_entry_dot;
-use targets\windows_x86_64\windows_directory_next_entry;
-use targets\windows_x86_64;
+use targets/windows_x86_64/windows_filesystem_private_handles.omg as private_handle;
+use {omega}/language/core/filesystem_authority.omg as authority;
+
 // Depth-first deletion retains opened directory objects in invocation-owned
 // storage. A native name opens relative to its retained parent; only actual
 // opened-object attributes authorize descent. Reparse objects remain leaves.
 // Clear a slot before disposing or unwinding it, so even a failed close is
 // attempted exactly once. No work budget silently cuts off wide directories.
 // The finite handle stack fails explicitly with ERROR_NOT_ENOUGH_MEMORY.
-use omega\language\core\FilesystemContentRead;
-use omega\language\core\FilesystemMetadataQuery;
-use omega\language\core\DirectoryEnumeration;
-use omega\language\core\FilesystemNamespaceMutation;
 
 data WindowsRemovalFrame [copy] {
     case Empty;
-    case Directory(handle: i64 in WindowsPrivateNonalertFileOrAbsent);
+    case Directory(handle: i64 in |private_handle|::WindowsPrivateNonalertFileOrAbsent);
 }
 
-machine windows_removal_walk(root: i64 in WindowsPrivateNonalertFileOrAbsent) -> u32
-requires (root as -WindowsPrivateNonalertFileOrAbsent) != 0
-reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration + FilesystemNamespaceMutation {
+machine windows_removal_walk(root: i64 in |private_handle|::WindowsPrivateNonalertFileOrAbsent) -> u32
+requires (root as - |private_handle|::WindowsPrivateNonalertFileOrAbsent) != 0
+reaches |authority|::FilesystemContentRead + |authority|::FilesystemMetadataQuery + |authority|::DirectoryEnumeration + |authority|::FilesystemNamespaceMutation {
     let mutable frames: [WindowsRemovalFrame; 4096];
     let mutable entry: |directory_io|::WindowsNativeDirectoryEntryInfo;
     frames[0] = WindowsRemovalFrame::Directory { handle: root };
@@ -37,8 +33,8 @@ reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration +
     requires depth > 0 && depth <= 4096 && restart <= 1 {
         transition frames[depth - 1] {
             WindowsRemovalFrame::Directory { handle } -> match
-                (handle as -WindowsPrivateNonalertFileOrAbsent) != -1 &&
-                (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 {
+                (handle as - |private_handle|::WindowsPrivateNonalertFileOrAbsent) != -1 &&
+                (handle as - |private_handle|::WindowsPrivateNonalertFileOrAbsent) != 0 {
                 true -> block query(frames, entry, depth, restart, handle),
                 false -> block windows_removal_unwind(frames, depth, 31)
             },
@@ -46,8 +42,8 @@ reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration +
         }
     }
     machine query(frames: @mutable [WindowsRemovalFrame; 4096], entry: @mutable |directory_io|::WindowsNativeDirectoryEntryInfo,
-        depth: u64, restart: u8, handle: i64 in WindowsPrivateNonalertFileOrAbsent) -> u32
-    requires depth > 0 && depth <= 4096 && restart <= 1 && (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 {
+        depth: u64, restart: u8, handle: i64 in |private_handle|::WindowsPrivateNonalertFileOrAbsent) -> u32
+    requires depth > 0 && depth <= 4096 && restart <= 1 && (handle as - |private_handle|::WindowsPrivateNonalertFileOrAbsent) != 0 {
         let step: |directory|::WindowsDirectoryStep = block |directory_entry|::windows_directory_next_entry(handle, entry, restart);
         transition step {
             |directory|::WindowsDirectoryStep::Error { code } -> block windows_removal_unwind(frames, depth, |removal_completion|::windows_removal_error(code)),
@@ -56,26 +52,26 @@ reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration +
         }
     }
     machine name(frames: @mutable [WindowsRemovalFrame; 4096], entry: @mutable |directory_io|::WindowsNativeDirectoryEntryInfo,
-        depth: u64, parent: i64 in WindowsPrivateNonalertFileOrAbsent, length: u64) -> u32
-    requires depth > 0 && depth <= 4096 && (parent as -WindowsPrivateNonalertFileOrAbsent) != 0 {
+        depth: u64, parent: i64 in |private_handle|::WindowsPrivateNonalertFileOrAbsent, length: u64) -> u32
+    requires depth > 0 && depth <= 4096 && (parent as - |private_handle|::WindowsPrivateNonalertFileOrAbsent) != 0 {
         transition |directory_entry|::windows_directory_entry_dot(entry, length) {
             true -> block next(frames, entry, depth, 0),
             false -> block extent(frames, entry, depth, parent, length)
         }
     }
     machine extent(frames: @mutable [WindowsRemovalFrame; 4096], entry: @mutable |directory_io|::WindowsNativeDirectoryEntryInfo,
-        depth: u64, parent: i64 in WindowsPrivateNonalertFileOrAbsent, length: u64) -> u32
-    requires depth > 0 && depth <= 4096 && (parent as -WindowsPrivateNonalertFileOrAbsent) != 0 {
+        depth: u64, parent: i64 in |private_handle|::WindowsPrivateNonalertFileOrAbsent, length: u64) -> u32
+    requires depth > 0 && depth <= 4096 && (parent as - |private_handle|::WindowsPrivateNonalertFileOrAbsent) != 0 {
         transition length > 0 && length < 4096 {
             true -> block open(frames, entry, depth, parent, length),
             false -> block windows_removal_unwind(frames, depth, 122)
         }
     }
     machine open(frames: @mutable [WindowsRemovalFrame; 4096], entry: @mutable |directory_io|::WindowsNativeDirectoryEntryInfo,
-        depth: u64, parent: i64 in WindowsPrivateNonalertFileOrAbsent, length: u64) -> u32
-    requires depth > 0 && depth <= 4096 && (parent as -WindowsPrivateNonalertFileOrAbsent) != 0 && length > 0 && length < 4096 {
-        let child: i64 in WindowsPrivateNonalertFileOrAbsent = block |removal|::windows_removal_open_child(parent, entry, length);
-        transition (child as -WindowsPrivateNonalertFileOrAbsent) != 0 {
+        depth: u64, parent: i64 in |private_handle|::WindowsPrivateNonalertFileOrAbsent, length: u64) -> u32
+    requires depth > 0 && depth <= 4096 && (parent as - |private_handle|::WindowsPrivateNonalertFileOrAbsent) != 0 && length > 0 && length < 4096 {
+        let child: i64 in |private_handle|::WindowsPrivateNonalertFileOrAbsent = block |removal|::windows_removal_open_child(parent, entry, length);
+        transition (child as - |private_handle|::WindowsPrivateNonalertFileOrAbsent) != 0 {
             true -> block attributes(frames, entry, depth, child),
             false -> block failed_open(frames, depth)
         }
@@ -86,8 +82,8 @@ reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration +
         block windows_removal_unwind(frames, depth, code)
     }
     machine attributes(frames: @mutable [WindowsRemovalFrame; 4096], entry: @mutable |directory_io|::WindowsNativeDirectoryEntryInfo,
-        depth: u64, child: i64 in WindowsPrivateNonalertFileOrAbsent) -> u32
-    requires depth > 0 && depth <= 4096 && (child as -WindowsPrivateNonalertFileOrAbsent) != 0 {
+        depth: u64, child: i64 in |private_handle|::WindowsPrivateNonalertFileOrAbsent) -> u32
+    requires depth > 0 && depth <= 4096 && (child as - |private_handle|::WindowsPrivateNonalertFileOrAbsent) != 0 {
         let information: |attrs|::WindowsRemovalAttributes = block |attrs|::windows_removal_attributes(child);
         transition information {
             |attrs|::WindowsRemovalAttributes::Error { code } -> block failed_child(frames, depth, child, code),
@@ -95,36 +91,36 @@ reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration +
         }
     }
     machine failed_child(frames: @mutable [WindowsRemovalFrame; 4096], depth: u64,
-        child: i64 in WindowsPrivateNonalertFileOrAbsent, code: u32) -> u32
-    requires depth <= 4096 && (child as -WindowsPrivateNonalertFileOrAbsent) != 0 {
+        child: i64 in |private_handle|::WindowsPrivateNonalertFileOrAbsent, code: u32) -> u32
+    requires depth <= 4096 && (child as - |private_handle|::WindowsPrivateNonalertFileOrAbsent) != 0 {
         let failure: u32 = block |removal_completion|::windows_removal_close(child, |removal_completion|::windows_removal_error(code));
         block windows_removal_unwind(frames, depth, failure)
     }
     machine kind(frames: @mutable [WindowsRemovalFrame; 4096], entry: @mutable |directory_io|::WindowsNativeDirectoryEntryInfo,
-        depth: u64, child: i64 in WindowsPrivateNonalertFileOrAbsent, attributes: u32) -> u32
-    requires depth > 0 && depth <= 4096 && (child as -WindowsPrivateNonalertFileOrAbsent) != 0 {
+        depth: u64, child: i64 in |private_handle|::WindowsPrivateNonalertFileOrAbsent, attributes: u32) -> u32
+    requires depth > 0 && depth <= 4096 && (child as - |private_handle|::WindowsPrivateNonalertFileOrAbsent) != 0 {
         transition (attributes & 16) != 0 && (attributes & 1024) == 0 {
             true -> block capacity(frames, entry, depth, child),
             false -> block leaf(frames, entry, depth, child)
         }
     }
     machine capacity(frames: @mutable [WindowsRemovalFrame; 4096], entry: @mutable |directory_io|::WindowsNativeDirectoryEntryInfo,
-        depth: u64, child: i64 in WindowsPrivateNonalertFileOrAbsent) -> u32
-    requires depth > 0 && depth <= 4096 && (child as -WindowsPrivateNonalertFileOrAbsent) != 0 {
+        depth: u64, child: i64 in |private_handle|::WindowsPrivateNonalertFileOrAbsent) -> u32
+    requires depth > 0 && depth <= 4096 && (child as - |private_handle|::WindowsPrivateNonalertFileOrAbsent) != 0 {
         transition depth < 4096 {
             true -> block push(frames, entry, depth, child),
             false -> block failed_child(frames, depth, child, 8)
         }
     }
     machine push(frames: @mutable [WindowsRemovalFrame; 4096], entry: @mutable |directory_io|::WindowsNativeDirectoryEntryInfo,
-        depth: u64, child: i64 in WindowsPrivateNonalertFileOrAbsent) -> u32
-    requires depth > 0 && depth < 4096 && (child as -WindowsPrivateNonalertFileOrAbsent) != 0 {
+        depth: u64, child: i64 in |private_handle|::WindowsPrivateNonalertFileOrAbsent) -> u32
+    requires depth > 0 && depth < 4096 && (child as - |private_handle|::WindowsPrivateNonalertFileOrAbsent) != 0 {
         frames[depth] = WindowsRemovalFrame::Directory { handle: child };
         transition { _ -> block next(frames, entry, depth + 1, 1) }
     }
     machine leaf(frames: @mutable [WindowsRemovalFrame; 4096], entry: @mutable |directory_io|::WindowsNativeDirectoryEntryInfo,
-        depth: u64, child: i64 in WindowsPrivateNonalertFileOrAbsent) -> u32
-    requires depth > 0 && depth <= 4096 && (child as -WindowsPrivateNonalertFileOrAbsent) != 0 {
+        depth: u64, child: i64 in |private_handle|::WindowsPrivateNonalertFileOrAbsent) -> u32
+    requires depth > 0 && depth <= 4096 && (child as - |private_handle|::WindowsPrivateNonalertFileOrAbsent) != 0 {
         let code: u32 = block |removal_completion|::windows_removal_dispose(child);
         transition code == 0 {
             true -> block next(frames, entry, depth, 1),
@@ -132,8 +128,8 @@ reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration +
         }
     }
     machine pop(frames: @mutable [WindowsRemovalFrame; 4096], entry: @mutable |directory_io|::WindowsNativeDirectoryEntryInfo,
-        depth: u64, handle: i64 in WindowsPrivateNonalertFileOrAbsent) -> u32
-    requires depth > 0 && depth <= 4096 && (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 {
+        depth: u64, handle: i64 in |private_handle|::WindowsPrivateNonalertFileOrAbsent) -> u32
+    requires depth > 0 && depth <= 4096 && (handle as - |private_handle|::WindowsPrivateNonalertFileOrAbsent) != 0 {
         frames[depth - 1] = WindowsRemovalFrame::Empty;
         let code: u32 = block |removal_completion|::windows_removal_dispose(handle);
         transition code == 0 {
@@ -151,7 +147,7 @@ reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration +
 machine windows_removal_unwind(frames: @mutable [WindowsRemovalFrame; 4096], count: u64,
     original: u32) -> u32
 requires count <= 4096
-reaches FilesystemNamespaceMutation {
+reaches |authority|::FilesystemNamespaceMutation {
     transition { _ -> block next(frames, count, original) }
     machine next(frames: @mutable [WindowsRemovalFrame; 4096], count: u64, original: u32) -> u32
     requires count <= 4096 {
@@ -167,16 +163,16 @@ reaches FilesystemNamespaceMutation {
         }
     }
     machine close(frames: @mutable [WindowsRemovalFrame; 4096], count: u64, original: u32,
-        handle: i64 in WindowsPrivateNonalertFileOrAbsent) -> u32
+        handle: i64 in |private_handle|::WindowsPrivateNonalertFileOrAbsent) -> u32
     requires count < 4096 {
-        transition (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 {
+        transition (handle as - |private_handle|::WindowsPrivateNonalertFileOrAbsent) != 0 {
             true -> block release(frames, count, original, handle),
             false -> block next(frames, count, |removal_completion|::windows_removal_error(original))
         }
     }
     machine release(frames: @mutable [WindowsRemovalFrame; 4096], count: u64, original: u32,
-        handle: i64 in WindowsPrivateNonalertFileOrAbsent) -> u32
-    requires count < 4096 && (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 {
+        handle: i64 in |private_handle|::WindowsPrivateNonalertFileOrAbsent) -> u32
+    requires count < 4096 && (handle as - |private_handle|::WindowsPrivateNonalertFileOrAbsent) != 0 {
         let code: u32 = block |removal_completion|::windows_removal_close(handle, original);
         transition { _ -> block next(frames, count, code) }
     }
