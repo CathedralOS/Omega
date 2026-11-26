@@ -10,10 +10,9 @@ check while it runs, so the binding is admitted when the Product is typed:
 it must name one visible boundary requirement, and two bindings of one
 requirement for one target must name the same place.
 
-We stage a project with one boundary trait and vary only the Build's
-bindings. The control binds two requirements; whatever it is stopped by
-later, it is not the admission of its bindings. Each twin changes one
-binding and is refused for it, at the line it is on.
+The control binds two requirements and must compile. Changing just one
+binding either selects a different target successfully or produces the
+expected diagnostic at its source location.
 
 The last test is the dependency case, on a kept program: its dependency is
 the standard library, whose Build binds dozens of requirements and hands
@@ -36,21 +35,25 @@ machine main() { }
 const SLEEP: &str = "ForeignBinding::DllImport { import: DllImport::PeByName { library: \"kernel32.dll\", export: \"Sleep\" } }";
 const OTHER: &str = "ForeignBinding::DllImport { import: DllImport::PeByName { library: \"kernel32.dll\", export: \"SleepEx\" } }";
 
-fn omega_check(directory: &std::path::Path, target: &str) -> String {
+fn omega_check(directory: &std::path::Path, target: &str) -> Result<(), String> {
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
         .args(["--check", "main.omg", "--target", target])
         .current_dir(directory)
         .stdin(std::process::Stdio::null())
         .output()
         .expect("omega runs");
-    String::from_utf8_lossy(&output.stderr).into_owned()
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err(String::from_utf8_lossy(&output.stderr).into_owned())
+    }
 }
 
-fn check(name: &str, bindings: &str) -> String {
+fn check(name: &str, bindings: &str) -> Result<(), String> {
     check_product(name, PRODUCT, bindings)
 }
 
-fn check_product(name: &str, product: &str, bindings: &str) -> String {
+fn check_product(name: &str, product: &str, bindings: &str) -> Result<(), String> {
     let root = std::env::temp_dir().join(format!(
         "omega-build-native-bindings-{}-{name}",
         std::process::id()
@@ -71,9 +74,9 @@ machine build(builder: @mutable Build) {{
         ),
     )
     .expect("staged Build");
-    let stderr = omega_check(&root, "linux_x86_64");
+    let result = omega_check(&root, "linux_x86_64");
     let _ = std::fs::remove_dir_all(&root);
-    stderr
+    result
 }
 
 /// What the admission of a Build's native bindings says when it refuses.
@@ -87,17 +90,15 @@ const ADMISSION_REFUSALS: [&str; 5] = [
 
 #[test]
 fn a_binding_of_each_requirement_is_admitted() {
-    let stderr = check(
+    check(
         "control",
         &format!(
             "    Build::bind_native::<Host::tick>(builder, windows_x86_64, {SLEEP});
     Build::bind_native::<Host::tock>(builder, windows_x86_64, {OTHER});
 "
         ),
-    );
-    for refusal in ADMISSION_REFUSALS {
-        assert!(!stderr.contains(refusal), "{stderr}");
-    }
+    )
+    .expect("the package must compile with both native bindings");
 }
 
 #[test]
@@ -109,7 +110,8 @@ fn two_places_for_one_requirement_on_one_target_are_refused() {
     Build::bind_native::<Host::tick>(builder, windows_x86_64, {OTHER});
 "
         ),
-    );
+    )
+    .expect_err("the invalid binding must be refused");
     assert!(
         stderr.contains(
             "conflicting native bindings for the same requirement, target and supplier precedence"
@@ -122,17 +124,15 @@ fn two_places_for_one_requirement_on_one_target_are_refused() {
 /// The same two places for two targets do not conflict.
 #[test]
 fn one_requirement_may_be_found_in_a_different_place_on_each_target() {
-    let stderr = check(
+    check(
         "two-targets",
         &format!(
             "    Build::bind_native::<Host::tick>(builder, windows_x86_64, {SLEEP});
     Build::bind_native::<Host::tick>(builder, linux_x86_64, {OTHER});
 "
         ),
-    );
-    for refusal in ADMISSION_REFUSALS {
-        assert!(!stderr.contains(refusal), "{stderr}");
-    }
+    )
+    .expect("the package must compile with both native bindings");
 }
 
 #[test]
@@ -140,7 +140,8 @@ fn a_binding_that_names_no_requirement_is_refused() {
     let stderr = check(
         "no-requirement",
         &format!("    Build::bind_native::<Host::missing>(builder, windows_x86_64, {SLEEP});\n"),
-    );
+    )
+    .expect_err("the invalid binding must be refused");
     assert!(
         stderr
             .contains("Product requirement `Host::missing` does not name one visible declaration"),
@@ -162,7 +163,8 @@ fn a_requirement_the_package_binds_is_judged_though_nothing_calls_it() {
         "uncalled-binding",
         &product,
         &format!("    Build::bind_native::<Host::tock>(builder, windows_x86_64, {OTHER});\n"),
-    );
+    )
+    .expect_err("the invalid binding must be refused");
     assert!(stderr.contains(DEFAULT_BODY_REFUSAL), "{stderr}");
 }
 
@@ -220,7 +222,7 @@ machine build(builder: @mutable Build) {
 ",
     )
     .expect("staged Build");
-    let stderr = omega_check(&root, "windows_x86_64");
+    let stderr = omega_check(&root, "windows_x86_64").err().unwrap_or_default();
     let _ = std::fs::remove_dir_all(&root);
     stderr
 }
@@ -248,7 +250,7 @@ fn a_dependency_binding_the_program_reaches_is_judged() {
 fn a_program_receives_the_bindings_of_the_standard_library() {
     let directory = support::repository_root()
         .join("tests/fixtures/providers/run/default_console_provider_reached");
-    let stderr = omega_check(&directory, "linux_x86_64");
+    let stderr = omega_check(&directory, "linux_x86_64").err().unwrap_or_default();
     for refusal in ADMISSION_REFUSALS
         .into_iter()
         .chain(["provider selection", "captured native"])
