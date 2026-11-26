@@ -113,7 +113,7 @@ pub(crate) use loans::reference_graph_with_nominal_calls;
 pub use loans::{ConflictingLoan, LoanConflict};
 use log::{Logged, Stored};
 use std::collections::BTreeMap;
-use terminal_semantics::descriptor_results::DescriptorAnalysis;
+use terminal_semantics::descriptor_results::{DescriptorAnalysis, DescriptorCallOrigin};
 
 fn index(raw: u64) -> usize {
     usize::try_from(raw - 1).unwrap_or(usize::MAX)
@@ -827,8 +827,16 @@ enum Initialization {
     WholeArray,
 }
 
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct ReachingKey {
+    point: (BlockId, usize),
+    place: Lineage,
+    query: QueryKind,
+    window: Option<Box<DescriptorCallOrigin>>,
+}
+
 pub(crate) struct Reaching {
-    keys: BTreeMap<(BlockId, usize, Lineage, QueryKind), usize>,
+    keys: BTreeMap<ReachingKey, usize>,
     equations: Vec<ReachingEquation>,
     fallbacks: Vec<EntryFallback>,
     boundary: BoundaryDepth,
@@ -3454,7 +3462,7 @@ impl<'a> Storage<'a> {
                     weakened = true;
                     continue;
                 }
-                if watched.single_place().is_none() {
+                if watched.has_alternatives() {
                     // This row can supply one address without supplying the
                     // others. Let each address find its own last store.
                     let joined = budget.add_equation();
@@ -4281,16 +4289,17 @@ impl<'a> Storage<'a> {
     ) -> Checked<Supply> {
         let original = asked.place();
         let asked = asked.at(&resolved.place);
-        let key = match asked {
-            Asked::Contents(_) => Some((block, up_to, resolved.place.clone(), QueryKind::Contents)),
-            Asked::Case(_, excluded) => Some((
-                block,
-                up_to,
-                resolved.place.clone(),
-                QueryKind::Case(excluded),
-            )),
+        let query = match asked {
+            Asked::Contents(_) => Some(QueryKind::Contents),
+            Asked::Case(_, excluded) => Some(QueryKind::Case(excluded)),
             Asked::Window { .. } => None,
         };
+        let key = query.map(|query| ReachingKey {
+            point: (block, up_to),
+            place: resolved.place.clone(),
+            query,
+            window: resolved.single_window().cloned().map(Box::new),
+        });
         let projection = if original == &resolved.place {
             usize::MAX
         } else {
