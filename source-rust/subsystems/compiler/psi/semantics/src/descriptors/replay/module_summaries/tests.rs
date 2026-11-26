@@ -79,6 +79,7 @@ fn returning(identity: u64, callee: Option<u64>) -> DescriptorMachine {
                 DescriptorFlowStep {
                     definitions: vec![returned.clone()],
                     successors: vec![DescriptorFlowEdge {
+                        borrowed_header_ends: Box::default(),
                         effects: Vec::new(),
                         edge: None,
                         definitions: Vec::new(),

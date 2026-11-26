@@ -799,7 +799,7 @@ pub(crate) mod call_foundations {
 
     pub(crate) fn validate_external_completion(
         module: &TerminalModule,
-        machine: &TerminalMachine,
+        scalars: &terminal_semantics::MachineScalarIndex<'_>,
         block: &Block,
         inhabitation: &terminal_semantics::inhabitation::Inhabitation,
     ) -> Result<(), CodecError> {
@@ -848,28 +848,12 @@ pub(crate) mod call_foundations {
         }
         super::scalar_boundary_contracts::validate_arguments(
             module,
-            machine,
+            scalars.machine(),
             declaration,
             arguments,
         )?;
         for (argument, expected) in arguments.iter().zip(&declaration.scalar_parameters) {
-            let mut declarations = machine
-                .parameters
-                .iter()
-                .copied()
-                .chain(block.parameters.iter().copied())
-                .chain(
-                    block
-                        .operations
-                        .iter()
-                        .filter_map(|operation| operation.result.scalar()),
-                )
-                .filter(|candidate| candidate.id == *argument);
-            if declarations
-                .next()
-                .is_none_or(|candidate| candidate.scalar_type != *expected)
-                || declarations.next().is_some()
-            {
+            if scalars.scalar_type_at_block_end(*argument, block.id) != Some(*expected) {
                 return malformed(
                     "external completion status has no exact runtime scalar declaration",
                 );
@@ -877,7 +861,7 @@ pub(crate) mod call_foundations {
         }
         validate_structural_arguments(
             module,
-            machine,
+            scalars.machine(),
             structural_arguments,
             &declaration.structural_parameters,
             StructuralArgumentPresentation::Boundary,
@@ -3644,7 +3628,7 @@ pub(crate) mod machine_foundations {
         for block in &machine.blocks {
             super::call_foundations::validate_external_completion(
                 module,
-                machine,
+                &scalar_index,
                 block,
                 inhabitation,
             )?;

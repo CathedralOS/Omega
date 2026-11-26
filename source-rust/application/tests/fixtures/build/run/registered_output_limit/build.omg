@@ -4,8 +4,8 @@ use {omega}/language/core/external_binding.omg as native;
 machine build(builder: @mutable Build) {
     Build::application(builder, "test_output_allowance");
     Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
-    Build::bind_native::<Output::write>(builder, linux_x86_64, |native|::ForeignBinding::Syscall { number: 1 });
+    Build::bind_native::<|app|::Output::write>(builder, linux_x86_64, |native|::ForeignBinding::Syscall { number: 1 });
     Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
-    Build::bind_native::<Output::write>(builder, linux_arm64, |native|::ForeignBinding::Syscall { number: 64 });
+    Build::bind_native::<|app|::Output::write>(builder, linux_arm64, |native|::ForeignBinding::Syscall { number: 64 });
     _ = builder.tests.group::<|app|::Tests::capture>();
 }

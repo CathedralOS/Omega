@@ -22,9 +22,10 @@ mod project;
 
 fn check(name: &str, clause: &str) -> (bool, String) {
     let build = format!(
-        "machine build(builder: @mutable Build) requires {clause} {{
+        "use main.omg as app;
+machine build(builder: @mutable Build) requires {clause} {{
     Build::application(builder, \"conditioned\");
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
 }}
 "
     );

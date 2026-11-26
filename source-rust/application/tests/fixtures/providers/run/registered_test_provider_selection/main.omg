@@ -1,4 +1,4 @@
-use test_provider_kit\Reading;
+use {test_provider_kit}/main.omg as test_provider_kit;
 
 trait Tests {
     machine reading() reaches none crashes Trap;
@@ -26,7 +26,7 @@ machine main() crashes Trap {
 }
 
 machine expect(expected: u8) reaches none crashes Trap {
-    let actual: u8 = Reading::value();
+    let actual: u8 = |test_provider_kit|::Reading::value();
     transition actual == expected {
         true -> passed(),
         false -> wrong()

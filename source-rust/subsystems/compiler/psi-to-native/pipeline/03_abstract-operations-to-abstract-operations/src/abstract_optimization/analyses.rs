@@ -159,8 +159,7 @@ pub(crate) use control_flow::CallGraphAnalysis;
 pub(crate) use control_flow::block_dominates;
 pub(crate) use control_flow::{
     CountdownInvariantConstantAnalysisError, CountdownInvariantConstantPlacementAnalysisError,
-    CountedLoopAnalysisError, ValidatedCountdownInvariantConstantAnalysis,
-    ValidatedCountdownInvariantConstantPlacementAnalysis, ValidatedCountedLoopAnalysis,
+    CountedLoopAnalysisError,
 };
 pub(crate) use control_flow::{
     analyze_countdown_invariant_constant_placement, analyze_countdown_invariant_constants,

@@ -35,10 +35,10 @@ fn an_executed_exclusion_checks_the_selected_callee() {
     let Some(host) = target::TargetProfile::host_if_supported() else {
         return;
     };
-    let build = r#"
+    let build = r#"use main.omg as app;
 machine build(builder: @mutable Build) {
     Build::application(builder, "excluding");
-    Build::bind(builder, HOST::ProgramEntry, main);
+    Build::bind(builder, HOST::ProgramEntry, |app|::main);
     exclude(builder, CrashCause::Trap);
 }
 machine exclude(builder: @mutable Build, cause: CrashCause) {
@@ -81,10 +81,10 @@ fn a_direct_build_exclusion_checks_an_evaluated_physical_class() {
     let Some(host) = target::TargetProfile::host_if_supported() else {
         return;
     };
-    let build = r#"
+    let build = r#"use main.omg as app;
 machine build(builder: @mutable Build) {
     Build::application(builder, "excluding");
-    Build::bind(builder, HOST::ProgramEntry, main);
+    Build::bind(builder, HOST::ProgramEntry, |app|::main);
     let authority: PhysicalAuthorityClass = PhysicalAuthorityClass::ProcessOutput;
     Build::exclude_physical_authority(builder, authority);
 }
@@ -108,12 +108,13 @@ machine build(builder: @mutable Build) {
 /// must support that conclusion before Build can certify a physical exclusion.
 #[test]
 fn darwin_poll_exclusions_check_each_invocation() {
-    let build = r#"
+    let build = r#"use {omega}/language/core/external_binding.omg as native;
+use main.omg as app;
 machine build(builder: @mutable Build) {
     Build::application(builder, "poll_counts");
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-    Build::bind_native::<Wait::poll>(builder, macos_arm64, ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
+    Build::bind_native::<|app|::Wait::poll>(builder, macos_arm64, |native|::ForeignBinding::DllImport {
+        import: |native|::DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_poll"
         }
     });
@@ -167,9 +168,10 @@ machine main() reaches none invokes Wait {
 fn a_build_without_exclusions_is_not_refused_for_one() {
     let (_, stderr) = execute(
         "no-exclusion",
-        "machine build(builder: @mutable Build) {
+        "use main.omg as app;
+machine build(builder: @mutable Build) {
     Build::application(builder, \"plain\");
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
 }
 ",
         "machine main() {}",

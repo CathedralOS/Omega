@@ -156,3 +156,48 @@ machine build(plan: @mutable BuildPlan) {
         "{output}"
     );
 }
+
+#[test]
+fn zeroed_source_selects_a_path_with_an_empty_location() {
+    let project = TemporaryDirectory::create("zeroed-source-path", false).unwrap();
+    fs::write(
+        project.path().join("build.omg"),
+        r#"machine build(plan: @mutable BuildPlan) crashes Trap {
+    let mutable selection: Source;
+    transition selection {
+        Source::Path { location } -> chosen(plan, location),
+        _ -> unexpected()
+    }
+    machine chosen(plan: @mutable BuildPlan, location: @[u8]) {
+        transition location.length == 0 {
+            true -> declare(plan),
+            false -> unexpected()
+        }
+    }
+    machine declare(plan: @mutable BuildPlan) {
+        plan.product = BuildProduct::Package { name: "zero_path" };
+    }
+    machine unexpected() { crash Trap; }
+}"#,
+    )
+    .unwrap();
+    fs::write(
+        project.path().join("main.omg"),
+        "public machine witness() {}",
+    )
+    .unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
+        .current_dir(project.path())
+        .env(
+            "OMEGA_LIBRARY_ROOT",
+            support::repository_root().join("source/library"),
+        )
+        .args(["--check", "--offline", "build.omg"])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}

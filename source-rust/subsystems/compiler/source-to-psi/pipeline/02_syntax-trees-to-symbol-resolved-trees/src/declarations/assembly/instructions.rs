@@ -9,7 +9,10 @@ use language_core::inline_assembly::{
 };
 use source_text::SourceSpan;
 use syntax_trees::SyntaxTrees;
-use syntax_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
+use syntax_trees::expression::{
+    ExpressionHandle, ExpressionNode, StaticMachineArgument, TableBorrowExpression,
+    TableCallExpression,
+};
 use syntax_trees::identifier::Identifier;
 use syntax_trees::statement::{
     AssemblyInstruction, AssemblyOperands, StatementHandle, StatementNode, TableAssignment,
@@ -145,6 +148,49 @@ fn arithmetic_flag_producer(
     }
 }
 
+/// A packed instruction's constant operand becomes a const argument of its
+/// contract declaration: an integer literal or the name of a constant in scope.
+fn packed_immediate(
+    syntax_trees: &SyntaxTrees,
+    mnemonic_site: SourceSpan,
+    mnemonic: &str,
+    operand: ExpressionHandle,
+) -> Result<StaticMachineArgument, Diagnostic> {
+    let mut argument = StaticMachineArgument {
+        type_reference: syntax_trees::types::TypeReferenceHandle::invalid(),
+        path: Box::default(),
+        application: None,
+        const_literal: None,
+        evidence_projection: None,
+    };
+    match syntax_trees.expressions.expression(operand) {
+        ExpressionNode::Integer(literal) => {
+            argument.type_reference = Default::default();
+            argument.const_literal = Some(literal.clone());
+        }
+        ExpressionNode::Name {
+            members,
+            application: None,
+        } => {
+            argument.path = syntax_trees
+                .expressions
+                .identifier_path_members(*members)
+                .to_vec()
+                .into_boxed_slice();
+        }
+        _ => {
+            return Err(error(
+                mnemonic_site,
+                format!(
+                    "asm instruction `{mnemonic}` needs a constant operand: an integer literal \
+                     or the name of a constant"
+                ),
+            ));
+        }
+    }
+    Ok(argument)
+}
+
 pub(super) fn prepare_instruction(
     syntax_trees: &mut SyntaxTrees,
     instruction: &AssemblyInstruction,
@@ -173,7 +219,8 @@ pub(super) fn prepare_instruction(
              (`hlt`, `in`, `out`, `jmp`, `mov`/`movq`, `lfence`, `sfence`, `mfence`, `dmb`, `cli`, `sti`, \
              `serialize`, `isb`, `pause`, `yield`, `wfe`, `wfi`, `sev`, `sevl`, `nop`, `pushfq`, `popfq`, \
              `rdmsr`, `wrmsr`, `wbinvd`, `invd`, `wbnoinvd`, \
-             `ldr`, `str`, structured `read_crN`/`write_crN`/`read_<sysreg>`/`write_<sysreg>`); opaque \
+             `ldr`, `str`, structured `read_crN`/`write_crN`/`read_<sysreg>`/`write_<sysreg>`, \
+             x86-64 packed-integer forms such as `vpaddw`); opaque \
              forms (`db`, raw bytes) are rejected",
                 mnemonic.as_str(syntax_trees)
             ),
@@ -639,6 +686,104 @@ pub(super) fn prepare_instruction(
                     operation.intrinsic_name(),
                     arguments,
                 ),
+                contract,
+            ))
+        }
+        AsmInstructionShape::PackedInteger(primitive) => {
+            let destination = next_operand()?;
+            let mut inputs = Vec::with_capacity(primitive.inputs());
+            for _ in 0..primitive.inputs() {
+                inputs.push(next_operand()?);
+            }
+            let mut immediates = Vec::with_capacity(primitive.immediates());
+            for _ in 0..primitive.immediates() {
+                immediates.push(next_operand()?);
+            }
+            for &operand in std::iter::once(&destination).chain(&inputs) {
+                reject_bracketed_asm_operand(
+                    syntax_trees,
+                    mnemonic_site,
+                    mnemonic.as_str(syntax_trees),
+                    operand,
+                )?;
+                if let ExpressionNode::Name {
+                    members,
+                    application: None,
+                } = syntax_trees.expressions.expression(operand)
+                    && let [name] = syntax_trees.expressions.identifier_path_members(*members)
+                    && scratch_register(name.as_str(syntax_trees)).is_some()
+                {
+                    return Err(error(
+                        mnemonic_site,
+                        format!(
+                            "asm instruction `{}` reads and writes typed array places, not \
+                             scratch registers",
+                            mnemonic.as_str(syntax_trees)
+                        ),
+                    ));
+                }
+            }
+            let mut machine_arguments = Vec::with_capacity(immediates.len());
+            for immediate in immediates {
+                machine_arguments.push(packed_immediate(
+                    syntax_trees,
+                    mnemonic_site,
+                    mnemonic.as_str(syntax_trees),
+                    immediate,
+                )?);
+            }
+            let borrowed: Vec<_> = inputs
+                .into_iter()
+                .map(|target| {
+                    syntax_trees
+                        .expressions
+                        .insert(ExpressionNode::Borrow(TableBorrowExpression {
+                            target,
+                            access: language_core::ReferenceAccess::Shared,
+                        }))
+                })
+                .collect();
+            let arguments = syntax_trees.expressions.insert_expression_handles(borrowed);
+            // The parser imported the contracts under this alias for every file
+            // that spells a packed instruction.
+            let target = Identifier::new(
+                format!(
+                    "|{}|::{}",
+                    language_core::inline_assembly::PACKED_INTEGER_CONTRACTS_ALIAS,
+                    primitive.mnemonic()
+                ),
+                mnemonic.source_span(),
+            );
+            let member = syntax_trees
+                .expressions
+                .append_identifier_path_member(target.clone());
+            let callee = syntax_trees.expressions.insert(ExpressionNode::Name {
+                members: HandleSpan::from_parts(member, 1),
+                application: None,
+            });
+            let value =
+                syntax_trees
+                    .expressions
+                    .insert(ExpressionNode::Call(TableCallExpression {
+                        callee,
+                        target_is_static: true,
+                        receiver: ExpressionHandle::invalid(),
+                        target,
+                        machine_arguments: machine_arguments.into_boxed_slice(),
+                        arguments,
+                        evidence_arguments: Box::default(),
+                        operational_acknowledgement: Default::default(),
+                    }));
+            syntax_trees
+                .expressions
+                .set_source_span(value, mnemonic_site);
+            Ok(PreparedInstruction::new(
+                syntax_trees
+                    .statements
+                    .insert(StatementNode::Assignment(TableAssignment {
+                        target: destination,
+                        value,
+                    })),
                 contract,
             ))
         }

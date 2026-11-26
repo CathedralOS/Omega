@@ -1,40 +1,18 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use text;
-use commands\CommandParser;
-use dungeon\Dungeon;
-use dungeon\can_travel_to;
-use dungeon\dungeon_enter_room;
-use dungeon\dungeon_fight;
-use dungeon\dungeon_game_over;
-use dungeon\dungeon_initialize;
-use dungeon\dungeon_use_event;
-use dungeon\move_to;
-use rooms\CellId;
-use text\TextBuffer;
-use text\text_buffer_set;
-use view\GameView;
-use view\render_character;
-use view\render_commands;
-use view\render_exits;
-use view\render_game_over;
-use view\render_invalid_command;
-use view\render_inventory;
-use view\render_line;
-use view\render_look;
-use view\render_prompt;
-use view\render_room;
-use view\render_title;
-use omega\language\core\ProcessExit;
-use system\Console;
-use system\LineReadResult;
+use commands/command_parser.omg;
+use dungeon/dungeon.omg;
+use rooms/map.omg;
+use text/buffer.omg;
+use view/game_view.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 
 data Game {
-    dungeon: Dungeon;
-    parser: CommandParser;
-    view: GameView;
+    dungeon: |dungeon|::Dungeon;
+    parser: |command_parser|::CommandParser;
+    view: |game_view|::GameView;
     input: [u8; 256];
-    output: TextBuffer;
+    output: |buffer|::TextBuffer;
     pause: [u8; 256];
 }
 
@@ -43,13 +21,13 @@ machine game_initialize(
     seed: u64 in Wrapping
 )
 {
-    dungeon_initialize(@mutable game.dungeon, seed);
-    text_buffer_set(@mutable game.output, "" as +Ascii);
+    |dungeon|::dungeon_initialize(@mutable game.dungeon, seed);
+    |buffer|::text_buffer_set(@mutable game.output, "" as + |buffer|::Ascii);
 }
 
-machine run_game_loop(game: @mutable Game) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("dungeon_crawler_cli: an interactive dungeon crawl -- type commands to explore");
-    render_title();
+machine run_game_loop(game: @mutable Game) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("dungeon_crawler_cli: an interactive dungeon crawl -- type commands to explore");
+    |game_view|::render_title();
 
     transition {
         _ -> block enter_room(game)
@@ -57,10 +35,10 @@ machine run_game_loop(game: @mutable Game) reaches ProcessExit + StandardInput +
 
 
     machine enter_room(game: @mutable Game) {
-        let cell: CellId = game.dungeon.current_cell;
-        dungeon_enter_room(cell);
-        text_buffer_set(@mutable game.output, "" as +Ascii);
-        render_room(@mutable game.view, game.dungeon.level,
+        let cell: |map|::CellId = game.dungeon.current_cell;
+        |dungeon|::dungeon_enter_room(cell);
+        |buffer|::text_buffer_set(@mutable game.output, "" as + |buffer|::Ascii);
+        |game_view|::render_room(@mutable game.view, game.dungeon.level,
             game.dungeon.current_cell,
             game.dungeon.treasure_taken,
             game.dungeon.gold_taken,
@@ -68,7 +46,7 @@ machine run_game_loop(game: @mutable Game) reaches ProcessExit + StandardInput +
             game.dungeon.enemy_defeated,
             @mutable game.output
         );
-        render_commands();
+        |game_view|::render_commands();
 
         transition {
             _ -> block prompt(game)
@@ -83,11 +61,11 @@ machine run_game_loop(game: @mutable Game) reaches ProcessExit + StandardInput +
     }
 
     machine read_command(game: @mutable Game) {
-        render_prompt();
-        transition block Console::read_line(@mutable game.input[..]) {
-            LineReadResult::Error { count } -> ProcessExit::exit_process(74),
-            LineReadResult::LineComplete { count } -> block received_command(game, count),
-            LineReadResult::EndOfInput { count } -> block received_command(game, count),
+        |game_view|::render_prompt();
+        transition block |console|::Console::read_line(@mutable game.input[..]) {
+            |console|::LineReadResult::Error { count } -> |process_exit|::ProcessExit::exit_process(74),
+            |console|::LineReadResult::LineComplete { count } -> block received_command(game, count),
+            |console|::LineReadResult::EndOfInput { count } -> block received_command(game, count),
             // Full and Invalid do not establish a completed command.
             _ -> block invalid_command(game)
         }
@@ -159,26 +137,26 @@ machine run_game_loop(game: @mutable Game) reaches ProcessExit + StandardInput +
             command == "stats" -> block character(game),
             command == "use" -> block use_event(game),
             command == "fight" -> block fight(game),
-            game.dungeon.current_cell == CellId::R00 && command == "north" -> block move_r01(game),
-            game.dungeon.current_cell == CellId::R01 && command == "south" -> block move_r00(game),
-            game.dungeon.current_cell == CellId::R01 && command == "north" -> block move_r02(game),
-            game.dungeon.current_cell == CellId::R01 && command == "east" -> block move_r05(game),
-            game.dungeon.current_cell == CellId::R02 && command == "south" -> block move_r01(game),
-            game.dungeon.current_cell == CellId::R02 && command == "north" -> block move_r03(game),
-            game.dungeon.current_cell == CellId::R02 && command == "west" -> block move_r06(game),
-            game.dungeon.current_cell == CellId::R03 && command == "south" -> block move_r02(game),
-            game.dungeon.current_cell == CellId::R03 && command == "north" -> block move_r04(game),
-            game.dungeon.current_cell == CellId::R03 && command == "east" -> block move_r07(game),
-            game.dungeon.current_cell == CellId::R04 && command == "south" -> block move_r03(game),
-            game.dungeon.current_cell == CellId::R05 && command == "west" -> block move_r01(game),
-            game.dungeon.current_cell == CellId::R06 && command == "east" -> block move_r02(game),
-            game.dungeon.current_cell == CellId::R07 && command == "west" -> block move_r03(game),
+            game.dungeon.current_cell == |map|::CellId::R00 && command == "north" -> block move_r01(game),
+            game.dungeon.current_cell == |map|::CellId::R01 && command == "south" -> block move_r00(game),
+            game.dungeon.current_cell == |map|::CellId::R01 && command == "north" -> block move_r02(game),
+            game.dungeon.current_cell == |map|::CellId::R01 && command == "east" -> block move_r05(game),
+            game.dungeon.current_cell == |map|::CellId::R02 && command == "south" -> block move_r01(game),
+            game.dungeon.current_cell == |map|::CellId::R02 && command == "north" -> block move_r03(game),
+            game.dungeon.current_cell == |map|::CellId::R02 && command == "west" -> block move_r06(game),
+            game.dungeon.current_cell == |map|::CellId::R03 && command == "south" -> block move_r02(game),
+            game.dungeon.current_cell == |map|::CellId::R03 && command == "north" -> block move_r04(game),
+            game.dungeon.current_cell == |map|::CellId::R03 && command == "east" -> block move_r07(game),
+            game.dungeon.current_cell == |map|::CellId::R04 && command == "south" -> block move_r03(game),
+            game.dungeon.current_cell == |map|::CellId::R05 && command == "west" -> block move_r01(game),
+            game.dungeon.current_cell == |map|::CellId::R06 && command == "east" -> block move_r02(game),
+            game.dungeon.current_cell == |map|::CellId::R07 && command == "west" -> block move_r03(game),
             _ -> block invalid_command(game)
         }
     }
 
     machine look(game: @mutable Game) {
-        render_look(
+        |game_view|::render_look(
             @mutable game.view,
             game.dungeon.level,
             game.dungeon.current_cell,
@@ -195,13 +173,13 @@ machine run_game_loop(game: @mutable Game) reaches ProcessExit + StandardInput +
     }
 
     machine exits(game: @mutable Game) {
-        render_exits(
+        |game_view|::render_exits(
             @mutable game.view,
             game.dungeon.level,
             game.dungeon.current_cell,
             @mutable game.output
         );
-        render_commands();
+        |game_view|::render_commands();
 
         transition {
             _ -> block prompt(game)
@@ -209,7 +187,7 @@ machine run_game_loop(game: @mutable Game) reaches ProcessExit + StandardInput +
     }
 
     machine inventory(game: @mutable Game) {
-        render_inventory(@mutable game.view, game.dungeon.player, @mutable game.output);
+        |game_view|::render_inventory(@mutable game.view, game.dungeon.player, @mutable game.output);
 
         transition {
             _ -> block prompt(game)
@@ -217,7 +195,7 @@ machine run_game_loop(game: @mutable Game) reaches ProcessExit + StandardInput +
     }
 
     machine character(game: @mutable Game) {
-        render_character(@mutable game.view, game.dungeon.player, @mutable game.output);
+        |game_view|::render_character(@mutable game.view, game.dungeon.player, @mutable game.output);
 
         transition {
             _ -> block prompt(game)
@@ -225,9 +203,9 @@ machine run_game_loop(game: @mutable Game) reaches ProcessExit + StandardInput +
     }
 
     machine use_event(game: @mutable Game) {
-        let cell: CellId = game.dungeon.current_cell;
-        dungeon_use_event(@mutable game.dungeon, cell, @mutable game.output);
-        render_line(@game.output);
+        let cell: |map|::CellId = game.dungeon.current_cell;
+        |dungeon|::dungeon_use_event(@mutable game.dungeon, cell, @mutable game.output);
+        |game_view|::render_line(@game.output);
 
         transition {
             _ -> block prompt(game)
@@ -235,9 +213,9 @@ machine run_game_loop(game: @mutable Game) reaches ProcessExit + StandardInput +
     }
 
     machine fight(game: @mutable Game) {
-        let cell: CellId = game.dungeon.current_cell;
-        dungeon_fight(@mutable game.dungeon, cell, @mutable game.output);
-        render_line(@game.output);
+        let cell: |map|::CellId = game.dungeon.current_cell;
+        |dungeon|::dungeon_fight(@mutable game.dungeon, cell, @mutable game.output);
+        |game_view|::render_line(@game.output);
 
         transition game.dungeon.player.health == 0 {
             true -> block game_over(game),
@@ -246,17 +224,17 @@ machine run_game_loop(game: @mutable Game) reaches ProcessExit + StandardInput +
     }
 
     machine attempt_move(game: @mutable Game) {
-        let destination: CellId = game.dungeon.navigation.destination;
+        let destination: |map|::CellId = game.dungeon.navigation.destination;
 
-        transition can_travel_to(destination) {
+        transition |dungeon|::can_travel_to(destination) {
             true -> block move_player(game),
             false -> block blocked_by_enemy(game)
         }
     }
 
     machine move_player(game: @mutable Game) {
-        let destination: CellId = game.dungeon.navigation.destination;
-        move_to(@mutable game.dungeon, destination);
+        let destination: |map|::CellId = game.dungeon.navigation.destination;
+        |dungeon|::move_to(@mutable game.dungeon, destination);
 
         transition {
             _ -> block enter_room(game)
@@ -264,7 +242,7 @@ machine run_game_loop(game: @mutable Game) reaches ProcessExit + StandardInput +
     }
 
     machine move_r00(game: @mutable Game) {
-        move_to(@mutable game.dungeon, CellId::R00);
+        |dungeon|::move_to(@mutable game.dungeon, |map|::CellId::R00);
 
         transition {
             _ -> block enter_room(game)
@@ -272,7 +250,7 @@ machine run_game_loop(game: @mutable Game) reaches ProcessExit + StandardInput +
     }
 
     machine move_r01(game: @mutable Game) {
-        move_to(@mutable game.dungeon, CellId::R01);
+        |dungeon|::move_to(@mutable game.dungeon, |map|::CellId::R01);
 
         transition {
             _ -> block enter_room(game)
@@ -280,7 +258,7 @@ machine run_game_loop(game: @mutable Game) reaches ProcessExit + StandardInput +
     }
 
     machine move_r02(game: @mutable Game) {
-        move_to(@mutable game.dungeon, CellId::R02);
+        |dungeon|::move_to(@mutable game.dungeon, |map|::CellId::R02);
 
         transition {
             _ -> block enter_room(game)
@@ -288,7 +266,7 @@ machine run_game_loop(game: @mutable Game) reaches ProcessExit + StandardInput +
     }
 
     machine move_r03(game: @mutable Game) {
-        move_to(@mutable game.dungeon, CellId::R03);
+        |dungeon|::move_to(@mutable game.dungeon, |map|::CellId::R03);
 
         transition {
             _ -> block enter_room(game)
@@ -296,7 +274,7 @@ machine run_game_loop(game: @mutable Game) reaches ProcessExit + StandardInput +
     }
 
     machine move_r04(game: @mutable Game) {
-        move_to(@mutable game.dungeon, CellId::R04);
+        |dungeon|::move_to(@mutable game.dungeon, |map|::CellId::R04);
 
         transition {
             _ -> block enter_room(game)
@@ -304,7 +282,7 @@ machine run_game_loop(game: @mutable Game) reaches ProcessExit + StandardInput +
     }
 
     machine move_r05(game: @mutable Game) {
-        move_to(@mutable game.dungeon, CellId::R05);
+        |dungeon|::move_to(@mutable game.dungeon, |map|::CellId::R05);
 
         transition {
             _ -> block enter_room(game)
@@ -312,7 +290,7 @@ machine run_game_loop(game: @mutable Game) reaches ProcessExit + StandardInput +
     }
 
     machine move_r06(game: @mutable Game) {
-        move_to(@mutable game.dungeon, CellId::R06);
+        |dungeon|::move_to(@mutable game.dungeon, |map|::CellId::R06);
 
         transition {
             _ -> block enter_room(game)
@@ -320,7 +298,7 @@ machine run_game_loop(game: @mutable Game) reaches ProcessExit + StandardInput +
     }
 
     machine move_r07(game: @mutable Game) {
-        move_to(@mutable game.dungeon, CellId::R07);
+        |dungeon|::move_to(@mutable game.dungeon, |map|::CellId::R07);
 
         transition {
             _ -> block enter_room(game)
@@ -328,8 +306,8 @@ machine run_game_loop(game: @mutable Game) reaches ProcessExit + StandardInput +
     }
 
     machine blocked_by_enemy(game: @mutable Game) {
-        text_buffer_set(@mutable game.output, "[Blocked] A hostile presence bars the deeper path. Fight or fall back." as +Ascii);
-        render_line(@game.output);
+        |buffer|::text_buffer_set(@mutable game.output, "[Blocked] A hostile presence bars the deeper path. Fight or fall back." as + |buffer|::Ascii);
+        |game_view|::render_line(@game.output);
 
         transition {
             _ -> block prompt(game)
@@ -337,7 +315,7 @@ machine run_game_loop(game: @mutable Game) reaches ProcessExit + StandardInput +
     }
 
     machine invalid_command(game: @mutable Game) {
-        render_invalid_command();
+        |game_view|::render_invalid_command();
 
         transition {
             _ -> block prompt(game)
@@ -345,8 +323,8 @@ machine run_game_loop(game: @mutable Game) reaches ProcessExit + StandardInput +
     }
 
     machine game_over(game: @mutable Game) {
-        dungeon_game_over(@mutable game.dungeon);
-        render_game_over();
+        |dungeon|::dungeon_game_over(@mutable game.dungeon);
+        |game_view|::render_game_over();
 
         transition {
             _ -> block finished(game)
@@ -354,9 +332,9 @@ machine run_game_loop(game: @mutable Game) reaches ProcessExit + StandardInput +
     }
 
     machine finished(game: @mutable Game) {
-        Console::write_line("the crawl has ended -- goodbye (exit 0)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable game.pause[..]);
-        ProcessExit::exit_process(0);
+        |console|::Console::write_line("the crawl has ended -- goodbye (exit 0)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable game.pause[..]);
+        |process_exit|::ProcessExit::exit_process(0);
     }
 }

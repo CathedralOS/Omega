@@ -59,10 +59,10 @@ fn reference_only_opaque_data_has_declarations_without_a_physical_representation
     assert!(!public_api.contains("tables.omg::PrivateTable"));
 
     let (status, report) = audit(
-        r#"use omega\language\core\OpaqueRepresentation;
+        r#"use {omega}/language/core/representation.omg;
 public boundary data EfiSystemTable;
 public data TableBytes { word: u64; }
-public TableRepresentation satisfies OpaqueRepresentation<EfiSystemTable, TableBytes> { }"#,
+public TableRepresentation satisfies |representation|::OpaqueRepresentation<EfiSystemTable, TableBytes> { }"#,
     );
     assert_eq!(status, Some(1), "{report}");
     assert!(

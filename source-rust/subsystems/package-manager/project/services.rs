@@ -577,8 +577,7 @@ impl HandoffSources<'_> {
             let opened = self
                 .dependency_inputs(settled, purpose, target, products)
                 .and_then(|inputs| {
-                    let pending = settled
-                        .open_pending(inputs, project_build::DependencyCheck::DemandedClosure)?;
+                    let pending = settled.open_pending_for_handoff(inputs)?;
                     let handoff = pending.build_handoff(target);
                     Ok((pending, handoff))
                 });
@@ -635,10 +634,16 @@ impl HandoffSources<'_> {
                 .ok_or_else(|| refused("dependency graph has no corresponding settled Build"))?;
             let child_inputs =
                 self.dependency_inputs(&child.build, purpose, deployment, products)?;
-            let product = child.build.open_pending(
-                child_inputs,
-                project_build::DependencyCheck::DemandedClosure,
-            )?;
+            let keep_supplier = purpose == DependencyPurpose::Product
+                && products.independent_target == Some(deployment);
+            let product = if keep_supplier {
+                child.build.open_pending(
+                    child_inputs,
+                    project_build::DependencyCheck::DemandedClosure,
+                )?
+            } else {
+                child.build.open_pending_for_handoff(child_inputs)?
+            };
             let bundle = product.build_handoff(deployment);
             // Keep the Product before its handoff can fail, so its recheck is
             // settled, and reported first, either way.
@@ -649,9 +654,7 @@ impl HandoffSources<'_> {
             });
             let bundle = bundle?;
             let rows = products.by_package.entry(package).or_default();
-            if purpose == DependencyPurpose::Product
-                && products.independent_target == Some(deployment)
-            {
+            if keep_supplier {
                 products.pending[index].supplier = Some((package, rows.len()));
             }
             rows.push(CompletedDependency {

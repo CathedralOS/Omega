@@ -1,3 +1,4 @@
+use main.omg as app;
 data OrdinaryPath {}
 data Visits { value: u64 in Wrapping; }
 machine path(value: @OrdinaryPath, visits: @mutable Visits) -> u64 {
@@ -23,10 +24,10 @@ machine build(builder: @mutable Build) {
 machine choose(builder: @mutable Build, correct: bool) {
     transition correct { true -> good(builder), _ -> bad(builder) }
     machine good(builder: @mutable Build) {
-        Build::bind(builder, macos_arm64::ProgramEntry, main);
-        Build::bind(builder, linux_arm64::ProgramEntry, main);
-        Build::bind(builder, linux_x86_64::ProgramEntry, main);
-        Build::bind(builder, windows_x86_64::ProgramEntry, main);
+        Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
+        Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
+        Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+        Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
     }
     machine bad(builder: @mutable Build) {
         // Fail during Build, before root-binding discovery can produce a product.

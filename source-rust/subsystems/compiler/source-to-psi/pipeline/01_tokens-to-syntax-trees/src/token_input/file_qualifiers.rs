@@ -13,15 +13,33 @@ use syntax_trees::{ParsedRootItems, SyntaxTrees};
 pub(crate) struct FileQualifiers<'source> {
     // Parsing can visit a name more than once. Its opening bar identifies one occurrence.
     uses: RefCell<BTreeMap<usize, (&'source str, QualifierUse)>>,
+    // The first `asm` instruction that needs core's packed-integer contracts.
+    packed_instruction: std::cell::Cell<Option<source_text::SourceSpan>>,
 }
 
 enum QualifierUse {
     Host,
     Product,
     RootOperand(Option<String>),
+    Description(String),
 }
 
 impl<'source> FileQualifiers<'source> {
+    pub(crate) fn record_packed_instruction(&self, site: source_text::SourceSpan) {
+        if self.packed_instruction.get().is_none() {
+            self.packed_instruction.set(Some(site));
+        }
+        // The desugared instruction names its contract through this alias.
+        self.record(
+            site.span.start,
+            language_core::inline_assembly::PACKED_INTEGER_CONTRACTS_ALIAS,
+        );
+    }
+
+    pub(crate) fn packed_instruction(&self) -> Option<source_text::SourceSpan> {
+        self.packed_instruction.get()
+    }
+
     pub(crate) fn record(&self, start: usize, alias: &'source str) {
         self.uses
             .borrow_mut()
@@ -93,6 +111,27 @@ impl<'source> FileQualifiers<'source> {
         let ExpressionNode::Call(call) = trees.expressions.expression(expression) else {
             return;
         };
+        if let Some((alias, member)) = call
+            .target
+            .as_str(trees)
+            .strip_prefix('|')
+            .and_then(|path| path.split_once("|::"))
+            && matches!(member, "parameter" | "field")
+            && call.target_is_static
+            && !call.receiver.is_valid()
+            && call.machine_arguments.is_empty()
+            && let [argument] = trees.expressions.expression_handles(call.arguments)
+            && let ExpressionNode::Name {
+                members,
+                application: None,
+            } = trees.expressions.expression(*argument)
+        {
+            self.mark(
+                trees.expressions.identifier_path_members(*members),
+                QualifierUse::Description(alias.to_owned()),
+            );
+            return;
+        }
         if call.machine_arguments.is_empty() || !call.target_is_static || !call.receiver.is_valid()
         {
             return;
@@ -123,20 +162,36 @@ impl<'source> FileQualifiers<'source> {
         }
     }
 
-    pub(crate) fn only_product_operands(
+    pub(crate) fn occurrences(
         &self,
         trees: &SyntaxTrees,
         roots: &ParsedRootItems,
-    ) -> BTreeSet<&'source str> {
+    ) -> BTreeMap<&'source str, Vec<syntax_trees::item::FileQualifier>> {
         let mut aliases = BTreeMap::new();
         let uses = self.uses.borrow();
         if uses.is_empty() {
-            return BTreeSet::new();
+            return aliases;
         }
         let mut traits = BTreeSet::new();
         let mut named_record = false;
+        let mut description_apis = BTreeSet::new();
         for root in &roots.items {
             match trees.root_item(*root) {
+                Item::Use(syntax_trees::item::UseItem::File {
+                    root: Some(root),
+                    components,
+                    alias,
+                    ..
+                }) if root.as_str(trees) == "omega"
+                    && trees
+                        .items
+                        .identifier_path_members(*components)
+                        .iter()
+                        .map(|part| part.as_str(trees))
+                        .eq(["language", "core", "reflect", "reflect"]) =>
+                {
+                    description_apis.insert(alias.as_str(trees));
+                }
                 Item::Trait(schema) => {
                     let name = schema.name.as_str(trees);
                     traits.insert(name);
@@ -151,19 +206,29 @@ impl<'source> FileQualifiers<'source> {
                 _ => {}
             }
         }
-        for (alias, role) in uses.values() {
-            let product = match role {
-                QualifierUse::Product => true,
-                QualifierUse::Host => false,
+        for (&offset, (alias, role)) in uses.iter() {
+            use syntax_trees::item::FileQualifierRole;
+            let role = match role {
+                QualifierUse::Product => FileQualifierRole::Product,
+                QualifierUse::Host => FileQualifierRole::Code,
+                QualifierUse::Description(api) if description_apis.contains(api.as_str()) => {
+                    FileQualifierRole::Description
+                }
+                QualifierUse::Description(_) => FileQualifierRole::Code,
                 QualifierUse::RootOperand(schema) => {
-                    !named_record && !schema.as_deref().is_some_and(|name| traits.contains(name))
+                    if !named_record && !schema.as_deref().is_some_and(|name| traits.contains(name))
+                    {
+                        FileQualifierRole::Product
+                    } else {
+                        FileQualifierRole::Code
+                    }
                 }
             };
-            *aliases.entry(*alias).or_insert(true) &= product;
+            aliases
+                .entry(*alias)
+                .or_default()
+                .push(syntax_trees::item::FileQualifier { offset, role });
         }
         aliases
-            .into_iter()
-            .filter_map(|(name, product)| product.then_some(name))
-            .collect()
     }
 }

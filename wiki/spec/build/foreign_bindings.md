@@ -145,7 +145,7 @@ describes which arguments the foreign function receives.
 
 The description borrows its reflected identity text. A Build that names the
 locator type can bind its lifetime as `machine build<'selection>(builder:
-@mutable Build)` and declare the local as
+@mutable BuildPlan)` and declare the local as
 `let locator: |native|::FunctionFieldBinding<'selection> = …`.
 
 These are [typed declaration selectors](../language/reflection.md#typed-declaration-selectors),

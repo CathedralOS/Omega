@@ -22,17 +22,18 @@ fn run(name: &str, main: &str) -> [(Option<i32>, String); 2] {
     let library = library.to_string_lossy().replace('\\', "/");
     let application = name.replace('-', "_");
     let build = format!(
-        "use {{omega}}/build/dependency.omg;
+        "use main.omg as app;
+use {{omega}}/build/dependency.omg;
 use {{omega}}/language/core/process_exit.omg;
 machine build(builder: @mutable Build) {{
     Build::application(builder, \"{application}\");
     let adapter: DependencyDescription = |dependency|::from_source(Source::Path {{ location: \"{library}\" }});
     let allowed: [BoundaryServiceReference; 1] = [Build::service::<|process_exit|::ProcessExit>(builder)];
     _ = |dependency|::add(builder, adapter, @allowed[..]);
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
 }}
 "
     );
@@ -64,9 +65,9 @@ fn exits_with(code: i32, runs: [(Option<i32>, String); 2]) {
     }
 }
 
-const QUIT: &str = "use omega\\language\\core\\ProcessExit;
-machine quit(code: i32, other: i32) reaches ProcessExit { ProcessExit::exit_process(code); }
-machine main() reaches ProcessExit { quit(3, 5); }
+const QUIT: &str = "use {omega}/language/core/process_exit.omg;
+machine quit(code: i32, other: i32) reaches |process_exit|::ProcessExit { |process_exit|::ProcessExit::exit_process(code); }
+machine main() reaches |process_exit|::ProcessExit { quit(3, 5); }
 ";
 
 /// `quit(3, 5)` exits with its first formal, 3; the twin that passes
@@ -87,9 +88,9 @@ fn nothing_after_an_exit_runs() {
         4,
         run(
             "exit-grouped",
-            "use omega\\language\\core\\ProcessExit;
-machine quit(code: i32) -> i32 reaches ProcessExit { (ProcessExit::exit_process(code)); 7 }
-machine main() reaches ProcessExit { let ignored: i32 = quit(4); }
+            "use {omega}/language/core/process_exit.omg;
+machine quit(code: i32) -> i32 reaches |process_exit|::ProcessExit { (|process_exit|::ProcessExit::exit_process(code)); 7 }
+machine main() reaches |process_exit|::ProcessExit { let ignored: i32 = quit(4); }
 ",
         ),
     );
@@ -123,30 +124,32 @@ machine main() reaches ProcessExit { let ignored: i32 = stop(6); }
 /// differs only in the argument the provider hands to the core primitive.
 #[test]
 fn a_provider_of_the_exit_passes_on_the_status_it_received() {
-    let build = "machine build(builder: @mutable Build) {
+    let build = "use main.omg as app;
+use {omega}/language/core/process_exit.omg;
+machine build(builder: @mutable Build) {
     Build::application(builder, \"exit_provider\");
-    Build::select_provider::<ProcessExit, LocalExit>(builder, windows_x86_64);
-    Build::select_provider::<ProcessExit, LocalExit>(builder, linux_x86_64);
-    Build::select_provider::<ProcessExit, LocalExit>(builder, linux_arm64);
-    Build::select_provider::<ProcessExit, LocalExit>(builder, macos_arm64);
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::select_provider::<|process_exit|::ProcessExit, |app|::LocalExit>(builder, windows_x86_64);
+    Build::select_provider::<|process_exit|::ProcessExit, |app|::LocalExit>(builder, linux_x86_64);
+    Build::select_provider::<|process_exit|::ProcessExit, |app|::LocalExit>(builder, linux_arm64);
+    Build::select_provider::<|process_exit|::ProcessExit, |app|::LocalExit>(builder, macos_arm64);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
 }
 ";
-    let honest = "use omega\\language\\core\\Never;
-use omega\\language\\core\\ProcessExit;
-use omega\\language\\core\\ProcessExitPrimitive;
-LocalExit satisfies ProcessExit {
-    machine exit_process(return_code: i32) -> Never
-    reaches ProcessExit
+    let honest = "use {omega}/language/core/never.omg;
+use {omega}/language/core/process_exit.omg;
+use {omega}/language/core/process_exit_native.omg;
+LocalExit satisfies |process_exit|::ProcessExit {
+    machine exit_process(return_code: i32) -> |never|::Never
+    reaches |process_exit|::ProcessExit
     crashes none
     terminates {
-        ProcessExitPrimitive(return_code);
+        |process_exit_native|::ProcessExitPrimitive(return_code);
     }
 }
-machine main() reaches ProcessExit { ProcessExit::exit_process(7); }
+machine main() reaches |process_exit|::ProcessExit { |process_exit|::ProcessExit::exit_process(7); }
 ";
     exits_with(7, run_build("exit-provider", build, honest));
 

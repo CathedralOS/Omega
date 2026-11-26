@@ -77,7 +77,7 @@ multi-target requests fan out into independently checked child compilations.
 
 The v2 construction entry interprets a ground application Build and the
 empty activated core default. It checks the application role, the authored
-`alpha_bootstrap\ProgramEntry` binding, and ProcessExit selections for the
+`alpha_bootstrap::ProgramEntry` binding, and ProcessExit selections for the
 six supported targets. Local Build helpers receive the caller's mutable Build
 handle. Every helper body is checked. Only executed calls contribute a
 selection, and each target retains its own provider. The file's own imports resolve each designated Product operand.
@@ -97,10 +97,11 @@ deployment and checks the full status alongside the Linux seed observation.
 
 A standalone deployment can also supply the distinct package roots of a
 verified immutable Git snapshot. The covered application registers one Product
-dependency with `Build::dependency(builder, dependency\from_source(Source::Path { location: "…" }))`.
+dependency by importing `{omega}/build/dependency.omg` and calling
+`Build::dependency(builder, |dependency|::from_source(Source::Path { location: "…" }))`.
 The canonical location is relative to the application's root. Its target must
 own the supplied dependency package, default alias and source bytes. The
-dependency's own `Build::package` activation can select its provider. The
+dependency's own Build selects a `BuildProduct::Package` and can select its provider. The
 remaining package supplies the trusted core default. Build-only dependencies,
 additional graph edges and overlapping package selections require further
 coverage. To prepare this embedding, pass the snapshot, immutable commit,
@@ -134,9 +135,9 @@ not a replacement public request protocol.
 The internal `compile_set(source, entry_unit, entry)` customer accepts a bounded
 source set: at most 64 package identities, 256 direct dependency aliases and 512
 source units. Each unit has invocation-owned package membership, an exact
-source interval and a logical package-relative path. The parser keeps each
-parent directory component for name resolution and refuses a legacy `module`
-header. Legacy directory imports share a namespace across sibling files. Types and calls retain
+source interval and a logical package-relative path. Each import selects
+one complete filename in that package or a direct dependency. The parser
+rejects the retired `module` header. Types and calls retain
 their exact declaration identity across units. Source-order changes do not
 select a different imported declaration.
 
@@ -195,20 +196,14 @@ A file import binds its explicit alias or its filename stem. For example, the pa
 to select the suffix case from its token file. The constructor checks the
 whole logical filename and package visibility before selecting a declaration.
 
-Legacy imports are file-local. Item imports select declarations; namespace imports
-bind a namespace without importing its ordinary machines as bare names.
-Repeated imports of one identity are allowed, while competing imported names
-refuse. Ordinary package-qualified names use the requester's own package or
-a direct requester-local dependency alias. The reserved `omega\language\core` mount
-selects the package with the invocation's core role. Both routes enforce public
-visibility across packages. Public field and call-interface types cannot expose private records. The
-current subset handles directory namespaces, free machines and named
-records; it does not add attached declarations, reexports, overload selection,
-or full build/request admission. The single-view API is the one-unit case.
-Every supplied declaration is checked, including unused units and bodies.
-Run `python3 tests/bootstrap/independent/directory_names.py CONSTRUCTOR` to
-check directory imports, sibling lookup, path validation and legacy packets
-against a constructed executable. Successful cases execute the emitted Alpha tape.
+A bare name selects a declaration from its own file. An import from another
+package names a direct dependency, or uses the toolchain's core mount in
+`use {omega}/language/core/never.omg;`. Cross-package selections require a
+public declaration. Public field and call-interface types cannot expose
+private records. Every supplied declaration is checked, including unused
+units and bodies. Run `python3 tests/bootstrap/independent/directory_names.py CONSTRUCTOR`
+to check file selection, visibility, path validation and rejection of retired
+imports. Successful cases execute the emitted Alpha tape.
 
 The construction application is [construct_omega.epsilon](../construct_omega.epsilon).
 It reads package, direct-alias and unit rows followed by a shared 8 MiB arena
@@ -744,7 +739,7 @@ See [lifetimes and carried borrows](../../../wiki/spec/language/lifetimes.md).
 
 A nongeneric domain declaration retains its visibility, name, carrier type,
 and ordered predicate expressions. For example,
-`public domain [u8]::Utf8 requires byte_observation\valid_utf8(@self[..]);`
+`public domain [u8]::Utf8 requires |bytes|::valid_utf8(@self[..]);`
 in `source/library/system/calling.omg` retains the slice carrier and the call on
 its borrowed subject. A declaration ending directly in `;` has zero predicates.
 The parser rejects the retired subject binder and brace body. The compiler

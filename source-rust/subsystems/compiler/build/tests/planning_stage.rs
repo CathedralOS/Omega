@@ -30,8 +30,8 @@ fn alpha_service_defaults_are_returned_by_the_standard_library_build() {
         .read_to_string(std::path::Path::new("build.omg"))
         .unwrap();
     let exit =
-        "Build::select_provider::<ProcessExit, NativeProcessExit>(builder, alpha_bootstrap);";
-    let console = "Build::select_provider::<Console, AlphaConsole>(builder, alpha_bootstrap);";
+        "Build::select_provider::<|process|::ProcessExit, |process_exit|::NativeProcessExit>(builder, alpha_bootstrap);";
+    let console = "Build::select_provider::<|console|::Console, |console|::AlphaConsole>(builder, alpha_bootstrap);";
     assert_eq!(standard.matches(exit).count(), 1);
     assert_eq!(standard.matches(console).count(), 1);
     let selected_console = ("Console", "AlphaConsole", "configure_console");
@@ -398,7 +398,8 @@ fn an_unbound_conditional_import_refuses_before_the_build_can_write() {
     let root = temporary.path();
     let entry = root.join("build.omg");
     std::fs::write(root.join("main.omg"), "machine main() {}").unwrap();
-    std::fs::write(&entry, r#"use {scores}/value.omg as scores;
+    std::fs::write(&entry, r#"use main.omg as app;
+use {scores}/value.omg as scores;
 use {omega}/build/dependency.omg;
 machine build(builder: @mutable Build) suspends {
     Build::application(builder, "fixed_wait");
@@ -417,7 +418,7 @@ machine build(builder: @mutable Build) suspends {
         let value: i32 = |scores|::value();
     }
     machine done(builder: @mutable Build) {
-        Build::bind(builder, linux_x86_64::ProgramEntry, main);
+        Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
     }
 }
 "#).unwrap();

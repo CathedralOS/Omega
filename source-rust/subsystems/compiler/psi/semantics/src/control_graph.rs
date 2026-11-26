@@ -367,6 +367,11 @@ impl DominatorTree {
     }
 }
 
+pub fn checked_dominators(machine: &TerminalMachine) -> Result<DominatorTree, ControlGraphError> {
+    validate_control_graph(machine)?;
+    Ok(dominators(machine))
+}
+
 pub fn dominators(machine: &TerminalMachine) -> DominatorTree {
     let outgoing = successors(machine);
     let ordered = reverse_postorder_from_successors(machine.entry, &outgoing);

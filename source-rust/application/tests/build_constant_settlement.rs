@@ -21,10 +21,11 @@ mod project;
 
 fn check(name: &str, build_body: &str) -> (bool, String) {
     let build = format!(
-        "machine observe(target: BuildTarget) {{ }}
+        "use main.omg as app;
+machine observe(target: BuildTarget) {{ }}
 machine build(builder: @mutable Build) {{
     Build::application(builder, \"settled\");
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
 {build_body}}}
 "
     );

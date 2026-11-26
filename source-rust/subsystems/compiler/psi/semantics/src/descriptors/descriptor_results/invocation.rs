@@ -217,9 +217,7 @@ pub fn public_invocation(
         arguments,
         argument_contents,
         result: result.map(|result| {
-            crate::descriptors::descriptor_lifetimes::DescriptorLocation::whole(
-                result.place,
-            )
+            crate::descriptors::descriptor_lifetimes::DescriptorLocation::whole(result.place)
         }),
     })
 }
@@ -258,25 +256,31 @@ pub fn public_result_slots(
         if !selected_kind {
             continue;
         }
+        let leaf_kind = leaf.kind;
         let path = leaf.path;
+        let tip_is_shared_byte_view = matches!(leaf_kind, crate::BorrowedResultLeafKind::View)
+            && crate::runtime_structural_path_tip(types.iter(), result.structural_type, &path)
+                .is_some_and(|tip| {
+                    matches!(
+                        tip.shape,
+                        terminal_psi::StructuralTypeShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BorrowedView {
+                                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                            }
+                        )
+                    )
+                });
         let leaf = descriptor_location(types, place, result.structural_type, &path, None)?;
         let mut origins = Vec::new();
         for region in slot.reference_regions(&path) {
             let region = region.ok()?;
-            let destination = descriptor_location(
-                types,
-                place,
-                result.structural_type,
-                &region.path,
-                None,
-            )?;
+            let destination =
+                descriptor_location(types, place, result.structural_type, &region.path, None)?;
             if destination.path != leaf.path {
                 continue;
             }
             let index = match region.origin {
-                TerminalDynamicReferenceOrigin::Parameter { argument_index } => {
-                    argument_index
-                }
+                TerminalDynamicReferenceOrigin::Parameter { argument_index } => argument_index,
                 TerminalDynamicReferenceOrigin::Invocation { carrier_type } => {
                     let mut projection = Projection::new(&region.source_path);
                     projection.forget_address();
@@ -298,7 +302,24 @@ pub fn public_result_slots(
             )?);
         }
         if origins.is_empty() {
-            return None;
+            let no_borrowed_inputs = (0..slot.structural_parameter_count()).all(|index| {
+                slot.structural_parameter(index)
+                    .is_some_and(|(formal, access)| {
+                        access == terminal_psi::StructuralAccess::Owned
+                            && crate::borrowed_result_leaves(
+                                types.iter(),
+                                formal,
+                                terminal_psi::StructuralMultiplicity::Unrestricted,
+                                0,
+                            )
+                            .is_ok()
+                    })
+            });
+            if tip_is_shared_byte_view && no_borrowed_inputs {
+                origins.push(DescriptorStoredOrigin::Empty);
+            } else {
+                return None;
+            }
         }
         results.push(DescriptorResultSlot {
             path: leaf.path,

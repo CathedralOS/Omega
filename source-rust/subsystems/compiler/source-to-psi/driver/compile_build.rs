@@ -61,9 +61,13 @@ impl ProductDeclarationSource {
         host: &'static str,
         authority: Option<Arc<PackageDeclarationScope>>,
     ) -> Result<crate::compile_product::ProductDeclarations, Vec<Diagnostic>> {
-        let typed =
-            self.0
-                .typed_source(preparation, host, authority, &mut CompileTimings::default())?;
+        let typed = self.0.typed_source_scoped(
+            preparation,
+            host,
+            authority,
+            false,
+            &mut CompileTimings::default(),
+        )?;
         Ok(crate::compile_product::ProductDeclarations { typed })
     }
 }
@@ -74,6 +78,25 @@ impl BuildStageSource {
         preparation: &SourcePreparation,
         host: &'static str,
         authority: Option<Arc<PackageDeclarationScope>>,
+    ) -> Result<TypedBuildInterval, Vec<Diagnostic>> {
+        self.prepare_scoped(preparation, host, authority, false)
+    }
+
+    pub fn prepare_entry_only(
+        self,
+        preparation: &SourcePreparation,
+        host: &'static str,
+        authority: Option<Arc<PackageDeclarationScope>>,
+    ) -> Result<TypedBuildInterval, Vec<Diagnostic>> {
+        self.prepare_scoped(preparation, host, authority, true)
+    }
+
+    fn prepare_scoped(
+        self,
+        preparation: &SourcePreparation,
+        host: &'static str,
+        authority: Option<Arc<PackageDeclarationScope>>,
+        entry_only: bool,
     ) -> Result<TypedBuildInterval, Vec<Diagnostic>> {
         if !self.pending_imports.is_empty() {
             return Err(self
@@ -88,8 +111,13 @@ impl BuildStageSource {
                 })
                 .collect());
         }
-        let program =
-            self.typed_source(preparation, host, authority, &mut CompileTimings::default())?;
+        let program = self.typed_source_scoped(
+            preparation,
+            host,
+            authority,
+            entry_only,
+            &mut CompileTimings::default(),
+        )?;
         program
             .check_build_provider_declarations()
             .map_err(|error| vec![error])?;
@@ -107,7 +135,7 @@ impl BuildStageSource {
         declaration: &source_admission::RetainedDeclaration,
         timings: &mut CompileTimings,
     ) -> Result<(Arc<TypedTrees>, SymbolHandle), Vec<Diagnostic>> {
-        let typed = self.typed_source(preparation, host, authority, timings)?;
+        let typed = self.typed_source_scoped(preparation, host, authority, false, timings)?;
         let entry = crate::source_state::source_subjects::rejoin_build_activation(
             &typed,
             subject,
@@ -117,15 +145,16 @@ impl BuildStageSource {
         Ok((typed, entry))
     }
 
-    fn typed_source(
+    fn typed_source_scoped(
         self,
         preparation: &SourcePreparation,
         host: &'static str,
         authority: Option<Arc<PackageDeclarationScope>>,
+        entry_only: bool,
         timings: &mut CompileTimings,
     ) -> Result<Arc<TypedTrees>, Vec<Diagnostic>> {
         let checkpoint = self
-            .request(preparation, host, authority)?
+            .request(preparation, host, authority, entry_only)?
             .prepare(timings)?;
         Ok(checkpoint.shared_typed())
     }
@@ -135,7 +164,27 @@ impl BuildStageSource {
         preparation: &SourcePreparation,
         host: &'static str,
         authority: Option<Arc<PackageDeclarationScope>>,
+        entry_only: bool,
     ) -> Result<ResolveAndTypeRequest, Vec<Diagnostic>> {
+        let entry_span = self.entry;
+        let mut subject_files: Vec<_> = self
+            .parsed
+            .files
+            .selected_files()
+            .filter(|file| {
+                file.dependency_scope == source_provenance::DependencyScope::Build
+                    && ((file.origin == source_admission::SourceOrigin::User && !entry_only)
+                        || (file.origin == source_admission::SourceOrigin::Toolchain
+                            && source_admission::source_identity::is_build_prelude_path(
+                                &file.path,
+                            )))
+            })
+            .map(|file| file.source_id)
+            .collect();
+        if !subject_files.contains(&entry_span.source_id) && entry_only {
+            // Entry-only builds complete `entry_span` plus its prelude and demand closure.
+        }
+        let _ = &mut subject_files;
         let entry = self.parsed.files.get(self.entry.source_id).map(|file| {
             source_admission::RetainedDeclaration::from_source_occurrence(
                 file.clone(),
@@ -151,6 +200,10 @@ impl BuildStageSource {
         request.frontends = preparation.frontends.clone();
         target_helpers::select_build_helpers(&mut request.syntax.trees, host, &self.build_sources);
         request.selection_authority = authority;
+        request.body_demand = crate::driver::resolve_and_type::BodyDemandRequest::BuildDemand {
+            entry_machine: entry_span,
+            subject_files,
+        };
         Ok(request.with_build_entry(entry.as_ref()))
     }
 }

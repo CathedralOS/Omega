@@ -23,7 +23,8 @@ fn check_with_dependency_build(
     let target = target::TargetProfile::host_if_supported().expect("a hosted test target");
     let target = target.target_name();
     let build = format!(
-        "use support/support.omg as amounts;
+        "use main.omg as app;
+use support/support.omg as amounts;
 
 use {{omega}}/build/dependency.omg;
 machine build(builder: @mutable BuildPlan)
@@ -37,7 +38,7 @@ suspends
     suspend Build::prepare_dependency(builder, kit_registered);
 {after}
     machine carried(builder: @mutable BuildPlan) {{
-        Build::bind(builder, {target}::ProgramEntry, main);
+        Build::bind(builder, {target}::ProgramEntry, |app|::main);
     }}
     machine wrong(builder: @mutable BuildPlan) {{
         builder.product = BuildProduct::Unselected;
@@ -145,11 +146,12 @@ fn after(callee: &str) -> String {
 fn an_anonymous_build_selects_its_own_constant() {
     let target = target::TargetProfile::host_if_supported().expect("a hosted test target");
     let build = format!(
-        r#"const CHOSEN: bool = false;
+        r#"use main.omg as app;
+const CHOSEN: bool = false;
 machine build(builder: @mutable BuildPlan) {{
     builder.product = BuildProduct::Application {{ name: "constant_custody" }};
     builder.tests.disabled = CHOSEN;
-    Build::bind(builder, {}::ProgramEntry, main);
+    Build::bind(builder, {}::ProgramEntry, |app|::main);
 }}"#,
         target.target_name(),
     );
@@ -340,7 +342,8 @@ fn build_helpers_are_checked_at_the_call_site_in_both_file_layouts() {
         ),
     ] {
         let build = format!(
-            r#"{import}
+            r#"use main.omg as app;
+{import}
 use {{omega}}/build/dependency.omg;
 machine build(builder: @mutable BuildPlan) suspends {{
     announce(builder);
@@ -352,7 +355,7 @@ machine build(builder: @mutable BuildPlan) suspends {{
     transition {call} == expected {{ true -> bind(builder), _ -> wrong(builder) }}
     machine announce(builder: @mutable BuildPlan) {{ set_role(builder); }}
     machine set_role(builder: @mutable BuildPlan) {{ builder.product = BuildProduct::Application {{ name: "staged" }}; }}
-    machine bind(builder: @mutable BuildPlan) {{ Build::bind(builder, {target}::ProgramEntry, main); }}
+    machine bind(builder: @mutable BuildPlan) {{ Build::bind(builder, {target}::ProgramEntry, |app|::main); }}
     machine wrong(builder: @mutable BuildPlan) {{ builder.product = BuildProduct::Unselected; }}
     {nested}
 }}
@@ -418,7 +421,7 @@ machine build(builder: @mutable BuildPlan) suspends {{
             for (case, unused, diagnostic) in [
                 (
                     "unused-name",
-                    r"machine unused() { let bad: i32 = missing\v(); }",
+                    r"machine unused() { let bad: i32 = |missing|::v(); }",
                     "no visible declaration in its source scope",
                 ),
                 (
@@ -472,7 +475,8 @@ requires a == b && a < larger && flag == second && enabled { }";
             .unwrap()
             .target_name();
         let build = format!(
-            r#"use counts.omg as counts;
+            r#"use main.omg as app;
+use counts.omg as counts;
 use {{omega}}/build/dependency.omg;
 machine build(builder: @mutable BuildPlan) suspends {{
     builder.product = BuildProduct::Application {{ name: "staged" }};
@@ -485,7 +489,7 @@ machine build(builder: @mutable BuildPlan) suspends {{
     let seven: i32 = |counts|::value();
     require_related(amount, expected, larger, flag, second, enabled);
     suspend Build::prepare_dependency(builder, registered);
-    Build::bind(builder, {target}::ProgramEntry, main);
+    Build::bind(builder, {target}::ProgramEntry, |app|::main);
 }}
 machine choose_amount(flag: bool) -> i32 ensures result >= 7 && result <= 9 {{
     match flag {{ true -> 9, _ -> 7 }}
@@ -611,7 +615,8 @@ fn a_local_helper_can_run_before_the_build_releases_its_live_borrow() {
 #[test]
 fn a_build_keeps_the_byte_its_helper_read_before_preparation() {
     let target = target::TargetProfile::host_if_supported().expect("hosted test target");
-    let build = r#"use counts.omg as counts;
+    let build = r#"use main.omg as app;
+use counts.omg as counts;
 machine middle(bytes: @[u8]) -> u8 requires bytes.length == 3 { bytes[1] }
 use {omega}/build/dependency.omg;
 machine build(builder: @mutable BuildPlan) suspends {
@@ -626,7 +631,7 @@ machine build(builder: @mutable BuildPlan) suspends {
         true -> done(builder),
         _ -> wrong(builder)
     }
-    machine done(builder: @mutable BuildPlan) { Build::bind(builder, HOST::ProgramEntry, main); }
+    machine done(builder: @mutable BuildPlan) { Build::bind(builder, HOST::ProgramEntry, |app|::main); }
     machine wrong(builder: @mutable BuildPlan) { builder.product = BuildProduct::Unselected; }
 }
 "#.replace("HOST", target.target_name());
@@ -731,7 +736,8 @@ fn a_suspending_helper_returns_its_local_value_after_preparation() {
 #[test]
 fn a_transition_can_use_the_result_of_a_suspending_build_helper() {
     let target = target::TargetProfile::host_if_supported().expect("hosted test target");
-    let build = r#"use counts.omg as counts;
+    let build = r#"use main.omg as app;
+use counts.omg as counts;
 use {omega}/build/dependency.omg;
 machine build(builder: @mutable BuildPlan) suspends {
     builder.product = BuildProduct::Application { name: "ready_subject" };
@@ -742,7 +748,7 @@ machine build(builder: @mutable BuildPlan) suspends {
         true -> finish(builder),
         _ -> wrong(builder)
     }
-    machine finish(builder: @mutable BuildPlan) { Build::bind(builder, HOST::ProgramEntry, main); }
+    machine finish(builder: @mutable BuildPlan) { Build::bind(builder, HOST::ProgramEntry, |app|::main); }
     machine wrong(builder: @mutable BuildPlan) { builder.product = BuildProduct::Unselected; }
 }
 machine ready(builder: @mutable BuildPlan, item: DependencyRegistration) -> bool suspends {
@@ -845,7 +851,8 @@ public machine score() -> i32 {
         ],
     );
     let root = scratch.path();
-    let build = r#"use support/helpers.omg as support;
+    let build = r#"use main.omg as app;
+use support/helpers.omg as support;
 use {omega}/build/dependency.omg;
 machine build(builder: @mutable BuildPlan) suspends {
     builder.product = BuildProduct::Application { name: "prepared_type" };
@@ -855,7 +862,7 @@ machine build(builder: @mutable BuildPlan) suspends {
     suspend Build::prepare_dependency(builder, registered);
     let score: i32 = |support|::score();
     transition score == 7 { true -> finish(builder), _ -> wrong(builder) }
-    machine finish(builder: @mutable BuildPlan) { Build::bind(builder, HOST::ProgramEntry, main); }
+    machine finish(builder: @mutable BuildPlan) { Build::bind(builder, HOST::ProgramEntry, |app|::main); }
     machine wrong(builder: @mutable BuildPlan) { builder.product = BuildProduct::Unselected; }
 }"#.replace("HOST", target.target_name());
     for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
@@ -912,7 +919,8 @@ fn each_transition_arm_can_prepare_its_own_dependency() {
             ],
         );
     }
-    let build = r#"use alpha.omg as alpha;
+    let build = r#"use main.omg as app;
+use alpha.omg as alpha;
 use beta.omg as beta;
 use {omega}/build/dependency.omg;
 machine build(builder: @mutable BuildPlan) suspends {
@@ -934,7 +942,7 @@ machine build(builder: @mutable BuildPlan) suspends {
         let actual: i32 = |beta|::value();
         transition actual == 13 { true -> done(builder), _ -> wrong(builder) }
     }
-    machine done(builder: @mutable BuildPlan) { Build::bind(builder, HOST::ProgramEntry, main); }
+    machine done(builder: @mutable BuildPlan) { Build::bind(builder, HOST::ProgramEntry, |app|::main); }
     machine wrong(builder: @mutable BuildPlan) { builder.product = BuildProduct::Unselected; }
 }"#.replace("HOST", target.target_name());
     for (flag, unused_error) in [("true", false), ("false", false), ("true", true)] {
@@ -970,7 +978,8 @@ machine build(builder: @mutable BuildPlan) suspends {
 #[test]
 fn resumption_preserves_arithmetic_and_float_contracts() {
     let target = target::TargetProfile::host_if_supported().expect("hosted test target");
-    let build = r#"use counts.omg as counts;
+    let build = r#"use main.omg as app;
+use counts.omg as counts;
 use {omega}/build/dependency.omg;
 machine build(builder: @mutable BuildPlan) suspends {
     builder.product = BuildProduct::Application { name: "staged_proofs" };
@@ -984,7 +993,7 @@ machine build(builder: @mutable BuildPlan) suspends {
     let value: i32 = |counts|::value();
     require_step(start, after);
     require_small(measured);
-    Build::bind(builder, HOST::ProgramEntry, main);
+    Build::bind(builder, HOST::ProgramEntry, |app|::main);
 }
 machine pick(flag: bool) -> i32 ensures result >= 7 && result <= 9 { match flag { true -> 7, _ -> 9 } }
 machine increment(value: i32) -> i32 requires value <= 9 ensures result == value + 1 { value + 1 }
@@ -1035,7 +1044,8 @@ machine require_small(x: f64) requires x >= 0.0 && x <= 0.5 {}
 #[test]
 fn only_the_selected_transition_arm_waits_for_its_dependency() {
     let target = target::TargetProfile::host_if_supported().expect("hosted test target");
-    let build = r#"use counts.omg as counts;
+    let build = r#"use main.omg as app;
+use counts.omg as counts;
 const CHOSEN: bool = FLAG;
 use {omega}/build/dependency.omg;
 machine build(builder: @mutable BuildPlan) suspends {
@@ -1053,7 +1063,7 @@ machine build(builder: @mutable BuildPlan) suspends {
         let value: i32 = |counts|::value();
         transition value == 7 { true -> finish(builder), _ -> wrong(builder) }
     }
-    machine finish(builder: @mutable BuildPlan) { Build::bind(builder, HOST::ProgramEntry, main); }
+    machine finish(builder: @mutable BuildPlan) { Build::bind(builder, HOST::ProgramEntry, |app|::main); }
     machine wrong(builder: @mutable BuildPlan) { builder.product = BuildProduct::Unselected; }
 }"#.replace("HOST", target.target_name());
     for (flag, value) in [("true", 7), ("false", 8)] {
@@ -1273,7 +1283,7 @@ fn a_local_call_after_a_wait_does_not_end_a_live_shared_borrow() {
     );
     assert!(
         !ran && report.contains("storage is changed while a conflicting reference remains live")
-            && report.contains("build.omg:15:14")
+            && report.contains("build.omg:16:14")
             && !report.contains("while resuming the Build after dependency preparation"),
         "{report}"
     );
@@ -1284,7 +1294,8 @@ fn a_user_record_named_dependency_registration_keeps_its_own_fields() {
     let target = target::TargetProfile::host_if_supported().expect("a hosted test target");
     let target = target.target_name();
     let build = format!(
-        r#"use counts.omg as counts;
+        r#"use main.omg as app;
+use counts.omg as counts;
 use support/support.omg as issued;
 data DependencyRegistration [copy] {{ mark: u32; }}
 use {{omega}}/build/dependency.omg;
@@ -1300,7 +1311,7 @@ machine build(builder: @mutable BuildPlan) suspends {{
     transition seven == 7 && builder.tests.disabled {{
         true -> carried(builder), _ -> wrong(builder)
     }}
-    machine carried(builder: @mutable BuildPlan) {{ Build::bind(builder, {target}::ProgramEntry, main); }}
+    machine carried(builder: @mutable BuildPlan) {{ Build::bind(builder, {target}::ProgramEntry, |app|::main); }}
     machine wrong(builder: @mutable BuildPlan) {{ builder.product = BuildProduct::Unselected; }}
 }}
 "#
@@ -1372,7 +1383,7 @@ fn a_preparation_refuses_shadowing_before_the_first_build_effects() {
     assert!(!compiled, "{stderr}");
     assert!(
         stderr.contains("an earlier local with this name is still visible")
-            && stderr.contains("build.omg:14:9"),
+            && stderr.contains("build.omg:15:9"),
         "{stderr}"
     );
 }
@@ -1417,7 +1428,7 @@ fn a_product_dependency_is_not_selectable_from_the_build() {
         "    let mutable lib_request: DependencyDescription = |dependency|::from_source(Source::Path { location: \"dep\" });
     |dependency|::with_alias(@mutable lib_request, \"lib\");
     let lib_registered: DependencyRegistration = Build::dependency(builder, lib_request);",
-        &after("lib\\v"),
+        &after("|lib|::v"),
         7,
     );
     assert!(!compiled);
@@ -1522,12 +1533,13 @@ machine wrong() crashes Trap { crash Trap; }
     let Some(host) = target::TargetProfile::host_if_supported() else {
         return;
     };
-    let build = r#"use {omega}/build/dependency.omg;
+    let build = r#"use main.omg as app;
+use {omega}/build/dependency.omg;
 machine build(builder: @mutable BuildPlan) suspends {
     builder.product = BuildProduct::Application { name: "prepared_product" };
     let registered: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "vendor" }));
     suspend Build::prepare_dependency(builder, registered);
-    Build::bind(builder, HOST_TARGET::ProgramEntry, main);
+    Build::bind(builder, HOST_TARGET::ProgramEntry, |app|::main);
 }
 "#.replace("HOST_TARGET", host.target_name());
     for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
@@ -1581,19 +1593,58 @@ machine build(builder: @mutable BuildPlan) suspends {
 }
 
 #[test]
-fn an_unused_unbound_import_is_refused_at_the_authored_name() {
-    let build = "use {absent}/helper.omg as missing;\nmachine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Application { name: \"never_used\" }; Build::bind(builder, linux_x86_64::ProgramEntry, main); }\n";
-    let (compiled, report) = check_project(
-        "unused-deferred",
-        build,
-        7,
-        "",
-        &["--check", "main.omg", "--target", "linux_x86_64"],
-    );
+fn reflection_can_describe_a_product_file_without_a_host_import() {
+    let build = r#"use {kit}/main.omg as api;
+use {omega}/language/core/reflect/reflect.omg as describe;
+use {omega}/build/dependency.omg;
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: "query" };
+    let mutable request: DependencyDescription = |dependency|::from_source(Source::Path { location: "dep" });
+    |dependency|::with_alias(@mutable request, "kit");
+    _ = Build::dependency(builder, request);
+    let field: |describe|::FieldInfo = |describe|::field(|api|::Number::value);
+    transition field.name == "value" && field.declaration_position == 0u64 {
+        true -> done(), false -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}"#;
+    let args = [
+        "--check",
+        "--build-input",
+        "build.omg",
+        "--build-input",
+        "main.omg",
+        "build.omg",
+    ];
+    let (ok, report) = check_project("described-product-file", build, 7, "", &args);
+    assert!(ok, "{report}");
+    let host = build.replace("    let field:", "    _ = |api|::v();\n    let field:");
+    let (ok, report) = check_project("described-file-is-not-host-code", &host, 7, "", &args);
     assert!(
-        !compiled
-            && report
-                .contains("Build import `{absent}/helper.omg as missing` has no supplied source")
+        !ok && report.contains("Build import `{kit}/main.omg as api` has no supplied source"),
+        "{report}"
+    );
+}
+
+#[test]
+fn an_unused_unbound_import_warns_once_at_the_authored_name() {
+    let build = "use {absent}/helper.omg as missing;\nuse later.omg;\nuse main.omg as present;\nuse main.omg as entry;\nmachine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Application { name: \"never_used\" }; Build::bind(builder, linux_x86_64::ProgramEntry, |entry|::main); }\n";
+    let scratch = project::stage(
+        "unused-file-import",
+        &[("main.omg", "machine main() {}"), ("build.omg", build)],
+    );
+    let output = project::omega(
+        scratch.path(),
+        &["--check", "--target", "linux_x86_64", "build.omg"],
+    );
+    let report = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        output.status.success()
+            && report.matches("unused file import `missing`").count() == 1
+            && report.matches("unused file import `later`").count() == 1
+            && report.matches("unused file import `present`").count() == 1
+            && !report.contains("unused file import `entry`")
             && report.contains("build.omg:1:5"),
         "{report}"
     );
@@ -1604,7 +1655,8 @@ fn a_wait_cannot_add_a_library_to_the_checked_build() {
     let Some(host) = target::TargetProfile::host_if_supported() else {
         return;
     };
-    let build = r#"use {kit}/main.omg as chosen;
+    let build = r#"use main.omg as app;
+use {kit}/main.omg as chosen;
 use {omega}/build/dependency.omg;
 machine build(builder: @mutable BuildPlan) suspends {
     builder.product = BuildProduct::Application { name: "fixed_imports" };
@@ -1613,7 +1665,7 @@ machine build(builder: @mutable BuildPlan) suspends {
     let registered: DependencyRegistration = Build::dependency(builder, request);
     suspend Build::prepare_dependency(builder, registered);
     let value: i32 = |chosen|::v();
-    Build::bind(builder, HOST::ProgramEntry, main);
+    Build::bind(builder, HOST::ProgramEntry, |app|::main);
 }"#.replace("HOST", host.target_name());
     let call = |name, source: &str| {
         check_project_with_support(
@@ -1641,7 +1693,7 @@ machine build(builder: @mutable BuildPlan) suspends {
         assert!(
             !ok && report
                 .contains("Build import `{kit}/main.omg as chosen` has no supplied source")
-                && report.contains("build.omg:1:5"),
+                && report.contains("build.omg:2:5"),
             "{report}"
         );
     }
@@ -1694,8 +1746,7 @@ machine build(builder: @mutable BuildPlan) suspends {
         let with_unused = format!("use {{absent}}/other.omg as unused;\n{build}");
         let (ok, report) = invoke(&with_unused, &["--check", "build.omg"]);
         assert!(
-            !ok && report
-                .contains("Build import `{absent}/other.omg as unused` has no supplied source")
+            ok && report.matches("unused file import `unused`").count() == 1
                 && !report
                     .contains("Build import `{kit}/entry.omg as selected` has no supplied source"),
             "{report}"

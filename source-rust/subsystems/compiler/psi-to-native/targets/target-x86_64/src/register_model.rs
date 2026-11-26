@@ -6,41 +6,11 @@ across System V AMD64, Microsoft x64, Linux system calls, scalar/aggregate
 calls, packed memory operations, and privileged machine instructions.
 */
 
-pub(super) fn fixed_operand(
-    operand: u16,
-    access: RegisterOperandAccess,
-    view: &RegisterView,
-) -> RegisterOperandConstraint {
-    RegisterOperandConstraint {
-        operand,
-        access,
-        class: view.class,
-        fixed_view: Some(view.id),
-        tied_to: None,
-        early_clobber: false,
-    }
-}
-
-pub(super) fn allocatable_operand(
-    operand: u16,
-    access: RegisterOperandAccess,
-    class: RegisterClassId,
-) -> RegisterOperandConstraint {
-    RegisterOperandConstraint {
-        operand,
-        access,
-        class,
-        fixed_view: None,
-        tied_to: None,
-        early_clobber: false,
-    }
-}
-
 pub(super) fn operand_lane(count: u16, inputs: u16) -> Vec<RegisterOperandConstraint> {
     (0..count)
         .map(|operand| {
             let written = operand >= inputs;
-            let row = allocatable_operand(
+            let row = RegisterOperandConstraint::allocatable(
                 operand,
                 if written {
                     RegisterOperandAccess::Def
@@ -80,8 +50,7 @@ pub fn units_of(names: &[&str]) -> Vec<RegisterUnitId> {
 }
 
 use register_model::{
-    RegisterClassId, RegisterOperandAccess, RegisterOperandConstraint, RegisterUnitId,
-    RegisterView, sorted_units,
+    RegisterOperandAccess, RegisterOperandConstraint, RegisterUnitId, RegisterView, sorted_units,
 };
 
 mod call_keys {
@@ -245,10 +214,10 @@ mod constraint_catalog {
             )
         };
         let fixed = |operand: u16, access: Access, name: &str| {
-            super::fixed_operand(operand, access, view(name))
+            RegisterOperandConstraint::fixed(operand, access, view(name))
         };
         let allocatable = |operand: u16, access: Access, class: RegisterClassId| {
-            super::allocatable_operand(operand, access, class)
+            RegisterOperandConstraint::allocatable(operand, access, class)
         };
         let convention = |name: &str| {
             physical
@@ -1699,33 +1668,9 @@ mod constraint_catalog {
         let validated = validate_register_constraint_catalog(catalog, model)
             .map_err(X86_64RegisterConstraintCatalogValidationError::Structural)?;
         let canonical = x86_64_register_constraint_catalog_for(model);
-        let actual_rows = &validated.catalog().constraints;
-        for key in canonical.required.iter().copied() {
-            let Ok(actual_position) = actual_rows.binary_search_by_key(&key, |row| row.key) else {
-                return Err(
-                    X86_64RegisterConstraintCatalogValidationError::TargetSemanticMismatch(key),
-                );
-            };
-            let expected_position = canonical
-                .constraints
-                .binary_search_by_key(&key, |row| row.key)
-                .expect("target-owned inventory and rows are closed together");
-            if actual_rows[actual_position] != canonical.constraints[expected_position] {
-                return Err(
-                    X86_64RegisterConstraintCatalogValidationError::TargetSemanticMismatch(key),
-                );
-            }
-        }
-        if let Some(unexpected) = validated
-            .catalog()
-            .constraints
-            .iter()
-            .find(|constraint| canonical.required.binary_search(&constraint.key).is_err())
-        {
+        if let Some(key) = register_model::canonical_row_mismatch(validated.catalog(), &canonical) {
             return Err(
-                X86_64RegisterConstraintCatalogValidationError::TargetSemanticMismatch(
-                    unexpected.key,
-                ),
+                X86_64RegisterConstraintCatalogValidationError::TargetSemanticMismatch(key),
             );
         }
         Ok(validated)
@@ -1748,17 +1693,11 @@ mod float_scalar_calls {
         x86_64_system_v_register_unit_call_keys,
     };
     use register_model::{
-        RegisterConstraintKey as Key, RegisterInstructionConstraint, RegisterOperandAccess,
-        ValidatedPhysicalRegisterModel, find_register_constraint,
+        FloatScalarCallRoster, RegisterConstraintKey as Key, RegisterInstructionConstraint,
+        ValidatedPhysicalRegisterModel,
     };
     pub fn x86_64_float_scalar_call_keys(microsoft: bool) -> Vec<Key> {
-        let count = input_keys(microsoft).len()
-            + (if microsoft {
-                x86_64_microsoft_mixed_unit_call_keys()
-            } else {
-                x86_64_system_v_mixed_unit_call_keys()
-            })
-            .len();
+        let count = input_keys(microsoft).len() + mixed_keys(microsoft).len();
         (0..count)
             .map(|ordinal| Key::call((if microsoft { 1800 } else { 1600 }) + ordinal as u32))
             .collect()
@@ -1768,6 +1707,14 @@ mod float_scalar_calls {
         vec![Key::ret(if microsoft { 1601 } else { 1600 })]
     }
 
+    fn mixed_keys(microsoft: bool) -> Vec<Key> {
+        if microsoft {
+            x86_64_microsoft_mixed_unit_call_keys()
+        } else {
+            x86_64_system_v_mixed_unit_call_keys()
+        }
+    }
+
     fn input_keys(microsoft: bool) -> Vec<Key> {
         (if microsoft {
             x86_64_microsoft_register_unit_call_keys()
@@ -1775,64 +1722,34 @@ mod float_scalar_calls {
             x86_64_system_v_register_unit_call_keys()
         })
         .into_iter()
-        .chain(if microsoft {
-            x86_64_microsoft_mixed_unit_call_keys()
-        } else {
-            x86_64_system_v_mixed_unit_call_keys()
-        })
+        .chain(mixed_keys(microsoft))
         .collect()
+    }
+
+    pub(super) fn rosters() -> [FloatScalarCallRoster; 2] {
+        [false, true].map(|microsoft| FloatScalarCallRoster {
+            inputs: input_keys(microsoft),
+            mixed: mixed_keys(microsoft),
+            keys: x86_64_float_scalar_call_keys(microsoft),
+            return_base: if microsoft {
+                X86_64_MICROSOFT_RETURN
+            } else {
+                X86_64_SYSTEM_V_RETURN
+            },
+            return_key: x86_64_float_scalar_return_keys(microsoft)[0],
+        })
     }
 
     pub(super) fn append_constraints(
         constraints: &mut Vec<RegisterInstructionConstraint>,
         model: &ValidatedPhysicalRegisterModel,
     ) {
-        let Some(result) = model.model().view_named("xmm0") else {
-            return;
-        };
-        for microsoft in [false, true] {
-            let inputs = input_keys(microsoft)
-                .into_iter()
-                .map(|key| (key, "xmm0"))
-                .chain(
-                    (if microsoft {
-                        x86_64_microsoft_mixed_unit_call_keys()
-                    } else {
-                        x86_64_system_v_mixed_unit_call_keys()
-                    })
-                    .into_iter()
-                    .map(|key| (key, "rax")),
-                );
-            for ((input, result_name), key) in inputs.zip(x86_64_float_scalar_call_keys(microsoft))
-            {
-                let Some(result) = model.model().view_named(result_name) else {
-                    return;
-                };
-                let Some(mut row) = find_register_constraint(constraints, input).cloned() else {
-                    return;
-                };
-                row.key = key;
-                row.operands.push(super::fixed_operand(
-                    row.operands.len() as u16,
-                    RegisterOperandAccess::Def,
-                    result,
-                ));
-                row.clobbers
-                    .retain(|unit| !result.write_units.contains(unit));
-                constraints.push(row);
-            }
-            let base = if microsoft {
-                X86_64_MICROSOFT_RETURN
-            } else {
-                X86_64_SYSTEM_V_RETURN
-            };
-            let Some(mut row) = find_register_constraint(constraints, base).cloned() else {
-                return;
-            };
-            row.key = x86_64_float_scalar_return_keys(microsoft)[0];
-            row.operands = vec![super::fixed_operand(0, RegisterOperandAccess::Use, result)];
-            constraints.push(row);
-        }
+        register_model::append_float_scalar_call_constraints(
+            constraints,
+            model,
+            ["xmm0", "rax"],
+            &rosters(),
+        );
     }
 
     #[cfg(test)]
@@ -1840,10 +1757,6 @@ mod float_scalar_calls {
         use super::super::{
             validate_x86_64_register_constraint_catalog, x86_64_physical_register_model,
             x86_64_register_constraint_catalog,
-        };
-        use super::{
-            x86_64_float_scalar_call_keys, x86_64_float_scalar_return_keys,
-            x86_64_system_v_register_unit_call_keys,
         };
 
         #[test]
@@ -1886,62 +1799,14 @@ mod float_scalar_calls {
             let physical =
                 register_model::validate_physical_register_model(x86_64_physical_register_model())
                     .expect("physical model");
-            let catalog = x86_64_register_constraint_catalog(&physical);
-            validate_x86_64_register_constraint_catalog(catalog.clone(), &physical)
-                .expect("complete catalog");
-            let mut keys = Vec::new();
-            for microsoft in [false, true] {
-                keys.extend(x86_64_float_scalar_call_keys(microsoft));
-                keys.extend(x86_64_float_scalar_return_keys(microsoft));
-            }
-            let count = keys.len();
-            keys.sort_unstable();
-            keys.dedup();
-            assert_eq!(keys.len(), count, "ABI key ranges do not overlap");
-            for key in keys {
-                assert_eq!(
-                    catalog
-                        .constraints
-                        .iter()
-                        .filter(|row| row.key == key)
-                        .count(),
-                    1
-                );
-            }
-            let result = physical.model().view_named("xmm0").unwrap();
-            let call_key = x86_64_float_scalar_call_keys(false)[0];
-            let row = catalog.constraint(call_key).unwrap();
-            assert_eq!(row.operands.last().unwrap().fixed_view, Some(result.id));
-            assert!(
-                result
-                    .write_units
-                    .iter()
-                    .all(|unit| !row.clobbers.contains(unit))
-            );
-            let input = catalog
-                .constraint(x86_64_system_v_register_unit_call_keys()[0])
-                .unwrap();
-            assert!(
-                input
-                    .clobbers
-                    .iter()
-                    .all(|unit| row.clobbers.contains(unit) || result.write_units.contains(unit)),
-                "every caller-save effect remains either a Def write or a clobber"
-            );
-            let mut wrong_home = catalog.clone();
-            let row =
-                register_model::find_register_constraint_mut(&mut wrong_home.constraints, call_key)
-                    .unwrap();
-            row.operands.last_mut().unwrap().fixed_view =
-                Some(physical.model().view_named("xmm1").unwrap().id);
-            assert!(validate_x86_64_register_constraint_catalog(wrong_home, &physical).is_err());
-            let mut wrong_clobbers = catalog;
-            register_model::find_register_constraint_mut(&mut wrong_clobbers.constraints, call_key)
-                .unwrap()
-                .clobbers
-                .clear();
-            assert!(
-                validate_x86_64_register_constraint_catalog(wrong_clobbers, &physical).is_err()
+            register_model::test_support::assert_float_scalar_call_rows(
+                &physical,
+                &x86_64_register_constraint_catalog(&physical),
+                &super::rosters(),
+                ["xmm0", "xmm1"],
+                |catalog, model| {
+                    validate_x86_64_register_constraint_catalog(catalog, model).is_ok()
+                },
             );
         }
     }
@@ -2092,11 +1957,12 @@ mod mixed_aggregate_calls {
                         let Some(view) = model.model().view_named(name) else {
                             return;
                         };
-                        row.operands.push(super::fixed_operand(
-                            row.operands.len() as u16,
-                            RegisterOperandAccess::Def,
-                            view,
-                        ));
+                        row.operands
+                            .push(register_model::RegisterOperandConstraint::fixed(
+                                row.operands.len() as u16,
+                                RegisterOperandAccess::Def,
+                                view,
+                            ));
                         row.clobbers.retain(|unit| !view.write_units.contains(unit));
                     }
                     constraints.push(row);
@@ -2262,7 +2128,7 @@ mod mixed_calls {
             .enumerate()
             .map(|(operand, name)| {
                 let view = model.model().view_named(&name)?;
-                Some(super::fixed_operand(
+                Some(register_model::RegisterOperandConstraint::fixed(
                     operand as u16,
                     RegisterOperandAccess::Use,
                     view,
@@ -2786,7 +2652,7 @@ mod packed_memory {
                 operands: (0..3)
                     .map(|operand| {
                         let writes = operand == 2 || (load && operand == 1);
-                        let row = super::allocatable_operand(
+                        let row = register_model::RegisterOperandConstraint::allocatable(
                             operand,
                             if writes {
                                 RegisterOperandAccess::Def
@@ -3138,144 +3004,44 @@ mod physical_model {
 }
 mod system_calls {
     use register_model::{
-        RegisterConstraintId, RegisterConstraintKey, RegisterInstructionConstraint,
-        RegisterOperandAccess, ValidatedPhysicalRegisterModel,
+        RegisterConstraintKey, RegisterInstructionConstraint, SystemCallRoster,
+        ValidatedPhysicalRegisterModel,
     };
 
     pub fn x86_64_linux_system_call_keys() -> Vec<RegisterConstraintKey> {
         (100..114).map(RegisterConstraintKey::system_call).collect()
     }
 
+    fn roster() -> SystemCallRoster {
+        SystemCallRoster {
+            keys: x86_64_linux_system_call_keys(),
+            arguments: ["rdi", "rsi", "rdx", "r10", "r8", "r9"],
+            result: "rax",
+            clobbers: &["rax", "rcx", "r11", "rflags"],
+            instruction_pointer: "rip",
+        }
+    }
+
     pub(super) fn append_constraints(
         constraints: &mut Vec<RegisterInstructionConstraint>,
         model: &ValidatedPhysicalRegisterModel,
     ) {
-        let physical = model.model();
-        let view = |name| {
-            physical
-                .view_named(name)
-                .expect("canonical kernel register")
-        };
-        let arguments = ["rdi", "rsi", "rdx", "r10", "r8", "r9"];
-        let result = view("rax");
-        let clobbers = ["rax", "rcx", "r11", "rflags"]
-            .into_iter()
-            .flat_map(|name| view(name).units.iter().copied())
-            .collect::<Vec<_>>();
-        for (position, key) in x86_64_linux_system_call_keys().into_iter().enumerate() {
-            let argument_count = position / 2;
-            let returns_value = position % 2 != 0;
-            let operands = arguments[..argument_count]
-                .iter()
-                .map(|name| (view(name), RegisterOperandAccess::Use))
-                .chain(returns_value.then_some((result, RegisterOperandAccess::Def)))
-                .enumerate()
-                .map(|(operand, (register, access))| {
-                    super::fixed_operand(operand as u16, access, register)
-                })
-                .collect();
-            let mut clobbers = clobbers
-                .iter()
-                .copied()
-                .filter(|unit| !returns_value || !result.units.contains(unit))
-                .collect::<Vec<_>>();
-            clobbers.sort_unstable();
-            clobbers.dedup();
-            constraints.push(RegisterInstructionConstraint {
-                id: RegisterConstraintId(0),
-                key,
-                operands,
-                implicit_uses: view("rip").units.clone(),
-                implicit_defs: view("rip").units.clone(),
-                clobbers,
-            });
-        }
+        register_model::append_system_call_constraints(constraints, model, &roster());
     }
 
     #[cfg(test)]
     mod tests {
-        use super::*;
-
         #[test]
         fn system_call_rows_retain_exact_arguments_results_and_clobbers() {
             let physical = crate::validated_x86_64_physical_register_model();
-            let catalog = crate::x86_64_register_constraint_catalog(physical);
-            let validated =
-                crate::validate_x86_64_register_constraint_catalog(catalog.clone(), physical)
-                    .expect("canonical syscall constraints");
-            for (position, key) in x86_64_linux_system_call_keys().into_iter().enumerate() {
-                let argument_count = position / 2;
-                let returns_value = position % 2 != 0;
-                let row = validated.catalog().constraint(key).unwrap();
-                assert_eq!(
-                    row.operands.len(),
-                    argument_count + usize::from(returns_value)
-                );
-                let expected = ["rdi", "rsi", "rdx", "r10", "r8", "r9"];
-                for (operand, name) in row.operands.iter().zip(&expected[..argument_count]) {
-                    assert_eq!(operand.access, RegisterOperandAccess::Use);
-                    assert_eq!(
-                        operand.fixed_view,
-                        Some(physical.model().view_named(name).unwrap().id)
-                    );
-                }
-                if returns_value {
-                    let result = row.operands.last().unwrap();
-                    assert_eq!(result.access, RegisterOperandAccess::Def);
-                    assert_eq!(
-                        result.fixed_view,
-                        Some(physical.model().view_named("rax").unwrap().id)
-                    );
-                }
-                let mut written = row.clobbers.clone();
-                if returns_value {
-                    written.extend_from_slice(&physical.model().view_named("rax").unwrap().units);
-                }
-                written.sort_unstable();
-                written.dedup();
-                let mut expected_written = ["rax", "rcx", "r11", "rflags"]
-                    .into_iter()
-                    .flat_map(|name| {
-                        physical
-                            .model()
-                            .view_named(name)
-                            .unwrap()
-                            .units
-                            .iter()
-                            .copied()
-                    })
-                    .collect::<Vec<_>>();
-                expected_written.sort_unstable();
-                expected_written.dedup();
-                assert_eq!(written, expected_written);
-                assert_eq!(
-                    row.implicit_uses,
-                    physical.model().view_named("rip").unwrap().units
-                );
-                assert_eq!(row.implicit_defs, row.implicit_uses);
-            }
-
-            let key = x86_64_linux_system_call_keys()[8];
-            let mut wrong_argument = catalog.clone();
-            let row =
-                register_model::find_register_constraint_mut(&mut wrong_argument.constraints, key)
-                    .unwrap();
-            row.operands[3].fixed_view = Some(physical.model().view_named("rcx").unwrap().id);
-            assert!(
-                crate::validate_x86_64_register_constraint_catalog(wrong_argument, physical)
-                    .is_err()
-            );
-
-            let mut missing_clobbers = catalog;
-            let row = register_model::find_register_constraint_mut(
-                &mut missing_clobbers.constraints,
-                key,
-            )
-            .unwrap();
-            row.clobbers.clear();
-            assert!(
-                crate::validate_x86_64_register_constraint_catalog(missing_clobbers, physical)
-                    .is_err()
+            register_model::test_support::assert_system_call_rows(
+                physical,
+                &crate::x86_64_register_constraint_catalog(physical),
+                &super::roster(),
+                "rcx",
+                |catalog, model| {
+                    crate::validate_x86_64_register_constraint_catalog(catalog, model).is_ok()
+                },
             );
         }
     }

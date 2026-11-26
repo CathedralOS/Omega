@@ -1,3 +1,5 @@
+use {omega}/language/core/foundation.omg as proof;
+
 // Standard-library numeric helpers with explicit carrier names.
 //
 // Fixed integers retain Exact arithmetic and ordinary bounds contracts. Floats
@@ -296,7 +298,7 @@ ensures result == value
 // NaN value selects lower, while unordered bounds fail its precondition.
 
 public machine min_f32(left: f32, right: f32) -> f32
-ensures core\Identity::<FloatMeaning>(
+ensures |proof|::Identity::<FloatMeaning>(
     F32::meaning(result),
     FloatSemantics::minimum(F32::meaning(left), F32::meaning(right)))
 {
@@ -304,7 +306,7 @@ ensures core\Identity::<FloatMeaning>(
 }
 
 public machine max_f32(left: f32, right: f32) -> f32
-ensures core\Identity::<FloatMeaning>(
+ensures |proof|::Identity::<FloatMeaning>(
     F32::meaning(result),
     FloatSemantics::maximum(F32::meaning(left), F32::meaning(right)))
 {
@@ -313,7 +315,7 @@ ensures core\Identity::<FloatMeaning>(
 
 public machine clamp_f32(value: f32, lower: f32, upper: f32) -> f32
 requires lower <= upper
-ensures core\Identity::<FloatMeaning>(
+ensures |proof|::Identity::<FloatMeaning>(
     F32::meaning(result),
     FloatSemantics::minimum(
         FloatSemantics::maximum(F32::meaning(value), F32::meaning(lower)),
@@ -323,7 +325,7 @@ ensures core\Identity::<FloatMeaning>(
 }
 
 public machine sqrt_f32(value: f32) -> f32
-ensures core\Identity::<FloatMeaning>(
+ensures |proof|::Identity::<FloatMeaning>(
     F32::meaning(result),
     FloatSemantics::square_root(FloatFormat::BINARY32, F32::meaning(value)))
 {
@@ -332,12 +334,12 @@ ensures core\Identity::<FloatMeaning>(
 
 public machine abs_f32(value: f32) -> f32
 ensures
-    (value == 0.0 && core\Identity::<FloatMeaning>(
+    (value == 0.0 && |proof|::Identity::<FloatMeaning>(
         F32::meaning(result), F32::meaning(0.0))) ||
-    (value < 0.0 && core\Identity::<FloatMeaning>(
+    (value < 0.0 && |proof|::Identity::<FloatMeaning>(
         F32::meaning(result),
         FloatSemantics::negate(FloatFormat::BINARY32, F32::meaning(value)))) ||
-    (value != 0.0 && !(value < 0.0) && core\Identity::<FloatMeaning>(
+    (value != 0.0 && !(value < 0.0) && |proof|::Identity::<FloatMeaning>(
         F32::meaning(result), F32::meaning(value)))
 {
     transition {
@@ -348,7 +350,7 @@ ensures
 }
 
 public machine min_f64(left: f64, right: f64) -> f64
-ensures core\Identity::<FloatMeaning>(
+ensures |proof|::Identity::<FloatMeaning>(
     F64::meaning(result),
     FloatSemantics::minimum(F64::meaning(left), F64::meaning(right)))
 {
@@ -356,7 +358,7 @@ ensures core\Identity::<FloatMeaning>(
 }
 
 public machine max_f64(left: f64, right: f64) -> f64
-ensures core\Identity::<FloatMeaning>(
+ensures |proof|::Identity::<FloatMeaning>(
     F64::meaning(result),
     FloatSemantics::maximum(F64::meaning(left), F64::meaning(right)))
 {
@@ -365,7 +367,7 @@ ensures core\Identity::<FloatMeaning>(
 
 public machine clamp_f64(value: f64, lower: f64, upper: f64) -> f64
 requires lower <= upper
-ensures core\Identity::<FloatMeaning>(
+ensures |proof|::Identity::<FloatMeaning>(
     F64::meaning(result),
     FloatSemantics::minimum(
         FloatSemantics::maximum(F64::meaning(value), F64::meaning(lower)),
@@ -378,7 +380,7 @@ ensures core\Identity::<FloatMeaning>(
 // zero and positive infinity; negative inputs and NaNs produce NaN. The
 // selected ordinary boundary operator owns this meaning on every target.
 public machine sqrt_f64(value: f64) -> f64
-ensures core\Identity::<FloatMeaning>(
+ensures |proof|::Identity::<FloatMeaning>(
     F64::meaning(result),
     FloatSemantics::square_root(FloatFormat::BINARY64, F64::meaning(value)))
 {
@@ -389,12 +391,12 @@ ensures core\Identity::<FloatMeaning>(
 // positive values and NaNs are returned unchanged, retaining NaN payloads.
 public machine abs_f64(value: f64) -> f64
 ensures
-    (value == 0.0 && core\Identity::<FloatMeaning>(
+    (value == 0.0 && |proof|::Identity::<FloatMeaning>(
         F64::meaning(result), F64::meaning(0.0))) ||
-    (value < 0.0 && core\Identity::<FloatMeaning>(
+    (value < 0.0 && |proof|::Identity::<FloatMeaning>(
         F64::meaning(result),
         FloatSemantics::negate(FloatFormat::BINARY64, F64::meaning(value)))) ||
-    (value != 0.0 && !(value < 0.0) && core\Identity::<FloatMeaning>(
+    (value != 0.0 && !(value < 0.0) && |proof|::Identity::<FloatMeaning>(
         F64::meaning(result), F64::meaning(value)))
 {
     transition {

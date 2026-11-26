@@ -1,4 +1,6 @@
-public let upper(value: f64): core\Strict<0> = value <= 0.5;
+use {omega}/language/core/foundation.omg as proof;
+
+public let upper(value: f64): |proof|::Strict<0> = value <= 0.5;
 trait Fraction { machine get() -> f64 ensures upper(result); }
 Quarter satisfies Fraction { machine get() -> f64 ensures !(result > 0.5) { 0.25 } }
 machine main() {}

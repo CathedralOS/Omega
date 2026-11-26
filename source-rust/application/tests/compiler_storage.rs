@@ -15,12 +15,13 @@ fn builds_and_reviews_ignore_the_old_compiler_directories() {
         &[
             (
                 "app/build.omg",
-                r#"use {omega}/build/dependency.omg;
+                r#"use main.omg as app;
+use {omega}/build/dependency.omg;
 machine build(builder: @mutable Build) {
     Build::application(builder, "cache_probe");
     let registered: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../kit" }));
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
 }"#,
             ),
             (

@@ -143,11 +143,12 @@ machine main() {}"#;
 }
 
 fn with_transfer_contract() -> String {
-    let transfer = r#"public boundary trait Transfer {
+    let transfer = r#"use {omega}/language/core/foundation.omg as proof;
+public boundary trait Transfer {
         machine pass(input: Region in Owned) -> Region
         reaches none
         ensures result in Owned,
-            core\Identity::<|algebra|::CountedQuantity<Bytes>>(
+            |proof|::Identity::<|algebra|::CountedQuantity<Bytes>>(
                 Owned::measure(old(@input)), Owned::measure(@result))
         crashes none;
     }

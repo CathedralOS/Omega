@@ -1,5 +1,5 @@
 //! A call into a dependency must run the body that dependency provides. The
-//! consumer below names its dependency `kit` and calls `kit::value()`; the
+//! consumer below names its dependency `kit` and calls `|kit|::value()`; the
 //! test compiles it with the provider returning 7, and again with only that
 //! literal changed to 9, and reads the saved Psi file: the consumer's call
 //! must reach the provider's machine, and that machine must return the
@@ -16,7 +16,7 @@ use std::path::Path;
 use terminal_codec::CanonicalTerminalArtifact;
 use terminal_psi::{OperationKind, TerminalModule, Terminator};
 
-const CONSUMER: &str = "use kit;\n\nmachine entry() -> i32 {\n    kit::value()\n}\n";
+const CONSUMER: &str = "use {kit}/main.omg as kit;\n\nmachine entry() -> i32 {\n    |kit|::value()\n}\n";
 
 const CONSUMER_BUILD: &str = "use {omega}/build/dependency.omg;
 machine build(builder: @mutable Build) {
@@ -143,7 +143,7 @@ fn checked(scratch: &Path, name: &str, build: &str, provider: &str) -> (bool, St
 
 /// Each way the dependency can fail to supply `kit::value` is refused in the
 /// consumer where it names what is missing: without the registration, or
-/// with the dependency registered under another alias, `use kit` selects
+/// with the dependency registered under another alias, `{kit}/main.omg` selects
 /// nothing; with the provider's machine renamed the call names no
 /// declaration; with its result changed to `bool` the consumer's return is
 /// mistyped. The unchanged program checks.
@@ -164,7 +164,7 @@ fn a_missing_or_changed_dependency_is_refused_in_the_consumer() {
         assert!(!ok, "{name}: {report}");
         assert!(
             report.contains(
-                "import `kit` does not select one declaration, callable family, or module in its checked package"
+                "no direct product dependency named `kit` supplies `main.omg`"
             ),
             "{name}: {report}"
         );

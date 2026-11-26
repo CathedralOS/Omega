@@ -201,32 +201,9 @@ pub fn reconstruct_psi_closed_region_observation(
                     live_in_values.insert(use_site.value);
                 }
             }
-            for provenance in &node.provenance {
-                match provenance {
-                    PsiProvenance::Operation(operation) => {
-                        frontier_sites.insert(OwnershipFrontierSite::OperationEntry(*operation));
-                        frontier_sites.insert(OwnershipFrontierSite::OperationExit(*operation));
-                    }
-                    PsiProvenance::Edge(edge) => {
-                        frontier_sites.insert(OwnershipFrontierSite::EdgeEntry(*edge));
-                        frontier_sites.insert(OwnershipFrontierSite::EdgeExit(*edge));
-                    }
-                }
-            }
+            frontier_sites.extend(node.provenance.iter().flat_map(provenance_frontier_sites));
             for edge in &node.successors {
-                for provenance in &edge.provenance {
-                    match provenance {
-                        PsiProvenance::Operation(operation) => {
-                            frontier_sites
-                                .insert(OwnershipFrontierSite::OperationEntry(*operation));
-                            frontier_sites.insert(OwnershipFrontierSite::OperationExit(*operation));
-                        }
-                        PsiProvenance::Edge(edge) => {
-                            frontier_sites.insert(OwnershipFrontierSite::EdgeEntry(*edge));
-                            frontier_sites.insert(OwnershipFrontierSite::EdgeExit(*edge));
-                        }
-                    }
-                }
+                frontier_sites.extend(edge.provenance.iter().flat_map(provenance_frontier_sites));
                 if !requested.contains(&edge.target) {
                     for binding in &edge.bindings {
                         if internal_definitions.contains_key(&binding.argument) {
@@ -281,22 +258,16 @@ pub fn reconstruct_psi_closed_region_observation(
             }
         }
     }
-    incoming_edges.sort_by_key(|row| {
+    let edge_order = |row: &PsiRegionBoundaryEdgeObservation| {
         (
             row.source.block,
             row.source.node,
             row.edge.psi_edge,
             row.edge.target,
         )
-    });
-    outgoing_edges.sort_by_key(|row| {
-        (
-            row.source.block,
-            row.source.node,
-            row.edge.psi_edge,
-            row.edge.target,
-        )
-    });
+    };
+    incoming_edges.sort_by_key(edge_order);
+    outgoing_edges.sort_by_key(edge_order);
 
     let scalar_live_ins = live_in_values
         .into_iter()
@@ -441,5 +412,19 @@ fn operation_observations(
                 (Vec::new(), No, No)
             }
         }
+    }
+}
+
+/// The ownership frontier sites a provenance entry opens and closes.
+fn provenance_frontier_sites(provenance: &PsiProvenance) -> [OwnershipFrontierSite; 2] {
+    match *provenance {
+        PsiProvenance::Operation(operation) => [
+            OwnershipFrontierSite::OperationEntry(operation),
+            OwnershipFrontierSite::OperationExit(operation),
+        ],
+        PsiProvenance::Edge(edge) => [
+            OwnershipFrontierSite::EdgeEntry(edge),
+            OwnershipFrontierSite::EdgeExit(edge),
+        ],
     }
 }

@@ -31,7 +31,7 @@ machine main() reaches Service { let seen: u64 = Service::value(); }
 const HELPER: &str = "machine configure<const Flag: bool, const Tag: u64>(builder: @mutable Build)
 requires Tag == 17u64
 {
-    Build::select_provider::<Service, Provider>(builder, linux_x86_64);
+    Build::select_provider::<|app|::Service, |app|::Provider>(builder, linux_x86_64);
 }
 ";
 
@@ -39,9 +39,10 @@ requires Tag == 17u64
 /// application, for the one target the Build binds an entry on.
 fn check(name: &str, body: &str) -> (bool, String) {
     let build = format!(
-        "machine build(builder: @mutable Build) {{
+        "use main.omg as app;
+machine build(builder: @mutable Build) {{
     Build::application(builder, \"configured\");
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
 {body}}}
 {HELPER}"
     );
@@ -71,7 +72,7 @@ fn the_choice_a_configured_helper_makes_is_a_choice_of_the_build() {
     let (compiled, stderr) = check(
         "counted",
         "    configure::<false, (8u64 + 9u64)>(builder);
-    Build::select_provider::<Service, Other>(builder, linux_x86_64);
+    Build::select_provider::<|app|::Service, |app|::Other>(builder, linux_x86_64);
 ",
     );
     assert!(!compiled);

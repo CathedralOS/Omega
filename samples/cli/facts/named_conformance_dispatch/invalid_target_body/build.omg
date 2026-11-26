@@ -1,18 +1,19 @@
+use main.omg as app;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "named_conformance_dispatch_through_target_body_invalid" };
-    Build::bind(builder, macos_x86_64::ProgramEntry, x86_entry);
-    Build::bind(builder, macos_arm64::ProgramEntry, arm_entry);
-    Build::bind(builder, linux_x86_64::ProgramEntry, x86_entry);
-    Build::bind(builder, linux_arm64::ProgramEntry, arm_entry);
-    Build::bind(builder, windows_x86_64::ProgramEntry, x86_entry);
-    Build::select_provider::<SelectedBodyCheck, X86BodyCheck>(builder, macos_x86_64);
-    Build::select_provider::<SelectedProbe, X86Probe>(builder, macos_x86_64);
-    Build::select_provider::<SelectedBodyCheck, ArmBodyCheck>(builder, macos_arm64);
-    Build::select_provider::<SelectedProbe, ArmProbe>(builder, macos_arm64);
-    Build::select_provider::<SelectedBodyCheck, X86BodyCheck>(builder, linux_x86_64);
-    Build::select_provider::<SelectedProbe, X86Probe>(builder, linux_x86_64);
-    Build::select_provider::<SelectedBodyCheck, ArmBodyCheck>(builder, linux_arm64);
-    Build::select_provider::<SelectedProbe, ArmProbe>(builder, linux_arm64);
-    Build::select_provider::<SelectedBodyCheck, X86BodyCheck>(builder, windows_x86_64);
-    Build::select_provider::<SelectedProbe, X86Probe>(builder, windows_x86_64);
+    Build::bind(builder, macos_x86_64::ProgramEntry, |app|::x86_entry);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::arm_entry);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::x86_entry);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::arm_entry);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::x86_entry);
+    Build::select_provider::<|app|::SelectedBodyCheck, |app|::X86BodyCheck>(builder, macos_x86_64);
+    Build::select_provider::<|app|::SelectedProbe, |app|::X86Probe>(builder, macos_x86_64);
+    Build::select_provider::<|app|::SelectedBodyCheck, |app|::ArmBodyCheck>(builder, macos_arm64);
+    Build::select_provider::<|app|::SelectedProbe, |app|::ArmProbe>(builder, macos_arm64);
+    Build::select_provider::<|app|::SelectedBodyCheck, |app|::X86BodyCheck>(builder, linux_x86_64);
+    Build::select_provider::<|app|::SelectedProbe, |app|::X86Probe>(builder, linux_x86_64);
+    Build::select_provider::<|app|::SelectedBodyCheck, |app|::ArmBodyCheck>(builder, linux_arm64);
+    Build::select_provider::<|app|::SelectedProbe, |app|::ArmProbe>(builder, linux_arm64);
+    Build::select_provider::<|app|::SelectedBodyCheck, |app|::X86BodyCheck>(builder, windows_x86_64);
+    Build::select_provider::<|app|::SelectedProbe, |app|::X86Probe>(builder, windows_x86_64);
 }

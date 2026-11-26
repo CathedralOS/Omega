@@ -6,12 +6,13 @@ mod project;
 ))]
 mod support;
 
-const BUILD: &str = r#"machine build(builder: @mutable Build) {
+const BUILD: &str = r#"use main.omg as app;
+machine build(builder: @mutable Build) {
     Build::application(builder, "structural_domain_issuer");
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
 }
 "#;
 
@@ -34,12 +35,12 @@ fn both_engines_replay_eof_for_the_darwin_console_descriptor() {
 
     let library = support::repository_root().join("source/library");
     let build = format!(
-        r#"
+        r#"use main.omg as app;
 use {{omega}}/build/dependency.omg;
 machine build(builder: @mutable Build) {{
     Build::application(builder, "console_descriptor_eof");
     let registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {{ location: "{}" }}));
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
 }}
 "#,
         library.join("system").display()
@@ -50,15 +51,14 @@ machine build(builder: @mutable Build) {{
             (
                 "main.omg",
                 r#"
-use omega\language\core\ProcessExit;
-use omega\language\core\StandardInput;
-use system\ByteRead;
-use system\Console;
-machine main() reaches ProcessExit + StandardInput {
-    let read: ByteRead = block Console::read_byte();
-    transition read { ByteRead::Eof -> done(), _ -> unexpected() }
-    machine done() { ProcessExit::exit_process(0); }
-    machine unexpected() { ProcessExit::exit_process(1); }
+use {omega}/language/core/process_exit.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
+machine main() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput {
+    let read: |console|::ByteRead = block |console|::Console::read_byte();
+    transition read { |console|::ByteRead::Eof -> done(), _ -> unexpected() }
+    machine done() { |process_exit|::ProcessExit::exit_process(0); }
+    machine unexpected() { |process_exit|::ProcessExit::exit_process(1); }
 }
 "#,
             ),
@@ -90,11 +90,12 @@ fn failed_standard_input_returns_the_written_prefix() {
 
     let library = support::repository_root().join("source/library");
     let build = format!(
-        r#"use {{omega}}/build/dependency.omg;
+        r#"use main.omg as app;
+use {{omega}}/build/dependency.omg;
 machine build(builder: @mutable Build) {{
     Build::application(builder, "partial_read_error");
     let registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {{ location: "{}" }}));
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
 }}
 "#,
         library.join("system").display()
@@ -105,16 +106,15 @@ machine build(builder: @mutable Build) {{
             (
                 "main.omg",
                 r#"
-use omega\language\core\ProcessExit;
-use omega\language\core\StandardInput;
-use system\Console;
-use system\LineReadResult;
-machine main() reaches StandardInput + ProcessExit crashes none {
+use {omega}/language/core/process_exit.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
+machine main() reaches |process_authority|::StandardInput + |process_exit|::ProcessExit crashes none {
     let mutable bytes: [u8; 3];
     bytes[2] = 99;
-    let result: LineReadResult = block Console::read_line(@mutable bytes[..]);
+    let result: |console|::LineReadResult = block |console|::Console::read_line(@mutable bytes[..]);
     transition result {
-        LineReadResult::Error { count } -> inspect(count, bytes[0], bytes[1], bytes[2]),
+        |console|::LineReadResult::Error { count } -> inspect(count, bytes[0], bytes[1], bytes[2]),
         _ -> wrong()
     }
     machine inspect(count: u64, first: u8, second: u8, last: u8) {
@@ -122,8 +122,8 @@ machine main() reaches StandardInput + ProcessExit crashes none {
             true -> ok(), false -> wrong()
         }
     }
-    machine ok() { ProcessExit::exit_process(0); }
-    machine wrong() { ProcessExit::exit_process(1); }
+    machine ok() { |process_exit|::ProcessExit::exit_process(0); }
+    machine wrong() { |process_exit|::ProcessExit::exit_process(1); }
 }
 "#,
             ),
@@ -188,15 +188,14 @@ machine consume(tickets: [Ticket]) {}
 fn psi_runs_the_bundled_atomic_fence_in_its_module() {
     assert_psi_runs(
         "atomic-fence",
-        r#"use omega\language\core\Atomic;
-use omega\language\core\Atomic\fence;
-use omega\language\core\FenceOrdering;
+        r#"use {omega}/language/core/Atomic/atomic.omg;
+use {omega}/language/core/fence_ordering.omg;
 machine main() {
-    let ordering: FenceOrdering = FenceOrdering::Receive;
-    let alias: FenceOrdering = ordering;
-    Atomic\fence(alias);
-    fence(FenceOrdering::Publish);
-    Atomic\fence(FenceOrdering::ReceivePublish);
+    let ordering: |fence_ordering|::FenceOrdering = |fence_ordering|::FenceOrdering::Receive;
+    let alias: |fence_ordering|::FenceOrdering = ordering;
+    |atomic|::fence(alias);
+    |atomic|::fence(|fence_ordering|::FenceOrdering::Publish);
+    |atomic|::fence(|fence_ordering|::FenceOrdering::ReceivePublish);
 }
 "#,
     );

@@ -49,10 +49,11 @@ fn check(name: &str, bindings: &str) -> Result<(), String> {
 
 fn check_product(name: &str, product: &str, bindings: &str) -> Result<(), String> {
     let build = format!(
-        "use {{omega}}/language/core/external_binding.omg as native;
+        "use main.omg as app;
+use {{omega}}/language/core/external_binding.omg as native;
 machine build(builder: @mutable BuildPlan) {{
     builder.product = BuildProduct::Application {{ name: \"bound\" }};
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
 {bindings}}}
 "
     );
@@ -65,8 +66,8 @@ fn a_binding_of_each_requirement_is_admitted() {
     check(
         "control",
         &format!(
-            "    Build::bind_native::<Host::tick>(builder, windows_x86_64, {SLEEP});
-    Build::bind_native::<Host::tock>(builder, windows_x86_64, {OTHER});
+            "    Build::bind_native::<|app|::Host::tick>(builder, windows_x86_64, {SLEEP});
+    Build::bind_native::<|app|::Host::tock>(builder, windows_x86_64, {OTHER});
 "
         ),
     )
@@ -78,8 +79,8 @@ fn two_places_for_one_requirement_on_one_target_are_refused() {
     let stderr = check(
         "two-places",
         &format!(
-            "    Build::bind_native::<Host::tick>(builder, windows_x86_64, {SLEEP});
-    Build::bind_native::<Host::tick>(builder, windows_x86_64, {OTHER});
+            "    Build::bind_native::<|app|::Host::tick>(builder, windows_x86_64, {SLEEP});
+    Build::bind_native::<|app|::Host::tick>(builder, windows_x86_64, {OTHER});
 "
         ),
     )
@@ -99,8 +100,8 @@ fn one_requirement_may_be_found_in_a_different_place_on_each_target() {
     check(
         "two-targets",
         &format!(
-            "    Build::bind_native::<Host::tick>(builder, windows_x86_64, {SLEEP});
-    Build::bind_native::<Host::tick>(builder, linux_x86_64, {OTHER});
+            "    Build::bind_native::<|app|::Host::tick>(builder, windows_x86_64, {SLEEP});
+    Build::bind_native::<|app|::Host::tick>(builder, linux_x86_64, {OTHER});
 "
         ),
     )
@@ -111,12 +112,15 @@ fn one_requirement_may_be_found_in_a_different_place_on_each_target() {
 fn a_binding_that_names_no_requirement_is_refused() {
     let stderr = check(
         "no-requirement",
-        &format!("    Build::bind_native::<Host::missing>(builder, windows_x86_64, {SLEEP});\n"),
+        &format!(
+            "    Build::bind_native::<|app|::Host::missing>(builder, windows_x86_64, {SLEEP});\n"
+        ),
     )
     .expect_err("the invalid binding must be refused");
     assert!(
-        stderr
-            .contains("Product requirement `Host::missing` does not name one visible declaration"),
+        stderr.contains(
+            "Product requirement `|app|::Host::missing` does not name one visible declaration"
+        ),
         "{stderr}"
     );
     assert!(stderr.contains("build.omg:6:"), "{stderr}");
@@ -134,7 +138,9 @@ fn a_requirement_the_package_binds_is_judged_though_nothing_calls_it() {
     let stderr = check_product(
         "uncalled-binding",
         &product,
-        &format!("    Build::bind_native::<Host::tock>(builder, windows_x86_64, {OTHER});\n"),
+        &format!(
+            "    Build::bind_native::<|app|::Host::tock>(builder, windows_x86_64, {OTHER});\n"
+        ),
     )
     .expect_err("the invalid binding must be refused");
     assert!(stderr.contains(DEFAULT_BODY_REFUSAL), "{stderr}");
@@ -156,10 +162,11 @@ const DEFAULT_BODY_REFUSAL: &str = "machine default or native-callback requireme
 /// Stage a program that uses `BOUND_LIBRARY` through `body`, and check it.
 fn check_with_bound_library(name: &str, body: &str) -> String {
     let library_build = format!(
-        "use {{omega}}/language/core/external_binding.omg as native;
+        "use main.omg as app;
+use {{omega}}/language/core/external_binding.omg as native;
 machine build(builder: @mutable BuildPlan) {{
     builder.product = BuildProduct::Package {{ name: \"bound_library\" }};
-    Build::bind_native::<Raw::read>(builder, macos_arm64, {SLEEP});
+    Build::bind_native::<|app|::Raw::read>(builder, macos_arm64, {SLEEP});
 }}
 "
     );
@@ -172,13 +179,14 @@ machine build(builder: @mutable BuildPlan) {{
             ("main.omg", &main),
             (
                 "build.omg",
-                "use {omega}/build/dependency.omg;
+                "use main.omg as app;
+use {omega}/build/dependency.omg;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: \"bound_user\" };
     let mutable library: DependencyDescription = |dependency|::from_source(Source::Path { location: \"bound_library\" });
     |dependency|::with_alias(@mutable library, \"bound\");
     let registration: DependencyRegistration = Build::dependency(builder, library);
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
 }
 ",
             ),

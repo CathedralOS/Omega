@@ -5,11 +5,12 @@ mod project;
 
 fn check(name: &str, assignments: &str) -> (bool, String) {
     let build = format!(
-        "use {{omega}}/build/storage.omg;
+        "use main.omg as app;
+use {{omega}}/build/storage.omg;
 machine build(builder: @mutable BuildPlan) {{
     builder.product = BuildProduct::Application {{ name: \"configured\" }};
 {assignments}
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
 }}
 "
     );

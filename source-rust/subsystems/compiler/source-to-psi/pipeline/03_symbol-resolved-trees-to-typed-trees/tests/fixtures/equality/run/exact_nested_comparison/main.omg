@@ -1,19 +1,20 @@
-use points;
-ForeignEquality satisfies Equatable<points\Point> { }
-data Position = points\Point;
+use {omega}/language/core/equality.omg;
+use points/points.omg;
+ForeignEquality satisfies |equality|::Equatable<|points|::Point> { }
+data Position = |points|::Point;
 data Point [copy] { nested: Position; }
 data LocalPoint = Point;
-PointEquality satisfies Equatable<Point> { }
+PointEquality satisfies |equality|::Equatable<Point> { }
 data Mark [copy] { value: i32; }
-MarkEquality satisfies Equatable<Mark> {
+MarkEquality satisfies |equality|::Equatable<Mark> {
     machine equals(left: @Mark, right: @Mark) -> bool { false }
 }
 data Marked [copy] { mark: Mark; }
-MarkedEquality satisfies Equatable<Marked> { }
+MarkedEquality satisfies |equality|::Equatable<Marked> { }
 machine main() crashes Trap {
-    let a: LocalPoint = Point { nested: points\Point { x: 17 } };
-    let b: LocalPoint = Point { nested: points\Point { x: 17 } };
-    let c: LocalPoint = Point { nested: points\Point { x: 19 } };
+    let a: LocalPoint = Point { nested: |points|::Point { x: 17 } };
+    let b: LocalPoint = Point { nested: |points|::Point { x: 17 } };
+    let c: LocalPoint = Point { nested: |points|::Point { x: 19 } };
     let selected: bool = PointEquality::equals(@a, @b);
     let marked: Marked = Marked { mark: Mark { value: 17 } };
     let authored: bool = MarkedEquality::equals(@marked, @marked);

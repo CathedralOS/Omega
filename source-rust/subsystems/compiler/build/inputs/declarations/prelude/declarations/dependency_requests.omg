@@ -3,9 +3,9 @@ public data PackageSelection<'storage> {
     case Named(package: @'storage [u8]);
 }
 public data Source<'storage> {
-    case Bundled(name: @'storage [u8]);
     case Path(location: @'storage [u8]);
     case Git(repository: @'storage [u8], revision: @'storage [u8], selection: PackageSelection<'storage>);
+    case Bundled(name: @'storage [u8]);
 }
 // Executed project requests cross one compiler-issued host protocol. Source
 // variants are decomposed by ordinary Omega code, not a host syntax visitor.

@@ -78,9 +78,10 @@ fn build_with(
     flags: &[&str],
 ) -> (bool, String) {
     let source = format!(
-        "machine build(builder: @mutable Build) {{
+        "use main.omg as app;
+machine build(builder: @mutable Build) {{
     Build::application(builder, \"{name}\");
-    Build::bind(builder, {target}::ProgramEntry, main);
+    Build::bind(builder, {target}::ProgramEntry, |app|::main);
 {registration}
 }}"
     );
@@ -121,7 +122,7 @@ fn build_project(source: &str, expected_sum: &str, target: &str, flags: &[&str])
     )
 }
 
-const GROUP: &str = "    _ = builder.tests.group::<Tests::arithmetic>();";
+const GROUP: &str = "    _ = builder.tests.group::<|app|::Tests::arithmetic>();";
 
 #[test]
 fn a_registered_group_runs_each_satisfier_as_a_test() {
@@ -169,22 +170,22 @@ fn the_build_refuses_malformed_group_requests_before_any_test_runs() {
     for (name, registration, refusal) in [
         (
             "twice",
-            "    _ = builder.tests.group::<Tests::arithmetic>();\n    _ = builder.tests.group::<Tests::arithmetic>();",
+            "    _ = builder.tests.group::<|app|::Tests::arithmetic>();\n    _ = builder.tests.group::<|app|::Tests::arithmetic>();",
             "test group registration repeats the same requirement",
         ),
         (
             "wrong_adapter",
-            "    _ = builder.tests.group::<Tests::arithmetic, Tests>();",
-            "test group operand `Tests` must name one visible adapter machine with a body",
+            "    _ = builder.tests.group::<|app|::Tests::arithmetic, |app|::Tests>();",
+            "test group operand `|app|::Tests` must name one visible adapter machine with a body",
         ),
         (
             "extra_adapter",
-            "    _ = builder.tests.group::<Tests::arithmetic, main, main>();",
+            "    _ = builder.tests.group::<|app|::Tests::arithmetic, |app|::main, |app|::main>();",
             "one exact trait machine requirement and an optional adapter machine",
         ),
         (
             "retired_service",
-            "    _ = builder.tests.group::<Tests::arithmetic>();\n    _ = builder.tests.service::<Tests::arithmetic, Filesystem>();",
+            "    _ = builder.tests.group::<|app|::Tests::arithmetic>();\n    _ = builder.tests.service::<|app|::Tests::arithmetic, |app|::Filesystem>();",
             "this call has no visible declaration in its source scope",
         ),
     ] {
@@ -281,10 +282,11 @@ fn an_artifact_only_build_runs_its_groups_before_publishing_files() {
 
 fn rejected_roster(source: &str, requirement: &str) -> [String; 2] {
     let build = format!(
-        r#"machine build(builder: @mutable Build) {{
+        r#"use main.omg as app;
+machine build(builder: @mutable Build) {{
         Build::application(builder, "rejected_roster");
-        Build::bind(builder, linux_arm64::ProgramEntry, main);
-        _ = builder.tests.group::<{requirement}>();
+        Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
+        _ = builder.tests.group::<|app|::{requirement}>();
     }}"#
     );
     let scratch = project::stage(
@@ -350,7 +352,7 @@ machine main() {}";
 #[test]
 fn a_batch_build_announces_both_targets_before_any_test_verdict() {
     let registration = format!(
-        r"Build::bind(builder, linux_arm64::ProgramEntry, main);
+        r"Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
 {GROUP}"
     );
     let (ok, output) = build_with(
@@ -413,7 +415,7 @@ fn a_group_selects_engines_for_one_target_without_weakening_required_runs() {
     } else {
         "linux_arm64"
     };
-    let group = "let group: TestGroup = builder.tests.group::<Tests::arithmetic>();";
+    let group = "let group: TestGroup = builder.tests.group::<|app|::Tests::arithmetic>();";
     let choose = |target, engine, policy| {
         format!(
             "TestGroup::engine(group, {target}, TestEngine::{engine}, TestEnginePolicy::{policy});"
@@ -587,7 +589,7 @@ fn a_package_build_runs_registered_tests_without_an_application_entry() {
     };
     let target = host.target_name();
     let package = format!(
-        "machine build(builder: @mutable Build) {{ Build::package(builder, \"library\"); {GROUP} }}"
+        "use main.omg as app;\nmachine build(builder: @mutable Build) {{ Build::package(builder, \"library\"); {GROUP} }}"
     );
     let (ok, report) = build_project(
         &package,
@@ -604,8 +606,9 @@ fn a_package_build_runs_registered_tests_without_an_application_entry() {
     assert!(!report.contains("published native output"), "{report}");
 
     let bound_package = format!(
-        "machine build(builder: @mutable Build) {{ Build::package(builder, \"library\");
-         Build::bind(builder, {target}::ProgramEntry, main); }}"
+        "use main.omg as app;
+machine build(builder: @mutable Build) {{ Build::package(builder, \"library\");
+         Build::bind(builder, {target}::ProgramEntry, |app|::main); }}"
     );
     let (ok, report) = build_project(&bound_package, "5u32", target, &[]);
     assert!(

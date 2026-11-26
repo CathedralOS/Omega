@@ -250,56 +250,9 @@ pub(super) fn encode_ledger(
             crate::codec_bytes::push_encoded(&mut encoded, custody.machine.get().to_le_bytes());
             crate::codec_bytes::push_encoded(&mut encoded, custody.source_ordinal.to_le_bytes());
         }
-        encode_len(&mut encoded, record.provenance.len());
-        for row in &record.provenance {
-            encode_realization_site(&mut encoded, row.input);
-            let (tag, site) = match row.disposition {
-                ProvenanceDisposition::RealizedAt(site)
-                | ProvenanceDisposition::ProvenUnreachableAt(site) => {
-                    (row.disposition.canonical_tag(), site)
-                }
-            };
-            encoded.push(tag);
-            encode_realization_site(&mut encoded, site);
-            encode_len(&mut encoded, row.sources.len());
-            for source in &row.sources {
-                encode_provenance(&mut encoded, *source);
-            }
-            encode_len(&mut encoded, row.work.len());
-            for settlement in &row.work {
-                encode_provenance(&mut encoded, settlement.site);
-                crate::codec_bytes::push_encoded(&mut encoded, settlement.units.to_le_bytes());
-            }
-        }
+        crate::rewrite::encode_provenance_rows(&mut encoded, &record.provenance);
     }
     encoded
-}
-fn encode_provenance(encoded: &mut Vec<u8>, provenance: PsiProvenance) {
-    match provenance {
-        PsiProvenance::Operation(operation) => {
-            encoded.push(1);
-            crate::codec_bytes::push_encoded(encoded, operation.get().to_le_bytes());
-        }
-        PsiProvenance::Edge(edge) => {
-            encoded.push(2);
-            crate::codec_bytes::push_encoded(encoded, edge.get().to_le_bytes());
-        }
-    }
-}
-fn encode_realization_site(encoded: &mut Vec<u8>, site: PsiRealizationSite) {
-    match site {
-        PsiRealizationSite::Node(location) => {
-            encoded.push(1);
-            crate::codec_bytes::push_encoded(encoded, location.machine.get().to_le_bytes());
-            crate::codec_bytes::push_encoded(encoded, location.block.get().to_le_bytes());
-            crate::codec_bytes::push_encoded(encoded, location.node.to_le_bytes());
-        }
-        PsiRealizationSite::Edge { machine, edge } => {
-            encoded.push(2);
-            crate::codec_bytes::push_encoded(encoded, machine.get().to_le_bytes());
-            crate::codec_bytes::push_encoded(encoded, edge.get().to_le_bytes());
-        }
-    }
 }
 fn encode_len(encoded: &mut Vec<u8>, length: usize) {
     encoded.extend_from_slice(

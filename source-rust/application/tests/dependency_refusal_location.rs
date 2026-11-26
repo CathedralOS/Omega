@@ -27,7 +27,7 @@ fn a_refusal_inside_a_dependency_names_its_machine_and_file_position() {
         &[
             (
                 "main.omg",
-                "use kit;\n\nmachine entry() -> i32 {\n    kit\\value()\n}\n",
+                "use {kit}/main.omg as kit;\n\nmachine entry() -> i32 {\n    |kit|::value()\n}\n",
             ),
             (
                 "build.omg",

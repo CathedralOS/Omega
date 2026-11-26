@@ -1,12 +1,12 @@
-use omega\language\core\CountedQuantity;
-use omega\language\core\Content;
-use owner\main;
+use {omega}/language/core/content.omg;
+use {owner}/main.omg as owner;
+use {omega}/language/core/nat.omg;
 
 // Importing a qualification does not authorize publishing its projection.
-machine Owned::content(region: @Region) -> CountedQuantity<ByteUnit>
-satisfies Content<Region, CountedQuantity<ByteUnit>>::project
+machine Owned::content(region: @|owner|::Region) -> |content|::CountedQuantity<|owner|::ByteUnit>
+satisfies |content|::Content<|owner|::Region, |content|::CountedQuantity<|owner|::ByteUnit>>::project
 {
-    CountedQuantity { magnitude: Nat::Zero }
+    |content|::CountedQuantity { magnitude: |nat|::Nat::Zero }
 }
 
 machine main() {}

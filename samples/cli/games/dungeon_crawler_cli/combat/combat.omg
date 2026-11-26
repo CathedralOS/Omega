@@ -1,33 +1,28 @@
-use events\RoomEvent;
-use player\Player;
-use player\PlayerSystem;
-use player\grant_reward;
-use player\grant_xp;
-use player\take_damage;
-use rewards\Reward;
-use rewards\RewardTables;
-use rewards\roll_enemy_reward;
-use rng\Random;
-use rng\RandomState;
-use rng\range;
-use omega\language\core\max_i32;
-
+use combat/combat_round.omg;
+use events/events.omg;
+use player/player.omg;
+use player/player_state.omg;
+use rewards/reward_tables.omg;
+use rewards/rewards.omg;
+use rng/random.omg;
+use rng/random_state.omg;
+use {omega}/language/core/math.omg;
 
 data CombatSystem {
-    player_system: PlayerSystem;
-    rewards: RewardTables;
-    rng: Random;
+    player_system: |player|::PlayerSystem;
+    rewards: |reward_tables|::RewardTables;
+    rng: |random|::Random;
 }
 
 machine combat_system_fight(
     combat_system: @mutable CombatSystem,
-    player: @mutable Player,
-    event: @mutable RoomEvent,
-    random: @mutable RandomState,
-    round: @mutable CombatRound
+    player: @mutable |player_state|::Player,
+    event: @mutable |events|::RoomEvent,
+    random: @mutable |random_state|::RandomState,
+    round: @mutable |combat_round|::CombatRound
 ) {
-    round.player_damage = max_i32(0, (player.attack - event.enemy.defense + ((range(@mutable combat_system.rng, random, 3u32 as +Wrapping) as i32) as i32 +Wrapping)) as i32) as i32 +Wrapping;
-    event.enemy.health = max_i32(0, (event.enemy.health - round.player_damage) as i32) as i32 +Wrapping;
+    round.player_damage = |math|::max_i32(0, (player.attack - event.enemy.defense + ((|random|::range(@mutable combat_system.rng, random, 3u32 as +Wrapping) as i32) as i32 +Wrapping)) as i32) as i32 +Wrapping;
+    event.enemy.health = |math|::max_i32(0, (event.enemy.health - round.player_damage) as i32) as i32 +Wrapping;
     round.enemy_defeated = event.enemy.health == 0;
 
     transition round.enemy_defeated {
@@ -38,15 +33,15 @@ machine combat_system_fight(
 
     machine defeated_enemy(
         combat_system: @mutable CombatSystem,
-        player: @mutable Player,
-        event: @mutable RoomEvent,
-        random: @mutable RandomState,
-        round: @mutable CombatRound
+        player: @mutable |player_state|::Player,
+        event: @mutable |events|::RoomEvent,
+        random: @mutable |random_state|::RandomState,
+        round: @mutable |combat_round|::CombatRound
     ) {
-        let mutable reward: Reward;
-        roll_enemy_reward(@mutable combat_system.rewards, event.enemy, random, @mutable reward);
-        grant_reward(@mutable combat_system.player_system, player, reward);
-        grant_xp(@mutable combat_system.player_system, player, event.enemy.xp_reward);
+        let mutable reward: |rewards|::Reward;
+        |reward_tables|::roll_enemy_reward(@mutable combat_system.rewards, event.enemy, random, @mutable reward);
+        |player|::grant_reward(@mutable combat_system.player_system, player, reward);
+        |player|::grant_xp(@mutable combat_system.player_system, player, event.enemy.xp_reward);
 
         event.reward = reward;
         event.consumed = true;
@@ -56,13 +51,13 @@ machine combat_system_fight(
 
     machine enemy_retaliates(
         combat_system: @mutable CombatSystem,
-        player: @mutable Player,
-        event: @mutable RoomEvent,
-        random: @mutable RandomState,
-        round: @mutable CombatRound
+        player: @mutable |player_state|::Player,
+        event: @mutable |events|::RoomEvent,
+        random: @mutable |random_state|::RandomState,
+        round: @mutable |combat_round|::CombatRound
     ) {
-        round.enemy_damage = max_i32(0, (event.enemy.attack - player.defense + ((range(@mutable combat_system.rng, random, 3u32 as +Wrapping) as i32) as i32 +Wrapping)) as i32) as i32 +Wrapping;
-        take_damage(player, round.enemy_damage);
+        round.enemy_damage = |math|::max_i32(0, (event.enemy.attack - player.defense + ((|random|::range(@mutable combat_system.rng, random, 3u32 as +Wrapping) as i32) as i32 +Wrapping)) as i32) as i32 +Wrapping;
+        |player|::take_damage(player, round.enemy_damage);
         round.player_defeated = player.health == 0;
     }
 }

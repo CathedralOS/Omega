@@ -1,3 +1,8 @@
+use {omega}/language/core/foundation.omg as proof;
+use int.omg;
+use nat.omg;
+use nat_metric.omg;
+
 // Core Rat -- the signed CANONICAL-REPRESENTATIVE construction. A rational is
 // an IntPair numerator over a positive Nat denominator. The signed constructor
 // normalizes the difference pair to one nonzero coordinate and divides the
@@ -18,26 +23,26 @@
 
 
 public data Rat {
-    num: IntPair;
-    den: Nat;
+    num: |int|::IntPair;
+    den: |nat|::Nat;
 }
 
 // Compatibility constructor for a nonnegative numerator.
-machine mk_rat(n: Nat, d: Nat, g: Nat) -> Rat
+machine mk_rat(n: |nat|::Nat, d: |nat|::Nat, g: |nat|::Nat) -> Rat
 requires
-    core\Identity::<Nat>(saturating_sub(Nat::Succ { prev: Nat::Zero }, d), Nat::Zero),
-    core\Identity::<Nat>(gcd(n, d), g),
-    core\Identity::<Nat>(saturating_sub(Nat::Succ { prev: Nat::Zero }, g), Nat::Zero)
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, d), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(|nat|::gcd(n, d), g),
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, g), |nat|::Nat::Zero)
 {
     transition {
         _ -> build(n, d, g)
     }
 
-    machine build(n: Nat, d: Nat, g: Nat) -> Rat {
-        let rn: Nat = div(n, g);
-        let rd: Nat = div(d, g);
+    machine build(n: |nat|::Nat, d: |nat|::Nat, g: |nat|::Nat) -> Rat {
+        let rn: |nat|::Nat = |nat|::div(n, g);
+        let rd: |nat|::Nat = |nat|::div(d, g);
         transition { _ -> Rat {
-            num: IntPair { neg: Nat::Zero, pos: rn },
+            num: |int|::IntPair { neg: |nat|::Nat::Zero, pos: rn },
             den: rd
         } }
     }
@@ -45,54 +50,54 @@ requires
 
 // Signed constructor. The magnitude is the sum of the two directed monus
 // coordinates after cancelling the difference pair's shared offset.
-machine mk_signed_rat(n: IntPair, d: Nat, g: Nat) -> Rat
+machine mk_signed_rat(n: |int|::IntPair, d: |nat|::Nat, g: |nat|::Nat) -> Rat
 requires
-    core\Identity::<Nat>(saturating_sub(Nat::Succ { prev: Nat::Zero }, d), Nat::Zero),
-    core\Identity::<Nat>(gcd(add(saturating_sub(n.neg, n.pos), saturating_sub(n.pos, n.neg)), d), g),
-    core\Identity::<Nat>(saturating_sub(Nat::Succ { prev: Nat::Zero }, g), Nat::Zero)
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, d), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(|nat|::gcd(|nat|::add(|nat|::saturating_sub(n.neg, n.pos), |nat|::saturating_sub(n.pos, n.neg)), d), g),
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, g), |nat|::Nat::Zero)
 {
-    let negative: Nat = saturating_sub(n.neg, n.pos);
-    let positive: Nat = saturating_sub(n.pos, n.neg);
-    let reduced_negative: Nat = div(negative, g);
-    let reduced_positive: Nat = div(positive, g);
-    let reduced_denominator: Nat = div(d, g);
+    let negative: |nat|::Nat = |nat|::saturating_sub(n.neg, n.pos);
+    let positive: |nat|::Nat = |nat|::saturating_sub(n.pos, n.neg);
+    let reduced_negative: |nat|::Nat = |nat|::div(negative, g);
+    let reduced_positive: |nat|::Nat = |nat|::div(positive, g);
+    let reduced_denominator: |nat|::Nat = |nat|::div(d, g);
     transition { _ -> Rat {
-        num: IntPair { neg: reduced_negative, pos: reduced_positive },
+        num: |int|::IntPair { neg: reduced_negative, pos: reduced_positive },
         den: reduced_denominator
     } }
 }
 
 // The positive and negative coordinates of p-q over a common denominator.
-machine rat_cross_positive(p: Rat, q: Rat) -> Nat {
-    let left: Nat = mul(p.num.pos, q.den);
-    let right: Nat = mul(q.num.neg, p.den);
-    let result: Nat = add(left, right);
+machine rat_cross_positive(p: Rat, q: Rat) -> |nat|::Nat {
+    let left: |nat|::Nat = |nat|::mul(p.num.pos, q.den);
+    let right: |nat|::Nat = |nat|::mul(q.num.neg, p.den);
+    let result: |nat|::Nat = |nat|::add(left, right);
     transition { _ -> (result) }
 }
 
-machine rat_cross_negative(p: Rat, q: Rat) -> Nat {
-    let left: Nat = mul(p.num.neg, q.den);
-    let right: Nat = mul(q.num.pos, p.den);
-    let result: Nat = add(left, right);
+machine rat_cross_negative(p: Rat, q: Rat) -> |nat|::Nat {
+    let left: |nat|::Nat = |nat|::mul(p.num.neg, q.den);
+    let right: |nat|::Nat = |nat|::mul(q.num.pos, p.den);
+    let result: |nat|::Nat = |nat|::add(left, right);
     transition { _ -> (result) }
 }
 
 // Cross-multiplication equality over the signed coordinates.
-machine rat_eq(p: Rat, q: Rat) -> Nat
+machine rat_eq(p: Rat, q: Rat) -> |nat|::Nat
 {
-    let positive: Nat = rat_cross_positive(p, q);
-    let negative: Nat = rat_cross_negative(p, q);
-    transition (saturating_sub(positive, negative)) {
-        Nat::Zero -> check_other(p, q),
-        Nat::Succ { prev as w } -> Nat::Succ { prev: Nat::Zero }
+    let positive: |nat|::Nat = rat_cross_positive(p, q);
+    let negative: |nat|::Nat = rat_cross_negative(p, q);
+    transition (|nat|::saturating_sub(positive, negative)) {
+        |nat|::Nat::Zero -> check_other(p, q),
+        |nat|::Nat::Succ { prev as w } -> |nat|::Nat::Succ { prev: |nat|::Nat::Zero }
     }
 
-    machine check_other(p: Rat, q: Rat) -> Nat {
-        let negative: Nat = rat_cross_negative(p, q);
-        let positive: Nat = rat_cross_positive(p, q);
-        transition (saturating_sub(negative, positive)) {
-            Nat::Zero -> Nat::Zero,
-            Nat::Succ { prev as w } -> Nat::Succ { prev: Nat::Zero }
+    machine check_other(p: Rat, q: Rat) -> |nat|::Nat {
+        let negative: |nat|::Nat = rat_cross_negative(p, q);
+        let positive: |nat|::Nat = rat_cross_positive(p, q);
+        transition (|nat|::saturating_sub(negative, positive)) {
+            |nat|::Nat::Zero -> |nat|::Nat::Zero,
+            |nat|::Nat::Succ { prev as w } -> |nat|::Nat::Succ { prev: |nat|::Nat::Zero }
         }
     }
 }
@@ -103,46 +108,46 @@ machine rat_eq(p: Rat, q: Rat) -> Nat
 //
 // This is deliberately unreduced. Cauchy bounds compare it against the common
 // denominator, so normalization does not change the proposition.
-machine rat_gap(p: Rat, q: Rat) -> Nat
+machine rat_gap(p: Rat, q: Rat) -> |nat|::Nat
 {
-    let p_positive: Nat = mul(p.num.pos, q.den);
-    let q_negative: Nat = mul(q.num.neg, p.den);
-    let p_negative: Nat = mul(p.num.neg, q.den);
-    let q_positive: Nat = mul(q.num.pos, p.den);
-    let positive: Nat = add(p_positive, q_negative);
-    let negative: Nat = add(p_negative, q_positive);
-    let forward: Nat = saturating_sub(positive, negative);
-    let backward: Nat = saturating_sub(negative, positive);
-    let gap: Nat = add(forward, backward);
+    let p_positive: |nat|::Nat = |nat|::mul(p.num.pos, q.den);
+    let q_negative: |nat|::Nat = |nat|::mul(q.num.neg, p.den);
+    let p_negative: |nat|::Nat = |nat|::mul(p.num.neg, q.den);
+    let q_positive: |nat|::Nat = |nat|::mul(q.num.pos, p.den);
+    let positive: |nat|::Nat = |nat|::add(p_positive, q_negative);
+    let negative: |nat|::Nat = |nat|::add(p_negative, q_positive);
+    let forward: |nat|::Nat = |nat|::saturating_sub(positive, negative);
+    let backward: |nat|::Nat = |nat|::saturating_sub(negative, positive);
+    let gap: |nat|::Nat = |nat|::add(forward, backward);
     transition { _ -> (gap) }
 }
 
-machine rat_gap_reflexive(p: Rat) -> Nat
+machine rat_gap_reflexive(p: Rat) -> |nat|::Nat
 ensures
-    core\Identity::<Nat>(result, Nat::Zero),
-    core\Identity::<Nat>(rat_gap(p, p), Nat::Zero)
+    |proof|::Identity::<|nat|::Nat>(result, |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(rat_gap(p, p), |nat|::Nat::Zero)
 {
-    let p_positive: Nat = mul(p.num.pos, p.den);
-    let p_negative: Nat = mul(p.num.neg, p.den);
-    add_comm(p_positive, p_negative);
-    let positive: Nat = add(p_positive, p_negative);
-    _ = sub_self(positive);
+    let p_positive: |nat|::Nat = |nat|::mul(p.num.pos, p.den);
+    let p_negative: |nat|::Nat = |nat|::mul(p.num.neg, p.den);
+    |nat|::add_comm(p_positive, p_negative);
+    let positive: |nat|::Nat = |nat|::add(p_positive, p_negative);
+    _ = |nat|::sub_self(positive);
     transition { _ -> (rat_gap(p, p)) }
 }
 
-machine rat_gap_symmetric(p: Rat, q: Rat) -> Nat
+machine rat_gap_symmetric(p: Rat, q: Rat) -> |nat|::Nat
 ensures
-    core\Identity::<Nat>(rat_gap(p, q), rat_gap(q, p))
+    |proof|::Identity::<|nat|::Nat>(rat_gap(p, q), rat_gap(q, p))
 {
-    let p_positive: Nat = mul(p.num.pos, q.den);
-    let q_negative: Nat = mul(q.num.neg, p.den);
-    let p_negative: Nat = mul(p.num.neg, q.den);
-    let q_positive: Nat = mul(q.num.pos, p.den);
-    add_comm(p_positive, q_negative);
-    add_comm(p_negative, q_positive);
-    let positive: Nat = add(p_positive, q_negative);
-    let negative: Nat = add(p_negative, q_positive);
-    add_comm(saturating_sub(positive, negative), saturating_sub(negative, positive));
+    let p_positive: |nat|::Nat = |nat|::mul(p.num.pos, q.den);
+    let q_negative: |nat|::Nat = |nat|::mul(q.num.neg, p.den);
+    let p_negative: |nat|::Nat = |nat|::mul(p.num.neg, q.den);
+    let q_positive: |nat|::Nat = |nat|::mul(q.num.pos, p.den);
+    |nat|::add_comm(p_positive, q_negative);
+    |nat|::add_comm(p_negative, q_positive);
+    let positive: |nat|::Nat = |nat|::add(p_positive, q_negative);
+    let negative: |nat|::Nat = |nat|::add(p_negative, q_positive);
+    |nat|::add_comm(|nat|::saturating_sub(positive, negative), |nat|::saturating_sub(negative, positive));
     transition { _ -> (rat_gap(p, q)) }
 }
 
@@ -150,33 +155,33 @@ ensures
 // without division as precision * gap <= p.den * q.den. Nat's settled monus
 // spelling encodes `a <= b` as saturating_sub(a, b) == Zero. Precision zero is harmless
 // (the bound is vacuous); Cauchy consumers use positive precisions.
-machine rat_close(p: Rat, q: Rat, precision: Nat) -> Nat
+machine rat_close(p: Rat, q: Rat, precision: |nat|::Nat) -> |nat|::Nat
 {
-    let gap: Nat = rat_gap(p, q);
-    let scaled_gap: Nat = mul(precision, gap);
-    let common_denominator: Nat = mul(p.den, q.den);
-    let residual: Nat = saturating_sub(scaled_gap, common_denominator);
+    let gap: |nat|::Nat = rat_gap(p, q);
+    let scaled_gap: |nat|::Nat = |nat|::mul(precision, gap);
+    let common_denominator: |nat|::Nat = |nat|::mul(p.den, q.den);
+    let residual: |nat|::Nat = |nat|::saturating_sub(scaled_gap, common_denominator);
     transition { _ -> (residual) }
 }
 
-machine rat_close_reflexive(p: Rat, precision: Nat)
+machine rat_close_reflexive(p: Rat, precision: |nat|::Nat)
 ensures
-    core\Identity::<Nat>(rat_close(p, p, precision), Nat::Zero)
+    |proof|::Identity::<|nat|::Nat>(rat_close(p, p, precision), |nat|::Nat::Zero)
 {
     _ = rat_gap_reflexive(p);
-    _ = mul_zero_right(precision);
-    let common_denominator: Nat = mul(p.den, p.den);
-    _ = sub_zero_left(common_denominator);
+    _ = |nat|::mul_zero_right(precision);
+    let common_denominator: |nat|::Nat = |nat|::mul(p.den, p.den);
+    _ = |nat|::sub_zero_left(common_denominator);
 }
 
-machine rat_close_symmetric(p: Rat, q: Rat, precision: Nat)
+machine rat_close_symmetric(p: Rat, q: Rat, precision: |nat|::Nat)
 requires
-    core\Identity::<Nat>(rat_close(p, q, precision), Nat::Zero)
+    |proof|::Identity::<|nat|::Nat>(rat_close(p, q, precision), |nat|::Nat::Zero)
 ensures
-    core\Identity::<Nat>(rat_close(q, p, precision), Nat::Zero)
+    |proof|::Identity::<|nat|::Nat>(rat_close(q, p, precision), |nat|::Nat::Zero)
 {
     _ = rat_gap_symmetric(q, p);
-    mul_comm(q.den, p.den);
+    |nat|::mul_comm(q.den, p.den);
 }
 
 // Scale a signed cross-product gap and optionally translate both Nat
@@ -185,38 +190,38 @@ ensures
 machine rat_gap_scaled_with_common(
     p: Rat,
     q: Rat,
-    factor: Nat,
-    prefix: Nat
+    factor: |nat|::Nat,
+    prefix: |nat|::Nat
 )
 ensures
-    core\Identity::<Nat>(
-        nat_gap(
-            add(prefix, mul(add(
-                mul(p.num.pos, q.den),
-                mul(q.num.neg, p.den)
+    |proof|::Identity::<|nat|::Nat>(
+        |nat_metric|::nat_gap(
+            |nat|::add(prefix, |nat|::mul(|nat|::add(
+                |nat|::mul(p.num.pos, q.den),
+                |nat|::mul(q.num.neg, p.den)
             ), factor)),
-            add(prefix, mul(add(
-                mul(p.num.neg, q.den),
-                mul(q.num.pos, p.den)
+            |nat|::add(prefix, |nat|::mul(|nat|::add(
+                |nat|::mul(p.num.neg, q.den),
+                |nat|::mul(q.num.pos, p.den)
             ), factor))
         ),
-        mul(rat_gap(p, q), factor)
+        |nat|::mul(rat_gap(p, q), factor)
     )
 {
-    let p_positive: Nat = mul(p.num.pos, q.den);
-    let q_negative: Nat = mul(q.num.neg, p.den);
-    let p_negative: Nat = mul(p.num.neg, q.den);
-    let q_positive: Nat = mul(q.num.pos, p.den);
-    let positive: Nat = add(p_positive, q_negative);
-    let negative: Nat = add(p_negative, q_positive);
-    let scaled_positive: Nat = mul(positive, factor);
-    let scaled_negative: Nat = mul(negative, factor);
-    nat_gap_add_common(
+    let p_positive: |nat|::Nat = |nat|::mul(p.num.pos, q.den);
+    let q_negative: |nat|::Nat = |nat|::mul(q.num.neg, p.den);
+    let p_negative: |nat|::Nat = |nat|::mul(p.num.neg, q.den);
+    let q_positive: |nat|::Nat = |nat|::mul(q.num.pos, p.den);
+    let positive: |nat|::Nat = |nat|::add(p_positive, q_negative);
+    let negative: |nat|::Nat = |nat|::add(p_negative, q_positive);
+    let scaled_positive: |nat|::Nat = |nat|::mul(positive, factor);
+    let scaled_negative: |nat|::Nat = |nat|::mul(negative, factor);
+    |nat_metric|::nat_gap_add_common(
         prefix,
         scaled_positive,
         scaled_negative
     );
-    _ = nat_gap_mul_right(positive, negative, factor);
+    _ = |nat_metric|::nat_gap_mul_right(positive, negative, factor);
 }
 
 // Align the three translated/scaled signed-coordinate pairs at one common
@@ -225,100 +230,100 @@ ensures
 // for the metric triangle.
 machine rat_gap_triangle_coordinate_alignment(p: Rat, q: Rat, r: Rat)
 ensures
-    core\Identity::<Nat>(
-        add(
-            mul(mul(q.num.neg, p.den), r.den),
-            mul(add(
-                mul(p.num.pos, r.den),
-                mul(r.num.neg, p.den)
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::add(
+            |nat|::mul(|nat|::mul(q.num.neg, p.den), r.den),
+            |nat|::mul(|nat|::add(
+                |nat|::mul(p.num.pos, r.den),
+                |nat|::mul(r.num.neg, p.den)
             ), q.den)
         ),
-        add(
-            add(
-                mul(mul(p.num.pos, q.den), r.den),
-                mul(mul(q.num.neg, p.den), r.den)
+        |nat|::add(
+            |nat|::add(
+                |nat|::mul(|nat|::mul(p.num.pos, q.den), r.den),
+                |nat|::mul(|nat|::mul(q.num.neg, p.den), r.den)
             ),
-            mul(mul(r.num.neg, p.den), q.den)
+            |nat|::mul(|nat|::mul(r.num.neg, p.den), q.den)
         )
     ),
-    core\Identity::<Nat>(
-        add(
-            mul(mul(q.num.neg, p.den), r.den),
-            mul(add(
-                mul(p.num.neg, r.den),
-                mul(r.num.pos, p.den)
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::add(
+            |nat|::mul(|nat|::mul(q.num.neg, p.den), r.den),
+            |nat|::mul(|nat|::add(
+                |nat|::mul(p.num.neg, r.den),
+                |nat|::mul(r.num.pos, p.den)
             ), q.den)
         ),
-        add(
-            add(
-                mul(mul(r.num.pos, p.den), q.den),
-                mul(mul(p.num.neg, q.den), r.den)
+        |nat|::add(
+            |nat|::add(
+                |nat|::mul(|nat|::mul(r.num.pos, p.den), q.den),
+                |nat|::mul(|nat|::mul(p.num.neg, q.den), r.den)
             ),
-            mul(mul(q.num.neg, p.den), r.den)
+            |nat|::mul(|nat|::mul(q.num.neg, p.den), r.den)
         )
     ),
-    core\Identity::<Nat>(
-        add(
-            mul(mul(r.num.neg, p.den), q.den),
-            mul(add(
-                mul(p.num.pos, q.den),
-                mul(q.num.neg, p.den)
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::add(
+            |nat|::mul(|nat|::mul(r.num.neg, p.den), q.den),
+            |nat|::mul(|nat|::add(
+                |nat|::mul(p.num.pos, q.den),
+                |nat|::mul(q.num.neg, p.den)
             ), r.den)
         ),
-        add(
-            add(
-                mul(mul(p.num.pos, q.den), r.den),
-                mul(mul(q.num.neg, p.den), r.den)
+        |nat|::add(
+            |nat|::add(
+                |nat|::mul(|nat|::mul(p.num.pos, q.den), r.den),
+                |nat|::mul(|nat|::mul(q.num.neg, p.den), r.den)
             ),
-            mul(mul(r.num.neg, p.den), q.den)
+            |nat|::mul(|nat|::mul(r.num.neg, p.den), q.den)
         )
     ),
-    core\Identity::<Nat>(
-        add(
-            mul(mul(r.num.neg, p.den), q.den),
-            mul(add(
-                mul(p.num.neg, q.den),
-                mul(q.num.pos, p.den)
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::add(
+            |nat|::mul(|nat|::mul(r.num.neg, p.den), q.den),
+            |nat|::mul(|nat|::add(
+                |nat|::mul(p.num.neg, q.den),
+                |nat|::mul(q.num.pos, p.den)
             ), r.den)
         ),
-        add(
-            add(
-                mul(mul(q.num.pos, p.den), r.den),
-                mul(mul(p.num.neg, q.den), r.den)
+        |nat|::add(
+            |nat|::add(
+                |nat|::mul(|nat|::mul(q.num.pos, p.den), r.den),
+                |nat|::mul(|nat|::mul(p.num.neg, q.den), r.den)
             ),
-            mul(mul(r.num.neg, p.den), q.den)
+            |nat|::mul(|nat|::mul(r.num.neg, p.den), q.den)
         )
     ),
-    core\Identity::<Nat>(
-        add(
-            mul(mul(p.num.neg, q.den), r.den),
-            mul(add(
-                mul(q.num.pos, r.den),
-                mul(r.num.neg, q.den)
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::add(
+            |nat|::mul(|nat|::mul(p.num.neg, q.den), r.den),
+            |nat|::mul(|nat|::add(
+                |nat|::mul(q.num.pos, r.den),
+                |nat|::mul(r.num.neg, q.den)
             ), p.den)
         ),
-        add(
-            add(
-                mul(mul(q.num.pos, p.den), r.den),
-                mul(mul(p.num.neg, q.den), r.den)
+        |nat|::add(
+            |nat|::add(
+                |nat|::mul(|nat|::mul(q.num.pos, p.den), r.den),
+                |nat|::mul(|nat|::mul(p.num.neg, q.den), r.den)
             ),
-            mul(mul(r.num.neg, p.den), q.den)
+            |nat|::mul(|nat|::mul(r.num.neg, p.den), q.den)
         )
     ),
-    core\Identity::<Nat>(
-        add(
-            mul(mul(p.num.neg, q.den), r.den),
-            mul(add(
-                mul(q.num.neg, r.den),
-                mul(r.num.pos, q.den)
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::add(
+            |nat|::mul(|nat|::mul(p.num.neg, q.den), r.den),
+            |nat|::mul(|nat|::add(
+                |nat|::mul(q.num.neg, r.den),
+                |nat|::mul(r.num.pos, q.den)
             ), p.den)
         ),
-        add(
-            add(
-                mul(mul(r.num.pos, p.den), q.den),
-                mul(mul(p.num.neg, q.den), r.den)
+        |nat|::add(
+            |nat|::add(
+                |nat|::mul(|nat|::mul(r.num.pos, p.den), q.den),
+                |nat|::mul(|nat|::mul(p.num.neg, q.den), r.den)
             ),
-            mul(mul(q.num.neg, p.den), r.den)
+            |nat|::mul(|nat|::mul(q.num.neg, p.den), r.den)
         )
     )
 {
@@ -333,42 +338,42 @@ ensures
 // only Rat-specific work is rearranging factors and applying homogeneity.
 machine rat_gap_triangle_scaled(p: Rat, q: Rat, r: Rat)
 ensures
-    core\Identity::<Nat>(
-        saturating_sub(
-            mul(q.den, rat_gap(p, r)),
-            add(mul(r.den, rat_gap(p, q)), mul(p.den, rat_gap(q, r)))
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::saturating_sub(
+            |nat|::mul(q.den, rat_gap(p, r)),
+            |nat|::add(|nat|::mul(r.den, rat_gap(p, q)), |nat|::mul(p.den, rat_gap(q, r)))
         ),
-        Nat::Zero
+        |nat|::Nat::Zero
     )
 {
-    let p_positive_q: Nat = mul(p.num.pos, q.den);
-    let p_negative_q: Nat = mul(p.num.neg, q.den);
-    let q_positive_p: Nat = mul(q.num.pos, p.den);
-    let q_negative_p: Nat = mul(q.num.neg, p.den);
-    let r_positive_p: Nat = mul(r.num.pos, p.den);
-    let r_negative_p: Nat = mul(r.num.neg, p.den);
-    let p_positive: Nat = mul(p_positive_q, r.den);
-    let p_negative: Nat = mul(p_negative_q, r.den);
-    let q_positive: Nat = mul(q_positive_p, r.den);
-    let q_negative: Nat = mul(q_negative_p, r.den);
-    let r_positive: Nat = mul(r_positive_p, q.den);
-    let r_negative: Nat = mul(r_negative_p, q.den);
-    let x_left: Nat = add(p_positive, q_negative);
-    let y_left: Nat = add(q_positive, p_negative);
-    let z_left: Nat = add(r_positive, p_negative);
-    let x: Nat = add(x_left, r_negative);
-    let y: Nat = add(y_left, r_negative);
-    let z: Nat = add(z_left, q_negative);
+    let p_positive_q: |nat|::Nat = |nat|::mul(p.num.pos, q.den);
+    let p_negative_q: |nat|::Nat = |nat|::mul(p.num.neg, q.den);
+    let q_positive_p: |nat|::Nat = |nat|::mul(q.num.pos, p.den);
+    let q_negative_p: |nat|::Nat = |nat|::mul(q.num.neg, p.den);
+    let r_positive_p: |nat|::Nat = |nat|::mul(r.num.pos, p.den);
+    let r_negative_p: |nat|::Nat = |nat|::mul(r.num.neg, p.den);
+    let p_positive: |nat|::Nat = |nat|::mul(p_positive_q, r.den);
+    let p_negative: |nat|::Nat = |nat|::mul(p_negative_q, r.den);
+    let q_positive: |nat|::Nat = |nat|::mul(q_positive_p, r.den);
+    let q_negative: |nat|::Nat = |nat|::mul(q_negative_p, r.den);
+    let r_positive: |nat|::Nat = |nat|::mul(r_positive_p, q.den);
+    let r_negative: |nat|::Nat = |nat|::mul(r_negative_p, q.den);
+    let x_left: |nat|::Nat = |nat|::add(p_positive, q_negative);
+    let y_left: |nat|::Nat = |nat|::add(q_positive, p_negative);
+    let z_left: |nat|::Nat = |nat|::add(r_positive, p_negative);
+    let x: |nat|::Nat = |nat|::add(x_left, r_negative);
+    let y: |nat|::Nat = |nat|::add(y_left, r_negative);
+    let z: |nat|::Nat = |nat|::add(z_left, q_negative);
 
     rat_gap_triangle_coordinate_alignment(p, q, r);
     rat_gap_scaled_with_common(p, r, q.den, q_negative);
     rat_gap_scaled_with_common(p, q, r.den, r_negative);
     rat_gap_scaled_with_common(q, r, p.den, p_negative);
 
-    mul_comm(q.den, rat_gap(p, r));
-    mul_comm(r.den, rat_gap(p, q));
-    mul_comm(p.den, rat_gap(q, r));
-    _ = nat_gap_triangle(x, y, z);
+    |nat|::mul_comm(q.den, rat_gap(p, r));
+    |nat|::mul_comm(r.den, rat_gap(p, q));
+    |nat|::mul_comm(p.den, rat_gap(q, r));
+    _ = |nat_metric|::nat_gap_triangle(x, y, z);
 }
 
 // Pure semiring factorization for the reciprocal-bound triangle.  Equation
@@ -379,51 +384,51 @@ machine rat_close_triangle_factorization(
     p: Rat,
     q: Rat,
     r: Rat,
-    precision: Nat
+    precision: |nat|::Nat
 )
 ensures
-    core\Identity::<Nat>(
-        mul(
-            add(
-                mul(r.den, rat_gap(p, q)),
-                mul(p.den, rat_gap(q, r))
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::mul(
+            |nat|::add(
+                |nat|::mul(r.den, rat_gap(p, q)),
+                |nat|::mul(p.den, rat_gap(q, r))
             ),
-            add(precision, precision)
+            |nat|::add(precision, precision)
         ),
-        add(
-            mul(mul(add(precision, precision), rat_gap(p, q)), r.den),
-            mul(mul(add(precision, precision), rat_gap(q, r)), p.den)
+        |nat|::add(
+            |nat|::mul(|nat|::mul(|nat|::add(precision, precision), rat_gap(p, q)), r.den),
+            |nat|::mul(|nat|::mul(|nat|::add(precision, precision), rat_gap(q, r)), p.den)
         )
     ),
-    core\Identity::<Nat>(
-        mul(
-            mul(add(precision, precision), rat_gap(p, r)),
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::mul(
+            |nat|::mul(|nat|::add(precision, precision), rat_gap(p, r)),
             q.den
         ),
-        mul(
-            mul(q.den, rat_gap(p, r)),
-            add(precision, precision)
+        |nat|::mul(
+            |nat|::mul(q.den, rat_gap(p, r)),
+            |nat|::add(precision, precision)
         )
     ),
-    core\Identity::<Nat>(
-        mul(
-            add(
-                mul(p.den, r.den),
-                mul(p.den, r.den)
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::mul(
+            |nat|::add(
+                |nat|::mul(p.den, r.den),
+                |nat|::mul(p.den, r.den)
             ),
             q.den
         ),
-        add(
-            mul(mul(p.den, q.den), r.den),
-            mul(mul(q.den, r.den), p.den)
+        |nat|::add(
+            |nat|::mul(|nat|::mul(p.den, q.den), r.den),
+            |nat|::mul(|nat|::mul(q.den, r.den), p.den)
         )
     ),
-    core\Identity::<Nat>(
-        add(
-            mul(precision, rat_gap(p, r)),
-            mul(precision, rat_gap(p, r))
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::add(
+            |nat|::mul(precision, rat_gap(p, r)),
+            |nat|::mul(precision, rat_gap(p, r))
         ),
-        mul(add(precision, precision), rat_gap(p, r))
+        |nat|::mul(|nat|::add(precision, precision), rat_gap(p, r))
     )
 {
 }
@@ -436,75 +441,75 @@ machine rat_close_triangle_split(
     p: Rat,
     q: Rat,
     r: Rat,
-    precision: Nat
+    precision: |nat|::Nat
 )
 requires
-    core\Identity::<Nat>(saturating_sub(Nat::Succ { prev: Nat::Zero }, q.den), Nat::Zero),
-    core\Identity::<Nat>(rat_close(p, q, add(precision, precision)), Nat::Zero),
-    core\Identity::<Nat>(rat_close(q, r, add(precision, precision)), Nat::Zero)
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, q.den), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(rat_close(p, q, |nat|::add(precision, precision)), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(rat_close(q, r, |nat|::add(precision, precision)), |nat|::Nat::Zero)
 ensures
-    core\Identity::<Nat>(rat_close(p, r, precision), Nat::Zero)
+    |proof|::Identity::<|nat|::Nat>(rat_close(p, r, precision), |nat|::Nat::Zero)
 {
-    let double_precision: Nat = add(precision, precision);
-    let pq_gap: Nat = rat_gap(p, q);
-    let qr_gap: Nat = rat_gap(q, r);
-    let pr_gap: Nat = rat_gap(p, r);
-    let triangle_lower: Nat = mul(q.den, pr_gap);
-    let pq_triangle_upper: Nat = mul(r.den, pq_gap);
-    let qr_triangle_upper: Nat = mul(p.den, qr_gap);
-    let triangle_upper: Nat = add(pq_triangle_upper, qr_triangle_upper);
-    let scaled_triangle_lower: Nat = mul(triangle_lower, double_precision);
-    let pq_close_lower: Nat = mul(double_precision, pq_gap);
-    let qr_close_lower: Nat = mul(double_precision, qr_gap);
-    let pq_scaled_lower: Nat = mul(pq_close_lower, r.den);
-    let qr_scaled_lower: Nat = mul(qr_close_lower, p.den);
-    let summed_lower: Nat = add(pq_scaled_lower, qr_scaled_lower);
-    let pq_close_upper: Nat = mul(p.den, q.den);
-    let qr_close_upper: Nat = mul(q.den, r.den);
-    let pq_scaled_upper: Nat = mul(pq_close_upper, r.den);
-    let qr_scaled_upper: Nat = mul(qr_close_upper, p.den);
-    let summed_upper: Nat = add(pq_scaled_upper, qr_scaled_upper);
-    let pr_denominator: Nat = mul(p.den, r.den);
-    let doubled_pr_denominator: Nat = add(pr_denominator, pr_denominator);
-    let doubled_pr_gap: Nat = mul(double_precision, pr_gap);
-    let precision_pr_gap: Nat = mul(precision, pr_gap);
-    let two: Nat = Nat::Succ { prev: (Nat::Succ { prev: Nat::Zero }) };
+    let double_precision: |nat|::Nat = |nat|::add(precision, precision);
+    let pq_gap: |nat|::Nat = rat_gap(p, q);
+    let qr_gap: |nat|::Nat = rat_gap(q, r);
+    let pr_gap: |nat|::Nat = rat_gap(p, r);
+    let triangle_lower: |nat|::Nat = |nat|::mul(q.den, pr_gap);
+    let pq_triangle_upper: |nat|::Nat = |nat|::mul(r.den, pq_gap);
+    let qr_triangle_upper: |nat|::Nat = |nat|::mul(p.den, qr_gap);
+    let triangle_upper: |nat|::Nat = |nat|::add(pq_triangle_upper, qr_triangle_upper);
+    let scaled_triangle_lower: |nat|::Nat = |nat|::mul(triangle_lower, double_precision);
+    let pq_close_lower: |nat|::Nat = |nat|::mul(double_precision, pq_gap);
+    let qr_close_lower: |nat|::Nat = |nat|::mul(double_precision, qr_gap);
+    let pq_scaled_lower: |nat|::Nat = |nat|::mul(pq_close_lower, r.den);
+    let qr_scaled_lower: |nat|::Nat = |nat|::mul(qr_close_lower, p.den);
+    let summed_lower: |nat|::Nat = |nat|::add(pq_scaled_lower, qr_scaled_lower);
+    let pq_close_upper: |nat|::Nat = |nat|::mul(p.den, q.den);
+    let qr_close_upper: |nat|::Nat = |nat|::mul(q.den, r.den);
+    let pq_scaled_upper: |nat|::Nat = |nat|::mul(pq_close_upper, r.den);
+    let qr_scaled_upper: |nat|::Nat = |nat|::mul(qr_close_upper, p.den);
+    let summed_upper: |nat|::Nat = |nat|::add(pq_scaled_upper, qr_scaled_upper);
+    let pr_denominator: |nat|::Nat = |nat|::mul(p.den, r.den);
+    let doubled_pr_denominator: |nat|::Nat = |nat|::add(pr_denominator, pr_denominator);
+    let doubled_pr_gap: |nat|::Nat = |nat|::mul(double_precision, pr_gap);
+    let precision_pr_gap: |nat|::Nat = |nat|::mul(precision, pr_gap);
+    let two: |nat|::Nat = |nat|::Nat::Succ { prev: (|nat|::Nat::Succ { prev: |nat|::Nat::Zero }) };
 
     rat_close_triangle_factorization(p, q, r, precision);
     rat_gap_triangle_scaled(p, q, r);
-    _ = mul_le_mul_right(triangle_lower, triangle_upper, double_precision);
-    _ = mul_le_mul_right(
+    _ = |nat_metric|::mul_le_mul_right(triangle_lower, triangle_upper, double_precision);
+    _ = |nat_metric|::mul_le_mul_right(
         pq_close_lower,
         pq_close_upper,
         r.den
     );
-    _ = mul_le_mul_right(
+    _ = |nat_metric|::mul_le_mul_right(
         qr_close_lower,
         qr_close_upper,
         p.den
     );
-    add_le_add(
+    |nat_metric|::add_le_add(
         pq_scaled_lower,
         pq_scaled_upper,
         qr_scaled_lower,
         qr_scaled_upper
     );
-    _ = le_trans(
+    _ = |nat_metric|::le_trans(
         scaled_triangle_lower,
         summed_lower,
         summed_upper
     );
-    _ = mul_le_cancel_right(
+    _ = |nat_metric|::mul_le_cancel_right(
         doubled_pr_gap,
         doubled_pr_denominator,
         q.den
     );
-    _ = mul_one_right(precision_pr_gap);
-    _ = mul_succ_right(precision_pr_gap, Nat::Succ { prev: Nat::Zero });
-    _ = mul_one_right(pr_denominator);
-    _ = mul_succ_right(pr_denominator, Nat::Succ { prev: Nat::Zero });
-    _ = le_one_succ(Nat::Succ { prev: Nat::Zero });
-    _ = mul_le_cancel_right(
+    _ = |nat|::mul_one_right(precision_pr_gap);
+    _ = |nat|::mul_succ_right(precision_pr_gap, |nat|::Nat::Succ { prev: |nat|::Nat::Zero });
+    _ = |nat|::mul_one_right(pr_denominator);
+    _ = |nat|::mul_succ_right(pr_denominator, |nat|::Nat::Succ { prev: |nat|::Nat::Zero });
+    _ = |nat|::le_one_succ(|nat|::Nat::Succ { prev: |nat|::Nat::Zero });
+    _ = |nat_metric|::mul_le_cancel_right(
         precision_pr_gap,
         pr_denominator,
         two

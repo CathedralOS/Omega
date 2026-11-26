@@ -73,13 +73,14 @@ fn an_authored_git_pin_rebuilds_offline_without_the_tracking_ref_or_a_lock() {
     git(&remote, &["commit", "--quiet", "-m", "publish answer"]);
     let pin = git(&remote, &["rev-parse", "HEAD"]);
     let build_file = format!(
-        r#"use {{omega}}/build/dependencies/providers/git.omg as upstream;
+        r#"use main.omg as app;
+use {{omega}}/build/dependencies/providers/git.omg as upstream;
 machine build(build: @mutable BuildPlan) {{
     build.product = BuildProduct::Application {{ name: "pinned" }};
     let answers: DependencyDescription = |upstream|::dependency(
         "pinned_answers", "ssh://git@pin.invalid/answers.git", "refs/heads/no-such-tracking-ref", "{pin}");
     _ = Build::dependency(build, answers);
-    Build::bind(build, {}::ProgramEntry, main);
+    Build::bind(build, {}::ProgramEntry, |app|::main);
 }}"#,
         target.target_name()
     );

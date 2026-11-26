@@ -271,7 +271,7 @@ pub(crate) fn prepare_lower_and_check(
             )?,
         ),
     };
-    let unprepared = has_defaults.then(|| typed.clone());
+    let mut unprepared = has_defaults.then(|| typed.clone());
     let mut pass = ProductSourcePass {
         inputs,
         activation,
@@ -346,6 +346,9 @@ pub(crate) fn prepare_lower_and_check(
             predicted = false;
             match work {
                 LoweredWork::Settle(ProviderWork::Complete) => {
+                    // Settlement succeeded: drop the duplicate unprepared TypedTrees
+                    // before Stages 05–07 run.
+                    unprepared = None;
                     break judge_lowered_source::SourcePublication::complete_lowering(
                         closure,
                         pass.timings,

@@ -6822,7 +6822,7 @@ pub(crate) mod structural_local_input {
 
 pub(crate) mod zeroed_structural_input {
     use crate::instruction_selection::structural_inputs::structural_reference_input::{
-        byte_field_length, case_layout, primitive_geometry, runtime_projection, scalar_shape,
+        case_layout, primitive_geometry, projected_byte_field, runtime_projection, scalar_shape,
     };
     use calling_conventions::ValueShape;
     use legalized_operations::{LegalizedScalarInstruction, LegalizedScalarInstructionKind};
@@ -6891,21 +6891,15 @@ pub(crate) mod zeroed_structural_input {
                     field: Some(field),
                     carrier,
                 } if carrier.byte_sequence_carrier().is_some() => {
-                    let scalar_type = ScalarType::Integer(
-                        semantic_vocabulary::IntegerType::new(
-                            semantic_vocabulary::IntegerSign::Unsigned,
-                            64,
-                        )
-                        .ok()?,
-                    );
-                    let (offset, width) = byte_field_length(
-                        result.structural_type,
-                        path,
-                        *field,
-                        scalar_type,
-                        declarations,
-                    )?;
-                    (offset, width, Vec::new())
+                    let geometry =
+                        projected_byte_field(result.structural_type, path, *field, declarations)?;
+                    if !geometry.pointer_slots.is_empty() || !geometry.elements.is_empty() {
+                        return None;
+                    }
+                    if let Some(pointer) = geometry.descriptor_offset {
+                        stores.push((pointer, 8));
+                    }
+                    (geometry.length_offset, 8, geometry.elements)
                 }
                 // Typed immutable sequences retain real backing in Psi. Native
                 // descriptor initialization still needs its ordinary layout owner.

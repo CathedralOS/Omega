@@ -35,12 +35,14 @@ public ConstantReading satisfies Reading {
                 "application/build.omg",
                 r#"
 use {omega}/build/dependency.omg;
+use main.omg as app;
+use {numbers}/main.omg as numbers;
 machine build(builder: @mutable Build) {
     Build::application(builder, "number_application");
     let dependency: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../supplier" }));
-    Build::select_provider::<numbers\Reading, numbers\ConstantReading>(builder, independent_mode());
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, windows_arm64::ProgramEntry, main);
+    Build::select_provider::<|numbers|::Reading, |numbers|::ConstantReading>(builder, independent_mode());
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, windows_arm64::ProgramEntry, |app|::main);
 }
 machine independent_mode() -> CompositionMode { CompositionMode::Independent }
 "#,
@@ -48,9 +50,9 @@ machine independent_mode() -> CompositionMode { CompositionMode::Independent }
             (
                 "application/main.omg",
                 r#"
-use numbers\Reading;
-machine main() reaches Reading crashes Trap {
-    let number: u64 = Reading::value(73u64);
+use {numbers}/main.omg as numbers;
+machine main() reaches |numbers|::Reading crashes Trap {
+    let number: u64 = |numbers|::Reading::value(73u64);
     transition number == 73u64 { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
@@ -192,7 +194,11 @@ fn require_native_suppliers(consumer: &Path, output: &Path, expected: usize) {
     );
     for component in &components {
         let sidecar = component.with_extension("so.component");
-        assert!(!sidecar.try_exists().unwrap(), "unexpected {}", sidecar.display());
+        assert!(
+            !sidecar.try_exists().unwrap(),
+            "unexpected {}",
+            sidecar.display()
+        );
         let missing = component.with_extension("withheld");
         fs::rename(component, &missing).unwrap();
         let refused = run();
@@ -260,11 +266,13 @@ fn independent_packages_can_call_an_independently_compiled_supplier() {
 fn nested_sources(root: &Path, mode: &str) {
     let root_build = format!(
         r#"use {{omega}}/build/dependency.omg;
+use main.omg as app;
+use {{numbers}}/main.omg as numbers;
 machine build(builder: @mutable Build) {{
     Build::application(builder, "reader");
     let number: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {{ location: "../supplier" }}));
-    Build::select_provider::<numbers\Reading, numbers\Sensor>(builder, linux_x86_64, CompositionMode::{mode});
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::select_provider::<|numbers|::Reading, |numbers|::Sensor>(builder, linux_x86_64, CompositionMode::{mode});
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
 }}"#
     );
     let sources = [
@@ -286,28 +294,29 @@ public Device satisfies Measure {
         (
             "supplier/build.omg",
             r#"use {omega}/build/dependency.omg;
+use {measurements}/main.omg as measurements;
 machine build(builder: @mutable Build) {
     Build::package(builder, "numbers");
     let leaf: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../leaf" }));
-    Build::select_provider::<measurements\Measure, measurements\Device>(builder, linux_x86_64, CompositionMode::Independent);
+    Build::select_provider::<|measurements|::Measure, |measurements|::Device>(builder, linux_x86_64, CompositionMode::Independent);
 }"#,
         ),
         (
             "supplier/main.omg",
-            r#"use measurements\Measure;
+            r#"use {measurements}/main.omg as measurements;
 public boundary trait Reading {
-    machine value(input: u64) -> u64 reaches Measure crashes none;
+    machine value(input: u64) -> u64 reaches |measurements|::Measure crashes none;
 }
 public Sensor satisfies Reading {
-    machine value(input: u64) -> u64 reaches Measure { Measure::pass(input) }
+    machine value(input: u64) -> u64 reaches |measurements|::Measure { |measurements|::Measure::pass(input) }
 }"#,
         ),
         ("application/build.omg", root_build.as_str()),
         (
             "application/main.omg",
-            r#"use numbers\Reading;
+            r#"use {numbers}/main.omg as numbers;
 machine main() crashes Trap {
-    let measured: u64 = Reading::value(73u64);
+    let measured: u64 = |numbers|::Reading::value(73u64);
     transition measured == 73u64 { true -> done(), false -> bad() }
     machine done() {} machine bad() { crash Trap; }
 }"#,

@@ -27,13 +27,14 @@ fn a_build_that_aliases_a_path_dependency_compiles() {
         return;
     };
     let build = format!(
-        r#"use {{omega}}/build/dependency.omg;
+        r#"use main.omg as app;
+use {{omega}}/build/dependency.omg;
 machine build(builder: @mutable Build) {{
     Build::application(builder, "consumer");
     let mutable description: DependencyDescription = |dependency|::from_source(Source::Path {{ location: "dep" }});
     |dependency|::with_alias(@mutable description, "kit");
     _ = Build::dependency(builder, description);
-    Build::bind(builder, {}::ProgramEntry, main);
+    Build::bind(builder, {}::ProgramEntry, |app|::main);
 }}
 "#,
         host.target_name()

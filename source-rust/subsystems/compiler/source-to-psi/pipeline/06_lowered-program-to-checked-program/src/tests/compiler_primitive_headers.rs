@@ -290,12 +290,12 @@ fn execute_observed(accepted: Box<crate::AcceptedClosure>) {
 
 const PACKED_INTEGER: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../../../../../../source/library/core/packed_integer/packed_integer.omg"
+    "/../../../../../../source/library/core/assembly_packed_integer.omg"
 ));
 
 #[test]
 fn packed_add_requires_the_exact_core_declaration() {
-    let path = "packed_integer/packed_integer.omg";
+    let path = "assembly_packed_integer.omg";
     let program = typed_at(
         PACKED_INTEGER,
         path,
@@ -322,11 +322,11 @@ fn packed_add_requires_the_exact_core_declaration() {
 fn packed_add_reads_both_inputs_and_establishes_an_owned_array() {
     let typed = super::build_purpose::frontier_with_core(
         r#"
-use omega\language\core\packed_integer;
 machine main() crashes Trap {
     let a: [i16; 8] = [32767i16, -32768i16, 1i16, 2i16, 3i16, 4i16, 5i16, 6i16];
     let b: [i16; 8] = [1i16, -1i16, 0i16, 0i16, 0i16, 0i16, 0i16, 2i16];
-    let c: [i16; 8] = packed_integer\wrapping_add_i16x8(@a, @b);
+    let mutable c: [i16; 8];
+    asm { vpaddw c, a, b }
     transition c[0] == -32768i16 && c[1] == 32767i16 && c[7] == 8i16 {
         true -> done(), false -> wrong()
     }
@@ -336,8 +336,8 @@ machine main() crashes Trap {
         "machine build_entry() {}",
         source_provenance::DependencyScope::Product,
         &[(
-            "packed_integer/packed_integer.omg",
-            "packed_integer",
+            "assembly_packed_integer.omg",
+            "assembly_packed_integer",
             PACKED_INTEGER,
         )],
     );
@@ -362,40 +362,45 @@ machine main() crashes Trap {
 }
 
 #[test]
-fn all_six_packed_integer_operations_lower_check_and_execute_on_psi() {
+fn packed_integer_instruction_contracts_lower_check_and_execute_on_psi() {
     let typed = super::build_purpose::frontier_with_core(
         r#"
-use omega\language\core\packed_integer;
-
 machine shift_wrapper<const Count: u64>(x: @[i16; 8]) -> [i16; 8]
 requires Count < 16u64 {
-    packed_integer\shift_right_i16x8::<Count>(x)
+    let mutable shifted: [i16; 8];
+    asm { vpsraw shifted, x, Count }
+    shifted
 }
 
 machine main() crashes Trap {
     let a: [i16; 8] = [32767i16, -32768i16, -65i16, 128i16, 10i16, 20i16, 30i16, -40i16];
     let b: [i16; 8] = [1i16, 1i16, 0i16, 0i16, 3i16, 4i16, 5i16, 6i16];
-    let added: [i16; 8] = packed_integer\wrapping_add_i16x8(@a, @b);
-    let subbed: [i16; 8] = packed_integer\wrapping_sub_i16x8(@added, @b);
+    let mutable added: [i16; 8];
+    let mutable subbed: [i16; 8];
+    asm {
+        vpaddw added, a, b;
+        vpsubw subbed, added, b
+    }
     let shifted: [i16; 8] = shift_wrapper::<1>(@subbed);
-    let shuffled: [i16; 8] = packed_integer\shuffle_i16x8::<0, 8, 1, 9, 2, 10, 3, 11>(@shifted, @b);
     let bytes_in: [u8; 8] = [0u8, 128u8, 255u8, 1u8, 2u8, 3u8, 4u8, 5u8];
-    let widened: [i16; 8] = packed_integer\widen_u8x8_to_i16x8(@bytes_in);
     let to_clip: [i16; 8] = [-1i16, 0i16, 127i16, 255i16, 256i16, 32767i16, -32768i16, 42i16];
-    let narrowed: [u8; 8] = packed_integer\narrow_i16x8_to_u8x8_saturating(@to_clip);
     let quad_in: [i16; 4] = [-10i16, 20i16, 300i16, -400i16];
-    let quad_loaded: [i16; 8] = packed_integer\load_i16x4_zero_extend(@quad_in);
-    let bytes4_in: [u8; 4] = [10u8, 200u8, 255u8, 0u8];
-    let widened4: [i16; 8] = packed_integer\widen_u8x4_to_i16x8(@bytes4_in);
-    let narrowed4: [u8; 4] = packed_integer\narrow_i16x8_to_u8x4_saturating(@quad_loaded);
+    let mutable shuffled: [i16; 8];
+    let mutable widened: [i16; 8];
+    let mutable narrowed: [u8; 8];
+    let mutable quad_loaded: [i16; 8];
+    asm {
+        vpunpcklwd shuffled, shifted, b;
+        vpmovzxbw widened, bytes_in;
+        vpackuswb narrowed, to_clip;
+        vmovq quad_loaded, quad_in
+    }
     transition subbed[0] == 32767i16 && subbed[1] == -32768i16
         && shifted[2] == -33i16 && shifted[3] == 64i16
         && shuffled[0] == 16383i16 && shuffled[1] == 1i16 && shuffled[2] == -16384i16 && shuffled[3] == 1i16
         && widened[1] == 128i16 && widened[2] == 255i16
         && narrowed[0] == 0u8 && narrowed[2] == 127u8 && narrowed[4] == 255u8 && narrowed[6] == 0u8 && narrowed[7] == 42u8
         && quad_loaded[0] == -10i16 && quad_loaded[3] == -400i16 && quad_loaded[4] == 0i16 && quad_loaded[7] == 0i16
-        && widened4[0] == 10i16 && widened4[2] == 255i16 && widened4[4] == 0i16 && widened4[7] == 0i16
-        && narrowed4[0] == 0u8 && narrowed4[1] == 20u8 && narrowed4[2] == 255u8 && narrowed4[3] == 0u8
     {
         true -> done(),
         false -> wrong()
@@ -406,8 +411,8 @@ machine main() crashes Trap {
         "machine build_entry() {}",
         source_provenance::DependencyScope::Product,
         &[(
-            "packed_integer/packed_integer.omg",
-            "packed_integer",
+            "assembly_packed_integer.omg",
+            "assembly_packed_integer",
             PACKED_INTEGER,
         )],
     );
@@ -416,7 +421,7 @@ machine main() crashes Trap {
     let mut executed = 0usize;
     for verdict in verdicts {
         let Ok(crate::RouteVerdict::Accepted(accepted)) = verdict else {
-            panic!("all six packed operations must pass the checker: {verdict:?}")
+            panic!("the packed instruction contracts must pass the checker: {verdict:?}")
         };
         if accepted.elaboration.generic_binders.is_empty()
             && accepted.elaboration.requirements.is_empty()

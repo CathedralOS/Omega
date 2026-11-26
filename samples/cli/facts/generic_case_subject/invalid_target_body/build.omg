@@ -1,11 +1,12 @@
+use main.omg as app;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "generic_case_subject_target_body" };
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-    Build::select_provider::<CaseObservation, WindowsChoiceObservation>(builder, windows_x86_64);
-    Build::select_provider::<CaseObservation, LinuxChoiceObservation>(builder, linux_x86_64);
-    Build::select_provider::<CaseObservation, ArmChoiceObservation>(builder, linux_arm64);
-    Build::select_provider::<CaseObservation, DarwinChoiceObservation>(builder, macos_arm64);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
+    Build::select_provider::<|app|::CaseObservation, |app|::WindowsChoiceObservation>(builder, windows_x86_64);
+    Build::select_provider::<|app|::CaseObservation, |app|::LinuxChoiceObservation>(builder, linux_x86_64);
+    Build::select_provider::<|app|::CaseObservation, |app|::ArmChoiceObservation>(builder, linux_arm64);
+    Build::select_provider::<|app|::CaseObservation, |app|::DarwinChoiceObservation>(builder, macos_arm64);
 }

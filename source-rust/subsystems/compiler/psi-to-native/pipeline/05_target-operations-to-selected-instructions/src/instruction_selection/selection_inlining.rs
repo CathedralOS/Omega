@@ -88,6 +88,7 @@ pub(crate) fn inline_and_simplify(
                 block_idx += 1;
             }
         }
+        fold_edge_transfer_chains(&mut functions[caller_idx], copy_row)?;
         merge_single_predecessor_blocks(&mut functions[caller_idx]);
         renumber_function(&mut functions[caller_idx]);
     }
@@ -1014,6 +1015,228 @@ fn remap_callee_instruction(
         _ => {}
     }
     cloned
+}
+
+/// Folds `A -> E -> B` into `A` when `A` ends in a plain jump to the edge
+/// transfer block `E`, `E` is `A`'s only successor and `B`'s only predecessor
+/// chain, and `B` is entered only through `E`. The source compiler gives every
+/// sub-expression its own block, so straight-line code otherwise reaches native
+/// code as a chain of jumps through out-of-line edge blocks. `B`'s parameters
+/// become results of explicit copies, which allocation usually coalesces into
+/// nothing, and the edges' work settlements move to those copies.
+fn fold_edge_transfer_chains(
+    function: &mut SelectedFunction,
+    copy_row: &RegisterInstructionConstraint,
+) -> Result<(), SelectedInstructionError> {
+    loop {
+        let index_by_id: HashMap<SelectedBlockId, usize> = function
+            .blocks
+            .iter()
+            .enumerate()
+            .map(|(i, b)| (b.id, i))
+            .collect();
+        let mut pred_counts = vec![0usize; function.blocks.len()];
+        for block in function.blocks.iter() {
+            for succ in terminator_successors(&block.terminator) {
+                if let Some(&dst) = index_by_id.get(&succ.block) {
+                    pred_counts[dst] += 1;
+                }
+            }
+        }
+        let mut found = None;
+        for (a_idx, a) in function.blocks.iter().enumerate() {
+            if matches!(
+                a.origin,
+                SelectedBlockOrigin::EdgeTransfer { .. } | SelectedBlockOrigin::CaseDispatch { .. }
+            ) {
+                continue;
+            }
+            let SelectedTerminator::Jump {
+                instruction: a_jump,
+                successor: a_succ,
+            } = &a.terminator
+            else {
+                continue;
+            };
+            // The jump into an edge transfer block only names the bindings;
+            // the edge block's own successor carries their registers.
+            if !a_jump.provenance.work.is_empty()
+                || a_succ.bindings.iter().any(|binding| {
+                    binding.transport != selected_instructions::SelectedValueTransport::Unused
+                })
+                || !a_succ.structural_bindings.is_empty()
+                || a_succ.structural_case.is_some()
+            {
+                continue;
+            }
+            let Some(&e_idx) = index_by_id.get(&a_succ.block) else {
+                continue;
+            };
+            let e = &function.blocks[e_idx];
+            if e_idx == a_idx
+                || pred_counts[e_idx] != 1
+                || !matches!(e.origin, SelectedBlockOrigin::EdgeTransfer { .. })
+            {
+                continue;
+            }
+            let SelectedTerminator::Jump {
+                instruction: e_jump,
+                successor: e_succ,
+            } = &e.terminator
+            else {
+                continue;
+            };
+            // The jump's work settles on the first parameter copy, so an
+            // edge with work and no bound parameter has nowhere to put it.
+            if (!a_succ.work.is_empty() && e_succ.bindings.is_empty())
+                || !e_jump.provenance.work.is_empty()
+                || !e_succ.structural_bindings.is_empty()
+                || e_succ.structural_case.is_some()
+                || !e_succ.work.is_empty()
+                || e_succ.bindings.iter().any(|binding| {
+                    !matches!(
+                        binding.transport,
+                        selected_instructions::SelectedValueTransport::Registers { .. }
+                    )
+                })
+            {
+                continue;
+            }
+            let Some(&b_idx) = index_by_id.get(&e_succ.block) else {
+                continue;
+            };
+            let b = &function.blocks[b_idx];
+            if b_idx == a_idx
+                || b_idx == e_idx
+                || b.id == function.entry_block
+                || pred_counts[b_idx] != 1
+                || !matches!(
+                    b.origin,
+                    SelectedBlockOrigin::Source(_) | SelectedBlockOrigin::Operation { .. }
+                )
+                || matches!(
+                    b.terminator,
+                    SelectedTerminator::OperationTrap { .. }
+                        | SelectedTerminator::OperationInvokeNoNormal { .. }
+                )
+                // An operation's continuation edge names the source block
+                // that owns it, which must stay the merged block's own.
+                || (b.source_block() != a.source_block()
+                    && terminator_successors(&b.terminator).iter().any(|next| {
+                        matches!(next.role, SelectedSuccessorRole::OperationContinuation { .. })
+                    }))
+            {
+                continue;
+            }
+            // Every parameter of `B` must be one the edge binds.
+            let bound: BTreeSet<VirtualRegisterId> = e_succ
+                .bindings
+                .iter()
+                .filter_map(|binding| match binding.transport {
+                    selected_instructions::SelectedValueTransport::Registers {
+                        parameter, ..
+                    } => Some(parameter),
+                    selected_instructions::SelectedValueTransport::Unused => None,
+                })
+                .collect();
+            if function.virtual_registers.iter().enumerate().any(|(index, reg)| {
+                matches!(reg.origin, VirtualRegisterOrigin::BlockParameter { block, .. } if block == b.id)
+                    && !bound.contains(&VirtualRegisterId(index as u32))
+            }) {
+                continue;
+            }
+            found = Some((a_idx, e_idx, b_idx));
+            break;
+        }
+        let Some((a_idx, e_idx, b_idx)) = found else {
+            return Ok(());
+        };
+        let first_id = function
+            .blocks
+            .iter()
+            .flat_map(|block| {
+                block
+                    .instructions
+                    .iter()
+                    .map(|inst| inst.id.0)
+                    .chain(std::iter::once(
+                        terminator_instruction(&block.terminator).id.0,
+                    ))
+            })
+            .max()
+            .unwrap_or(0)
+            + 1;
+        let a_id = function.blocks[a_idx].id;
+        let b_id = function.blocks[b_idx].id;
+        let e_id = function.blocks[e_idx].id;
+        let (a_edge, a_work) = match &function.blocks[a_idx].terminator {
+            SelectedTerminator::Jump { successor, .. } => {
+                (successor.psi_edge, successor.work.clone())
+            }
+            _ => unreachable!("checked above"),
+        };
+        let (e_edge, bindings) = match &function.blocks[e_idx].terminator {
+            SelectedTerminator::Jump { successor, .. } => {
+                (successor.psi_edge, successor.bindings.clone())
+            }
+            _ => unreachable!("checked above"),
+        };
+        let e_instructions = function.blocks[e_idx].instructions.clone();
+        let mut copies = Vec::with_capacity(bindings.len());
+        let mut pending_work = Some(a_work);
+        for (id, binding) in (first_id..).zip(&bindings) {
+            let selected_instructions::SelectedValueTransport::Registers {
+                argument,
+                parameter,
+            } = binding.transport
+            else {
+                unreachable!("checked above");
+            };
+            let id = SelectedInstructionId(id);
+            let mut provenance = SelectedInstructionProvenance {
+                values: vec![binding.semantic.parameter],
+                ..Default::default()
+            };
+            if let Some(work) = pending_work.take().filter(|work| !work.is_empty()) {
+                provenance.edges.extend(a_edge);
+                provenance.work = work;
+            }
+            provenance.edges.extend(e_edge);
+            provenance.edges.sort();
+            provenance.edges.dedup();
+            copies.push(constraints::instruction_from_row(
+                id,
+                SelectedInstructionKind::CopyI64,
+                &[argument, parameter],
+                provenance,
+                copy_row,
+            )?);
+            function.virtual_registers[parameter.0 as usize].origin =
+                VirtualRegisterOrigin::InstructionResult {
+                    instruction: id,
+                    source_value: binding.semantic.parameter,
+                };
+        }
+        debug_assert!(pending_work.is_none_or(|work| work.is_empty()));
+        let a_len = (function.blocks[a_idx].instructions.len()
+            + e_instructions.len()
+            + copies.len()) as u32;
+        let b_block = function.blocks[b_idx].clone();
+        let a_block = &mut function.blocks[a_idx];
+        a_block.instructions.extend(e_instructions);
+        a_block.instructions.extend(copies);
+        a_block.instructions.extend(b_block.instructions);
+        a_block.terminator = b_block.terminator;
+        for settlement in &mut function.boundary_settlements {
+            if settlement.block == b_id {
+                settlement.block = a_id;
+                settlement.instruction_index += a_len;
+            }
+        }
+        let mut blocks: Vec<SelectedBlock> = function.blocks.iter().cloned().collect();
+        blocks.retain(|block| block.id != e_id && block.id != b_id);
+        function.blocks = blocks.into();
+    }
 }
 
 fn merge_single_predecessor_blocks(function: &mut SelectedFunction) {

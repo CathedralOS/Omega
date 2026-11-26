@@ -33,10 +33,11 @@ const PRODUCT: &str = "machine main() { let marker: u8 = 0; }\n";
 /// local of the type `held`.
 fn check(name: &str, declarations: &str, held: &str) -> (bool, String) {
     let build = format!(
-        "{declarations}
+        "use main.omg as app;
+{declarations}
 machine build(builder: @mutable Build) {{
     Build::application(builder, \"computed\");
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
     let held: {held};
 }}
 "
@@ -120,11 +121,11 @@ machine below() -> i64 { 0i64 - 1i64 }",
 fn a_call_that_reaches_a_runtime_service_has_no_compile_time_value() {
     let (compiled, stderr) = check(
         "service",
-        r"use omega\language\core\WaitWake;
+        r"use {omega}/language/core/wait_wake.omg;
 data Buffer<const Capacity: u64> { slots: [u8; Capacity]; }
-machine observed() -> u64 reaches WaitWake {
+machine observed() -> u64 reaches |wait_wake|::WaitWake {
     let word: u64 = 0;
-    WaitWake::wake_one(@word)
+    |wait_wake|::WaitWake::wake_one(@word)
 }",
         "Buffer<observed()>",
     );

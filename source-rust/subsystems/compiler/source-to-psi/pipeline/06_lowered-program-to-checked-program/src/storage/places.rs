@@ -104,6 +104,7 @@ mod byte_views;
 mod cleanup;
 mod contents;
 mod goal_observations;
+mod leaves;
 mod loans;
 mod log;
 
@@ -2632,193 +2633,6 @@ impl<'a> Storage<'a> {
         Ok(Some(at))
     }
 
-    /// Every leaf at or beneath `place`, as lineages: each scalar, and each
-    /// sum itself, whose discriminator is contents like any other.
-    fn leaves(
-        &self,
-        place: &Lineage,
-        concerns: Construct,
-        mut established_array: impl FnMut(&Lineage) -> bool,
-    ) -> Checked<Vec<Lineage>> {
-        let mut found = Vec::new();
-        let mut at = place.clone();
-        match self.shape(place, concerns)? {
-            Shape::Atomic(_) | Shape::Scalar(_) | Shape::View => found.push(at),
-            Shape::Typed(structural_type) => {
-                self.leaves_of(
-                    structural_type,
-                    &mut at,
-                    &mut found,
-                    concerns,
-                    &mut established_array,
-                )?;
-            }
-            Shape::Payload(case) => self.field_leaves(
-                &case.fields,
-                &mut at,
-                &mut found,
-                concerns,
-                &mut established_array,
-            )?,
-        }
-        Ok(found)
-    }
-
-    fn field_leaves(
-        &self,
-        fields: &[StructuralFieldDeclaration],
-        at: &mut Lineage,
-        found: &mut Vec<Lineage>,
-        concerns: Construct,
-        established_array: &mut impl FnMut(&Lineage) -> bool,
-    ) -> Checked<()> {
-        for field in fields {
-            // An erased field has no storage, so no leaf: it "contributes
-            // no runtime field, address, read, or cleanup" (contracts.md).
-            if field.relevance.is_erased() {
-                continue;
-            }
-            at.segments.push(Segment::Field(field.id));
-            match field.field_type {
-                StructuralFieldType::Atomic(_)
-                | StructuralFieldType::AtomicBoundedInteger(_)
-                | StructuralFieldType::Scalar(_) => found.push(at.clone()),
-                StructuralFieldType::Structural(nested) => {
-                    self.leaves_of(nested, at, found, concerns, established_array)?;
-                }
-                ref stored if is_stored_view(stored) => found.push(at.clone()),
-                _ => return Err(self.unsupported(concerns, "a field type outside plain data")),
-            }
-            at.segments.pop();
-        }
-        Ok(())
-    }
-
-    /// Whether every leaf of an element shares the array's storage. A
-    /// reference, view or independently managed value keeps its own checks.
-    /// Permission to retire descriptors does not mean a value contains one.
-    /// The field types determine that.
-    fn inline_array_element(
-        &self,
-        element: StructuralTypeId,
-        concerns: Construct,
-        known: &mut Vec<Option<bool>>,
-    ) -> Checked<bool> {
-        let declaration = self.declaration(element, concerns)?;
-        if declaration.owns_linear_claim
-            || declaration.nominal_cleanup.is_some()
-            || declaration.quotient_carrier.is_some()
-        {
-            return Ok(false);
-        }
-        if matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(_)) {
-            return Ok(true);
-        }
-        let slot = index(element.get());
-        if slot >= known.len() {
-            known.resize(slot + 1, None);
-        }
-        if let Some(inline) = known[slot] {
-            return Ok(inline);
-        }
-        // An inline cycle cannot supply a finite element. Shared subtypes
-        // reuse the completed answer when another field names them.
-        known[slot] = Some(false);
-        let inline = match &declaration.shape {
-            StructuralTypeShape::Record {
-                storage: terminal_psi::StructuralRecordStorage::Packed,
-                ..
-            }
-            | StructuralTypeShape::Sum { .. } => {
-                for field in declaration.shape.fields() {
-                    match field.field_type {
-                        StructuralFieldType::Scalar(_) if !field.relevance.is_erased() => {}
-                        StructuralFieldType::Structural(nested)
-                            if !field.relevance.is_erased()
-                                && self.inline_array_element(nested, concerns, known)? => {}
-                        _ => return Ok(false),
-                    }
-                }
-                true
-            }
-            StructuralTypeShape::FixedArray {
-                element: nested,
-                length: terminal_psi::ArrayExtent::Literal(_),
-            } => self.inline_array_element(*nested, concerns, known)?,
-            _ => false,
-        };
-        known[slot] = Some(inline);
-        Ok(inline)
-    }
-
-    fn leaves_of(
-        &self,
-        structural_type: StructuralTypeId,
-        at: &mut Lineage,
-        found: &mut Vec<Lineage>,
-        concerns: Construct,
-        established_array: &mut impl FnMut(&Lineage) -> bool,
-    ) -> Checked<()> {
-        match &self.declaration(structural_type, concerns)?.shape {
-            // References and opaque values each occupy one established
-            // place. Neither grants owned access to hidden backing storage.
-            StructuralTypeShape::AtomicCell(_)
-            | StructuralTypeShape::Opaque
-            | StructuralTypeShape::TypeParameter
-            | StructuralTypeShape::PrimitiveScalar(_)
-            | StructuralTypeShape::Reference { .. } => {
-                found.push(at.clone());
-            }
-            // Availability concerns the descriptor, not ownership of its
-            // backing. An exclusive descriptor is readable too; copying it
-            // still requires the separate unrestricted-copy judgment.
-            shape if shape.is_view_descriptor() => found.push(at.clone()),
-            // A symbolic array can be established whole without enumerating
-            // N elements. Every selected read still owes its own index bound.
-            StructuralTypeShape::FixedArray {
-                length: terminal_psi::ArrayExtent::Parameter { .. },
-                ..
-            } => {
-                found.push(at.clone());
-            }
-            StructuralTypeShape::FixedArray {
-                element,
-                length: terminal_psi::ArrayExtent::Literal(length),
-            } => {
-                // A whole supply covers every inline field and tag. Reading
-                // a selected payload still requires the case at that use.
-                if *length > 1
-                    && self.inline_array_element(*element, concerns, &mut Vec::new())?
-                    && established_array(at)
-                {
-                    return Ok(());
-                }
-                for index in 0..*length {
-                    at.segments.push(Segment::FixedIndex(index));
-                    self.leaves_of(*element, at, found, concerns, established_array)?;
-                    at.segments.pop();
-                }
-            }
-            StructuralTypeShape::Record { fields, .. } => {
-                self.field_leaves(fields, at, found, concerns, established_array)?;
-            }
-            // A sum is established when something was stored into it whole,
-            // whatever its case: the sum's own place stands for its
-            // discriminator, and the payload leaves of every case lie under
-            // it. A sum with no payload has only that one leaf.
-            StructuralTypeShape::Sum { cases } => {
-                found.push(at.clone());
-                for case in cases {
-                    at.segments.push(Segment::Case(case.id));
-                    self.field_leaves(&case.fields, at, found, concerns, established_array)?;
-                    at.segments.pop();
-                }
-            }
-            _ => return Err(self.unsupported(concerns, "storage that is no plain data")),
-        }
-        Ok(())
-    }
-
     /// The place a Terminal Psi storage path names beneath a root. Each
     /// field segment is resolved by the lowered form itself against the type
     /// the previous segment reached (`runtime_structural_field`); this
@@ -4281,6 +4095,43 @@ impl<'a> Storage<'a> {
         )
     }
 
+    /// A partial replacement can preserve an existing whole-array proof. It
+    /// cannot establish the other elements. A transfer preserves availability
+    /// only if every leaf it supplies was available immediately before it.
+    fn partial_write_preserves_initialization(
+        &self,
+        references: &mut DescriptorAnalysis<'a>,
+        tables: &MachineTables,
+        row: &Logged,
+        concerns: Construct,
+    ) -> Checked<bool> {
+        match &row.stored {
+            Stored::Value(_) | Stored::Zeroed | Stored::Established => Ok(true),
+            Stored::Moved(source) => {
+                let before = (row.block, row.position - 1);
+                let missing = self.any_leaf(
+                    source,
+                    concerns,
+                    references,
+                    |_, _| false,
+                    |references, leaf| {
+                        let mut budget = self.initialization_budget();
+                        Ok(self.reaching(
+                            references,
+                            tables,
+                            Asked::Contents(leaf),
+                            before,
+                            &mut budget,
+                            concerns,
+                        )? == Reached::Unestablished)
+                    },
+                )?;
+                Ok(!missing)
+            }
+            _ => Ok(false),
+        }
+    }
+
     fn reaching_backing_supply(
         &self,
         references: &mut DescriptorAnalysis<'a>,
@@ -4369,13 +4220,11 @@ impl<'a> Storage<'a> {
                         budget.scanned_rows += 1;
                     }
                     if !asked.ended_by(resolved, row, &budget.crossed_entries)
-                        // Installing a scalar, zero or established value in
-                        // part of an already live array preserves initialization
-                        // of every other element. Such a write cannot prove
-                        // the whole; keep looking for an independent origin.
                         || budget.initialization == Initialization::WholeArray
-                            && matches!(row.stored, Stored::Value(_) | Stored::Zeroed | Stored::Established)
                             && !row.backing.definitely_contains(resolved)
+                            && self.partial_write_preserves_initialization(
+                                references, tables, row, concerns,
+                            )?
                         || self.call_preserves_extent(references, asked, row, concerns)?
                     {
                         continue;
@@ -4386,7 +4235,8 @@ impl<'a> Storage<'a> {
                 if budget.initialization == Initialization::NotAsked
                     && budget.observations == Observations::All
                     && let Asked::Contents(leaf) = asked
-                    && let Some(observations) = self.observations[index(block.get())].reads.get(leaf)
+                    && let Some(observations) =
+                        self.observations[index(block.get())].reads.get(leaf)
                 {
                     let end =
                         observations.partition_point(|observation| observation.position <= up_to);
@@ -4429,10 +4279,7 @@ impl<'a> Storage<'a> {
                     // facts except its head contract, which names the entry
                     // snapshot, so the snapshot is the value later proofs use.
                     if self.cuts_incoming_facts(block)? {
-                        budget.add_supply(
-                            destination,
-                            Supply::Direct(Reached::Value(entry)),
-                        );
+                        budget.add_supply(destination, Supply::Direct(Reached::Value(entry)));
                         continue;
                     }
                     // Elsewhere, walk incoming arrivals first so uninitialized
@@ -5436,9 +5283,10 @@ impl<'a> Storage<'a> {
                 &self.byte_field_argument(*source, path, *field, concerns)?,
                 concerns,
             )?]),
-            OperationKind::PackedIntegerBinary { left, right, .. } => {
-                Ok(vec![self.argument(left, concerns)?, self.argument(right, concerns)?])
-            }
+            OperationKind::PackedIntegerBinary { left, right, .. } => Ok(vec![
+                self.argument(left, concerns)?,
+                self.argument(right, concerns)?,
+            ]),
             OperationKind::PackedIntegerUnary { source, .. } => {
                 Ok(vec![self.argument(source, concerns)?])
             }
@@ -5751,44 +5599,49 @@ impl<'a> Storage<'a> {
         concerns: Construct,
     ) -> Checked<Checked<()>> {
         for place in used {
-            let leaves = self.leaves(place, concerns, |array| {
-                // Cleanup can vacate a projected region independently of the
-                // operation log. Its precise per-cell judgment remains valid.
-                if !self.cleanup_writes.is_empty() {
-                    return false;
-                }
-                let mut budget = self.initialization_budget();
-                budget.initialization = Initialization::WholeArray;
-                budget.used = Some(point);
-                self.reaching(
-                    references,
-                    tables,
-                    Asked::Contents(array),
-                    (block, up_to),
-                    &mut budget,
-                    concerns,
-                )
-                .is_ok_and(|reached| reached != Reached::Unestablished)
-            })?;
-            for leaf in leaves {
-                let mut budget = self.initialization_budget();
-                budget.used = Some(point);
-                if self.reaching(
-                    references,
-                    tables,
-                    Asked::Contents(&leaf),
-                    (block, up_to),
-                    &mut budget,
-                    concerns,
-                )? == Reached::Unestablished
-                {
-                    return Ok(Err(refusal(
-                        RefusalReason::Unestablished,
-                        self.machine,
+            let missing = self.any_leaf(
+                place,
+                concerns,
+                references,
+                |references, array| {
+                    // Cleanup can vacate a projected region independently of the
+                    // operation log. Its precise per-cell judgment remains valid.
+                    if !self.cleanup_writes.is_empty() {
+                        return false;
+                    }
+                    let mut budget = self.initialization_budget();
+                    budget.initialization = Initialization::WholeArray;
+                    budget.used = Some(point);
+                    self.reaching(
+                        references,
+                        tables,
+                        Asked::Contents(array),
+                        (block, up_to),
+                        &mut budget,
                         concerns,
-                        "storage is used on a path on which nothing was stored into it",
-                    )));
-                }
+                    )
+                    .is_ok_and(|reached| reached != Reached::Unestablished)
+                },
+                |references, leaf| {
+                    let mut budget = self.initialization_budget();
+                    budget.used = Some(point);
+                    Ok(self.reaching(
+                        references,
+                        tables,
+                        Asked::Contents(leaf),
+                        (block, up_to),
+                        &mut budget,
+                        concerns,
+                    )? == Reached::Unestablished)
+                },
+            )?;
+            if missing {
+                return Ok(Err(refusal(
+                    RefusalReason::Unestablished,
+                    self.machine,
+                    concerns,
+                    "storage is used on a path on which nothing was stored into it",
+                )));
             }
         }
         for place in named {
@@ -6904,13 +6757,21 @@ impl<'a> Storage<'a> {
             if !overlap(used, watched) {
                 continue;
             }
-            for leaf in self.leaves(raw, touch.at, |_| false)? {
-                let leaf = self.backing_for_touch(references, &leaf, touch)?;
-                if overlap(&leaf, watched)
-                    && self.open_at(references, tables, &leaf, window.opened_by, &[], touch)?
-                {
-                    return Ok(true);
-                }
+            if self.any_leaf(
+                raw,
+                touch.at,
+                references,
+                |_, _| false,
+                |references, leaf| {
+                    let leaf = self.backing_for_touch(references, leaf, touch)?;
+                    if overlap(&leaf, watched) {
+                        self.open_at(references, tables, &leaf, window.opened_by, &[], touch)
+                    } else {
+                        Ok(false)
+                    }
+                },
+            )? {
+                return Ok(true);
             }
         }
         Ok(false)
@@ -9479,6 +9340,7 @@ mod observation_tests {
             "data Kind [copy] { case Empty; case Entry(value: u64); }
              data Cell [copy] { kind: Kind; value: u64; }
              machine entry(cells: @mutable [Cell; 4], spare: @mutable [Cell; 4], index: u64) -> u64 requires index < 4 {
+                 cells[2].kind = Kind::Entry { value: 3 };
                  cells[1].value = 5;
                  cells[index].value = 7;
                  cells[2].value
@@ -9535,14 +9397,42 @@ mod observation_tests {
         // Whole storage proves the contents of the scalar or record array at
         // once. The field-level checks below still see a later vacancy.
         let mut checked_arrays = Vec::new();
-        let leaves = storage
-            .leaves(&array, Construct::Machine, |place| {
-                checked_arrays.push(place.clone());
-                true
-            })
+        let encountered_leaf = storage
+            .any_leaf(
+                &array,
+                Construct::Machine,
+                &mut (),
+                |_, place| {
+                    checked_arrays.push(place.clone());
+                    true
+                },
+                |_, _| Ok(true),
+            )
             .unwrap();
         assert_eq!(checked_arrays.as_slice(), std::slice::from_ref(&array));
-        assert!(leaves.is_empty());
+        assert!(!encountered_leaf);
+
+        // A matching leaf ends semantic queries even when the element has
+        // several fields and later array cells still have to be walked.
+        let mut visits = 0;
+        let found = storage
+            .any_leaf(
+                &array,
+                Construct::Machine,
+                &mut (),
+                |_, _| false,
+                |_, place| {
+                    assert_eq!(visits, 0);
+                    visits += 1;
+                    Ok(matches!(
+                        place.segments.first(),
+                        Some(Segment::FixedIndex(0))
+                    ))
+                },
+            )
+            .unwrap();
+        assert!(found);
+        assert_eq!(visits, 1);
         let stores: Vec<_> = storage
             .log
             .iter()
@@ -9580,6 +9470,36 @@ mod observation_tests {
         }
         assert!(available(&storage, &mut references, tables, &array, point).is_ok());
 
+        // Transfer an initialized cell from another lender. Its descendants
+        // remain available, including unmodified neighbors in the destination.
+        let mut source_cell = storage.log[*first].destination.clone();
+        source_cell.root = machine.structural_parameters[1].place;
+        let scalar_store =
+            std::mem::replace(&mut storage.log[*second].stored, Stored::Moved(source_cell));
+        fn whole<'a>(
+            storage: &Storage<'a>,
+            references: &mut DescriptorAnalysis<'a>,
+            tables: &MachineTables,
+            array: &Lineage,
+            point: ProgramPoint,
+        ) -> bool {
+            let mut budget = storage.initialization_budget();
+            budget.initialization = Initialization::WholeArray;
+            budget.used = Some(point);
+            storage
+                .reaching(
+                    references,
+                    tables,
+                    Asked::Contents(array),
+                    storage.graph.locate(point).unwrap(),
+                    &mut budget,
+                    Construct::Machine,
+                )
+                .unwrap()
+                != Reached::Unestablished
+        }
+        assert!(whole(&storage, &mut references, tables, &array, point));
+
         // One cell is moved out. A write through another evaluated index
         // cannot re-establish all cells of the array unless it names that cell.
         let mut moved = storage.log[*first].destination.clone();
@@ -9587,6 +9507,21 @@ mod observation_tests {
         storage.log[*first].backing = Backing::direct(moved.clone());
         storage.log[*first].destination = moved.clone();
         storage.log[*first].stored = Stored::Vacated;
+        // The independent whole-array origin is insufficient after a vacancy,
+        // even when a later transfer has an available source.
+        assert!(!whole(&storage, &mut references, tables, &array, point));
+        storage.log[*second].stored = Stored::Moved(moved.clone());
+        assert!(
+            !storage
+                .partial_write_preserves_initialization(
+                    &mut references,
+                    tables,
+                    &storage.log[*second],
+                    Construct::Machine,
+                )
+                .unwrap()
+        );
+        storage.log[*second].stored = scalar_store;
         let refused = available(&storage, &mut references, tables, &array, point).unwrap_err();
         assert_eq!(refused.reason, RefusalReason::Unestablished);
 

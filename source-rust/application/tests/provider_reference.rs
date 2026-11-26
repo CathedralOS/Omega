@@ -109,7 +109,7 @@ machine main() reaches Source invokes Source crashes Trap {
     let profile = target::TargetProfile::host();
     let forwarding_binding = if forward {
         format!(
-            r#"    Build::bind_native::<Sink::read>(builder, {target}, |native|::ForeignBinding::DllImport {{
+            r#"    Build::bind_native::<|app|::Sink::read>(builder, {target}, |native|::ForeignBinding::DllImport {{
         import: |native|::DllImport::ElfVersioned {{ object: "{library}", symbol: "omega_reference_read", version: "REFERENCE_1.0" }}
     }});
 "#,
@@ -122,15 +122,15 @@ machine main() reaches Source invokes Source crashes Trap {
     std::fs::write(
         root.join("build.omg"),
         format!(
-            r#"
+            r#"use main.omg as app;
 use {{omega}}/language/core/external_binding.omg as native;
 machine build(builder: @mutable BuildPlan) {{
     builder.product = BuildProduct::Application {{ name: "provider_reference" }};
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-    Build::bind_native::<Source::cell>(builder, {target}, |native|::ForeignBinding::DllImport {{
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
+    Build::bind_native::<|app|::Source::cell>(builder, {target}, |native|::ForeignBinding::DllImport {{
         import: |native|::DllImport::ElfVersioned {{ object: "{library}", symbol: "omega_reference_cell", version: "REFERENCE_1.0" }}
     }});
 {forwarding_binding}}}
@@ -293,7 +293,7 @@ struct issued provide(uint32_t slot) { return (struct issued){tables[slot & 1]};
 use {omega}/language/core/access/access.omg as policy;
 use {omega}/language/core/layout.omg as layout;
 use {omega}/language/core/reflect/reflect.omg as reflection;
-public data Protocol { marker: u64; apply: address; }
+public data Protocol { marker: u64; apply: addr; }
 public domain Protocol::Initialized access ProtocolIssuance;
 ProtocolIssuance satisfies |layout|::AccessPolicy {
     machine plan(schema: |reflection|::TypeSchema) -> |layout|::AccessPlan reaches none crashes none terminates {
@@ -320,12 +320,13 @@ machine main() reaches none crashes Trap {
 }
 ";
     std::fs::write(root.join("main.omg"), program).unwrap();
-    let build = r#"use {omega}/language/core/external_binding.omg as native;
+    let build = r#"use main.omg as app;
+use {omega}/language/core/external_binding.omg as native;
 use {omega}/language/core/reflect/reflect.omg as reflection;
 machine build<'selection>(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "table_calls" };
-    Build::bind(builder, TARGET::ProgramEntry, main);
-    Build::bind_native::<TableSource::provide>(builder, TARGET,
+    Build::bind(builder, TARGET::ProgramEntry, |app|::main);
+    Build::bind_native::<|app|::TableSource::provide>(builder, TARGET,
         |native|::ForeignBinding::DllImport { import: |native|::DllImport::ElfVersioned {
             object: "LIBRARY", symbol: "provide", version: "TABLE_1"
         } });
@@ -333,7 +334,7 @@ machine build<'selection>(builder: @mutable BuildPlan) {
         table: |reflection|::parameter(Operation::apply::table),
         field: |reflection|::field(Protocol::apply),
     };
-    Build::bind_native::<Operation::apply>(builder, TARGET, binding);
+    Build::bind_native::<|app|::Operation::apply>(builder, TARGET, binding);
 }
 "#;
     std::fs::write(
@@ -427,7 +428,7 @@ machine build<'selection>(builder: @mutable BuildPlan) {
     let unissued = program
         .replace(
             expected,
-            "let left: Protocol = Protocol { marker: 7, apply: 0 as address };",
+            "let left: Protocol = Protocol { marker: 7, apply: 0 as addr };",
         )
         .replace("@left.table)", "@left)");
 
@@ -462,7 +463,7 @@ machine build<'selection>(builder: @mutable BuildPlan) {
         )
         .replace(
             "    let first:",
-            "    left.table.apply = 0 as address;\n    let first:",
+            "    left.table.apply = 0 as addr;\n    let first:",
         );
     for (input, reason) in [
         (unissued, "carries no domain"),

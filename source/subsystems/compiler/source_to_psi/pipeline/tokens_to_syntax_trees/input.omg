@@ -104,8 +104,8 @@ crashes Trap
 machine at_path_separator(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) -> bool
 crashes Trap
 {
-    at_punctuation(parser, input, |tokens|::PunctuationKind::Backslash)
-        || at_punctuation(parser, input, |tokens|::PunctuationKind::ColonColon)
+    at_punctuation(parser, input, |tokens|::PunctuationKind::ColonColon)
+        && !next_is_punctuation(parser, input, |tokens|::PunctuationKind::Less)
 }
 
 machine at_punctuation(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, expected: |tokens|::PunctuationKind) -> bool
@@ -550,7 +550,7 @@ crashes Trap
         transition token.kind {
             |tokens|::TokenKind::Punctuation { punctuation: |tokens|::PunctuationKind::Less, .. } -> scan(input, index + 1, depth + 1),
             |tokens|::TokenKind::Punctuation { punctuation: |tokens|::PunctuationKind::Greater, .. } -> close(input, index, depth),
-            |tokens|::TokenKind::Punctuation { punctuation: |tokens|::PunctuationKind::Backslash, .. } -> scan(input, index + 1, depth),
+            |tokens|::TokenKind::Punctuation { punctuation: |tokens|::PunctuationKind::Pipe, .. } -> scan(input, index + 1, depth),
             |tokens|::TokenKind::Punctuation { punctuation: |tokens|::PunctuationKind::ColonColon, .. } -> scan(input, index + 1, depth),
             |tokens|::TokenKind::Punctuation { punctuation: |tokens|::PunctuationKind::Colon, .. } -> scan(input, index + 1, depth),
             |tokens|::TokenKind::Punctuation { punctuation: |tokens|::PunctuationKind::Comma, .. } -> scan(input, index + 1, depth),
@@ -641,4 +641,74 @@ crashes Trap
     machine absent() -> bool {
         false
     }
+}
+
+// Parse the first name in a declaration path. Binders continue to call
+// expect_name, so a qualified declaration cannot introduce a local name.
+public machine expect_path_head(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, code: |syntax_trees|::ParseDiagnosticCode)
+crashes Trap
+{
+    transition at_punctuation(parser, input, |tokens|::PunctuationKind::Pipe) {
+        true -> selector(parser, input, code),
+        false -> expect_name(parser, input, code)
+    }
+    machine selector(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, code: |syntax_trees|::ParseDiagnosticCode) {
+        take_current(parser, input);
+        let start: u64 in Trapping = parser.token_start;
+        load_current(parser, input);
+        transition parser.current_present {
+            true -> alias_token(parser, input, code, start),
+            false -> bad_alias(parser, input)
+        }
+    }
+    machine alias_token(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, code: |syntax_trees|::ParseDiagnosticCode, start: u64 in Trapping) {
+        let token: |tokens|::Token = input.tokens[parser.current_index];
+        transition token.kind {
+            |tokens|::TokenKind::Identifier -> take_alias(parser, input, code, start),
+            _ -> bad_alias(parser, input)
+        }
+    }
+    machine take_alias(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, code: |syntax_trees|::ParseDiagnosticCode, start: u64 in Trapping) {
+        take_current(parser, input);
+        let alias: |syntax_trees|::IdentifierSpan = |parser|::identifier_span(parser, parser.token_start, parser.token_end);
+        transition { _ -> close(parser, input, code, start, alias) }
+    }
+    machine bad_alias(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        reject_current(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedFileAlias);
+    }
+    machine close(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, code: |syntax_trees|::ParseDiagnosticCode, start: u64 in Trapping, alias: |syntax_trees|::IdentifierSpan) {
+        expect_punctuation(parser, input, |tokens|::PunctuationKind::Pipe, code);
+        transition parser.output.accepted {
+            true -> separator(parser, input, code, start, alias),
+            false -> done()
+        }
+    }
+    machine separator(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, code: |syntax_trees|::ParseDiagnosticCode, start: u64 in Trapping, alias: |syntax_trees|::IdentifierSpan) {
+        expect_punctuation(parser, input, |tokens|::PunctuationKind::ColonColon, code);
+        transition parser.output.accepted {
+            true -> member(parser, input, code, start, alias),
+            false -> done()
+        }
+    }
+    machine member(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, code: |syntax_trees|::ParseDiagnosticCode, start: u64 in Trapping, alias: |syntax_trees|::IdentifierSpan) {
+        expect_name(parser, input, code);
+        transition {
+            !parser.output.accepted -> done(),
+            parser.output.file_selector_count < 65536 -> keep(parser, start, alias),
+            _ -> full(parser, input)
+        }
+    }
+    machine keep(parser: @mutable |parser|::Parser, start: u64 in Trapping, alias: |syntax_trees|::IdentifierSpan)
+    requires parser.output.file_selector_count < 65536
+    {
+        let declaration: |syntax_trees|::IdentifierSpan = |parser|::identifier_span(parser, parser.name_start, parser.name_end);
+        parser.output.file_selectors[parser.output.file_selector_count] = |syntax_trees|::FileSelector { start: start, alias: alias, declaration: declaration };
+        parser.output.file_selector_count = parser.output.file_selector_count + 1;
+        parser.name_start = start;
+        parser.token_start = start;
+    }
+    machine full(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        reject_current(parser, input, |syntax_trees|::ParseDiagnosticCode::FileSelectorCapacityExceeded);
+    }
+    machine done() {}
 }
