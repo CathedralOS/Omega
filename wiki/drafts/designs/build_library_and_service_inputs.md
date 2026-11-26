@@ -16,7 +16,7 @@ remain open.
 
 Disk-backed invocations come first. The public API for constructing a virtual
 filesystem, handing private backing to a successor, and choosing backing via
-command-line arguments is deferred. Filesystem examples below illustrate
+command-line arguments is deferred. Track the [virtual filesystem handoff](../../../OWNER_QUESTIONS.md#build-product-source-view-selection) and the [CLI invocation](../../../OWNER_QUESTIONS.md#interpreted-cli-filesystem-inputs) separately. Filesystem examples below illustrate
 ownership and admission requirements for a future interface.
 
 ## A library for whom?

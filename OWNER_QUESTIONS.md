@@ -64,4 +64,24 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-None currently recorded.
+<a id="interpreted-cli-filesystem-inputs"></a>
+### 1. How should a caller supply filesystem access to `omega run` and `omega build`?
+
+A developer running a parser or a Build generator may want to expose a directory
+of inputs and choose where writes may go. Which parts of that invocation should
+the CLI expose, and which defaults and arguments should the two commands share?
+The [local Build input rules](wiki/spec/build/command_line.md#local-build-inputs)
+describe source capture, and the [default filesystem contract](wiki/spec/build/scoped_execution.md#inputs-and-default-filesystem)
+describes the executing program’s view. The CLI for supplying that view remains open.
+
+<a id="build-product-source-view-selection"></a>
+### 2. How can a parent supply a virtual filesystem to a dependency or successor?
+
+A parser generator creates a private memory directory containing a Build entry,
+its imports and a data file the entry reads. How can the parent construct and
+hand off that view for source capture or for the child's runtime filesystem?
+Can it transfer the directory directly, or must it use a mount installed by
+its caller? The [generated-source contract](wiki/spec/build/execution.md#generated-source-boundary)
+defines when the compiler freezes its input. The [child filesystem contract](wiki/spec/build/scoped_execution.md#supplying-a-filesystem-to-a-child-build)
+defines backing custody and borrow duration. The public virtual-backing and
+handoff API remains open.
