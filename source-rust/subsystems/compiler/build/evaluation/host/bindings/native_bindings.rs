@@ -18,12 +18,10 @@ use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, IntegerSign, I
 use source_compiler::publication::{
     TerminalBuildBindingOperation, TerminalBuildNativeLocatorKind, TerminalBuildValueShape,
 };
-use source_compiler::publication::{TerminalBuildBindingOperation, TerminalBuildValueShape};
 use source_compiler::representations::declaration_selection::BuildOperation;
 use source_compiler::representations::declaration_selection::BuildSelectionRequest;
 use source_compiler::representations::declaration_selection::ExecutedBuildSelection;
 use source_compiler::representations::declaration_selection::ExecutedNativeBinding;
-use source_compiler::publication::{TerminalBuildBindingOperation, TerminalBuildValueShape};
 use terminal_interpreter::{
     TerminalBoundaryStorageBuffer, TerminalBoundaryStorageValue, TerminalEffect,
     TerminalEffectRejection, TerminalEffectResult, TerminalScalarValue, TerminalStorageContents,
