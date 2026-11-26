@@ -19,6 +19,8 @@ struct Component {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum InvocationEntry {
     LoopHead,
+    /// A forwarding caller enters this machine, which retains the loop.
+    Receiver,
     Separate,
     Forward,
 }
@@ -200,6 +202,20 @@ impl Components {
 
     pub(crate) fn has_separate_entry(&self, machine: MachineId) -> bool {
         self.invocation_entries[index(machine)] == InvocationEntry::Separate
+    }
+
+    pub(super) fn can_forward(&self, machine: MachineId) -> bool {
+        self.invocation_entries[index(machine)] == InvocationEntry::LoopHead
+    }
+
+    pub(super) fn forwards(&self, machine: MachineId) -> bool {
+        self.invocation_entries[index(machine)] == InvocationEntry::Forward
+    }
+
+    pub(super) fn retain_loop_entry(&mut self, machine: MachineId) {
+        if self.can_forward(machine) {
+            self.invocation_entries[index(machine)] = InvocationEntry::Receiver;
+        }
     }
 
     pub(super) fn forward_entry(&mut self, machine: MachineId) {
