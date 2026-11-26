@@ -865,6 +865,45 @@ pub(crate) mod callable_identity {
         use symbols::{SymbolKind, SymbolNameRef};
 
         #[test]
+        fn nested_callable_keeps_its_identity_when_only_its_body_is_selected() {
+            let mut symbols = SymbolTableBuilder::new();
+            let owner = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("expect"));
+            let child = symbols
+                .insert_children(
+                    owner,
+                    [(SymbolKind::Machine, SymbolNameRef::Static("passed"))],
+                )
+                .handle_at(0);
+            let mut program = TypedTrees {
+                symbols: symbols.finish(),
+                ..Default::default()
+            };
+            let states = program.machine_states.insert_many([State::default()]);
+            program.push_machine(Machine {
+                symbol: owner,
+                name: Identifier::generated("expect"),
+                states,
+                ..Default::default()
+            });
+            let nested = Machine {
+                symbol: child,
+                name: Identifier::generated("passed"),
+                states,
+                ..Default::default()
+            };
+            let original = program.machine_callable_identity_text(&nested).unwrap();
+
+            program.roots.machines = Default::default();
+            program.push_machine(nested);
+            assert!(program.machine_by_symbol(owner).is_none());
+            let selected = program.machine_by_symbol(child).unwrap();
+            assert_eq!(
+                program.machine_callable_identity_text(selected),
+                Some(original)
+            );
+        }
+
+        #[test]
         fn callable_identity_reads_the_supplied_machine_not_its_address() {
             let mut symbols = SymbolTableBuilder::new();
             let symbol = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("first"));
