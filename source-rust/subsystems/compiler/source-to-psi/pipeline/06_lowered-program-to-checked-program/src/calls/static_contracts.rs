@@ -486,6 +486,11 @@ fn check_deferred_callback_crashes(
                 .module
                 .machine(actual.selected)
                 .ok_or_else(|| fault(site, "nested callback lost its selected crash contract"))?;
+            if matches!(elaboration.static_conformances.get(actual.conformance as usize).map(|question| question.implementation),
+                Some(StaticImplementation::Parameter(_))) && selected.contract.declared_crash_routes.is_none() {
+                return Err(Refusal::at(RefusalReason::Conflict, site,
+                    "a forwarded open crash dependency cannot establish a finite crash requirement"));
+            }
             if selected
                 .contract
                 .crash_routes
@@ -688,6 +693,12 @@ pub(crate) fn admit(elaboration: &Elaboration) -> Checked<()> {
             pending.extend(&argument.arguments);
         }
     }
+    let forwarded = elaboration
+        .static_conformances
+        .iter()
+        .any(|question| matches!(question.implementation, StaticImplementation::Parameter(_)))
+        .then(|| requirement_declarations(elaboration))
+        .transpose()?;
     for (index, question) in elaboration.static_conformances.iter().enumerate() {
         let site = RefusalSite::Declaration(question.declaration);
         if question.application.is_empty() {
@@ -717,6 +728,20 @@ pub(crate) fn admit(elaboration: &Elaboration) -> Checked<()> {
                     },
                     machine_operations(elaboration, site, body, selections[index], question)?,
                 )
+            }
+            StaticImplementation::Parameter(parameter) => {
+                if question.provider.is_some() || elaboration.static_reach_parameters.binary_search(&parameter).is_err() {
+                    return Err(fault(site, "forwarded callback has no originating parameter"));
+                }
+                let source = forwarded.as_ref().and_then(|rows| rows.get(parameter.requirement)).and_then(|row| *row)
+                    .ok_or_else(|| fault(site, "forwarded callback lost its source requirement"))?;
+                let instance = source.instance.as_ref()
+                    .ok_or_else(|| fault(site, "forwarded callback lost its applied source header"))?;
+                match &source.envelope.service_reach {
+                    StaticServiceCeiling::Open => check_service_limit(site, &question.envelope.service_reach, &[], true)?,
+                    StaticServiceCeiling::Closed(services) => check_service_limit(site, &question.envelope.service_reach, services, false)?,
+                }
+                (view(&instance.header), operational(&source.envelope))
             }
             StaticImplementation::Native { source, candidate } => {
                 let candidate = elaboration

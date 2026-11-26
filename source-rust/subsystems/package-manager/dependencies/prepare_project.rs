@@ -526,6 +526,11 @@ impl LocalProjectPreparation {
         );
         if let Some(source) = source {
             acquisitions.require_locked_activations(source);
+            acquisitions.root_policies = self
+                .targets
+                .iter()
+                .filter_map(|row| row.accepted.as_ref().ok()?.as_ref())
+                .collect();
         }
         Ok(acquisitions)
     }

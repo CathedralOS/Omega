@@ -12,9 +12,10 @@ use crate::record::PackagePolicyRestrictedBuildRequest;
 use target::TargetProfile;
 
 pub(in crate::encoding::encode) fn operation(
-    operation: PackagePolicyRestrictedBuildOperation,
+    operation: &PackagePolicyRestrictedBuildOperation,
 ) -> (&'static str, u8) {
     match operation {
+        PackagePolicyRestrictedBuildOperation::ProgramLaunch(_) => ("program_launch", 2),
         PackagePolicyRestrictedBuildOperation::ScopedFilesystemExecution => {
             ("scoped_filesystem_execution", 0)
         }
@@ -29,10 +30,37 @@ pub(in crate::encoding::encode) fn request(
     request: &PackagePolicyRestrictedBuildRequest,
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.field("operation", |encoder| {
-        let (name, tag) = operation(request.operation);
+        let (name, tag) = operation(&request.operation);
         encoder.tag(name, tag);
         Ok(())
     })?;
+    if let PackagePolicyRestrictedBuildOperation::ProgramLaunch(program) = &request.operation {
+        encoder.field("program_owner", |encoder| {
+            use build_consent::ProgramDeclarationOwner;
+            match program.owner {
+                ProgramDeclarationOwner::RequestingSource => encoder.tag("requesting_source", 0),
+                ProgramDeclarationOwner::Package(digest) => {
+                    encoder.tag("package", 1);
+                    encoder.fixed_bytes_field("key", &digest)?;
+                }
+                ProgramDeclarationOwner::Toolchain(digest) => {
+                    encoder.tag("toolchain_source", 2);
+                    encoder.fixed_bytes_field("source", &digest)?;
+                }
+            }
+            Ok(())
+        })?;
+        encoder.string_field("declaration", &program.declaration)?;
+        encoder.string_field("file", &program.file)?;
+        encoder.fixed_bytes_field("image_sha256", &program.image_sha256)?;
+        encoder.sequence_field("readable", &program.readable, |encoder, path| {
+            encoder.bytes(path)
+        })?;
+        encoder.sequence_field("writable", &program.writable, |encoder, path| {
+            encoder.bytes(path)
+        })?;
+        encoder.u64_field("timeout_ms", program.timeout_ms)?;
+    }
     encoder.sequence_field("read_grants", &request.read_grants, grant)?;
     encoder.sequence_field("write_grants", &request.write_grants, grant)?;
     encoder.field("bounds", |encoder| bounds(encoder, &request.bounds))?;

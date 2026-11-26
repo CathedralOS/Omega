@@ -1,9 +1,0 @@
-use main.omg as lexer_test;
-
-machine build(builder: @mutable Build) {
-    Build::application(builder, "lexer_hex_escape");
-    Build::bind(builder, windows_x86_64::ProgramEntry, |lexer_test|::start);
-    Build::bind(builder, linux_x86_64::ProgramEntry, |lexer_test|::start);
-    Build::bind(builder, macos_arm64::ProgramEntry, |lexer_test|::start);
-    Build::bind(builder, linux_arm64::ProgramEntry, |lexer_test|::start);
-}

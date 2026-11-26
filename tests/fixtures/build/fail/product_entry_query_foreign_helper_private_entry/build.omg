@@ -1,5 +1,5 @@
 // FAIL CANARY -- a build-dependency helper borrows the root Build and queries
-// the owner's private `launch` through `builder.product.entry`. The query
+// the owner's private `launch` through `builder.declarations.entry`. The query
 // resolves under the helper occurrence's own package, never the caller's:
 // passing Build lends operational capability, not visibility into the
 // owner's product namespace, so the helper cannot enumerate it.

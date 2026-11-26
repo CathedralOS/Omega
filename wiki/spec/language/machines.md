@@ -44,7 +44,7 @@ machine example() {
 ```
 
 Every argument, including context and capabilities, is ordinary and explicit.
-For example, `Build::application(builder, "example")` takes the build context as its first argument. A Build that imports `{omega}/build/dependency.omg` passes the same context to `Build::dependency(builder, |dependency|::from_source(source))`.
+For example, `Build::dependency(plan, |dependency|::from_source(source))` takes the Build plan as its first argument. The file import `use {omega}/build/dependency.omg;` supplies the helper that constructs the dependency description.
 Owned, shared, mutable and write-only access retain their normal contracts;
 removing receiver syntax removes no ownership, invariant, effect or proof check.
 Trait requirements and satisfiers use the same explicit parameter correspondence:

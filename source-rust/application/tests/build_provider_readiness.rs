@@ -59,7 +59,7 @@ fn check(source: &str) -> Result<(), Vec<Diagnostic>> {
         true,
         false,
         &temp.path().join("out"),
-        None,
+        Default::default(),
     )?;
     products
         .select(target)?

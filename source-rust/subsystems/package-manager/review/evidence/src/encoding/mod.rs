@@ -14,8 +14,8 @@ pub use encode::membership::{
     MalformedIdentityExcerpt, PackagePolicyMembershipError, PackagePolicyMembershipFailure,
     PackagePolicyMembershipLimits,
 };
-pub use encode::restricted_build_request_acceptance_text;
 pub(crate) use encode::runtime_permission_rows;
+pub use encode::{restricted_build_request_acceptance_text, restricted_build_request_payload};
 
 pub use recovery::PackagePolicyRecoveryLimits;
 pub(crate) use recovery::{PackagePolicyRecoveryError, PackagePolicyRecoveryUsage};
@@ -25,13 +25,14 @@ pub(crate) use recovery::{PackagePolicyRecoveryError, PackagePolicyRecoveryUsage
 // expanded class vocabulary even though existing class tags are unchanged.
 // Ordinary public requirements preserve open reach/crash separately from
 // authored empty ceilings; predecessor payloads are not reinterpreted.
+// Domain records distinguish unrestricted issuance from an empty permitted issuer set.
 // Service method records in each of these layouts carry the foreign caller-stack bound.
-pub(crate) const BASELINE_WITHOUT_STRUCTURAL_PARAMETERS: u16 = 43;
-pub(crate) const BASELINE_WITH_STRUCTURAL_PARAMETERS: u16 = 44;
-pub(crate) const BASELINE_WITH_PROVIDER_APPLICATION_GRANTS: u16 = 45;
-pub(crate) const BASELINE_WITH_TYPE_ALIASES: u16 = 46;
-pub(crate) const BASELINE_WITH_CARRIED_TYPES: u16 = 47;
-pub(crate) const BASELINE_WITH_APPLIED_SERVICES: u16 = 48;
+pub(crate) const BASELINE_WITHOUT_STRUCTURAL_PARAMETERS: u16 = 49;
+pub(crate) const BASELINE_WITH_STRUCTURAL_PARAMETERS: u16 = 50;
+pub(crate) const BASELINE_WITH_PROVIDER_APPLICATION_GRANTS: u16 = 51;
+pub(crate) const BASELINE_WITH_TYPE_ALIASES: u16 = 52;
+pub(crate) const BASELINE_WITH_CARRIED_TYPES: u16 = 53;
+pub(crate) const BASELINE_WITH_APPLIED_SERVICES: u16 = 54;
 pub const PACKAGE_POLICY_BASELINE_VERSION: u16 = BASELINE_WITH_APPLIED_SERVICES;
 pub(crate) const PACKAGE_POLICY_BASELINE_MAGIC: &[u8] = b"OMEGA-PACKAGE-POLICY\0";
 

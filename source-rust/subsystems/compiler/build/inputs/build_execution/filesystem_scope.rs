@@ -401,6 +401,35 @@ impl BuildMachineFilesystemScope {
         &self.required_outputs
     }
 
+    /// Before Build entry, resolve the program's file grants against the same
+    /// Source and private Output that will serve the call at execution.
+    pub fn admit_program_files(&self, read: &[Vec<u8>], write: &[Vec<u8>]) -> Result<(), String> {
+        if read.is_empty() && write.is_empty() {
+            return Ok(());
+        }
+        if !self
+            .sponsor
+            .as_ref()
+            .is_some_and(|s| s.owns_private_staging_root(&self.build_dir))
+        {
+            return Err("program file grants require private activation staging".into());
+        }
+        for path in read {
+            let present = match (&self.captured_source_input, &self.live_source) {
+                (Some(snapshot), _) => snapshot.open_file(path).is_ok(),
+                (None, Some(source)) => source.open_read(path).is_ok(),
+                (None, None) => false,
+            };
+            if !present {
+                return Err(format!(
+                    "readable file `{}` is outside the activation's admitted Source",
+                    String::from_utf8_lossy(path)
+                ));
+            }
+        }
+        Ok(())
+    }
+
     pub fn captured_source_inventory(&self) -> Option<BuildCapturedSourceInventory> {
         self.captured_source_input.as_ref().map(CapturedBuildSourceInput::inventory)
     }

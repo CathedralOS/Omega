@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 PACKAGE = Path(__file__).resolve().parents[1]
-FIXTURE = PACKAGE / "tests/fixtures/parser/run/crash_clauses"
+FIXTURE = PACKAGE.parent / "tests/fixtures/source_to_psi/parser/run/crash_clauses"
 DIRECTORIES = (
     "pipeline/source_files_to_tokens",
     "pipeline/tokens_to_syntax_trees",

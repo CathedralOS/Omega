@@ -2,7 +2,7 @@
 Product query suspension and issued description custody.
 
 When a Build activation queries a product entry, schema, or provider, we
-authenticate its compiler-issued `Build.product` facet, reserve query storage,
+authenticate its compiler-issued `Build.declarations` facet, reserve query storage,
 and pause the activation until the coordinator supplies the admitted
 `BuildProductDescription`. Completing the query mints an opaque structural
 description handle whose provenance we retain in `descriptions` so subsequent
@@ -343,12 +343,12 @@ impl TerminalBuildBindingHost {
             ));
         }
         if !arguments.is_empty()
-            || structural_arguments.first() != self.product_facet.as_ref()
-            || self.product_facet.is_none()
+            || structural_arguments.first() != self.declarations_facet.as_ref()
+            || self.declarations_facet.is_none()
             || byte_sequence_arguments.first() != Some(&None)
         {
             return Err(refuse(
-                "product selection requires the compiler-issued Build.product facet",
+                "product selection requires the compiler-issued Build.declarations facet",
             ));
         }
         let arity = match call.action {

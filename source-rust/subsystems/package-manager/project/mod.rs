@@ -76,12 +76,13 @@ pub fn resolve_build_sources(
     session: &mut PackageBuildSession,
     acquired: AcquiredBuildSource,
     acquisitions: &mut BuildSourceAcquisitions<'_>,
-    snapshot: Option<BuildSnapshotRequest>,
+    inputs: RootBuildInputs,
 ) -> Result<ResolvedPackageProject, PackageCommandError> {
     let profile = TargetProfile::host_if_supported()
         .ok_or_else(|| "package Build execution requires a supported host".to_owned())?;
     let acquired = acquisitions.retain_root(acquired)?;
     let mut host = SourceHost {
+        root_programs: inputs.programs,
         session,
         acquisitions,
         profile,
@@ -90,7 +91,7 @@ pub fn resolve_build_sources(
         active: Vec::new(),
         settled: Vec::new(),
     };
-    let result = host.resolve(&acquired.entry_path(), acquired, snapshot);
+    let result = host.resolve(&acquired.entry_path(), acquired, inputs.snapshot);
     if let Err(error) = &result {
         host.session
             .record_source_completion(error.source_completion_accounting().clone());
@@ -226,6 +227,7 @@ impl ExecutedBuild {
 }
 
 struct SourceHost<'session, 'policy> {
+    root_programs: package_compilation::build_execution::BuildProgramInvocation,
     session: &'session mut PackageBuildSession,
     acquisitions: &'session mut BuildSourceAcquisitions<'policy>,
     profile: TargetProfile,
@@ -567,13 +569,24 @@ pub fn open_product(
         offline,
         false,
         build_directory,
-        snapshot,
+        RootBuildInputs {
+            snapshot,
+            ..Default::default()
+        },
     )?
     .0
     .into_iter()
     .next()
     .expect("one deployment was requested")
     .1
+}
+
+/// The caller's activation-specific resources. Only the root Build receives
+/// these program selectors; registering a dependency does not grant it one.
+#[derive(Default)]
+pub struct RootBuildInputs {
+    pub snapshot: Option<BuildSnapshotRequest>,
+    pub programs: package_compilation::build_execution::BuildProgramInvocation,
 }
 
 /// Resolve and execute the authored Build once for the entire deployment set.
@@ -585,7 +598,7 @@ pub fn open_products(
     offline: bool,
     timings: bool,
     build_directory: &Path,
-    snapshot: Option<BuildSnapshotRequest>,
+    root_inputs: RootBuildInputs,
 ) -> Result<ProjectProducts, Vec<diagnostics::Diagnostic>> {
     open_products_with(
         input,
@@ -593,7 +606,7 @@ pub fn open_products(
         offline,
         timings,
         build_directory,
-        snapshot,
+        root_inputs,
         OpenPurpose::Product,
     )?
     .into_product()
@@ -642,9 +655,10 @@ fn open_products_with(
     offline: bool,
     timings: bool,
     build_directory: &Path,
-    snapshot: Option<BuildSnapshotRequest>,
+    root_inputs: RootBuildInputs,
     purpose: OpenPurpose<'_>,
 ) -> Result<OpenedRoot, Vec<diagnostics::Diagnostic>> {
+    let snapshot = root_inputs.snapshot;
     let alongside = !matches!(purpose, OpenPurpose::Product);
     use crate::operations::begin_local_project_preparation;
     use package_compilation::build_execution::BuildSnapshotCapture;
@@ -704,6 +718,7 @@ fn open_products_with(
             open_timings.add_completed(OPEN_ACQUIRE_ROOT, started.elapsed().as_micros());
         }
         let mut host = SourceHost {
+            root_programs: root_inputs.programs,
             session: &mut session,
             acquisitions: &mut acquisitions,
             profile,

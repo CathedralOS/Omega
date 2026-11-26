@@ -18,8 +18,7 @@ pub(crate) fn domain_named(
     ) {
         crate::resolution::names::DomainMembership::Unique(symbol) => Some(symbol),
         crate::resolution::names::DomainMembership::NotFound
-        | crate::resolution::names::DomainMembership::Ambiguous { .. }
-        | crate::resolution::names::DomainMembership::Contested => None,
+        | crate::resolution::names::DomainMembership::Multiple { .. } => None,
     }
 }
 

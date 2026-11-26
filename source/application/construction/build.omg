@@ -1,19 +1,15 @@
 use {omega}/build/dependency.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
 use main.omg as construction;
-use {system}/console.omg;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "omega_compiler_construction");
-    Build::select_provider::<|console|::Console, |console|::AlphaConsole>(builder, alpha_bootstrap);
-    Build::select_provider::<|console|::Console, |console|::LinuxX86Console>(builder, linux_x86_64);
-    Build::select_provider::<|console|::Console, |console|::LinuxArm64Console>(builder, linux_arm64);
-    Build::select_provider::<|console|::Console, |console|::DarwinArm64Console>(builder, macos_arm64);
-    Build::select_provider::<|console|::Console, |console|::WindowsConsole>(builder, windows_x86_64);
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "omega_compiler_construction" };
     Build::bind(builder, linux_x86_64::ProgramEntry, |construction|::entry_start);
     Build::bind(builder, linux_arm64::ProgramEntry, |construction|::entry_start);
     Build::bind(builder, macos_arm64::ProgramEntry, |construction|::entry_start);
     Build::bind(builder, windows_x86_64::ProgramEntry, |construction|::entry_start);
-    Build::bind(builder, alpha_bootstrap\ProgramEntry, |construction|::entry_start);
+    Build::bind(builder, alpha_bootstrap::ProgramEntry, |construction|::entry_start);
     let compiler: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {
         location: "../../subsystems/compiler/driver"
     }));
@@ -23,7 +19,11 @@ machine build(builder: @mutable Build) {
     let wire: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {
         location: "../../foundation/wire"
     }));
-    let standard: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {
-        location: "../../library/system"
-    }));
+    let streams: [BoundaryServiceReference; 3] = [
+        Build::service::<|process_authority|::StandardInput>(builder),
+        Build::service::<|process_authority|::StandardOutput>(builder),
+        Build::service::<|process_exit|::ProcessExit>(builder)
+    ];
+    let system: DependencyDescription = |dependency|::from_source(Source::Path { location: "../../library/system" });
+    _ = |dependency|::add(builder, system, @streams[..]);
 }

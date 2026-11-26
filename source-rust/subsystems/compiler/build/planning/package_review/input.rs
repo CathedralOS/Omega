@@ -8,6 +8,7 @@ pub(super) struct PolicySource<'a> {
     pub(super) declarations: &'a source_compiler::CheckedPackageDeclarations,
     pub(super) accepted: &'a AcceptedTerminalSource,
     pub(super) sources: &'a package_compilation::CheckedSourceCustody,
+    pub(super) restricted_build_requests: Vec<package_compilation::RestrictedBuildRequest>,
     pub(super) evaluation: &'a build_execution::EvaluatedBuild,
 }
 
@@ -15,7 +16,7 @@ impl<'a> PolicySource<'a> {
     pub(super) fn checked(
         declarations: &'a source_compiler::CheckedPackageDeclarations,
         sources: &'a package_compilation::CheckedSourceCustody,
-        evaluation: &'a build_execution::EvaluatedBuild,
+        product: &'a crate::PlannedProduct,
         inputs: &package_compilation::PackageCompilationInputs,
         target: target::TargetProfile,
     ) -> Result<Self, Vec<Diagnostic>> {
@@ -33,7 +34,8 @@ impl<'a> PolicySource<'a> {
             declarations,
             accepted,
             sources,
-            evaluation,
+            restricted_build_requests: product.reviewed_build_requests(target)?,
+            evaluation: product.evaluated(),
         })
     }
     pub(super) fn typed(&self) -> &'a TypedTrees {

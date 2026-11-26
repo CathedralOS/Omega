@@ -387,16 +387,17 @@ pub(crate) mod build_requests {
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
     pub enum TerminalBuildRequestOperation {
-        Package,
-        Application,
-        Member,
-        BuildEntry,
+        /// Exact authored nominal declaration in the checked Build source.
+        LaunchProgram {
+            program: source_text::SourceSpan,
+        },
         ArtifactOnly,
         PathDependency,
         GitDependency,
         InputBinding,
         AddBinding,
         ExtendReach,
+        ExtendWorkspace,
         PrepareDependency,
         ValidateDependency,
         LogLine,
