@@ -15,7 +15,7 @@ use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 /// owns everything it reads, so it can run while the Product is used to form
 /// its handoff and while the Products that consume it are opened and checked.
 pub(super) struct BuildRecheck {
-    stage: Result<source_compiler::BuildStageSource, Vec<Diagnostic>>,
+    stage: Result<package_compilation::source_assembly::BuildScopeStageInputs, Vec<Diagnostic>>,
     files: Arc<source_compiler::representations::source_inputs::SourceMap>,
     anonymous_owner: Option<package_compilation::AnonymousSourceCapture>,
     preparation: SourcePreparation,
@@ -59,9 +59,14 @@ impl BuildRecheck {
             return None;
         }
         let token = Arc::new(());
+        let stage = product.source.build_scope_stage_inputs();
+        let files = stage
+            .as_ref()
+            .map(|inputs| Arc::clone(inputs.files()))
+            .unwrap_or_else(|_| Arc::clone(&product.source.parsed.files));
         let recheck = Self {
-            stage: product.source.build_stage_source(),
-            files: Arc::clone(&product.source.parsed.files),
+            stage,
+            files,
             anonymous_owner: product.source.anonymous_owner.clone(),
             preparation: product.preparation.clone(),
             host: product.build_profile.target_name(),
@@ -110,10 +115,11 @@ impl BuildRecheck {
             .declaration
             .as_ref()
             .ok_or_else(|| refusal("rejoined Build source lost its issued entry".into()))?;
-        // Checking the rejoined subject can refuse any declaration in the
-        // Product's files, so its refusals name their file, line and column.
+        // Checking the rejoined subject reads only Build-scope sources and
+        // names any refusal by its file, line, and column.
         let checked = (|| {
-            let (typed, entry) = self.stage?.rejoin_build_entry(
+            let stage = self.stage?.prepare(timings)?;
+            let (typed, entry) = stage.rejoin_build_entry(
                 &self.preparation,
                 self.host,
                 authority,
@@ -465,5 +471,247 @@ mod tests {
         let pending = PendingRecheck::start(|| panic!("recheck panicked"));
         let unwound = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| pending.join()));
         assert!(unwound.is_err());
+    }
+
+    fn configure_library() {
+        static CONFIGURED: std::sync::OnceLock<()> = std::sync::OnceLock::new();
+        CONFIGURED.get_or_init(|| {
+            package_compilation::toolchain_library::configure(
+                &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join("../../../../source/library"),
+            )
+            .unwrap()
+        });
+    }
+
+    fn open_unchecked_project(
+        entry: &std::path::Path,
+        dependency_activation: bool,
+    ) -> super::super::PlannedProduct {
+        use package_compilation::BuildExecutionInputs;
+        use package_manager::operations::begin_local_project_preparation;
+        use package_manager::resolution::source::ExecutedSourceResolution;
+        use target::TargetProfile;
+
+        configure_library();
+        let target = TargetProfile::LinuxX64;
+        let project = begin_local_project_preparation(entry, &[target], true).unwrap();
+        let acquired = project.acquire_root().unwrap();
+        let stage = super::super::prepare(
+            super::super::PlanningRequest {
+                root: &acquired.entry_path(),
+                sources: super::super::PlanningSources::Captured(acquired.source_capture()),
+                execution: BuildExecutionInputs {
+                    dependency_activation,
+                    ..Default::default()
+                },
+                artifact_only: false,
+            },
+            Default::default(),
+            Default::default(),
+        )
+        .unwrap();
+        let mut returned = crate::interpret(stage, &mut ()).unwrap();
+        let declared = acquired.declare_build(returned.returned()).unwrap();
+        let subject = declared.identity();
+        let ExecutedSourceResolution::Complete(graph) = declared.resolve().unwrap() else {
+            panic!("fixture declares no dependencies");
+        };
+        let inputs = graph
+            .join_source_result(subject, &mut returned.source_result().unwrap())
+            .unwrap();
+        let (source, evaluated) = returned.complete_activation(Some(&inputs)).unwrap();
+        source.open_unchecked(evaluated, Some(&inputs)).unwrap()
+    }
+
+    #[test]
+    fn entry_only_build_reading_only_toolchain_constants_owes_no_recheck() {
+        let temp = platform_custody::temporary_directory::TemporaryDirectory::create(
+            "recheck-entry-only-toolchain-consts",
+            false,
+        )
+        .unwrap();
+        let root = temp.path();
+        std::fs::write(root.join("main.omg"), "public machine ping() {}").unwrap();
+        let entry = root.join("build.omg");
+        std::fs::write(
+            &entry,
+            r#"use omega\language\core\FloatFormat;
+use omega\language\core\Units;
+machine build(builder: @mutable Build) {
+    Build::package(builder, "dep_pkg");
+    let _f: FloatFormat = FloatFormat::BINARY32;
+    let _u: Unit = Units::METER;
+    let _t: BuildTarget = linux_x86_64;
+}
+"#,
+        )
+        .unwrap();
+        let product = open_unchecked_project(&entry, true);
+        assert_eq!(
+            product.evaluated.subject_validation,
+            build_execution::BuildSubjectValidation::EntryOnly
+        );
+        assert!(
+            product.evaluated.constants.read.is_empty(),
+            "immutable toolchain literals should not force recheck: {:?}",
+            product.evaluated.constants.read
+        );
+        assert!(super::BuildRecheck::owed_by(&product).is_none());
+    }
+
+    #[test]
+    fn build_scope_recheck_excludes_product_and_rejects_invalid_subject() {
+        let temp = platform_custody::temporary_directory::TemporaryDirectory::create(
+            "recheck-build-scope-subject",
+            false,
+        )
+        .unwrap();
+        let root = temp.path();
+        let main = root.join("main.omg");
+        let helper = root.join("helper.omg");
+        let entry = root.join("build.omg");
+        std::fs::write(&main, "machine main() {}").unwrap();
+        std::fs::write(
+            &helper,
+            "public machine configure(builder: @mutable Build) {\n    Build::application(builder, \"scoped_app\");\n}\n",
+        )
+        .unwrap();
+        std::fs::write(
+            &entry,
+            r#"use helper.omg as helper;
+use main.omg as app;
+machine build(builder: @mutable Build) {
+    |helper|::configure(builder);
+    Build::bind(builder, linux_x86_64\ProgramEntry, |app|::main);
+}
+"#,
+        )
+        .unwrap();
+
+        let product = open_unchecked_project(&entry, false);
+        assert_eq!(
+            product.evaluated.subject_validation,
+            build_execution::BuildSubjectValidation::CheckedUnderProvisionalOwner
+        );
+        assert!(
+            product
+                .source
+                .parsed
+                .files
+                .selected_files()
+                .any(|file| file.dependency_scope == source_provenance::DependencyScope::Product),
+            "Product assembly includes Product sources"
+        );
+        let (recheck, token) =
+            super::BuildRecheck::owed_by(&product).expect("provisional owner owes recheck");
+        assert!(
+            !recheck.files.selected_files().any(|file| {
+                file.dependency_scope == source_provenance::DependencyScope::Product
+            }),
+            "BuildRecheck must exclude all Product-scope sources"
+        );
+        assert!(
+            recheck
+                .files
+                .selected_files()
+                .any(|file| file.path == entry.canonicalize().unwrap_or_else(|_| entry.clone()))
+        );
+        let checked = recheck.run();
+        let settled = product.settle_recheck(Some(token), Some(checked)).unwrap();
+        assert_eq!(
+            settled.evaluated.subject_validation,
+            build_execution::BuildSubjectValidation::Checked
+        );
+
+        // Now verify an invalid Build subject helper is caught under its real owner
+        // even when BuildRecheck receives only Build-scope sources.
+        std::fs::write(
+            &helper,
+            "public machine configure(builder: @mutable Build) {\n    Build::application(builder, \"scoped_app\");\n}\nmachine unused_invalid() {\n    let bad: u8 = true;\n}\n",
+        )
+        .unwrap();
+        let mut invalid_product = open_unchecked_project(&entry, true);
+        invalid_product.evaluated.subject_validation =
+            build_execution::BuildSubjectValidation::CheckedUnderProvisionalOwner;
+        let (recheck, _) =
+            super::BuildRecheck::owed_by(&invalid_product).expect("provisional owner owes recheck");
+        let failure = recheck
+            .run()
+            .result
+            .expect_err("Build-scope-only BuildRecheck must reject invalid Build subject");
+        let messages = diagnostics::join_messages(&failure.into_diagnostics());
+        assert!(!messages.is_empty());
+    }
+
+    #[test]
+    fn build_scope_recheck_catches_rejoined_constant_mismatch() {
+        let temp = platform_custody::temporary_directory::TemporaryDirectory::create(
+            "recheck-constant-mismatch",
+            false,
+        )
+        .unwrap();
+        let root = temp.path();
+        std::fs::write(root.join("main.omg"), "machine main() {}").unwrap();
+        let entry = root.join("build.omg");
+        std::fs::write(
+            &entry,
+            r#"use main.omg as app;
+const BUILD_LIMIT: u64 = limit();
+const OTHER_VALUE: u64 = 9u64;
+machine limit() -> u64 { 4u64 }
+machine build(builder: @mutable Build) {
+    let total: u64 = BUILD_LIMIT + OTHER_VALUE;
+    let matches: bool = total == 13u64;
+    transition matches {
+        true -> named(builder),
+        false -> wrong(builder),
+    }
+    machine named(builder: @mutable Build) {
+        Build::application(builder, "const_app");
+        Build::bind(builder, linux_x86_64\ProgramEntry, |app|::main);
+    }
+    machine wrong(builder: @mutable Build) {
+        Build::application(builder, "other_app");
+    }
+}
+"#,
+        )
+        .unwrap();
+
+        let product = open_unchecked_project(&entry, true);
+        assert_eq!(
+            product.evaluated.subject_validation,
+            build_execution::BuildSubjectValidation::EntryOnly
+        );
+        assert_eq!(product.evaluated.constants.read.len(), 2);
+
+        let (recheck, _) =
+            super::BuildRecheck::owed_by(&product).expect("user Build constants owe recheck");
+        assert!(
+            !recheck.files.selected_files().any(|file| {
+                file.dependency_scope == source_provenance::DependencyScope::Product
+            }),
+            "BuildRecheck must exclude Product-scope sources"
+        );
+        recheck
+            .run()
+            .result
+            .expect("matching Build constants settle cleanly");
+
+        let mut mismatched = open_unchecked_project(&entry, true);
+        let mismatched_value = mismatched.evaluated.constants.read[1].value.clone();
+        mismatched.evaluated.constants.read[0].value = mismatched_value;
+        let (recheck, _) = super::BuildRecheck::owed_by(&mismatched)
+            .expect("mismatched Build constant owes recheck");
+        let failure = recheck
+            .run()
+            .result
+            .expect_err("Build-scope-only BuildRecheck must catch rejoined constant mismatch");
+        let messages = diagnostics::join_messages(&failure.into_diagnostics());
+        assert!(
+            messages.contains("retyped Build constant demand or value differs"),
+            "{messages}"
+        );
     }
 }

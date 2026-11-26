@@ -100,6 +100,99 @@ impl AssembledSyntax {
             pending_imports: self.pending_build_imports.clone(),
         })
     }
+
+    /// Extract only `Build`-scope files, roots, and bindings from this assembled
+    /// stage so a Build recheck never parses or types `Product` files.
+    pub fn build_scope_stage_inputs(&self) -> Result<BuildScopeStageInputs, Vec<Diagnostic>> {
+        let selection = self.build_source.ok_or_else(|| {
+            vec![Diagnostic::error(
+                "Build stage requires a selected declaration",
+            )]
+        })?;
+        let mut files = (*self.parsed.files).clone();
+        files.retain_selected_sources(|file| {
+            file.dependency_scope == source_provenance::DependencyScope::Build
+        });
+        let files = Arc::new(files);
+        let roots = self
+            .parsed
+            .roots
+            .iter()
+            .copied()
+            .filter(|id| files.source_is_selected(*id))
+            .collect();
+        let imports = self
+            .parsed
+            .imports
+            .iter()
+            .filter(|binding| files.source_is_selected(binding.reference_source()))
+            .cloned()
+            .collect();
+        Ok(BuildScopeStageInputs {
+            files,
+            roots,
+            imports,
+            build_sources: self.build_scope_sources.clone(),
+            pending_imports: self.pending_build_imports.clone(),
+            entry: selection.entry(),
+        })
+    }
+
+    pub fn build_scope_stage_source(
+        &self,
+    ) -> Result<source_compiler::BuildStageSource, Vec<Diagnostic>> {
+        self.build_scope_stage_inputs()?
+            .prepare(&mut CompileTimings::default())
+    }
+}
+
+/// Build-scope-only source inputs extracted from an assembled stage, ready to
+/// parse into a [`source_compiler::BuildStageSource`] without Product files.
+#[derive(Clone)]
+pub struct BuildScopeStageInputs {
+    files: Arc<source_compiler::representations::source_inputs::SourceMap>,
+    roots: Vec<source_text::SourceId>,
+    imports: Vec<source_compiler::representations::source_symbols::SourceScopedTopLevelBinding>,
+    build_sources: HashSet<source_text::SourceId>,
+    pending_imports: Vec<source_compiler::PendingBuildImport>,
+    entry: source_text::SourceSpan,
+}
+
+impl BuildScopeStageInputs {
+    pub fn files(&self) -> &Arc<source_compiler::representations::source_inputs::SourceMap> {
+        &self.files
+    }
+
+    pub fn prepare(
+        self,
+        timings: &mut CompileTimings,
+    ) -> Result<source_compiler::BuildStageSource, Vec<Diagnostic>> {
+        let loaded: source_admission::LoadedSources = self
+            .files
+            .selected_files()
+            .map(|file| source_admission::LoadedSource {
+                source_id: file.source_id,
+                path: file.path.clone(),
+                source: Arc::clone(&file.source),
+                origin: Some(file.origin),
+                scope: file.dependency_scope,
+            })
+            .collect();
+        let mut syntax = source_compiler::SourceSyntax::new(self.entry.source_id);
+        source_compiler::SourceInput(loaded).append(&mut syntax, timings)?;
+        syntax.share_pages();
+        Ok(source_compiler::BuildStageSource {
+            parsed: source_compiler::ParsedStageSources {
+                syntax,
+                files: self.files,
+                roots: self.roots,
+                imports: self.imports,
+            },
+            build_sources: self.build_sources,
+            entry: self.entry,
+            pending_imports: self.pending_imports,
+        })
+    }
 }
 
 #[derive(record_storage::Record)]
