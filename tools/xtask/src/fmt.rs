@@ -18,6 +18,11 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+struct Invocation {
+    args: Vec<String>,
+    changed_lines: Option<Vec<[usize; 2]>>,
+}
+
 const ARGV_BUDGET: usize = 24_000;
 #[derive(Deserialize)]
 struct Metadata {
@@ -173,7 +178,12 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                 prefix.push("--check".to_owned());
             }
             prefix.extend(passthrough.iter().cloned());
-            invocations.extend(chunked_invocations(&prefix, &files, lanes));
+            invocations.extend(chunked_invocations(&prefix, &files, lanes).into_iter().map(
+                |args| Invocation {
+                    args,
+                    changed_lines: None,
+                },
+            ));
         }
 
         invocations
@@ -190,14 +200,15 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             failures += usize::from(!succeeded(child));
         }
         if verbose {
-            println!("{}", invocation.join(" "));
+            println!("{}", invocation.args.join(" "));
         }
-        match Command::new(&invocation[0])
-            .args(&invocation[1..])
-            .current_dir(&repository)
-            .spawn()
-        {
-            Ok(child) => running.push_back(child),
+        let mut command = Command::new(&invocation.args[0]);
+        command.args(&invocation.args[1..]).current_dir(&repository);
+        if invocation.changed_lines.is_some() {
+            command.stdout(std::process::Stdio::piped());
+        }
+        match command.spawn() {
+            Ok(child) => running.push_back((child, invocation.changed_lines)),
             Err(_) => failures += 1,
         }
     }
@@ -211,8 +222,24 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     Ok(())
 }
 
-fn succeeded(mut child: std::process::Child) -> bool {
-    child.wait().is_ok_and(|status| status.success())
+fn succeeded((mut child, changed): (std::process::Child, Option<Vec<[usize; 2]>>)) -> bool {
+    let Some(ranges) = changed else {
+        return child.wait().is_ok_and(|status| status.success());
+    };
+    let result = child
+        .wait_with_output()
+        .map_err(|error| error.to_string())
+        .and_then(|output| {
+            if output.status.success() {
+                changed::report(&output.stdout, &ranges)
+            } else {
+                Err(format!("rustfmt exited with {}", output.status))
+            }
+        });
+    result.unwrap_or_else(|error| {
+        eprintln!("fmt: {error}");
+        false
+    })
 }
 
 #[cfg(test)]
