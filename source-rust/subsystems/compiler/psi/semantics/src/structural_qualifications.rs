@@ -369,8 +369,8 @@ pub struct DefaultRequirements<'a> {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum DefaultDemand {
-    Snapshot,
+enum DefaultDemand<'a> {
+    Snapshot(Option<&'a std::collections::BTreeSet<u64>>),
     Restoration,
 }
 
@@ -454,7 +454,7 @@ impl<'a> DefaultRequirements<'a> {
         root: PlaceId,
         path: &[StructuralPathSegment],
         carrier: StructuralTypeId,
-        demand: DefaultDemand,
+        demand: DefaultDemand<'_>,
     ) -> Judged<Vec<DefaultRequirement>> {
         let mut result = Vec::new();
         for position in 0..self.declaration(carrier)?.requires.len() {
@@ -486,7 +486,7 @@ impl<'a> DefaultRequirements<'a> {
         id: StructuralDomainId,
         carrier: StructuralTypeId,
         path: &[StructuralPathSegment],
-        demand: DefaultDemand,
+        demand: DefaultDemand<'_>,
     ) -> Judged<Vec<StructuralDomainId>> {
         let mut named = Vec::new();
         let row = self
@@ -540,9 +540,14 @@ impl<'a> DefaultRequirements<'a> {
         )
     }
 
-    /// Every clause used for snapshot demand, including nested type defaults.
-    /// This inventory supplies no assumptions about those contents.
-    pub fn declared(&self) -> Judged<Vec<DefaultRequirement>> {
+    /// Default clauses needed to name held storage. A read-only machine may
+    /// supply the literal indices its reads can select. An explicit projected
+    /// qualification always retains its own path. Restoration separately walks
+    /// the full declared extent of zeroed arrays.
+    pub fn declared(
+        &self,
+        observed_indices: Option<&std::collections::BTreeSet<u64>>,
+    ) -> Judged<Vec<DefaultRequirement>> {
         let mut result = Vec::new();
         for (place, ty, _) in &self.declared.declared {
             if self
@@ -557,7 +562,7 @@ impl<'a> DefaultRequirements<'a> {
                 *place,
                 &mut Vec::new(),
                 *ty,
-                DefaultDemand::Snapshot,
+                DefaultDemand::Snapshot(observed_indices),
                 &mut Vec::new(),
                 &mut result,
             )?;
@@ -586,7 +591,7 @@ impl<'a> DefaultRequirements<'a> {
         root: PlaceId,
         path: &mut Vec<StructuralPathSegment>,
         carrier: StructuralTypeId,
-        demand: DefaultDemand,
+        demand: DefaultDemand<'_>,
         active: &mut Vec<StructuralTypeId>,
         result: &mut Vec<DefaultRequirement>,
     ) -> Judged<()> {
@@ -601,8 +606,15 @@ impl<'a> DefaultRequirements<'a> {
                 element,
                 length: terminal_psi::ArrayExtent::Literal(length),
             } => {
-                let mut all = self.type_has_defaults(*element)?;
+                let element_has_defaults = self.type_has_defaults(*element)?;
                 let mut selected = Vec::new();
+                let mut all = element_has_defaults;
+                if let DefaultDemand::Snapshot(Some(indices)) = demand {
+                    if element_has_defaults {
+                        selected.extend(indices.range(..*length).copied());
+                    }
+                    all = false;
+                }
                 if let Some(row) = self.declared.row(root) {
                     for qualified in &row.2.projected {
                         let Some(suffix) =
@@ -695,7 +707,7 @@ impl<'a> DefaultRequirements<'a> {
         root: PlaceId,
         path: &mut Vec<StructuralPathSegment>,
         fields: &[terminal_psi::StructuralFieldDeclaration],
-        demand: DefaultDemand,
+        demand: DefaultDemand<'_>,
         active: &mut Vec<StructuralTypeId>,
         result: &mut Vec<DefaultRequirement>,
     ) -> Judged<()> {
