@@ -32,7 +32,16 @@ fn workspace_checks_its_returned_members_and_named_checks_select_only_one() {
         fs::remove_dir_all(&root).unwrap();
     }
     fs::create_dir_all(&root).unwrap();
-    fs::write(root.join("build.omg"), "machine build(b: @mutable Build) { Build::member(b, \"alpha\"); roster(b); }\nmachine roster(b: @mutable Build) { Build::member(b, \"nested/beta\"); }").unwrap();
+    fs::write(
+        root.join("build.omg"),
+        r#"machine build(b: @mutable Build) { Build::member(b, "alpha"); roster(b, true); }
+machine roster(b: @mutable Build, enabled: bool) {
+    transition enabled { true -> listed(b), false -> decoy(b), }
+    machine listed(b: @mutable Build) { Build::member(b, "nested/beta"); }
+    machine decoy(b: @mutable Build) { Build::member(b, "undeclared"); }
+}"#,
+    )
+    .unwrap();
     let good = "public machine value() -> u64 { 1u64 }";
     let broken = "public machine unused_bad(count: u64) -> u64 { count + 1u64 }";
     member(&root, "alpha", "first", good);
