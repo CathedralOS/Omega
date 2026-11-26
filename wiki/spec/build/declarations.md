@@ -148,6 +148,38 @@ root/provider selections. It is not a new role or target profile.
 [Staged products](scoped_execution.md#staged-products-and-failure) defines
 completion and whole-result publication.
 
+### Successor package and directories
+
+Named decision: `successor-package-and-directories`.
+
+An interpreted Build product has one package root and may supply additional
+runtime directory mappings to the immediate successor. When `package_root`
+is omitted, the successor uses the current captured package. The parent may
+instead supply a directory view it holds, such as a directory containing a
+generator’s output. The plan retains an owned view or a borrow valid through
+handoff. After the preparing Build returns and its dependencies join, the
+driver freezes that view once. It resolves `entry` and local imports within
+this snapshot. External imports use the ordinary registered package bindings.
+
+The successor sees that same frozen package read-only and receives fresh,
+private, bounded writable scratch. Omitting `directories` and supplying an
+empty list both select this default. An additional mapping supplies a guest
+path, a directory view held by the parent, and read-only or read-write access
+within the parent's authority. A mapped directory is available to runtime
+filesystem calls. It does not supply a second package root. The grant ends
+at this successor unless explicitly delegated onward.
+
+For example, a parent can select a generated directory as `package_root` and
+`configure.omg` as its entry. If the parent also maps an SDK at `/sdk`
+read-only, the successor can read SDK data while it runs. With an empty
+mapping list it can still import and read its generated `parser.omg`, while
+the parent's SDK and output directory stay private.
+
+The same rules apply to confined disk directories and views with other
+backing. They use ordinary filesystem provision and admission. A registered
+dependency's explicit override follows the separate
+[child filesystem contract](scoped_execution.md#supplying-a-filesystem-to-a-child-build).
+
 ## Names, lineage, and resolution
 
 Names begin with an ASCII lowercase letter, followed by lowercase letters,
