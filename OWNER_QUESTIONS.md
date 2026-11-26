@@ -96,3 +96,24 @@ path and file operations. Neither provides this whole-view operand.
 [Current Build operations](source-rust/subsystems/compiler/build/inputs/declarations/prelude/modules/build_operations.omg) ·
 [Filesystem authority](source/library/core/filesystem_authority.omg) ·
 [System filesystem service](source/library/system/filesystem.omg)
+
+<a id="validation-of-incoming-build-libraries"></a>
+### 2. Can a Build request a full check of a library it received from its caller?
+
+The board's configuration imports an already admitted layout generator. It can
+use that generator without adding it to the firmware. If the board wants every
+declaration in the generator checked on the Build host, what value does it pass
+to the validator? The validation contract makes supplied Build libraries
+eligible and takes a dependency registration. Looking up the incoming generator
+returns a `PackageBinding`. Adding that binding produces a registration but
+also adds a Product dependency. A preparing caller can already validate its own
+registration before handing the generator to the board.
+[Board configuration and forwarding](wiki/spec/packages/staged_inputs.md#from-source-to-the-next-stage) ·
+[Eligible validation subjects](wiki/spec/build/validation_subjects.md#buildvalidate) ·
+[Dependency operations](source/library/build/dependency.omg)
+
+**Recommend accepting the incoming binding as a validation operand.** The
+binding already names the admitted occurrence. Checking it would use its Build
+host context and leave the board's Product dependencies alone. The alternative
+is to give the supplying caller sole responsibility for requesting the full
+check. That choice would narrow the eligibility rule for the receiving Build.
