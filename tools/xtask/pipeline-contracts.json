@@ -4729,9 +4729,9 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/selected_execution.rs",
       "item": "impl:SelectedProviderResult::implementation#1",
       "kind": "carried_record",
-      "meaning": "Read the frozen target, entry, fold, trust inputs and provider realization retained by the checked or published compilation.",
+      "meaning": "Read the frozen target, entry, fold and provider realization retained by the checked or published compilation.",
       "producer": "target-bound program planning",
-      "signature": "c78e8b893dfbcd56365c7b3186eb7cb36089150da18281df00e846a215b21f3e"
+      "signature": "64fdb26ab1063d3f311107d05b031ad48fb86782cb4242c6862dd520acdfb877"
     },
     {
       "consumers": [
@@ -4862,19 +4862,6 @@
       "meaning": "Read the selected deployment or the unscoped state.",
       "producer": "03 native program planning",
       "signature": "1f2e05b6976d18e5454a641fb73ca90a03cf36bf68414acf678f55ad45990e2d"
-    },
-    {
-      "consumers": [
-        "compiler target settlement",
-        "checked and published compilations",
-        "native entry planning and package review"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/selected_execution.rs",
-      "item": "impl:SelectedProviderResult::method:trust_evidence#1",
-      "kind": "carried_record",
-      "meaning": "Project program, target, selected plans and native binding evidence for independent root grant verification.",
-      "producer": "03 native program planning",
-      "signature": "5bc41f5c433f3432452997ae303af89b3c15d16464ca9b2824d4a02f278d2641"
     },
     {
       "consumers": [
@@ -16565,17 +16552,6 @@
         "Rust test harness"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/verification/target-providers/target_providers.rs",
-      "item": "tests::function:an_uncalled_closed_invocation_still_forms_a_selected_cycle#1",
-      "kind": "test_support",
-      "meaning": "Exercise an uncalled closed invocation still forms a selected cycle against the canonical provider fixture.",
-      "producer": "provider correspondence tests",
-      "signature": "eb5576c807f3ffa809c58ba96eea602d5328c9094ebad6ac873e26eaf31e76d4"
-    },
-    {
-      "consumers": [
-        "Rust test harness"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/verification/target-providers/target_providers.rs",
       "item": "tests::function:canonical_instances_replace_source_rows_and_keep_uncalled_inherited_coordinates#1",
       "kind": "test_support",
       "meaning": "Exercise canonical instances replace source rows and keep uncalled inherited coordinates against the canonical provider fixture.",
@@ -16679,7 +16655,7 @@
       "kind": "test_support",
       "meaning": "Exercise invocation rows consume all closed headers instead of the open template against the canonical provider fixture.",
       "producer": "provider correspondence tests",
-      "signature": "207b838bfb64cb6967100a240c28c7eea633752a32993f730e549814789e7feb"
+      "signature": "98c587e0bd98417776bc0f1947c29f6ecd2c17c9d22e1a68e7dce818a982bdda"
     },
     {
       "consumers": [
@@ -16793,170 +16769,38 @@
     },
     {
       "consumers": [
-        "checked compilation",
-        "executable publication"
+        "Rust test harness"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence/src/trust/selected.rs",
-      "item": "SelectedTrustEvidence::field:bindings#1",
-      "kind": "carried_record",
-      "meaning": "Evaluated Build occurrences admitted for these native boundary declarations.",
-      "producer": "provider correspondence verifier",
-      "signature": "9fbb3c8f61e1ea62fcca19a3303d1ed2e63f77f4a2096a09d177c3f9033071a6"
-    },
-    {
-      "consumers": [
-        "checked compilation",
-        "executable publication"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence/src/trust/selected.rs",
-      "item": "SelectedTrustEvidence::field:identities#1",
-      "kind": "carried_record",
-      "meaning": "Identity table interpreting the selected native binding receipts.",
-      "producer": "provider correspondence verifier",
-      "signature": "a434ad0478d155bcc027f28b50ec15ca931e4228712501aa4de9afa2f59a4fb6"
-    },
-    {
-      "consumers": [
-        "checked compilation",
-        "executable publication"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence/src/trust/selected.rs",
-      "item": "SelectedTrustEvidence::field:leaves#1",
-      "kind": "carried_record",
-      "meaning": "Native boundary declarations and callables selected on the target.",
-      "producer": "provider correspondence verifier",
-      "signature": "22e6a44497ca6d92cf0d1571d6dce7810aad0d4bc69369b572fd06ca6b425d37"
-    },
-    {
-      "consumers": [
-        "checked compilation",
-        "executable publication"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence/src/trust/selected.rs",
-      "item": "SelectedTrustEvidence::field:plans#1",
-      "kind": "carried_record",
-      "meaning": "Admitted provider plans used to resolve a grant against an exact application.",
-      "producer": "provider correspondence verifier",
-      "signature": "113f4f5d3d846f7f18b7d25eebab4362149c0773a62c54bb4becda9cd656c8a4"
-    },
-    {
-      "consumers": [
-        "checked compilation",
-        "executable publication"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence/src/trust/selected.rs",
-      "item": "SelectedTrustEvidence::field:program#1",
-      "kind": "carried_record",
-      "meaning": "Exact Terminal identity for which native requirement evidence was admitted.",
-      "producer": "provider correspondence verifier",
-      "signature": "a4534e4eaf128a1d65d25b19dd08fa7604c91710efa55dcbd967f6889a74b84f"
-    },
-    {
-      "consumers": [
-        "checked compilation",
-        "executable publication"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence/src/trust/selected.rs",
-      "item": "SelectedTrustEvidence::field:target#1",
-      "kind": "carried_record",
-      "meaning": "The chosen native target for resolving boundary grants.",
-      "producer": "provider correspondence verifier",
-      "signature": "0ab6f7348715dc42e072c8a0ea916299bc421274b6d734c7d368b5040dbd47c4"
-    },
-    {
-      "consumers": [
-        "checked compilation",
-        "executable publication"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence/src/trust/selected.rs",
-      "item": "impl:SelectedTrustEvidence < '_ >::implementation#1",
+      "file": "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence/src/trust/mod.rs",
+      "item": "module:tests#1",
       "kind": "definition",
-      "meaning": "Verify root grants against the provider plans and native leaves selected for this target.",
+      "meaning": "Unit tests for matching authored provider grants to the selected plans.",
       "producer": "provider correspondence verifier",
-      "signature": "855624f12f92a158da5d3dbdd8c1be60e5a83169a3a45998cd98c95189b9bf66"
-    },
-    {
-      "consumers": [
-        "checked compilation",
-        "executable publication"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence/src/trust/selected.rs",
-      "item": "impl:SelectedTrustEvidence < '_ >::method:admit_root_grants#1",
-      "kind": "checker",
-      "meaning": "Join selected provider plans and native evidence to the authored root obligations.",
-      "producer": "provider correspondence verifier",
-      "signature": "ec534c7c6b2d3435788fe278c1312914e9da9b177ca2a19500dd76c46e6b5529"
-    },
-    {
-      "consumers": [
-        "checked compilation",
-        "executable publication"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence/src/trust/selected.rs",
-      "item": "impl:SelectedTrustEvidence < '_ >::method:native_grant_evidence#1",
-      "kind": "checker",
-      "meaning": "Match a boundary grant to one selected declaration and callable on the exact published program.",
-      "producer": "provider correspondence verifier",
-      "signature": "aaef3d7519a3c49ce95e5bb2b5b4ac4548eb81acca3322e8f9e4d96835c7ce04"
+      "signature": "f07752b0a4c457ab0704746df8c86e56958e315c3149240e09a6cdb0d3dc2a02"
     },
     {
       "consumers": [
         "package review of Build provider grants",
         "locked root provider admission"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence/src/trust/selected.rs",
-      "item": "use:super :: provider_grants :: selected_provider_grants#1",
+      "file": "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence/src/trust/mod.rs",
+      "item": "module:provider_grants#1",
+      "kind": "checker",
+      "meaning": "Resolve authored provider grants against the selected target plans.",
+      "producer": "provider correspondence verifier",
+      "signature": "3eed337d398696b1937020fcbe7f820e92c7f202b330b028fc6bde46a3df3462"
+    },
+    {
+      "consumers": [
+        "package review of Build provider grants",
+        "locked root provider admission"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence/src/trust/mod.rs",
+      "item": "use:provider_grants :: selected_provider_grants#1",
       "kind": "checker",
       "meaning": "Resolve each Build provider grant to its unique declaration, package and application in the selected plans.",
       "producer": "provider correspondence verifier",
-      "signature": "a2a3013bed3c11eb2315cd4799d88de53a8bcde619bd863c0cc8126898156bae"
-    },
-    {
-      "consumers": [
-        "checked compilation",
-        "executable publication"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence/src/trust/selected.rs",
-      "item": "impl:SelectedTrustEvidence < '_ >::native_grant_evidence::function:key#1",
-      "kind": "definition",
-      "meaning": "Sort and search selected native declarations by their full declaration and callable identities.",
-      "producer": "provider correspondence verifier",
-      "signature": "7022e8c17aebf351dec1a982ccaf6d67a22eaa41566a0a7624a50d1df6de6655"
-    },
-    {
-      "consumers": [
-        "checked compilation",
-        "executable publication"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence/src/trust/selected.rs",
-      "item": "struct:SelectedTrustEvidence#1",
-      "kind": "carried_record",
-      "meaning": "Read-only selected native evidence used to verify authored grants.",
-      "producer": "provider correspondence verifier",
-      "signature": "aa1e546f096ca6691109a0fbc669a1af4ba79e4e6a599452dbb1a97b94df1d02"
-    },
-    {
-      "consumers": [
-        "checked compilation",
-        "executable publication"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence/src/trust/selected.rs",
-      "item": "use:diagnostics :: Diagnostic#1",
-      "kind": "definition",
-      "meaning": "Uses diagnostics::Diagnostic in this boundary operation.",
-      "producer": "provider correspondence verifier",
-      "signature": "6dc8da6fc569f66b7943fd1feb5863110373769abb3ac891cbccc6139b87d785"
-    },
-    {
-      "consumers": [
-        "root grant admission"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence/src/trust/selected.rs",
-      "item": "impl:SelectedTrustEvidence < '_ >::native_grant_evidence::use:symbols :: root_grants :: RootGrantSubject#1",
-      "kind": "definition",
-      "meaning": "Compare the native grant against the package’s root grant subject.",
-      "producer": "selected provider trust verification",
-      "signature": "dc1156ef46664e6302c444477f974a8849fa603a943c62c81c51fcf41e5ef26a"
+      "signature": "805aa14f4b90ff4043617dcf78bc01e2fc7cbaf3154458d61baba0a1424d56bd"
     },
     {
       "consumers": [
@@ -22896,7 +22740,7 @@
       ]
     },
     {
-      "path": "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence/src/trust/selected.rs",
+      "path": "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence/src/trust/mod.rs",
       "allowed_kinds": [
         "carried_record",
         "checker",

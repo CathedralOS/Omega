@@ -98,59 +98,24 @@ fn function(destinations: &[Option<u32>]) -> SelectedFunction {
     }
 }
 #[test]
-fn installed_publication_must_reach_work_without_a_cycle_or_refusal() {
+fn unreachable_instructions_do_not_precede_work() {
     let valid = function(&[Some(1), Some(2), None, None]);
-    let graph = Graph::new(&valid, operation()).unwrap();
+    let graph = Graph::new(&valid).unwrap();
     assert!(
         graph
-            .only_success_path(
-                SelectedInstructionId(0),
-                SelectedInstructionId(4),
-                SelectedBlockId(3)
-            )
-            .is_ok()
+            .precedes(SelectedInstructionId(0), SelectedInstructionId(4))
+            .unwrap()
     );
     let unreachable = function(&[Some(1), None, None, None]);
-    let graph = Graph::new(&unreachable, operation()).unwrap();
+    let graph = Graph::new(&unreachable).unwrap();
     assert!(
         !graph
             .precedes(SelectedInstructionId(0), SelectedInstructionId(4))
             .unwrap()
     );
-    assert!(
-        graph
-            .only_success_path(
-                SelectedInstructionId(0),
-                SelectedInstructionId(4),
-                SelectedBlockId(3)
-            )
-            .is_err()
-    );
-    let cycle = function(&[Some(1), Some(0), None, None]);
-    assert!(
-        Graph::new(&cycle, operation())
-            .unwrap()
-            .only_success_path(
-                SelectedInstructionId(0),
-                SelectedInstructionId(4),
-                SelectedBlockId(3)
-            )
-            .is_err()
-    );
-    let refusal = function(&[Some(3), Some(2), None, None]);
-    assert!(
-        Graph::new(&refusal, operation())
-            .unwrap()
-            .only_success_path(
-                SelectedInstructionId(0),
-                SelectedInstructionId(4),
-                SelectedBlockId(3)
-            )
-            .is_err()
-    );
 }
 
-fn matched_guard(bypass: bool) -> SelectedFunction {
+fn branching() -> SelectedFunction {
     use register_model::{RegisterClassId, RegisterOperandAccess};
     use selected_instructions::{
         SelectedOperand, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
@@ -186,10 +151,7 @@ fn matched_guard(bypass: bool) -> SelectedFunction {
             entry_fixed_view: None,
         });
     }
-    for (block, register, yes, no) in [(1, 0, 2, 5), (3, 1, 5, 6)]
-        .into_iter()
-        .chain(bypass.then_some((2, 0, 3, 5)))
-    {
+    for (block, register, yes, no) in [(1, 0, 2, 5), (3, 1, 5, 6)] {
         let successor = |destination| SelectedSuccessor {
             role: SelectedSuccessorRole::OperationContinuation {
                 operation: operation(),
@@ -215,23 +177,10 @@ fn matched_guard(bypass: bool) -> SelectedFunction {
 }
 
 #[test]
-fn matched_capture_uses_its_guard_before_the_shared_advance() {
-    use super::expressions::{Expr, Expressions};
-    let function = matched_guard(false);
-    let graph = Graph::new(&function, operation()).unwrap();
-    let mut expressions = Expressions::new(&function, &graph).unwrap();
-    let (actual, guard) = graph
-        .require_iteration_guard_with_site(
-            &mut expressions,
-            &Expr::constant(1),
-            1,
-            SelectedInstructionId(4),
-            SelectedInstructionId(10),
-            SelectedBlockId(6),
-        )
-        .unwrap();
-    assert_eq!(actual, Expr::constant(1));
-    assert_eq!(guard, SelectedInstructionId(7));
+fn precedes_follows_branch_dominators() {
+    let function = branching();
+    let graph = Graph::new(&function).unwrap();
+    let guard = SelectedInstructionId(7);
     assert!(
         graph
             .precedes(SelectedInstructionId(0), SelectedInstructionId(6))
@@ -256,26 +205,6 @@ fn matched_capture_uses_its_guard_before_the_shared_advance() {
     assert!(
         graph
             .precedes(SelectedInstructionId(u32::MAX), guard)
-            .is_err()
-    );
-}
-
-#[test]
-fn matched_iteration_still_cannot_bypass_its_guard() {
-    use super::expressions::{Expr, Expressions};
-    let function = matched_guard(true);
-    let graph = Graph::new(&function, operation()).unwrap();
-    let mut expressions = Expressions::new(&function, &graph).unwrap();
-    assert!(
-        graph
-            .require_iteration_guard_with_site(
-                &mut expressions,
-                &Expr::constant(1),
-                1,
-                SelectedInstructionId(4),
-                SelectedInstructionId(10),
-                SelectedBlockId(6),
-            )
             .is_err()
     );
 }
