@@ -1,21 +1,17 @@
 public machine dependency(builder: @mutable BuildPlan, description: DependencyDescription) -> DependencyRegistration reaches BuildRequestOperations invokes BuildRequestOperations {
-    Build::request_dependency(builder, false, description.explicit_alias, description.alias, description.source, DependencyOptions {})
+    Build::request_dependency(builder, description.explicit_alias, description.alias, description.source, DependencyOptions {})
 }
 
 public machine dependency(builder: @mutable BuildPlan, source: Source) -> DependencyRegistration reaches BuildRequestOperations invokes BuildRequestOperations {
-    Build::request_dependency(builder, false, false, "", source, DependencyOptions {})
+    Build::request_dependency(builder, false, "", source, DependencyOptions {})
 }
 
 public machine dependency(builder: @mutable BuildPlan, source: Source, options: DependencyOptions) -> DependencyRegistration reaches BuildRequestOperations invokes BuildRequestOperations {
-    Build::request_dependency(builder, false, false, "", source, options)
+    Build::request_dependency(builder, false, "", source, options)
 }
 
 public machine dependency(builder: @mutable BuildPlan, description: DependencyDescription, options: DependencyOptions) -> DependencyRegistration reaches BuildRequestOperations invokes BuildRequestOperations {
-    Build::request_dependency(builder, false, description.explicit_alias, description.alias, description.source, options)
-}
-
-public machine build_dependency(builder: @mutable BuildPlan, description: DependencyDescription) -> DependencyRegistration reaches BuildRequestOperations invokes BuildRequestOperations {
-    Build::request_dependency(builder, true, description.explicit_alias, description.alias, description.source, DependencyOptions {})
+    Build::request_dependency(builder, description.explicit_alias, description.alias, description.source, options)
 }
 
 // Checking the selected dependency is scheduled after this Build returns.
@@ -30,26 +26,26 @@ public machine prepare_dependency(builder: @mutable BuildPlan, registered: Depen
     suspend BuildRequestOperations::prepare_dependency(builder, registered);
 }
 
-public machine request_dependency(builder: @BuildPlan, build_scope: bool, explicit_alias: bool, alias: @[u8], source: Source, max_reach: DependencyOptions) -> DependencyRegistration reaches BuildRequestOperations {
+machine request_dependency(builder: @BuildPlan, explicit_alias: bool, alias: @[u8], source: Source, max_reach: DependencyOptions) -> DependencyRegistration reaches BuildRequestOperations {
     transition source {
-        Source::Path { location } -> Build::request_path(builder, build_scope, explicit_alias, alias, location, max_reach),
-        Source::Git { repository, revision, selection } -> Build::request_git(builder, build_scope, explicit_alias, alias, repository, revision, selection, max_reach),
+        Source::Path { location } -> Build::request_path(builder, explicit_alias, alias, location, max_reach),
+        Source::Git { repository, revision, selection } -> Build::request_git(builder, explicit_alias, alias, repository, revision, selection, max_reach),
     }
 }
 
-machine request_path(builder: @BuildPlan, build_scope: bool, explicit_alias: bool, alias: @[u8], location: @[u8], max_reach: DependencyOptions) -> DependencyRegistration reaches BuildRequestOperations {
-    BuildRequestOperations::register_path_dependency(builder, build_scope, explicit_alias, alias, location, max_reach)
+machine request_path(builder: @BuildPlan, explicit_alias: bool, alias: @[u8], location: @[u8], max_reach: DependencyOptions) -> DependencyRegistration reaches BuildRequestOperations {
+    BuildRequestOperations::register_path_dependency(builder, explicit_alias, alias, location, max_reach)
 }
 
-machine request_git(builder: @BuildPlan, build_scope: bool, explicit_alias: bool, alias: @[u8], repository: @[u8], revision: @[u8], selection: PackageSelection, max_reach: DependencyOptions) -> DependencyRegistration reaches BuildRequestOperations {
+machine request_git(builder: @BuildPlan, explicit_alias: bool, alias: @[u8], repository: @[u8], revision: @[u8], selection: PackageSelection, max_reach: DependencyOptions) -> DependencyRegistration reaches BuildRequestOperations {
     transition selection {
-        PackageSelection::Root -> Build::request_selected_git(builder, build_scope, explicit_alias, alias, repository, revision, false, "", max_reach),
-        PackageSelection::Named { package } -> Build::request_selected_git(builder, build_scope, explicit_alias, alias, repository, revision, true, package, max_reach),
+        PackageSelection::Root -> Build::request_selected_git(builder, explicit_alias, alias, repository, revision, false, "", max_reach),
+        PackageSelection::Named { package } -> Build::request_selected_git(builder, explicit_alias, alias, repository, revision, true, package, max_reach),
     }
 }
 
-machine request_selected_git(builder: @BuildPlan, build_scope: bool, explicit_alias: bool, alias: @[u8], repository: @[u8], revision: @[u8], named_package: bool, package: @[u8], max_reach: DependencyOptions) -> DependencyRegistration reaches BuildRequestOperations {
-    BuildRequestOperations::register_git_dependency(builder, build_scope, explicit_alias, alias, repository, revision, named_package, package, max_reach)
+machine request_selected_git(builder: @BuildPlan, explicit_alias: bool, alias: @[u8], repository: @[u8], revision: @[u8], named_package: bool, package: @[u8], max_reach: DependencyOptions) -> DependencyRegistration reaches BuildRequestOperations {
+    BuildRequestOperations::register_git_dependency(builder, explicit_alias, alias, repository, revision, named_package, package, max_reach)
 }
 
 // Publish a snapshot of these bytes under a package-relative source filename.

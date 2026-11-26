@@ -29,7 +29,6 @@ pub(super) fn project_direct_dependencies(
             .map(|alias_handle| project_alias_literal(syntax_trees, alias_handle))
             .transpose()?;
         projected.rows.push(super::EditableDependency {
-            purpose: row.purpose(),
             request: project_source_literal(syntax_trees, row.source(), explicit_alias)?,
             source: row.source(),
         });

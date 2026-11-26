@@ -1,15 +1,13 @@
 /*
 Editable dependency projection from parsed `build.omg` syntax trees.
 
-`extract_scoped_from_source` projects every unconditional direct
-dependency row in authored order, tagged with the scope it authorizes, so
-edit planning can correlate row positions to one flat list across both
-purposes. Only the executed Build determines which product it produces.
+The editor projects unconditional, direct Product registrations in source
+order. The returned Build plan decides the actual dependencies.
 */
 
+use super::DependencySourceRequest;
 use super::error::DependencyProjectionError;
 use super::policy::reject_unprojected_dependency_syntax;
-use super::{DependencyPurpose, DependencySourceRequest};
 use crate::declarations::editable_build;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::ExpressionHandle;
@@ -17,7 +15,6 @@ use syntax_trees::expression::ExpressionHandle;
 mod calls;
 
 pub(crate) struct EditableDependency {
-    pub purpose: DependencyPurpose,
     pub request: DependencySourceRequest,
     pub source: ExpressionHandle,
 }
@@ -28,14 +25,14 @@ pub(crate) struct EditableSource<'a> {
     pub rows: Vec<EditableDependency>,
 }
 
-pub(crate) fn extract_scoped_from_source(
+pub(crate) fn extract_requests_from_source(
     source: &str,
-) -> Result<Vec<(DependencyPurpose, DependencySourceRequest)>, DependencyProjectionError> {
+) -> Result<Vec<DependencySourceRequest>, DependencyProjectionError> {
     let parsed = parse_build(source)?;
     let entry = project_entry(&parsed.syntax)?;
     Ok(project_editable_dependencies(&parsed.syntax, &entry)?
         .into_iter()
-        .map(|row| (row.purpose, row.request))
+        .map(|row| row.request)
         .collect())
 }
 
