@@ -52,7 +52,7 @@ pub struct ExecutionReachPolicy {
     >,
 }
 
-pub type UnsafeServices = std::collections::BTreeMap<crate::ServiceId, UnsafeAtom>;
+pub type UnsafeServices = arena::IdTable<crate::ServiceId, Option<UnsafeAtom>>;
 
 /// The dependency selected at an emitted direct-call site. Package imports are
 /// requester-local; the callable's canonical declaration alone cannot name this edge.

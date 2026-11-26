@@ -764,17 +764,17 @@ impl AcceptedTerminalSource {
                 identities.insert(identity, atom);
             }
         }
+        if identities.is_empty() {
+            return Ok(Default::default());
+        }
         let module = self.module();
-        Ok(module
-            .interfaces
-            .services
-            .iter()
-            .filter_map(|row| {
-                identities
-                    .get(module.identities.text(row.identity)?)
-                    .map(|atom| (row.id, *atom))
+        semantic_vocabulary::dependency_reach::UnsafeServices::from_rows(
+            module.interfaces.services.iter().map(|row| {
+                let atom = module.identities.text(row.identity)
+                    .and_then(|identity| identities.get(identity)).copied();
+                (row.id, atom)
             })
-            .collect())
+        ).map_err(|_| vec![Diagnostic::error("published service identities are not dense")])
     }
 
     pub fn source(&self) -> &Arc<FrozenTypedTrees> {

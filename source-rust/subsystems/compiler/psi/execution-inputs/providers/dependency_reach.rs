@@ -332,13 +332,13 @@ pub fn check(
             // A rejected concrete child explains the operation even if its reporting parent
             // appears earlier in the service table.
             let (specific, other) =
-                services.partition::<Vec<_>, _>(|id| unsafe_services.contains_key(id));
+                services.partition::<Vec<_>, _>(|id| unsafe_services.get(**id).is_some_and(Option::is_some));
             for &service in specific.into_iter().chain(other) {
                 let atom = module
                     .service(service)
                     .and_then(|decl| module.identities.text(decl.identity))
                     .ok_or_else(|| error("dependency reach lost an exact service identity"))?;
-                let required = unsafe_services.get(&service);
+                let required = unsafe_services.get(service).and_then(Option::as_ref);
                 let product = gate.map(|edge| edge.package).or(policy.root);
                 let withheld_by_product = required.is_some_and(|required| {
                     !policy
