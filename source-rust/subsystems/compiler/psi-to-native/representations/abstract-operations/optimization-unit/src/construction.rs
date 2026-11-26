@@ -9,13 +9,12 @@ Terminal module catalogs and frontier facts are attached.
 */
 
 use super::{
-    AbstractFunction, AbstractOperation, AbstractOperationPlan, AbstractSuccessor, Arc, BTreeSet,
-    BlockId, EffectLink, MachineId, ObligationId, OperationId, OptimizationBlock, OptimizationEdge,
-    OptimizationFact, OptimizationNode, OptimizationUnitIdentity, OwnershipEvent, PlaceId,
-    PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, ScalarType,
-    StructuralPlaceDeclaration, StructuralPlaceKind, TerminalRootServiceReach, ValueDefinition,
-    ValueDefinitionSite, ValueId, ValueUse, WorkScheduleIdentity, WorkSettlement,
-    recompute_psi_optimization_unit_identity,
+    AbstractFunction, AbstractOperation, AbstractOperationPlan, Arc, BTreeSet, BlockId, EffectLink,
+    MachineId, ObligationId, OperationId, OptimizationBlock, OptimizationEdge, OptimizationFact,
+    OptimizationNode, OptimizationUnitIdentity, OwnershipEvent, PlaceId, PsiOptimizationFunction,
+    PsiOptimizationUnit, PsiProvenance, ScalarType, StructuralPlaceDeclaration,
+    StructuralPlaceKind, TerminalRootServiceReach, ValueDefinition, ValueDefinitionSite, ValueId,
+    ValueUse, WorkScheduleIdentity, WorkSettlement, recompute_psi_optimization_unit_identity,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -262,52 +261,62 @@ pub(super) fn operation_edges(operation: &AbstractOperation) -> Vec<Optimization
             bindings,
             structural_bindings,
             cleanup_actions,
-        } => vec![OptimizationEdge {
-            structural_bindings: structural_bindings.clone(),
-            psi_edge: *psi_edge,
-            target: *target,
-            bindings: bindings.clone(),
-            cleanup_actions: cleanup_actions.clone(),
-            provenance: vec![PsiProvenance::Edge(*psi_edge)],
-            work: vec![WorkSettlement {
-                site: PsiProvenance::Edge(*psi_edge),
-                units: 1,
-            }],
-        }],
+        } => vec![edge(
+            *psi_edge,
+            *target,
+            bindings,
+            structural_bindings,
+            cleanup_actions,
+        )],
         O::Conditional {
             when_true,
             when_false,
             ..
-        } => vec![successor_edge(when_true), successor_edge(when_false)],
+        } => [when_true, when_false]
+            .into_iter()
+            .map(|successor| {
+                edge(
+                    successor.psi_edge,
+                    successor.target,
+                    &successor.bindings,
+                    &successor.structural_bindings,
+                    &successor.cleanup_actions,
+                )
+            })
+            .collect(),
         O::StructuralCase { cases, .. } => cases
             .iter()
-            .map(|case| OptimizationEdge {
-                psi_edge: case.psi_edge,
-                target: case.target,
-                bindings: Vec::new(),
-                structural_bindings: case.structural_bindings.clone(),
-                cleanup_actions: case.cleanup_actions.clone(),
-                provenance: vec![PsiProvenance::Edge(case.psi_edge)],
-                work: vec![WorkSettlement {
-                    site: PsiProvenance::Edge(case.psi_edge),
-                    units: 1,
-                }],
+            .map(|case| {
+                edge(
+                    case.psi_edge,
+                    case.target,
+                    &[],
+                    &case.structural_bindings,
+                    &case.cleanup_actions,
+                )
             })
             .collect(),
         _ => Vec::new(),
     }
 }
 
-fn successor_edge(successor: &AbstractSuccessor) -> OptimizationEdge {
+/// Every edge settles one unit of work at its own Psi edge.
+fn edge(
+    psi_edge: semantic_vocabulary::EdgeId,
+    target: BlockId,
+    bindings: &[abstract_operations::ValueBinding],
+    structural_bindings: &[abstract_operations::AbstractStructuralBinding],
+    cleanup_actions: &[terminal_psi::TerminalAffineCleanupAction],
+) -> OptimizationEdge {
     OptimizationEdge {
-        structural_bindings: successor.structural_bindings.clone(),
-        psi_edge: successor.psi_edge,
-        target: successor.target,
-        bindings: successor.bindings.clone(),
-        cleanup_actions: successor.cleanup_actions.clone(),
-        provenance: vec![PsiProvenance::Edge(successor.psi_edge)],
+        structural_bindings: structural_bindings.to_vec(),
+        psi_edge,
+        target,
+        bindings: bindings.to_vec(),
+        cleanup_actions: cleanup_actions.to_vec(),
+        provenance: vec![PsiProvenance::Edge(psi_edge)],
         work: vec![WorkSettlement {
-            site: PsiProvenance::Edge(successor.psi_edge),
+            site: PsiProvenance::Edge(psi_edge),
             units: 1,
         }],
     }
@@ -933,7 +942,12 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
         O::PackedIntegerUnary { source, result, .. } => {
             places.extend([result.place, source.place]);
         }
-        O::PackedIntegerBinary { left, right, result, .. } => {
+        O::PackedIntegerBinary {
+            left,
+            right,
+            result,
+            ..
+        } => {
             places.extend([result.place, left.place, right.place]);
         }
         O::StructuralLeafCopy { source, result, .. } => {

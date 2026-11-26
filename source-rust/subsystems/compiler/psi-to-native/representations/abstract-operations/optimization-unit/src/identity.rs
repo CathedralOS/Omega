@@ -154,20 +154,9 @@ pub(crate) mod carrier_encoding {
         encode_multiplicity(bytes, parameter.multiplicity);
         encode_access(bytes, parameter.access);
         encode_ids(bytes, &parameter.qualifications);
-        bytes.slice(
-            &parameter.projected_qualifications,
-            |bytes, qualification| {
-                bytes.slice(&qualification.path, encode_structural_path_segment);
-                bytes.id(qualification.domain);
-            },
-        );
-        bytes.slice(
-            &parameter.additional_input_qualifications,
-            |bytes, qualification| {
-                bytes.slice(&qualification.path, encode_structural_path_segment);
-                bytes.id(qualification.domain);
-            },
-        );
+        use super::structural_encoding::encode_projected_qualification_roster as roster;
+        roster(bytes, &parameter.projected_qualifications);
+        roster(bytes, &parameter.additional_input_qualifications);
     }
 
     pub(super) fn encode_structural_binding(
@@ -1014,8 +1003,14 @@ pub(crate) mod proposition_encoding {
                 bytes.finish()
             };
             let mere = |inner| Proposition::IsMere(Box::new(inner));
-            assert_ne!(encoded(mere(Proposition::Truth)), encoded(Proposition::Truth));
-            assert_ne!(encoded(mere(Proposition::Truth)), encoded(mere(Proposition::Falsehood)));
+            assert_ne!(
+                encoded(mere(Proposition::Truth)),
+                encoded(Proposition::Truth)
+            );
+            assert_ne!(
+                encoded(mere(Proposition::Truth)),
+                encoded(mere(Proposition::Falsehood))
+            );
         }
 
         #[test]
@@ -1316,9 +1311,9 @@ pub(crate) mod structural_encoding {
         ProgramLocalRootIntroductionSchema, ProviderCandidateConformance,
         RetainedBorrowContentProjection, RetainedBorrowCustody, RetainedBorrowPlace,
         RetainedBorrowPlaceRoot, StructuralDomainDeclaration, StructuralDomainRequirement,
-        StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
-        StructuralOperationResult, StructuralPlaceDeclaration, StructuralPlaceKind,
-        StructuralTypeDeclaration, StructuralTypeShape, TerminalAffineCleanupAction,
+        StructuralFieldDeclaration, StructuralFieldType, StructuralOperationResult,
+        StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeDeclaration,
+        StructuralTypeShape, TerminalAffineCleanupAction,
     };
     use terminal_psi::BoundaryMachineResult;
 
@@ -1981,13 +1976,7 @@ pub(crate) mod structural_encoding {
             bytes.id(parameter.structural_type);
             encode_multiplicity(bytes, parameter.multiplicity);
             encode_ids(bytes, &parameter.qualifications);
-            bytes.slice(
-                &parameter.projected_qualifications,
-                |bytes, qualification| {
-                    bytes.slice(&qualification.path, encode_structural_path_segment);
-                    bytes.id(qualification.domain);
-                },
-            );
+            encode_projected_qualification_roster(bytes, &parameter.projected_qualifications);
         });
         bytes.slice(
             &candidate.refinement.positional_parameters,
@@ -2335,11 +2324,10 @@ pub(crate) mod structural_encoding {
         super::carrier_encoding::encode_structural_argument(bytes, &cleanup.subject);
         bytes.id(cleanup.structural_type);
         bytes.id(cleanup.cleanup_machine);
-        bytes.slice(&cleanup.claim_transfers, |bytes, transfer| {
-            bytes.id(transfer.claim);
-            bytes.u32(transfer.argument_index);
-            bytes.slice(&transfer.path, encode_structural_path_segment);
-        });
+        bytes.slice(
+            &cleanup.claim_transfers,
+            super::operation_encoding::calls_and_effects::encode_claim_transfer,
+        );
         encode_ids(bytes, &cleanup.requirement_obligations);
     }
 
@@ -2579,11 +2567,7 @@ pub(crate) mod structural_encoding {
             BoundaryMachineResult::Structural(result) => {
                 bytes.u8(2);
                 bytes.id(result.structural_type);
-                bytes.u8(match result.multiplicity {
-                    StructuralMultiplicity::Unrestricted => 1,
-                    StructuralMultiplicity::Affine => 2,
-                    StructuralMultiplicity::Linear => 3,
-                });
+                encode_multiplicity(bytes, result.multiplicity);
                 encode_ids(bytes, &result.qualifications);
                 encode_projected_qualification_roster(bytes, &result.projected_qualifications);
             }
@@ -3876,7 +3860,7 @@ pub(crate) mod operation_encoding {
         }
     }
 
-    mod calls_and_effects {
+    pub(super) mod calls_and_effects {
         use crate::identity::carrier_encoding::{
             encode_abstract_result, encode_ids, encode_scalar_type, encode_structural_argument,
             encode_structural_path_segment,
@@ -4115,7 +4099,7 @@ pub(crate) mod operation_encoding {
             }
         }
 
-        pub(super) fn encode_claim_transfer(
+        pub(in crate::identity) fn encode_claim_transfer(
             bytes: &mut CanonicalBytes,
             transfer: &terminal_psi::ClaimTransfer,
         ) {
