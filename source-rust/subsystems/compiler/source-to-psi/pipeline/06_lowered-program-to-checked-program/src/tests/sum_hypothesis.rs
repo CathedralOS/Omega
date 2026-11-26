@@ -17,7 +17,10 @@ const UNFOUNDED: &str = include_str!(
 fn proofs(source: &str) -> String {
     let start = source.find("data Peano").expect("the fixture's data");
     let end = source.find("data Main").expect("the fixture's entry state");
-    source[start..end].to_owned()
+    format!(
+        "use {{omega}}/language/core/foundation.omg as proof;\n{}",
+        &source[start..end]
+    )
 }
 
 fn judged(source: &str) -> Vec<RouteVerdict> {

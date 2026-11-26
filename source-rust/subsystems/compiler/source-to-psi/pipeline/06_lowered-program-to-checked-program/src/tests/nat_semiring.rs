@@ -167,7 +167,7 @@ fn an_operation_outside_the_conformance_gets_no_license_from_it() {
     );
     let site = law.site.expect("the law's ensures clause");
     assert!(
-        source[site.span.start..].starts_with("core\\Identity::<|nat|::Nat>("),
+        source[site.span.start..].starts_with("|proof|::Identity::<|nat|::Nat>("),
         "{site:?}"
     );
 }
@@ -183,7 +183,7 @@ fn an_operation_outside_the_conformance_gets_no_license_from_it() {
 pub(super) fn library_declarations() -> String {
     let start = NAT.find("public data Nat {").expect("the data declaration");
     let mut program = String::from(
-        "use {omega}/language/core/algebra.omg;\nuse omega\\language\\core\\CommutativeSemiring;\n",
+        "use {omega}/language/core/algebra.omg;\nuse {omega}/language/core/foundation.omg as proof;\n",
     );
     let mut skipping = false;
     for line in NAT[start..].lines() {

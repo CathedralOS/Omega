@@ -324,7 +324,9 @@ impl Program<'_> {
             .conformance_by_symbol(selection.conformance_symbol)
             .ok_or_else(|| unserved("quotient's equivalence is no declared conformance"))?;
         if conformance.trait_symbol != selection.trait_symbol
-            || conformance.trait_name.as_str() != "MereEquivalence"
+            || typed
+                .trait_definition_by_symbol(selection.trait_symbol)
+                .is_none_or(|declaration| declaration.name.as_str() != "MereEquivalence")
         {
             return Err(unserved(
                 "quotient must select a closed MereEquivalence conformance",

@@ -1587,7 +1587,7 @@ impl Program<'_> {
                     self.write_clause_text(slots, call.receiver, text);
                     text.push_text("::");
                 }
-                text.push_text(&call.target.as_str().replace("::", "\\"));
+                text.push_text(call.target.as_str());
                 if !call.machine_arguments.is_empty() {
                     text.push_text("::<");
                     for (position, argument) in call.machine_arguments.iter().enumerate() {
