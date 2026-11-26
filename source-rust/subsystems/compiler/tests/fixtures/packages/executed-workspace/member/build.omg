@@ -1,7 +1,7 @@
 use {omega}/build/dependency.omg;
 
-machine build(builder: @mutable Build) {
-    Build::package(builder, package_name());
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: package_name() };
     let mutable sibling_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "../sibling" });
     |dependency|::with_alias(@mutable sibling_dependency, "sibling");
     let sibling_registration: DependencyRegistration = Build::dependency(builder, sibling_dependency);

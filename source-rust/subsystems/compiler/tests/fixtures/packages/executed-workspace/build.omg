@@ -1,8 +1,12 @@
-machine build(builder: @mutable Build) {
-    declare_members(builder);
+use {omega}/build/workspace.omg;
+
+machine build(builder: @mutable BuildPlan) {
+    let members: WorkspaceMembers = declared_members(builder);
+    builder.product = BuildProduct::Workspace { members: members };
 }
-machine declare_members(builder: @mutable Build) {
-    Build::member(builder, "member");
-    Build::member(builder, "sibling");
-    Build::member(builder, "unselected");
+
+machine declared_members(builder: @mutable BuildPlan) -> WorkspaceMembers {
+    let member: WorkspaceMembers = |workspace|::with_member(builder, WorkspaceMembers {}, "member");
+    let siblings: WorkspaceMembers = |workspace|::with_member(builder, member, "sibling");
+    |workspace|::with_member(builder, siblings, "unselected")
 }

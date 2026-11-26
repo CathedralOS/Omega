@@ -207,16 +207,18 @@ fn write_catalog(directory: &Path, fixture: &Path) {
     fs::create_dir(&workspace).unwrap();
     fs::write(
         workspace.join("build.omg"),
-        r#"machine build(builder: @mutable Build) {
-        Build::member(builder, "member");
-        Build::member(builder, "unselected");
-    }"#,
+        r#"use {omega}/build/workspace.omg;
+machine build(builder: @mutable BuildPlan) {
+    let selected: WorkspaceMembers = |workspace|::with_member(builder, WorkspaceMembers {}, "member");
+    let members: WorkspaceMembers = |workspace|::with_member(builder, selected, "unselected");
+    builder.product = BuildProduct::Workspace { members: members };
+}"#,
     )
     .unwrap();
     write_package(
         &workspace.join("member"),
-        r#"machine build(builder: @mutable Build) {
-        Build::package(builder, "workspace_selected");
+        r#"machine build(builder: @mutable BuildPlan) {
+        builder.product = BuildProduct::Package { name: "workspace_selected" };
     }"#,
     );
     let observer = workspace.join("unselected");
@@ -250,8 +252,8 @@ fn write_catalog(directory: &Path, fixture: &Path) {
     write_package(
         &candidate,
         r#"use {omega}/build/dependency.omg;
-machine build(builder: @mutable Build) {
-        Build::package(builder, "candidate");
+machine build(builder: @mutable BuildPlan) {
+        builder.product = BuildProduct::Package { name: "candidate" };
         let helper: DependencyDescription = |dependency|::from_source(Source::Git {
             repository: "ssh://git@helper-fixture.invalid/catalog-helper.git", revision: "also-helper",
             selection: PackageSelection::Root
@@ -274,8 +276,8 @@ machine build(builder: @mutable Build) {
     write_package(
         &directory.join("client"),
         r#"use {omega}/build/dependency.omg;
-machine build(builder: @mutable Build) {
-        Build::application(builder, "client");
+machine build(builder: @mutable BuildPlan) {
+        builder.product = BuildProduct::Application { name: "client" };
         let member: DependencyDescription = |dependency|::from_source(Source::Git {
             repository: "ssh://git@omega-fixture.invalid/workspace.git", revision: "executed-build-fixture-v1",
             selection: PackageSelection::Named { package: "workspace_selected" }
@@ -346,29 +348,36 @@ fn write_root_catalog(directory: &Path, fixture: &Path) {
     write_catalog(directory, fixture);
     let root = directory.join("workspace");
     fs::write(root.join("build.omg"), r#"use {omega}/build/dependency.omg;
-machine build(builder: @mutable Build) {
+machine build(builder: @mutable BuildPlan) {
     let roster: DependencyDescription = |dependency|::from_source(Source::Git {
         repository: "ssh://git@roster-fixture.invalid/roster.git", revision: "main", selection: PackageSelection::Root
     });
     _ = |dependency|::add(builder, roster);
-    Build::build_entry(builder, "members.omg");
+    builder.product = BuildProduct::InterpretedBuild { entry: "members.omg" };
 }"#).unwrap();
     fs::write(
         root.join("members.omg"),
         r#"use {roster}/main.omg;
-machine build(builder: @mutable Build) {
+use {omega}/build/workspace.omg;
+machine build(builder: @mutable BuildPlan) {
     transition |main|::include_member() {
         true -> selected(builder),
         _ -> other(builder)
     }
-    machine selected(builder: @mutable Build) { Build::member(builder, "member"); }
-    machine other(builder: @mutable Build) { Build::member(builder, "other"); }
+    machine selected(builder: @mutable BuildPlan) {
+        let members: WorkspaceMembers = |workspace|::with_member(builder, WorkspaceMembers {}, "member");
+        builder.product = BuildProduct::Workspace { members: members };
+    }
+    machine other(builder: @mutable BuildPlan) {
+        let members: WorkspaceMembers = |workspace|::with_member(builder, WorkspaceMembers {}, "other");
+        builder.product = BuildProduct::Workspace { members: members };
+    }
 }"#,
     )
     .unwrap();
     write_package(
         &root.join("other"),
-        r#"machine build(builder: @mutable Build) { Build::package(builder, "other"); }"#,
+        r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "other" }; }"#,
     );
     git(&root, &["add", "."]);
     git(
@@ -383,7 +392,7 @@ machine build(builder: @mutable Build) {
     let roster = directory.join("roster");
     write_package(
         &roster,
-        r#"machine build(builder: @mutable Build) { Build::package(builder, "roster"); }"#,
+        r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "roster" }; }"#,
     );
     fs::write(
         roster.join("main.omg"),
