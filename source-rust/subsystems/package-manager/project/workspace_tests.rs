@@ -296,7 +296,8 @@ fn catalog_review_keeps_the_provider_used_to_name_a_workspace_member() {
     }
     let temp = TemporaryDirectory::create("project-workspace", false).unwrap();
     write_catalog(temp.path(), &fixture);
-    // Scope the local SSH route and the process-wide execution counter to this test.
+    // Isolate Git objects and the process-wide execution counter. Each invocation
+    // owns its temporary remote, including the branch it advances during review.
     let result = Command::new(std::env::current_exe().unwrap())
         .args([
             "--exact",
@@ -304,6 +305,7 @@ fn catalog_review_keeps_the_provider_used_to_name_a_workspace_member() {
             "--nocapture",
         ])
         .env(DIRECTORY, temp.path())
+        .env("XDG_CACHE_HOME", temp.path().join("cache"))
         .env("GIT_SSH_VARIANT", "simple")
         .env(
             "GIT_SSH_COMMAND",
