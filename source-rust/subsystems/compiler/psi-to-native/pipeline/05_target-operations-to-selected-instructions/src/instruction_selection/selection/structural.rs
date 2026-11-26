@@ -971,6 +971,10 @@ pub(crate) mod leaf_copy {
         else {
             return Err(invalid());
         };
+        if let Some(pointer) = shared_parameter_alias(function, row, builder) {
+            builder.transport.pointers.push((result.place, pointer));
+            return Ok(());
+        }
         let slot = builder.transport.push_structural_local_slot(
             row.operation,
             result.place,
@@ -1071,6 +1075,73 @@ pub(crate) mod leaf_copy {
         )?;
         builder.transport.pointers.push((result.place, pointer));
         Ok(())
+    }
+
+    /// A whole copy of a shared-borrow parameter's descriptor reuses the
+    /// parameter's storage instead of copying 16 bytes into a new slot.
+    ///
+    /// A loop that passes a view on unchanged (`walk(view, k + 1)`) copies the
+    /// view into a fresh place and then into the next state's parameter, two
+    /// descriptor copies per transition. Neither copy can change a byte: a
+    /// shared-borrow descriptor is never written by the body, and the
+    /// parameter's slot is written only by edges entering its own block. The
+    /// copy is defined in a block that block dominates, so every use of the
+    /// copy is reached without passing such an edge after the copy, and reads
+    /// through the parameter's pointer see the copied bytes. The edge that
+    /// passes the copy back to the same parameter then becomes an identity
+    /// transfer (see `descriptors::store_direct`).
+    fn shared_parameter_alias(
+        function: &crate::instruction_selection::native_geometry::NativeFunction<'_>,
+        row: &LegalizedScalarInstruction,
+        builder: &Builder<'_>,
+    ) -> Option<VirtualRegisterId> {
+        let LegalizedScalarInstructionKind::StructuralLeafCopy {
+            result,
+            source,
+            byte_offset,
+            indices,
+            path,
+            ..
+        } = &row.kind
+        else {
+            return None;
+        };
+        let whole = matches!(
+            path,
+            operation_operands::structural_stores::StructuralCopyPath::Ordinary(path)
+                if path.is_empty()
+        );
+        if !whole
+            || *byte_offset != 0
+            || !indices.is_empty()
+            || !result.claims.is_empty()
+            || !result.qualification_establishments.is_empty()
+        {
+            return None;
+        }
+        let parameter =
+            crate::instruction_selection::selection::arrival_parameter_input::parameter(
+                function, *source,
+            )?;
+        let signature = function.structural.as_ref()?;
+        let copied = terminal_semantics::descriptor_results::descriptor_value_access(
+            signature.structural_types.iter(),
+            result.structural_type,
+            result.multiplicity,
+        )?;
+        if parameter.access != terminal_psi::StructuralAccess::SharedBorrow
+            || copied != terminal_psi::StructuralAccess::SharedBorrow
+            || parameter.structural_type != result.structural_type
+        {
+            return None;
+        }
+        let mut pointers = builder
+            .transport
+            .pointers
+            .iter()
+            .filter(|(place, _)| *place == *source);
+        let (_, pointer) = pointers.next()?;
+        pointers.next().is_none().then_some(*pointer)
     }
 
     pub(crate) fn reseat(
