@@ -6,19 +6,23 @@ use semantic_vocabulary::{EdgeId, MachineId, Proposition};
 use terminal_check_tables::values::{Justification, ValueOrigin};
 use terminal_psi::{TerminalMachine, TerminalModule, TheoremApplication};
 
+/// Refuses `module` as a whole, naming its first machine.
+fn module_refusal(module: &TerminalModule, reason: &str) -> crate::Refusal {
+    refusal(
+        RefusalReason::ForeignIdentity,
+        module
+            .machines
+            .first()
+            .map(|machine| machine.id)
+            .unwrap_or_else(|| MachineId::new(1).expect("one is a valid machine ID")),
+        Construct::Machine,
+        reason,
+    )
+}
+
 pub(crate) fn validate_parameters(module: &TerminalModule) -> Checked<()> {
-    terminal_codec::validate_theorem_parameters(module).map_err(|reason| {
-        refusal(
-            RefusalReason::ForeignIdentity,
-            module
-                .machines
-                .first()
-                .map(|machine| machine.id)
-                .unwrap_or_else(|| MachineId::new(1).expect("one is a valid machine ID")),
-            Construct::Machine,
-            reason,
-        )
-    })
+    terminal_codec::validate_theorem_parameters(module)
+        .map_err(|reason| module_refusal(module, reason))
 }
 
 pub(crate) fn validate(
@@ -328,16 +332,6 @@ pub(crate) fn finalize_citations(
     for (index, citation, _) in prepared {
         module.proofs.theorem_citations[index] = citation;
     }
-    terminal_codec::validate_theorem_supply_sites(module).map_err(|reason| {
-        refusal(
-            RefusalReason::ForeignIdentity,
-            module
-                .machines
-                .first()
-                .map(|machine| machine.id)
-                .unwrap_or_else(|| MachineId::new(1).expect("one is a valid machine ID")),
-            Construct::Machine,
-            reason,
-        )
-    })
+    terminal_codec::validate_theorem_supply_sites(module)
+        .map_err(|reason| module_refusal(module, reason))
 }
