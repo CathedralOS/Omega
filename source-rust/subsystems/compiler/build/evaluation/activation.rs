@@ -120,13 +120,18 @@ impl ReturnedBuild {
         )
             -> Result<crate::DependencyValidationSubject, crate::CompileFailure>,
     ) -> Result<(), crate::CompileFailure> {
+        let prepares_build = self.successor_entry().is_some();
         for &(purpose, ordinal) in &self.validation_requests {
-            let subject = resolve(&self.requests, purpose, ordinal)?;
+            let mut subject = resolve(&self.requests, purpose, ordinal)?;
             if subject.purpose != purpose {
                 return Err(vec![diagnostics::Diagnostic::error(
                     "validation subject changed its registration purpose",
                 )]
                 .into());
+            }
+            // A preparation's immediate consumer is the interpreter for the successor.
+            if prepares_build {
+                subject.purpose = build_declarations::DependencyPurpose::Build;
             }
             if !self.validation_subjects.contains(&subject) {
                 self.validation_subjects.push(subject);

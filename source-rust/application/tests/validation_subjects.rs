@@ -327,17 +327,49 @@ fn validate_distinguishes_identical_aliases_in_build_and_product_scope() {
         "public machine unrelated_build_library_body(count: u64) -> u64 { count + 1u64 }",
     )
     .unwrap();
-    let uses_both = APP_BUILD.replace("    Build::bind(", r#"    let mutable tool = |dependency|::from_source(Source::Path { location: "../build_tools" });
+    let prepare = r#"use {omega}/build/dependency.omg;
+machine build(builder: @mutable Build) {
+    let mutable tool = |dependency|::from_source(Source::Path { location: "../build_tools" });
     |dependency|::with_alias(@mutable tool, "vendor");
-    let tool_registration = Build::build_dependency(builder, tool);
-    Build::validate(builder, @vendor_registration);
-    Build::bind("#);
-    std::fs::write(root.join("build.omg"), &uses_both).unwrap();
+    let registered = |dependency|::add(builder, tool);
+    Build::build_entry(builder, "configure.omg");
+}"#;
+    let configure = r#"use {omega}/build/dependency.omg;
+machine build(builder: @mutable Build) {
+    Build::package(builder, "consumer");
+    let mutable vendor = |dependency|::from_source(Source::Path { location: "../vendor" });
+    |dependency|::with_alias(@mutable vendor, "vendor");
+    let registered = |dependency|::add(builder, vendor);
+    Build::validate(builder, @registered);
+}"#;
+    std::fs::write(root.join("configure.omg"), configure).unwrap();
+    std::fs::write(root.join("build.omg"), prepare).unwrap();
     assert_accepted(&root);
+    let selected = prepare.replace(
+        "    Build::build_entry(",
+        "    Build::validate(builder, @registered);\n    Build::build_entry(",
+    );
+    std::fs::write(root.join("build.omg"), selected).unwrap();
+    assert_refused_in(&root, "unrelated_build_library_body");
     std::fs::write(
-        root.join("build.omg"),
-        uses_both.replace("@vendor_registration", "@tool_registration"),
+        tools.join("unused.omg"),
+        "public machine valid() -> u64 { 1u64 }",
     )
     .unwrap();
-    assert_refused_in(&root, "unrelated_build_library_body");
+    let report = check(&root);
+    assert!(report.success, "{}", report.stderr);
+    assert!(
+        report
+            .stdout
+            .contains("validated package build_tools (build, "),
+        "{}",
+        report.stdout
+    );
+    assert!(
+        report
+            .stdout
+            .contains("validated package acceptance_vendor (product, linux_x86_64)"),
+        "{}",
+        report.stdout
+    );
 }
