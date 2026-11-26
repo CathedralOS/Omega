@@ -2514,11 +2514,12 @@ impl<'a> Replay<'a> {
                     captured.insert(binding.parameter.clone(), value);
                 }
 
-                for slot in self.slot_kind.owned_slots(
+                let inventory = self.slot_kind.owned_inventory(
                     self.types,
                     binding.parameter.root,
                     structural_type,
-                )? {
+                )?;
+                for slot in inventory.into_observations() {
                     if slot == binding.parameter {
                         continue;
                     }
