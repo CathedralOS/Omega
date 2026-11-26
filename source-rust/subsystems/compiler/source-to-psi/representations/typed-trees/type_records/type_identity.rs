@@ -10660,7 +10660,7 @@ impl TypedTrees {
         let parent = self.symbols.get(machine.symbol).parent;
         let lexical_path =
             if parent.is_valid() && self.symbols.get(parent).kind == symbols::SymbolKind::Machine {
-                let owner = self.machine_by_symbol(parent)?;
+                let owner = self.machine_declaration_for_lexical_scope(parent)?;
                 compound(
                     CoordinateTag::NestedMachine,
                     [
