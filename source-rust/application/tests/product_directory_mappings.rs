@@ -1,67 +1,49 @@
-//! Run an ordinary portable filesystem client against two independent Product grants.
+//! The Build and its interpreted Product receive independent guest directories.
 mod support;
 
-#[cfg(target_os = "linux")]
+#[cfg(all(
+    target_os = "linux",
+    any(target_arch = "x86_64", target_arch = "aarch64")
+))]
 #[test]
-fn a_psi_product_can_write_only_under_its_writable_guest_directory() {
+fn a_psi_product_reads_its_own_mount_and_writes_only_to_its_output() {
     use platform_custody::temporary_directory::TemporaryDirectory;
     use std::{fs, process::Command};
 
     let scratch = TemporaryDirectory::create("product-directory-mappings", false).unwrap();
-    let sample = support::repository_root().join("samples/cli/systems/file_journal");
-    let library = std::env::var_os("OMEGA_LIBRARY_ROOT")
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(|| support::repository_root().join("source/library"));
     let package = scratch.path().join("package");
-    let mapped = scratch.path().join("mapped");
-    fs::create_dir(&package).unwrap();
-    fs::create_dir(&mapped).unwrap();
-    let build_only = scratch.path().join("build-only");
-    let build_marker = build_only.join("work/note.txt");
-    fs::create_dir_all(build_only.join("work")).unwrap();
-    fs::write(&build_marker, b"Build input").unwrap();
-    fs::write(
-        package.join("build.omg"),
-        fs::read_to_string(sample.join("build.omg"))
-            .unwrap()
-            .replace(
-                "../../../../source/library/system",
-                library.join("system").to_str().unwrap(),
-            ),
-    )
-    .unwrap();
-    fs::write(
-        package.join("main.omg"),
-        fs::read_to_string(sample.join("main.omg"))
-            .unwrap()
-            .replace("/tmp/omega_journal_dir", "/journal/work"),
-    )
-    .unwrap();
+    let build = scratch.path().join("build-input");
+    let input = scratch.path().join("product-input");
+    let output = scratch.path().join("product-output");
+    for directory in [&package, &build, &input, &output] {
+        fs::create_dir(directory).unwrap();
+    }
+    let fixture = support::repository_root()
+        .join("source-rust/application/tests/fixtures/cli/run/mapped_filesystem");
+    for file in ["build.omg", "main.omg"] {
+        fs::copy(fixture.join(file), package.join(file)).unwrap();
+    }
+    fs::write(build.join("x"), b"B").unwrap();
+    fs::write(input.join("x"), b"R").unwrap();
 
-    // The first operation cleans up the previous journal through its guest path.
-    let marker = mapped.join("work/note.txt");
-    fs::create_dir(mapped.join("work")).unwrap();
-    fs::write(&marker, b"existing").unwrap();
-    let run = |mode: &str, expected: i32| {
-        let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-            .current_dir(&package)
-            .args(["run", "--engine", "psi", "--build-directories-readwrite"])
-            .arg(format!("{}::/journal", build_only.display()))
-            .arg(mode)
-            .arg(format!("{}::/journal", mapped.display()))
-            .arg("build.omg")
-            .output()
-            .unwrap();
-        assert_eq!(
-            output.status.code(),
-            Some(expected),
-            "{}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-    };
-    run("--run-directories-readonly", 0);
-    assert_eq!(fs::read(&marker).unwrap(), b"existing");
-    run("--run-directories-readwrite", 7);
-    assert!(!mapped.join("work").exists());
-    assert_eq!(fs::read(build_marker).unwrap(), b"Build input");
+    let run = Command::new(env!("CARGO_BIN_EXE_omega"))
+        .current_dir(&package)
+        .args(["run", "--engine", "psi", "--build-directories-readwrite"])
+        .arg(format!("{}::/r", build.display()))
+        .arg("--run-directories-readonly")
+        .arg(format!("{}::/r", input.display()))
+        .arg("--run-directories-readwrite")
+        .arg(format!("{}::/w", output.display()))
+        .arg("build.omg")
+        .output()
+        .unwrap();
+    assert!(
+        run.status.success(),
+        "{}",
+        String::from_utf8_lossy(&run.stderr)
+    );
+    // The Product only creates this file after reading R and observing EACCES on a write-open.
+    assert!(output.join("x").is_file());
+    assert_eq!(fs::read(input.join("x")).unwrap(), b"R");
+    assert_eq!(fs::read(build.join("x")).unwrap(), b"B");
 }
