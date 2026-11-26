@@ -9,7 +9,7 @@ use machine_code::{
     UnitParameterRecord,
 };
 use selected_instructions::{SelectedFunction, SelectedMemoryAccessRole};
-use semantic_vocabulary::{MachineId, PlaceId, ScalarType, ValueId};
+use semantic_vocabulary::{MachineId, PlaceId, ScalarType};
 use target_vocabulary::CallSiteOwner;
 
 struct PlanningSource<'a> {
@@ -175,8 +175,8 @@ fn prepare(
                 scalar_arguments.push(PhysicalScalarCallArgument {
                     parameter_index: u32::try_from(parameter_index).map_err(|_| Error::Overflow)?,
                     source: InternalUnitScalarArgumentSourceRecord::SelectedCall {
-                        source_value: *value,
-                        scalar_type: scalar_type(selected, *value)?,
+                        source_value: value.value,
+                        scalar_type: value.scalar_type,
                         instruction: contract.instruction,
                     },
                     destination: placement.clone(),
@@ -324,25 +324,6 @@ fn prepare(
         });
     }
     Ok(publication)
-}
-
-fn scalar_type(function: &SelectedFunction, value: ValueId) -> Result<ScalarType, Error> {
-    use selected_instructions::VirtualRegisterOrigin;
-    let mut matching = function.virtual_registers.iter().filter(|register| {
-        matches!(register.origin,
-            VirtualRegisterOrigin::EntryParameter { source_value, .. }
-            | VirtualRegisterOrigin::BlockParameter { source_value, .. }
-            | VirtualRegisterOrigin::InstructionResult { source_value, .. }
-            if source_value == value)
-    });
-    let scalar_type = matching
-        .next()
-        .ok_or(Error::Mismatch("Unit call has no scalar source"))?
-        .scalar_type;
-    if matching.any(|register| register.scalar_type != scalar_type) {
-        return Err(Error::Mismatch("Unit call scalar source types disagree"));
-    }
-    Ok(scalar_type)
 }
 
 fn published_call(

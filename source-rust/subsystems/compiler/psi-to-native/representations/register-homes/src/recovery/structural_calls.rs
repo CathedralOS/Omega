@@ -231,7 +231,8 @@ pub(super) fn encode_call(
         match argument {
             LegalizedScalarArgument::Scalar { source, placement } => {
                 bytes.push(0);
-                crate::codec_bytes::push_encoded(bytes, source.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, source.value.get().to_le_bytes());
+                encode_scalar(bytes, source.scalar_type)?;
                 encode_placement(bytes, placement);
             }
             LegalizedScalarArgument::Structural {
@@ -357,7 +358,10 @@ pub(super) fn decode_call(
     for _ in 0..count {
         arguments.push(match cursor.byte()? {
             0 => LegalizedScalarArgument::Scalar {
-                source: decode_id(cursor, ValueId::new)?,
+                source: operation_operands::values::AbstractResult {
+                    value: decode_id(cursor, ValueId::new)?,
+                    scalar_type: decode_scalar(cursor)?,
+                },
                 placement: decode_placement(cursor)?,
             },
             1 => {
