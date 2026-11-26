@@ -1,7 +1,8 @@
 // The passing program with `plus_comm` proved but no longer declared as the
 // trait's `add_comm`. Regrouping is still licensed; reordering is not, so the
 // four addends of the successor case cannot be brought into one order.
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_exit.omg;
+use {omega}/language/core/foundation.omg as proof;
 
 data Peano {
     case Zero;
@@ -12,11 +13,11 @@ trait Semiring3<T> {
     machine add(a: T, b: T) -> T reaches none crashes none terminates;
     machine mul(a: T, b: T) -> T reaches none crashes none terminates;
     machine add_comm(a: T, b: T)
-    ensures core\Identity::<T>(add(a, b), add(b, a));
+    ensures |proof|::Identity::<T>(add(a, b), add(b, a));
     machine add_assoc(a: T, b: T, c: T)
-    ensures core\Identity::<T>(add(add(a, b), c), add(a, add(b, c)));
+    ensures |proof|::Identity::<T>(add(add(a, b), c), add(a, add(b, c)));
     machine mul_distributes(a: T, b: T, c: T)
-    ensures core\Identity::<T>(mul(a, add(b, c)), add(mul(a, b), mul(a, c)));
+    ensures |proof|::Identity::<T>(mul(a, add(b, c)), add(mul(a, b), mul(a, c)));
 }
 
 machine plus(a: Peano, b: Peano) -> Peano
@@ -44,7 +45,7 @@ terminates by a
 machine plus_zero_right(a: Peano)
 terminates by a
 ensures
-    core\Identity::<Peano>(plus(a, Peano::Zero), a)
+    |proof|::Identity::<Peano>(plus(a, Peano::Zero), a)
 {
     transition a {
         Peano::Zero -> base(),
@@ -60,7 +61,7 @@ ensures
 machine plus_succ_right(a: Peano, b: Peano)
 terminates by a
 ensures
-    core\Identity::<Peano>(plus(a, Peano::Succ { pred: b }), Peano::Succ { pred: plus(a, b) })
+    |proof|::Identity::<Peano>(plus(a, Peano::Succ { pred: b }), Peano::Succ { pred: plus(a, b) })
 {
     transition a {
         Peano::Zero -> base(),
@@ -76,7 +77,7 @@ ensures
 machine plus_comm(a: Peano, b: Peano)
 terminates by a
 ensures
-    core\Identity::<Peano>(plus(a, b), plus(b, a))
+    |proof|::Identity::<Peano>(plus(a, b), plus(b, a))
 {
     transition a {
         Peano::Zero -> base(b),
@@ -95,7 +96,7 @@ machine plus_assoc(a: Peano, b: Peano, c: Peano)
 satisfies Semiring3<Peano>::add_assoc
 terminates by a
 ensures
-    core\Identity::<Peano>(plus(plus(a, b), c), plus(a, plus(b, c)))
+    |proof|::Identity::<Peano>(plus(plus(a, b), c), plus(a, plus(b, c)))
 {
     transition a {
         Peano::Zero -> base(),
@@ -114,7 +115,7 @@ machine times_distributes(a: Peano, b: Peano, c: Peano)
 satisfies Semiring3<Peano>::mul_distributes
 terminates by a
 ensures
-    core\Identity::<Peano>(times(a, plus(b, c)), plus(times(a, b), times(a, c)))
+    |proof|::Identity::<Peano>(times(a, plus(b, c)), plus(times(a, b), times(a, c)))
 {
     transition a {
         Peano::Zero -> base(),
@@ -128,12 +129,12 @@ ensures
 }
 
 data Main { }
-machine exit_with_status(main: @mutable Main) reaches ProcessExit {
-    ProcessExit::exit_process(0);
+machine exit_with_status(main: @mutable Main) reaches |process_exit|::ProcessExit {
+    |process_exit|::ProcessExit::exit_process(0);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit {
+machine entry_start() reaches |process_exit|::ProcessExit {
     let mutable entry_storage: Main;
     block exit_with_status(@mutable entry_storage);
 }

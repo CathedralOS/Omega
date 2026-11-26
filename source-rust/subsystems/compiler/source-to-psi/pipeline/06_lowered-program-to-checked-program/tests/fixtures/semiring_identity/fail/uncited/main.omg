@@ -1,6 +1,7 @@
-use omega\language\core\CommutativeSemiring;
+use {omega}/language/core/algebra.omg;
+use {omega}/language/core/foundation.omg as proof;
 
-machine entry<T [copy], const Ring: CommutativeSemiring<T>>(a: T, b: T)
-ensures core\Identity::<T>(Ring::add(b, a), Ring::add(a, b))
+machine entry<T [copy], const Ring: |algebra|::CommutativeSemiring<T>>(a: T, b: T)
+ensures |proof|::Identity::<T>(Ring::add(b, a), Ring::add(a, b))
 {
 }

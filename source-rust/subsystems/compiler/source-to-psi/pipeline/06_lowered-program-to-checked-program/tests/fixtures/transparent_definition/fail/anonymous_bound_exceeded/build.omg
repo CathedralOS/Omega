@@ -1,5 +1,7 @@
 // The same definition with a caller whose bound is one too large: 4097
 // does not fit under 4 * 1024, so the call's requirement is unproved.
-public let fits(length: u64): core\Strict<0> = embed(length) <= 4 * 1024;
+use {omega}/language/core/foundation.omg as proof;
+
+public let fits(length: u64): |proof|::Strict<0> = embed(length) <= 4 * 1024;
 machine consume(length: u64) requires fits(length) { }
 machine build_entry(length: u64) requires length <= 4097 { consume(length); }

@@ -5,9 +5,9 @@
 // selects that theorem. `normal` asks something of its argument, so
 // `normal_transports` shows that what `normal_class` asks of a class gives
 // what `normal` asks of each representative.
-use omega\language\core\IsMere;
-use omega\language\core\MereEquivalence;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/relation.omg;
+use {omega}/language/core/process_exit.omg;
+use {omega}/language/core/foundation.omg as proof;
 
 data Representative {
     case Zero;
@@ -23,7 +23,7 @@ machine sign(a: Representative) -> Representative {
 }
 
 proposition same_sign(a: Representative, b: Representative) =
-    core\Identity::<Representative>(sign(a), sign(b));
+    |proof|::Identity::<Representative>(sign(a), sign(b));
 
 machine same_sign_symmetric(a: Representative, b: Representative)
 requires same_sign(a, b)
@@ -31,20 +31,20 @@ ensures same_sign(b, a)
 {
 }
 
-SameSign satisfies MereEquivalence<Representative, same_sign> {
+SameSign satisfies |relation|::MereEquivalence<Representative, same_sign> {
     machine reflexive(value: Representative) ensures same_sign(value, value) { }
     machine symmetric(left: Representative, right: Representative) requires same_sign(left, right) ensures same_sign(right, left) { }
     machine transitive(left: Representative, middle: Representative, right: Representative) requires same_sign(left, middle), same_sign(middle, right) ensures same_sign(left, right) { }
-    machine proofs_agree(a: Representative, b: Representative) ensures IsMere(same_sign(a, b)) { }
+    machine proofs_agree(a: Representative, b: Representative) ensures |relation|::IsMere(same_sign(a, b)) { }
 }
 
 data Sign = Representative % same_sign
 requires same_sign satisfies
-    MereEquivalence<Representative, same_sign>
+    |relation|::MereEquivalence<Representative, same_sign>
     as SameSign;
 
 machine normal(value: Representative) -> Representative
-requires core\Identity::<Representative>(value, value)
+requires |proof|::Identity::<Representative>(value, value)
 {
     sign(value)
 }
@@ -52,35 +52,35 @@ requires core\Identity::<Representative>(value, value)
 machine normal_respects(left: Representative, right: Representative)
 requires
     same_sign(left, right),
-    core\Identity::<Representative>(left, left),
-    core\Identity::<Representative>(right, right)
+    |proof|::Identity::<Representative>(left, left),
+    |proof|::Identity::<Representative>(right, right)
 ensures same_sign(normal(left), normal(right))
 {
 }
 
 machine normal_transports(left: Representative, right: Representative)
 requires
-    core\Identity::<Sign>(left as Sign, left as Sign),
-    core\Identity::<Sign>(right as Sign, right as Sign)
+    |proof|::Identity::<Sign>(left as Sign, left as Sign),
+    |proof|::Identity::<Sign>(right as Sign, right as Sign)
 ensures
-    core\Identity::<Representative>(left, left),
-    core\Identity::<Representative>(right, right)
+    |proof|::Identity::<Representative>(left, left),
+    |proof|::Identity::<Representative>(right, right)
 {
 }
 
 machine normal_class(value: Sign) -> Sign
-requires core\Identity::<Sign>(value, value)
+requires |proof|::Identity::<Sign>(value, value)
 {
     Quotient::lift::<normal, normal_respects, normal_transports>(value)
 }
 
 data Main { }
-machine exit_with_status(main: @mutable Main) reaches ProcessExit {
-    ProcessExit::exit_process(0);
+machine exit_with_status(main: @mutable Main) reaches |process_exit|::ProcessExit {
+    |process_exit|::ProcessExit::exit_process(0);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit {
+machine entry_start() reaches |process_exit|::ProcessExit {
     let mutable entry_storage: Main;
     block exit_with_status(@mutable entry_storage);
 }
