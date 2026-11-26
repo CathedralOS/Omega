@@ -295,6 +295,29 @@ fn a_generic_call_forwards_the_callers_const_service_argument() {
 }
 
 #[test]
+fn a_forwarded_static_callback_keeps_its_declared_requirement() {
+    let package = PackageKeyIdentity::from_digest([0x73; 32]).unwrap();
+    let source = "trait Number { machine number() -> i32 terminates; }
+        trait Other { machine number() -> i32 terminates; }
+        machine answer() -> i32 satisfies Number::number { 42 }
+        machine inner<const G: Number::number>() -> i32 terminates { G() }
+        machine outer<const F: Number::number>() -> i32 terminates { inner::<F>() }
+        public machine run() -> i32 { outer::<answer>() }";
+    let (files, root) = captured(package, source);
+    compile(product(files, root, package, &[]).unwrap(), None).unwrap();
+
+    let wrong = source.replace("G: Number::number", "G: Other::number");
+    let (files, root) = captured(package, &wrong);
+    let diagnostics = compile(product(files, root, package, &[]).unwrap(), None).unwrap_err();
+    assert!(
+        diagnostics
+            .iter()
+            .any(|error| error.message.contains("another requirement binding")),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
 fn invocation_ceiling_follows_callable_parameter_aliases() {
     let package = PackageKeyIdentity::from_digest([0x61; 32]).unwrap();
     let check = |ceiling: &str, body: &str| {
