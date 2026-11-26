@@ -3,24 +3,57 @@
 // shadowing them. The path registration has default alias and Product purpose.
 machine OmegaScalarCompiler::build_prelude_name(&mut self, source: &[u8], name: OmegaRelativeSpan) -> i32 {
     return (self.build_spelling(source, name, "Build") == 1) ||
+        (self.build_spelling(source, name, "BuildPlan") == 1) ||
+        (self.build_spelling(source, name, "BuildProduct") == 1) ||
         (self.build_spelling(source, name, "Source") == 1) ||
-        (self.build_spelling(source, name, "DependencyRegistration") == 1) ||
-        (self.build_spelling(source, name, "dependency") == 1);
+        (self.build_spelling(source, name, "DependencyRegistration") == 1);
+}
+
+// The construction Build interpreter supplies this one installed file. Its
+// selected name may vary, but its package root and filename must match.
+machine OmegaScalarCompiler::build_dependency_import(&mut self, source: &[u8], row: OmegaUseSyntax) -> i32 {
+    return (self.build_spelling(source, row.package_root, "omega") == 1) &&
+        (self.build_spelling(source, row.file_path, "build/dependency.omg") == 1);
+}
+
+machine OmegaScalarCompiler::build_dependency_description(&mut self, source: &[u8], expression: i32) -> i32 {
+    let row: OmegaExpressionSyntax = self.parser.expressions[expression];
+    transition row.kind { OmegaExpressionKind::Call -> call(row.payload0) _ -> return -1 }
+    state call(index: i32) {
+        let row: OmegaCallExpressionSyntax = self.parser.call_expressions[index];
+        transition (row.acknowledgements == 0) && (row.has_receiver == 0) && (row.name_member_count == 1) &&
+            (row.machine_argument_count == 0) && (row.argument_count == 1) && (source[row.target.start] == '|') {
+            true -> selected(index, row.target)
+            _ -> return -1
+        }
+    }
+    state selected(index: i32, name: OmegaRelativeSpan) {
+        transition (self.parser.file_selected_name(source[0..name.end], name.start) == 1) &&
+            (self.parser.scan.token_end == name.end) && (self.build_spelling(source, self.parser.selector_member, "from_source") == 1) {
+            true -> binding(index, self.file_import_named(source, self.parser.sources.unit_at(name.start), self.parser.selector_alias))
+            _ -> return -1
+        }
+    }
+    state binding(index: i32, binding: i32) {
+        transition (binding >= 0) && (self.build_dependency_import(source, self.parser.uses[binding]) == 1) {
+            true -> return index
+            _ -> return -1
+        }
+    }
 }
 
 // Match the scoped receiver and separator, arity and absence of any static
 // argument before consuming the call. A value projection, alternate namespace
 // or same-spelled method on an ordinary receiver cannot issue a registration.
-machine OmegaScalarCompiler::build_call(&mut self, source: &[u8], expression: i32,
-    owner: &[u8], name: &[u8], separator: i32, arguments: i32) -> i32 {
+machine OmegaScalarCompiler::build_dependency_call(&mut self, source: &[u8], expression: i32) -> i32 {
     let row: OmegaExpressionSyntax = self.parser.expressions[expression];
     transition row.kind { OmegaExpressionKind::Call -> call(row.payload0) _ -> return -1 }
     state call(index: i32) {
         let row: OmegaCallExpressionSyntax = self.parser.call_expressions[index];
         transition (row.acknowledgements == 0) && (row.has_receiver == 1) && (row.name_member_count == 2) &&
-            (row.machine_argument_count == 0) && (row.argument_count == arguments) &&
-            (self.build_spelling(source, row.target, name) == 1) &&
-            (self.read_query(source, row.start, row.target.end) == separator) {
+            (row.machine_argument_count == 0) && (row.argument_count == 2) &&
+            (self.build_spelling(source, row.target, "dependency") == 1) &&
+            (self.read_query(source, row.start, row.target.end) == 2) {
             true -> receiver(index, self.parser.expressions[row.receiver])
             _ -> return -1
         }
@@ -33,7 +66,7 @@ machine OmegaScalarCompiler::build_call(&mut self, source: &[u8], expression: i3
     }
     state named(index: i32, row: OmegaExpressionSyntax) {
         transition (row.payload1 == 1) && (row.payload3 == 1) &&
-            (self.build_spelling(source, self.parser.members[row.payload0], owner) == 1) {
+            (self.build_spelling(source, self.parser.members[row.payload0], "Build") == 1) {
             true -> return index
             _ -> return -1
         }
@@ -49,7 +82,7 @@ machine OmegaScalarCompiler::check_path_registration(&mut self, source: &[u8], h
     transition declared.kind { OmegaTypeReferenceKind::Named -> annotation(declared) _ -> return 0 }
     state annotation(declared: OmegaTypeReferenceSyntax) {
         transition self.span_equals(source, declared.payload0, declared.payload1, "DependencyRegistration") {
-            1 -> dependency(self.build_call(source, row.initial_value, "Build", "dependency", 2, 2))
+            1 -> dependency(self.build_dependency_call(source, row.initial_value))
             _ -> return 0
         }
     }
@@ -59,7 +92,7 @@ machine OmegaScalarCompiler::check_path_registration(&mut self, source: &[u8], h
     state arguments(first: i32) {
         let member: i32 = self.build_path_argument(first, 1);
         transition (member >= 0) && (self.parser.sources.equal_name(source, handle, self.parser.members[member]) == 1) {
-            true -> description(self.build_call(source, self.parser.call_arguments[first + 1], "dependency", "from_source", 1, 1))
+            true -> description(self.build_dependency_description(source, self.parser.call_arguments[first + 1]))
             _ -> return 0
         }
     }

@@ -1,6 +1,6 @@
-use wire\u32_from_le_bytes;
+use {wire}/codec.omg;
 machine main() crashes Trap {
-    let value: u32 = u32_from_le_bytes(42, 0, 0, 0);
+    let value: u32 = |codec|::u32_from_le_bytes(42, 0, 0, 0);
     transition value { 42 -> {}, _ -> failed() }
     machine failed() crashes Trap { crash Trap; }
 }
