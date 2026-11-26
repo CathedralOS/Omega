@@ -422,3 +422,32 @@ machine build_entry() { let checked: u64 = check(3); }",
         "too-tight guarantee over type-bound definition must not accept: {tight:?}"
     );
 }
+
+/// Adjoining address ranges share a mathematical endpoint. Its checked
+/// equality remains available beneath a sum, including at a one-past bound.
+#[test]
+fn a_translated_endpoint_equality_preserves_the_original_bound() {
+    let check = |shared_endpoint: &str| {
+        judge_build(&format!(
+            "machine build_entry(a: addr, x: u64, b: addr, y: u64)
+requires embed(b) + embed(y) <= addr::Bound{shared_endpoint}
+ensures embed(a) + (embed(x) + embed(y)) <= addr::Bound
+{{}}"
+        ))
+        .unwrap()
+    };
+    for equality in ["embed(a) + embed(x) == embed(b)", "embed(b) == embed(a) + embed(x)"] {
+        let RouteVerdict::Accepted(accepted) = check(&format!(", {equality}")) else {
+            panic!("the original bound should follow through {equality}");
+        };
+        accepted.publish_invocation().unwrap();
+    }
+    for unrelated in ["", ", embed(a) == embed(b) + embed(x)"] {
+        let verdict = check(unrelated);
+        assert!(
+            matches!(verdict, RouteVerdict::Incomplete(ref unproved) | RouteVerdict::Rejected { ref unproved, .. }
+                if unproved.iter().any(|row| matches!(row.kind, ObligationKind::NormalGuarantee { .. }))),
+            "{verdict:?}"
+        );
+    }
+}
