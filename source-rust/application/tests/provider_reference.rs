@@ -291,10 +291,12 @@ struct issued provide(uint32_t slot) { return (struct issued){tables[slot & 1]};
     );
     let program = r"
 use {omega}/language/core/access/access.omg as policy;
+use {omega}/language/core/c_layout.omg as abi;
 use {omega}/language/core/layout.omg as layout;
 use {omega}/language/core/reflect/reflect.omg as reflection;
-public data Protocol { marker: u64; apply: addr; }
-public domain Protocol::Initialized access ProtocolIssuance;
+public data ProtocolFields { marker: u64; apply: address; }
+public data Protocol = |abi|::CLayout<ProtocolFields>;
+public domain ProtocolFields::Initialized access ProtocolIssuance;
 ProtocolIssuance satisfies |layout|::AccessPolicy {
     machine plan(schema: |reflection|::TypeSchema) -> |layout|::AccessPlan reaches none crashes none terminates {
         |policy|::new_plan(@schema, |layout|::Issuance::Only { routes: [
@@ -302,14 +304,14 @@ ProtocolIssuance satisfies |layout|::AccessPolicy {
         ] })
     }
 }
-public data IssuedTable { table: Protocol in Protocol::Initialized; }
+public data IssuedTable { table: Protocol in ProtocolFields::Initialized; }
 public boundary trait TableSource {
-    machine provide(slot: u32) -> IssuedTable reaches none crashes none ensures result.table in Protocol::Initialized;
+    machine provide(slot: u32) -> IssuedTable reaches none crashes none ensures result.table in ProtocolFields::Initialized;
 }
 public boundary trait Operation {
-    machine apply(value: i32, table: @Protocol in Protocol::Initialized) -> i32 reaches none crashes none;
+    machine apply(value: i32, table: @Protocol in ProtocolFields::Initialized) -> i32 reaches none crashes none;
 }
-machine main() reaches none crashes Trap {
+public machine main() reaches none crashes Trap {
     let left: IssuedTable = TableSource::provide(0u32);
     let right: IssuedTable = TableSource::provide(1u32);
     let first: i32 = Operation::apply(25i32, @left.table);
@@ -331,19 +333,16 @@ machine build<'selection>(builder: @mutable BuildPlan) {
             object: "LIBRARY", symbol: "provide", version: "TABLE_1"
         } });
     let binding: |native|::FunctionFieldBinding<'selection> = |native|::FunctionFieldBinding {
-        table: |reflection|::parameter(Operation::apply::table),
-        field: |reflection|::field(Protocol::apply),
+        table: |reflection|::parameter(|app|::Operation::apply::table),
+        field: |reflection|::field(|app|::ProtocolFields::apply),
     };
     Build::bind_native::<|app|::Operation::apply>(builder, TARGET, binding);
 }
 "#;
-    std::fs::write(
-        root.join("build.omg"),
-        build
-            .replace("TARGET", target::TargetProfile::host().target_name())
-            .replace("LIBRARY", library.to_str().unwrap()),
-    )
-    .unwrap();
+    let build = build
+        .replace("TARGET", target::TargetProfile::host().target_name())
+        .replace("LIBRARY", library.to_str().unwrap());
+    std::fs::write(root.join("build.omg"), &build).unwrap();
     let observation = directory.path().join("observation");
     let output = omega_command(&directory, &root)
         .args(["run", "--engine", "native", "--keep", "--outputs"])
@@ -424,24 +423,39 @@ machine build<'selection>(builder: @mutable BuildPlan) {
     assert!(observed.success(), "{observed}");
     std::fs::rename(unavailable, &root).unwrap();
 
+    let other = "public data OtherTable { marker: u64; apply: address; }";
+    std::fs::write(root.join("main.omg"), format!("{program}\n{other}")).unwrap();
+    let wrong_owner = build.replace("::field(|app|::ProtocolFields::apply)", "::field(|app|::OtherTable::apply)");
+    assert_ne!(build, wrong_owner);
+    std::fs::write(root.join("build.omg"), wrong_owner).unwrap();
+    let rejected = omega_command(&directory, &root)
+        .args(["--emit-psi", "other.psi", "build.omg"])
+        .output()
+        .unwrap();
+    let diagnostic = String::from_utf8_lossy(&rejected.stderr);
+    assert!(!rejected.status.success() && diagnostic.contains("different field"), "{diagnostic}");
+    std::fs::write(root.join("build.omg"), &build).unwrap();
+
+    // The custody controls construct and modify ordinary semantic records.
+    let ordinary_program = program.replace("|abi|::CLayout<ProtocolFields>", "ProtocolFields");
     let expected = "let left: IssuedTable = TableSource::provide(0u32);";
-    let unissued = program
+    let unissued = ordinary_program
         .replace(
             expected,
-            "let left: Protocol = Protocol { marker: 7, apply: 0 as addr };",
+            "let left: Protocol = ProtocolFields { marker: 7, apply: 0 as address };",
         )
         .replace("@left.table)", "@left)");
 
     // Erasing the requirement's input qualification permits ordinary records
     // in source. Native publication must still require evidence for the table.
-    let (declarations, _) = program.split_once("machine main()").unwrap();
+    let (declarations, _) = ordinary_program.split_once("machine main()").unwrap();
     let declarations = declarations.replace(
-        "table: @Protocol in Protocol::Initialized",
+        "table: @Protocol in ProtocolFields::Initialized",
         "table: @Protocol",
     );
     let ordinary = r"machine main() reaches Operation invokes Operation crashes none {
     let marker: u64 = 42u64;
-    let fake: Protocol = Protocol { marker: 7u64, apply: address_of(@marker) };
+    let fake: Protocol = ProtocolFields { marker: 7u64, apply: address_of(@marker) };
     _ = Operation::apply(25i32, @fake);
 }";
     let unrestricted = format!("{declarations}{ordinary}");
@@ -456,14 +470,14 @@ machine build<'selection>(builder: @mutable BuildPlan) {
     let diagnostic = String::from_utf8_lossy(&unchecked.stderr);
     assert!(diagnostic.contains("native function table needs provenance"), "{diagnostic}");
 
-    let overwritten = program
+    let overwritten = ordinary_program
         .replace(
             expected,
             "let mutable left: IssuedTable = TableSource::provide(0u32);",
         )
         .replace(
             "    let first:",
-            "    left.table.apply = 0 as addr;\n    let first:",
+            "    left.table.apply = 0 as address;\n    let first:",
         );
     for (input, reason) in [
         (unissued, "carries no domain"),

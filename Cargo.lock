@@ -1579,6 +1579,7 @@ dependencies = [
  "calling-conventions",
  "layout",
  "provider-plans",
+ "runtime-abi",
  "semantic-vocabulary",
  "service-surface",
  "target",
