@@ -204,8 +204,12 @@ fn scalar_graph_identity_binds_ordered_source_and_abi_custody() {
             21 => function.provenance.operations.reverse(),
             _ => {
                 let crate::LegalizedScalarArgument::Scalar { source, .. } =
-                    &mut call_mut(function, 0).arguments[0] else { panic!("scalar argument") };
-                source.scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).unwrap());
+                    &mut call_mut(function, 0).arguments[0]
+                else {
+                    panic!("scalar argument")
+                };
+                source.scalar_type =
+                    ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).unwrap());
             }
         }
         assert_identity_drift(identity, &changed);
