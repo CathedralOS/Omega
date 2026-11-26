@@ -18,7 +18,7 @@ use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 pub(super) mod imports;
 mod target_helpers;
-use source_text::{SourceId, SourceSpan, Span};
+use source_text::{SourceId, Span};
 use std::collections::HashSet;
 use std::sync::Arc;
 use symbols::SymbolHandle;

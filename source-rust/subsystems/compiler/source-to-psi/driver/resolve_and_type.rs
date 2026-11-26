@@ -17,7 +17,7 @@ use authored_completion::AuthoredCompletions;
 mod storage;
 
 #[derive(Clone, Default)]
-pub(crate) enum BodyDemandRequest {
+pub(super) enum BodyDemandRequest {
     #[default]
     Default,
     DeclarationEntryFiles(Vec<source_text::SourceId>),
@@ -47,7 +47,7 @@ pub struct ResolveAndTypeRequest {
     pub sources: Arc<crate::source_inputs::SourceMap>,
     pub top_level_bindings: Vec<crate::source_symbols::SourceScopedTopLevelBinding>,
     pub selection_authority: Option<Arc<PackageDeclarationScope>>,
-    pub(crate) body_demand: BodyDemandRequest,
+    pub(super) body_demand: BodyDemandRequest,
 }
 
 #[derive(Clone, record_storage::Record)]

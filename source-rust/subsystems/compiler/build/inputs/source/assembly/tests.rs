@@ -140,7 +140,7 @@ fn original_build_bindings_retain_their_real_toolchain_requirement_calls() {
     let interval = assembled
         .build_stage_source()
         .unwrap()
-        .prepare(&Default::default(), "linux_x86_64", None)
+        .prepare(&Default::default(), "linux_x86_64", None, &Default::default())
         .expect("exact declared requirement calls reach typed preparation");
     let typed = interval.program.as_ref();
     let unresolved: Vec<_> = typed
@@ -332,7 +332,7 @@ machine build(builder: @mutable BuildPlan) {
             assert_eq!(import.target.to_string(), "{scores}/value.omg as scores");
             assert_eq!(import.span.start, 4);
             let authored = source_text::SourceSpan::new(import.source, import.span);
-            let Err(errors) = source.prepare(&Default::default(), "linux_x86_64", None)
+            let Err(errors) = source.prepare(&Default::default(), "linux_x86_64", None, &Default::default())
             else {
                 panic!("a conditional wait admitted an unbound Build import");
             };
@@ -349,7 +349,7 @@ machine build(builder: @mutable BuildPlan) {
                 source.pending_imports
             );
             source
-                .prepare(&Default::default(), "linux_x86_64", None)
+                .prepare(&Default::default(), "linux_x86_64", None, &Default::default())
                 .expect("local Build code and deferred Product operands both prepare");
         }
     }
