@@ -143,7 +143,7 @@ fn standard_input(inputs: &TestInvocationInputs, target: TargetProfile) -> Optio
 
 fn interpret(
     report: &CompletedProduct,
-    target: TargetProfile,
+    profile: TargetProfile,
     inputs: &TestInvocationInputs,
     expected: &TestExpectations,
 ) -> Run<PsiTermination> {
@@ -157,7 +157,7 @@ fn interpret(
         ));
     };
     let limits = crate::NativeEntryLimits::INSTALLED;
-    let target = target.target_name();
+    let target = profile.target_name();
     let x86_flags = match terminal_runtime::capture_host_x86_flags(target) {
         Ok(flags) => flags,
         Err(error) => return Err(EngineError::Unavailable(error.to_string())),
@@ -192,7 +192,7 @@ fn interpret(
                 stderr_bytes: limits.capture.stderr_bytes,
                 combined_bytes: usize::try_from(limits.combined_output_bytes).unwrap_or(usize::MAX),
             }),
-            standard_input: standard_input(inputs, target).map(|bytes| {
+            standard_input: standard_input(inputs, profile).map(|bytes| {
                 Box::new(std::io::Cursor::new(bytes)) as Box<dyn std::io::Read + Send>
             }),
             clock: None,
