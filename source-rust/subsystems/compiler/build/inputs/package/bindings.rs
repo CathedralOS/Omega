@@ -85,6 +85,7 @@ impl PackageSourceBinding {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageDependencyBinding {
+    pub(super) max_reach: semantic_vocabulary::dependency_reach::DependencyReach,
     pub(super) requester: PackageKeyIdentity,
     pub(super) alias: String,
     pub(super) target: PackageKeyIdentity,
@@ -109,9 +110,22 @@ impl PackageDependencyBinding {
         Self {
             requester,
             alias: alias.into(),
+            max_reach: Default::default(),
             target,
             purpose,
         }
+    }
+
+    pub fn with_max_reach(
+        mut self,
+        max_reach: semantic_vocabulary::dependency_reach::DependencyReach,
+    ) -> Self {
+        self.max_reach = max_reach;
+        self
+    }
+
+    pub fn max_reach(&self) -> &semantic_vocabulary::dependency_reach::DependencyReach {
+        &self.max_reach
     }
 
     pub const fn requester(&self) -> PackageKeyIdentity {

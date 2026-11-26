@@ -638,7 +638,7 @@ fn body_service_summary_closes_cycles_without_counting_unused_constructed_code()
             value: 1,
         },
     )];
-    let summaries = crate::body_services::body_service_reaches(&module).unwrap();
+    let summaries = crate::body_services::body_service_reaches(&module, &[]).unwrap();
     assert_eq!(
         summaries.get(machine_id(1)).unwrap(),
         &[ServiceId::new(1).unwrap(), ServiceId::new(2).unwrap()]
@@ -661,13 +661,13 @@ fn body_service_summary_retains_the_full_unknown_callable_ceiling() {
     module.machines[0].blocks[0]
         .operations
         .push(indirect_call(1, value(1).id));
-    let summaries = crate::body_services::body_service_reaches(&module).unwrap();
+    let summaries = crate::body_services::body_service_reaches(&module, &[]).unwrap();
     assert_eq!(
         summaries.get(machine_id(1)).unwrap(),
         &[ServiceId::new(1).unwrap(), ServiceId::new(2).unwrap()]
     );
     module.execution.callables.contracts.clear();
-    assert!(crate::body_services::body_service_reaches(&module).is_err());
+    assert!(crate::body_services::body_service_reaches(&module, &[]).is_err());
 }
 
 #[test]
@@ -684,7 +684,7 @@ fn body_service_summary_refuses_an_unknown_instruction_service() {
                 value: 1,
             },
         ));
-    assert!(crate::body_services::body_service_reaches(&module).is_err());
+    assert!(crate::body_services::body_service_reaches(&module, &[]).is_err());
 }
 
 #[test]

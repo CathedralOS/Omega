@@ -216,6 +216,20 @@ impl TypedTrees {
                     *right,
                     receipt.template,
                 )?,
+                // Copying a callback binder re-inserts its trait arguments and
+                // signature, so `ElementStep<Element>::apply` keeps its meaning
+                // under new handles. Compare the normalized contracts, like the
+                // carriers above.
+                (
+                    TypeParameterKind::Machine { contract: left },
+                    TypeParameterKind::Machine { contract: right },
+                ) => left == right
+                    || self.specialization_contracts_match(
+                        left,
+                        declaration,
+                        right,
+                        receipt.template,
+                    )?,
                 (left, right) => left == right,
             };
             if !same {
@@ -261,6 +275,43 @@ impl TypedTrees {
             }
         }
         Ok(declaration)
+    }
+
+    fn specialization_contracts_match(
+        &self,
+        left: &crate::source_state::data::MachineParameterContract,
+        left_owner: SymbolHandle,
+        right: &crate::source_state::data::MachineParameterContract,
+        right_owner: SymbolHandle,
+    ) -> Result<bool, &'static str> {
+        use crate::source_state::type_identity::identity_context::{
+            TypeIdentityContext, TypeIdentityQualification,
+        };
+        use std::cell::Cell;
+        let identity = |contract, owner| {
+            if !self.symbols.symbols().nodes().is_valid(owner) {
+                return Err("specialization prefix contract lost its supplying declaration");
+            }
+            let invalid = Cell::new(false);
+            let identity = crate::source_state::runtime_callable_identity::machine_contract(
+                self,
+                contract,
+                &TypeIdentityContext {
+                    application_owner: owner,
+                    application_argument_owner: owner,
+                    invalid_application: Some(&invalid),
+                    encountered_elided_regions: Some(&invalid),
+                    qualification: TypeIdentityQualification::PackageQualified,
+                    ..Default::default()
+                },
+            )
+            .map_err(|_| "specialization prefix contract has no normalized identity")?;
+            if invalid.get() {
+                return Err("specialization prefix contract has an incomplete scoped identity");
+            }
+            Ok(identity)
+        };
+        Ok(identity(left, left_owner)? == identity(right, right_owner)?)
     }
 
     fn specialization_carriers_match(

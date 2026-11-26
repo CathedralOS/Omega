@@ -64,4 +64,35 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-None currently recorded.
+<a id="build-product-source-view-selection"></a>
+### 1. Can a Build select a private filesystem view it created as the source of its next compilation?
+
+A parser generator writes a helper and a new Build entry into a private memory
+filesystem. The preparing Build wants the interpreter to run that entry and
+resolve its helper from the same frozen directory. May it pass that owned
+directory directly to its plan, or must the caller have installed the directory
+as a mount before the preparing Build started?
+
+The plan selects the next source view, the driver freezes it after the dependency
+join, and the compiler reads ordinary package-relative paths from it. The default
+filesystem has a read-only package and writable scratch. Exporting an artifact
+and selecting the source view are separate operations. The child filesystem
+grant describes the backing under which that child runs. These contracts leave
+the public operand for selecting the next compilation's root open.
+[Generated-source boundary](wiki/spec/build/execution.md#generated-source-boundary) ·
+[Checked Build stages](wiki/spec/build/scoped_execution.md#checked-build-stages) ·
+[Filesystem views](wiki/spec/build/scoped_execution.md#inputs-and-default-filesystem) ·
+[Per-child delegation](wiki/spec/build/scoped_execution.md#supplying-a-filesystem-to-a-child-build)
+
+**Recommend accepting an ordinary directory view that the plan can retain
+through handoff.** The generator can transfer its owned view. A borrowed view
+needs backing that stays valid through the join and freeze. A caller-installed
+directory also works under this contract. Selecting only a path on the
+installed provider would keep the public operand smaller, but would require a
+generator using private backing to obtain a mount or copy its complete tree.
+The Rust toolchain still exposes per-file `Build::include_source`. Core declares
+the filesystem authority identities and system's filesystem service exposes
+path and file operations. Neither provides this whole-view operand.
+[Current Build operations](source-rust/subsystems/compiler/build/inputs/declarations/prelude/modules/build_operations.omg) ·
+[Filesystem authority](source/library/core/filesystem_authority.omg) ·
+[System filesystem service](source/library/system/filesystem.omg)

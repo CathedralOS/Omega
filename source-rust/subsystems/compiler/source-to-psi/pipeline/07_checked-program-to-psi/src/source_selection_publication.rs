@@ -138,6 +138,7 @@ pub(crate) fn prepare(
             consent.allows_selection(&map, span, span, source_provenance::DependencyScope::Build)
         })
     });
+    prepared.output.dependency_calls = source.dependency_calls();
     Ok(PreparedSelections {
         captured_entry,
         questions: prepared.output,

@@ -611,6 +611,7 @@ fn dependent_continuation_runs_after_its_package_was_prepared() {
             let product = returned.open_product(Some(&inputs))?;
             self.prepared += 1;
             Ok(ProductQueryDependency {
+                max_reach: Default::default(),
                 alias: "support".into(),
                 child_build_source: product.evaluated().base_source_consumption_commitment,
                 inputs,

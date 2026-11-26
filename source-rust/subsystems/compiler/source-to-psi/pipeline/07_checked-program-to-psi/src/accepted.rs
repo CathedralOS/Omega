@@ -399,6 +399,68 @@ impl AcceptedTerminalSource {
         &self.correspondence().calls
     }
 
+    /// Join the loader's actual package edge to the lowered call. The same
+    /// declaration may be named through several distinct requester-local aliases.
+    pub(crate) fn dependency_calls(
+        &self,
+    ) -> semantic_vocabulary::dependency_reach::DependencyCallOrigins {
+        use crate::source_state::{
+            SourceNode,
+            expression::ExpressionNode,
+            statement::{StatementNode, TransitionTargetNode},
+        };
+        use semantic_vocabulary::{CallableInvocationSite, dependency_reach::DependencyCallOrigin};
+        let typed = self.source();
+        let mut origins = semantic_vocabulary::dependency_reach::DependencyCallOrigins::new();
+        for call in self.emitted_source_calls() {
+            let (path, span) = match call.source {
+                SourceNode::Expression(expression) => {
+                    let ExpressionNode::Call(node) = typed.expression_table.expression(expression)
+                    else {
+                        continue;
+                    };
+                    (
+                        node.target.as_str(),
+                        typed.expression_table.source_span(expression),
+                    )
+                }
+                SourceNode::Statement(statement) => {
+                    match typed.statement_table.statement(statement) {
+                        StatementNode::Call(node) => (node.target.as_str(), node.source_span),
+                        StatementNode::Transition(transition) => {
+                            let TransitionTargetNode::Named {
+                                path, source_span, ..
+                            } = typed.statement_table.transition_target(transition.target)
+                            else {
+                                continue;
+                            };
+                            let Some(first) = typed
+                                .statement_table
+                                .name_path_members(path.members)
+                                .first()
+                            else {
+                                continue;
+                            };
+                            (first.as_str(), *source_span)
+                        }
+                        _ => continue,
+                    }
+                }
+            };
+            if let Some((alias, package)) = typed.symbols.dependency_file_use(span.source_id, path)
+            {
+                origins
+                    .entry((call.machine, CallableInvocationSite::Invocation(call.site)))
+                    .or_default()
+                    .insert(DependencyCallOrigin {
+                        alias: alias.to_owned(),
+                        package,
+                    });
+            }
+        }
+        origins
+    }
+
     /// Capture the selections and source coordinates while their typed owner is
     /// available. Publishing the resulting module no longer reads that owner.
     pub fn prepare_publication(
