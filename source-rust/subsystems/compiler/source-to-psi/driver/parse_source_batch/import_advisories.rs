@@ -30,9 +30,8 @@ impl FileImportAdvisories {
                 continue;
             }
             let identity = (file.path.clone(), Arc::clone(&file.source), span.span.start);
-            let seen = qualifiers
-                .iter()
-                .any(|usage| scope == DependencyScope::Product || !usage.product_operand);
+            // A designated Product operand is still a use written by this Build.
+            let seen = !qualifiers.is_empty();
             self.0
                 .entry(identity)
                 .or_insert_with(|| (alias.as_str(syntax).to_owned(), false))

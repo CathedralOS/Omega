@@ -1594,7 +1594,7 @@ machine build(builder: @mutable BuildPlan) suspends {
 
 #[test]
 fn an_unused_unbound_import_warns_once_at_the_authored_name() {
-    let build = "use {absent}/helper.omg as missing;\nuse later.omg;\nuse main.omg as present;\nmachine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Application { name: \"never_used\" }; Build::bind(builder, linux_x86_64::ProgramEntry, main); }\n";
+    let build = "use {absent}/helper.omg as missing;\nuse later.omg;\nuse main.omg as present;\nuse main.omg as entry;\nmachine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Application { name: \"never_used\" }; Build::bind(builder, linux_x86_64::ProgramEntry, |entry|::main); }\n";
     let (compiled, report) = check_project(
         "unused-deferred",
         build,
@@ -1607,6 +1607,7 @@ fn an_unused_unbound_import_warns_once_at_the_authored_name() {
             && report.matches("unused file import `missing`").count() == 1
             && report.matches("unused file import `later`").count() == 1
             && report.matches("unused file import `present`").count() == 1
+            && !report.contains("unused file import `entry`")
             && report.contains("build.omg:1:5"),
         "{report}"
     );
