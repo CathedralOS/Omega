@@ -87,10 +87,13 @@ fn imports_of(text: &str) -> Vec<(String, bool)> {
         };
         let (path, is_mount) = if let Some(path) = rest.strip_prefix("{omega}/language/") {
             (path, true)
-        } else if let Some(path) = rest.strip_prefix(r"omega\language\") {
-            (path, true)
+        } else if let Some(alias) = rest
+            .strip_prefix('{')
+            .and_then(|path| path.split_once("}/"))
+        {
+            (alias.0, false)
         } else {
-            (rest.strip_prefix('{').unwrap_or(rest), false)
+            continue;
         };
         let head: String = path
             .chars()
@@ -191,7 +194,7 @@ fn library_imports_ride_declared_edges_not_the_mount() {
                 let self_dir = repo.join("source/library").join(&head);
                 if !fail_tier && !is_under(source, &self_dir) {
                     mount_path_offenders.push(format!(
-                        r"{} imports `omega\language\{head}`",
+                        "{} imports `{{omega}}/language/{head}`",
                         source.display()
                     ));
                 }
@@ -203,7 +206,7 @@ fn library_imports_ride_declared_edges_not_the_mount() {
             if is_mount {
                 if !fail_tier {
                     mount_path_offenders.push(format!(
-                        r"{} imports `omega\language\{head}`",
+                        "{} imports `{{omega}}/language/{head}`",
                         source.display()
                     ));
                 }
