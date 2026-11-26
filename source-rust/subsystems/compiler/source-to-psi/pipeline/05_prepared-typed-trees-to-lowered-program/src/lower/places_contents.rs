@@ -16,6 +16,9 @@ use terminal_check_tables::{Checked, ExactPlaceId, ProgramPoint};
 
 use super::Lowering;
 
+#[path = "places_contents/formal_fields.rs"]
+mod formal_fields;
+
 struct Observation {
     root: PlaceId,
     path: Vec<CanonicalStructuralPathSegment>,
@@ -229,9 +232,28 @@ impl Lowering<'_> {
             let requirements =
                 DefaultRequirements::new(types, &self.qualifications.structural, machine)
                     .map_err(|error| self.internal(error.detail))?;
-            let indices = self.read_only_default_indices(machine, types);
+            let observations = std::cell::OnceCell::new();
             let declared = requirements
-                .declared(indices.as_ref())
+                .declared(|root, path, length| {
+                    let (indices, fields) = observations.get_or_init(|| {
+                        // A state entry can carry an explicit true invariant,
+                        // which has no storage operands.
+                        let unconditional = self
+                            .invariants
+                            .iter()
+                            .all(|invariant| invariant.predicate == Proposition::Truth);
+                        (
+                            self.read_only_default_indices(machine, types),
+                            formal_fields::observed(machine, types, unconditional),
+                        )
+                    });
+                    if fields.excludes(root, path) {
+                        return Some(Vec::new());
+                    }
+                    indices
+                        .as_ref()
+                        .map(|set| set.range(..length).copied().collect())
+                })
                 .map_err(|error| self.internal(error.detail))?;
             let mut inventory = Vec::with_capacity(declared.len());
             let mut clauses = Vec::new();

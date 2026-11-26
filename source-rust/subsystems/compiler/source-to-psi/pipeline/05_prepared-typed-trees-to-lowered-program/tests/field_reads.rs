@@ -297,3 +297,49 @@ fn a_readers_snapshots_depend_on_its_reads_not_on_the_array_capacity() {
     assert!(small.0 > 0);
     assert_eq!(small, large, "an unread index acquired a snapshot");
 }
+
+/// The callee may mutate the entire field it receives. Its caller keeps the
+/// sibling array, including every element's default. The array's capacity
+/// should have no bearing on the exact places needed by this call.
+#[test]
+fn passing_one_field_keeps_the_sibling_arrays_out_of_the_call_snapshot() {
+    let [small, large] = [32, 4096].map(|length| {
+        let program = Program::of(&format!(
+            "data Cell requires value <= 31, {{ value: u64; }}
+             data Counter {{ count: u64; }}
+             data Table requires stamp <= 9, {{ stamp: u64; active: Counter; rows: [Cell; {length}]; }}
+             machine touch(counter: @mutable Counter) {{ counter.count = 7; }}
+             machine projected(table: @mutable Table) {{ touch(@mutable table.active); }}
+             machine whole(table: @mutable Table) {{ projected(table); }}"
+        ));
+        let lowered = program.lower();
+        ["projected", "whole"].map(|name| {
+            let machine = lowered.machine(name);
+            let tables = lowered.elaboration.tables.machines.get(machine.id).unwrap();
+            (tables.places.len(), tables.values.len())
+        })
+    });
+    assert_eq!(small[0], large[0]);
+    assert!(large[1].0 > small[1].0);
+    assert!(large[1].1 > small[1].1);
+}
+
+/// Both fields of the enclosing record matter when its own invariant relates
+/// them. The selected write must satisfy that predicate on return.
+#[test]
+fn a_field_handoff_still_checks_the_sibling_named_by_its_owner() {
+    let program = |stored| {
+        Program::of(&format!(
+            "data Cell requires value <= 31, {{ value: u64; }}
+             data Counter {{ count: u64; }}
+             data Table requires active.count <= rows[7].value, {{ active: Counter; rows: [Cell; 8]; }}
+             machine touch(counter: @mutable Counter) ensures counter.count == {stored} {{ counter.count = {stored}; }}
+             machine projected(table: @mutable Table) {{ touch(@mutable table.active); }}"
+        ))
+    };
+    program(0).judged(|_| {}).accepted();
+    assert!(matches!(
+        program(32).judged(|_| {}),
+        program::Verdict::Rejected(_)
+    ));
+}
