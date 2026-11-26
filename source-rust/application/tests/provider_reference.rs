@@ -359,9 +359,17 @@ machine build<'selection>(builder: @mutable Build) {
     let status = std::fs::read_to_string(observation.join("termination.tsv")).unwrap();
     assert!(status.starts_with("native\texit\t0\t"), "{status}");
 
+    let expected = "let left: IssuedTable = TableSource::provide(0u32);";
+    let unissued = program
+        .replace(
+            expected,
+            "let left: Protocol = Protocol { marker: 7, apply: 0 as addr };",
+        )
+        .replace("@left.table)", "@left)");
+
     // Erasing the requirement's input qualification permits ordinary records
     // in source. Native publication must still require evidence for the table.
-    let unrestricted = program.replace("table: @Protocol in Protocol::Initialized", "table: @Protocol");
+    let unrestricted = unissued.replace("table: @Protocol in Protocol::Initialized", "table: @Protocol");
     std::fs::write(root.join("main.omg"), unrestricted).unwrap();
     let unchecked = omega_command(&directory, &root)
         .arg("--build-dir")
@@ -373,13 +381,6 @@ machine build<'selection>(builder: @mutable Build) {
     let diagnostic = String::from_utf8_lossy(&unchecked.stderr);
     assert!(diagnostic.contains("native function table needs provenance"), "{diagnostic}");
 
-    let expected = "let left: IssuedTable = TableSource::provide(0u32);";
-    let unissued = program
-        .replace(
-            expected,
-            "let left: Protocol = Protocol { marker: 7, apply: 0 as addr };",
-        )
-        .replace("@left.table)", "@left)");
     let overwritten = program
         .replace(
             expected,
