@@ -5,7 +5,7 @@
 use crate::declarations::dependencies::read::{DependencySourceRequest, PackageSelection};
 use crate::declarations::editable_build::{
     DEPENDENCY_DESCRIPTION_TYPE_NAME, DEPENDENCY_REGISTRATION_NAME, FROM_SOURCE_HELPER_NAME,
-    WITH_ALIAS_HELPER_NAME,
+    REGISTRATION_TYPE_NAME, WITH_ALIAS_HELPER_NAME,
 };
 use build_declarations::BUILD_MODULE_NAME;
 
@@ -73,8 +73,6 @@ pub(crate) fn canonical_dependency_statement(
         source_text::display_literal_bytes(alias.as_str().as_bytes())
     )
 }
-
-const REGISTRATION_TYPE_NAME: &str = "DependencyRegistration";
 
 // A snake_case identifier from a location's last path segment, so an
 // unaliased `../library/system` registration reads `system_registration`.

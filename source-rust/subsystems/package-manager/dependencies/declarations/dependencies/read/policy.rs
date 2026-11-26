@@ -5,7 +5,8 @@ use super::error::DependencyProjectionError;
 use super::source_literal::{PACKAGE_SELECTION_TYPE_NAME, SOURCE_TYPE_NAME, constructor_parts};
 use crate::declarations::editable_build::{
     DEPENDENCY_DESCRIPTION_TYPE_NAME, DEPENDENCY_REGISTRATION_NAME, FROM_SOURCE_HELPER_NAME,
-    WITH_ALIAS_HELPER_NAME, imported_dependency_helper, package_authored_type_name,
+    REGISTRATION_TYPE_NAME, WITH_ALIAS_HELPER_NAME, expression_owner, imported_dependency_helper,
+    machine_leaf_name, package_authored_type_name,
 };
 use build_declarations::{BUILD_MODULE_NAME, BUILD_TYPE_NAME};
 use syntax_trees::SyntaxTrees;
@@ -50,12 +51,6 @@ pub(crate) fn reject_authored_toolchain_vocabulary(
     Ok(())
 }
 
-const REGISTRATION_TYPE_NAME: &str = "DependencyRegistration";
-
-fn machine_leaf_name(name: &str) -> &str {
-    name.rsplit("::").next().unwrap_or(name)
-}
-
 pub(super) fn reject_unprojected_dependency_syntax(
     syntax_trees: &SyntaxTrees,
     accepted_sources: &[ExpressionHandle],
@@ -74,7 +69,6 @@ pub(super) fn reject_unprojected_dependency_syntax(
             }
         }
     }
-
 
     for (expression_handle, expression) in syntax_trees.expressions.iter_expressions() {
         match expression {
@@ -111,29 +105,4 @@ pub(super) fn reject_unprojected_dependency_syntax(
         }
     }
     Ok(())
-}
-
-// The single-segment static owner of a call expression (`Build` or
-// `dependency`), or none for a value receiver or an unqualified call.
-fn expression_owner(syntax_trees: &SyntaxTrees, receiver: ExpressionHandle) -> Option<&str> {
-    if !receiver.is_valid() {
-        return None;
-    }
-    let ExpressionNode::Name {
-        members: path,
-        application: path_application,
-    } = syntax_trees.expressions.expression(receiver)
-    else {
-        return None;
-    };
-    if path_application.is_some() {
-        return None;
-    }
-    match syntax_trees
-        .expressions
-        .identifier_path_members(path.to_owned())
-    {
-        [owner] => Some(owner.as_str(syntax_trees)),
-        _ => None,
-    }
 }

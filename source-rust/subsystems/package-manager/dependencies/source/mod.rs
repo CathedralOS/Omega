@@ -115,5 +115,3 @@ pub(crate) enum PackageSourceNavigation {
     Root,
     Member(SourceRelativePath),
 }
-
-impl PackageSourceNavigation {}
