@@ -197,6 +197,53 @@ pub enum SelectedInstructionKind {
     },
     Crash,
     PrivilegedCrash,
+    PackedAddI16x8,
+    PackedSubI16x8,
+    PackedShuffleI16x8 {
+        lanes: [u8; 8],
+    },
+    PackedShuffleGeneralI16x8 {
+        lanes: [u8; 8],
+    },
+    PackedShiftRightArithmeticI16x8 {
+        count: u8,
+    },
+    PackedWidenU8x8ToI16x8,
+    PackedNarrowI16x8ToU8x8Saturating,
+    PackedLoadI16x4ZeroExtend,
+    PackedWidenU8x4ToI16x8,
+    PackedNarrowI16x8ToU8x4Saturating,
+    PackedLoad128 {
+        byte_offset: u32,
+    },
+    PackedStore128 {
+        byte_offset: u32,
+    },
+    PackedLoad64ZeroExtend {
+        byte_offset: u32,
+    },
+    PackedStore64 {
+        byte_offset: u32,
+    },
+    PackedLoad32ZeroExtend {
+        byte_offset: u32,
+    },
+    PackedStore32 {
+        byte_offset: u32,
+    },
+    PackedMaterializeZero,
+    PackedFromGpr64ZeroExtend,
+    PackedFromGpr64Pair,
+    PackedAddI16x8Reg,
+    PackedSubI16x8Reg,
+    PackedShiftRightArithmeticI16x8Reg {
+        count: u8,
+    },
+    PackedShuffleI16x8Reg {
+        lanes: [u8; 8],
+    },
+    PackedWidenU8x8ToI16x8Reg,
+    PackedNarrowI16x8ToU8x8SaturatingReg,
     CopyBytes,
     ZeroBytes,
     LoadEncodedScalar,
@@ -482,6 +529,31 @@ macro_rules! dedicated_selected_forms {
             | $crate::SelectedInstructionKind::Float64ToBits
             | $crate::SelectedInstructionKind::BitsToFloat32
             | $crate::SelectedInstructionKind::BitsToFloat64
+            | $crate::SelectedInstructionKind::PackedAddI16x8
+            | $crate::SelectedInstructionKind::PackedSubI16x8
+            | $crate::SelectedInstructionKind::PackedShuffleI16x8 { .. }
+            | $crate::SelectedInstructionKind::PackedShuffleGeneralI16x8 { .. }
+            | $crate::SelectedInstructionKind::PackedShiftRightArithmeticI16x8 { .. }
+            | $crate::SelectedInstructionKind::PackedWidenU8x8ToI16x8
+            | $crate::SelectedInstructionKind::PackedNarrowI16x8ToU8x8Saturating
+            | $crate::SelectedInstructionKind::PackedLoadI16x4ZeroExtend
+            | $crate::SelectedInstructionKind::PackedWidenU8x4ToI16x8
+            | $crate::SelectedInstructionKind::PackedNarrowI16x8ToU8x4Saturating
+            | $crate::SelectedInstructionKind::PackedLoad128 { .. }
+            | $crate::SelectedInstructionKind::PackedStore128 { .. }
+            | $crate::SelectedInstructionKind::PackedLoad64ZeroExtend { .. }
+            | $crate::SelectedInstructionKind::PackedStore64 { .. }
+            | $crate::SelectedInstructionKind::PackedLoad32ZeroExtend { .. }
+            | $crate::SelectedInstructionKind::PackedStore32 { .. }
+            | $crate::SelectedInstructionKind::PackedMaterializeZero
+            | $crate::SelectedInstructionKind::PackedFromGpr64ZeroExtend
+            | $crate::SelectedInstructionKind::PackedFromGpr64Pair
+            | $crate::SelectedInstructionKind::PackedAddI16x8Reg
+            | $crate::SelectedInstructionKind::PackedSubI16x8Reg
+            | $crate::SelectedInstructionKind::PackedShiftRightArithmeticI16x8Reg { .. }
+            | $crate::SelectedInstructionKind::PackedShuffleI16x8Reg { .. }
+            | $crate::SelectedInstructionKind::PackedWidenU8x8ToI16x8Reg
+            | $crate::SelectedInstructionKind::PackedNarrowI16x8ToU8x8SaturatingReg
             | $crate::SelectedInstructionKind::CopyBytes
             | $crate::SelectedInstructionKind::ZeroBytes
             | $crate::SelectedInstructionKind::ScanByteSequence { .. }
@@ -952,6 +1024,44 @@ pub use ieee_float_arithmetic::{
     IeeeFloatFormat, IeeeFloatIntegerCarrier, IeeeFloatRoundingDirection, IeeeFloatToIntegerDomain,
     float_bit_transfer_properties, ieee_float_arithmetic_is_trapping, is_float_bit_transfer,
 };
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum PackedShuffleFastPattern {
+    InterleaveLowWords,
+    InterleaveHighWords,
+    InterleaveLowDoublewords,
+    InterleaveHighDoublewords,
+    InterleaveLowQuadwords,
+    InterleaveHighQuadwords,
+    LowPairDuplicateLow,
+    LowPairDuplicateHigh,
+    HighPairDuplicateLow,
+    HighPairDuplicateHigh,
+}
+
+impl PackedShuffleFastPattern {
+    pub const ALL: [([u8; 8], Self); 10] = [
+        ([0, 8, 1, 9, 2, 10, 3, 11], Self::InterleaveLowWords),
+        ([4, 12, 5, 13, 6, 14, 7, 15], Self::InterleaveHighWords),
+        ([0, 1, 8, 9, 2, 3, 10, 11], Self::InterleaveLowDoublewords),
+        (
+            [4, 5, 12, 13, 6, 7, 14, 15],
+            Self::InterleaveHighDoublewords,
+        ),
+        ([0, 1, 2, 3, 8, 9, 10, 11], Self::InterleaveLowQuadwords),
+        ([4, 5, 6, 7, 12, 13, 14, 15], Self::InterleaveHighQuadwords),
+        ([0, 1, 8, 9, 0, 1, 8, 9], Self::LowPairDuplicateLow),
+        ([2, 3, 10, 11, 2, 3, 10, 11], Self::LowPairDuplicateHigh),
+        ([4, 5, 12, 13, 4, 5, 12, 13], Self::HighPairDuplicateLow),
+        ([6, 7, 14, 15, 6, 7, 14, 15], Self::HighPairDuplicateHigh),
+    ];
+
+    pub fn from_lanes(lanes: [u8; 8]) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find_map(|(pattern, kind)| (pattern == lanes).then_some(kind))
+    }
+}
 
 mod packed_byte_width {
 

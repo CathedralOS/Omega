@@ -32,6 +32,14 @@ mod instruction {
     ) {
         encode_common_fields(bytes, instruction);
         bytes.push(match instruction.memory {
+            MachineMemoryEffect::PackedBinary16BytesV1 => 23,
+            MachineMemoryEffect::PackedUnary16To16BytesV1 => 24,
+            MachineMemoryEffect::PackedUnary8To16BytesV1 => 25,
+            MachineMemoryEffect::PackedUnary16To8BytesV1 => 26,
+            MachineMemoryEffect::PackedUnary4To16BytesV1 => 27,
+            MachineMemoryEffect::PackedUnary16To4BytesV1 => 28,
+            MachineMemoryEffect::PackedVectorLoadBytesV1 => 29,
+            MachineMemoryEffect::PackedVectorStoreBytesV1 => 30,
             MachineMemoryEffect::CopyBytesV1 => 6,
             MachineMemoryEffect::AtomicFenceV1 => 15,
             MachineMemoryEffect::CatalogFenceV1 => 16,
@@ -134,6 +142,31 @@ mod instruction {
             SelectedInstructionKind::AddressOffset { .. } => 25,
             SelectedInstructionKind::CompareI64Zero => 0,
             SelectedInstructionKind::MaterializeI64 { .. } => 1,
+            SelectedInstructionKind::PackedAddI16x8 => 254,
+            SelectedInstructionKind::PackedSubI16x8
+            | SelectedInstructionKind::PackedShuffleI16x8 { .. }
+            | SelectedInstructionKind::PackedShuffleGeneralI16x8 { .. }
+            | SelectedInstructionKind::PackedShiftRightArithmeticI16x8 { .. }
+            | SelectedInstructionKind::PackedWidenU8x8ToI16x8
+            | SelectedInstructionKind::PackedNarrowI16x8ToU8x8Saturating
+            | SelectedInstructionKind::PackedLoadI16x4ZeroExtend
+            | SelectedInstructionKind::PackedWidenU8x4ToI16x8
+            | SelectedInstructionKind::PackedNarrowI16x8ToU8x4Saturating
+            | SelectedInstructionKind::PackedLoad128 { .. }
+            | SelectedInstructionKind::PackedStore128 { .. }
+            | SelectedInstructionKind::PackedLoad64ZeroExtend { .. }
+            | SelectedInstructionKind::PackedStore64 { .. }
+            | SelectedInstructionKind::PackedLoad32ZeroExtend { .. }
+            | SelectedInstructionKind::PackedStore32 { .. }
+            | SelectedInstructionKind::PackedMaterializeZero
+            | SelectedInstructionKind::PackedFromGpr64ZeroExtend
+            | SelectedInstructionKind::PackedFromGpr64Pair
+            | SelectedInstructionKind::PackedAddI16x8Reg
+            | SelectedInstructionKind::PackedSubI16x8Reg
+            | SelectedInstructionKind::PackedShiftRightArithmeticI16x8Reg { .. }
+            | SelectedInstructionKind::PackedShuffleI16x8Reg { .. }
+            | SelectedInstructionKind::PackedWidenU8x8ToI16x8Reg
+            | SelectedInstructionKind::PackedNarrowI16x8ToU8x8SaturatingReg => 241,
             SelectedInstructionKind::CopyBytes => 59,
             SelectedInstructionKind::ScanByteSequence { .. } => 233,
             SelectedInstructionKind::LoadEncodedScalar => 236,

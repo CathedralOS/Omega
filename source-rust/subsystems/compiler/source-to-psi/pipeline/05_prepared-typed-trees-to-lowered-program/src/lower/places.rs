@@ -1149,7 +1149,7 @@ fn expression_homes<'b>(
         | ExpressionKind::IsCase {
             subject: operand, ..
         } => expression_homes(operand, slots, homes),
-        ExpressionKind::Array { elements } => {
+        ExpressionKind::PackedInteger { operands: elements, .. } | ExpressionKind::Array { elements } => {
             for element in elements {
                 expression_homes(element, slots, homes);
             }
@@ -2933,6 +2933,36 @@ impl<'a> Lowering<'a> {
                     record,
                     fresh: true,
                 }))
+            }
+            ExpressionKind::PackedInteger { operation: primitive, operands } => {
+                let mut captured = Vec::with_capacity(operands.len());
+                let mut homes = Vec::new();
+                for (position, operand) in operands.iter().enumerate() {
+                    let ExpressionKind::Borrow { access: language_core::ReferenceAccess::Shared, place, .. } = &operand.kind else {
+                        return Err(self.internal("packed arithmetic requires a shared loan for each input"));
+                    };
+                    let lent = continuing!(self.lend(place, language_core::ReferenceAccess::Shared, position + 1 < operands.len()));
+                    captured.push(lent.argument);
+                    homes.extend(lent.temporary);
+                }
+                let operation = self.operation_identity(expression.source);
+                let site = terminal_check_tables::obligations::ExecutionSite::Operation(operation);
+                let arguments = self.structural_arguments(captured, site, expression.source)?;
+                let kind = match primitive {
+                    crate::body::PackedIntegerOperation::Unary(primitive) => {
+                        let [source] = arguments.try_into().map_err(|_| self.internal("packed unary operation requires one array"))?;
+                        OperationKind::PackedIntegerUnary { operation: *primitive, source }
+                    }
+                    crate::body::PackedIntegerOperation::Binary(primitive) => {
+                        let [left, right] = arguments.try_into().map_err(|_| self.internal("packed binary operation requires two arrays"))?;
+                        OperationKind::PackedIntegerBinary { operation: *primitive, left, right }
+                    }
+                };
+                let (root, place) = self.produce(operation, value_type, kind)?;
+                self.unknown_contents(place, operation)?;
+                self.name_contents(place, value_type)?;
+                self.retire_homes(&homes, expression.source)?;
+                Ok(Reached::Value(Located { root, place, path: Vec::new(), record, fresh: true }))
             }
             ExpressionKind::Call {
                 callee,

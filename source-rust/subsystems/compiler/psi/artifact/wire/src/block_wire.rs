@@ -552,6 +552,8 @@ pub(crate) mod operation_tags {
 
     pub(crate) const DECOMPOSE_STRUCTURAL_VALUE: u8 = 140;
     pub(crate) const STORAGE_ALIGNMENT: u8 = 141;
+    pub(crate) const PACKED_INTEGER_BINARY: u8 = 142;
+    pub(crate) const PACKED_INTEGER_UNARY: u8 = 143;
 }
 pub(crate) mod scalar_operations {
 
@@ -1123,6 +1125,84 @@ mod owned_value_tests {
     };
 
     #[test]
+    fn packed_integer_wire_preserves_both_operand_paths_and_refuses_unknown_arithmetic() {
+        let kind = OperationKind::PackedIntegerBinary {
+            operation: semantic_vocabulary::PackedIntegerBinaryOperation::WrappingAddI16x8,
+            left: StructuralArgument::whole(
+                PlaceId::new(1).unwrap(),
+                StructuralAccess::SharedBorrow,
+            ),
+            right: StructuralArgument {
+                place: PlaceId::new(2).unwrap(),
+                access: StructuralAccess::SharedBorrow,
+                path: vec![StructuralPathSegment::Field(TerminalIdentityIndex(4))],
+            },
+        };
+        let mut writer = Writer::default();
+        super::encode_operation_kind(&mut writer, kind.clone()).unwrap();
+        let mut bytes = writer.finish();
+        assert_eq!(&bytes[..2], &[142, 0]);
+        let mut reader = Reader::new(&bytes);
+        assert_eq!(super::decode_operation_kind(&mut reader).unwrap(), kind);
+        assert_eq!(reader.remaining(), 0);
+        bytes[1] = 255;
+        assert!(matches!(
+            super::decode_operation_kind(&mut Reader::new(&bytes)),
+            Err(super::CodecError::InvalidTag(
+                "PackedIntegerBinaryOperation",
+                255
+            ))
+        ));
+    }
+
+    #[test]
+    fn packed_integer_immediates_round_trip_and_invalid_indices_are_refused() {
+        use semantic_vocabulary::{
+            PackedIntegerBinaryOperation::*, PackedIntegerUnaryOperation::*,
+        };
+        let operand =
+            StructuralArgument::whole(PlaceId::new(1).unwrap(), StructuralAccess::SharedBorrow);
+        let binary = |operation| OperationKind::PackedIntegerBinary {
+            operation,
+            left: operand.clone(),
+            right: operand.clone(),
+        };
+        let unary = |operation| OperationKind::PackedIntegerUnary {
+            operation,
+            source: operand.clone(),
+        };
+        let bytes = |kind| {
+            let mut writer = Writer::default();
+            super::encode_operation_kind(&mut writer, kind).unwrap();
+            writer.finish()
+        };
+        for kind in [
+            binary(WrappingSubI16x8),
+            binary(ShuffleI16x8 {
+                lanes: [1, 15, 0, 8, 7, 7, 14, 2],
+            }),
+            unary(ShiftRightArithmeticI16x8 { count: 15 }),
+            unary(WidenU8x8ToI16x8),
+            unary(NarrowI16x8ToU8x8Saturating),
+            unary(LoadI16x4ZeroExtend),
+            unary(WidenU8x4ToI16x8),
+            unary(NarrowI16x8ToU8x4Saturating),
+        ] {
+            let encoded = bytes(kind.clone());
+            assert_eq!(
+                super::decode_operation_kind(&mut Reader::new(&encoded)).unwrap(),
+                kind
+            );
+        }
+        for kind in [
+            unary(ShiftRightArithmeticI16x8 { count: 16 }),
+            binary(ShuffleI16x8 { lanes: [16; 8] }),
+        ] {
+            assert!(super::decode_operation_kind(&mut Reader::new(&bytes(kind))).is_err());
+        }
+    }
+
+    #[test]
     fn empty_observation_wire_retains_exact_source_and_payload_namespace() {
         use semantic_vocabulary::{EdgeId, StructuralCaseId};
         use terminal_psi::Terminator;
@@ -1648,6 +1728,8 @@ operation_wire! {
             rejected_case: Id,
         },
         RELEASE_ACTIVATION_CLAIM => ReleaseActivationClaim { source: Argument, claim: Id },
+        PACKED_INTEGER_UNARY => PackedIntegerUnary { operation: PackedIntegerUnary, source: Argument },
+        PACKED_INTEGER_BINARY => PackedIntegerBinary { operation: PackedIntegerBinary, left: Argument, right: Argument },
         ESTABLISH_SCALAR_ARRAY => EstablishScalarArray { elements: Ids },
         ESTABLISH_SCALAR_CASE => EstablishScalarCase { result_case: Id, fields: ScalarCaseFields },
         ESTABLISH_BYTE_SEQUENCE_CONCATENATION => EstablishByteSequenceConcatenation {

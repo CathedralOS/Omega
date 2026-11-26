@@ -5428,6 +5428,12 @@ impl<'a> Storage<'a> {
                 &self.byte_field_argument(*source, path, *field, concerns)?,
                 concerns,
             )?]),
+            OperationKind::PackedIntegerBinary { left, right, .. } => {
+                Ok(vec![self.argument(left, concerns)?, self.argument(right, concerns)?])
+            }
+            OperationKind::PackedIntegerUnary { source, .. } => {
+                Ok(vec![self.argument(source, concerns)?])
+            }
             // Predicate and equality reads keep each operand's exact field
             // path, rather than treating its containing root as the view.
             OperationKind::ByteSequenceEqual { .. }

@@ -3577,6 +3577,8 @@ pub(crate) mod operation_encoding {
             | O::EstablishAccessReference { .. }
             | O::ReleaseReference { .. }
             | abstract_operations::move_or_store_structural_field_pattern!()
+            | O::PackedIntegerUnary { .. }
+            | O::PackedIntegerBinary { .. }
             | O::StructuralLeafCopy { .. }
             | O::MoveStructuralValue { .. }
             | O::DecomposeStructuralValue { .. }
@@ -5572,6 +5574,38 @@ pub(crate) mod operation_encoding {
                     tag!(bytes, 123, psi_operation);
                     encode_structural_operation_result(bytes, result);
                     encode_structural_argument(bytes, source);
+                }
+                O::PackedIntegerUnary { psi_operation, result, operation, source } => {
+                    tag!(bytes, 181, psi_operation);
+                    match operation {
+                        semantic_vocabulary::PackedIntegerUnaryOperation::ShiftRightArithmeticI16x8 { count } => {
+                            bytes.u8(0);
+                            bytes.u8(*count);
+                        }
+                        semantic_vocabulary::PackedIntegerUnaryOperation::WidenU8x8ToI16x8 => bytes.u8(1),
+                        semantic_vocabulary::PackedIntegerUnaryOperation::NarrowI16x8ToU8x8Saturating => bytes.u8(2),
+                        semantic_vocabulary::PackedIntegerUnaryOperation::LoadI16x4ZeroExtend => bytes.u8(3),
+                        semantic_vocabulary::PackedIntegerUnaryOperation::WidenU8x4ToI16x8 => bytes.u8(4),
+                        semantic_vocabulary::PackedIntegerUnaryOperation::NarrowI16x8ToU8x4Saturating => bytes.u8(5),
+                    }
+                    encode_structural_operation_result(bytes, result);
+                    encode_structural_argument(bytes, source);
+                }
+                O::PackedIntegerBinary { psi_operation, result, operation, left, right } => {
+                    tag!(bytes, 180, psi_operation);
+                    match operation {
+                        semantic_vocabulary::PackedIntegerBinaryOperation::WrappingAddI16x8 => bytes.u8(0),
+                        semantic_vocabulary::PackedIntegerBinaryOperation::WrappingSubI16x8 => bytes.u8(1),
+                        semantic_vocabulary::PackedIntegerBinaryOperation::ShuffleI16x8 { lanes } => {
+                            bytes.u8(2);
+                            for lane in lanes {
+                                bytes.u8(*lane);
+                            }
+                        }
+                    }
+                    encode_structural_operation_result(bytes, result);
+                    encode_structural_argument(bytes, left);
+                    encode_structural_argument(bytes, right);
                 }
                 O::StructuralLeafCopy {
                     psi_operation,

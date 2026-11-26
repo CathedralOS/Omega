@@ -341,6 +341,8 @@ impl LegalizedScalarInstruction {
             LegalizedScalarInstructionKind::ProgramImageAddress { .. }
             | LegalizedScalarInstructionKind::SelectImplementation { .. }
             | LegalizedScalarInstructionKind::SelectMachine { .. }
+            | LegalizedScalarInstructionKind::PackedIntegerUnary { .. }
+            | LegalizedScalarInstructionKind::PackedIntegerBinary { .. }
             | LegalizedScalarInstructionKind::EstablishStructuralArray { .. }
             | LegalizedScalarInstructionKind::Constant(_)
             | LegalizedScalarInstructionKind::DecomposeStructuralValue { .. }
@@ -632,6 +634,17 @@ pub enum LegalizedScalarInstructionKind {    InstallStaticInterrupt {
         right: terminal_psi::control_flow::ByteSequenceOperand,
         capacity_obligation: semantic_vocabulary::ObligationId,
         accepted_fact: optimization_core::AcceptedObligationFactIdentity,
+    },
+    PackedIntegerUnary {
+        result: terminal_psi::StructuralOperationResult,
+        operation: semantic_vocabulary::PackedIntegerUnaryOperation,
+        source: terminal_psi::StructuralArgument,
+    },
+    PackedIntegerBinary {
+        result: terminal_psi::StructuralOperationResult,
+        operation: semantic_vocabulary::PackedIntegerBinaryOperation,
+        left: terminal_psi::StructuralArgument,
+        right: terminal_psi::StructuralArgument,
     },
     EstablishStructuralArray {
         result: terminal_psi::StructuralOperationResult,
@@ -1032,6 +1045,8 @@ impl LegalizedScalarInstructionKind {
     pub fn get_structural_result(&self) -> Option<&terminal_psi::StructuralOperationResult> {
         match self {
             Self::EstablishByteSequenceConcatenation { result, .. }
+            | Self::PackedIntegerUnary { result, .. }
+            | Self::PackedIntegerBinary { result, .. }
             | Self::EstablishStructuralArray { result, .. }
             | Self::EstablishScalarArray { result, .. }
             | Self::EstablishActivationClaim { result, .. }

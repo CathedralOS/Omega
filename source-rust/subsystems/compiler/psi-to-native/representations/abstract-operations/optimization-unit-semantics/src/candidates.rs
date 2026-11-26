@@ -2591,6 +2591,8 @@ pub(crate) mod dead_scalar_elimination {
                 | O::EstablishAccessReference { .. }
                 | O::ReleaseReference { .. }
                 | abstract_operations::move_or_store_structural_field_pattern!()
+                | O::PackedIntegerUnary { .. }
+                | O::PackedIntegerBinary { .. }
                 | O::StructuralLeafCopy { .. }
                 | O::MoveStructuralValue { .. }
                 | O::DecomposeStructuralValue { .. }
@@ -10446,6 +10448,8 @@ mod value_operand_rewrites {
             | O::StructuralScalarFieldRead { .. }
             | O::ReleaseReference { .. }
             | abstract_operations::move_or_store_structural_field_pattern!()
+            | O::PackedIntegerUnary { .. }
+            | O::PackedIntegerBinary { .. }
             | O::StructuralLeafCopy { .. }
             | O::MoveStructuralValue { .. }
             | O::DecomposeStructuralValue { .. }

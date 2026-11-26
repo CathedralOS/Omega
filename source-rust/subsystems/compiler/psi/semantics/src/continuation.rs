@@ -511,6 +511,7 @@ impl<'a> CheckedPrefix<'a> {
                 | ElementViewRead { .. }
                 | ElementViewSubslice { .. }
                 | ElementViewWrite { .. }
+                | PackedIntegerUnary { .. } | PackedIntegerBinary { .. }
                 | EstablishScalarArray { .. }
                 | EstablishStructuralArray { .. }
                 | EstablishReference { .. }

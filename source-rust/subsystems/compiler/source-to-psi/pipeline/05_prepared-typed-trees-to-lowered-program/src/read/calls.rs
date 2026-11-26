@@ -8,9 +8,9 @@ mod callback_bindings;
 mod resident_index;
 mod resident_storage;
 
+use crate::body::Qualification;
 use crate::declaration_selection::AuthoredDeclarationSelectionExposure;
 use crate::declaration_selection::ResolvedAuthoredCallBinding;
-use crate::body::Qualification;
 use crate::source_selections::{
     AuthoredDeclarationSelection, AuthoredDeclarationSelectionOccurrenceId,
 };
@@ -849,7 +849,10 @@ impl<'t> Program<'t> {
             return self.layout_query(id, call, query, source);
         }
         if call.target_symbol.is_valid()
-            && self.typed.symbols.builtin_function_for_symbol(call.target_symbol)
+            && self
+                .typed
+                .symbols
+                .builtin_function_for_symbol(call.target_symbol)
                 == Some(symbols::BuiltinFunction::AddressOf)
             && !call.receiver.is_valid()
             && call.machine_arguments.is_empty()
@@ -995,7 +998,10 @@ impl<'t> Program<'t> {
                 })?;
             if (self.rigid || self.alternative.is_some())
                 && self.checking_generic_entry(id)
-                && self.typed.closed_requirement_application(call.target_symbol).is_none()
+                && self
+                    .typed
+                    .closed_requirement_application(call.target_symbol)
+                    .is_none()
                 && !call.build_selection.is_valid()
             {
                 self.visible_to(id, call.target_symbol)?;
@@ -2299,6 +2305,37 @@ impl<'t> Program<'t> {
             // Only the generic source check calls this rigid header. Closed
             // applications still dispatch through their selected boundary.
             self.applied_requirement(id, requirement, arguments.types, arguments.type_sources)?
+        } else if matches!(
+            self.typed
+                .compiler_primitive_schema(target)
+                .map_err(|_| refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Call("packed operation has no complete authenticated schema")
+                ))?,
+            Some((
+                language_core::sealed_intrinsics::CompilerPrimitive::PackedInteger(_),
+                _
+            ))
+        ) {
+            if !arguments.types.is_empty()
+                || !arguments.callables.is_empty()
+                || !arguments.proofs.is_empty()
+            {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Call("packed operation received unexpected generic arguments"),
+                ));
+            }
+            if arguments
+                .values
+                .iter()
+                .all(|term| !matches!(term, semantic_vocabulary::ScalarTerm::Value { .. }))
+            {
+                return Ok(None);
+            }
+            self.packed_integer_requirement(id, target)?
         } else {
             self.application(
                 id,
@@ -2437,6 +2474,88 @@ impl<'t> Program<'t> {
             if let Some(read) = self.generic_application_call(id, slots, &invocation, source)? {
                 return Ok(CallBinding::Generic(read));
             }
+        }
+        let packed_target = self
+            .entered_machine(invocation.target)
+            .unwrap_or(invocation.target);
+        if let Some((
+            language_core::sealed_intrinsics::CompilerPrimitive::PackedInteger(primitive),
+            _,
+        )) = self
+            .typed
+            .compiler_primitive_schema(packed_target)
+            .map_err(|_| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Call("packed operation has no complete authenticated schema"),
+                )
+            })?
+        {
+            if matches!(call, StaticArgumentCall::Statement(_))
+                || invocation.unsupported
+                || invocation.runtime_receiver
+            {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Call("packed operation must be called as a pure expression"),
+                ));
+            }
+            self.direct_selection(
+                id,
+                invocation.target,
+                invocation.selection,
+                invocation.binding,
+            )?;
+            let target = self.call_target_symbol(id, invocation.target)?;
+            self.visible_to(id, target)?;
+            let immediates = if primitive.immediates() == 0 {
+                self.applies_nothing(
+                    id,
+                    invocation.target,
+                    invocation.application,
+                    invocation.authored_arguments,
+                )?;
+                Vec::new()
+            } else {
+                let caller = self.symbols.get(id).copied().ok_or_else(|| {
+                    refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Call("packed operation has no source caller"),
+                    )
+                })?;
+                let application = self.application_arguments(
+                    id,
+                    caller,
+                    target,
+                    invocation.application,
+                    invocation.authored_arguments,
+                )?;
+                if !application.types.is_empty()
+                    || !application.callables.is_empty()
+                    || !application.proofs.is_empty()
+                    || application.values.len() != primitive.immediates()
+                {
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Call("packed operation received unexpected generic arguments"),
+                    ));
+                }
+                application.values
+            };
+            let expr = self.packed_integer(
+                id,
+                slots,
+                target,
+                primitive,
+                &immediates,
+                invocation.arguments,
+                source,
+            )?;
+            return Ok(CallBinding::Generic(expr));
         }
         self.check_resident_storage(id, &invocation, source)?;
         self.applies_nothing(
@@ -2601,7 +2720,10 @@ impl<'t> Program<'t> {
 
     /// Both source call forms expose one retained static application and the
     /// same authored selection. Their operands still belong to their own arena.
-    pub(super) fn static_invocation<'call>(&self, call: StaticArgumentCall<'call>) -> StaticInvocation<'call>
+    pub(super) fn static_invocation<'call>(
+        &self,
+        call: StaticArgumentCall<'call>,
+    ) -> StaticInvocation<'call>
     where
         't: 'call,
     {
@@ -2887,6 +3009,183 @@ impl<'t> Program<'t> {
                 Some(selection),
             ),
         }
+    }
+
+    fn check_lent_actuals(
+        &self,
+        id: MachineId,
+        slots: &[Slot],
+        read: &[Expression],
+    ) -> Checked<()> {
+        lent_storage_is_untouched(
+            id,
+            read,
+            &self.captures,
+            |place| place.result.is_some_and(|held| self.is_borrowed_view(held)),
+            |slot| {
+                slots
+                    .get(slot)
+                    .is_some_and(|held| held.borrowed == Some(ReferenceAccess::Shared))
+            },
+            |record, field| match record {
+                ValueType::Record(row, _, _) => match &self.data_type(id, row).ok()?.shape {
+                    crate::StorageShape::Record(fields) => fields.get(field).map(|field| field.id),
+                    _ => None,
+                },
+                _ => None,
+            },
+        )
+    }
+
+    fn packed_integer(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        target: SymbolHandle,
+        primitive: language_core::sealed_intrinsics::PackedIntegerPrimitive,
+        immediates: &[semantic_vocabulary::ScalarTerm],
+        arguments: &[ExpressionHandle],
+        source: SourceOrigin,
+    ) -> Checked<Expression> {
+        use language_core::sealed_intrinsics::PackedIntegerPrimitive;
+        use semantic_vocabulary::{
+            IntegerValue, PackedIntegerBinaryOperation, PackedIntegerUnaryOperation, ScalarTerm,
+        };
+        let (checked_primitive, signature) =
+            self.packed_integer_signature(id, target, immediates)?;
+        if checked_primitive != primitive || arguments.len() != primitive.inputs() {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Typing("packed operation argument count"),
+            ));
+        }
+        let mut indices = Vec::with_capacity(immediates.len());
+        for term in immediates {
+            let ScalarTerm::Integer {
+                value: IntegerValue::Unsigned(value),
+                ..
+            } = term
+            else {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Call("packed immediate must be a concrete constant below 16"),
+                ));
+            };
+            let index = u8::try_from(*value)
+                .ok()
+                .filter(|&index| index < 16)
+                .ok_or_else(|| {
+                    crate::reject(
+                        id,
+                        source,
+                        "packed operation immediate must be less than 16",
+                    )
+                })?;
+            indices.push(index);
+        }
+        let operation = match primitive {
+            PackedIntegerPrimitive::WrappingAddI16x8 => {
+                crate::body::PackedIntegerOperation::Binary(
+                    PackedIntegerBinaryOperation::WrappingAddI16x8,
+                )
+            }
+            PackedIntegerPrimitive::WrappingSubI16x8 => {
+                crate::body::PackedIntegerOperation::Binary(
+                    PackedIntegerBinaryOperation::WrappingSubI16x8,
+                )
+            }
+            PackedIntegerPrimitive::ShuffleI16x8 => {
+                let lanes: [u8; 8] = indices.try_into().map_err(|_| {
+                    refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Call("packed shuffle requires 8 lane indices"),
+                    )
+                })?;
+                crate::body::PackedIntegerOperation::Binary(
+                    PackedIntegerBinaryOperation::ShuffleI16x8 { lanes },
+                )
+            }
+            PackedIntegerPrimitive::ShiftRightI16x8 => {
+                let [count] = indices.as_slice() else {
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Call("packed shift requires 1 shift count"),
+                    ));
+                };
+                crate::body::PackedIntegerOperation::Unary(
+                    PackedIntegerUnaryOperation::ShiftRightArithmeticI16x8 { count: *count },
+                )
+            }
+            PackedIntegerPrimitive::WidenU8x8ToI16x8 => crate::body::PackedIntegerOperation::Unary(
+                PackedIntegerUnaryOperation::WidenU8x8ToI16x8,
+            ),
+            PackedIntegerPrimitive::NarrowI16x8ToU8x8Saturating => {
+                crate::body::PackedIntegerOperation::Unary(
+                    PackedIntegerUnaryOperation::NarrowI16x8ToU8x8Saturating,
+                )
+            }
+            PackedIntegerPrimitive::LoadI16x4ZeroExtend => {
+                crate::body::PackedIntegerOperation::Unary(
+                    PackedIntegerUnaryOperation::LoadI16x4ZeroExtend,
+                )
+            }
+            PackedIntegerPrimitive::WidenU8x4ToI16x8 => crate::body::PackedIntegerOperation::Unary(
+                PackedIntegerUnaryOperation::WidenU8x4ToI16x8,
+            ),
+            PackedIntegerPrimitive::NarrowI16x8ToU8x4Saturating => {
+                crate::body::PackedIntegerOperation::Unary(
+                    PackedIntegerUnaryOperation::NarrowI16x8ToU8x4Saturating,
+                )
+            }
+        };
+        let free = self.machine_lifetimes(target);
+        let mut bound = super::regions::Substitution::new();
+        let mut operands = Vec::with_capacity(arguments.len());
+        for (position, argument) in arguments.iter().enumerate() {
+            let declared = signature.parameters[position];
+            let borrowed = &signature.borrowed[position];
+            let contextual = self.argument_context(declared, &free, &bound);
+            let (mut lent, _) = self.lent(id, slots, *argument, borrowed, contextual)?;
+            lent.result = self.borrowed_argument_type(id, slots, &lent, contextual, borrowed)?;
+            let ExpressionKind::Borrow { place, .. } = &lent.kind else {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Typing("packed operand without a shared loan"),
+                ));
+            };
+            let actual = self.loan_regions(id, slots, place)?;
+            self.unify_regions(id, &free, borrowed.regions, actual, &mut bound)?;
+            if let Some(actual) = lent.result {
+                self.unify(id, &free, declared, actual, &mut bound)?;
+            }
+            let expected = self.substitute(declared, &bound);
+            if !self.same_type(lent.result, expected) {
+                return Err(self.mistyped(
+                    id,
+                    argument_source(&lent),
+                    super::rejections::Destination::Parameter,
+                    Some(expected),
+                    lent.result,
+                    "packed operation operand",
+                ));
+            }
+            operands.push(lent);
+        }
+        self.check_lent_actuals(id, slots, &operands)?;
+        Ok(Expression {
+            source,
+            call_context: None,
+            result: signature.result,
+            kind: ExpressionKind::PackedInteger {
+                operation,
+                operands,
+            },
+        })
     }
 
     fn call_from(
@@ -3504,26 +3803,7 @@ impl<'t> Program<'t> {
             }
         }
         read.extend_from_slice(const_values);
-        lent_storage_is_untouched(
-            id,
-            &read,
-            &self.captures,
-            |place| place.result.is_some_and(|held| self.is_borrowed_view(held)),
-            |slot| {
-                slots
-                    .get(slot)
-                    .is_some_and(|held| held.borrowed == Some(ReferenceAccess::Shared))
-            },
-            |record, field| match record {
-                ValueType::Record(row, _, _) => match &self.data_type(id, row).ok()?.shape {
-                    crate::StorageShape::Record(fields) => {
-                        fields.get(field).map(|field| field.id)
-                    }
-                    _ => None,
-                },
-                _ => None,
-            },
-        )?;
+        self.check_lent_actuals(id, slots, &read)?;
         if let Some(span) = source.span()
             && let Some(names) = self.names.get_mut(id)
         {
@@ -3704,7 +3984,10 @@ impl<'t> Program<'t> {
                 if *owner != callee {
                     return false;
                 }
-                let Some(position) = const_formals.iter().position(|formal| *formal == Some(*value)) else {
+                let Some(position) = const_formals
+                    .iter()
+                    .position(|formal| *formal == Some(*value))
+                else {
                     return false;
                 };
                 match (al, values.get(position).map(|value| &value.kind)) {
@@ -4088,10 +4371,16 @@ impl<'t> Program<'t> {
                     return unserved("shared view changes its captured referent type or access");
                 }
                 formed.qualified(backing_qualification).ok_or_else(|| {
-                    refuse(id, Construct::Machine, Unserved::Call("shared view without its backing type"))
+                    refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Call("shared view without its backing type"),
+                    )
                 })?
             } else {
-                if reference_access != StructuralAccess::MutableBorrow || !self.same_type(Some(backing), referent) {
+                if reference_access != StructuralAccess::MutableBorrow
+                    || !self.same_type(Some(backing), referent)
+                {
                     return unserved("exclusive formation changes its captured referent type");
                 }
                 formed
@@ -4111,12 +4400,17 @@ impl<'t> Program<'t> {
             // Erase facts on a shared descriptor. The successor then lends its
             // referent, while the original place keeps its full memberships.
             let (parent, result) = if let Some(shown) = weaker_view {
-                (Expression {
-                    call_context: None,
-                    result: parent.result.and_then(|ty| ty.qualified(shown.qualification())),
-                    kind: ExpressionKind::Requalify(Box::new(parent)),
-                    source,
-                }, Some(shown))
+                (
+                    Expression {
+                        call_context: None,
+                        result: parent
+                            .result
+                            .and_then(|ty| ty.qualified(shown.qualification())),
+                        kind: ExpressionKind::Requalify(Box::new(parent)),
+                        source,
+                    },
+                    Some(shown),
+                )
             } else {
                 (parent, result)
             };
@@ -4186,8 +4480,7 @@ impl<'t> Program<'t> {
             ) if left == right && left_qualification == right_qualification => (*actual, *expected),
             _ => return Ok(actual),
         };
-        let lends_mutable_backing = formal.referent
-            == crate::body::BorrowedReferent::Slice
+        let lends_mutable_backing = formal.referent == crate::body::BorrowedReferent::Slice
             && formal.access == ReferenceAccess::Mutable
             && expected_access.is_none()
             && actual_access == Some(StructuralAccess::MutableBorrow);
@@ -4499,7 +4792,10 @@ impl Touches<'_> {
                 changes || *access != ReferenceAccess::Shared,
                 captures,
             ),
-            ExpressionKind::Array { elements } => {
+            ExpressionKind::PackedInteger {
+                operands: elements, ..
+            }
+            | ExpressionKind::Array { elements } => {
                 for element in elements {
                     if self.expression(element, changes, captures)? {
                         return Ok(true);
@@ -4560,7 +4856,11 @@ impl Touches<'_> {
                 }
                 result
             }
-            ExpressionKind::TestMembership { subject: left, predicate: right, .. }
+            ExpressionKind::TestMembership {
+                subject: left,
+                predicate: right,
+                ..
+            }
             | ExpressionKind::Strict { left, right, .. }
             | ExpressionKind::ShortCircuit { left, right, .. } => Ok(self
                 .expression(left, false, captures)?

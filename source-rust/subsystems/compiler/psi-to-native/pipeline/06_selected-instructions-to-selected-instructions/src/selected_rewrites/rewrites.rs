@@ -512,7 +512,8 @@ pub(crate) mod place_storage {
             | LocalStorageSlotId::StructuralCallArgument { .. }
             | LocalStorageSlotId::InvocationArgument { .. }
             | LocalStorageSlotId::InvocationResult { .. }
-            | LocalStorageSlotId::BoundaryResult { .. } => false,
+            | LocalStorageSlotId::BoundaryResult { .. }
+            | LocalStorageSlotId::Inlined { .. } => false,
         }
     }
     pub(crate) fn extent_intersects(
@@ -2710,8 +2711,37 @@ pub(crate) mod window_hazards {
             | MaterializeBooleanU64LessThan
             | MaterializeBooleanI64LessThan
             | MaterializeBooleanU64LessOrEqual
-            | MaterializeBooleanI64LessOrEqual => UnrosteredReach::Private,
-            Store { .. } | StorePacked { .. } | Store64 { .. } | CopyBytes | ZeroBytes => {
+            | MaterializeBooleanI64LessOrEqual
+            | PackedLoad128 { .. }
+            | PackedLoad64ZeroExtend { .. }
+            | PackedLoad32ZeroExtend { .. }
+            | PackedMaterializeZero
+            | PackedFromGpr64ZeroExtend
+            | PackedFromGpr64Pair
+            | PackedAddI16x8Reg
+            | PackedSubI16x8Reg
+            | PackedShiftRightArithmeticI16x8Reg { .. }
+            | PackedShuffleI16x8Reg { .. }
+            | PackedWidenU8x8ToI16x8Reg
+            | PackedNarrowI16x8ToU8x8SaturatingReg => UnrosteredReach::Private,
+            Store { .. }
+            | StorePacked { .. }
+            | Store64 { .. }
+            | CopyBytes
+            | ZeroBytes
+            | PackedAddI16x8
+            | PackedSubI16x8
+            | PackedShuffleI16x8 { .. }
+            | PackedShuffleGeneralI16x8 { .. }
+            | PackedShiftRightArithmeticI16x8 { .. }
+            | PackedWidenU8x8ToI16x8
+            | PackedNarrowI16x8ToU8x8Saturating
+            | PackedLoadI16x4ZeroExtend
+            | PackedWidenU8x4ToI16x8
+            | PackedNarrowI16x8ToU8x4Saturating
+            | PackedStore128 { .. }
+            | PackedStore64 { .. }
+            | PackedStore32 { .. } => {
                 UnrosteredReach::Store
             }
             _ => UnrosteredReach::Unaccounted,

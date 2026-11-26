@@ -171,7 +171,65 @@ pub fn encode_kind(bytes: &mut Vec<u8>, tag: u8, kind: SelectedInstructionKind) 
                 bytes.push(payload);
             }
         }
+        SelectedInstructionKind::PackedSubI16x8 => bytes.push(0),
+        SelectedInstructionKind::PackedShuffleI16x8 { lanes } => {
+            bytes.push(1);
+            bytes.extend_from_slice(&lanes);
+        }
+        SelectedInstructionKind::PackedShuffleGeneralI16x8 { lanes } => {
+            bytes.push(2);
+            bytes.extend_from_slice(&lanes);
+        }
+        SelectedInstructionKind::PackedShiftRightArithmeticI16x8 { count } => {
+            bytes.push(3);
+            bytes.push(count);
+        }
+        SelectedInstructionKind::PackedWidenU8x8ToI16x8 => bytes.push(4),
+        SelectedInstructionKind::PackedNarrowI16x8ToU8x8Saturating => bytes.push(5),
+        SelectedInstructionKind::PackedLoadI16x4ZeroExtend => bytes.push(6),
+        SelectedInstructionKind::PackedWidenU8x4ToI16x8 => bytes.push(7),
+        SelectedInstructionKind::PackedNarrowI16x8ToU8x4Saturating => bytes.push(8),
+        SelectedInstructionKind::PackedLoad128 { byte_offset } => {
+            bytes.push(9);
+            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+        }
+        SelectedInstructionKind::PackedStore128 { byte_offset } => {
+            bytes.push(10);
+            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+        }
+        SelectedInstructionKind::PackedLoad64ZeroExtend { byte_offset } => {
+            bytes.push(11);
+            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+        }
+        SelectedInstructionKind::PackedStore64 { byte_offset } => {
+            bytes.push(12);
+            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+        }
+        SelectedInstructionKind::PackedLoad32ZeroExtend { byte_offset } => {
+            bytes.push(13);
+            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+        }
+        SelectedInstructionKind::PackedStore32 { byte_offset } => {
+            bytes.push(14);
+            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+        }
+        SelectedInstructionKind::PackedMaterializeZero => bytes.push(15),
+        SelectedInstructionKind::PackedFromGpr64ZeroExtend => bytes.push(16),
+        SelectedInstructionKind::PackedFromGpr64Pair => bytes.push(17),
+        SelectedInstructionKind::PackedAddI16x8Reg => bytes.push(18),
+        SelectedInstructionKind::PackedSubI16x8Reg => bytes.push(19),
+        SelectedInstructionKind::PackedShiftRightArithmeticI16x8Reg { count } => {
+            bytes.push(20);
+            bytes.push(count);
+        }
+        SelectedInstructionKind::PackedShuffleI16x8Reg { lanes } => {
+            bytes.push(21);
+            bytes.extend_from_slice(&lanes);
+        }
+        SelectedInstructionKind::PackedWidenU8x8ToI16x8Reg => bytes.push(22),
+        SelectedInstructionKind::PackedNarrowI16x8ToU8x8SaturatingReg => bytes.push(23),
         SelectedInstructionKind::CompareI64Zero
+        | SelectedInstructionKind::PackedAddI16x8
         | SelectedInstructionKind::CopyBytes
         | SelectedInstructionKind::ZeroBytes
         | SelectedInstructionKind::TrappingInteger { .. }

@@ -139,9 +139,9 @@ pub use instructions::{
     AccessorScalarForm, FloatResultPolicyForm, FloatResultPolicyKind, IeeeFloatArithmeticForm,
     IeeeFloatArithmeticOperation, IeeeFloatBinaryOperation, IeeeFloatFormat,
     IeeeFloatIntegerCarrier, IeeeFloatRoundingDirection, IeeeFloatToIntegerDomain, PackedByteWidth,
-    SelectedCallTarget, SelectedImageAddressReference, SelectedInstruction,
-    SelectedInstructionKind, float_bit_transfer_properties, ieee_float_arithmetic_is_trapping,
-    instruction_position, is_float_bit_transfer,
+    PackedShuffleFastPattern, SelectedCallTarget, SelectedImageAddressReference,
+    SelectedInstruction, SelectedInstructionKind, float_bit_transfer_properties,
+    ieee_float_arithmetic_is_trapping, instruction_position, is_float_bit_transfer,
 };
 pub use live_ranges::{
     ArchitecturalUnitAction, ArchitecturalUnitActionKind, ArchitecturalUnitLiveRange,

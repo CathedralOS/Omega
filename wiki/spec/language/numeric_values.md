@@ -11,6 +11,9 @@ does not introduce another authored type form.
 
 ## Library numeric helpers
 
+[Fixed-width SIMD values](simd.md) apply integer operations independently to
+each lane of a fixed-size group.
+
 `min`, `max`, `abs`, `clamp` and `sqrt` are ordinary bundled-library machines,
 not language functions or compiler-known source builtins. They belong in
 `core`'s math surface (`source/library/core/math.omg`), which holds

@@ -1,0 +1,105 @@
+use omega\language\core\packed_integer;
+
+// Lane zero corresponds to the first element in memory. Ordinary fixed arrays
+// carry the extent proof across loads and stores, including partial rows.
+public data Lanes<T, const N: u64> {
+    values: [T; N];
+}
+
+public machine load_i16x8(source: @[i16; 8]) -> Lanes<i16, 8> {
+    Lanes { values: $source }
+}
+
+public machine load_i16x4(source: @[i16; 4]) -> Lanes<i16, 8> {
+    let values: [i16; 8] = packed_integer\load_i16x4_zero_extend(source);
+    Lanes { values: values }
+}
+
+public machine store_i16x8(destination: @mutable [i16; 8], value: @Lanes<i16, 8>) {
+    $destination = value.values;
+}
+
+public machine add_i16x8_wrapping(left: @Lanes<i16, 8>, right: @Lanes<i16, 8>) -> Lanes<i16, 8> {
+    let sum: [i16; 8] = packed_integer\wrapping_add_i16x8(@left.values, @right.values);
+    Lanes { values: sum }
+}
+
+public data Rows4x4 {
+    row0: Lanes<i16, 8>;
+    row1: Lanes<i16, 8>;
+    row2: Lanes<i16, 8>;
+    row3: Lanes<i16, 8>;
+}
+
+public machine subtract_i16x8_wrapping(left: @Lanes<i16, 8>, right: @Lanes<i16, 8>) -> Lanes<i16, 8> {
+    let values: [i16; 8] = packed_integer\wrapping_sub_i16x8(@left.values, @right.values);
+    Lanes { values: values }
+}
+
+public machine shift_right_i16x8<const Count: u64>(input: @Lanes<i16, 8>) -> Lanes<i16, 8>
+requires Count < 16u64 {
+    let values: [i16; 8] = packed_integer\shift_right_i16x8::<Count>(@input.values);
+    Lanes { values: values }
+}
+
+public machine widen_u8x8(input: @[u8; 8]) -> Lanes<i16, 8> {
+    let values: [i16; 8] = packed_integer\widen_u8x8_to_i16x8(input);
+    Lanes { values: values }
+}
+
+public machine narrow_u8x8(input: @Lanes<i16, 8>) -> [u8; 8] {
+    packed_integer\narrow_i16x8_to_u8x8_saturating(@input.values)
+}
+
+public machine widen_u8x4(input: @[u8; 4]) -> Lanes<i16, 8> {
+    let values: [i16; 8] = packed_integer\widen_u8x4_to_i16x8(input);
+    Lanes { values: values }
+}
+
+public machine narrow_u8x4(input: @Lanes<i16, 8>) -> [u8; 4] {
+    packed_integer\narrow_i16x8_to_u8x4_saturating(@input.values)
+}
+
+public machine concat_low_i16x4(low: @Lanes<i16, 8>, high: @Lanes<i16, 8>) -> Lanes<i16, 8> {
+    let values: [i16; 8] = packed_integer\shuffle_i16x8::<0, 1, 2, 3, 8, 9, 10, 11>(@low.values, @high.values);
+    Lanes { values: values }
+}
+
+public machine high_i16x4(input: @Lanes<i16, 8>) -> Lanes<i16, 8> {
+    let values: [i16; 8] = packed_integer\shuffle_i16x8::<4, 5, 6, 7, 12, 13, 14, 15>(@input.values, @input.values);
+    Lanes { values: values }
+}
+
+// The transpose reads four lanes per row. The upper four lanes of each
+// output repeat its lower four lanes.
+public machine transpose4x4(input: @Rows4x4) -> Rows4x4 {
+    let ab: [i16; 8] = packed_integer\shuffle_i16x8::<0, 8, 1, 9, 2, 10, 3, 11>(@input.row0.values, @input.row1.values);
+    let cd: [i16; 8] = packed_integer\shuffle_i16x8::<0, 8, 1, 9, 2, 10, 3, 11>(@input.row2.values, @input.row3.values);
+    let r0: [i16; 8] = packed_integer\shuffle_i16x8::<0, 1, 8, 9, 0, 1, 8, 9>(@ab, @cd);
+    let r1: [i16; 8] = packed_integer\shuffle_i16x8::<2, 3, 10, 11, 2, 3, 10, 11>(@ab, @cd);
+    let r2: [i16; 8] = packed_integer\shuffle_i16x8::<4, 5, 12, 13, 4, 5, 12, 13>(@ab, @cd);
+    let r3: [i16; 8] = packed_integer\shuffle_i16x8::<6, 7, 14, 15, 6, 7, 14, 15>(@ab, @cd);
+    Rows4x4 {
+        row0: load_i16x8(@r0), row1: load_i16x8(@r1),
+        row2: load_i16x8(@r2), row3: load_i16x8(@r3)
+    }
+}
+
+public machine transpose4x4_pair(input: @Rows4x4) -> Rows4x4 {
+    let a01: [i16; 8] = packed_integer\shuffle_i16x8::<0, 8, 1, 9, 2, 10, 3, 11>(@input.row0.values, @input.row1.values);
+    let a23: [i16; 8] = packed_integer\shuffle_i16x8::<0, 8, 1, 9, 2, 10, 3, 11>(@input.row2.values, @input.row3.values);
+    let b01: [i16; 8] = packed_integer\shuffle_i16x8::<4, 12, 5, 13, 6, 14, 7, 15>(@input.row0.values, @input.row1.values);
+    let b23: [i16; 8] = packed_integer\shuffle_i16x8::<4, 12, 5, 13, 6, 14, 7, 15>(@input.row2.values, @input.row3.values);
+    let ac01: [i16; 8] = packed_integer\shuffle_i16x8::<0, 1, 8, 9, 2, 3, 10, 11>(@a01, @a23);
+    let ac23: [i16; 8] = packed_integer\shuffle_i16x8::<4, 5, 12, 13, 6, 7, 14, 15>(@a01, @a23);
+    let bc01: [i16; 8] = packed_integer\shuffle_i16x8::<0, 1, 8, 9, 2, 3, 10, 11>(@b01, @b23);
+    let bc23: [i16; 8] = packed_integer\shuffle_i16x8::<4, 5, 12, 13, 6, 7, 14, 15>(@b01, @b23);
+    let c0: [i16; 8] = packed_integer\shuffle_i16x8::<0, 1, 2, 3, 8, 9, 10, 11>(@ac01, @bc01);
+    let c1: [i16; 8] = packed_integer\shuffle_i16x8::<4, 5, 6, 7, 12, 13, 14, 15>(@ac01, @bc01);
+    let c2: [i16; 8] = packed_integer\shuffle_i16x8::<0, 1, 2, 3, 8, 9, 10, 11>(@ac23, @bc23);
+    let c3: [i16; 8] = packed_integer\shuffle_i16x8::<4, 5, 6, 7, 12, 13, 14, 15>(@ac23, @bc23);
+    Rows4x4 {
+        row0: load_i16x8(@c0), row1: load_i16x8(@c1),
+        row2: load_i16x8(@c2), row3: load_i16x8(@c3)
+    }
+}

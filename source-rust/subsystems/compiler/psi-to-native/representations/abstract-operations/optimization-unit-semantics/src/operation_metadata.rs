@@ -157,6 +157,8 @@ fn scalar_definition(operation: &AbstractOperation) -> Option<(ValueId, ScalarTy
         | O::MoveStructuralValue { .. }
         | O::DecomposeStructuralValue { .. }
         | O::TransformContent { .. }
+        | O::PackedIntegerUnary { .. }
+        | O::PackedIntegerBinary { .. }
         | O::StructuralLeafCopy { .. }
         | O::StoreStructuralField { .. }
         | O::EstablishCase { .. }
@@ -360,6 +362,8 @@ fn direct_uses(operation: &AbstractOperation) -> Vec<ValueId> {
         | O::MoveStructuralValue { .. }
         | O::DecomposeStructuralValue { .. }
         | O::TransformContent { .. }
+        | O::PackedIntegerUnary { .. }
+        | O::PackedIntegerBinary { .. }
         | O::StructuralLeafCopy { .. }
         | O::StoreStructuralField { .. }
         | O::EstablishByteSequenceLiteral { .. }
@@ -482,6 +486,8 @@ pub(crate) fn expected_ownership(operation: &AbstractOperation) -> Vec<Ownership
         | O::MoveStructuralValue { .. }
         | O::DecomposeStructuralValue { .. }
         | O::TransformContent { .. }
+        | O::PackedIntegerUnary { .. }
+        | O::PackedIntegerBinary { .. }
         | O::StructuralLeafCopy { .. }
         | O::StoreStructuralField { .. }
         | O::AtomicEvent { .. }

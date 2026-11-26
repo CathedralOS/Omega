@@ -229,6 +229,8 @@ pub(super) fn physical_authority_use(operation: &AbstractOperation) -> PhysicalA
         | AbstractOperation::ReleaseReference { .. }
         | abstract_operations::move_or_store_structural_field_pattern!()
         | AbstractOperation::StructuralLeafCopy { .. }
+        | AbstractOperation::PackedIntegerUnary { .. }
+        | AbstractOperation::PackedIntegerBinary { .. }
         | AbstractOperation::MoveStructuralValue { .. }
         | AbstractOperation::DecomposeStructuralValue { .. }
         | AbstractOperation::TransformContent { .. }

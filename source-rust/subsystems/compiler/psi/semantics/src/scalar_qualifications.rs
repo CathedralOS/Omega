@@ -372,6 +372,23 @@ fn validate_machine_transfers(
                         }
                     }
                 }
+                OperationKind::PackedIntegerUnary { .. } | OperationKind::PackedIntegerBinary { .. } => {
+                    let result = operation.result.structural().ok_or(
+                        ScalarQualificationError::MalformedStructuralFoundation(
+                            "packed integer operation requires an array result",
+                        ),
+                    )?;
+                    let (leaf, _) = crate::scalar_array_leaf_declaration(
+                        module.types.structural_types.iter(),
+                        result.structural_type,
+                    )
+                    .ok_or(ScalarQualificationError::MalformedStructuralFoundation(
+                        "packed integer result has no scalar lanes",
+                    ))?;
+                    if primitive_qualifications(module, leaf.id) != ScalarQualificationSetId::ZERO {
+                        return malformed("packed integer arithmetic cannot establish scalar membership");
+                    }
+                }
                 OperationKind::EstablishScalarArray { elements } => {
                     let result = operation.result.structural().ok_or(
                         ScalarQualificationError::MalformedStructuralFoundation(

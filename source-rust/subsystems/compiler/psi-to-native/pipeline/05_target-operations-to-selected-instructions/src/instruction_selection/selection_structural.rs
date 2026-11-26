@@ -2651,8 +2651,14 @@ pub(crate) mod primitive_locals {
                 // Setting the limit bit caps the least-set-bit result at the
                 // declared region alignment, independent of incidental placement.
                 // A less aligned projected address keeps its true smaller result.
-                let root = crate::instruction_selection::selection::reference_input::root_type(source, *place).ok_or_else(invalid)?;
-                let limit = source.geometry().location_alignment_limit(root, path).ok_or_else(invalid)?;
+                let root = crate::instruction_selection::selection::reference_input::root_type(
+                    source, *place,
+                )
+                .ok_or_else(invalid)?;
+                let limit = source
+                    .geometry()
+                    .location_alignment_limit(root, path)
+                    .ok_or_else(invalid)?;
                 let top = super::fragmented_scalar::constant(builder, row, *place, limit)?;
                 let address = super::fragmented_scalar::binary(
                     builder,
@@ -3801,6 +3807,279 @@ pub(crate) mod scalar_case {
         )
     }
 }
+pub(crate) mod packed_integer {
+    use super::*;
+    use crate::instruction_selection::native_geometry::NativeFunction;
+    use crate::instruction_selection::selection::reference_input;
+    use selected_instructions::PackedShuffleFastPattern;
+    use semantic_vocabulary::{PackedIntegerBinaryOperation, PackedIntegerUnaryOperation};
+    use terminal_psi::StructuralAccess;
+    use terminal_semantics::PackedArrayRole;
+
+    pub(crate) fn emit(
+        source: &NativeFunction<'_>,
+        row: &LegalizedScalarInstruction,
+        builder: &mut Builder<'_>,
+    ) -> Result<(), SelectedInstructionError> {
+        let geometry = source.geometry();
+        let (result, input_specs, kind, key): (
+            &terminal_psi::StructuralOperationResult,
+            Vec<(&terminal_psi::StructuralArgument, u32)>,
+            SelectedInstructionKind,
+            register_model::RegisterConstraintKey,
+        ) = match &row.kind {
+            LegalizedScalarInstructionKind::PackedIntegerBinary {
+                result,
+                operation,
+                left,
+                right,
+            } => {
+                terminal_semantics::packed_integer_array_type(
+                    geometry.iter(),
+                    result.structural_type,
+                    *operation,
+                )
+                .ok_or_else(invalid)?;
+                let (kind, key) = match operation {
+                    PackedIntegerBinaryOperation::WrappingAddI16x8 => (
+                        SelectedInstructionKind::PackedAddI16x8,
+                        builder
+                            .constraints
+                            .keys
+                            .packed_add_i16x8
+                            .ok_or_else(invalid)?,
+                    ),
+                    PackedIntegerBinaryOperation::WrappingSubI16x8 => (
+                        SelectedInstructionKind::PackedSubI16x8,
+                        builder
+                            .constraints
+                            .keys
+                            .packed_sub_i16x8
+                            .ok_or_else(invalid)?,
+                    ),
+                    PackedIntegerBinaryOperation::ShuffleI16x8 { lanes } => {
+                        if PackedShuffleFastPattern::from_lanes(*lanes).is_some() {
+                            (
+                                SelectedInstructionKind::PackedShuffleI16x8 { lanes: *lanes },
+                                builder
+                                    .constraints
+                                    .keys
+                                    .packed_shuffle_i16x8
+                                    .ok_or_else(invalid)?,
+                            )
+                        } else {
+                            (
+                                SelectedInstructionKind::PackedShuffleGeneralI16x8 {
+                                    lanes: *lanes,
+                                },
+                                builder
+                                    .constraints
+                                    .keys
+                                    .packed_shuffle_general_i16x8
+                                    .ok_or_else(invalid)?,
+                            )
+                        }
+                    }
+                };
+                (result, vec![(left, 16), (right, 16)], kind, key)
+            }
+            LegalizedScalarInstructionKind::PackedIntegerUnary {
+                result,
+                operation,
+                source: arg,
+            } => {
+                terminal_semantics::packed_integer_unary_array_type(
+                    geometry.iter(),
+                    result.structural_type,
+                    *operation,
+                    PackedArrayRole::Result,
+                )
+                .ok_or_else(invalid)?;
+                let (input_bytes, kind, key) = match operation {
+                    PackedIntegerUnaryOperation::ShiftRightArithmeticI16x8 { count } => (
+                        16,
+                        SelectedInstructionKind::PackedShiftRightArithmeticI16x8 { count: *count },
+                        builder
+                            .constraints
+                            .keys
+                            .packed_shift_right_i16x8
+                            .ok_or_else(invalid)?,
+                    ),
+                    PackedIntegerUnaryOperation::WidenU8x8ToI16x8 => (
+                        8,
+                        SelectedInstructionKind::PackedWidenU8x8ToI16x8,
+                        builder
+                            .constraints
+                            .keys
+                            .packed_widen_u8x8_to_i16x8
+                            .ok_or_else(invalid)?,
+                    ),
+                    PackedIntegerUnaryOperation::NarrowI16x8ToU8x8Saturating => (
+                        16,
+                        SelectedInstructionKind::PackedNarrowI16x8ToU8x8Saturating,
+                        builder
+                            .constraints
+                            .keys
+                            .packed_narrow_i16x8_to_u8x8_saturating
+                            .ok_or_else(invalid)?,
+                    ),
+                    PackedIntegerUnaryOperation::LoadI16x4ZeroExtend => (
+                        8,
+                        SelectedInstructionKind::PackedLoadI16x4ZeroExtend,
+                        builder
+                            .constraints
+                            .keys
+                            .packed_load_i16x4_zero_extend
+                            .ok_or_else(invalid)?,
+                    ),
+                    PackedIntegerUnaryOperation::WidenU8x4ToI16x8 => (
+                        4,
+                        SelectedInstructionKind::PackedWidenU8x4ToI16x8,
+                        builder
+                            .constraints
+                            .keys
+                            .packed_widen_u8x4_to_i16x8
+                            .ok_or_else(invalid)?,
+                    ),
+                    PackedIntegerUnaryOperation::NarrowI16x8ToU8x4Saturating => (
+                        16,
+                        SelectedInstructionKind::PackedNarrowI16x8ToU8x4Saturating,
+                        builder
+                            .constraints
+                            .keys
+                            .packed_narrow_i16x8_to_u8x4_saturating
+                            .ok_or_else(invalid)?,
+                    ),
+                };
+                (result, vec![(arg, input_bytes)], kind, key)
+            }
+            _ => return Err(invalid()),
+        };
+
+        let result_shape = geometry
+            .shape(result.structural_type)
+            .map_err(|_| invalid())?;
+        let mut operands = Vec::with_capacity(4);
+        let mut reads = Vec::with_capacity(2);
+        for (argument, expected_bytes) in input_specs {
+            let root = reference_input::root_type(source, argument.place).ok_or_else(invalid)?;
+            let (_, selected) = terminal_semantics::canonical_static_projection(
+                geometry.iter(),
+                root,
+                &argument.path,
+            )
+            .ok_or_else(invalid)?;
+            match &row.kind {
+                LegalizedScalarInstructionKind::PackedIntegerBinary { .. } => {
+                    if selected.id != result.structural_type {
+                        return Err(invalid());
+                    }
+                }
+                LegalizedScalarInstructionKind::PackedIntegerUnary { operation, .. } => {
+                    if terminal_semantics::packed_integer_unary_array_type(
+                        geometry.iter(),
+                        selected.id,
+                        *operation,
+                        PackedArrayRole::Input,
+                    )
+                    .is_none()
+                    {
+                        return Err(invalid());
+                    }
+                }
+                _ => unreachable!(),
+            }
+            let shape = geometry.shape(selected.id).map_err(|_| invalid())?;
+            if argument.access != StructuralAccess::SharedBorrow
+                || argument.place == result.place
+                || shape.byte_size != expected_bytes
+            {
+                return Err(invalid());
+            }
+            let projected = leaf_copy::project_operand(source, row, builder, argument, &[])?;
+            let pointer = projected.pointer.ok_or_else(invalid)?;
+            let address = if projected.byte_offset == 0 {
+                pointer
+            } else {
+                let address = transport_register(builder, argument.place, projected.byte_offset)?;
+                transport_at_byte_offset(
+                    builder,
+                    pointer,
+                    address,
+                    projected.byte_offset,
+                    provenance(row),
+                )?
+            };
+            operands.push(address);
+            reads.push((argument.place, projected.byte_offset, expected_bytes));
+        }
+
+        let slot = builder.transport.push_structural_local_slot(
+            row.operation,
+            result.place,
+            result_shape.byte_size,
+            result_shape.alignment,
+        );
+        let destination =
+            local_storage::address(builder, row, slot, 0, result_shape.byte_size, false)?;
+        operands.push(destination);
+        if matches!(
+            kind,
+            SelectedInstructionKind::PackedShuffleGeneralI16x8 { .. }
+        ) {
+            let instruction = SelectedInstructionId(
+                builder
+                    .instructions
+                    .len()
+                    .try_into()
+                    .map_err(|_| invalid())?,
+            );
+            let constraint_row = builder
+                .catalog
+                .catalog()
+                .constraint(key)
+                .ok_or(SelectedInstructionError::MissingConstraint(key))?;
+            let scratch =
+                VirtualRegisterId(builder.registers.len().try_into().map_err(|_| invalid())?);
+            builder.registers.push(VirtualRegister {
+                id: scratch,
+                scalar_type: ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?,
+                ),
+                class: constraint_row.operands[3].class,
+                origin: VirtualRegisterOrigin::InstructionScratch {
+                    instruction,
+                    operand: 3,
+                },
+                definition_site: None,
+                entry_fixed_view: None,
+            });
+            operands.push(scratch);
+        }
+        for (place, offset, bytes) in reads {
+            memory(
+                builder,
+                row,
+                place,
+                offset,
+                bytes,
+                SelectedMemoryAccessRole::ReadPlace,
+            )?;
+        }
+        memory(
+            builder,
+            row,
+            result.place,
+            0,
+            result_shape.byte_size,
+            SelectedMemoryAccessRole::WritePlace,
+        )?;
+        builder.emit(kind, key, &operands, provenance(row))?;
+        builder.transport.pointers.push((result.place, destination));
+        Ok(())
+    }
+}
+
 pub(crate) mod structural_array {
     use super::Builder;
     use super::record;
@@ -5727,6 +6006,16 @@ pub(crate) fn operation(
         row,
         Kind::StoreStructuralField { .. },
         leaf_copy::reseat(source, row, builder)
+    );
+    dispatch_kind!(
+        row,
+        Kind::PackedIntegerUnary { .. },
+        packed_integer::emit(source, row, builder)
+    );
+    dispatch_kind!(
+        row,
+        Kind::PackedIntegerBinary { .. },
+        packed_integer::emit(source, row, builder)
     );
     dispatch_kind!(
         row,

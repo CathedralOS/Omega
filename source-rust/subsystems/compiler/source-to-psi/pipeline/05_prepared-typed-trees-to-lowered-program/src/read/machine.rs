@@ -3087,31 +3087,7 @@ impl<'t> Program<'t> {
         {
             return Err(unavailable("byte observation has another static, operational or entry contract"));
         }
-        let (mut signature, _) = self.contract(
-            id,
-            machine.symbol,
-            state.parameters,
-            state.return_type,
-            machine.contracts,
-            Declarer::Machine {
-                declares_no_crash_route: machine.declares_no_crash_route,
-                is_public: machine.is_public,
-            },
-            &[],
-            &[],
-        )?;
-        signature.termination = self.termination(id, machine)?;
-        signature.reaches = self.reach_ceiling(id, machine.symbol, machine.service_reach_row)?;
-        signature.invokes = self.entry_ceiling(
-            id,
-            self.typed.machine_invokes(machine),
-            self.typed.state_parameters(state),
-            true,
-        )?;
-        signature.operational = crate::body::OperationalCeilings {
-            suspension: Some(machine.suspends),
-            blocking: Some(machine.blocks),
-        };
+        let signature = self.pure_primitive_contract(id, machine, state)?;
         let valid_parameter = match signature.parameters.as_slice() {
             [ValueType::Record(record, qualification, _)] if qualification.domains.is_empty() => {
                 matches!(
@@ -3155,6 +3131,296 @@ impl<'t> Program<'t> {
             ));
         }
         Ok(signature)
+    }
+
+    fn pure_primitive_contract_with(
+        &mut self,
+        id: MachineId,
+        machine: &Machine,
+        state: &State,
+        bound: &[(SymbolHandle, semantic_vocabulary::ScalarTerm)],
+    ) -> Checked<Signature> {
+        let (mut signature, _) = self.contract(
+            id,
+            machine.symbol,
+            state.parameters,
+            state.return_type,
+            machine.contracts,
+            Declarer::Machine {
+                declares_no_crash_route: machine.declares_no_crash_route,
+                is_public: machine.is_public,
+            },
+            &[],
+            bound,
+        )?;
+        signature.termination = self.termination(id, machine)?;
+        signature.reaches = self.reach_ceiling(id, machine.symbol, machine.service_reach_row)?;
+        signature.invokes = self.entry_ceiling(
+            id,
+            self.typed.machine_invokes(machine),
+            self.typed.state_parameters(state),
+            true,
+        )?;
+        signature.operational = crate::body::OperationalCeilings {
+            suspension: Some(machine.suspends),
+            blocking: Some(machine.blocks),
+        };
+        Ok(signature)
+    }
+
+    fn pure_primitive_contract(
+        &mut self,
+        id: MachineId,
+        machine: &Machine,
+        state: &State,
+    ) -> Checked<Signature> {
+        self.pure_primitive_contract_with(id, machine, state, &[])
+    }
+
+    pub(super) fn packed_integer_signature(
+        &mut self,
+        id: MachineId,
+        target: SymbolHandle,
+        immediates: &[semantic_vocabulary::ScalarTerm],
+    ) -> Checked<(
+        language_core::sealed_intrinsics::PackedIntegerPrimitive,
+        Signature,
+    )> {
+        use language_core::sealed_intrinsics::CompilerPrimitive;
+        let unavailable = |detail| refuse(id, Construct::Machine, Unserved::Call(detail));
+        let Some((CompilerPrimitive::PackedInteger(primitive), _schema)) = self
+            .typed
+            .compiler_primitive_schema(target)
+            .map_err(|_| unavailable("packed operation has no complete authenticated schema"))?
+        else {
+            return Err(unavailable("packed operation has no exact catalog custody"));
+        };
+        if immediates.len() != primitive.immediates() {
+            return Err(unavailable("packed operation immediate count mismatch"));
+        }
+        self.served(id, target)?;
+        let (machine, state) = self.declaration(id, target)?;
+        let type_parameters = self.typed.machine_type_parameters(machine);
+        if type_parameters.len() != immediates.len() {
+            return Err(unavailable("packed operation header parameter mismatch"));
+        }
+        let bound: Vec<_> = type_parameters
+            .iter()
+            .zip(immediates.iter().cloned())
+            .map(|(parameter, term)| (parameter.symbol, term))
+            .collect();
+        let elision = std::mem::replace(&mut self.elision, super::regions::Elision::Inputs(target));
+        let owner = std::mem::replace(&mut self.lifetime_owner, target);
+        let read = self.pure_primitive_contract_with(id, machine, state, &bound);
+        self.lifetime_owner = owner;
+        self.elision = elision;
+        let signature = read?;
+        let inputs = primitive.inputs();
+        let all_record_params = signature.parameters.len() == inputs
+            && signature
+                .parameters
+                .iter()
+                .all(|param| matches!(param, ValueType::Record(..)));
+        let same_inputs = inputs != 2 || signature.parameters[0] == signature.parameters[1];
+        let result_ok = matches!(signature.result, Some(ValueType::Record(..)));
+        if !all_record_params
+            || !same_inputs
+            || !result_ok
+            || signature.borrowed.len() != inputs
+            || !signature
+                .borrowed
+                .iter()
+                .enumerate()
+                .all(|(position, formal)| {
+                    formal.position == position
+                        && formal.access == language_core::ReferenceAccess::Shared
+                        && formal.referent == crate::body::BorrowedReferent::Value
+                })
+            || !signature.erased.is_empty()
+            || signature.requires.len() > primitive.immediates()
+            || !signature.ensures.is_empty()
+            || signature.crashes != CrashCeiling::DeclaredNone
+            || signature.reaches != crate::Ceiling::Authored(Vec::new())
+            || signature.invokes != crate::Ceiling::Authored(Vec::new())
+            || signature.termination != Termination::Promised
+            || signature.ranking.is_some()
+            || machine.suspends
+            || machine.blocks
+        {
+            return Err(unavailable(
+                "packed operation lost its shared arrays, owned result or pure contract",
+            ));
+        }
+        Ok((primitive, signature))
+    }
+
+    pub(super) fn packed_integer_requirement(
+        &mut self,
+        caller: MachineId,
+        target: SymbolHandle,
+    ) -> Checked<MachineId> {
+        use crate::source_state::data::TypeParameterKind;
+        use language_core::sealed_intrinsics::CompilerPrimitive;
+        let unavailable = |detail| refuse(caller, Construct::Machine, Unserved::Call(detail));
+        let Some((CompilerPrimitive::PackedInteger(primitive), _)) = self
+            .typed
+            .compiler_primitive_schema(target)
+            .map_err(|_| unavailable("packed operation has no complete authenticated schema"))?
+        else {
+            return Err(unavailable("packed operation has no exact catalog custody"));
+        };
+        let origin = RequirementHeaderOrigin::Declared(target);
+        for &(known, id) in &self.requirement_headers {
+            if known == origin
+                && self.symbols.get(id) == Some(&target)
+                && self.value_arguments.get(id).map(Vec::as_slice) == Some(&[])
+                && self.value_parameters.get(id) == Some(&primitive.immediates())
+                && self.scopes.get(id) == Some(&self.scope)
+                && self.source_scopes.get(id) == Some(&self.source_scope)
+            {
+                return Ok(id);
+            }
+        }
+        let id = self.read_row(target, |program, id| {
+            let row_unavailable = |detail| refuse(id, Construct::Machine, Unserved::Call(detail));
+            let Some((CompilerPrimitive::PackedInteger(primitive), _)) = program
+                .typed
+                .compiler_primitive_schema(target)
+                .map_err(|_| {
+                    row_unavailable("packed operation has no complete authenticated schema")
+                })?
+            else {
+                return Err(row_unavailable(
+                    "packed operation has no exact catalog custody",
+                ));
+            };
+            program.served(id, target)?;
+            let (machine, state) = program.declaration(id, target)?;
+            let type_parameters = program.typed.machine_type_parameters(machine);
+            if type_parameters.len() != primitive.immediates() {
+                return Err(row_unavailable(
+                    "packed operation header parameter mismatch",
+                ));
+            }
+            let mut rigid = Vec::with_capacity(type_parameters.len());
+            for parameter in &type_parameters {
+                if parameter.bounds != crate::source_state::data::DataProperties::default() {
+                    return Err(row_unavailable("packed operation parameter has bounds"));
+                }
+                let (TypeParameterKind::Const { type_reference }
+                | TypeParameterKind::Value { type_reference }) = parameter.kind
+                else {
+                    return Err(row_unavailable(
+                        "packed operation parameter must be a constant",
+                    ));
+                };
+                let scalar_type = program.scalar_type(id, type_reference)?;
+                let semantic_vocabulary::ScalarType::Integer(int_type) = scalar_type else {
+                    return Err(row_unavailable(
+                        "packed operation constant parameter must be an integer",
+                    ));
+                };
+                if int_type.sign() != semantic_vocabulary::IntegerSign::Unsigned
+                    || int_type.bits() != Some(64)
+                    || int_type.is_address()
+                {
+                    return Err(row_unavailable(
+                        "packed operation constant parameter must be u64",
+                    ));
+                }
+                rigid.push(ValueBinder {
+                    symbol: parameter.symbol,
+                    name: program.typed.symbols.name(parameter.symbol).to_owned(),
+                    scalar_type,
+                });
+            }
+            let elision = std::mem::replace(
+                &mut program.elision,
+                super::regions::Elision::Inputs(target),
+            );
+            let owner = std::mem::replace(&mut program.lifetime_owner, target);
+            let read = program.contract(
+                id,
+                machine.symbol,
+                state.parameters,
+                state.return_type,
+                machine.contracts,
+                Declarer::Machine {
+                    declares_no_crash_route: machine.declares_no_crash_route,
+                    is_public: machine.is_public,
+                },
+                &rigid,
+                &[],
+            );
+            program.lifetime_owner = owner;
+            program.elision = elision;
+            let (mut signature, names) = read?;
+            signature.termination = program.termination(id, machine)?;
+            signature.reaches =
+                program.reach_ceiling(id, machine.symbol, machine.service_reach_row)?;
+            signature.invokes = program.entry_ceiling(
+                id,
+                program.typed.machine_invokes(machine),
+                program.typed.state_parameters(state),
+                true,
+            )?;
+            signature.operational = crate::body::OperationalCeilings {
+                suspension: Some(machine.suspends),
+                blocking: Some(machine.blocks),
+            };
+            let inputs = primitive.inputs();
+            let all_record_params = signature.parameters.len() == inputs + rigid.len()
+                && signature.parameters[..inputs]
+                    .iter()
+                    .all(|param| matches!(param, ValueType::Record(..)));
+            let same_inputs = inputs != 2 || signature.parameters[0] == signature.parameters[1];
+            let result_ok = matches!(signature.result, Some(ValueType::Record(..)));
+            if !all_record_params
+                || !same_inputs
+                || !result_ok
+                || signature.borrowed.len() != inputs
+                || !signature
+                    .borrowed
+                    .iter()
+                    .enumerate()
+                    .all(|(position, formal)| {
+                        formal.position == position
+                            && formal.access == language_core::ReferenceAccess::Shared
+                            && formal.referent == crate::body::BorrowedReferent::Value
+                    })
+                || !signature.erased.is_empty()
+                || signature.requires.len() > rigid.len()
+                || !signature.ensures.is_empty()
+                || signature.crashes != CrashCeiling::DeclaredNone
+                || signature.reaches != crate::Ceiling::Authored(Vec::new())
+                || signature.invokes != crate::Ceiling::Authored(Vec::new())
+                || signature.termination != Termination::Promised
+                || signature.ranking.is_some()
+                || machine.suspends
+                || machine.blocks
+            {
+                return Err(row_unavailable(
+                    "packed operation lost its shared arrays, owned result or pure contract",
+                ));
+            }
+            program.retain_pure_requirement_policy(id)?;
+            program.admitted_declarations.include(target);
+            program
+                .generic_binders
+                .extend(type_parameters.iter().map(|parameter| parameter.symbol));
+            Ok(MachineRow {
+                signature,
+                names,
+                value_parameters: rigid.len(),
+                value_arguments: Vec::new(),
+                scope: program.scope.clone(),
+                source_scope: program.source_scope.clone(),
+                const_scope: Vec::new(),
+            })
+        })?;
+        self.requirements.push(id);
+        self.requirement_headers.push((origin, id));
+        Ok(id)
     }
 
     /// Core's authenticated numeric catalog supplies its exact pure contract.
@@ -3996,7 +4262,12 @@ impl<'t> Program<'t> {
             }
         };
         let authored = requires.clone();
-        let requires = canonical::clauses(requires, Repeated::Refuse, id)?;
+        let repeated = if bound.is_empty() {
+            Repeated::Refuse
+        } else {
+            Repeated::Merge
+        };
+        let requires = canonical::clauses(requires, repeated, id)?;
         // Each clause's text follows it into canonical order. A repeated
         // clause was refused above, so each canonical clause is exactly one
         // authored clause.
@@ -4986,7 +5257,10 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
         | ExpressionKind::Zero
         | ExpressionKind::Boolean(_)
         | ExpressionKind::Slot(_) => {}
-        ExpressionKind::Array { elements } => {
+        ExpressionKind::PackedInteger {
+            operands: elements, ..
+        }
+        | ExpressionKind::Array { elements } => {
             for element in elements {
                 spans(element, binder, out);
             }
