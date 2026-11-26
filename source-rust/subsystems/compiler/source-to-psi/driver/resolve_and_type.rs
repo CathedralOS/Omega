@@ -17,7 +17,8 @@ use authored_completion::AuthoredCompletions;
 mod storage;
 
 #[derive(Clone, Default)]
-pub(crate) enum BodyDemandRequest {    #[default]
+pub(crate) enum BodyDemandRequest {
+    #[default]
     Default,
     DeclarationEntryFiles(Vec<source_text::SourceId>),
     BuildDemand {
@@ -441,7 +442,12 @@ fn complete_demanded_typed_bodies(
     loop {
         let selected = timings
             .record_result(stages::RESOLVE, || {
-                next_demand_batch_for_request(&pending_bodies, request, &mut completed_roots, typing.typed().authored_declaration_selections())
+                next_demand_batch_for_request(
+                    &pending_bodies,
+                    request,
+                    &mut completed_roots,
+                    typing.typed().authored_declaration_selections(),
+                )
             })
             .map_err(|rows| DiagnosticStage::Resolution.attribute(rows))?;
         if selected.is_empty() {
@@ -487,7 +493,12 @@ fn resolve_eager_bodies(
     loop {
         let selected = timings
             .record_result(stages::RESOLVE, || {
-                next_demand_batch_for_request(&frontier, body_demand, &mut completed_roots, frontier.trees().authored_declaration_selections())
+                next_demand_batch_for_request(
+                    &frontier,
+                    body_demand,
+                    &mut completed_roots,
+                    frontier.trees().authored_declaration_selections(),
+                )
             })
             .map_err(|rows| DiagnosticStage::Resolution.attribute(rows))?;
         if selected.is_empty() {
