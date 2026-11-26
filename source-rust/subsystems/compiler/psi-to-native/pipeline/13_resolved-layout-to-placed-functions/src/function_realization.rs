@@ -133,26 +133,8 @@ impl StagedFixedFrameFunctionRelativeRealization {
         &self.layout_optimization
     }
 
-    pub fn relaxation(&self) -> Option<machine_code::X86BranchRelaxationRoots> {
-        self.layout_optimization.current().relaxation
-    }
-    pub fn layout(&self) -> &ResolvedMachineLayout {
-        self.layout_optimization.current().layout()
-    }
     pub fn program(&self) -> &machine_code::ResolvedMachineProgram {
         &self.layout_optimization.current().program
-    }
-    pub fn requirements(&self) -> &AllocatedCalleeSavedRequirements {
-        &self.program().context.preservation
-    }
-    pub fn storage(&self) -> &machine_code::NonAuthoritativeCalleeSaveStoragePlan {
-        &self.program().storage
-    }
-    pub fn frame(&self) -> &machine_code::TargetFrameLayoutPlan {
-        &self.program().frame
-    }
-    pub fn protocol(&self) -> &machine_code::TargetFrameProtocolEncodingPlan {
-        &self.program().protocol
     }
 }
 

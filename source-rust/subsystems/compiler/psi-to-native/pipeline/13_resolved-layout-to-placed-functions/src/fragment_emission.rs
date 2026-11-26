@@ -18,7 +18,6 @@ without constructing a replacement fragment plan, and verifies the manifest
 statistics and custody receipt.
 */
 
-use crate::exit_contract::StagedWholeFunctionExitContract;
 use crate::function_realization::{
     FunctionRelativeOptimizationRealizationError, FunctionRelativeOptimizationRealizationManifest,
     StagedFixedFrameFunctionRelativeRealization,
@@ -151,20 +150,6 @@ impl StagedOptimizedFunctionFragmentEmission {
     pub const fn manifest(&self) -> &ValidatedFunctionFragmentEmissionManifest {
         &self.manifest
     }
-
-    pub const fn custody(&self) -> StagedFunctionFragmentEmissionCustodyReceipt {
-        self.custody
-    }
-
-    pub fn function_relative_manifest(
-        &self,
-    ) -> &ValidatedFunctionRelativeOptimizationRealizationManifest {
-        self.source.function_relative_manifest()
-    }
-
-    pub fn post_allocation_manifest(&self) -> &register_homes::AllocationPublicationFacts {
-        self.source.post_allocation_manifest()
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -172,22 +157,6 @@ pub struct StagedFunctionFragmentEmissionCustodyReceipt {
     source_realization: FunctionRelativeOptimizationRealizationManifestIdentity, // Upstream realization manifest identity.
     fragments: FunctionFragmentEmissionIdentity, // Projected function-fragment plan identity.
     manifest: FunctionFragmentEmissionManifestIdentity, // Sealed fragment-emission manifest identity.
-}
-
-impl StagedFunctionFragmentEmissionCustodyReceipt {
-    pub const fn source_realization(
-        self,
-    ) -> FunctionRelativeOptimizationRealizationManifestIdentity {
-        self.source_realization
-    }
-
-    pub const fn fragments(self) -> FunctionFragmentEmissionIdentity {
-        self.fragments
-    }
-
-    pub const fn manifest(self) -> FunctionFragmentEmissionManifestIdentity {
-        self.manifest
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -226,12 +195,6 @@ impl From<ResolvedFragmentEmissionError> for FunctionFragmentEmissionError {
     }
 }
 
-impl From<FunctionFragmentStatisticsOverflow> for FunctionFragmentEmissionError {
-    fn from(_: FunctionFragmentStatisticsOverflow) -> Self {
-        Self::StatisticsOverflow
-    }
-}
-
 #[derive(Debug)]
 pub struct StagedOptimizedFunctionFragmentEmissionSource {
     realization: StagedFixedFrameFunctionRelativeRealization,
@@ -246,26 +209,14 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
         self.realization.program()
     }
 
-    pub fn resolved_layout(&self) -> &ResolvedMachineLayout {
-        &self.realization.program().layout
-    }
-
     pub fn register_environment(
         &self,
     ) -> &register_environment::ValidatedTargetRegisterEnvironment {
         &self.program().context.environment
     }
 
-    pub fn frame_protocol(&self) -> &machine_code::TargetFrameProtocolEncodingPlan {
-        &self.realization.program().protocol
-    }
-
     pub fn frame_layout(&self) -> &machine_code::TargetFrameLayoutPlan {
         &self.realization.program().frame
-    }
-
-    pub fn exit_contract(&self) -> &StagedWholeFunctionExitContract {
-        self.realization.exit_contract()
     }
 
     pub fn function_relative_manifest(
@@ -428,45 +379,34 @@ fn validate_manifest(
 
 pub(crate) use machine_code::fragment_origins::ResolvedFragmentEmissionError;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct FunctionFragmentStatisticsOverflow;
-
-impl std::fmt::Display for FunctionFragmentStatisticsOverflow {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str("function-fragment statistics overflow")
-    }
-}
-
-impl std::error::Error for FunctionFragmentStatisticsOverflow {}
-
 pub(crate) fn function_fragment_emission_statistics(
     fragments: &FunctionFragmentEmissionPlan,
-) -> Result<FunctionFragmentEmissionStatistics, FunctionFragmentStatisticsOverflow> {
+) -> Result<FunctionFragmentEmissionStatistics, FunctionFragmentEmissionError> {
     let mut result = FunctionFragmentEmissionStatistics {
         functions: u64::try_from(fragments.functions.len())
-            .map_err(|_| FunctionFragmentStatisticsOverflow)?,
+            .map_err(|_| FunctionFragmentEmissionError::StatisticsOverflow)?,
         ..FunctionFragmentEmissionStatistics::default()
     };
     for function in &fragments.functions {
         result.bytes = result
             .bytes
             .checked_add(function.byte_count)
-            .ok_or(FunctionFragmentStatisticsOverflow)?;
+            .ok_or(FunctionFragmentEmissionError::StatisticsOverflow)?;
         result.blocks = result
             .blocks
             .checked_add(
                 u64::try_from(function.blocks.len())
-                    .map_err(|_| FunctionFragmentStatisticsOverflow)?,
+                    .map_err(|_| FunctionFragmentEmissionError::StatisticsOverflow)?,
             )
-            .ok_or(FunctionFragmentStatisticsOverflow)?;
+            .ok_or(FunctionFragmentEmissionError::StatisticsOverflow)?;
         for block in &function.blocks {
             result.instruction_spans = result
                 .instruction_spans
                 .checked_add(
                     u64::try_from(block.instructions.len())
-                        .map_err(|_| FunctionFragmentStatisticsOverflow)?,
+                        .map_err(|_| FunctionFragmentEmissionError::StatisticsOverflow)?,
                 )
-                .ok_or(FunctionFragmentStatisticsOverflow)?;
+                .ok_or(FunctionFragmentEmissionError::StatisticsOverflow)?;
             for row in &block.instructions {
                 result.zero_byte_instruction_spans += u64::from(row.bytes.is_empty());
                 result.resolved_conditional_branches += u64::from(
@@ -478,7 +418,7 @@ pub(crate) fn function_fragment_emission_statistics(
                 result.unresolved_internal_machine_fixups = result
                     .unresolved_internal_machine_fixups
                     .checked_add(u64::from(row.internal_machine_fixup.is_some()))
-                    .ok_or(FunctionFragmentStatisticsOverflow)?;
+                    .ok_or(FunctionFragmentEmissionError::StatisticsOverflow)?;
                 let mut work = row.provenance.work.len();
                 if let FunctionFragmentControlProvenance::ConditionalBranch {
                     when_taken,
@@ -489,14 +429,15 @@ pub(crate) fn function_fragment_emission_statistics(
                     work = work
                         .checked_add(when_taken.work.len())
                         .and_then(|work| work.checked_add(when_fallthrough.work.len()))
-                        .ok_or(FunctionFragmentStatisticsOverflow)?;
+                        .ok_or(FunctionFragmentEmissionError::StatisticsOverflow)?;
                 }
                 result.logical_work_settlements = result
                     .logical_work_settlements
                     .checked_add(
-                        u64::try_from(work).map_err(|_| FunctionFragmentStatisticsOverflow)?,
+                        u64::try_from(work)
+                            .map_err(|_| FunctionFragmentEmissionError::StatisticsOverflow)?,
                     )
-                    .ok_or(FunctionFragmentStatisticsOverflow)?;
+                    .ok_or(FunctionFragmentEmissionError::StatisticsOverflow)?;
             }
         }
     }
