@@ -1,4 +1,6 @@
 //! Erasing a domain from a value's type leaves the established fact on that value.
+// This binary uses only `invoke` from the shared helpers.
+#[allow(dead_code)]
 #[path = "support/program.rs"]
 mod program;
 
