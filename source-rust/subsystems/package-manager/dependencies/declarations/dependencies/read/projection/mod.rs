@@ -10,7 +10,7 @@ purposes. Only the executed Build determines which product it produces.
 use super::error::DependencyProjectionError;
 use super::policy::reject_unprojected_dependency_syntax;
 use super::{DependencyPurpose, DependencySourceRequest};
-use crate::declarations::editable_build::{self, DependencyImport};
+use crate::declarations::editable_build;
 use syntax_trees::SyntaxTrees;
 
 mod calls;
@@ -19,7 +19,6 @@ pub(crate) struct EditableSource<'a> {
     pub parsed: source_syntax::ParsedText<'a>,
     pub entry: editable_build::BuildEntrySyntaxProjection,
     pub requests: Vec<(DependencyPurpose, DependencySourceRequest)>,
-    pub import: DependencyImport,
 }
 
 pub(crate) fn extract_scoped_from_source(
@@ -36,12 +35,10 @@ pub(crate) fn project_source_for_edit(
     let parsed = parse_build(source)?;
     let entry = project_entry(&parsed.syntax)?;
     let requests = project_editable_dependencies(&parsed.syntax, &entry)?;
-    let import = DependencyImport::for_edit(&parsed.syntax);
     Ok(EditableSource {
         parsed,
         entry,
         requests,
-        import,
     })
 }
 

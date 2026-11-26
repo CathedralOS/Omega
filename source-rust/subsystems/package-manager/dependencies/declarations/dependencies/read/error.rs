@@ -62,13 +62,13 @@ impl fmt::Display for DependencyProjectionError {
                 build_declarations::BUILD_TYPE_NAME
             ),
             Self::UnsupportedDependencyShape => formatter.write_str(
-                "automatic dependency editing requires unconditional direct `_ = Build::dependency(builder, |dependency|::from_source(Source::...));` registrations, or a `let mutable name: DependencyDescription = |dependency|::from_source(Source::...);` local directly followed by `|dependency|::with_alias(@mutable name, \"alias\");` and `_ = Build::dependency(builder, name);`, in the root build entry; dependency helpers, conditional registrations, state transitions, and reused descriptions are not editable dependency declaration forms",
+                "automatic dependency editing requires unconditional root Build registrations of a literal Source or a fresh dependency description. A configured alias must immediately precede registration, and options or computed registrations need a source edit",
             ),
             Self::WrongDependencyReceiver => formatter.write_str(
                 "dependency request must use a static Build call with the root build machine's first parameter as its first operand",
             ),
             Self::WrongDependencyArguments => formatter.write_str(
-                "`Build::dependency` and `Build::build_dependency` take the builder operand followed by one description, either `|dependency|::from_source(Source::...)` or the aliased description local just configured by `|dependency|::with_alias`, and accept no generic, evidence, or operational modifiers",
+                "an editable product registration takes a literal Source or a fresh dependency description. Build-scope registrations take a description, and staged options need a source edit",
             ),
             Self::AliasNotString => {
                 formatter.write_str("dependency alias must be a direct string literal")

@@ -10,7 +10,7 @@ registration journey from
 [scoped execution](wiki/spec/build/scoped_execution.md#dependency-declarations-and-binding):
 
 ```omega
-let math: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "math" }));
+let math: DependencyRegistration = Build::dependency(builder, Source::Path { location: "math" });
 
 let mutable host: DependencyDescription = |dependency|::from_source(Source::Path { location: "host" });
 |dependency|::with_alias(@mutable host, "host");
@@ -18,8 +18,9 @@ let host_registration: DependencyRegistration = Build::build_dependency(builder,
 ```
 
 A registration returns a `DependencyRegistration`; its statement binds it, as
-tooling writes, or discards it with `_ =`. An unaliased row is one
-registration of a fresh description. An
+tooling writes, or discards it with `_ =`. An unaliased product registration
+can pass its Source literal directly or wrap it in a fresh description. A
+Build-scope registration takes a description. An
 aliased row is exactly three consecutive statements: a mutable description
 local, its one alias configuration, and its registration. Every other use of
 the dependency vocabulary (a conditional registration, a helper, a reused or
@@ -93,7 +94,7 @@ impl fmt::Display for DependencyRowError {
                 "dependency registration must call Build::dependency or Build::build_dependency with the root build machine's first parameter"
             }
             Self::WrongArguments => {
-                "dependency registration takes the builder operand and one description, written `_ = Build::dependency(builder, |dependency|::from_source(source));` or, with an alias, a `let mutable name: DependencyDescription = |dependency|::from_source(source);` local, one `|dependency|::with_alias(@mutable name, \"alias\");` and `_ = Build::dependency(builder, name);`, with no generic, evidence or operational modifiers"
+                "a directly editable product registration takes a literal Source, as in `_ = Build::dependency(builder, source);`, or a fresh dependency description or, with an alias, a `let mutable name: DependencyDescription = |dependency|::from_source(source);` local, one `|dependency|::with_alias(@mutable name, \"alias\");` and `_ = Build::dependency(builder, name);`, with no generic, evidence or operational modifiers"
             }
         })
     }
@@ -113,14 +114,27 @@ pub fn project_dependency_rows(
     while position < statements.len() {
         let handle = statements[position];
         if let Some(registration) = registration(syntax_trees, handle, receiver)? {
-            let source = fresh_description(syntax_trees, registration.description)
-                .ok_or(DependencyRowError::WrongArguments)?;
+            let mut calls = vec![registration.expression];
+            let source = if let Some(source) = fresh_description(syntax_trees, registration.operand)
+            {
+                calls.push(registration.operand);
+                source
+            } else if registration.operation == DependencyOperation::Dependency
+                && matches!(
+                    syntax_trees.expressions.expression(registration.operand),
+                    ExpressionNode::StructLiteral(_)
+                )
+            {
+                registration.operand
+            } else {
+                return Err(DependencyRowError::WrongArguments);
+            };
             rows.push(DependencyRow {
                 statements: vec![handle],
                 operation: registration.operation,
                 alias: None,
                 source,
-                calls: vec![registration.expression, registration.description],
+                calls,
             });
         } else if let StatementNode::LocalData(local) = syntax_trees.statements.statement(handle)
             && let Some(source) = fresh_description(syntax_trees, local.initial_value)
@@ -143,7 +157,7 @@ pub fn project_dependency_rows(
 
 struct Registration {
     operation: DependencyOperation,
-    description: ExpressionHandle,
+    operand: ExpressionHandle,
     expression: ExpressionHandle,
 }
 
@@ -183,12 +197,12 @@ fn registration(
             DirectBuildCallError::WrongArguments => DependencyRowError::WrongArguments,
         }
     })?;
-    let [description] = operands else {
+    let [operand] = operands else {
         return Err(DependencyRowError::WrongArguments);
     };
     Ok(Some(Registration {
         operation,
-        description: *description,
+        operand: *operand,
         expression,
     }))
 }
@@ -288,7 +302,7 @@ fn aliased_row(
     let Some(register) = self::registration(syntax_trees, *registration, receiver)? else {
         return Err(DependencyRowError::WrongArguments);
     };
-    if single_name(syntax_trees, register.description) != Some(name) {
+    if single_name(syntax_trees, register.operand) != Some(name) {
         return Err(DependencyRowError::WrongArguments);
     }
     Ok(DependencyRow {
@@ -336,7 +350,7 @@ mod tests {
             r#"use {omega}/build/dependency.omg;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "probe" };
-    _ = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "math" }));
+    _ = Build::dependency(builder, Source::Path { location: "math" });
     let mutable other: DependencyDescription = |dependency|::from_source(Source::Path { location: "other" });
     |dependency|::with_alias(@mutable other, "other");
     let other_registration: DependencyRegistration = Build::dependency(builder, other);
@@ -400,7 +414,8 @@ machine build(builder: @mutable BuildPlan) {
             "Build::dependency(builder, |dependency|::from_source(Source::Path { location: \"x\" }))",
             "_ = Build::dependency(builder)",
             "_ = Build::build_dependency(builder, |dependency|::from_source(Source::Path { location: \"x\" }), 1)",
-            "_ = Build::dependency(builder, Source::Path { location: \"x\" })",
+            "_ = Build::dependency(builder, Source::Path { location: \"x\" }, ProgramLaunch::Inherit::<Packer>())",
+            "_ = Build::build_dependency(builder, Source::Path { location: \"x\" })",
             // An alias configuration must follow its description directly.
             "let mutable x: DependencyDescription = |dependency|::from_source(Source::Path { location: \"x\" });\n    _ = Build::dependency(builder, x)",
             "let x: DependencyDescription = |dependency|::from_source(Source::Path { location: \"x\" });\n    |dependency|::with_alias(@mutable x, \"x\");\n    _ = Build::dependency(builder, x)",

@@ -13,6 +13,7 @@ use crate::declarations::dependencies::read::{
     DependencyPurpose, DependencySourceRequest, EditableSource, extract_scoped_from_source,
     project_source_for_edit,
 };
+use crate::declarations::editable_build::DependencyImport;
 use std::path::PathBuf;
 
 pub(crate) fn plan_dependency_addition_from_source(
@@ -24,9 +25,9 @@ pub(crate) fn plan_dependency_addition_from_source(
         parsed,
         entry,
         requests,
-        import,
     } = project_source_for_edit(&source).map_err(BuildDependencyEditError::InvalidBuild)?;
     let receiver = entry.receiver_name(&parsed.syntax);
+    let import = DependencyImport::for_edit(&parsed.syntax, request.explicit_alias().is_some());
     if requests
         .iter()
         .any(|(purpose, existing)| purpose.is_product() && existing == request)
@@ -112,9 +113,12 @@ pub(crate) fn plan_dependency_replacement_from_source(
         parsed,
         entry,
         requests,
-        import,
     } = project_source_for_edit(&source).map_err(BuildDependencyEditError::InvalidBuild)?;
     let receiver = entry.receiver_name(&parsed.syntax);
+    let import = DependencyImport::for_edit(
+        &parsed.syntax,
+        !purpose.is_product() || candidate.explicit_alias().is_some(),
+    );
     let scoped_contains = |request: &DependencySourceRequest| {
         requests
             .iter()
@@ -179,26 +183,27 @@ pub(crate) fn plan_dependency_replacement_from_source(
     }
     let Some(layout) = discover_build_layout(&parsed, receiver) else {
         return Ok(patch(
-            BuildDependencyManualReason::NonCanonicalBuildBodyLayout
+            BuildDependencyManualReason::NonCanonicalBuildBodyLayout,
         ));
     };
     let Some(layout) = layout else {
         return Ok(patch(
-            BuildDependencyManualReason::NonCanonicalBuildSignature
+            BuildDependencyManualReason::NonCanonicalBuildSignature,
         ));
     };
     if layout.dependency_rows().len() != requests.len() {
         return Ok(patch(
-            BuildDependencyManualReason::NonCanonicalDependencyRows
+            BuildDependencyManualReason::NonCanonicalDependencyRows,
         ));
     }
     let row = &layout.dependency_rows()[*accepted_index];
     if row.contains_comment {
         return Ok(patch(
-            BuildDependencyManualReason::DependencyRowContainsComment
+            BuildDependencyManualReason::DependencyRowContainsComment,
         ));
     }
-    let replacement = BuildLayout::replace_row(&source, row, &proposed_statement);
+    let replacement =
+        import.include_in(BuildLayout::replace_row(&source, row, &proposed_statement));
     let mut expected = requests;
     expected[*accepted_index] = (purpose, candidate.clone());
     if extract_scoped_from_source(&replacement).ok().as_ref() != Some(&expected) {
@@ -369,6 +374,47 @@ machine build(builder: @mutable BuildPlan) {
     }
 
     #[test]
+    fn direct_registrations_need_a_helper_import_only_when_an_alias_is_added() {
+        let initial = r#"machine build(plan: @mutable BuildPlan) {
+    _ = Build::dependency(plan, Source::Path { location: "../first" });
+    plan.product = BuildProduct::Package { name: "demo" };
+}"#;
+        let file = PathBuf::from("build.omg");
+        let first = path(None, "../first");
+        let second = path(None, "../second");
+        let added = replaced(
+            plan_dependency_addition_from_source(file.clone(), initial.to_owned(), &second)
+                .unwrap(),
+        );
+        assert!(!added.contains("use "));
+        assert!(
+            added.contains(r#"Build::dependency(plan, Source::Path { location: "../second" })"#)
+        );
+        let renamed = path(Some("selected"), "../first");
+        let updated = replaced(
+            plan_dependency_replacement_from_source(
+                file,
+                added,
+                DependencyPurpose::Product,
+                &first,
+                &renamed,
+            )
+            .unwrap(),
+        );
+        assert_eq!(
+            updated.matches("use {omega}/build/dependency.omg;").count(),
+            1
+        );
+        assert_eq!(
+            extract_scoped_from_source(&updated).unwrap(),
+            [
+                (DependencyPurpose::Product, renamed),
+                (DependencyPurpose::Product, second)
+            ],
+        );
+    }
+
+    #[test]
     fn both_registration_spellings_project_with_their_purpose_and_alias() {
         assert_eq!(
             extract_scoped_from_source(ROOT).expect("project"),
@@ -414,7 +460,7 @@ machine build(builder: @mutable BuildPlan) {
             .expect("plan"),
         );
         assert!(
-            edited.contains("    let system_registration_2: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: \"../vendor/system\" }));\n}"),
+            edited.contains("    let system_registration_2: DependencyRegistration = Build::dependency(builder, Source::Path { location: \"../vendor/system\" });\n}"),
             "{edited}"
         );
     }
