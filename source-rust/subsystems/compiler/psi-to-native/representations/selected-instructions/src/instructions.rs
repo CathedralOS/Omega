@@ -213,6 +213,12 @@ pub enum SelectedInstructionKind {
     PackedLoadI16x4ZeroExtend,
     PackedWidenU8x4ToI16x8,
     PackedNarrowI16x8ToU8x4Saturating,
+    PackedAddU8x16,
+    PackedMinI16x8,
+    PackedCmpGtI16x8,
+    PackedBitAndI16x8,
+    PackedBitAndNotI16x8,
+    PackedAbsI16x8,
     PackedLoad128 {
         byte_offset: u32,
     },
@@ -244,6 +250,12 @@ pub enum SelectedInstructionKind {
     },
     PackedWidenU8x8ToI16x8Reg,
     PackedNarrowI16x8ToU8x8SaturatingReg,
+    PackedAddU8x16Reg,
+    PackedMinI16x8Reg,
+    PackedCmpGtI16x8Reg,
+    PackedBitAndI16x8Reg,
+    PackedBitAndNotI16x8Reg,
+    PackedAbsI16x8Reg,
     CopyBytes,
     ZeroBytes,
     LoadEncodedScalar,
@@ -539,6 +551,12 @@ macro_rules! dedicated_selected_forms {
             | $crate::SelectedInstructionKind::PackedLoadI16x4ZeroExtend
             | $crate::SelectedInstructionKind::PackedWidenU8x4ToI16x8
             | $crate::SelectedInstructionKind::PackedNarrowI16x8ToU8x4Saturating
+            | $crate::SelectedInstructionKind::PackedAddU8x16
+            | $crate::SelectedInstructionKind::PackedMinI16x8
+            | $crate::SelectedInstructionKind::PackedCmpGtI16x8
+            | $crate::SelectedInstructionKind::PackedBitAndI16x8
+            | $crate::SelectedInstructionKind::PackedBitAndNotI16x8
+            | $crate::SelectedInstructionKind::PackedAbsI16x8
             | $crate::SelectedInstructionKind::PackedLoad128 { .. }
             | $crate::SelectedInstructionKind::PackedStore128 { .. }
             | $crate::SelectedInstructionKind::PackedLoad64ZeroExtend { .. }
@@ -554,6 +572,12 @@ macro_rules! dedicated_selected_forms {
             | $crate::SelectedInstructionKind::PackedShuffleI16x8Reg { .. }
             | $crate::SelectedInstructionKind::PackedWidenU8x8ToI16x8Reg
             | $crate::SelectedInstructionKind::PackedNarrowI16x8ToU8x8SaturatingReg
+            | $crate::SelectedInstructionKind::PackedAddU8x16Reg
+            | $crate::SelectedInstructionKind::PackedMinI16x8Reg
+            | $crate::SelectedInstructionKind::PackedCmpGtI16x8Reg
+            | $crate::SelectedInstructionKind::PackedBitAndI16x8Reg
+            | $crate::SelectedInstructionKind::PackedBitAndNotI16x8Reg
+            | $crate::SelectedInstructionKind::PackedAbsI16x8Reg
             | $crate::SelectedInstructionKind::CopyBytes
             | $crate::SelectedInstructionKind::ZeroBytes
             | $crate::SelectedInstructionKind::ScanByteSequence { .. }

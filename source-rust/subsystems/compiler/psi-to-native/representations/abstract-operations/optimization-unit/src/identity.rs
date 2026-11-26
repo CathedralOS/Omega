@@ -528,7 +528,11 @@ pub(crate) mod proposition_encoding {
     pub(super) fn encode_scalar_term(bytes: &mut CanonicalBytes, term: &ScalarTerm) {
         use ScalarTerm as S;
         match term {
-            S::DeclarationApplication { declaration, arguments, scalar_type } => {
+            S::DeclarationApplication {
+                declaration,
+                arguments,
+                scalar_type,
+            } => {
                 bytes.u8(45);
                 encode_clause_declaration(bytes, *declaration);
                 encode_scalar_type(bytes, *scalar_type);
@@ -5591,7 +5595,12 @@ pub(crate) mod operation_encoding {
                     encode_structural_operation_result(bytes, result);
                     encode_structural_argument(bytes, source);
                 }
-                O::PackedIntegerUnary { psi_operation, result, operation, source } => {
+                O::PackedIntegerUnary {
+                    psi_operation,
+                    result,
+                    operation,
+                    source,
+                } => {
                     tag!(bytes, 181, psi_operation);
                     match operation {
                         semantic_vocabulary::PackedIntegerUnaryOperation::ShiftRightArithmeticI16x8 { count } => {
@@ -5603,20 +5612,46 @@ pub(crate) mod operation_encoding {
                         semantic_vocabulary::PackedIntegerUnaryOperation::LoadI16x4ZeroExtend => bytes.u8(3),
                         semantic_vocabulary::PackedIntegerUnaryOperation::WidenU8x4ToI16x8 => bytes.u8(4),
                         semantic_vocabulary::PackedIntegerUnaryOperation::NarrowI16x8ToU8x4Saturating => bytes.u8(5),
+                        semantic_vocabulary::PackedIntegerUnaryOperation::AbsI16x8 => bytes.u8(6),
                     }
                     encode_structural_operation_result(bytes, result);
                     encode_structural_argument(bytes, source);
                 }
-                O::PackedIntegerBinary { psi_operation, result, operation, left, right } => {
+                O::PackedIntegerBinary {
+                    psi_operation,
+                    result,
+                    operation,
+                    left,
+                    right,
+                } => {
                     tag!(bytes, 180, psi_operation);
                     match operation {
-                        semantic_vocabulary::PackedIntegerBinaryOperation::WrappingAddI16x8 => bytes.u8(0),
-                        semantic_vocabulary::PackedIntegerBinaryOperation::WrappingSubI16x8 => bytes.u8(1),
-                        semantic_vocabulary::PackedIntegerBinaryOperation::ShuffleI16x8 { lanes } => {
+                        semantic_vocabulary::PackedIntegerBinaryOperation::WrappingAddI16x8 => {
+                            bytes.u8(0)
+                        }
+                        semantic_vocabulary::PackedIntegerBinaryOperation::WrappingSubI16x8 => {
+                            bytes.u8(1)
+                        }
+                        semantic_vocabulary::PackedIntegerBinaryOperation::ShuffleI16x8 {
+                            lanes,
+                        } => {
                             bytes.u8(2);
                             for lane in lanes {
                                 bytes.u8(*lane);
                             }
+                        }
+                        semantic_vocabulary::PackedIntegerBinaryOperation::WrappingAddU8x16 => {
+                            bytes.u8(3)
+                        }
+                        semantic_vocabulary::PackedIntegerBinaryOperation::MinI16x8 => bytes.u8(4),
+                        semantic_vocabulary::PackedIntegerBinaryOperation::CmpGtI16x8 => {
+                            bytes.u8(5)
+                        }
+                        semantic_vocabulary::PackedIntegerBinaryOperation::BitAndI16x8 => {
+                            bytes.u8(6)
+                        }
+                        semantic_vocabulary::PackedIntegerBinaryOperation::BitAndNotI16x8 => {
+                            bytes.u8(7)
                         }
                     }
                     encode_structural_operation_result(bytes, result);

@@ -395,7 +395,8 @@ impl Program<'_> {
                 signature,
                 envelope,
                 provider: None,
-            });
+            },
+        );
         Ok(CallbackConformance {
             selected: body,
             arguments: nested,

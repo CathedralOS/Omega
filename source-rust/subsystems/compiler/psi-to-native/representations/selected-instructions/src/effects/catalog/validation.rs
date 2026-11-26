@@ -2339,10 +2339,16 @@ pub(super) fn validate_declaration(
         MachineSemanticKind::PackedAddI16x8
         | MachineSemanticKind::PackedSubI16x8
         | MachineSemanticKind::PackedShuffleI16x8
-        | MachineSemanticKind::PackedShuffleGeneralI16x8 => {
+        | MachineSemanticKind::PackedShuffleGeneralI16x8
+        | MachineSemanticKind::PackedAddU8x16
+        | MachineSemanticKind::PackedMinI16x8
+        | MachineSemanticKind::PackedCmpGtI16x8
+        | MachineSemanticKind::PackedBitAndI16x8
+        | MachineSemanticKind::PackedBitAndNotI16x8 => {
             crate::MachineMemoryEffect::PackedBinary16BytesV1
         }
-        MachineSemanticKind::PackedShiftRightArithmeticI16x8 => {
+        MachineSemanticKind::PackedShiftRightArithmeticI16x8
+        | MachineSemanticKind::PackedAbsI16x8 => {
             crate::MachineMemoryEffect::PackedUnary16To16BytesV1
         }
         MachineSemanticKind::PackedWidenU8x8ToI16x8
@@ -2443,6 +2449,12 @@ pub(super) fn validate_declaration(
         | MachineSemanticKind::PackedLoadI16x4ZeroExtend
         | MachineSemanticKind::PackedWidenU8x4ToI16x8
         | MachineSemanticKind::PackedNarrowI16x8ToU8x4Saturating
+        | MachineSemanticKind::PackedAddU8x16
+        | MachineSemanticKind::PackedMinI16x8
+        | MachineSemanticKind::PackedCmpGtI16x8
+        | MachineSemanticKind::PackedBitAndI16x8
+        | MachineSemanticKind::PackedBitAndNotI16x8
+        | MachineSemanticKind::PackedAbsI16x8
         | MachineSemanticKind::PackedLoad128
         | MachineSemanticKind::PackedStore128
         | MachineSemanticKind::PackedLoad64ZeroExtend
@@ -2795,6 +2807,11 @@ fn validate_encoded_effects(
             | MachineSemanticKind::PackedSubI16x8
             | MachineSemanticKind::PackedShuffleI16x8
             | MachineSemanticKind::PackedShuffleGeneralI16x8
+            | MachineSemanticKind::PackedAddU8x16
+            | MachineSemanticKind::PackedMinI16x8
+            | MachineSemanticKind::PackedCmpGtI16x8
+            | MachineSemanticKind::PackedBitAndI16x8
+            | MachineSemanticKind::PackedBitAndNotI16x8
     ) && (declaration.memory != crate::MachineMemoryEffect::PackedBinary16BytesV1
         || !matches!(
             encoded.memory,
@@ -2808,7 +2825,8 @@ fn validate_encoded_effects(
         return Err(());
     }
     let expected_unary_memory = match declaration.semantic {
-        MachineSemanticKind::PackedShiftRightArithmeticI16x8 => {
+        MachineSemanticKind::PackedShiftRightArithmeticI16x8
+        | MachineSemanticKind::PackedAbsI16x8 => {
             Some(crate::MachineMemoryEffect::PackedUnary16To16BytesV1)
         }
         MachineSemanticKind::PackedWidenU8x8ToI16x8
@@ -2830,7 +2848,8 @@ fn validate_encoded_effects(
         let encoded_matches = matches!(
             (declaration.semantic, encoded.memory),
             (
-                MachineSemanticKind::PackedShiftRightArithmeticI16x8,
+                MachineSemanticKind::PackedShiftRightArithmeticI16x8
+                    | MachineSemanticKind::PackedAbsI16x8,
                 MachineEncodedMemoryEffect::PackedUnary16To16BytesV1 { .. },
             ) | (
                 MachineSemanticKind::PackedWidenU8x8ToI16x8
@@ -3255,6 +3274,11 @@ fn validate_encoded_effects(
             MachineSemanticKind::PackedAddI16x8
                 | MachineSemanticKind::PackedSubI16x8
                 | MachineSemanticKind::PackedShuffleI16x8
+                | MachineSemanticKind::PackedAddU8x16
+                | MachineSemanticKind::PackedMinI16x8
+                | MachineSemanticKind::PackedCmpGtI16x8
+                | MachineSemanticKind::PackedBitAndI16x8
+                | MachineSemanticKind::PackedBitAndNotI16x8
         ) && declaration.memory == crate::MachineMemoryEffect::PackedBinary16BytesV1
             && declaration.trap == MayArchitecturalFaultV1
             && encoded.control == MachineEncodedControlEffect::FallThroughV1
@@ -3285,8 +3309,11 @@ fn validate_encoded_effects(
             },
             MachineEncodedStackEffect::UnchangedV1,
             MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-        ) if declaration.semantic == MachineSemanticKind::PackedShiftRightArithmeticI16x8
-            && declaration.memory == crate::MachineMemoryEffect::PackedUnary16To16BytesV1
+        ) if matches!(
+            declaration.semantic,
+            MachineSemanticKind::PackedShiftRightArithmeticI16x8
+                | MachineSemanticKind::PackedAbsI16x8
+        ) && declaration.memory == crate::MachineMemoryEffect::PackedUnary16To16BytesV1
             && declaration.trap == MayArchitecturalFaultV1
             && encoded.control == MachineEncodedControlEffect::FallThroughV1
             && encoded.external_operand_reads == [0, 1]

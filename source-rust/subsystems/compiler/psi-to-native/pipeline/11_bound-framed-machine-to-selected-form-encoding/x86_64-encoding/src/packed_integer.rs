@@ -36,6 +36,30 @@ pub enum Instruction {
         destination_xmm: u8,
         source_xmm: u8,
     },
+    AddBytes {
+        destination_xmm: u8,
+        source_xmm: u8,
+    },
+    MinWordsSigned {
+        destination_xmm: u8,
+        source_xmm: u8,
+    },
+    CompareGreaterWordsSigned {
+        destination_xmm: u8,
+        source_xmm: u8,
+    },
+    BitwiseAndPacked {
+        destination_xmm: u8,
+        source_xmm: u8,
+    },
+    BitwiseAndNotPacked {
+        destination_xmm: u8,
+        source_xmm: u8,
+    },
+    AbsWordsSigned {
+        destination_xmm: u8,
+        source_xmm: u8,
+    },
     UnpackLowBytes {
         destination_xmm: u8,
         source_xmm: u8,
@@ -140,6 +164,35 @@ pub enum Instruction {
         destination_xmm: u8,
         left_xmm: u8,
         right_xmm: u8,
+    },
+    Vpaddb {
+        destination_xmm: u8,
+        left_xmm: u8,
+        right_xmm: u8,
+    },
+    Vpminsw {
+        destination_xmm: u8,
+        left_xmm: u8,
+        right_xmm: u8,
+    },
+    Vpcmpgtw {
+        destination_xmm: u8,
+        left_xmm: u8,
+        right_xmm: u8,
+    },
+    Vpand {
+        destination_xmm: u8,
+        left_xmm: u8,
+        right_xmm: u8,
+    },
+    Vpandn {
+        destination_xmm: u8,
+        left_xmm: u8,
+        right_xmm: u8,
+    },
+    Vpabsw {
+        destination_xmm: u8,
+        source_xmm: u8,
     },
     VpsrawImm {
         destination_xmm: u8,
@@ -304,6 +357,45 @@ impl Instruction {
                 left_xmm,
                 right_xmm,
             } => reg_bin(1, 0xf9, destination_xmm, left_xmm, right_xmm),
+            Self::Vpaddb {
+                destination_xmm,
+                left_xmm,
+                right_xmm,
+            } => reg_bin(1, 0xfc, destination_xmm, left_xmm, right_xmm),
+            Self::Vpminsw {
+                destination_xmm,
+                left_xmm,
+                right_xmm,
+            } => reg_bin(1, 0xea, destination_xmm, left_xmm, right_xmm),
+            Self::Vpcmpgtw {
+                destination_xmm,
+                left_xmm,
+                right_xmm,
+            } => reg_bin(1, 0x65, destination_xmm, left_xmm, right_xmm),
+            Self::Vpand {
+                destination_xmm,
+                left_xmm,
+                right_xmm,
+            } => reg_bin(1, 0xdb, destination_xmm, left_xmm, right_xmm),
+            Self::Vpandn {
+                destination_xmm,
+                left_xmm,
+                right_xmm,
+            } => reg_bin(1, 0xdf, destination_xmm, left_xmm, right_xmm),
+            Self::Vpabsw {
+                destination_xmm,
+                source_xmm,
+            } => Some(VexSpec {
+                map: 2,
+                pp: 1,
+                w: false,
+                vvvv: 0,
+                opcode: 0x1d,
+                reg: destination_xmm,
+                rm: source_xmm,
+                mem_disp: None,
+                imm8: None,
+            }),
             Self::VpsrawImm {
                 destination_xmm,
                 source_xmm,
@@ -486,6 +578,53 @@ impl Instruction {
                     },
                     after_modrm,
                 ),
+                (1, 1, false, 0xfc) => (
+                    Self::Vpaddb {
+                        destination_xmm: reg,
+                        left_xmm: vvvv,
+                        right_xmm: rm,
+                    },
+                    after_modrm,
+                ),
+                (1, 1, false, 0xea) => (
+                    Self::Vpminsw {
+                        destination_xmm: reg,
+                        left_xmm: vvvv,
+                        right_xmm: rm,
+                    },
+                    after_modrm,
+                ),
+                (1, 1, false, 0x65) => (
+                    Self::Vpcmpgtw {
+                        destination_xmm: reg,
+                        left_xmm: vvvv,
+                        right_xmm: rm,
+                    },
+                    after_modrm,
+                ),
+                (1, 1, false, 0xdb) => (
+                    Self::Vpand {
+                        destination_xmm: reg,
+                        left_xmm: vvvv,
+                        right_xmm: rm,
+                    },
+                    after_modrm,
+                ),
+                (1, 1, false, 0xdf) => (
+                    Self::Vpandn {
+                        destination_xmm: reg,
+                        left_xmm: vvvv,
+                        right_xmm: rm,
+                    },
+                    after_modrm,
+                ),
+                (2, 1, false, 0x1d) if vvvv == 0 => (
+                    Self::Vpabsw {
+                        destination_xmm: reg,
+                        source_xmm: rm,
+                    },
+                    after_modrm,
+                ),
                 (1, 1, false, 0x61) => (
                     Self::Vpunpcklwd {
                         destination_xmm: reg,
@@ -665,6 +804,27 @@ impl Instruction {
         if let Some(vex) = self.vex_spec() {
             return Self::encode_vex(vex, output);
         }
+        if let Self::AbsWordsSigned {
+            destination_xmm,
+            source_xmm,
+        } = self
+        {
+            if destination_xmm >= 16 || source_xmm >= 16 {
+                return None;
+            }
+            output.push(0x66);
+            let rex = 0x40 | ((destination_xmm >> 3) << 2) | (source_xmm >> 3);
+            if rex != 0x40 {
+                output.push(rex);
+            }
+            output.extend([
+                0x0f,
+                0x38,
+                0x1d,
+                0xc0 | ((destination_xmm & 7) << 3) | (source_xmm & 7),
+            ]);
+            return Some(());
+        }
         let (prefix, opcode, reg, rm, register_operand, immediate) = match self {
             Self::LoadUnaligned {
                 destination_xmm,
@@ -691,6 +851,26 @@ impl Instruction {
                 destination_xmm,
                 source_xmm,
             } => (0x66, 0xf9, destination_xmm, source_xmm, true, None),
+            Self::AddBytes {
+                destination_xmm,
+                source_xmm,
+            } => (0x66, 0xfc, destination_xmm, source_xmm, true, None),
+            Self::MinWordsSigned {
+                destination_xmm,
+                source_xmm,
+            } => (0x66, 0xea, destination_xmm, source_xmm, true, None),
+            Self::CompareGreaterWordsSigned {
+                destination_xmm,
+                source_xmm,
+            } => (0x66, 0x65, destination_xmm, source_xmm, true, None),
+            Self::BitwiseAndPacked {
+                destination_xmm,
+                source_xmm,
+            } => (0x66, 0xdb, destination_xmm, source_xmm, true, None),
+            Self::BitwiseAndNotPacked {
+                destination_xmm,
+                source_xmm,
+            } => (0x66, 0xdf, destination_xmm, source_xmm, true, None),
             Self::UnpackLowBytes {
                 destination_xmm,
                 source_xmm,
@@ -795,6 +975,18 @@ impl Instruction {
             [rex @ (0x41 | 0x44 | 0x45), rest @ ..] => ((rex & 4) << 1, (rex & 1) << 3, rest),
             _ => (0, 0, bytes),
         };
+        if let [0x0f, 0x38, 0x1d, modrm, rest @ ..] = bytes {
+            if prefix == 0x66 && (modrm >> 6) == 3 {
+                return Some((
+                    Self::AbsWordsSigned {
+                        destination_xmm: reg_high | ((modrm >> 3) & 7),
+                        source_xmm: rm_high | (modrm & 7),
+                    },
+                    rest,
+                ));
+            }
+            return None;
+        }
         let [0x0f, opcode, modrm, rest @ ..] = bytes else {
             return None;
         };
@@ -811,6 +1003,41 @@ impl Instruction {
                 )),
                 0xf9 => Some((
                     Self::SubWords {
+                        destination_xmm: reg,
+                        source_xmm: rm,
+                    },
+                    rest,
+                )),
+                0xfc => Some((
+                    Self::AddBytes {
+                        destination_xmm: reg,
+                        source_xmm: rm,
+                    },
+                    rest,
+                )),
+                0xea => Some((
+                    Self::MinWordsSigned {
+                        destination_xmm: reg,
+                        source_xmm: rm,
+                    },
+                    rest,
+                )),
+                0x65 => Some((
+                    Self::CompareGreaterWordsSigned {
+                        destination_xmm: reg,
+                        source_xmm: rm,
+                    },
+                    rest,
+                )),
+                0xdb => Some((
+                    Self::BitwiseAndPacked {
+                        destination_xmm: reg,
+                        source_xmm: rm,
+                    },
+                    rest,
+                )),
+                0xdf => Some((
+                    Self::BitwiseAndNotPacked {
                         destination_xmm: reg,
                         source_xmm: rm,
                     },
@@ -1024,6 +1251,30 @@ mod tests {
                         source_xmm: second,
                     },
                     SubWords {
+                        destination_xmm: first,
+                        source_xmm: second,
+                    },
+                    AddBytes {
+                        destination_xmm: first,
+                        source_xmm: second,
+                    },
+                    MinWordsSigned {
+                        destination_xmm: first,
+                        source_xmm: second,
+                    },
+                    CompareGreaterWordsSigned {
+                        destination_xmm: first,
+                        source_xmm: second,
+                    },
+                    BitwiseAndPacked {
+                        destination_xmm: first,
+                        source_xmm: second,
+                    },
+                    BitwiseAndNotPacked {
+                        destination_xmm: first,
+                        source_xmm: second,
+                    },
+                    AbsWordsSigned {
                         destination_xmm: first,
                         source_xmm: second,
                     },
@@ -1257,6 +1508,35 @@ mod tests {
                         destination_xmm: r0,
                         left_xmm: r1,
                         right_xmm: (r0 + 5) & 15,
+                    },
+                    Vpaddb {
+                        destination_xmm: r0,
+                        left_xmm: r1,
+                        right_xmm: (r0 + 6) & 15,
+                    },
+                    Vpminsw {
+                        destination_xmm: r0,
+                        left_xmm: r1,
+                        right_xmm: (r0 + 7) & 15,
+                    },
+                    Vpcmpgtw {
+                        destination_xmm: r0,
+                        left_xmm: r1,
+                        right_xmm: (r0 + 8) & 15,
+                    },
+                    Vpand {
+                        destination_xmm: r0,
+                        left_xmm: r1,
+                        right_xmm: (r0 + 9) & 15,
+                    },
+                    Vpandn {
+                        destination_xmm: r0,
+                        left_xmm: r1,
+                        right_xmm: (r0 + 10) & 15,
+                    },
+                    Vpabsw {
+                        destination_xmm: r0,
+                        source_xmm: r1,
                     },
                     VpsrawImm {
                         destination_xmm: r0,

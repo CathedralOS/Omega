@@ -4318,11 +4318,11 @@ pub(crate) mod scalar_array {
             )
         }
 
-        fn packed_input_lanes(
+        fn packed_input_lanes<const N: usize>(
             &self,
             source: &StructuralArgument,
             valid_type: impl FnOnce(StructuralTypeId) -> Option<semantic_vocabulary::IntegerType>,
-        ) -> Result<[i16; 8], TerminalInterpretError> {
+        ) -> Result<[i16; N], TerminalInterpretError> {
             if source.access != StructuralAccess::SharedBorrow {
                 return Err(malformed());
             }
@@ -4335,7 +4335,7 @@ pub(crate) mod scalar_array {
             let integer = valid_type(source_type).ok_or(malformed())?;
             let snapshot = self.scalar_array_snapshot(source, source_type)?;
             let actual = snapshot.elements();
-            let mut lanes = [0_i16; 8];
+            let mut lanes = [0_i16; N];
             if actual.len() > lanes.len() {
                 return Err(malformed());
             }
@@ -4365,7 +4365,7 @@ pub(crate) mod scalar_array {
             &mut self,
             operation: &terminal_psi::Operation,
         ) -> Result<(), TerminalInterpretError> {
-            use semantic_vocabulary::PackedIntegerUnaryOperation;
+            use semantic_vocabulary::{PackedIntegerBinaryOperation, PackedIntegerUnaryOperation};
             use terminal_psi::OperationKind;
             use terminal_semantics::PackedArrayRole;
             let result = operation.result.structural().ok_or(malformed())?;
@@ -4378,7 +4378,28 @@ pub(crate) mod scalar_array {
                 return Err(malformed());
             }
             let types = self.structural_types();
-            let (integer, result_count, lanes) = match &operation.kind {
+            let (integer, result_count, lanes): (_, usize, [i16; 16]) = match &operation.kind {
+                OperationKind::PackedIntegerBinary {
+                    operation: PackedIntegerBinaryOperation::WrappingAddU8x16,
+                    left,
+                    right,
+                } => {
+                    let check = |ty| {
+                        terminal_semantics::packed_integer_array_type(
+                            types.values(),
+                            ty,
+                            PackedIntegerBinaryOperation::WrappingAddU8x16,
+                        )
+                    };
+                    let integer = check(result.structural_type).ok_or(malformed())?;
+                    let input = |ty| (ty == result.structural_type).then_some(integer);
+                    let left: [i16; 16] = self.packed_input_lanes(left, input)?;
+                    let right: [i16; 16] = self.packed_input_lanes(right, input)?;
+                    let out = std::array::from_fn(|i| {
+                        i16::from((left[i] as u8).wrapping_add(right[i] as u8))
+                    });
+                    (integer, 16usize, out)
+                }
                 OperationKind::PackedIntegerBinary {
                     operation,
                     left,
@@ -4393,12 +4414,13 @@ pub(crate) mod scalar_array {
                     };
                     let integer = check(result.structural_type).ok_or(malformed())?;
                     let input = |ty| (ty == result.structural_type).then_some(integer);
-                    let left = self.packed_input_lanes(left, input)?;
-                    let right = self.packed_input_lanes(right, input)?;
+                    let left: [i16; 8] = self.packed_input_lanes(left, input)?;
+                    let right: [i16; 8] = self.packed_input_lanes(right, input)?;
+                    let out8 = packed_binary_lanes(*operation, left, right)?;
                     (
                         integer,
                         8usize,
-                        packed_binary_lanes(*operation, left, right)?,
+                        std::array::from_fn(|i| if i < 8 { out8[i] } else { 0 }),
                     )
                 }
                 OperationKind::PackedIntegerUnary { operation, source } => {
@@ -4412,13 +4434,18 @@ pub(crate) mod scalar_array {
                     };
                     let integer =
                         check(result.structural_type, PackedArrayRole::Result).ok_or(malformed())?;
-                    let input =
+                    let input: [i16; 8] =
                         self.packed_input_lanes(source, |ty| check(ty, PackedArrayRole::Input))?;
                     let count = match operation {
                         PackedIntegerUnaryOperation::NarrowI16x8ToU8x4Saturating => 4,
                         _ => 8,
                     };
-                    (integer, count, packed_unary_lanes(*operation, input)?)
+                    let out8 = packed_unary_lanes(*operation, input)?;
+                    (
+                        integer,
+                        count,
+                        std::array::from_fn(|i| if i < 8 { out8[i] } else { 0 }),
+                    )
                 }
                 _ => return Err(malformed()),
             };
@@ -4506,6 +4533,11 @@ pub(crate) mod scalar_array {
                 }
                 shuffled
             }
+            MinI16x8 => std::array::from_fn(|i| left[i].min(right[i])),
+            CmpGtI16x8 => std::array::from_fn(|i| if left[i] > right[i] { -1 } else { 0 }),
+            BitAndI16x8 => std::array::from_fn(|i| left[i] & right[i]),
+            BitAndNotI16x8 => std::array::from_fn(|i| (!left[i]) & right[i]),
+            WrappingAddU8x16 => return Err(malformed()),
         })
     }
 
@@ -4534,6 +4566,7 @@ pub(crate) mod scalar_array {
                 0,
                 0,
             ],
+            AbsI16x8 => input.map(|lane| lane.wrapping_abs()),
         })
     }
 
