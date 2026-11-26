@@ -30,6 +30,10 @@ contract. Move the implementation and migrate consumers together, preserving
 inputs, expected results and rejection reasons. Do not leave two permanent
 implementations or claim a consumer is validated without running its checks.
 
+The standard distribution ships the ordinary packages in this directory.
+Build source selects them by declared package name. See
+[selecting a bundled package](../../wiki/spec/packages/toolchain.md#selecting-a-bundled-package).
+
 ## Core integer and float APIs
 
 Import the files that declare the carrier queries and bit conversions.

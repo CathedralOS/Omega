@@ -16,7 +16,9 @@ For `omega build build.omg`, the driver supplies the toolchain's core and
 Build libraries by convention. The project declares additional packages in
 its checked-in Build source. The CLI has no option to inject a package
 binding into the initial Build. An embedding host can supply incoming
-bindings directly.
+bindings directly. The Build can select a
+[bundled dependency](toolchain.md#selecting-a-bundled-package) by package
+name wherever the project is checked out.
 
 If only the application imports `{system}/console.omg`, one `build.omg`
 registers `system` and its allowed reach for the application. If Build code

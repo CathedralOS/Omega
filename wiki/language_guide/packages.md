@@ -63,7 +63,7 @@ use {system}/console.omg;
 
 machine build(build: @mutable BuildPlan) {
     let system: DependencyDescription =
-        |dependency|::from_source(Source::Path { location: "vendor/system" });
+        |dependency|::from_source(Source::Bundled { name: "system" });
     let allowed: [BoundaryServiceReference; 1] = [
         Build::service::<|process|::StandardOutput>(build)
     ];
@@ -75,8 +75,11 @@ machine build(build: @mutable BuildPlan) {
 }
 ```
 
-Here `vendor/system` declares the package name `system`. The console references
-in the selection are designated product operands. The preparing entry never
+The driver selects `system` from the installed toolchain bundle. See
+[selecting a bundled package](../spec/packages/toolchain.md#selecting-a-bundled-package).
+The Rust driver currently accepts path and Git sources. Support for bundled
+selection is tracked under STAGED-PACKAGE-INPUTS in [the task board](../../TASKS.md).
+The console references in the selection are designated product operands. The preparing entry never
 calls the console. Its caller supplies the child's admitted output sink.
 
 ```omega
