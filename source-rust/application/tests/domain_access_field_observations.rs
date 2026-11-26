@@ -74,8 +74,15 @@ machine make() -> Storage crashes Trap {
     let mutable value: Storage;
     value.visible = 1u32;
     value.hidden = 17u32;
-    let bytes: @[u8; 8] = @value as @[u8; 8];
-    transition bytes[0] == 17u8 && bytes[4] == 1u8 { true -> done(value), _ -> bad() }
+    let fixed: @[u8; 8] = @value as @[u8; 8];
+    let bytes: @[u8] = fixed[..];
+    transition observes_order(bytes) { true -> done(value), _ -> bad() }
+    machine observes_order(bytes: @[u8]) -> bool {
+        transition bytes.length == 8u64 { true -> inspect(bytes), _ -> (false) }
+        machine inspect(bytes: @[u8]) -> bool requires bytes.length == 8u64 {
+            bytes[0] == 17u8 && bytes[4] == 1u8
+        }
+    }
     machine done(value: Storage) -> Storage { value }
     machine bad() -> Storage { crash Trap; }
 }
