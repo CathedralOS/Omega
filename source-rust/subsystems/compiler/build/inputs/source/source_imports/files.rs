@@ -134,7 +134,10 @@ impl<'a> FileImport<'a> {
         mounted: Option<&PackageCompilationInputs>,
         filesystem: &SourceFileSystem,
     ) -> Result<FileSelection, Vec<Diagnostic>> {
-        if self.source.scope == DependencyScope::Build && self.import.only_product_operands {
+        if self.source.scope == DependencyScope::Build
+            && (self.import.only_product_operands
+                || build_declarations::build_file_namespace(self.root, self.path).is_some())
+        {
             return Ok(FileSelection::Unbound);
         }
         match self.root {
@@ -156,7 +159,10 @@ impl<'a> FileImport<'a> {
         contract_root: Option<&Path>,
         filesystem: &SourceFileSystem,
     ) -> Result<FileSelection, Vec<Diagnostic>> {
-        if self.source.scope == DependencyScope::Build && self.import.only_product_operands {
+        if self.source.scope == DependencyScope::Build
+            && (self.import.only_product_operands
+                || build_declarations::build_file_namespace(self.root, self.path).is_some())
+        {
             return Ok(FileSelection::Unbound);
         }
         if self.root == Some("omega") {

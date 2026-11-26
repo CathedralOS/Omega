@@ -274,6 +274,7 @@ impl TerminalBuildHost {
             produced.build_requests(),
             original.clone(),
             Some(account),
+            original_sources.as_ref().map(|sources| Arc::clone(&sources.libraries)).unwrap_or_default(),
         )?;
         let bindings = TerminalBuildBindingHost::new(
             artifact,

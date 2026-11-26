@@ -58,10 +58,19 @@ impl SourceServices<'_, '_, '_> {
         if let Some(request) = self.requests.get(&(purpose, ordinal)) {
             return Ok(request.settled);
         }
+        let frozen = issued.iter().filter(|issued| matches!(issued.request(), BuildRequest::Dependency {purpose: registered, ..} if *registered == purpose)).nth(ordinal)
+            .and_then(IssuedBuildRequest::forwarded)
+            .map(|binding| self.host.frozen_library(binding.library()).map(|index| self.host.settled[index].source.clone())).transpose()?;
         let selected = self
             .host
             .acquisitions
-            .acquire_issued(self.acquired, issued, purpose, ordinal)
+            .acquire_requests_or_reuse(
+                self.acquired,
+                issued.iter().map(IssuedBuildRequest::request),
+                purpose,
+                ordinal,
+                frozen,
+            )
             .map_err(refused)?;
         let child = match selected {
             AcquiredSourceSelection::Source(child) => child,
@@ -82,6 +91,16 @@ impl SourceServices<'_, '_, '_> {
 }
 
 impl SourceHost<'_, '_> {
+    pub(super) fn frozen_library(
+        &self,
+        library: &package_compilation::source_imports::SuppliedBuildLibrary,
+    ) -> Result<usize, CompileFailure> {
+        self.settled.iter().position(|settled|
+            settled.build.evaluated().base_source_consumption_commitment == library.dependency().child_build_source
+            && library.matches_settled_source(settled.build.inputs())
+        ).ok_or_else(|| refused("incoming package binding has no matching settled Build and frozen dependency closure"))
+    }
+
     pub(super) fn library_input(
         &self,
         settled: &SettledSource,

@@ -64,7 +64,9 @@ impl SourceHost<'_, '_> {
                 )
                 .into());
             }
-            if purpose.is_product() {
+            if let Some(binding) = issued.forwarded() {
+                libraries.push(binding.library().clone());
+            } else if purpose.is_product() {
                 let input = services.host.library_input(
                     settled,
                     DependencyPurpose::Build,

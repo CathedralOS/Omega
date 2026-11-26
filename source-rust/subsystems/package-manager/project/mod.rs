@@ -222,7 +222,7 @@ impl SourceHost<'_, '_> {
             ReturnedPlanningStage,
         )>::new();
         let mut reused = Vec::<usize>::new();
-        let mut next = declaration.resolve()?;
+        let mut next = declaration.clone().resolve()?;
         loop {
             let pending = match next {
                 ExecutedSourceResolution::Complete(graph) => {
@@ -261,7 +261,21 @@ impl SourceHost<'_, '_> {
                 }
                 ExecutedSourceResolution::Request(pending) => pending,
             };
-            let mut acquisition = self.acquisitions.acquire(pending)?;
+            let requester = std::iter::once(&declaration)
+                .chain(returns.iter().map(|(_, declared, _)| declared))
+                .chain(self.settled.iter().map(|settled| &settled.declaration))
+                .find(|declared| declared.identity() == pending.requester())
+                .ok_or_else(|| {
+                    "source resolution lost the requesting Build declaration".to_owned()
+                })?;
+            let frozen = pending
+                .frozen_binding(requester)
+                .map(|binding| {
+                    self.frozen_library(binding.library())
+                        .map(|index| self.settled[index].source.clone())
+                })
+                .transpose()?;
+            let mut acquisition = self.acquisitions.acquire_or_reuse(pending, frozen)?;
             next = loop {
                 match acquisition {
                     BuildSourceAcquisition::Reused(next) => break next,

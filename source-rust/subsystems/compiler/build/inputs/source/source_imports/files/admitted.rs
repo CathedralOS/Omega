@@ -216,6 +216,10 @@ pub(crate) fn build_product_file_imports(
             let SourceImportTarget::File { root, path, alias } = &import.target else {
                 continue;
             };
+            // Build-only toolchain files are bound directly to their admitted prelude unit.
+            if !import.only_product_operands && build_declarations::build_file_namespace(root.as_deref(), path).is_some() {
+                continue;
+            }
             let (owner, filename) = match root.as_deref() {
                 Some("omega") => (
                     FileOwner::Root(super::super::bundled_core_root()?),

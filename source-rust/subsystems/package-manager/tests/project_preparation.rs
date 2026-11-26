@@ -397,3 +397,94 @@ machine build(builder: @mutable Build) {{
         }
     }
 }
+
+#[test]
+fn dependency_input_forwards_the_frozen_alias_to_the_product() {
+    configure();
+    let temp = TemporaryDirectory::create("forward-build-input", false).unwrap();
+    let client = temp.path().join("client");
+    write_package(
+        &client,
+        r#"use {omega}/build/dependency.omg as dep;
+machine build(builder: @mutable Build) {
+    let input: PackageBinding = |dep|::input(builder, "layout");
+    let registration: DependencyRegistration = |dep|::add(builder, input);
+    Build::package(builder, "client");
+}"#,
+        r#"use {layout}/main.omg as layout;
+public machine answer() -> i32 { |layout|::answer() }"#,
+    );
+    write_package(
+        &client.join("supplier"),
+        r#"machine build(builder: @mutable Build) { Build::package(builder, "board_layout"); }"#,
+        "public machine answer() -> i32 { 42 }",
+    );
+    let libraries = [BuildLibraryRequest {
+        alias: ProjectName::parse("layout").unwrap(),
+        source: BuildDependencySource::Path("supplier".into()),
+    }];
+    let target = TargetProfile::host_if_supported().unwrap();
+    let products = open_products(
+        ProjectInput::WithBuildLibraries {
+            file: &client.join("build.omg"),
+            libraries: &libraries,
+        },
+        &[target],
+        true,
+        false,
+        &temp.path().join("out"),
+        None,
+    )
+    .unwrap();
+    let product = products.select(target).unwrap();
+    let inputs = product.package_inputs().unwrap();
+    let child = inputs
+        .dependency_target_for_purpose(inputs.root(), DependencyPurpose::Build, "layout")
+        .unwrap();
+    assert_eq!(inputs.package_name(child), Some("board_layout"));
+    assert_eq!(
+        inputs.dependency_target_for_purpose(inputs.root(), DependencyPurpose::Product, "layout"),
+        Some(child)
+    );
+}
+
+#[test]
+fn package_bindings_require_an_incoming_alias_and_issued_value() {
+    configure();
+    let temp = TemporaryDirectory::create("absent-build-input", false).unwrap();
+    let root = temp.path().join("project");
+    for (operation, diagnostic) in [
+        (
+            r#"let input: PackageBinding = |dep|::input(builder, "missing");"#,
+            "no incoming package binding",
+        ),
+        (
+            r#"let edge: DependencyRegistration = |dep|::add(builder, PackageBinding {});"#,
+            "requires a PackageBinding this activation issued",
+        ),
+    ] {
+        write_package(
+            &root,
+            &format!(
+                r#"use {{omega}}/build/dependency.omg as dep;
+machine build(builder: @mutable Build) {{ Build::package(builder, "project"); {operation} }}"#
+            ),
+            "public machine main() {}",
+        );
+        let result = open_products(
+            ProjectInput::WithBuildLibraries {
+                file: &root.join("build.omg"),
+                libraries: &[],
+            },
+            &[TargetProfile::host_if_supported().unwrap()],
+            true,
+            false,
+            &temp.path().join("out"),
+            None,
+        );
+        let Err(error) = result else {
+            panic!("invalid binding accepted")
+        };
+        assert!(error.to_string().contains(diagnostic), "{error}");
+    }
+}
