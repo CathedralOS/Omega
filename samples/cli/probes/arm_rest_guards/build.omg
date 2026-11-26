@@ -4,8 +4,8 @@
 
 machine build(builder: @mutable Build) {
     Build::application(builder, "arm_rest_guards");
-    Build::bind(builder, windows_x86_64\ProgramEntry, arm_rest_guards);
-    Build::bind(builder, linux_x86_64\ProgramEntry, arm_rest_guards);
-    Build::bind(builder, linux_arm64\ProgramEntry, arm_rest_guards);
-    Build::bind(builder, macos_arm64\ProgramEntry, arm_rest_guards);
+    Build::bind(builder, windows_x86_64::ProgramEntry, arm_rest_guards);
+    Build::bind(builder, linux_x86_64::ProgramEntry, arm_rest_guards);
+    Build::bind(builder, linux_arm64::ProgramEntry, arm_rest_guards);
+    Build::bind(builder, macos_arm64::ProgramEntry, arm_rest_guards);
 }

@@ -34,10 +34,10 @@ machine build(builder: @mutable Build) {
     Build::application(builder, "client");
     let product_dep: DependencyDescription = |dependency|::from_source(Source::Path { location: "library" });
     _ = Build::dependency(builder, product_dep);
-    Build::bind(builder, windows_x86_64\ProgramEntry, |app|::main);
-    Build::bind(builder, linux_x86_64\ProgramEntry, |app|::main);
-    Build::bind(builder, macos_arm64\ProgramEntry, |app|::main);
-    Build::bind(builder, linux_arm64\ProgramEntry, |app|::main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
 }"#,
         "machine main() {}",
     );
@@ -178,10 +178,10 @@ use main.omg as app;
 machine build(builder: @mutable Build) {
     Build::application(builder, "client");
     _ = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "library" }));
-    Build::bind(builder, windows_x86_64\ProgramEntry, |app|::main);
-    Build::bind(builder, linux_x86_64\ProgramEntry, |app|::main);
-    Build::bind(builder, macos_arm64\ProgramEntry, |app|::main);
-    Build::bind(builder, linux_arm64\ProgramEntry, |app|::main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
 }"#,
         "machine main() {}",
     );
@@ -289,10 +289,10 @@ fn root_recheck_finishes_after_its_own_product_opens(dependency: bool) {
 machine build(builder: @mutable Build) {{
     Build::application(builder, "client");
     {registration}
-    Build::bind(builder, windows_x86_64\ProgramEntry, |app|::main);
-    Build::bind(builder, linux_x86_64\ProgramEntry, |app|::main);
-    Build::bind(builder, macos_arm64\ProgramEntry, |app|::main);
-    Build::bind(builder, linux_arm64\ProgramEntry, |app|::main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
 }}"#
         ),
         "machine main() {}",

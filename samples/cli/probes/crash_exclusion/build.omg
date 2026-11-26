@@ -21,5 +21,5 @@ machine build(builder: @mutable Build) {
     Build::select_provider::<assert_kit\main\Assert, assert_kit\main\NoOpAssert>(builder, alpha_bootstrap);
     Optimizations::enable(@mutable builder.optimizations, Optimization::ControlFlowCleanup);
     Build::exclude_crash(builder, CrashCause::Trap);
-    Build::bind(builder, linux_x86_64\ProgramEntry, entry_start);
+    Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
 }

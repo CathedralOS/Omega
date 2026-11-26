@@ -3,8 +3,8 @@ use omega\language\core\ForeignBinding;
 
 machine build(builder: @mutable Build) {
     Build::application(builder, "provider_errno_realpath");
-    Build::bind(builder, linux_x86_64\ProgramEntry, main);
-    Build::bind(builder, macos_arm64\ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
     Build::bind_native::<HostRealpath::resolve>(builder, linux_x86_64,
         ForeignBinding::DllImport { import: DllImport::ElfVersioned {
             object: "libc.so.6", symbol: "realpath", version: "GLIBC_2.3"

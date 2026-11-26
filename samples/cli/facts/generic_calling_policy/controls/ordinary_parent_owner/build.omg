@@ -3,10 +3,10 @@ use {omega}/build/dependency.omg;
 machine build(builder: @mutable Build) {
     Build::application(builder, "ordinary_parent_fused");
     let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../../../../../../source/library/system" }));
-    Build::bind(builder, linux_x86_64\ProgramEntry, main);
-    Build::bind(builder, linux_arm64\ProgramEntry, main);
-    Build::bind(builder, macos_arm64\ProgramEntry, main);
-    Build::bind(builder, windows_x86_64\ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::select_provider::<LocalEntry, LocalMap>(builder, linux_x86_64);
     Build::select_provider::<ValuePlan, SysVValuePlan>(builder, linux_x86_64);
     Build::select_provider::<LocalEntry, LocalMap>(builder, windows_x86_64);

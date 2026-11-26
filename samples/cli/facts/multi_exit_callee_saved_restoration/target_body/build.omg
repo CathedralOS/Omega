@@ -1,9 +1,9 @@
 machine build(builder: @mutable Build) {
     Build::application(builder, "multi_exit_callee_saved_restoration_through_target_body");
-    Build::bind(builder, windows_x86_64\ProgramEntry, x86_entry);
-    Build::bind(builder, linux_x86_64\ProgramEntry, x86_entry);
-    Build::bind(builder, macos_arm64\ProgramEntry, arm_entry);
-    Build::bind(builder, linux_arm64\ProgramEntry, arm_entry);
+    Build::bind(builder, windows_x86_64::ProgramEntry, x86_entry);
+    Build::bind(builder, linux_x86_64::ProgramEntry, x86_entry);
+    Build::bind(builder, macos_arm64::ProgramEntry, arm_entry);
+    Build::bind(builder, linux_arm64::ProgramEntry, arm_entry);
     Build::select_provider::<SelectedBodyCheck, X86BodyCheck>(builder, windows_x86_64);
     Build::select_provider::<SelectedRun, X86Run>(builder, windows_x86_64);
     Build::select_provider::<SelectedBodyCheck, X86BodyCheck>(builder, linux_x86_64);

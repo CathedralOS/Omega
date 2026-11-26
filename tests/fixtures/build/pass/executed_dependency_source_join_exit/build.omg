@@ -3,10 +3,10 @@ use {omega}/build/dependency.omg;
 machine build(builder: @mutable Build) {
     Build::application(builder, "executed_dependency_source_join_exit");
     select_dependency(builder);
-    Build::bind(builder, windows_x86_64\ProgramEntry, main);
-    Build::bind(builder, linux_x86_64\ProgramEntry, main);
-    Build::bind(builder, linux_arm64\ProgramEntry, main);
-    Build::bind(builder, macos_arm64\ProgramEntry, main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
 }
 
 machine select_dependency(builder: @mutable Build) {

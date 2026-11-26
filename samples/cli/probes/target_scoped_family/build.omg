@@ -6,6 +6,6 @@ machine build(builder: @mutable Build) {
     Build::select_provider::<Picker, SharedPick>(builder, windows_x86_64);
     Build::select_provider::<Delta, SharedDelta>(builder, windows_x86_64);
     Build::select_provider::<Delta, SharedDelta>(builder, linux_x86_64);
-    Build::bind(builder, windows_x86_64\ProgramEntry, entry_start);
-    Build::bind(builder, linux_x86_64\ProgramEntry, entry_start);
+    Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
+    Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
 }

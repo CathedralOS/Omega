@@ -75,7 +75,7 @@ machine build(builder: @mutable Build) {
     |dependency|::with_alias(@mutable description, "producer");
     let registered: DependencyRegistration = Build::dependency(builder, description);
     Build::validate(builder, @registered);
-    Build::bind(builder, linux_x86_64\ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
 }
 ```
 
