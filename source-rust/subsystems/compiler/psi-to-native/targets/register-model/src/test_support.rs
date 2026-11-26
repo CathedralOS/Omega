@@ -1,13 +1,14 @@
 /*
 We provide shared architecture-neutral test assertions for ISA register-model
-test suites, verifying that normalized foreign-call templates and
-aggregate-result call rows preserve their base implicit effects and clobbers.
+test suites, verifying that normalized foreign-call templates,
+aggregate-result call rows, Linux system-call rows and scalar-float call rows
+keep their exact operands, implicit effects and clobbers.
 */
 
 use crate::{
-    RegisterConstraintCatalog, RegisterConstraintKey, RegisterInstructionConstraint,
-    RegisterOperandAccess, RegisterOperandConstraint, ValidatedPhysicalRegisterModel,
-    find_register_constraint_mut,
+    FloatScalarCallRoster, RegisterConstraintCatalog, RegisterConstraintKey,
+    RegisterInstructionConstraint, RegisterOperandAccess, RegisterOperandConstraint,
+    RegisterUnitId, SystemCallRoster, ValidatedPhysicalRegisterModel, find_register_constraint_mut,
 };
 
 pub fn row(
@@ -135,4 +136,126 @@ pub fn assert_aggregate_fragments_are_definitions(
             .retain(|unit| !scratch.write_units.contains(unit));
         assert!(!validates(altered, model), "{key:?}");
     }
+}
+
+fn view_units(model: &ValidatedPhysicalRegisterModel, names: &[&str]) -> Vec<RegisterUnitId> {
+    let mut units = names
+        .iter()
+        .flat_map(|name| {
+            model
+                .model()
+                .view_named(name)
+                .unwrap()
+                .units
+                .iter()
+                .copied()
+        })
+        .collect::<Vec<_>>();
+    units.sort_unstable();
+    units.dedup();
+    units
+}
+
+/// `forged_argument` is a real register that is not the fourth kernel argument.
+pub fn assert_system_call_rows(
+    model: &ValidatedPhysicalRegisterModel,
+    catalog: &RegisterConstraintCatalog,
+    roster: &SystemCallRoster,
+    forged_argument: &str,
+    validates: impl Fn(RegisterConstraintCatalog, &ValidatedPhysicalRegisterModel) -> bool,
+) {
+    let view = |name: &str| model.model().view_named(name).unwrap();
+    assert!(validates(catalog.clone(), model), "canonical syscall rows");
+    for (position, key) in roster.keys.iter().copied().enumerate() {
+        let argument_count = position / 2;
+        let returns_value = position % 2 != 0;
+        let row = row(catalog, key);
+        assert_eq!(
+            row.operands.len(),
+            argument_count + usize::from(returns_value)
+        );
+        for (operand, name) in row.operands.iter().zip(&roster.arguments[..argument_count]) {
+            assert_eq!(operand.access, RegisterOperandAccess::Use);
+            assert_eq!(operand.fixed_view, Some(view(name).id));
+        }
+        if returns_value {
+            let result = row.operands.last().unwrap();
+            assert_eq!(result.access, RegisterOperandAccess::Def);
+            assert_eq!(result.fixed_view, Some(view(roster.result).id));
+        }
+        let mut written = row.clobbers.clone();
+        if returns_value {
+            written.extend_from_slice(&view(roster.result).units);
+        }
+        written.sort_unstable();
+        written.dedup();
+        assert_eq!(written, view_units(model, roster.clobbers));
+        assert_eq!(row.implicit_uses, view(roster.instruction_pointer).units);
+        assert_eq!(row.implicit_defs, row.implicit_uses);
+    }
+
+    let key = roster.keys[8];
+    let mut wrong_argument = catalog.clone();
+    row_mut(&mut wrong_argument, key).operands[3].fixed_view = Some(view(forged_argument).id);
+    assert!(!validates(wrong_argument, model));
+    let mut missing_clobbers = catalog.clone();
+    row_mut(&mut missing_clobbers, key).clobbers.clear();
+    assert!(!validates(missing_clobbers, model));
+}
+
+/// `home` is the scalar-float result register and `other` a different vector register.
+pub fn assert_float_scalar_call_rows(
+    model: &ValidatedPhysicalRegisterModel,
+    catalog: &RegisterConstraintCatalog,
+    rosters: &[FloatScalarCallRoster],
+    [home, other]: [&str; 2],
+    validates: impl Fn(RegisterConstraintCatalog, &ValidatedPhysicalRegisterModel) -> bool,
+) {
+    assert!(validates(catalog.clone(), model), "complete catalog");
+    let mut keys = rosters
+        .iter()
+        .flat_map(|roster| roster.keys.iter().copied().chain([roster.return_key]))
+        .collect::<Vec<_>>();
+    let count = keys.len();
+    keys.sort_unstable();
+    keys.dedup();
+    assert_eq!(keys.len(), count, "ABI key ranges do not overlap");
+    for key in keys {
+        assert_eq!(
+            catalog
+                .constraints
+                .iter()
+                .filter(|row| row.key == key)
+                .count(),
+            1
+        );
+    }
+    let result = model.model().view_named(home).unwrap();
+    let call_key = rosters[0].keys[0];
+    let call = row(catalog, call_key);
+    assert_eq!(call.operands.last().unwrap().fixed_view, Some(result.id));
+    assert!(
+        result
+            .write_units
+            .iter()
+            .all(|unit| !call.clobbers.contains(unit))
+    );
+    let input = row(catalog, rosters[0].inputs[0]);
+    assert!(
+        input
+            .clobbers
+            .iter()
+            .all(|unit| call.clobbers.contains(unit) || result.write_units.contains(unit)),
+        "every caller-save effect remains either a Def write or a clobber"
+    );
+    let mut wrong_home = catalog.clone();
+    row_mut(&mut wrong_home, call_key)
+        .operands
+        .last_mut()
+        .unwrap()
+        .fixed_view = Some(model.model().view_named(other).unwrap().id);
+    assert!(!validates(wrong_home, model));
+    let mut wrong_clobbers = catalog.clone();
+    row_mut(&mut wrong_clobbers, call_key).clobbers.clear();
+    assert!(!validates(wrong_clobbers, model));
 }

@@ -20,6 +20,8 @@ This root module owns `PhysicalRegisterModel`, `PhysicalModelBuilder`,
 `register_vocabulary.rs` defines units, views, and classes,
 `reservation_profiles.rs` validates active reservation overlays,
 `constraint_catalog.rs` validates per-instruction operand constraints and ties,
+`derived_rows.rs` derives the system-call and scalar-float call rows both ISA
+catalogs share,
 `preservation_storage.rs` groups callee-saved units into frame storage carriers,
 and `identities.rs` computes canonical digests across all validated tables.
 */
@@ -40,6 +42,7 @@ pub(crate) use ::wire::codec_bytes;
 pub(crate) use ::wire::digest_encoder;
 
 pub(crate) mod constraint_catalog;
+pub(crate) mod derived_rows;
 pub(crate) mod identities;
 pub(crate) mod preservation_storage;
 pub(crate) mod register_vocabulary;
@@ -56,6 +59,10 @@ pub use constraint_catalog::{
     RegisterOperandConstraint, TargetRegisterEnvironmentConstraintKeys, call_constraint_keys,
     encode_constraint_key, find_register_constraint, find_register_constraint_mut,
     produce_register_constraint_catalog, validate_register_constraint_catalog, views_with_access,
+};
+pub use derived_rows::{
+    FloatScalarCallRoster, SystemCallRoster, append_float_scalar_call_constraints,
+    append_system_call_constraints, canonical_row_mismatch,
 };
 pub use identities::{
     PhysicalRegisterModelIdentity, RegisterConstraintCatalogIdentity,
