@@ -243,6 +243,21 @@ impl Region {
         }
     }
 
+    /// Moving a value or one of its whole ancestors carries its qualifications.
+    /// Vacating individual descendants cannot retire a qualification on their parent.
+    fn moved_whole(&self, path: &[Segment]) -> bool {
+        let Some((head, tail)) = path.split_first() else {
+            return !self.base && self.children.is_empty();
+        };
+        match self
+            .children
+            .binary_search_by_key(head, |(segment, _)| *segment)
+        {
+            Ok(index) => self.children[index].1.moved_whole(tail),
+            Err(_) => !self.base,
+        }
+    }
+
     fn view(&self, path: &[Segment]) -> Region {
         let Some((head, tail)) = path.split_first() else {
             return self.clone();
@@ -395,13 +410,42 @@ impl Region {
     }
 }
 
-/// Whether opening an owned wrapper must account for the wrapper itself or
-/// for qualifications travelling with its component values.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+/// Whole-value restrictions stay with their wrapper. Nested restrictions stay
+/// with the exact fields they qualify when a containing record is opened.
+#[derive(Clone, Debug, Default)]
 enum Decomposition {
+    #[default]
     Plain,
-    QualifiedFields,
+    QualifiedFields(std::sync::Arc<std::collections::BTreeSet<Vec<Segment>>>),
     QualifiedRoot,
+}
+
+impl Decomposition {
+    /// Keep the whole restriction when a projection cannot be resolved to an
+    /// inline storage region (for example, membership of every array element).
+    fn protect(&mut self, path: Option<Vec<Segment>>) {
+        let Some(path) = path.filter(|path| !path.is_empty()) else {
+            *self = Self::QualifiedRoot;
+            return;
+        };
+        match self {
+            Self::Plain => {
+                *self = Self::QualifiedFields(std::sync::Arc::new([path].into_iter().collect()));
+            }
+            Self::QualifiedFields(paths) => {
+                std::sync::Arc::make_mut(paths).insert(path);
+            }
+            Self::QualifiedRoot => {}
+        }
+    }
+
+    fn requires_conservation_at(&self, path: &[Segment]) -> bool {
+        match self {
+            Self::Plain => false,
+            Self::QualifiedFields(fields) => fields.iter().any(|field| path.starts_with(field)),
+            Self::QualifiedRoot => true,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -1682,13 +1726,13 @@ fn analyze(
     // Actual loan authority and the current value remain separate judgments.
     let mut whole_restoration = vec![true; machine.structural_places.len()];
     let mut qualified = vec![Decomposition::Plain; machine.structural_places.len()];
-    let mut restrict_decomposition = |place: PlaceId, restriction| -> Result<(), Error> {
-        let current = qualified
+    let mut protect = |place: PlaceId, path: Option<Vec<Segment>>| -> Result<(), Error> {
+        qualified
             .get_mut(index(place.get())?)
             .ok_or(Error::malformed(
                 "decomposition contract is outside the machine",
-            ))?;
-        *current = (*current).max(restriction);
+            ))?
+            .protect(path);
         Ok(())
     };
     let mut exclude_whole = |place: PlaceId| -> Result<(), Error> {
@@ -1739,11 +1783,13 @@ fn analyze(
         if parameter.access != StructuralAccess::Owned
             || !parameter.qualifications.is_empty()
             || !parameter.additional_input_qualifications.is_empty()
-            || parameter.projected_qualifications.iter().any(|row| row.path.is_empty())
         {
-            restrict_decomposition(parameter.place, Decomposition::QualifiedRoot)?;
-        } else if !parameter.projected_qualifications.is_empty() {
-            restrict_decomposition(parameter.place, Decomposition::QualifiedFields)?;
+            protect(parameter.place, None)?;
+        } else {
+            for row in &parameter.projected_qualifications {
+                let path = crate::canonical_inline_region(types.iter(), parameter.structural_type, &row.path);
+                protect(parameter.place, path)?;
+            }
         }
         let required = machine
             .structural_places
@@ -1795,11 +1841,13 @@ fn analyze(
             if !result.qualifications.is_empty()
                 || !result.additional_input_qualifications.is_empty()
                 || !result.qualification_establishments.is_empty()
-                || result.projected_qualifications.iter().any(|row| row.path.is_empty())
             {
-                restrict_decomposition(result.place, Decomposition::QualifiedRoot)?;
-            } else if !result.projected_qualifications.is_empty() {
-                restrict_decomposition(result.place, Decomposition::QualifiedFields)?;
+                protect(result.place, None)?;
+            } else {
+                for row in &result.projected_qualifications {
+                    let path = crate::canonical_inline_region(types.iter(), result.structural_type, &row.path);
+                    protect(result.place, path)?;
+                }
             }
             if !(result.is_affine_plain() || result.is_unrestricted_plain())
                 || !result.additional_input_qualifications.is_empty()
@@ -1844,7 +1892,7 @@ fn analyze(
             && !qualifications.is_empty()
         {
             exclude_whole(*destination)?;
-            restrict_decomposition(*destination, Decomposition::QualifiedRoot)?;
+            protect(*destination, None)?;
         }
     }
     for claim in machine
@@ -1856,12 +1904,14 @@ fn analyze(
     }
     for claim in &machine.content_entry_claims {
         exclude_whole(claim.input.root)?;
-        let restriction = if claim.input.segments.is_empty() {
-            Decomposition::QualifiedRoot
-        } else {
-            Decomposition::QualifiedFields
-        };
-        restrict_decomposition(claim.input.root, restriction)?;
+        let path = walks.and_then(|walks| {
+            let ty = machine.structural_parameter(claim.input.root)?.structural_type;
+            let authored = crate::content_transformations::structural_path(
+                types.iter(), &walks.module.identities, ty, &claim.input.segments,
+            )?;
+            crate::canonical_inline_region(types.iter(), ty, &authored)
+        });
+        protect(claim.input.root, path)?;
     }
     if let TerminalMachineResult::Structural(result) = &machine.result {
         insert_contract(
@@ -2014,7 +2064,7 @@ fn analyze(
                 affine: tracked,
                 multiplicity,
                 whole_restoration: owned && whole_restoration[roots.len()],
-                decomposition: if owned { qualified[roots.len()] } else { Decomposition::QualifiedRoot },
+                decomposition: if owned { std::mem::take(&mut qualified[roots.len()]) } else { Decomposition::QualifiedRoot },
                 parameter,
                 exclusive,
             }),
@@ -3394,7 +3444,8 @@ impl<'a> Analysis<'a> {
                     "decomposition requires owned affine custody",
                 ));
             }
-            if root.decomposition != Decomposition::Plain {
+            let path = self.canonical(subject.place, &subject.path)?;
+            if root.decomposition.requires_conservation_at(&path) {
                 let machine = self.body.ok_or(Error::malformed("decomposition has no machine"))?;
                 crate::content_transformations::partition::require_decomposition_laws(module, machine, subject)
                     .map_err(Error::unsupported)?;
@@ -3402,7 +3453,6 @@ impl<'a> Analysis<'a> {
                     return Err(Error::unsupported("qualified decomposition lost its original content claim"));
                 }
             }
-            let path = self.canonical(subject.place, &subject.path)?;
             // Independent claims and qualifications are not a wrapper's disposition.
             // The bounded record operation serves no implicit claim settlement.
             if !self.nominal_ancestors_partitioned(state, subject.place, &path)? {
@@ -4263,17 +4313,25 @@ impl<'a> Analysis<'a> {
             // Components mode can only be reached by the checked consuming
             // operation on this exact root. Its content obligations survive
             // retirement of the storage that held the opened wrapper.
-            if region.mode != Mode::Components && info.decomposition != Decomposition::Plain {
-                // A projected qualification moves with its component. Once every
-                // component has moved, only the vacant storage home remains.
-                if info.owned && info.decomposition == Decomposition::QualifiedFields
-                    && self.vacant_region(place, region, &[])?
-                {
-                    return Ok(vec![TerminalAffineCleanupAction::RetireHome(place)]);
+            match &info.decomposition {
+                Decomposition::QualifiedRoot if region.mode != Mode::Components => {
+                    return Err(Error::unsupported(
+                        "component cleanup cannot settle qualifications or independent content custody",
+                    ));
                 }
-                return Err(Error::unsupported(
-                    "component cleanup cannot settle qualifications or independent content custody",
-                ));
+                Decomposition::QualifiedFields(fields) => {
+                    if !region.moved_whole(&[])
+                        && fields.iter().any(|field| !region.moved_whole(field))
+                    {
+                        return Err(Error::unsupported(
+                            "component cleanup cannot settle a surviving qualified field",
+                        ));
+                    }
+                    if region.mode != Mode::Components && self.vacant_region(place, region, &[])? {
+                        return Ok(vec![TerminalAffineCleanupAction::RetireHome(place)]);
+                    }
+                }
+                _ => {}
             }
             self.dispose_components(
                 place,
