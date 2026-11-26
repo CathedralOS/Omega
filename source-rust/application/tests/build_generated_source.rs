@@ -47,7 +47,10 @@ fn handwritten_product_calls_a_generated_file() {
     .unwrap();
     for (body, valid) in [
         ("public machine read() -> u8 { 17u8 }", true),
-        ("public machine read() -> u8 { missing() }", false),
+        (
+            "public machine read() -> u8 { 17u8 } machine unused() { missing(); }",
+            false,
+        ),
     ] {
         fs::write(project.path().join("asset.txt"), body).unwrap();
         let length = body.len();
