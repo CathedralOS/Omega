@@ -1,0 +1,14 @@
+use main.omg as app;
+use {omega}/language/core/external_binding.omg as native;
+
+machine build(plan: @mutable BuildPlan) {
+    plan.product = BuildProduct::Application { name: "mapped_kernel_read" };
+    Build::bind(plan, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind_native::<|app|::Files::openat>(plan, linux_x86_64, |native|::ForeignBinding::Syscall { number: 257 });
+    Build::bind_native::<|app|::Files::read>(plan, linux_x86_64, |native|::ForeignBinding::Syscall { number: 0 });
+    Build::bind_native::<|app|::Files::close>(plan, linux_x86_64, |native|::ForeignBinding::Syscall { number: 3 });
+    Build::bind(plan, linux_arm64::ProgramEntry, |app|::main);
+    Build::bind_native::<|app|::Files::openat>(plan, linux_arm64, |native|::ForeignBinding::Syscall { number: 56 });
+    Build::bind_native::<|app|::Files::read>(plan, linux_arm64, |native|::ForeignBinding::Syscall { number: 63 });
+    Build::bind_native::<|app|::Files::close>(plan, linux_arm64, |native|::ForeignBinding::Syscall { number: 57 });
+}

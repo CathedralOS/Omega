@@ -52,13 +52,25 @@ impl DirectoryMappings {
         &self,
         path: &'path [u8],
     ) -> io::Result<(&DirectoryMapping, &'path [u8])> {
+        let (mapping, relative) = self.resolve_entry(path)?;
+        if relative.is_empty() {
+            return Err(io::ErrorKind::IsADirectory.into());
+        }
+        Ok((mapping, relative))
+    }
+
+    /// An empty suffix selects the root of the issued directory.
+    pub fn resolve_entry<'path>(
+        &self,
+        path: &'path [u8],
+    ) -> io::Result<(&DirectoryMapping, &'path [u8])> {
         let path = std::str::from_utf8(path).map_err(|_| io::ErrorKind::InvalidInput)?;
         let relative = path.strip_prefix('/').ok_or(io::ErrorKind::InvalidInput)?;
-        if !valid_components(relative) {
+        if !relative.is_empty() && !valid_components(relative) {
             return Err(io::ErrorKind::InvalidInput.into());
         }
-        if self.0.contains_key(path) {
-            return Err(io::ErrorKind::IsADirectory.into());
+        if let Some(mapping) = self.0.get(path) {
+            return Ok((mapping, &[]));
         }
         for (offset, _) in path.rmatch_indices('/') {
             let mount = if offset == 0 { "/" } else { &path[..offset] };
@@ -73,6 +85,13 @@ impl DirectoryMappings {
 impl DirectoryMapping {
     pub fn access(&self) -> DirectoryAccess {
         self.access
+    }
+
+    /// Hand the matching-host filesystem adapter a retained parent and one leaf.
+    /// The adapter must enforce this mapping's access and avoid following the leaf.
+    #[cfg(target_os = "linux")]
+    pub fn bound_parent<'a>(&self, relative: &'a [u8]) -> io::Result<(std::fs::File, &'a str)> {
+        self.backing.bound_parent(relative)
     }
 
     pub fn open_read(&self, relative: &[u8]) -> io::Result<std::fs::File> {

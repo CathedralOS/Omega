@@ -11,6 +11,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 pub struct CaseRunRequest {
+    pub run_directories: platform_custody::directory_mappings::DirectoryMappings,
     pub build_snapshot: Option<BuildSnapshotRequest>,
     pub private_entry_ram: Vec<psi_entry_memory::PrivateEntryRamInitialization>,
     pub root_path: PathBuf,
@@ -78,6 +79,11 @@ pub fn run_project_cases(
     request: CaseRunRequest,
     present_test: impl FnMut(&str),
 ) -> Result<CaseRunOutcome, RunError> {
+    if request.selection != ExecutionSelection::Terminal && !request.run_directories.is_empty() {
+        return Err(RunError::InvalidRequest(
+            "Product directory mappings require the Psi engine",
+        ));
+    }
     let budget = request
         .psi_work_budget
         .map_or(DEFAULT_PSI_WORK_ALLOWANCE, std::num::NonZeroU64::get);
@@ -120,7 +126,13 @@ pub fn run_project_cases(
     }
     std::fs::create_dir(directory).map_err(RunError::ReferenceOutput)?;
     let (cases, table) = match request.selection {
-        ExecutionSelection::Terminal => psi_cases(&inputs, directory, &report, budget)?,
+        ExecutionSelection::Terminal => psi_cases(
+            &inputs,
+            directory,
+            &report,
+            budget,
+            &request.run_directories,
+        )?,
         ExecutionSelection::Native => {
             let (report, executable) = report.publish(&build_dir).map_err(RunError::Publication)?;
             native_cases(&inputs, directory, &report, &executable)?
@@ -135,12 +147,17 @@ fn psi_cases(
     directory: &Path,
     report: &compilation::RunProduct,
     budget: u64,
+    directories: &platform_custody::directory_mappings::DirectoryMappings,
 ) -> Result<(Vec<CaseOutcome>, String), RunError> {
     let mut cases = Vec::with_capacity(inputs.len());
     let mut table = String::from("case\ttermination\tdetail\n");
     for input in inputs {
-        let outcome =
-            TerminalOutcome::from(psi::execute(report, Some(Box::new(input.open()?)), budget));
+        let outcome = TerminalOutcome::from(psi::execute(
+            report,
+            Some(Box::new(input.open()?)),
+            budget,
+            directories.clone(),
+        ));
         if let TerminalOutcome::Completed(observation) = &outcome {
             input.write_observation(directory, "stdout", &observation.stdout)?;
             input.write_observation(directory, "stderr", &observation.stderr)?;

@@ -42,6 +42,18 @@ impl BoundDirectory {
         Ok((directory, leaf))
     }
 
+    #[cfg(target_os = "linux")]
+    pub(crate) fn bound_parent<'a>(
+        &self,
+        relative: &'a [u8],
+    ) -> io::Result<(std::fs::File, &'a str)> {
+        if relative.is_empty() {
+            return Ok((self.0.try_clone()?.into_std_file(), "."));
+        }
+        let (directory, leaf) = self.parent(relative)?;
+        Ok((directory.into_std_file(), leaf))
+    }
+
     pub fn open_read(&self, path: &[u8]) -> io::Result<std::fs::File> {
         let (directory, name) = self.parent(path)?;
         if !directory.symlink_metadata(name)?.is_file() {

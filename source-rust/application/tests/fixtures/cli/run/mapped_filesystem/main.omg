@@ -1,0 +1,36 @@
+use {omega}/language/core/filesystem_authority.omg as authority;
+public boundary trait Files {
+    machine openat(dir: i32, path: @[u8; 4096], flags: i32, mode: i32) -> i32
+    reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation crashes none;
+    machine read(descriptor: i32, bytes: @mutable [u8; 1], count: u64) -> i64
+    requires count <= 1u64
+    reaches |authority|::FilesystemContentRead crashes none;
+    machine close(fd: i32) -> i32 reaches none crashes none;
+}
+public machine main() reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation {
+    let mutable path: [u8; 4096];
+    // Null-terminated /r/x in the kernel's fixed path buffer.
+    path[0] = 47u8;
+    path[1] = 114u8;
+    path[2] = 47u8;
+    path[3] = 120u8;
+    let mutable contents: [u8; 1];
+    let fd: i32 = Files::openat(-100i32, @path, 0i32, 0i32);
+    let actual: i64 = Files::read(fd, @mutable contents, 1u64);
+    let closed: i32 = Files::close(fd);
+    let denied: i32 = Files::openat(-100i32, @path, 1i32, 0i32);
+    transition actual == 1i64 && contents[0] == 82u8 && denied == -13i32 && closed == 0i32 {
+        true -> success(), _ -> done()
+    }
+    machine success() reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation {
+        let mutable path: [u8; 4096];
+        // Create /w/x only after the independently granted read succeeds.
+        path[0] = 47u8;
+        path[1] = 119u8;
+        path[2] = 47u8;
+        path[3] = 120u8;
+        let fd: i32 = Files::openat(-100i32, @path, 65i32, 384i32);
+        _ = Files::close(fd);
+    }
+    machine done() { }
+}

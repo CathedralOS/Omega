@@ -40,6 +40,7 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
     let outcome = match run_project(
         artifact,
         RunRequest {
+            run_directories: arguments.run_directories,
             build_snapshot: crate::arguments::build_snapshot(arguments.build_inputs, arguments.build_directories),
             private_entry_ram: arguments.private_entry_ram,
             root_path: arguments.main_path,
@@ -193,6 +194,7 @@ fn run_cases(
     let outcome = match run_project_cases(
         artifact,
         CaseRunRequest {
+            run_directories: arguments.run_directories,
             build_snapshot: crate::arguments::build_snapshot(arguments.build_inputs, arguments.build_directories),
             private_entry_ram: arguments.private_entry_ram,
             root_path: arguments.main_path,
