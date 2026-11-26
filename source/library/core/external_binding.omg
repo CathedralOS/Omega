@@ -1,3 +1,5 @@
+use reflect/reflect.omg as reflection;
+
 // Compiler-owned vocabulary for irreducible foreign import coordinates.
 //
 // A target-scoped ordinary machine returns one closed `ForeignBinding` locator. The
@@ -42,4 +44,12 @@ public data ForeignBinding<
         import: DllImport<ObjectLength, SymbolLength, VersionLength>
     );
     case Syscall(number: u64);
+}
+
+// Select a function from the table borrowed by one formal of the requirement.
+// These declarations describe the call. Reading a live table and entering its
+// function still require the selected provider's authority and calling plan.
+public data FunctionFieldBinding<'text> {
+    table: |reflection|::ParameterInfo<'text>;
+    field: |reflection|::FieldInfo<'text>;
 }
