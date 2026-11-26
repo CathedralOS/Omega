@@ -64,19 +64,8 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-<a id="interpreted-cli-filesystem-inputs"></a>
-### 1. How should a caller supply filesystem access to an executing Build?
-
-The [runtime directory mapping decision](wiki/spec/build/command_line.md#runtime-directory-mappings)
-settles grants for an interpreted Product. A Build generator may itself need
-input files and a writable destination before that Product exists. Which CLI
-inputs and defaults should apply to the Build activation? The
-[local Build input rules](wiki/spec/build/command_line.md#local-build-inputs)
-cover source capture, and the [default filesystem contract](wiki/spec/build/scoped_execution.md#inputs-and-default-filesystem)
-covers the executing Build's view. Product runtime mappings grant no Build access.
-
 <a id="staged-restricted-request-approval"></a>
-### 2. How does a source Build receive project approval for a restricted action?
+### 1. How does a source Build receive project approval for a restricted action?
 
 A developer binds a packer with `--allow ProgramLaunch --program Packer ./packer`.
 A dependency that invokes it still needs the consuming project's approval for
