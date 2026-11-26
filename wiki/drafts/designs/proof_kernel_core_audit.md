@@ -854,7 +854,6 @@ Two fixtures are the smallest whole customer for a library law:
   field, a call, a constant, a join, a state, a machine); if a mechanism
   needs new code for one of them, the mechanism is too narrow.
 - **Level binders and Squash leave the plan** until a program needs them.
-  Open question 1 no longer blocks anything scheduled.
 - **Rearranging by algebra laws has customers**:
   `pass/proofs/ring_full_polynomial_compile`, its twin
   `fail/proofs/ring_rearrange_unlicensed_rejected`, and the `open_index_*`
@@ -887,7 +886,7 @@ targets). Grouped by the first error each sample reports:
 | --- | --- | --- | --- |
 | 53 | "this value's type carries no domain and ... declares `Region::Bounded`/`Wrapping`" (35) and "builtin operator `-` takes unqualified operands only" (18): `domain_geometry` 17, `negated_mathematical_order` 18, `induction_call_guarantee` 18 | stage 03/05 domain typing | the samples predate [domains.md](../../spec/language/domains.md#composition-and-removal); domain surface work, not this task |
 | 48 | "declaration using a type written as an expression, which no pass evaluates yet": every `source_indexed_*` sample except `source_indexed_type_parameter`'s invalid twins | `typed-trees/proofs/deferred_refusals.rs:168` | **this task**: value-indexed type arguments (`Vector<previous, previous_total>`) are R2's front end |
-| 18 | "`u` is spelled like a builtin type but is not one": `representation_agreement`, at `core\Type<u>` | S03 `type_reference.rs:3821` | **this task**: C2 level binders; see open question 1 |
+| 18 | "`u` is spelled like a builtin type but is not one": `representation_agreement`, at `core\Type<u>` | S03 `type_reference.rs:3821` | **this task**: C2 level binders under the [builtin naming rules](../../spec/language/modules.md#builtin-type-names) |
 | 18 | "import `omega::language::core::Access` does not select one declaration": `resident_backing` | stage 02 imports | library/imports, not this task |
 | 10 | "parameter erased reference parameter" (9) and a call to that refused machine (1): `erased_reference_contract` programs | stage 05 | references lane |
 | 9 | "selected target `linux_arm64` has no bound required root slot": `erased_reference_contract` invalid twins | Build | target binding of the samples |
@@ -956,7 +955,7 @@ there adds a case per construct, take the rule here instead.
 | 6 | The rest of R2: value-indexed families. Needs value-indexed type arguments (`Vector<previous, previous_total>`) evaluated in stage 03 first. | stages 03, 05 | `source_indexed_*`, once their other blockers are repaired |
 | 7 | Quotient formation (L2, L3) and the correspondence judgment (R3) | stages 05, 06 | none in the library or samples today; the corpus had 43 fixtures to recover a pair from |
 | — | In parallel, each independent: (a) divide/remainder/shift endpoints from an interval divisor in `IntegerAffineBound`; (b) irreflexivity of `<` on an open value; (c) L5 | stage 06, kernel | S06 README:1039-1052 programs |
-| later | `core\Level` binders in stages 02-03 and the Squash mapping, when a program needs them and open question 1 is answered | stages 02-03, 05 | `representation_agreement`, the only family that uses a level |
+| later | `core\Level` binders in stages 02-03 and the Squash mapping, when a program needs them | stages 02-03, 05 | `representation_agreement`, the only family that uses a level |
 
 Step 1 is small on purpose. [Check on the lowered form](check_on_lowered_form.md#lane-order)
 says not to spread a new representation before one checked end-to-end route
@@ -1703,8 +1702,7 @@ stages 03 and 04. What is built:
 
 The first version of this plan started with level binders and value-indexed
 type arguments because they move 66 samples. They move those samples to
-their next failure, the library needs neither, and level binders wait on
-open question 1, so they no longer lead. The samples' other blockers (domain
+their next failure. The library needs neither, so they no longer lead. The samples' other blockers (domain
 surface, imports, stale syntax, references) belong to their own `TASKS.md`
 items.
 
@@ -1718,14 +1716,9 @@ comparisons.
 
 Recorded questions and where each stands:
 
-1. **Level binder spelling.** [modules.md#builtin-type-names](../../spec/language/modules.md#builtin-type-names)
-   reserves `u` as an integer-family type spelling and lists which introduced
-   names may use one, but not a `core\Level` binder. The spec's own examples
-   name levels `u`, `v`, `w` ([mathematical_bindings.md](../../spec/proofs/mathematical_bindings.md#universes-and-mathematical-function-types)).
-   Is a level argument a type position, and may a level binder be named `u`?
-   The library declares no level binder, so this blocks only
-   `representation_agreement`, not steps 1-3. Recorded as
-   [level-binder spelling question](../../../OWNER_QUESTIONS.md#level-binder-spelling).
+1. **Level binder spelling.** The [builtin naming rules](../../spec/language/modules.md#builtin-type-names)
+   allow `u: core\Level`. Stage 03 still needs to resolve `u` in `core\Type<u>`
+   as a level argument for `representation_agreement`.
 2. **Where the signature lives.** Not an owner question: [OWNER_QUESTIONS.md](../../../OWNER_QUESTIONS.md)
    delegates Psi representation and encoding design and counts a schema
    change needed for accepted behavior as implementation work. Terminal Psi has `mathematical_carriers`,

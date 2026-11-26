@@ -135,11 +135,12 @@ digits form a valid width. `u0` is a family spelling and an invalid type. A
 value binding with the same spelling never hides one, and no declaration may
 redefine one. What is decided is the role of the name being introduced, not its
 letters. A declaration introducing a type or namespace name may not use a
-builtin type spelling; a declaration introducing a value may:
+builtin type spelling. Value and universe-level binders may use those spellings.
 
 | Introduced name | May use a builtin type spelling |
 | --- | --- |
 | A value: local, machine or state parameter, field, pattern binding, value constant, generic value binder, machine, named implementation | Yes. It does not affect type lookup. |
+| A universe level: a binder declared with `core\Level` | Yes. It introduces a name in level expressions. |
 | A type: data declaration, trait schema, type alias, generic type binder | No. It would compete with the builtin type, and rejects where it is introduced. |
 | A namespace: file import alias | No, for the same reason. |
 
@@ -151,7 +152,10 @@ Each use resolves by its role, determined before any operation is chosen:
   for a missing value.
 - A generic argument takes its role from the selected declaration's binder: a
   type binder reads a type and `const N: u64` reads a value. Lookup never tries
-  both roles to find one that checks.
+  alternative roles to find one that checks. A universe-level argument reads a
+  level expression. In `<u: core\Level, A: core\Type<u>>`, the argument to
+  `core\Type` reads the bound level. Type lookup still applies the ordinary
+  integer-family spelling and width rules.
 - Where an operand could be either, as in a type equality, a value binding
   takes the value role and a type/value mixture rejects. With a parameter
   named `i32` in scope, `requires T == i32` rejects; the diagnostic names both

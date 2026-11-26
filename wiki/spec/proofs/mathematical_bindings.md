@@ -34,7 +34,10 @@ f: (value: A) -> F(value)          dependent mathematical function
 `core\Level` denotes the checked universe-binder kind, not a runtime integer
 carrier or a type containing all universe levels as ordinary values. It is
 admitted in generic telescopes; level expressions use the selected calculus's
-level grammar and constraints. `core\Type` and `core\Strict` resolve to fixed
+level grammar and constraints. A level binder may use a builtin type spelling
+such as `u`. A reference to it resolves in the level role under the ordinary
+[builtin naming rules](../language/modules.md#builtin-type-names).
+`core\Type` and `core\Strict` resolve to fixed
 compiler-known declarations, not ordinary structs, import-sensitive conventions
 or per-binding modifiers. Display aliases cannot change those identities.
 Sort formation, equality and elimination follow the foundation; `[erased]`,
