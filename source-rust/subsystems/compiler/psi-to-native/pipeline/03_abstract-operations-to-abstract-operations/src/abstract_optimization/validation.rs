@@ -15,22 +15,9 @@ pub(crate) mod context {
 
     pub(in crate::abstract_optimization) use crate::abstract_optimization::ranked_cycles_validation as ranked_cycles;
 
-    pub(crate) fn validate_verified_psi_context(
-        verified: &crate::abstract_optimization::VerifiedPsiOptimizationUnit,
-    ) -> Result<ranked_cycles::ValidatedOptimizerCycleComponents, OptimizationUnitValidationError>
-    {
-        derive_context(verified.input(), verified.unit())
-    }
-
-    pub(crate) fn validate_transformed_psi_context(
-        input: &verified_optimization_input::VerifiedPsiOptimizationInput,
-        unit: &PsiOptimizationUnit,
-    ) -> Result<ranked_cycles::ValidatedOptimizerCycleComponents, OptimizationUnitValidationError>
-    {
-        derive_context(input, unit)
-    }
-
-    fn derive_context(
+    /// Admits the runtime evidence and ranked cycles of a unit, whether stage 03
+    /// just built it or a pass rewrote it.
+    pub(crate) fn validate_psi_context(
         input: &verified_optimization_input::VerifiedPsiOptimizationInput,
         unit: &PsiOptimizationUnit,
     ) -> Result<ranked_cycles::ValidatedOptimizerCycleComponents, OptimizationUnitValidationError>
@@ -2147,151 +2134,112 @@ pub(crate) mod place_observations {
     }
 }
 pub(crate) mod prephysical_manifest {
-    pub(crate) mod projection {
-        use super::{
-            BaselineDecisionLog, OptimizationIdentityBundle, OptimizationManifestStage,
-            OptimizationPassManifestRecord, OptimizationSelections,
-            OptimizationStructuralStatistics, OptimizationWorkBudget, OptimizationWorkUsage,
-            PhysicalOptimizationDataStatus, PrePhysicalOptimizationManifest,
-            PrePhysicalOptimizationManifestError, PrePhysicalOptimizationManifestIdentity,
-            PsiOptimizationUnit, PsiTransformationLedger, ValidatedOptimizedAbstractPlanProjection,
-            VerifiedPsiOptimizationInput,
-        };
-        #[allow(clippy::too_many_arguments)]
-        pub(crate) fn expected_record(
-            input: &VerifiedPsiOptimizationInput,
-            final_unit: &PsiOptimizationUnit,
-            selections: &OptimizationSelections,
-            psi_selections: &OptimizationSelections,
-            budget_per_pass: OptimizationWorkBudget,
-            usage: OptimizationWorkUsage,
-            decisions: &BaselineDecisionLog,
-            pass_manifests: &[OptimizationPassManifestRecord],
-            ledger: &PsiTransformationLedger,
-            bundle: OptimizationIdentityBundle,
-            projection: ValidatedOptimizedAbstractPlanProjection,
-        ) -> Result<PrePhysicalOptimizationManifest, PrePhysicalOptimizationManifestError> {
-            let initial = crate::abstract_optimization::build_verified_psi_optimization_unit(
-                input.clone(),
-                final_unit.work_schedule,
-            )
-            .map_err(|_| PrePhysicalOptimizationManifestError::InitialUnitProjection)?;
-            Ok(PrePhysicalOptimizationManifest {
-                identity: PrePhysicalOptimizationManifestIdentity::from_canonical_bytes(b"pending"),
-                stage: OptimizationManifestStage::PrePhysicalAbstractPlan,
-                physical_data: PhysicalOptimizationDataStatus::UnavailableBeforePhysicalRealization,
-                psi: final_unit.psi,
-                work_schedule: final_unit.work_schedule,
-                initial_unit: initial.unit().identity,
-                final_unit: final_unit.identity,
-                projection: projection.identity(),
-                selections: selections.clone(),
-                psi_selections: psi_selections.clone(),
-                budget_per_pass,
-                usage,
-                decision_log: decisions.clone(),
-                pass_manifests: pass_manifests.to_vec(),
-                transformation_ledger: ledger.clone(),
-                identity_bundle: bundle,
-                source_statistics: structural_statistics(initial.unit())?,
-                optimized_statistics: structural_statistics(final_unit)?,
-            })
-        }
+    use optimization_core::PrePhysicalOptimizationManifestIdentity;
+    use optimization_unit::{
+        OptimizationManifestStage, OptimizationStructuralStatistics,
+        PhysicalOptimizationDataStatus, PrePhysicalOptimizationManifest, PsiOptimizationUnit,
+    };
 
-        fn structural_statistics(
+    use crate::abstract_optimization::OptimizationRun;
+    use crate::abstract_optimization::validation::ValidatedOptimizedAbstractPlanProjection;
+
+    /// The manifest compares the optimized unit with the unit stage 03 built
+    /// before any pass ran. The caller records that unit's identity and
+    /// statistics once, before the session attaches ownership frontier facts.
+    #[derive(Debug, Clone, Copy)]
+    pub(crate) struct InitialUnitRecord {
+        identity: optimization_core::OptimizationUnitIdentity,
+        statistics: OptimizationStructuralStatistics,
+    }
+
+    impl InitialUnitRecord {
+        pub(crate) fn of(
             unit: &PsiOptimizationUnit,
-        ) -> Result<OptimizationStructuralStatistics, PrePhysicalOptimizationManifestError>
-        {
-            let count = |value: usize| {
-                u64::try_from(value)
-                    .map_err(|_| PrePhysicalOptimizationManifestError::StructuralStatisticsOverflow)
-            };
-            Ok(OptimizationStructuralStatistics {
-                functions: count(unit.functions.len())?,
-                blocks: count(
-                    unit.functions
-                        .iter()
-                        .map(|function| function.blocks.len())
-                        .sum(),
-                )?,
-                nodes: count(unit.blocks().map(|block| block.nodes.len()).sum())?,
-                scalar_definitions: count(
-                    unit.functions
-                        .iter()
-                        .map(|function| {
-                            function.parameters.len()
-                                + function
-                                    .blocks
-                                    .iter()
-                                    .map(|block| {
-                                        block.parameters.len()
-                                            + block
-                                                .nodes
-                                                .iter()
-                                                .map(|node| node.definitions.len())
-                                                .sum::<usize>()
-                                    })
-                                    .sum::<usize>()
-                        })
-                        .sum(),
-                )?,
-
-                scalar_uses: count(unit.block_nodes().map(|node| node.uses.len()).sum())?,
-                optimization_facts: count(
-                    unit.functions
-                        .iter()
-                        .map(|function| function.facts.len())
-                        .sum(),
-                )?,
-                ownership_frontier_facts: count(unit.ownership_frontier_facts.len())?,
+        ) -> Result<Self, PrePhysicalOptimizationManifestError> {
+            Ok(Self {
+                identity: unit.identity,
+                statistics: structural_statistics(unit)?,
             })
         }
     }
 
-    use optimization_core::BaselineDecisionLog;
-    use optimization_core::{
-        OptimizationIdentityBundle, OptimizationPassManifestRecord, OptimizationSelections,
-        OptimizationWorkBudget, OptimizationWorkUsage, PrePhysicalOptimizationManifestIdentity,
-    };
-    use optimization_unit::{
-        OptimizationManifestStage, OptimizationStructuralStatistics,
-        PhysicalOptimizationDataStatus, PrePhysicalOptimizationManifest, PsiOptimizationUnit,
-        PsiTransformationLedger,
-    };
-    use verified_optimization_input::VerifiedPsiOptimizationInput;
-
-    use crate::abstract_optimization::validation::ValidatedOptimizedAbstractPlanProjection;
-
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn project_pre_physical_optimization_manifest(
-        input: &VerifiedPsiOptimizationInput,
-        final_unit: &PsiOptimizationUnit,
-        selections: &OptimizationSelections,
-        psi_selections: &OptimizationSelections,
-        budget_per_pass: OptimizationWorkBudget,
-        usage: OptimizationWorkUsage,
-        decisions: &BaselineDecisionLog,
-        pass_manifests: &[OptimizationPassManifestRecord],
-        ledger: &PsiTransformationLedger,
-        bundle: OptimizationIdentityBundle,
+        run: &OptimizationRun,
+        initial: InitialUnitRecord,
         projection: ValidatedOptimizedAbstractPlanProjection,
     ) -> Result<ValidatedPrePhysicalOptimizationManifest, PrePhysicalOptimizationManifestError>
     {
-        let mut record = projection::expected_record(
-            input,
-            final_unit,
-            selections,
-            psi_selections,
-            budget_per_pass,
-            usage,
-            decisions,
-            pass_manifests,
-            ledger,
-            bundle,
-            projection,
-        )?;
+        let final_unit = run.session().unit();
+        let mut record = PrePhysicalOptimizationManifest {
+            identity: PrePhysicalOptimizationManifestIdentity::from_canonical_bytes(b"pending"),
+            stage: OptimizationManifestStage::PrePhysicalAbstractPlan,
+            physical_data: PhysicalOptimizationDataStatus::UnavailableBeforePhysicalRealization,
+            psi: final_unit.psi,
+            work_schedule: final_unit.work_schedule,
+            initial_unit: initial.identity,
+            final_unit: final_unit.identity,
+            projection: projection.identity(),
+            selections: run.selections().clone(),
+            psi_selections: run.psi_selections().clone(),
+            budget_per_pass: run.budget_per_pass(),
+            usage: run.usage(),
+            decision_log: run.decisions().clone(),
+            pass_manifests: run.pass_manifests().to_vec(),
+            transformation_ledger: run.transformation_ledger().clone(),
+            identity_bundle: run.identity_bundle(),
+            source_statistics: initial.statistics,
+            optimized_statistics: structural_statistics(final_unit)?,
+        };
         record.identity = record.recomputed_identity();
         Ok(ValidatedPrePhysicalOptimizationManifest { record })
+    }
+
+    fn structural_statistics(
+        unit: &PsiOptimizationUnit,
+    ) -> Result<OptimizationStructuralStatistics, PrePhysicalOptimizationManifestError> {
+        let count = |value: usize| {
+            u64::try_from(value)
+                .map_err(|_| PrePhysicalOptimizationManifestError::StructuralStatisticsOverflow)
+        };
+        Ok(OptimizationStructuralStatistics {
+            functions: count(unit.functions.len())?,
+            blocks: count(
+                unit.functions
+                    .iter()
+                    .map(|function| function.blocks.len())
+                    .sum(),
+            )?,
+            nodes: count(unit.blocks().map(|block| block.nodes.len()).sum())?,
+            scalar_definitions: count(
+                unit.functions
+                    .iter()
+                    .map(|function| {
+                        function.parameters.len()
+                            + function
+                                .blocks
+                                .iter()
+                                .map(|block| {
+                                    block.parameters.len()
+                                        + block
+                                            .nodes
+                                            .iter()
+                                            .map(|node| node.definitions.len())
+                                            .sum::<usize>()
+                                })
+                                .sum::<usize>()
+                    })
+                    .sum(),
+            )?,
+
+            scalar_uses: count(unit.block_nodes().map(|node| node.uses.len()).sum())?,
+            optimization_facts: count(
+                unit.functions
+                    .iter()
+                    .map(|function| function.facts.len())
+                    .sum(),
+            )?,
+            ownership_frontier_facts: count(unit.ownership_frontier_facts.len())?,
+        })
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2307,7 +2255,6 @@ pub(crate) mod prephysical_manifest {
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum PrePhysicalOptimizationManifestError {
-        InitialUnitProjection,
         StructuralStatisticsOverflow,
     }
 
@@ -2318,30 +2265,28 @@ pub(crate) mod prephysical_manifest {
 }
 pub(crate) mod projection {
     use optimization_core::{
-        OptimizationIdentityBundle, OptimizationSelectionIdentity, OptimizationSelections,
-        OptimizationUnitIdentity, OptimizationValidatorIdentity,
+        OptimizationSelectionIdentity, OptimizationUnitIdentity, OptimizationValidatorIdentity,
         OptimizedAbstractPlanProjectionIdentity, TransformationLedgerIdentity,
     };
-    use optimization_unit::{PsiOptimizationUnit, PsiTransformationLedger};
     use semantic_vocabulary::WorkScheduleIdentity;
     use terminal_psi::TerminalPsiIdentity;
 
+    use crate::abstract_optimization::OptimizationRun;
+
     pub(crate) fn seal_optimized_abstract_plan_projection(
-        final_unit: &PsiOptimizationUnit,
-        selections: &OptimizationSelections,
-        psi_selections: &OptimizationSelections,
-        ledger: &PsiTransformationLedger,
-        bundle: OptimizationIdentityBundle,
+        run: &OptimizationRun,
     ) -> ValidatedOptimizedAbstractPlanProjection {
+        let final_unit = run.session().unit();
+        let ledger = run.transformation_ledger();
         ValidatedOptimizedAbstractPlanProjection {
             psi: final_unit.psi,
             work_schedule: final_unit.work_schedule,
             initial_unit: ledger.input(),
             final_unit: final_unit.identity,
-            selections: selections.identity(),
-            psi_selections: psi_selections.identity(),
+            selections: run.selections().identity(),
+            psi_selections: run.psi_selections().identity(),
             ledger: ledger.identity(),
-            bundle: bundle.identity(),
+            bundle: run.identity_bundle().identity(),
             validator: OptimizationValidatorIdentity::from_canonical_bytes(
                 b"omega.validator.optimized-abstract-plan-projection.v33",
             ),
@@ -3140,11 +3085,12 @@ pub(crate) use scalar_case_frontiers::rewrite_relocated_case_result_frontiers;
 
 pub(crate) use context::{
     ValidatedOptimizerCycleComponents, ValidatedOptimizerRankingCertificates,
-    validate_transformed_psi_context, validate_verified_psi_context,
+    validate_psi_context,
 };
 pub use prephysical_manifest::ValidatedPrePhysicalOptimizationManifest;
 pub(crate) use prephysical_manifest::{
-    PrePhysicalOptimizationManifestError, project_pre_physical_optimization_manifest,
+    InitialUnitRecord, PrePhysicalOptimizationManifestError,
+    project_pre_physical_optimization_manifest,
 };
 pub(crate) use projection::{
     ValidatedOptimizedAbstractPlanProjection, seal_optimized_abstract_plan_projection,

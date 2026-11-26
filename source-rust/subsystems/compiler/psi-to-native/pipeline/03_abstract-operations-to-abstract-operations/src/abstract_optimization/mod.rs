@@ -132,11 +132,16 @@ pub fn optimize_abstract_operations(
     }
     let verified = build_verified_psi_optimization_unit(input, WorkSchedule::CURRENT.identity())
         .map_err(AbstractOptimizationError::UnitBuild)?;
+    let initial = validation::InitialUnitRecord::of(verified.unit()).map_err(|error| {
+        AbstractOptimizationError::Publication(
+            OptimizedAbstractProjectionError::PrePhysicalManifest(error),
+        )
+    })?;
     let run =
         run_psi_pipeline_for_projection(verified, selections, psi_selections, budget_per_pass)
             .map_err(AbstractOptimizationError::Run)?;
     let published =
-        publish_optimization_run(run).map_err(AbstractOptimizationError::Publication)?;
+        publish_optimization_run(run, initial).map_err(AbstractOptimizationError::Publication)?;
     if psi_selections.selections().is_empty()
         && published.plan() != published.verified_input().plan()
     {

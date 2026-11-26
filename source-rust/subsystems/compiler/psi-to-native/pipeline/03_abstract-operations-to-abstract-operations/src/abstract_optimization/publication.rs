@@ -180,10 +180,10 @@ use crate::abstract_optimization::OptimizationRun;
 use optimization_core::OptimizationExecutionPhase;
 
 use crate::abstract_optimization::validation::{
-    project_pre_physical_optimization_manifest, seal_optimized_abstract_plan_projection,
+    InitialUnitRecord, project_pre_physical_optimization_manifest,
+    seal_optimized_abstract_plan_projection,
 };
 
-use crate::abstract_optimization::OptimizationRunUsage;
 use crate::abstract_optimization::validation::{
     ValidatedOptimizedAbstractPlanProjection, ValidatedPrePhysicalOptimizationManifest,
 };
@@ -195,32 +195,15 @@ use verified_optimization_input::VerifiedPsiOptimizationInput;
 
 pub(crate) fn publish_optimization_run(
     run: OptimizationRun,
+    initial: InitialUnitRecord,
 ) -> Result<ValidatedOptimizedAbstractPlan, OptimizedAbstractProjectionError> {
     if run.psi_selections() != &run.selections().for_phase(OptimizationExecutionPhase::Psi) {
         return Err(OptimizedAbstractProjectionError::PsiSelectionProjectionMismatch);
     }
     let plan = source::project_plan(run.session().input().plan(), run.session().unit())?;
-    let validation = seal_optimized_abstract_plan_projection(
-        run.session().unit(),
-        run.selections(),
-        run.psi_selections(),
-        run.transformation_ledger(),
-        run.identity_bundle(),
-    );
-    let pre_physical_manifest = project_pre_physical_optimization_manifest(
-        run.session().input(),
-        run.session().unit(),
-        run.selections(),
-        run.psi_selections(),
-        run.budget_per_pass(),
-        work_usage(run.usage()),
-        run.decisions(),
-        run.pass_manifests(),
-        run.transformation_ledger(),
-        run.identity_bundle(),
-        validation,
-    )
-    .map_err(OptimizedAbstractProjectionError::PrePhysicalManifest)?;
+    let validation = seal_optimized_abstract_plan_projection(&run);
+    let pre_physical_manifest = project_pre_physical_optimization_manifest(&run, initial, validation)
+        .map_err(OptimizedAbstractProjectionError::PrePhysicalManifest)?;
     Ok(ValidatedOptimizedAbstractPlan::new(
         run,
         plan,
@@ -303,15 +286,5 @@ impl ValidatedOptimizedAbstractPlan {
             pre_physical_manifest: self.pre_physical_manifest.record().clone(),
         };
         self.replay_input.into_optimized_body(program)
-    }
-}
-
-const fn work_usage(usage: OptimizationRunUsage) -> optimization_core::OptimizationWorkUsage {
-    optimization_core::OptimizationWorkUsage {
-        rule_evaluations: usage.rule_evaluations,
-        candidates: usage.candidates,
-        validation_steps: usage.validation_steps,
-        commits: usage.commits,
-        iterations: usage.iterations,
     }
 }

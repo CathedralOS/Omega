@@ -11,7 +11,7 @@ pub(crate) mod accounting {
     use abstract_operations::{AbstractOperation as O, IntegerShiftPolicy};
     use optimization_core::{
         OptimizationCandidateVerdict, OptimizationDecisionRecord, OptimizationPassIdentity,
-        OptimizationPassManifestRecord, OptimizationUnitIdentity, OptimizationWorkUsage,
+        OptimizationPassManifestRecord, OptimizationUnitIdentity,
     };
     use optimization_unit::PsiOptimizationUnit;
 
@@ -63,13 +63,7 @@ pub(crate) mod accounting {
             step.rule_set_identity(),
             ordered_rules,
             decisions.to_vec(),
-            OptimizationWorkUsage {
-                rule_evaluations: usage.rule_evaluations,
-                candidates: usage.candidates,
-                validation_steps: usage.validation_steps,
-                commits: usage.commits,
-                iterations: usage.iterations,
-            },
+            usage,
         )
         .map(Some)
         .map_err(OptimizationRunError::InvalidManifest)
@@ -1276,8 +1270,7 @@ use optimization_core::TargetCostModelIdentity;
 use crate::abstract_optimization::ranked_rewrites::LoopInvariantScalarMotionError;
 use crate::abstract_optimization::validation::ValidatedOptimizerRankingCertificates;
 use crate::abstract_optimization::validation::{
-    ValidatedOptimizerCycleComponents, validate_transformed_psi_context,
-    validate_verified_psi_context,
+    ValidatedOptimizerCycleComponents, validate_psi_context,
 };
 use crate::abstract_optimization::verified_unit::VerifiedPsiOptimizationUnit;
 use crate::abstract_optimization::{AnalysisError, RuleProposalError, RuleRegistryError};
@@ -1336,7 +1329,7 @@ impl VerifiedPsiOptimizationSession {
     pub fn new(
         verified: VerifiedPsiOptimizationUnit,
     ) -> Result<Self, OptimizationUnitValidationError> {
-        let cycle_components = validate_verified_psi_context(&verified)?;
+        let cycle_components = validate_psi_context(verified.input(), verified.unit())?;
         let admitted_machines = cycle_components
             .components()
             .iter()
@@ -1367,7 +1360,7 @@ impl VerifiedPsiOptimizationSession {
         input: VerifiedPsiOptimizationInput,
         unit: PsiOptimizationUnit,
     ) -> Result<Self, OptimizationUnitValidationError> {
-        let cycle_components = validate_transformed_psi_context(&input, &unit)?;
+        let cycle_components = validate_psi_context(&input, &unit)?;
         Ok(Self {
             input,
             unit,
