@@ -280,6 +280,9 @@ pub struct StaticRequirementInstance {
     /// A nominal callable parameter promises this trait member independently of its shape.
     pub nominal_requirement: Option<SymbolHandle>,
     pub member: terminal_psi::TerminalIdentityIndex,
+    /// Positions of borrowed inputs whose own address has a fresh invocation
+    /// lifetime confined to that formal. Stored references keep their own regions.
+    pub scoped_addresses: Vec<usize>,
     pub header: CallableHeader,
 }
 
@@ -307,6 +310,42 @@ pub struct StaticSchemaQuestion {
     pub requirements: Vec<StaticRequirementSchema>,
     /// Source-only const values checked under this complete declared schema.
     pub bindings: Vec<StaticRecordBinding>,
+}
+
+/// The exact abstract instances whose formals introduce independent regions.
+pub fn scoped_requirement_addresses<'a>(
+    machines: &[terminal_psi::TerminalMachine],
+    schemas: &'a [StaticSchemaQuestion],
+) -> IdTable<MachineId, &'a [usize]> {
+    let instances = schemas
+        .iter()
+        .flat_map(|schema| &schema.requirements)
+        .filter_map(|requirement| requirement.instance.as_ref())
+        .map(|instance| (instance.machine, instance.scoped_addresses.as_slice()));
+    let declared = instances.filter(|(id, _)| {
+        usize::try_from(id.get() - 1)
+            .ok()
+            .and_then(|index| machines.get(index))
+            .is_some_and(|machine| machine.id == *id)
+    });
+    indexed_addresses(machines.len(), declared)
+}
+
+fn indexed_addresses<'a>(
+    machine_count: usize,
+    instances: impl Iterator<Item = (MachineId, &'a [usize])>,
+) -> IdTable<MachineId, &'a [usize]> {
+    let mut rows: Vec<_> = instances.collect();
+    rows.sort_unstable_by_key(|(machine, _)| *machine);
+    // Repeated ownership, even by an empty or identical instance, cannot
+    // establish that an invocation's address ends at this call.
+    let unique = rows.chunk_by(|left, right| left.0 == right.0).filter_map(|group| {
+        match group {
+            [row] if !row.1.is_empty() => Some(*row),
+            _ => None,
+        }
+    });
+    IdTable::from_rows_with_gaps(unique, machine_count).unwrap_or_default()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -396,6 +435,30 @@ pub struct StaticProviderCandidate<Declaration = terminal_psi::NominalDeclaratio
 #[cfg(test)]
 mod static_record_instance_tests {
     use super::*;
+
+    #[test]
+    fn only_unique_in_roster_scopes_authorize_addresses() {
+        let machine = |raw| MachineId::new(raw).unwrap();
+        let positions = &[2, 4][..];
+        let rows = [
+            (machine(6), positions),
+            (machine(1), &[][..]),
+            (machine(3), positions),
+            (machine(1), positions),
+            (machine(3), positions),
+            (machine(3), positions),
+            (machine(2), positions),
+        ];
+        let indexed = indexed_addresses(6, rows.into_iter());
+        assert_eq!(indexed.get(machine(1)), None);
+        assert_eq!(indexed.get(machine(2)), Some(&positions));
+        assert_eq!(indexed.get(machine(3)).copied(), Some(&[][..]));
+        assert_eq!(indexed.get(machine(6)), Some(&positions));
+        assert_eq!(indexed.get(machine(u64::MAX)), None);
+
+        let malformed = [(machine(1), positions), (machine(u64::MAX), positions)];
+        assert!(indexed_addresses(6, malformed.into_iter()).is_empty());
+    }
 
     #[test]
     fn exact_static_record_instances_do_not_cross_receiver_application_or_requirement() {

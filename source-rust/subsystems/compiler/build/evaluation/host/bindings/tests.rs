@@ -17,15 +17,16 @@ public machine build_selection_receiver<'activation>(builder: @'activation mutab
 "#;
 
 const BUILD: &str = r#"
+use main.omg as entries;
 machine build(builder: @mutable Build) {
     first(builder);
     second(builder);
 }
 machine first(builder: @mutable Build) {
-    Build::bind(builder, linux_x86_64::ProgramEntry, one);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |entries|::one);
 }
 machine second(builder: @mutable Build) {
-    Build::bind(builder, windows_x86_64::ProgramEntry, two);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |entries|::two);
 }
 "#;
 
@@ -36,13 +37,14 @@ fn produce(build: &str) -> source_compiler::publication::ProducedTerminalProgram
     let mut ids = Vec::new();
     // The compiler admits the Build prelude with its own coordinate as both
     // path and root and no package owner, so it is no file of `package`.
-    for (path, root, owner, text, origin) in [
+    for (path, root, owner, text, origin, scope) in [
         (
             "package/build.omg",
             "package",
             Some(package),
             build,
             source_admission::SourceOrigin::User,
+            source_provenance::DependencyScope::Build,
         ),
         (
             source_admission::source_identity::BUILD_PRELUDE_ROOT,
@@ -50,6 +52,15 @@ fn produce(build: &str) -> source_compiler::publication::ProducedTerminalProgram
             None,
             PRELUDE,
             source_admission::SourceOrigin::Toolchain,
+            source_provenance::DependencyScope::Build,
+        ),
+        (
+            "package/main.omg",
+            "package",
+            Some(package),
+            "machine one() {} machine two() {}",
+            source_admission::SourceOrigin::User,
+            source_provenance::DependencyScope::Product,
         ),
     ] {
         let id = sources
@@ -60,7 +71,7 @@ fn produce(build: &str) -> source_compiler::publication::ProducedTerminalProgram
                 owner,
                 origin,
                 source_admission::SourceResolutionStratum::Base,
-                source_provenance::DependencyScope::Build,
+                scope,
             )
             .source_id;
         ids.push(id);
@@ -81,6 +92,9 @@ fn produce(build: &str) -> source_compiler::publication::ProducedTerminalProgram
     request.sources = Some(Arc::new(sources));
     request.top_level_bindings = vec![
         source_compiler::representations::source_symbols::SourceScopedTopLevelBinding::new(ids[0], ids[1], "Build"),
+        source_compiler::representations::source_symbols::SourceScopedTopLevelBinding::product_file_import(
+            ids[0], ids[2], "entries",
+        ),
     ];
     let resolved = source_compiler::test_support::resolution::resolve(request).unwrap();
     let typed = source_compiler::test_support::typing::lower_symbol_resolved_trees(&resolved).unwrap();
@@ -291,11 +305,11 @@ fn source_helper_calls_authenticate_their_site_artifact_receiver_and_ticket() {
         [
             (
                 "linux_x86_64::ProgramEntry",
-                &RootBindingSelection::AuthoredPath("one".into())
+                &RootBindingSelection::AuthoredPath("|entries|::one".into())
             ),
             (
                 "windows_x86_64::ProgramEntry",
-                &RootBindingSelection::AuthoredPath("two".into())
+                &RootBindingSelection::AuthoredPath("|entries|::two".into())
             ),
         ]
     );

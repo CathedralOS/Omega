@@ -17,9 +17,11 @@ entry's own check rather than being refused before execution.
 
 */
 
+#[path = "support/project.rs"]
+mod project;
 mod support;
 
-use std::process::{Command, ExitStatus};
+use std::process::ExitStatus;
 
 const REQUIREMENT: &str = "\
 boundary trait Service {
@@ -63,16 +65,10 @@ Native satisfies Service {{
 }
 
 fn run_fixture(engine: &str, name: &str, product: &str, build: &str) -> (ExitStatus, String) {
-    let root = std::env::temp_dir().join(format!(
-        "omega-selected-provider-{name}-{}",
-        std::process::id()
-    ));
-    let _ = std::fs::remove_dir_all(&root);
-    std::fs::create_dir_all(&root).expect("staged project");
-    std::fs::write(root.join("main.omg"), product).expect("staged program");
-    std::fs::write(root.join("build.omg"), build).expect("staged Build");
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args([
+    let scratch = project::stage(name, &[("main.omg", product), ("build.omg", build)]);
+    let output = project::omega(
+        scratch.path(),
+        &[
             "run",
             "--engine",
             engine,
@@ -81,12 +77,8 @@ fn run_fixture(engine: &str, name: &str, product: &str, build: &str) -> (ExitSta
             "build.omg",
             "--build-input",
             "main.omg",
-        ])
-        .current_dir(&root)
-        .stdin(std::process::Stdio::null())
-        .output()
-        .expect("omega runs");
-    let _ = std::fs::remove_dir_all(&root);
+        ],
+    );
     let report = format!(
         "{}{}",
         String::from_utf8_lossy(&output.stdout),

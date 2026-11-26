@@ -309,14 +309,15 @@ fn a_float_meaning_wrapper_must_hold_before_call_arguments_are_supplied() {
         // Both implementations compute the same result at the sole call.
         // Only the first establishes observe's guarantee for every input.
         let source = r"
-            use omega\language\core\FloatMeaning;
-            use omega\language\core\F32::meaning;
-            machine observe(value: f32, other: f32) -> FloatMeaning
-            ensures core\Identity::<FloatMeaning>(result, F32::meaning(value))
-            ensures core\Identity::<FloatMeaning>(F32::meaning(other), F32::meaning(OTHER_VALUE))
-            { F32::meaning(WRAPPER_BODY) }
+use {omega}/language/core/float_meaning.omg;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/foundation.omg as proof;
+            machine observe(value: f32, other: f32) -> |float_meaning|::FloatMeaning
+            ensures |proof|::Identity::<|float_meaning|::FloatMeaning>(result, |float_operations|::F32::meaning(value))
+            ensures |proof|::Identity::<|float_meaning|::FloatMeaning>(|float_operations|::F32::meaning(other), |float_operations|::F32::meaning(OTHER_VALUE))
+            { |float_operations|::F32::meaning(WRAPPER_BODY) }
             machine main(value: f32) -> f32
-            ensures core\Identity::<FloatMeaning>(observe(2.0f32, 2.0f32), F32::meaning(2.0f32))
+            ensures |proof|::Identity::<|float_meaning|::FloatMeaning>(observe(2.0f32, 2.0f32), |float_operations|::F32::meaning(2.0f32))
             { value }
         "
         .replace("WRAPPER_BODY", body)
@@ -348,17 +349,15 @@ fn a_float_meaning_wrapper_must_hold_before_call_arguments_are_supplied() {
 #[test]
 fn a_float_meaning_equation_keeps_the_precision_of_its_materialized_format() {
     let source = r"
-        use omega\language\core\FloatMeaning;
-        use omega\language\core\FloatFormat::BINARY32;
-        use omega\language\core\FloatFormat::BINARY64;
-        use omega\language\core\F64::meaning;
-        use omega\language\core\F64::square_root;
-        use omega\language\core\FloatSemantics::square_root;
+use {omega}/language/core/float_meaning.omg;
+use {omega}/language/core/float_format.omg;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/foundation.omg as proof;
         machine main(value: f64) -> f64
-        ensures core\Identity::<FloatMeaning>(
-            F64::meaning(result),
-            FloatSemantics::square_root(FloatFormat::PRECISION, F64::meaning(value)))
-        { F64::square_root(value) }
+        ensures |proof|::Identity::<|float_meaning|::FloatMeaning>(
+            |float_operations|::F64::meaning(result),
+            |float_operations|::FloatSemantics::square_root(|float_format|::FloatFormat::PRECISION, |float_operations|::F64::meaning(value)))
+        { |float_operations|::F64::square_root(value) }
     ";
     judge_authored_ieee(&source.replace("PRECISION", "BINARY64"), "main")
         .unwrap_or_else(|rows| panic!("{}", diagnostics::join_messages(&rows)));

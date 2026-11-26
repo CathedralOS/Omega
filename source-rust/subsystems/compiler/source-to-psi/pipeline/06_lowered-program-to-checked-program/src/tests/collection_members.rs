@@ -848,7 +848,7 @@ fn ranked_sequence_loop(next: &str) -> String {
     format!(
         "data Ticket {{ number: u32; }}
 machine count(tickets: [Ticket], other: [Ticket], position: u64) -> u64
-terminates by (tickets.length - position) -> Nat::Descending
+terminates by (tickets.length - position) -> |nat|::Nat::Descending
 requires position <= tickets.length
 {{
     transition position < tickets.length {{

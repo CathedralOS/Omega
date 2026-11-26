@@ -4,7 +4,6 @@
 
 use super::ReconciledPackageImportRequest;
 use super::SourceStorage;
-use super::paths::identifier_path_text;
 use crate::PackageCompilationInputs;
 use diagnostics::Diagnostic;
 use source_compiler::SourceImport;
@@ -18,18 +17,8 @@ pub(super) struct ImportOccurrence {
     span: source_text::Span,
     ordinal: usize,
     authored_path: String,
-    binding: ImportBinding,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
-enum ImportBinding {
-    Namespace {
-        package_prefix_members: usize,
-    },
-    File {
-        alias: String,
-        package_alias: Option<String>,
-    },
+    alias: String,
+    package_alias: Option<String>,
 }
 
 impl ImportOccurrence {
@@ -45,35 +34,16 @@ impl ImportOccurrence {
             span: import.span,
             ordinal: import.ordinal,
             authored_path,
-            binding: ImportBinding::File {
-                alias: alias.into(),
-                package_alias: package_alias
-                    .filter(|root| *root != "omega")
-                    .map(str::to_owned),
-            },
+            alias: alias.into(),
+            package_alias: package_alias
+                .filter(|root| *root != "omega")
+                .map(str::to_owned),
         }
     }
 
     fn error(&self, message: String) -> Diagnostic {
         Diagnostic::error(message)
             .with_source_span(source_text::SourceSpan::new(self.source, self.span))
-    }
-
-    pub(super) fn new(
-        source: SourceId,
-        import: &SourceImport,
-        members: &[String],
-        prefix: usize,
-    ) -> Self {
-        Self {
-            source,
-            span: import.span,
-            ordinal: import.ordinal,
-            authored_path: identifier_path_text(members),
-            binding: ImportBinding::Namespace {
-                package_prefix_members: prefix,
-            },
-        }
     }
 }
 
@@ -98,37 +68,29 @@ impl PendingPackageImport {
     pub fn physical_sources(
         &self,
         packages: &PackageCompilationInputs,
-        discovery: &mut impl super::LogicalSourceDiscovery,
     ) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
-        if matches!(self.occurrence.binding, ImportBinding::File { .. }) {
-            return Ok(self.request.exact_file(packages)?.into_iter().collect());
-        }
-        self.request
-            .logical_sources(packages, discovery)
+        Ok(self.request.exact_file(packages)?.into_iter().collect())
     }
 
     pub(crate) fn resolve_for_exact_target(
         &self,
         packages: &PackageCompilationInputs,
-        discovery: &mut impl super::LogicalSourceDiscovery,
         sources: &source_compiler::representations::source_inputs::SourceMap,
     ) -> Result<Vec<ResolvedSourceImport>, Vec<Diagnostic>> {
-        self.resolve_with_prepared_build(packages, discovery, sources, None)
+        self.resolve_with_prepared_build(packages, sources, None)
     }
 
     pub(super) fn resolve_with_prepared_build(
         &self,
         packages: &PackageCompilationInputs,
-        discovery: &mut impl super::LogicalSourceDiscovery,
         sources: &source_compiler::representations::source_inputs::SourceMap,
         prepared: Option<&crate::PackageBuildHandoff>,
     ) -> Result<Vec<ResolvedSourceImport>, Vec<Diagnostic>> {
-        let mut paths = self.physical_sources(packages, discovery)?;
-        let exact_file = matches!(self.occurrence.binding, ImportBinding::File { .. });
+        let mut paths = self.physical_sources(packages)?;
         // The ordinary import uses the file already selected for this exact
         // package and scope. Authored/issued name collisions are refused when
         // mounting the view, before any of its files is parsed.
-        if exact_file && paths.is_empty() {
+        if paths.is_empty() {
             let emitted = self
                 .request
                 .expected_root
@@ -143,48 +105,39 @@ impl PendingPackageImport {
                 paths.push(emitted);
             }
         }
-        if exact_file || paths.is_empty() {
-            let purpose = match self.scope {
-                DependencyScope::Product => build_declarations::DependencyPurpose::Product,
-                DependencyScope::Build => build_declarations::DependencyPurpose::Build,
-            };
-            let admitted = packages
-                .dependency_build_handoff_instances()
-                .filter(|(scope, bundle)| {
-                    *scope == purpose && bundle.package() == self.request.package
-                })
-                .map(|(_, bundle)| bundle);
-            // A prepared Build can supply its own output separately from the
-            // package graph. If both retain it, they name one issued handoff.
-            for bundle in admitted
-                .filter(|bundle| Some(*bundle) != prepared)
-                .chain(prepared)
-            {
-                if bundle.package() != self.request.package {
-                    continue;
-                }
-                let unit = if exact_file {
-                    bundle
-                        .generated_source(std::slice::from_ref(&self.request.relative_path))
-                        .map_err(|reason| vec![Diagnostic::error(reason)])?
-                } else {
-                    bundle.sources().first()
-                };
-                if let Some(unit) = unit {
-                    let path = super::generated::generated_file_path(
-                        &self.request.expected_root, unit,
-                    )?;
-                    if !paths.contains(&path) {
-                        paths.push(path);
-                    }
+        let purpose = match self.scope {
+            DependencyScope::Product => build_declarations::DependencyPurpose::Product,
+            DependencyScope::Build => build_declarations::DependencyPurpose::Build,
+        };
+        let admitted = packages
+            .dependency_build_handoff_instances()
+            .filter(|(scope, bundle)| *scope == purpose && bundle.package() == self.request.package)
+            .map(|(_, bundle)| bundle);
+        // A prepared Build can supply its own output separately from the
+        // package graph. If both retain it, they name one issued handoff.
+        for bundle in admitted
+            .filter(|bundle| Some(*bundle) != prepared)
+            .chain(prepared)
+        {
+            if bundle.package() != self.request.package {
+                continue;
+            }
+            let unit = bundle
+                .generated_source(std::slice::from_ref(&self.request.relative_path))
+                .map_err(|reason| vec![Diagnostic::error(reason)])?;
+            if let Some(unit) = unit {
+                let path =
+                    super::generated::generated_file_path(&self.request.expected_root, unit)?;
+                if !paths.contains(&path) {
+                    paths.push(path);
                 }
             }
         }
-        if exact_file && paths.is_empty() && self.scope == DependencyScope::Build {
+        if paths.is_empty() && self.scope == DependencyScope::Build {
             // The Build entry's selected declarations decide whether this missing file is required.
             return Ok(Vec::new());
         }
-        if exact_file && paths.len() != 1 {
+        if paths.len() != 1 {
             return Err(vec![self.occurrence.error(if paths.is_empty() {
                 format!(
                     "no admitted logical file `{}`",
@@ -196,12 +149,6 @@ impl PendingPackageImport {
                     self.occurrence.authored_path
                 )
             })]);
-        }
-        if paths.is_empty() {
-            return Err(vec![self.occurrence.error(format!(
-                "import `{}` selects no authored or generated logical source namespace",
-                self.occurrence.authored_path,
-            ))]);
         }
         Ok(paths
             .into_iter()
@@ -320,15 +267,7 @@ pub(crate) fn retain_import_bindings(
             && prior.source == occurrence.source
             && prior.ordinal == occurrence.ordinal
         {
-            let same_target = if matches!(occurrence.binding, ImportBinding::File { .. }) {
-                anchor.source_id == declaration.source_id
-            } else {
-                storage.sources.same_checked_instance(
-                    anchor.source_span(source_text::Span::default()),
-                    declaration.source_span(source_text::Span::default()),
-                )
-            };
-            if prior != occurrence || !same_target {
+            if prior != occurrence || anchor.source_id != declaration.source_id {
                 return Err(vec![Diagnostic::error(format!(
                     "import `{}` acquired more than one checked import target",
                     occurrence.authored_path,
@@ -337,25 +276,19 @@ pub(crate) fn retain_import_bindings(
             continue;
         }
         use source_compiler::representations::source_symbols::SourceScopedTopLevelBinding;
-        bindings.push(match &occurrence.binding {
-            ImportBinding::File {
-                alias,
-                package_alias,
-            } => SourceScopedTopLevelBinding::file_import(
+        bindings.push(
+            SourceScopedTopLevelBinding::file_import(
                 occurrence.source,
                 declaration.source_id,
-                alias.as_str(),
+                occurrence.alias.as_str(),
             )
-            .from_dependency(package_alias.as_deref().zip(declaration.package_identity)),
-            ImportBinding::Namespace {
-                package_prefix_members,
-            } => SourceScopedTopLevelBinding::logical_module_import(
-                occurrence.source,
-                declaration.source_id,
-                &occurrence.authored_path,
-                *package_prefix_members,
+            .from_dependency(
+                occurrence
+                    .package_alias
+                    .as_deref()
+                    .zip(declaration.package_identity),
             ),
-        });
+        );
         previous = Some((occurrence, declaration));
     }
     Ok(bindings)
@@ -396,17 +329,16 @@ mod tests {
                 source,
                 span: Default::default(),
                 ordinal: 0,
-                authored_path: "dep::Thing".into(),
-                binding: ImportBinding::Namespace {
-                    package_prefix_members: 1,
-                },
+                authored_path: "{dep}/a.omg".into(),
+                alias: "chosen".into(),
+                package_alias: Some("dep".into()),
             },
             path: path.into(),
         }
     }
 
     #[test]
-    fn logical_anchor_uses_selected_replacement_and_one_binding_per_occurrence() {
+    fn file_import_uses_selected_replacement_and_one_binding_per_occurrence() {
         let mut catalogue = SourceCatalogue::default();
         let mut old = catalogue.begin_selection();
         let stale = catalogue
@@ -417,7 +349,7 @@ mod tests {
         let importer = catalogue
             .admit_source_occurrence(
                 &mut selected,
-                &file("/app/main.omg", "/app", "use dep\\Thing;"),
+                &file("/app/main.omg", "/app", "use {dep}/a.omg as chosen;"),
             )
             .unwrap()
             .source_id;
@@ -440,16 +372,15 @@ mod tests {
         }
         storage.resolved_imports = vec![
             import(importer, "/dep/a.omg"),
-            import(importer, "/dep/b.omg"),
+            import(importer, "/dep/a.omg"),
         ];
         assert_eq!(
             retain_import_bindings(&storage, None).unwrap(),
             [
-                source_compiler::representations::source_symbols::SourceScopedTopLevelBinding::logical_module_import(
+                source_compiler::representations::source_symbols::SourceScopedTopLevelBinding::file_import(
                     importer,
                     current,
-                    "dep::Thing",
-                    1
+                    "chosen",
                 )
             ]
         );
@@ -459,7 +390,7 @@ mod tests {
     fn a_build_file_alias_selects_separate_build_and_product_dependencies() {
         use semantic_vocabulary::PackageKeyIdentity;
         use source_compiler::representations::source_symbols::SourceScopedTopLevelBinding;
-        use source_compiler::{SourceImport, SourceImportTarget};
+        use source_compiler::{SourceInput, SourceSyntax};
 
         let [app, build, product] =
             [41, 42, 43].map(|byte| PackageKeyIdentity::from_digest([byte; 32]).unwrap());
@@ -486,16 +417,20 @@ mod tests {
             product,
             DependencyScope::Product,
         );
-        let import = SourceImport {
-            qualifiers: Vec::new(),
-            ordinal: 0,
-            span: Default::default(),
-            target: SourceImportTarget::File {
-                root: Some("kit".into()),
-                path: "api.omg".into(),
-                alias: "chosen".into(),
-            },
-        };
+        let parsed = SourceInput(
+            [source_admission::LoadedSource {
+                source_id: author,
+                path: "/app/build.omg".into(),
+                source: "use {kit}/api.omg as chosen; machine build() { |chosen|::run(); }".into(),
+                scope: DependencyScope::Build,
+                ..Default::default()
+            }]
+            .into_iter()
+            .collect(),
+        )
+        .append(&mut SourceSyntax::default(), &mut Default::default())
+        .unwrap();
+        let import = parsed.sources.span_or_empty(parsed.batch)[0].imports[0].clone();
         for source_id in [author, build_target, product_target] {
             storage.source_roots.append(SourceRoots {
                 source_id,
@@ -538,9 +473,9 @@ mod tests {
     }
 
     #[test]
-    fn logical_anchor_refuses_ambiguous_selected_instances() {
+    fn file_import_refuses_ambiguous_selected_instances() {
         let mut files = vec![
-            file("/app/main.omg", "/app", "use dep\\Thing;"),
+            file("/app/main.omg", "/app", "use {dep}/a.omg as chosen;"),
             file("/dep/a.omg", "/dep", "first"),
             file("/dep/a.omg", "/dep", "second"),
         ];
@@ -561,9 +496,9 @@ mod tests {
     }
 
     #[test]
-    fn logical_anchor_refuses_mixed_package_custody() {
+    fn file_import_refuses_mixed_package_custody() {
         let mut files = vec![
-            file("/app/main.omg", "/app", "use dep\\Thing;"),
+            file("/app/main.omg", "/app", "use {dep}/a.omg as chosen;"),
             file("/dep/a.omg", "/dep", "first"),
             file("/other/b.omg", "/other", "second"),
         ];

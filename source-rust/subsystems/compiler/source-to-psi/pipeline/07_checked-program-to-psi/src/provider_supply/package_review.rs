@@ -63,9 +63,12 @@ impl AcceptedTerminalSource {
                     }
                 }
                 if bindings.len() == before {
-                    return Err(unavailable(
-                        "the native binding's exact accepted requirement",
-                    ));
+                    let selection = &supply.selection;
+                    let name = self.source().symbols.display_path(selection.requirement, "::");
+                    let diagnostic = Diagnostic::error(format!(
+                        "no accepted application of native requirement `{name}` for `{target}` during package review"
+                    )).with_source_span(selection.source_span);
+                    return Err(vec![diagnostic]);
                 }
             }
             Ok(bindings)

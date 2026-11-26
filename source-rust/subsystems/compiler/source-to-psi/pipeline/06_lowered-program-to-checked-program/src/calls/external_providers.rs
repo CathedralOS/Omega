@@ -7,20 +7,10 @@ use terminal_check_tables::{
     contracts::CallableHeader as ProviderContractHeader, program::Elaboration,
 };
 use terminal_semantics::calls::callable_refinement::{
-    CallableContractView, contract_refinement_context, contract_refinement_goals,
+    contract_refinement_context, contract_refinement_goals,
 };
 
-fn view(header: &ProviderContractHeader) -> CallableContractView<'_> {
-    CallableContractView {
-        parameter_order: &header.parameter_order,
-        scalar_parameters: &header.scalar_parameters,
-        structural_parameters: &header.structural_parameters,
-        result: &header.result,
-        proof: &header.proof,
-        evidence_owner: None,
-        crash_policy: header.crash_policy,
-    }
-}
+use crate::static_contracts::{declarations, view};
 
 fn header_matches_boundary(
     header: &ProviderContractHeader,
@@ -169,14 +159,7 @@ pub(crate) fn publish(elaboration: &mut Elaboration) -> Checked<()> {
         let goals = contract_refinement_goals(module, required_view, view(&candidate.supplied))
             .map_err(refuse)?;
         let proof_context = contract_refinement_context(required_view).map_err(refuse)?;
-        let declarations = candidate
-            .required
-            .scalar_parameters
-            .iter()
-            .chain(&candidate.required.proof.erased_scalar_formals)
-            .chain(candidate.required.result.scalar_ref())
-            .map(|formal| (formal.id, formal.scalar_type))
-            .collect::<Vec<_>>();
+        let declarations = declarations(&candidate.required);
         for (position, goal) in goals.iter().enumerate() {
             let obligation = u64::try_from(position)
                 .ok()

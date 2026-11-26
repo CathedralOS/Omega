@@ -33,7 +33,7 @@ machine main(main: @mutable Main) {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() {
+public machine entry_start() {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

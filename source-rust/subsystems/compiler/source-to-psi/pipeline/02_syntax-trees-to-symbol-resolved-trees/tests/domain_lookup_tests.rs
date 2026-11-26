@@ -61,6 +61,69 @@ fn fact_domain(program: &crate::source_resolved::SymbolResolvedTrees) -> SymbolH
 }
 
 #[test]
+fn a_foreign_carrier_keeps_its_symbol_and_the_domain_stays_in_the_declaring_file() {
+    use crate::source_resolved::types::TypeReference;
+
+    let mut files = crate::source_inputs::SourceMap::default();
+    let mut syntax = syntax_trees::SyntaxTrees::default();
+    let mut add = |path: &str, text: &str| {
+        let id = files.add(path.into(), text.into()).source_id;
+        let tokens = Lexer::new(text).tokenize().unwrap();
+        crate::resolution::frontend_fixture::parse(&mut syntax, id, &tokens).unwrap();
+        id
+    };
+    let rat = add("units/rat.omg", "public data Rat {}");
+    let rules = add(
+        "units/rules.omg",
+        "use rat.omg as chosen; data Rat {} public domain |chosen|::Rat::NonZero; \
+         machine local(x: |chosen|::Rat in NonZero) {}",
+    );
+    add(
+        "units/client.omg",
+        "use rules.omg as policy; use rat.omg; \
+         data Checked requires value in |policy|::Rat::NonZero { value: |rat|::Rat; }",
+    );
+    let imports = crate::resolution::fixture_file_bindings(
+        &files,
+        &[
+            ("units/rules.omg", "units/rat.omg", "chosen"),
+            ("units/client.omg", "units/rules.omg", "policy"),
+            ("units/client.omg", "units/rat.omg", "rat"),
+        ],
+    );
+    let program = resolve(ResolutionRequest {
+        syntax,
+        sources: Some(std::sync::Arc::new(files)),
+        top_level_bindings: imports,
+        retained_base: None,
+    })
+    .unwrap();
+    let domain = program.domain_definitions.iter().next().unwrap();
+    assert_eq!(domain.name.as_str(), "Rat::NonZero");
+    let TypeReference::Named { symbol, .. } = &domain.target_type else {
+        panic!("expected a nominal carrier");
+    };
+    let home = |symbol| {
+        program
+            .symbols
+            .symbol_source_span(symbol)
+            .unwrap()
+            .source_id
+    };
+    assert_eq!(home(*symbol), rat);
+    assert_eq!(home(domain.symbol), rules);
+    let checked = program
+        .data_definitions
+        .iter()
+        .find(|data| data.name.as_str() == "Checked")
+        .unwrap();
+    let [ProofFact::Membership(fact)] = program.proof_facts(checked.requires_facts) else {
+        panic!("expected the client's domain membership");
+    };
+    assert_eq!(fact.domain_symbol, domain.symbol);
+}
+
+#[test]
 fn proof_fact_membership_rejects_a_domain_competing_with_a_case() {
     let errors = resolve_result(
         r#"

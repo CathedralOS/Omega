@@ -276,6 +276,7 @@ machine build(builder: @mutable BuildPlan) {
     write_package(
         &directory.join("client"),
         r#"use {omega}/build/dependency.omg;
+use main.omg as app;
 machine build(builder: @mutable BuildPlan) {
         builder.product = BuildProduct::Application { name: "client" };
         let member: DependencyDescription = |dependency|::from_source(Source::Git {
@@ -283,10 +284,10 @@ machine build(builder: @mutable BuildPlan) {
             selection: PackageSelection::Named { package: "workspace_selected" }
         });
         _ = |dependency|::add(builder, member);
-        Build::bind(builder, windows_x86_64::ProgramEntry, main);
-        Build::bind(builder, linux_x86_64::ProgramEntry, main);
-        Build::bind(builder, macos_arm64::ProgramEntry, main);
-        Build::bind(builder, linux_arm64::ProgramEntry, main);
+        Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
+        Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+        Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
+        Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
     }"#,
     );
 }

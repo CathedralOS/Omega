@@ -1,5 +1,5 @@
 // Intended rejection: `note` requires `field.declaration_position < 32u64`,
-// which the callback binder of `reflect\inspect_record_fields` does not
+// which the callback binder of `|reflect|::inspect_record_fields` does not
 // publish. Every call the inspection makes here would meet it (`Reading` has
 // two fields), but a callback must satisfy the binder as published, not only
 // the calls one record happens to need. The run twin

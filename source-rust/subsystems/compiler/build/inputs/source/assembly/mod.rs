@@ -290,11 +290,7 @@ impl ImmutableSourceParseCheckpoint {
         if let Some(package_inputs) = package_inputs {
             for request in self.package_imports.iter() {
                 for resolved in request
-                    .resolve_for_exact_target(
-                        package_inputs,
-                        &mut source_storage.package_roots,
-                        &source_storage.sources,
-                    )
+                    .resolve_for_exact_target(package_inputs, &source_storage.sources)
                     .map_err(|mut diagnostics| {
                         crate::attribute_diagnostics(
                             &mut diagnostics,

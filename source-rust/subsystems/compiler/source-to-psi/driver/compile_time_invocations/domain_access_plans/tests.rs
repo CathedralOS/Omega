@@ -274,7 +274,7 @@ fn a_selected_access_plan_returns_its_declared_route_element_lifetimes() {
     };
 
     const SOURCE: &str = include_str!("selected_access_plan_family.omg");
-    let empty = SOURCE.replace("routes: [reflect\\callable(stamp)]", "routes: []");
+    let empty = SOURCE.replace("routes: [|reflect|::callable(stamp)]", "routes: []");
     let facts = facts();
     for (source, route_count) in [(empty.as_str(), 0), (SOURCE, 1)] {
         let typed = typed_source(source);
@@ -573,18 +573,16 @@ fn actual_policy_callers_keep_their_selected_declaration_after_transport() {
 fn a_selected_external_observation_survives_evaluation_before_supply() {
     use crate::source_state::domain::AccessPlanJudgment;
     const ORIGINAL: &str = include_str!("selected_access_plan_family.omg");
-    let constructor =
-        r"access\new_plan(@schema, Issuance::Only { routes: [reflect\callable(stamp)] })";
+    let constructor = r"|access|::new_plan(@schema, |layout|::Issuance::Only { routes: [|reflect|::callable(stamp)] })";
     let plan = format!(
-        r#"let mutable plan: AccessPlan = {constructor};
-        access\observe(@mutable plan, reflect\field(Ticket::number),
+        r#"let mutable plan: |layout|::AccessPlan = {constructor};
+        |access|::observe(@mutable plan, |reflect|::field(Ticket::number),
             |layout|::FieldAccess::External {{
                 read: |layout|::ExternalRead::Read, write: false, exposure: |layout|::Exposure::Exported
             }});
         plan"#
     );
-    let source = String::from("use {omega}/language/core/layout.omg as layout;\n")
-        + &ORIGINAL.replacen(constructor, &plan, 1);
+    let source = ORIGINAL.replacen(constructor, &plan, 1);
     let mut typed = typed_source(&source);
     let entries = [typed.realized_machine_named("main").unwrap().symbol];
     let mut accounting = SourceCompletionAccounting::default();
@@ -644,17 +642,17 @@ fn actual_governed_reads_and_delegated_writes_execute_and_refuse_denied_axes() {
     let original = include_str!("selected_access_plan_family.omg");
     // change lends write access. Its helper also needs issuance authority to
     // keep Stamped on the Ticket after changing its number.
-    let plan = r#"let mutable plan: AccessPlan = access\new_plan(@schema,
-            Issuance::Only { routes: [reflect\callable(stamp), reflect\callable(write_number)] });
-        access\allow_readers(@mutable plan,
-            omega\language\core\AccessRegion::Subject { schema: schema },
-            [reflect\callable(number)]);
-        access\allow_writers(@mutable plan,
-            omega\language\core\AccessRegion::Subject { schema: schema },
-            [reflect\callable(change)]);
+    let plan = r#"let mutable plan: |layout|::AccessPlan = |access|::new_plan(@schema,
+            |layout|::Issuance::Only { routes: [|reflect|::callable(stamp), |reflect|::callable(write_number)] });
+        |access|::allow_readers(@mutable plan,
+            |layout|::AccessRegion::Subject { schema: schema },
+            [|reflect|::callable(number)]);
+        |access|::allow_writers(@mutable plan,
+            |layout|::AccessRegion::Subject { schema: schema },
+            [|reflect|::callable(change)]);
         plan"#;
     let source = original.replacen(
-        "access\\new_plan(@schema, Issuance::Only { routes: [reflect\\callable(stamp)] })",
+        "|access|::new_plan(@schema, |layout|::Issuance::Only { routes: [|reflect|::callable(stamp)] })",
         plan,
         1,
     ).replace(
@@ -673,18 +671,18 @@ machine write_number(ticket: @mutable Ticket in Stamped) { ticket.number = 41; }
     for (source, denied) in [
         (source.clone(), None),
         (
-            source.replacen(", reflect\\callable(write_number)", "", 1),
+            source.replacen(", |reflect|::callable(write_number)", "", 1),
             Some((
                 "not one of the domain's establishment routes",
                 "write_number",
             )),
         ),
         (
-            source.replace("[reflect\\callable(number)]", "[]"),
+            source.replace("[|reflect|::callable(number)]", "[]"),
             Some(denied_read),
         ),
         (
-            source.replace("[reflect\\callable(change)]", "[]"),
+            source.replace("[|reflect|::callable(change)]", "[]"),
             Some(denied_write),
         ),
         // Returning from the permitted invocation ends its delegation. A
@@ -839,10 +837,10 @@ machine write_number(ticket: @mutable Ticket in Stamped) { ticket.number = 41; }
 #[test]
 fn ordinary_lifetime_invocation_keeps_schema_images_and_refuses_local_escape() {
     let source = r#"
-        use omega\language\core\reflect;
+use {omega}/language/core/reflect/reflect.omg;
         data Cell { value: u32; }
-        machine describe() -> reflect\TypeSchema { reflect\schema::<Cell>() }
-        machine carry<'text>(schema: reflect\TypeSchema<'text>) -> reflect\TypeSchema<'text> { schema }
+        machine describe() -> |reflect|::TypeSchema { |reflect|::schema::<Cell>() }
+        machine carry<'text>(schema: |reflect|::TypeSchema<'text>) -> |reflect|::TypeSchema<'text> { schema }
         machine local_escape<'text>() -> @'text [u8] {
             let bytes: [u8; 1] = [7u8];
             let view: @[u8] = @bytes[..];
@@ -944,22 +942,18 @@ fn actual_access_plan_normalization_preserves_rules_and_authenticates_descriptio
     let prepared = PreparedBuildMachineProgram::prepare(&typed, None).unwrap();
     let facts = facts();
     let mut accounting = SourceCompletionAccounting::default();
-    let private_query = typed
-        .realized_machine_named("inaccessible_cell_field")
+    let (author, expression) = query_call(&typed, "describe_cell_field");
+    let description = prepared
+        .entry_call(author, expression, &[])
         .unwrap()
-        .symbol;
-    let error = prepared
-        .entry(private_query, private_query, &[])
-        .err()
-        .expect("this source cannot adopt another source file's private field");
-    assert!(
-        error.contains("a declaration query is outside its author's declaration scope"),
-        "{error}"
+        .invoke_recorded(target(&facts), &mut accounting)
+        .expect("a visible VecCell carrier exposes its structural fields");
+    assert_eq!(
+        field(&description, "name"),
+        &BuildTimeValue::Text(b"value".to_vec()),
     );
-    assert!(
-        accounting.receipts().is_empty(),
-        "visibility refusal precedes execution"
-    );
+    assert_eq!(field(&description, "declaration_position"), &BuildTimeValue::Int(0));
+
     let mut descriptions = Vec::new();
     for name in [
         "describe_rule_cell",

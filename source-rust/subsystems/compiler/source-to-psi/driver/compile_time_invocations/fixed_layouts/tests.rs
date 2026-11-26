@@ -97,8 +97,8 @@ fn generic_layout_policy_retains_its_declared_machine_and_observed_geometry() {
     // metadata and its captured body in the actual invocation receipt.
     let authored = AUTHORED
     .replace(
-        "PairLayout satisfies FixedLayout<Pair>",
-        "public data OtherPair [copy] { lo: u64 in Delivered; hi: u64; }\nPairLayout<T> satisfies FixedLayout<T>",
+        "PairLayout satisfies |layout|::FixedLayout<Pair>",
+        "public data OtherPair [copy] { lo: u64 in Delivered; hi: u64; }\nPairLayout<T> satisfies |layout|::FixedLayout<T>",
     );
     let subject = |argument: &str| {
         with_reflection(&authored.replace(
@@ -173,12 +173,10 @@ fn authored_policy_observes_only_its_invocations_issued_target() {
     // this invocation distinguish their two legitimate placement sizes.
     let program = AUTHORED
         .replace(
-            "use omega\\language\\core\\LayoutTarget;",
-            r#"use omega\language\core\LayoutTarget;
-use omega\language\core\layout_target_facts;
-use omega\language\core\LayoutTargetFacts;
-machine packet_size<'target>(target: @'target LayoutTarget) -> u64 reaches none terminates {
-    let facts: LayoutTargetFacts<'target> = layout_target_facts(target);
+            "use {omega}/language/core/layout.omg;",
+            r#"use {omega}/language/core/layout.omg;
+machine packet_size<'target>(target: @'target |layout|::LayoutTarget) -> u64 reaches none terminates {
+    let facts: |layout|::LayoutTargetFacts<'target> = |layout|::layout_target_facts(target);
     transition facts.profile.length == 12 { true -> 16u64, _ -> 24u64 }
 }"#,
         )

@@ -340,7 +340,7 @@ fn a_witness_form_the_route_does_not_rank_is_refused_by_name() {
     // recursive call is the one thing left unproved. The distance is a
     // saturating subtraction, a form the rules do not decide
     // (`prove::reach::within_rules`), so the verdict is `Incomplete`.
-    let pair = looping(scalars, "(remaining, limit) -> Nat::BoundedDistance");
+    let pair = looping(scalars, "(remaining, limit) -> |nat|::Nat::BoundedDistance");
     match judged(&pair) {
         RouteVerdict::Incomplete(unproved) => assert!(
             matches!(
@@ -360,7 +360,7 @@ fn a_witness_form_the_route_does_not_rank_is_refused_by_name() {
         refused(
             "machine sink(depth: i32) -> i32\n\
              requires depth >= 0\n\
-             terminates by depth -> Nat::Descending {\n    \
+             terminates by depth -> |nat|::Nat::Descending {\n    \
                  transition depth > 0 {\n        \
                      true -> sink(depth - 1),\n        \
                      false -> 0\n    \
@@ -417,7 +417,7 @@ fn differently_shaped_members_compare_their_own_measures_at_each_call() {
     let program = r#"
         machine header(cursor: u64, limit: u64) -> u64
         requires cursor <= limit
-        terminates by (limit - cursor) -> Nat::Descending {
+        terminates by (limit - cursor) -> |nat|::Nat::Descending {
             payload(limit - cursor)
         }
 

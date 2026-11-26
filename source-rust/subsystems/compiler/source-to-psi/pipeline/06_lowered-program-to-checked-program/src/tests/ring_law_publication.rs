@@ -16,7 +16,7 @@ fn proofs() -> String {
     let end = CONFORMING
         .find("data Main")
         .expect("the fixture's entry state");
-    CONFORMING[..end].replace("use omega\\language\\core\\ProcessExit;\n", "")
+    CONFORMING[..end].replace("use {omega}/language/core/process_exit.omg;\n", "")
 }
 
 fn typed() -> crate::lowering::PreparedTypedTrees {

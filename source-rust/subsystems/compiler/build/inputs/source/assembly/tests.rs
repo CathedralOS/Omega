@@ -539,7 +539,9 @@ fn a_prepared_build_library_can_import_a_later_frozen_file() {
     let [missing] = pending.as_slice() else {
         panic!("missing imported file: {pending:?}")
     };
-    assert!(matches!(&missing.target, source_compiler::SourceImportTarget::File { root: None, path, alias } if path == "value.omg" && alias == "value"));
+    assert_eq!(missing.target.root, None);
+    assert_eq!(missing.target.path, "value.omg");
+    assert_eq!(missing.target.alias, "value");
     assert_eq!(missing.declarations.len(), 1);
     let collision = assemble(vec![generated("authored.omg", "public data Other {}")]).unwrap_err();
     assert!(

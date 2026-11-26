@@ -23,6 +23,7 @@ public data Build {
     declarations: BuildDeclarations;
 }
 public data BuildDeclarations {}
+public data BuildPlan { marker: u64; }
 public data ProductEntryRef [copy] {}
 public boundary trait BuildProductOperations {
     machine entry(product: @BuildDeclarations, path: @[u8], slot: @[u8]) -> ProductEntryRef reaches none crashes none;
@@ -160,27 +161,30 @@ fn typed_with_core_sources(
             }
         }
     }
-    let mut request = source_compiler::test_support::resolution::ResolutionRequest::new(syntax.unwrap());
+    let syntax = syntax.unwrap();
+    let bindings = source_compiler::test_support::resolution::fixture_local_and_core_imports(
+        &syntax,
+        &sources,
+        std::path::Path::new("source/library/core"),
+    );
+    let mut request = source_compiler::test_support::resolution::ResolutionRequest::new(syntax);
     request.sources = Some(Arc::new(sources));
     // The Build script sees the prelude's `Build` as the compiler binds it.
-    request.top_level_bindings = vec![
+    request.top_level_bindings = bindings;
+    request.top_level_bindings.push(
         source_compiler::representations::source_symbols::SourceScopedTopLevelBinding::new(ids[0], ids[1], "Build"),
-    ];
+    );
+    request.top_level_bindings.push(
+        source_compiler::representations::source_symbols::SourceScopedTopLevelBinding::new(
+            ids[0], ids[1], "BuildPlan",
+        ),
+    );
     for (namespace, module) in [("Build", ids[2]), ("BuildDeclarations", ids[3])] {
         request.top_level_bindings.push(
-            source_compiler::representations::source_symbols::SourceScopedTopLevelBinding::module_import(
-                ids[0], module, namespace, 0,
+            source_compiler::representations::source_symbols::SourceScopedTopLevelBinding::prelude_module(
+                ids[0], module, namespace,
             ),
         );
-    }
-    if external_binding.is_some() {
-        for name in ["ForeignBinding", "DllImport"] {
-            request.top_level_bindings.push(
-                source_compiler::representations::source_symbols::SourceScopedTopLevelBinding::new(
-                    ids[0], ids[4], name,
-                ),
-            );
-        }
     }
     let resolved = source_compiler::test_support::resolution::resolve(request).unwrap();
     source_compiler::test_support::typing::lower_symbol_resolved_trees(&resolved).unwrap()
@@ -215,25 +219,28 @@ fn accepted_frontier_with_subjects(
         .find(|machine| machine.name.as_str() == "build")
         .unwrap()
         .symbol;
-    source_compiler::test_support::SourcePreparationRequest {
-        program: typed,
-        accounting: Default::default(),
-        admission: Default::default(),
-        compilation: source_compiler::test_support::lowering::Compilation {
-            declaration_metadata: &[],
-            entries: &[entry],
-            subjects,
-            purpose: DependencyScope::Build,
-            selected: &[],
-            calling: None,
-            providers: None,
-            bindings: &[],
-            supplies: &[],
+    let entries = [entry];
+    let compilation = source_compiler::test_support::lowering::Compilation {
+        declaration_metadata: &[],
+        entries: &entries,
+        subjects,
+        purpose: DependencyScope::Build,
+        selected: &[],
+        calling: None,
+        providers: None,
+        bindings: &[],
+        supplies: &[],
+    };
+    let prepared = source_compiler::test_support::prepare_source_for_test(
+        source_compiler::test_support::SourcePreparationRequest {
+            program: typed,
+            accounting: Default::default(),
+            admission: Default::default(),
+            compilation,
         },
-    }
-    .judge(publication)
-    .map(|judged| judged.accepted)
-    .map_err(|failure| failure.diagnostics)
+    )
+    .map_err(|failure| failure.diagnostics)?;
+    source_compiler::test_support::judge_terminal_source(prepared.program, compilation, publication)
 }
 
 fn produced(build: &str) -> Result<ProducedTerminalProgram, Vec<diagnostics::Diagnostic>> {
@@ -256,7 +263,7 @@ fn selected_entry(source: &AcceptedTerminalSource) -> symbols::SymbolHandle {
 
 #[test]
 fn only_the_checked_invocation_can_borrow_its_published_build_receiver() {
-    let build = "machine build(builder: @mutable Build) {}";
+    let build = "machine build(builder: @mutable BuildPlan) {}";
     let (receiver, code) = {
         let source = accepted(build).unwrap();
         let receiver = source.build_receiver(selected_entry(&source)).unwrap();
@@ -284,8 +291,8 @@ fn only_the_checked_invocation_can_borrow_its_published_build_receiver() {
 #[test]
 fn a_user_declared_build_type_cannot_receive_the_hosts_build() {
     let text = "data BuildDeclarations {}
-                data Build { marker: u64; declarations: BuildDeclarations; }
-                machine build(builder: @mutable Build) {}";
+                data BuildPlan { marker: u64; declarations: BuildDeclarations; }
+                machine build(builder: @mutable BuildPlan) {}";
     let mut files = source_compiler::representations::source_inputs::SourceMap::default();
     let id = files
         .add_checked_instance(
@@ -837,9 +844,10 @@ fn published_native_locator(
 #[test]
 fn a_native_binding_publishes_its_closed_locator_shape() {
     let prelude = native_binding_prelude();
-    let build = r#"
+    let build = r#"use {omega}/language/core/external_binding.omg as native;
+
 machine build(builder: @mutable Build) {
-    Build::bind_native::<Probe::poke>(builder, linux_x86_64, ForeignBinding::Syscall { number: 9u64 });
+    Build::bind_native::<Probe::poke>(builder, linux_x86_64, |native|::ForeignBinding::Syscall { number: 9u64 });
 }
 "#;
     let program = native_binding_program(build);
@@ -868,9 +876,10 @@ machine build(builder: @mutable Build) {
     );
     // Explicit widths keep this control focused on publication custody;
     // inactive-width inference itself belongs only to the real core type.
-    let lookalike_build = r#"
+    let lookalike_build = r#"use {omega}/language/core/external_binding.omg as native;
+
 machine build(builder: @mutable Build) {
-    let locator: ForeignBinding<0, 0, 0> = ForeignBinding::Syscall { number: 9u64 };
+    let locator: |native|::ForeignBinding<0, 0, 0> = |native|::ForeignBinding::Syscall { number: 9u64 };
     Build::bind_native::<Probe::poke>(builder, linux_x86_64, locator);
 }
 "#;
@@ -903,7 +912,8 @@ machine build(builder: @mutable Build) {
 fn a_selection_row_keeps_the_exact_operation_typing_recorded() {
     use language_core::build_protocol::SelectionProtocolOperation as Protocol;
     use source_compiler::representations::source_state::expression::ExpressionNode;
-    let build = "machine build(builder: @mutable Build) { Build::bind_native::<Probe::poke>(builder, linux_x86_64, ForeignBinding::Syscall { number: 9u64 }); }";
+    let build = "use {omega}/language/core/external_binding.omg as native;
+machine build(builder: @mutable Build) { Build::bind_native::<Probe::poke>(builder, linux_x86_64, |native|::ForeignBinding::Syscall { number: 9u64 }); }";
     let typed = || {
         typed_with_external_binding(
             build,
@@ -1003,10 +1013,11 @@ fn a_selection_row_keeps_the_exact_operation_typing_recorded() {
 fn a_native_import_infers_nested_byte_widths_and_publishes_their_shapes() {
     use checked_program_to_psi::TerminalBuildValueShape;
     let program = native_binding_program(
-        r#"
+        r#"use {omega}/language/core/external_binding.omg as native;
+
 machine build(builder: @mutable Build) {
-    Build::bind_native::<Probe::poke>(builder, windows_x86_64, ForeignBinding::DllImport {
-        import: DllImport::PeByName { library: "winmm.dll", export: "PlaySoundW" }
+    Build::bind_native::<Probe::poke>(builder, windows_x86_64, |native|::ForeignBinding::DllImport {
+        import: |native|::DllImport::PeByName { library: "winmm.dll", export: "PlaySoundW" }
     });
 }
 "#,
@@ -1048,10 +1059,11 @@ machine build(builder: @mutable Build) {
 #[test]
 fn an_ordinary_helper_result_keeps_its_closed_native_locator_application() {
     let program = native_binding_program(
-        r#"
-machine locator() -> ForeignBinding<9, 10, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::PeByName { library: "winmm.dll", export: "PlaySoundW" }
+        r#"use {omega}/language/core/external_binding.omg as native;
+
+machine locator() -> |native|::ForeignBinding<9, 10, 0> {
+    |native|::ForeignBinding::DllImport {
+        import: |native|::DllImport::PeByName { library: "winmm.dll", export: "PlaySoundW" }
     }
 }
 machine build(builder: @mutable Build) {
@@ -1242,7 +1254,8 @@ fn a_case_value_pattern_cannot_discard_its_applied_type() {
     use source_compiler::representations::source_state::expression::{ExpressionNode, MatchPattern};
     use source_compiler::representations::source_state::types::TypeReferenceNode;
     let mut typed = typed_with_external_binding(
-        "machine build(builder: @mutable Build) { Build::bind_native::<Probe::poke>(builder, linux_x86_64, ForeignBinding::Syscall { number: 9u64 }); }",
+        "use {omega}/language/core/external_binding.omg as native;
+machine build(builder: @mutable Build) { Build::bind_native::<Probe::poke>(builder, linux_x86_64, |native|::ForeignBinding::Syscall { number: 9u64 }); }",
         &native_binding_prelude(),
         Some(include_str!(
             "../../../../../../../source/library/core/external_binding.omg"
@@ -1460,7 +1473,7 @@ machine build(builder: @mutable Build, slot: @[u8]) -> ProductEntryRef {
 #[test]
 fn boundary_declaration_facts_do_not_admit_pure_execution() {
     use semantic_vocabulary::{TargetMachineCallable, compiler_evaluation::DeclarationCustody};
-    let external = "use omega\\language\\core\\Never; use omega\\language\\core\\ProcessExit; machine build() -> Never reaches ProcessExit crashes none terminates { ProcessExit::exit_process(0); }";
+    let external = "use {omega}/language/core/never.omg;\nuse {omega}/language/core/process_exit.omg;\nmachine build() -> |never|::Never reaches |process_exit|::ProcessExit crashes none terminates { |process_exit|::ProcessExit::exit_process(0); }";
     let core = [
         (
             "never.omg",

@@ -38,7 +38,7 @@ const ALGEBRA: &str = include_str!(concat!(
 /// The fixture's proofs, without the entry that needs the standard library.
 fn proofs(source: &str) -> String {
     let end = source.find("data Main").expect("the fixture's entry state");
-    source[..end].replace("use omega\\language\\core\\ProcessExit;\n", "")
+    source[..end].replace("use {omega}/language/core/process_exit.omg;\n", "")
 }
 
 /// The recovered program without its entry state, its exit machine and its
@@ -55,7 +55,8 @@ fn without_entry(source: &str) -> String {
     let rest = rest
         .find("// The entry owns")
         .map_or(rest, |entry| &rest[..entry]);
-    format!("{}{rest}", &source[..start]).replace("use omega\\language\\core\\ProcessExit;\n", "")
+    format!("{}{rest}", &source[..start])
+        .replace("use {omega}/language/core/process_exit.omg;\n", "")
 }
 
 fn compile(source: &str, core: &[(&str, &str, &str)]) -> Vec<RouteVerdict> {
@@ -210,7 +211,7 @@ fn peano_with(law: &str) -> String {
 }
 
 const EXPANDS: &str = "machine expands(a: Peano, b: Peano, c: Peano, d: Peano)
-ensures core\\Identity::<Peano>(times(a, plus(b, plus(c, d))), plus(plus(times(a, d), times(a, b)), times(a, c)))
+ensures |proof|::Identity::<Peano>(times(a, plus(b, plus(c, d))), plus(plus(times(a, d), times(a, b)), times(a, c)))
 {
 }";
 
@@ -265,7 +266,7 @@ fn a_product_past_the_summand_limit_runs_out_of_proof_budget() {
     let nested = doubling(5);
     let law = format!(
         "machine too_wide(a: Peano, b: Peano, c: Peano, d: Peano)
-ensures core\\Identity::<Peano>(plus(times(a, {nested}), times(a, {nested})), times(a, plus({nested}, {nested})))
+ensures |proof|::Identity::<Peano>(plus(times(a, {nested}), times(a, {nested})), times(a, plus({nested}, {nested})))
 {{
 }}"
     );
@@ -283,7 +284,7 @@ ensures core\\Identity::<Peano>(plus(times(a, {nested}), times(a, {nested})), ti
     let nested = doubling(4);
     let law = format!(
         "machine wide(a: Peano, b: Peano, c: Peano, d: Peano)
-ensures core\\Identity::<Peano>(plus(times(a, {nested}), times(a, {nested})), times(a, plus({nested}, {nested})))
+ensures |proof|::Identity::<Peano>(plus(times(a, {nested}), times(a, {nested})), times(a, plus({nested}, {nested})))
 {{
 }}"
     );

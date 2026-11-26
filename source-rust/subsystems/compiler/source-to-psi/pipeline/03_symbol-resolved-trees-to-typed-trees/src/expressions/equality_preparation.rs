@@ -859,8 +859,8 @@ mod tests {
             AuthoredDeclarationSelectionKind as Kind, AuthoredDeclarationSelectionTarget as Target,
         };
         use crate::source_state::expression::ExpressionNode;
-        let source = "data Point [copy] { x: i32; } PointEquality satisfies Equatable<Point> {}\n\
-            data Custom [copy] { x: i32; } CustomEquality satisfies Equatable<Custom> {\n\
+        let source = "use {omega}/language/core/equality.omg; data Point [copy] { x: i32; } PointEquality satisfies |equality|::Equatable<Point> {}\n\
+            data Custom [copy] { x: i32; } CustomEquality satisfies |equality|::Equatable<Custom> {\n\
                 machine equals(left: @Custom, right: @Custom) -> bool { false } }\n\
             machine point_equal(left: Point, right: Point) -> bool { left == right }\n\
             machine point_different(left: Point, right: Point) -> bool { left != right }\n\
@@ -935,7 +935,7 @@ mod tests {
 
     #[test]
     fn an_authored_row_cannot_replace_missing_quotient_observer_evidence() {
-        let source = "data Point [copy] { x: i32; } Equality satisfies Equatable<Point> { machine equals(left: @Point, right: @Point) -> bool { false } }";
+        let source = "use {omega}/language/core/equality.omg; data Point [copy] { x: i32; } Equality satisfies |equality|::Equatable<Point> { machine equals(left: @Point, right: @Point) -> bool { false } }";
         let mut program =
             crate::qualified_operator_home_tests::checked_with_equality(&[("main.omg", source)])
                 .unwrap();
@@ -984,22 +984,16 @@ mod tests {
         rival: Option<&str>,
     ) -> Result<crate::source_state::TypedTrees, String> {
         let geo = format!(
-            "public data Point [copy] {{ x: i32; }} {comparison} satisfies Equatable<Point> {{ machine equals(left: @Point, right: @Point) -> bool {{ left.x == right.x }} }}"
+            "use {{omega}}/language/core/equality.omg; public data Point [copy] {{ x: i32; }} {comparison} satisfies |equality|::Equatable<Point> {{ machine equals(left: @Point, right: @Point) -> bool {{ left.x == right.x }} }}"
         );
-        let app = "use dep\\geo; machine same(left: geo::Point, right: geo::Point) -> bool { left == right }";
+        let app = "use {dep}/geo/point.omg as geo; machine same(left: |geo|::Point, right: |geo|::Point) -> bool { left == right }";
         let mut units = vec![(31, "geo/point.omg", geo.as_str()), (32, "app.omg", app)];
         let mut dependencies = vec![(32, "dep", 31)];
-        let mut imports = vec![(1, 0, "dep::geo", 1)];
         if let Some(rival) = rival {
             units.push((33, "rival.omg", rival));
             dependencies.push((33, "dep", 31));
-            imports.push((2, 0, "dep::geo", 1));
         }
-        crate::qualified_operator_home_tests::packages_with_equality(
-            &units,
-            &dependencies,
-            &imports,
-        )
+        crate::qualified_operator_home_tests::packages_with_equality(&units, &dependencies)
     }
 
     fn selected_comparison(program: &crate::source_state::TypedTrees) -> Option<&str> {
@@ -1037,14 +1031,14 @@ mod tests {
 
     #[test]
     fn an_unimported_packages_comparison_is_no_rival() {
-        let rival = "use dep\\geo; public RivalEq satisfies Equatable<geo::Point> { machine equals(left: @geo::Point, right: @geo::Point) -> bool { false } }";
+        let rival = "use {omega}/language/core/equality.omg; use {dep}/geo/point.omg as geo; public RivalEq satisfies |equality|::Equatable<|geo|::Point> { machine equals(left: @|geo|::Point, right: @|geo|::Point) -> bool { false } }";
         let program = compare_points_across_packages("public PointEq", Some(rival)).unwrap();
         assert_eq!(selected_comparison(&program), Some("PointEq"));
     }
 
     #[test]
     fn preparing_the_family_keeps_reference_arguments_distinct() {
-        let source = "data Point [copy] { x: i32; } ValueEquality satisfies Equatable<Point> { machine equals(left: @Point, right: @Point) -> bool { false } } ReferenceEquality satisfies Equatable<Point> { machine equals(left: @Point, right: @Point) -> bool { true } }";
+        let source = "use {omega}/language/core/equality.omg; data Point [copy] { x: i32; } ValueEquality satisfies |equality|::Equatable<Point> { machine equals(left: @Point, right: @Point) -> bool { false } } ReferenceEquality satisfies |equality|::Equatable<Point> { machine equals(left: @Point, right: @Point) -> bool { true } }";
         let mut program =
             crate::qualified_operator_home_tests::checked_with_equality(&[("main.omg", source)])
                 .unwrap();
@@ -1084,7 +1078,7 @@ mod tests {
 
     #[test]
     fn substituted_type_fields_and_explicit_rows_keep_one_comparison_owner() {
-        let source = "data Holder<T [copy]> [copy] { value: T; } HolderEquality satisfies Equatable<Holder<i32>> { } data Coin [copy] { value: i32; } CoinStructural satisfies Equatable<Coin> { } CoinFalse satisfies Equatable<Coin> { machine equals(left: @Coin, right: @Coin) -> bool { false } } machine compare(left: Holder<i32>, right: Holder<i32>) -> bool { left == right } machine invoke(left: Coin, right: Coin) -> bool { CoinStructural::equals(@left, @right) }";
+        let source = "use {omega}/language/core/equality.omg; data Holder<T [copy]> [copy] { value: T; } HolderEquality satisfies |equality|::Equatable<Holder<i32>> { } data Coin [copy] { value: i32; } CoinStructural satisfies |equality|::Equatable<Coin> { } CoinFalse satisfies |equality|::Equatable<Coin> { machine equals(left: @Coin, right: @Coin) -> bool { false } } machine compare(left: Holder<i32>, right: Holder<i32>) -> bool { left == right } machine invoke(left: Coin, right: Coin) -> bool { CoinStructural::equals(@left, @right) }";
         let checked =
             crate::qualified_operator_home_tests::checked_with_equality(&[("main.omg", source)]);
         assert!(checked.is_ok(), "{checked:?}");
@@ -1103,7 +1097,7 @@ mod tests {
 
     #[test]
     fn qualified_rows_do_not_share_a_comparison_with_each_other_or_the_plain_record() {
-        let source = "data Point [copy] { x: i32; } domain Point::A; domain Point::B; AEquality satisfies Equatable<Point in A> { machine equals(left: @Point in A, right: @Point in A) -> bool { false } } BEquality satisfies Equatable<Point in B> { machine equals(left: @Point in B, right: @Point in B) -> bool { true } }";
+        let source = "use {omega}/language/core/equality.omg; data Point [copy] { x: i32; } domain Point::A; domain Point::B; AEquality satisfies |equality|::Equatable<Point in A> { machine equals(left: @Point in A, right: @Point in A) -> bool { false } } BEquality satisfies |equality|::Equatable<Point in B> { machine equals(left: @Point in B, right: @Point in B) -> bool { true } }";
         let mut program =
             crate::qualified_operator_home_tests::checked_with_equality(&[("main.omg", source)])
                 .unwrap();

@@ -1,3 +1,5 @@
+use assembly.omg;
+
 // Core interrupt obligations (IDT3).
 //
 // Masking and acknowledgement are distinct authority/debt relationships.
@@ -27,7 +29,7 @@ established by InterruptMaskControl::save_and_mask;
 // Saving returns the only authority that can restore that exact prior state.
 public boundary trait InterruptMaskControl {
     machine save_and_mask() -> InterruptMaskGuard in Active
-    reaches InterruptControl
+    reaches |assembly|::InterruptControl
     ensures
         result in InterruptMaskGuard::Active
     crashes Trap crashes Abort;
@@ -45,13 +47,13 @@ established by InterruptEntry::enter;
 
 public boundary trait InterruptEntry {
     machine enter(acknowledgement: InterruptAcknowledgement in Pending)
-    reaches <= MachineControl + PortIo
+    reaches <= |assembly|::MachineControl + |assembly|::PortIo
     crashes Trap;
 }
 
 public boundary trait InterruptMaskRestore {
     machine restore(guard: InterruptMaskGuard)
-    reaches InterruptControl
+    reaches |assembly|::InterruptControl
     requires
         guard in InterruptMaskGuard::Active
     crashes Trap crashes Abort;
@@ -59,7 +61,7 @@ public boundary trait InterruptMaskRestore {
 
 public boundary trait InterruptAcknowledgementCompletion {
     machine complete(acknowledgement: InterruptAcknowledgement)
-    reaches <= MachineControl + PortIo
+    reaches <= |assembly|::MachineControl + |assembly|::PortIo
     requires
         acknowledgement in InterruptAcknowledgement::Pending
     crashes Trap;

@@ -162,6 +162,19 @@ pub(crate) fn collection_element_type(
     }
 }
 
+// Selecting a field's type needs its applied declaration. The field owner
+// may still be generic in the caller's binders, whose substitutions remain
+// in its declared types. Concrete storage layout is checked separately.
+fn projected_field_owner(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> Option<&crate::source_state::data::DataDefinition> {
+    program.closed_data_field_definition(reference).or_else(|| {
+        let symbol = program.type_reference_table.type_head_symbol(reference)?;
+        program.data_constructor_definition(reference, symbol)
+    })
+}
+
 pub(crate) fn collection_field_type(
     program: &TypedTrees,
     reference: TypeReferenceHandle,
@@ -170,8 +183,7 @@ pub(crate) fn collection_field_type(
     let reference = program
         .type_reference_table
         .peeled_type_reference(reference);
-    let definition = program
-        .closed_data_field_definition(reference)
+    let definition = projected_field_owner(program, reference)
         .ok_or_else(|| crate::unavailable_judgment("applied collection field type"))?;
     let field = program
         .data_constructor_field(reference, definition.symbol, symbol)
@@ -586,8 +598,7 @@ pub(crate) fn declared_projection_field<'program>(
     let carrier = program
         .type_reference_table
         .peeled_type_reference(reference);
-    let data = program
-        .closed_data_field_definition(carrier)
+    let data = projected_field_owner(program, carrier)
         .ok_or_else(|| crate::unavailable_judgment("assignment field application"))?;
     let payload = if selected == SymbolHandle::invalid() {
         None
@@ -2509,11 +2520,10 @@ mod tests {
                     .unwrap();
                 crate::frontend_fixture::parse(&mut syntax, declaration, &tokens).unwrap();
                 bindings.push(
-                    crate::source_symbols::SourceScopedTopLevelBinding::logical_module_import(
+                    crate::source_symbols::SourceScopedTopLevelBinding::file_import(
                         source,
                         declaration,
-                        "omega::language::core::byte_observation",
-                        3,
+                        "byte_observation",
                     ),
                 );
             }
@@ -2536,7 +2546,7 @@ mod tests {
         }
 
         let program = typed(
-            "use omega\\language\\core\\byte_observation;\npublic domain [u8]::Path requires byte_observation\\no_nul(@self[..]);\ndomain [u8]::Ascii requires byte_observation\\ascii_only(@self[..]);",
+            "use {omega}/language/core/byte_observation/byte_observation.omg;\npublic domain [u8]::Path requires |byte_observation|::no_nul(@self[..]);\ndomain [u8]::Ascii requires |byte_observation|::ascii_only(@self[..]);",
             true,
         );
         let domain = &program.domain_definitions()[0];

@@ -145,8 +145,7 @@ pub(super) fn append_build_prelude(
         )]);
     }
     // Build's directly available vocabulary includes real code namespaces.
-    // Import their admitted source identities just as the loader does for an
-    // authored module, rather than making a same-spelled data type own helpers.
+    // Bind their admitted source identities directly to the Build stage.
     for file in storage
         .sources
         .selected_files()
@@ -154,11 +153,10 @@ pub(super) fn append_build_prelude(
     {
         for &(namespace, declaration_source) in &namespaces {
             bindings.push(
-                source_compiler::representations::source_symbols::SourceScopedTopLevelBinding::module_import(
+                source_compiler::representations::source_symbols::SourceScopedTopLevelBinding::prelude_module(
                     file.source_id,
                     declaration_source,
                     namespace,
-                    0,
                 ),
             );
         }

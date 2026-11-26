@@ -32,7 +32,8 @@ use terminal_psi::{ScalarBlockInvariant, TerminalMachine};
 
 use crate::refusal;
 
-fn block(lowered: &TerminalMachine, id: BlockId) -> Option<&terminal_psi::Block> {
+/// The block `id` names, at its dense position in the machine.
+pub(crate) fn block(lowered: &TerminalMachine, id: BlockId) -> Option<&terminal_psi::Block> {
     usize::try_from(id.get() - 1)
         .ok()
         .and_then(|position| lowered.blocks.get(position))

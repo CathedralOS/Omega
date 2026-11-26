@@ -253,15 +253,17 @@ public machine build_selection_receiver<'a>(builder: @'a mutable Build) -> @'a m
                 }
             }
         }
-        let resolved = crate::test_support::resolution::resolve(crate::test_support::resolution::ResolutionRequest {
-            syntax: syntax.unwrap(),
-            sources: Some(Arc::new(sources)),
-            retained_base: None,
-            top_level_bindings: vec![
-                SourceScopedTopLevelBinding::new(ids[0], ids[1], "Build"),
-                SourceScopedTopLevelBinding::module_import(ids[0], ids[2], "Build", 0),
-            ],
-        })
+        let resolved = crate::test_support::resolution::resolve(
+            crate::test_support::resolution::ResolutionRequest {
+                syntax: syntax.unwrap(),
+                sources: Some(Arc::new(sources)),
+                retained_base: None,
+                top_level_bindings: vec![
+                    SourceScopedTopLevelBinding::new(ids[0], ids[1], "Build"),
+                    SourceScopedTopLevelBinding::prelude_module(ids[0], ids[2], "Build"),
+                ],
+            },
+        )
         .unwrap();
         let typed = crate::test_support::typing::lower_symbol_resolved_trees(&resolved).unwrap();
         let occurrence = collect_product_selection_occurrences(&typed)

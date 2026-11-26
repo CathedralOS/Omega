@@ -4,7 +4,6 @@
 //! and inserts no closed application, checked tree or catalogue row.
 
 use crate::source_state::TypedTrees;
-use crate::source_symbols::SourceScopedTopLevelBinding;
 use std::{
     path::{Path, PathBuf},
     sync::Arc,
@@ -69,10 +68,6 @@ fn resolved_library_source(
         );
         units.push((file.source_id, Arc::clone(&file.source)));
     }
-    let core_anchor = units
-        .first()
-        .ok_or("real core source selection is empty")?
-        .0;
     for name in allocator_units {
         let path = allocation_root.join(name);
         let text = std::fs::read_to_string(&path).map_err(|error| error.to_string())?;
@@ -95,40 +90,16 @@ fn resolved_library_source(
     let requester = file.source_id;
     units.push((requester, Arc::clone(&file.source)));
     let mut syntax = syntax_trees::SyntaxTrees::new(requester);
-    let mut bindings = Vec::new();
     for (id, text) in units {
-        let previous = syntax.root_item_handles().len();
         let tokens = crate::test_support::frontend_fixture::Lexer::new(&text)
             .tokenize()
             .map_err(|errors| format!("lex source {id:?}: {errors:?}"))?;
         crate::test_support::frontend_fixture::parse(&mut syntax, id, &tokens)
             .map_err(|errors| format!("parse source {id:?}: {errors:?}"))?;
-        for root in &syntax.root_item_handles()[previous..] {
-            let syntax_trees::item::Item::Use(syntax_trees::item::UseItem::Namespace { path: import }) = syntax.root_item(*root) else {
-                continue;
-            };
-            let members = syntax.items.identifier_path_members(*import);
-            if members.len() >= 3
-                && members[0].as_str(&syntax) == "omega"
-                && members[1].as_str(&syntax) == "language"
-                && members[2].as_str(&syntax) == "core"
-            {
-                let path = members
-                    .iter()
-                    .map(|member| member.as_str(&syntax))
-                    .collect::<Vec<_>>()
-                    .join("::");
-                // The same loader binding selects declarations across this
-                // exact admitted core package; its anchor creates no module.
-                bindings.push(SourceScopedTopLevelBinding::logical_module_import(
-                    id,
-                    core_anchor,
-                    &path,
-                    3,
-                ));
-            }
-        }
     }
+    let bindings = crate::test_support::resolution::fixture_local_and_core_imports(
+        &syntax, &sources, &core_root,
+    );
     let mut request = crate::test_support::resolution::ResolutionRequest::new(syntax);
     request.sources = Some(Arc::new(sources));
     request.top_level_bindings = bindings;

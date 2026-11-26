@@ -2303,19 +2303,7 @@ machine entry() -> u64 crashes none {
                 }),
         )
         .collect::<Vec<_>>();
-        let (typed, _) = crate::fixture_trees(&files, |ids| {
-            core.iter()
-                .zip(&ids[1..])
-                .map(|(&(_, declaration, _), &source)| {
-                    crate::source_symbols::SourceScopedTopLevelBinding::logical_module_import(
-                        ids[0],
-                        source,
-                        &format!("omega::language::core::{declaration}"),
-                        3,
-                    )
-                })
-                .collect()
-        });
+        let (typed, _) = crate::fixture_trees(&files, |_| Vec::new());
         let entry = typed
             .machines()
             .iter()
@@ -3360,7 +3348,7 @@ machine entry() reaches Input {}
         use semantic_vocabulary::source_selections::SelectionCallTarget;
 
         let source = accepted_source_with_core(
-            "use omega\\language\\core\\ProcessExit; use omega\\language\\core\\ProcessExitPrimitive; machine entry() reaches ProcessExit crashes none terminates { ProcessExitPrimitive(7); }",
+            "use {omega}/language/core/process_exit.omg;\nuse {omega}/language/core/process_exit_native.omg;\nmachine entry() reaches |process_exit|::ProcessExit crashes none terminates { |process_exit_native|::ProcessExitPrimitive(7); }",
             &[],
             &bundled_declarations::sealed_intrinsics::hosted_process_exit_sources(),
         );

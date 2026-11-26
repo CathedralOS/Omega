@@ -190,34 +190,25 @@ parent field; the retired state spelling and its separate syntax table are gone.
 Name resolution runs after parsing, over the compilation's source set
 ([`representations/source_files/source.omg`](representations/source_files/source.omg)): up to 64 packages, 256
 dependency edges per requester and 512 units. Each unit belongs to a package
-and to the module its path names there (`a::b`); it is parsed into the shared
-syntax tables, and its position is its source id. The tables cover the whole
-program and currently hold 4,096 roots, 1,024
-uses, 10,240 machines, 1,024 fields, 1,536 cases and 2,048 data members,
+and retains its package-relative filename. Its position in the source set is its
+source id. The tables cover the whole program and currently hold 4,096 roots,
+4,096 uses, 10,240 machines, 1,024 fields, 1,536 cases and 2,048 data members,
 2,048 clauses, 4,096 construction fields, 32,768 parameters, 16,384
 statements and 8,192 transition arms, 65,536 type references and
 call arguments, and 131,072 expressions. Resolution and typing tables indexed
 by machine, type-reference and expression handles use the same bounds.
 
-Checking the frontend's entire source with the Omega implementation still
-requires exact declaration imports. Its resolver currently selects whole
-modules, and its 1,024 use rows cannot hold the frontend's more than 2,000 explicit
-imports. A self-compilation check must preserve each unit's directory namespace
-and exercise a member import together with a sibling that stays out of scope.
+A relative import selects an exact filename in the requester's own package.
+A rooted import selects a direct product dependency or the toolchain's
+`{omega}/language/core/` mount. The imported file's declarations are available
+through its file-local alias, as in `use child/value-cell.omg as cell;` and
+`|cell|::read(x)`. Sibling files may declare the same name. Across packages,
+the declaration must also be public. Well-formed unused imports do not require
+a supplied target. The regression fixture exercises the parser and resolver
+together on a multi-file source set.
+[`tests/file_imports.py`](tests/file_imports.py)
 
-A `use` path's first member selects a package
-([`pipeline/syntax_trees_to_symbol_resolved_trees/imports.omg`](pipeline/syntax_trees_to_symbol_resolved_trees/imports.omg)):
-`omega::language::core` selects the toolchain's core package, a product
-dependency alias selects that dependency, and the requester's own name selects
-its own package. Any other path is a module path in the requester's own
-package. The rest of the path must name a supplied module of the selected
-package. A first member that spells another package's name or a build-scope
-alias, where the requester has no such module, rejects as an undeclared
-dependency. A reference sees its own module (whichever of its units declares
-the name) and each module its unit imports; across packages it sees only `pub`
-declarations (a trait or conformance member is public when its container is).
-Imports are not transitive, the same path in two packages names two modules,
-and two visible declarations with one spelling reject as ambiguous. Every root kind the parser accepts binds but
+Every root kind the parser accepts binds but
 mathematical definitions (`let` roots) and transparent trait refinements,
 which reject at their root as unsupported declarations before any binding,
 as does a form whose bindings resolution does not record yet

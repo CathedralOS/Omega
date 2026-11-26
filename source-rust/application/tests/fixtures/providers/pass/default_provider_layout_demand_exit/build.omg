@@ -2,9 +2,9 @@ use main.omg as app;
 use {layout_default_kit}/main/layouts.omg;
 use {omega}/build/dependency.omg;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "default_provider_layout_demand_exit");
-    let kit: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../../../packages/layout-default-kit" }));
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "default_provider_layout_demand_exit" };
+    _ = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../../../packages/layout-default-kit" }));
     // Windows takes the valid provider; the other targets keep the kit's default.
     Build::select_provider::<|layouts|::Measure, |layouts|::PairMeasure>(builder, windows_x86_64);
     Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);

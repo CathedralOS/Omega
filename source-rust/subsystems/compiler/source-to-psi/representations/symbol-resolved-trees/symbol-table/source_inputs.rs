@@ -1115,12 +1115,12 @@ mod tests {
         let importer = sources
             .add_with_metadata(
                 PathBuf::from("app/main.omg"),
-                String::from("use kit\\main; machine entry() -> i32 { generated_value() }"),
+                String::from("use {kit}/main.omg; machine entry() -> i32 { |main|::value() }"),
                 PathBuf::from("app"),
                 Some(consumer),
                 SourceOrigin::User,
             )
-            .source_span(Span::new(40, 55));
+            .source_span(Span::new(45, 58));
 
         assert!(sources.reference_can_see_declaration(authored, generated));
         assert!(sources.reference_can_see_declaration(importer, generated));

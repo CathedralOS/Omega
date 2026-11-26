@@ -1,1 +1,1 @@
-product entry `support::setup::launch` names no machine in this build occurrence's package
+product entry `|setup|::launch` names no machine in this build occurrence's package

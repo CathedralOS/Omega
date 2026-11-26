@@ -1,3 +1,5 @@
+use nat.omg;
+
 // Rank-two strided layouts over caller-owned slices. A layout never owns,
 // allocates or copies its backing; copying a descriptor copies no data.
 //
@@ -84,7 +86,7 @@ public machine valid_readonly(layout: @Layout2, backing_length: u64) -> bool {
 }
 
 machine greatest_common_divisor(left: u64, right: u64) -> u64
-terminates by right -> Nat::Descending
+terminates by right -> |nat|::Nat::Descending
 {
     transition right > 0 {
         true -> greatest_common_divisor(right, left % right),

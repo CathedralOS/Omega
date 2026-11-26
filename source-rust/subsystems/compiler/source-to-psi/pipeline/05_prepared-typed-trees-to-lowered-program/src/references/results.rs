@@ -61,6 +61,7 @@ pub(crate) fn publish(
             &mut elaboration.module,
             selections,
             &elaboration.nominal_calls,
+            &elaboration.static_schemas,
         )?;
         let module = &elaboration.module;
         let summaries = module_summaries(module);
@@ -80,6 +81,7 @@ pub(crate) fn publish(
             &elaboration.names,
             &summaries,
             &successor_loans,
+            &elaboration.static_schemas,
             parallel,
         )
     })();
@@ -551,6 +553,7 @@ fn publish_results(
     module: &mut TerminalModule,
     selections: &[crate::Selected],
     nominal_calls: &[terminal_psi::generic_calls::NominalCallArgument],
+    schemas: &[terminal_check_tables::contracts::StaticSchemaQuestion],
 ) -> Checked<()> {
     let selected: Vec<_> = module
         .machines
@@ -603,11 +606,12 @@ fn publish_results(
         }
     }
     let graph =
-        terminal_semantics::descriptor_results::terminal_borrowed_storage_graph_with_nominal_calls(
+        terminal_semantics::descriptor_results::terminal_borrowed_storage_graph_with_generic_calls(
             module,
             selected.iter().copied(),
             &[],
             nominal_calls,
+            &terminal_check_tables::contracts::scoped_requirement_addresses(&module.machines, schemas),
         )
         .map_err(|error| graph_unavailable(module, error))?;
     // A returned generic value can carry a loan from a view inside an input
@@ -737,6 +741,7 @@ fn publish_parents(
     names_ref: &arena::IdTable<MachineId, crate::MachineNames>,
     summaries: &ModuleSummaries<'_>,
     successor_loans: &[SuccessorLoan],
+    schemas: &[terminal_check_tables::contracts::StaticSchemaQuestion],
     parallel: bool,
 ) -> Checked<()> {
     use terminal_check_tables::ProgramPoint;
@@ -946,7 +951,10 @@ fn publish_parents(
         return Ok(());
     }
     let roots = queries.iter().map(|(machine, _, _, _)| machine.id);
-    let graph = terminal_borrowed_storage_graph_from(module, roots, &[])
+    let graph = terminal_semantics::descriptor_results::terminal_borrowed_storage_graph_with_generic_calls(
+        module, roots, &[], &NO_NOMINAL_CALLS,
+        &terminal_check_tables::contracts::scoped_requirement_addresses(&module.machines, schemas),
+    )
         .map_err(|error| graph_unavailable(module, error))?;
     let solve_machine = |query: (
         &terminal_psi::TerminalMachine,

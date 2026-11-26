@@ -448,16 +448,32 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         if !self.at_punctuation(PunctuationKind::Pipe) {
             return self.take_identifier();
         }
+        let (head, _, rest) = self.take_file_qualified_head()?;
+        Ok((head, rest))
+    }
+
+    /// The carrier lookup uses the full selection. A domain declared on it
+    /// uses the selected member's own spelling in the declaring file.
+    pub(crate) fn take_file_qualified_head(
+        self,
+    ) -> Result<(Identifier, Identifier, Self), ParseError> {
         let after_bar = self.take_punctuation(PunctuationKind::Pipe, "|")?;
         let (alias, rest) = after_bar.take_identifier()?;
         let rest = rest.take_punctuation(PunctuationKind::Pipe, "|")?;
         let rest = rest.take_punctuation(PunctuationKind::ColonColon, "::")?;
         let (declaration, rest) = rest.take_identifier()?;
         if let Some(uses) = self.file_qualifiers {
-            uses.record(self.source_span_until(rest).span.start, after_bar.spelling(&after_bar.tokens[0]));
+            uses.record(
+                self.source_span_until(rest).span.start,
+                after_bar.spelling(&after_bar.tokens[0]),
+            );
         }
         let name = format!("|{}|::{}", alias.as_str(&self), declaration.as_str(&self));
-        Ok((Identifier::new(name, self.source_span_until(rest)), rest))
+        Ok((
+            Identifier::new(name, self.source_span_until(rest)),
+            declaration,
+            rest,
+        ))
     }
 
     pub(crate) fn at_path_member(&self) -> bool {

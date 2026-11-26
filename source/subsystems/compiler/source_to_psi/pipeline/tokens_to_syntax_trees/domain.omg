@@ -76,7 +76,7 @@ crashes Trap
     }
 
     machine named_carrier(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
-        |input|::expect_name(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedDomainCarrier);
+        |input|::expect_path_head(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedDomainCarrier);
         transition parser.output.accepted {
             true -> carrier_capacity(parser, input),
             _ -> done()

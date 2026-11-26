@@ -4,7 +4,9 @@
 //! argument admission, generic eligibility and declaration requirements.
 
 use crate::declaration_selection::AuthoredDeclarationSelectionKind;
-use crate::source_state::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
+use crate::source_state::expression::{
+    ExpressionHandle, ExpressionNode, StaticMachineArgument, TableBorrowExpression,
+};
 use crate::source_state::name::Identifier;
 use crate::source_state::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 use crate::source_state::{TypedTrees, data::TypeParameterKind};
@@ -78,27 +80,8 @@ pub(crate) fn prepare_in_cohort(
             retain_builtin_range_type(program, caller, expression, collection)?;
             continue;
         }
-        if let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) {
-            let (target, access) = (borrow.target, borrow.access);
-            // The destination may attenuate this reference. Retain the type
-            // of the written formation first, so lowering can form its actual
-            // parent loan before lending a weaker child to that destination.
-            let referent = match crate::types::typing_queries::declared_expression_type(
-                program, caller, target,
-            ) {
-                Some(reference) => Some(reference),
-                None => infer(program, target, &mut Vec::new())?,
-            };
-            if let Some(referent) = referent {
-                let reference = reference_formation_type(program, referent, access);
-                program
-                    .type_reference_table
-                    .retain_operand_lifetime_owner(reference, caller)
-                    .map_err(Diagnostic::error)?;
-                program
-                    .expression_table
-                    .set_constructed_value_type_reference(expression, reference);
-            }
+        if let Some(borrow) = program.expression_table.borrow_expression(expression).copied() {
+            retain_borrow_type(program, caller, expression, borrow)?;
             continue;
         }
         let Some(mut input) = CallInput::expression(program, expression, None) else {
@@ -232,25 +215,65 @@ pub(crate) fn prepare_in_cohort(
     Ok(())
 }
 
-/// Index and range lookup consumes the operand's complete declared type, not
-/// its storage carrier. Run after application views and casts are normalized:
-/// a template field has no applied type to retain during constructor inference.
-pub(crate) fn retain_indexed_operand_types_in_cohort(
+/// Resolve projections in expression order after application fields and casts
+/// have their declared types. A borrow of a newly typed range retains the
+/// actual element and access at the point of formation.
+pub(crate) fn retain_projection_types_in_cohort(
     program: &mut TypedTrees,
     frontier: usize,
     owners: &crate::expressions::operand_owners::CohortOperandOwners,
 ) -> Result<(), Diagnostic> {
-    let operands = program
+    let projections = program
         .expression_table
         .iter_expressions_from(frontier + 1)
-        .filter_map(|(expression, node)| match node {
-            ExpressionNode::Indexed(_) => Some(expression),
-            _ => None,
+        .filter_map(|(expression, node)| {
+            match node {
+                ExpressionNode::Indexed(_) => Some((expression, None)),
+                ExpressionNode::Borrow(borrow) if !program.type_reference_table.contains_type_reference(
+                    program.expression_table.constructed_value_type_reference(expression),
+                ) => Some((expression, Some(*borrow))),
+                _ => None,
+            }
         })
         .collect::<Vec<_>>();
     let mut declared = crate::types::typing_queries::DeclaredExpressionTypes::default();
-    for expression in operands {
-        retain_indexed_operand_type(program, owners, &mut declared, expression)?;
+    for (expression, borrow) in projections {
+        if let Some(borrow) = borrow {
+            if let Some(owner) = expression_owner(program, owners, expression) {
+                retain_borrow_type(program, owner, expression, borrow)?;
+            }
+        } else {
+            retain_indexed_operand_type(program, owners, &mut declared, expression)?;
+        }
+    }
+    Ok(())
+}
+
+fn retain_borrow_type(
+    program: &mut TypedTrees,
+    caller: SymbolHandle,
+    expression: ExpressionHandle,
+    borrow: TableBorrowExpression,
+) -> Result<(), Diagnostic> {
+    // The destination may attenuate the reference. Its parent loan carries
+    // the written formation's actual referent, access and lifetime owner.
+    let referent = match crate::types::typing_queries::declared_expression_type(
+        program,
+        caller,
+        borrow.target,
+    ) {
+        Some(reference) => Some(reference),
+        None => infer(program, borrow.target, &mut Vec::new())?,
+    };
+    if let Some(referent) = referent {
+        let reference = reference_formation_type(program, referent, borrow.access);
+        program
+            .type_reference_table
+            .retain_operand_lifetime_owner(reference, caller)
+            .map_err(Diagnostic::error)?;
+        program
+            .expression_table
+            .set_constructed_value_type_reference(expression, reference);
     }
     Ok(())
 }
@@ -1993,6 +2016,9 @@ mod tests {
                 "client.omg",
                 "use kit/overloads.omg as kit; machine ordinary(bytes: @mutable [u8; 3]) { |kit|::pick(bytes[..]); } \
                  machine exclusive(bytes: @mutable [u8; 3]) { sink(@mutable bytes[..]); } \
+                 data Batch<const Count: u64> { storage: [u8; Count]; } \
+                 machine consume_closed(row: @mutable Batch<2>) { sink(@mutable row.storage[..]); } \
+                 machine consume_family<const N: u64>(row: @mutable Batch<N>) { sink(@mutable row.storage[..]); } \
                  machine sink(value: @mutable [u8]) {}",
             ),
         ])
@@ -2045,7 +2071,7 @@ mod tests {
                 expected
             );
         }
-        assert_eq!((ranges, formations), (2, 1));
+        assert_eq!((ranges, formations), (4, 3));
         let (target, _) = owned_call(&program, "ordinary");
         let callee = program
             .machine_by_symbol(target)
@@ -2103,20 +2129,17 @@ mod tests {
             public machine view(values: @[u64]) {}
         "#;
         let client = r#"
-            use kit\pick;
-            use kit\borrow;
-            use kit\array;
-            use kit\view;
-            machine expression(value: u32) -> u32 { kit\pick(value) }
-            machine statement(value: u64) { kit\pick(value); }
-            machine terminal(value: u32) -> u32 { transition { _ -> kit\pick(value) } }
-            machine shared(value: @u32) { kit\borrow(value); }
-            machine exclusive(value: @mutable u32) { kit\borrow(value); }
-            machine array_value(value: u64) { kit\array([value]); }
-            machine slice_view(value: @[u32]) { kit\view(value); }
-            machine before_local(value: u32) { kit\pick(value); let kit: u32 = 0; }
+            use kit/overloads.omg as kit;
+            machine expression(value: u32) -> u32 { |kit|::pick(value) }
+            machine statement(value: u64) { |kit|::pick(value); }
+            machine terminal(value: u32) -> u32 { transition { _ -> |kit|::pick(value) } }
+            machine shared(value: @u32) { |kit|::borrow(value); }
+            machine exclusive(value: @mutable u32) { |kit|::borrow(value); }
+            machine array_value(value: u64) { |kit|::array([value]); }
+            machine slice_view(value: @[u32]) { |kit|::view(value); }
+            machine before_local(value: u32) { |kit|::pick(value); let kit: u32 = 0; }
             machine expression_before_local(value: u32) -> u32 {
-                let result_value: u32 = kit\pick(value);
+                let result_value: u32 = |kit|::pick(value);
                 let kit: u32 = 0;
                 result_value
             }
@@ -2303,29 +2326,29 @@ mod tests {
     }
 
     #[test]
-    fn qualified_machine_headers_use_resolved_namespace_ownership() {
+    fn file_qualified_calls_preserve_ordinary_and_data_ownership() {
         let mut program = checked(&[
-            ("converted/namespace.omg", ""),
             (
                 "operations.omg",
                 r#"
-                public machine converted\pick(value: u32) -> u32 { value }
-                public machine converted\pick(value: u32) -> u32 in Saturating { value }
+                public machine pick(value: u32) -> u32 { value }
+                public machine pick(value: u32) -> u32 in Saturating { value }
                 public data Owned {}
                 public machine Owned::pick(value: u32) -> u32 { value }
                 public machine Owned::pick(value: u32) -> u32 in Saturating { value }
+                machine data_call(value: u32) {
+                    let selected: u32 in Saturating = Owned::pick(value);
+                }
             "#,
             ),
             (
                 "client.omg",
                 r#"
                 use operations.omg as ops;
-                use converted;
-                use converted\pick;
                 machine namespace_call(value: u32) {
-                    let selected: u32 in Saturating = converted\pick(value);
+                    let selected: u32 in Saturating = |ops|::pick(value);
                 }
-                machine data_call(value: u32) {
+                machine foreign_data_call(value: u32) {
                     let selected: u32 in Saturating = |ops|::Owned::pick(value);
                 }
             "#,
@@ -2336,10 +2359,7 @@ mod tests {
         let selected = program
             .machine_by_own_or_state_symbol(target)
             .expect("module member selected");
-        assert!(
-            selected.attached_data.is_some(),
-            "the parser retains its written prefix"
-        );
+        assert!(selected.attached_data.is_none());
         assert!(!selected.has_data_owner());
         assert_eq!(
             program
@@ -2353,6 +2373,10 @@ mod tests {
                 .iter()
                 .any(|machine| machine.has_data_owner()),
             "control has real data attachment"
+        );
+        assert!(
+            !owned_call(&program, "foreign_data_call").0.is_valid(),
+            "file qualification cannot expose a retired data-attached machine",
         );
         let (data_target, _) = owned_call(&program, "data_call");
         let data_owned = program.machine_by_own_or_state_symbol(data_target).unwrap();
@@ -2414,11 +2438,11 @@ mod tests {
             public machine choose<'text>(value: @'text u32) -> u32 { 64u32 }
         "#;
         let client = r#"
-            use kit;
-            machine stored<'text>(value: kit\Payload<'text>) -> u32 { kit\choose(value) }
-            machine shared(value: @u32) -> u32 { kit\choose(value) }
-            machine incompatible(value: bool) -> u32 { kit\choose(value) }
-            machine access_mismatch(value: @mutable u32) -> u32 { kit\choose(value) }
+            use kit/overloads.omg as kit;
+            machine stored<'text>(value: |kit|::Payload<'text>) -> u32 { |kit|::choose(value) }
+            machine shared(value: @u32) -> u32 { |kit|::choose(value) }
+            machine incompatible(value: bool) -> u32 { |kit|::choose(value) }
+            machine access_mismatch(value: @mutable u32) -> u32 { |kit|::choose(value) }
         "#;
         let program = checked(&[("kit/overloads.omg", library), ("client.omg", client)])
             .expect("select actual lifetime-bound headers from their argument carriers");
@@ -2500,15 +2524,15 @@ mod tests {
             }
         "#;
         let client = r#"
-            use kit;
-            machine incompatible(value: bool) -> u32 { kit\pick(value) }
-            machine access_mismatch(value: u32) { kit\borrow(value); }
-            machine domain_mismatch(value: u32) { kit\domain_value(value); }
-            machine domain_match(value: u32 in Tagged) { kit\domain_value(value); }
-            machine array_reference(value: @[u32; 1]) { kit\view(value); }
-            machine parameter_shadow(kit: u32) { kit\pick(7u32); }
-            machine local_shadow() { let kit: u32 = 0; kit\pick(7u32); }
-            machine missing(value: u32) -> u32 { kit\absent(value) }
+            use kit/overloads.omg as kit;
+            machine incompatible(value: bool) -> u32 { |kit|::pick(value) }
+            machine access_mismatch(value: u32) { |kit|::borrow(value); }
+            machine domain_mismatch(value: u32) { |kit|::domain_value(value); }
+            machine domain_match(value: u32 in |kit|::Tagged) { |kit|::domain_value(value); }
+            machine array_reference(value: @[u32; 1]) { |kit|::view(value); }
+            machine parameter_shadow(kit: u32) { kit.pick(7u32); }
+            machine local_shadow() { let kit: u32 = 0; kit.pick(7u32); }
+            machine missing(value: u32) -> u32 { |kit|::absent(value) }
             machine pick(value: bool) -> bool { value }
             machine nested_mismatch(value: bool) -> bool {
                 pick(value)
@@ -2612,17 +2636,15 @@ mod tests {
                 .request;
             assert_eq!(
                 request,
-                if owner == "missing" {
+                if matches!(owner, "missing" | "parameter_shadow" | "local_shadow") {
                     crate::source_state::deferred_refusals::DeferredRequest::UndeclaredCallName
-                } else if matches!(owner, "parameter_shadow" | "local_shadow") {
-                    crate::source_state::deferred_refusals::DeferredRequest::ReceiverCallSelection
                 } else {
                     crate::source_state::deferred_refusals::DeferredRequest::UnresolvedCallTarget
                 },
                 "{owner}"
             );
         }
-        let Err(error) = checked(&[
+        let explicit = checked(&[
             (
                 "left/pick.omg",
                 "public machine pick(value: u32) -> u32 { value }",
@@ -2633,11 +2655,13 @@ mod tests {
             ),
             (
                 "client.omg",
-                "use left\\pick; use right\\pick; machine ambiguous(value: u32) -> u32 { pick(value) }",
+                "use left/pick.omg as left; use right/pick.omg as right; machine from_left(value: u32) -> u32 { |left|::pick(value) } machine from_right(value: u32) -> u32 { |right|::pick(value) } machine unqualified(value: u32) -> u32 { pick(value) }",
             ),
-        ]) else {
-            panic!("equal participating signatures cannot select a representative")
-        };
-        assert!(error.contains("more than one declared machine"), "{error}");
+        ]).unwrap();
+        let left = owned_call(&explicit, "from_left").0;
+        let right = owned_call(&explicit, "from_right").0;
+        assert!(left.is_valid() && right.is_valid());
+        assert_ne!(left, right);
+        assert!(!owned_call(&explicit, "unqualified").0.is_valid());
     }
 }

@@ -215,7 +215,6 @@ fn remap_machine_declaration(
 pub(crate) fn declare(
     typed: &TypedTrees,
     program: &crate::read::Program<'_>,
-    outcomes: &arena::IdTable<MachineId, crate::body::outcome::Outcome>,
     binder_reach: &arena::IdTable<MachineId, BinderReach>,
     checking_envelopes: &IdTable<
         MachineId,
@@ -355,7 +354,7 @@ pub(crate) fn declare(
                         return Err("the machine has no completed operational envelope");
                     }
                 };
-                let (mut declaration, application) = declaration(
+                let (mut declaration, mut application) = declaration(
                     typed,
                     sources,
                     *symbol,
@@ -376,6 +375,13 @@ pub(crate) fn declare(
                     (identities, build_file_digests),
                 )?;
                 let Some(term) = generic else {
+                    if let Some(application) = &mut application
+                        && machine.module_invocations().any(|call| call.static_reach_binding.is_some())
+                    {
+                        application.fixed = Some(terminal_semantics::static_reach::fixed_specialization_reach(
+                            &elaboration.module, machine,
+                        )?);
+                    }
                     return Ok(PreparedDeclaration::Runtime(declaration, application));
                 };
                 if application.is_some() {
@@ -519,12 +525,7 @@ pub(crate) fn declare(
         match stated {
             Ok(PreparedDeclaration::Runtime(declaration, application)) => {
                 machine.declaration = Some(declaration);
-                if let Some(mut application) = application {
-                    application.fixed = outcomes
-                        .get(machine.id)
-                        .ok_or("a prepared application has no exact reach outcome")?
-                        .fixed_service_reach
-                        .clone();
+                if let Some(application) = application {
                     prepared.push((machine.id, application));
                 }
             }

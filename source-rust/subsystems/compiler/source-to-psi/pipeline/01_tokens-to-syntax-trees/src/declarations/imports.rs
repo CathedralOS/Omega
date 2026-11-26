@@ -59,7 +59,7 @@ pub(crate) fn parse_use_item<'tokens, 'source>(
         ));
     }
     Ok((
-        UseItem::File {
+        UseItem {
             qualifiers: Vec::new(),
             root,
             components,
@@ -102,28 +102,13 @@ pub(crate) fn reject_packed_contract_imports(
         PACKED_INTEGER_CONTRACTS_COMPONENTS, PACKED_INTEGER_CONTRACTS_ROOT,
     };
     for handle in &roots.items[roots.import_range.clone()] {
-        let (root, components, span) = match trees.root_item(*handle) {
-            syntax_trees::item::Item::Use(UseItem::File {
-                root,
-                components,
-                span,
-                ..
-            }) => (
-                root.as_ref().map(|root| root.as_str(trees)),
-                *components,
-                *span,
-            ),
-            syntax_trees::item::Item::Use(UseItem::Namespace { path }) => {
-                let Some(head) = trees.items.identifier_path_members(*path).first() else {
-                    continue;
-                };
-                (None, *path, head.source_span())
-            }
-            _ => continue,
+        let syntax_trees::item::Item::Use(import) = trees.root_item(*handle) else {
+            continue;
         };
+        let root = import.root.as_ref().map(|name| name.as_str(trees));
         let written: Vec<&str> = trees
             .items
-            .identifier_path_members(components)
+            .identifier_path_members(import.components)
             .iter()
             .map(|component| component.as_str(trees))
             .collect();
@@ -141,7 +126,7 @@ pub(crate) fn reject_packed_contract_imports(
             return Err(ParseError::at_source_span(
                 "core `assembly_packed_integer.omg` holds the checked asm instruction contracts; \
                  write the instruction in an `asm { ... }` region instead of importing the file",
-                span,
+                import.span,
             ));
         }
     }
@@ -167,7 +152,7 @@ pub(crate) fn import_packed_contracts(
                 .append_identifier_path_member(Identifier::new(component, site)),
         );
     }
-    let item = syntax_trees::item::Item::Use(UseItem::File {
+    let item = syntax_trees::item::Item::Use(UseItem {
         root: Some(Identifier::new(PACKED_INTEGER_CONTRACTS_ROOT, site)),
         components,
         alias: Identifier::new(PACKED_INTEGER_CONTRACTS_ALIAS, site),
@@ -196,9 +181,7 @@ pub(crate) fn check_file_aliases(
     let mut aliases = roots.items[roots.import_range.clone()]
         .iter()
         .filter_map(|root| {
-            if let syntax_trees::item::Item::Use(UseItem::File { alias, .. }) =
-                trees.root_item(*root)
-            {
+            if let syntax_trees::item::Item::Use(UseItem { alias, .. }) = trees.root_item(*root) {
                 Some(alias)
             } else {
                 None
@@ -234,10 +217,14 @@ pub(crate) fn mark_product_operand_imports(
 
     let mut occurrences = qualifiers.occurrences(trees, roots);
     for handle in &roots.items[roots.import_range.clone()] {
-        let Item::Use(UseItem::File { alias, .. }) = trees.root_item(*handle) else { continue };
-        let Some(uses) = occurrences.remove(alias.as_str(trees)) else { continue };
+        let Item::Use(UseItem { alias, .. }) = trees.root_item(*handle) else {
+            continue;
+        };
+        let Some(uses) = occurrences.remove(alias.as_str(trees)) else {
+            continue;
+        };
         let mut item = trees.root_item(*handle).clone();
-        if let Item::Use(UseItem::File { qualifiers, .. }) = &mut item {
+        if let Item::Use(UseItem { qualifiers, .. }) = &mut item {
             *qualifiers = uses;
         }
         trees.items.replace_item(*handle, item);

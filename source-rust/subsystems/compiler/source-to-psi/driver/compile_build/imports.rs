@@ -59,11 +59,10 @@ impl DeferredBuildImports {
 
 impl PendingBuildImport {
     fn refusal(&self) -> Diagnostic {
-        let message = match &self.target {
-            crate::SourceImportTarget::File {
-                root: None, path, ..
-            } => format!("no admitted logical file `{path}`"),
-            _ => format!("Build import `{}` has no supplied source", self.target),
+        let message = if self.target.root.is_none() {
+            format!("no admitted logical file `{}`", self.target.path)
+        } else {
+            format!("Build import `{}` has no supplied source", self.target)
         };
         Diagnostic::error(message).with_source_span(SourceSpan::new(self.source, self.span))
     }

@@ -83,7 +83,7 @@ machine inspect(layout: |layout|::Layout) {
     .unwrap();
     let mut filesystem = SourceFileSystem::new();
     filesystem.mount_exact_capture(core.clone(), Arc::new(capture)).unwrap();
-    let import = |index: usize| FileImport::from(unit, &unit.imports[index]).unwrap().unwrap();
+    let import = |index: usize| FileImport::from(unit, &unit.imports[index]);
     assert!(matches!(
         import(4).standalone(None, None, &filesystem).unwrap(),
         FileSelection::Selected(file) if file.path == core.join("layout.omg")
@@ -92,7 +92,7 @@ machine inspect(layout: |layout|::Layout) {
         let errors = import(index).standalone(None, Some(&graph), &filesystem).err().unwrap();
         assert!(errors[0].message.contains("no admitted package root"));
     }
-    let rooted = FileImport::from(unit, &unit.imports[1]).unwrap().unwrap();
+    let rooted = FileImport::from(unit, &unit.imports[1]);
     assert!(matches!(
         rooted
             .reconciled(
@@ -106,7 +106,7 @@ machine inspect(layout: |layout|::Layout) {
         FileSelection::Unbound
     ));
     let resolve = |index: usize| -> Result<Vec<ResolvedSourceImport>, Vec<Diagnostic>> {
-        let file = FileImport::from(unit, &unit.imports[index])?.expect("fixture selects a file");
+        let file = FileImport::from(unit, &unit.imports[index]);
         let selected = file.reconciled(
             &graph,
             Some(app),
@@ -117,7 +117,7 @@ machine inspect(layout: |layout|::Layout) {
         let FileSelection::Package(request) = selected else {
             panic!("a selected package file must come from its owner")
         };
-        request.resolve_for_exact_target(&graph, &mut Vec::new(), &Default::default())
+        request.resolve_for_exact_target(&graph, &Default::default())
     };
     assert_eq!(
         resolve(0)

@@ -10714,6 +10714,36 @@ impl TypedTrees {
         }
     }
 
+    /// The service's ordinary operand types use the same static binder positions
+    /// as the callable key. A closed receiver also supplies its trait arguments.
+    pub(crate) fn requirement_operand_type_identities(
+        &self,
+        scope: &crate::source_state::trait_definition::AppliedTraitScope<'_>,
+        signature: &crate::source_state::signature::StateSignature,
+    ) -> Vec<NormalizedTypeIdentity> {
+        let owner = scope.declaration;
+        let mut parameters = self.trait_type_parameters(owner).to_vec();
+        parameters.extend(
+            self.state_signature_type_parameters(signature)
+                .iter()
+                .cloned(),
+        );
+        let binders = callable_type_binders(owner.symbol, (&parameters).into());
+        self.state_signature_parameters(signature)
+            .iter()
+            .map(|formal| {
+                self.scoped_type_identity(
+                    TypeIdentityRequest {
+                        binders: &binders,
+                        substitutions: &scope.substitutions,
+                        ..TypeIdentityRequest::ordinary(formal.type_reference)
+                    },
+                    &scope.substitution_scope_starts,
+                )
+            })
+            .collect()
+    }
+
     fn trait_requirement_callable_identity_parts(
         &self,
         trait_definition: &TraitDefinition,

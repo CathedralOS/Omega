@@ -3037,7 +3037,7 @@ mod equality_identity_tests {
 
     #[test]
     fn qualified_record_operands_keep_their_exact_domains() {
-        let source = "data Point<T> [copy] { x: i32; } domain i32::A; domain i32::B; AEquality satisfies Equatable<Point<i32 in A>> { } machine compare(left: Point<i32 in A>, right: Point<i32 in A>) -> bool { left == right }";
+        let source = "use {omega}/language/core/equality.omg; data Point<T> [copy] { x: i32; } domain i32::A; domain i32::B; AEquality satisfies |equality|::Equatable<Point<i32 in A>> { } machine compare(left: Point<i32 in A>, right: Point<i32 in A>) -> bool { left == right }";
         let checked =
             crate::qualified_operator_home_tests::checked_with_equality(&[("main.omg", source)]);
         assert!(checked.is_ok(), "{checked:?}");

@@ -552,23 +552,12 @@ impl SyntaxCopy<'_> {
                     },
                 },
             }),
-            Item::Use(use_item) => Item::Use(match use_item {
-                UseItem::Namespace { path } => UseItem::Namespace {
-                    path: self.copy_item_identifier_span(other, *path),
-                },
-                UseItem::File {
-                    root,
-                    components,
-                    alias,
-                    span,
-                    qualifiers,
-                } => UseItem::File {
-                    qualifiers: qualifiers.clone(),
-                    root: root.clone(),
-                    components: self.copy_item_identifier_span(other, *components),
-                    alias: alias.clone(),
-                    span: *span,
-                },
+            Item::Use(import) => Item::Use(UseItem {
+                root: import.root.clone(),
+                components: self.copy_item_identifier_span(other, import.components),
+                alias: import.alias.clone(),
+                qualifiers: import.qualifiers.clone(),
+                span: import.span,
             }),
             Item::Machine(machine) => Item::Machine(self.copy_machine(other, machine)),
             Item::Trait(trait_definition) => {

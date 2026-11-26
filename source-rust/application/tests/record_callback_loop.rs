@@ -1,7 +1,7 @@
 //! Copied loop bodies retain the exact selected operation.
 
-#[path = "support/build_fixture.rs"]
-mod build_fixture;
+#[path = "support/program.rs"]
+mod program;
 mod support;
 
 fn fixture_path(tier: &str) -> std::path::PathBuf {
@@ -13,12 +13,12 @@ fn fixture_path(tier: &str) -> std::path::PathBuf {
 
 #[test]
 fn record_callback_loop_run_in_both_engines() {
-    build_fixture::assert_silent_return(&fixture_path("run"));
+    program::assert_fixture_silent_return(&fixture_path("run"));
 }
 
 #[test]
 fn a_selected_operation_keeps_its_required_borrow_access() {
-    let (output, report) = build_fixture::check(&fixture_path("fail"));
+    let (output, report) = program::check_fixture(&fixture_path("fail"));
     assert!(!output.status.success(), "{report}");
     assert!(
         report.contains("member signature differs from its requirement"),

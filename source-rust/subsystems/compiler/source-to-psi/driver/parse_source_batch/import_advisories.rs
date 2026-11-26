@@ -59,7 +59,7 @@ impl FileImportAdvisories {
     ) {
         let syntax = &stage.syntax.trees;
         for handle in syntax.root_item_handles() {
-            let Item::Use(UseItem::File {
+            let Item::Use(UseItem {
                 span,
                 alias,
                 qualifiers,
