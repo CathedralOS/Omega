@@ -15,8 +15,8 @@ pub use checkpoint::ProductEntrySources;
 
 use crate::PackageCompilationInputs;
 use crate::source::source_imports::{
-    ImportQueue, PackageImportPhase, PendingPackageImport, SourceStorage, discover_imports,
-    discover_package_imports,
+    GeneratedFiles, ImportQueue, PackageImportPhase, PendingPackageImport, SourceStorage,
+    discover_imports, discover_package_imports,
 };
 use artifacts::compile_timings::CompileTimings;
 use diagnostics::Diagnostic;
@@ -257,9 +257,8 @@ impl ImmutableSourceParseCheckpoint {
             Some(package_inputs) => admit_generated_files(
                 &mut source_storage,
                 &mut imports,
-                package_inputs,
-                own_files,
-                source_scope,
+                GeneratedFiles::for_package(package_inputs, own_files, source_scope)?,
+                SourceRouting::Compilation { package_inputs: Some(package_inputs), phase: PackageImportPhase::FrozenView },
                 timings,
                 catalogue,
             )?,

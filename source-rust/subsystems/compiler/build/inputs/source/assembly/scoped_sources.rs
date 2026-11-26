@@ -1,10 +1,10 @@
 //! Select from one capture using the libraries supplied for Build or requested for Product.
 
-use super::generated::append_stage_generated_sources;
+use super::generated::admit_generated_files;
 use super::imports::{SourceRouting, load_source_frontiers, parse_admitted};
 use super::toolchain::{append_build_prelude, seed_core_vocabulary, sources_mention_floats};
 use super::{AssembledSyntax, BuildSourceSelection, BuildStageAcquisition, DeferredProductSources};
-use crate::source::source_imports::{ImportQueue, SourceStorage};
+use crate::source::source_imports::{GeneratedFiles, ImportQueue, SourceStorage};
 use artifacts::compile_timings::CompileTimings;
 use diagnostics::Diagnostic;
 use std::sync::Arc;
@@ -52,8 +52,14 @@ impl super::ImmutableSourceParseCheckpoint {
             imports.mark_loaded(&source.path, source.dependency_scope);
         }
         imports.enqueue(discovered)?;
-        let generated =
-            append_stage_generated_sources(&mut storage, &mut imports, inputs, timings, catalogue)?;
+        let generated = admit_generated_files(
+            &mut storage,
+            &mut imports,
+            GeneratedFiles::for_build_libraries(inputs)?,
+            SourceRouting::Query(inputs),
+            timings,
+            catalogue,
+        )?;
         Ok(ReselectedSources {
             generated,
             storage,

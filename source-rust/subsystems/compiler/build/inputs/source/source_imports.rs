@@ -32,7 +32,7 @@ pub(crate) use bindings::{
 pub(crate) use build_prelude::prepare_build_prelude;
 pub(crate) use entry_contract_seed::seed_entry_contracts;
 pub(crate) use frontier::{InstalledSourceRoots, SourceStorage, validate_package_source_frontier};
-pub(crate) use generated::{collect_generated_files, generated_file_path};
+pub(crate) use generated::GeneratedFiles;
 
 pub(crate) use import_queue::ImportQueue;
 pub(crate) use logical::{LogicalSourceDiscovery, retained_unit};
