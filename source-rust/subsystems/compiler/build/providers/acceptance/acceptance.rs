@@ -8,35 +8,8 @@ use semantic_vocabulary::{
     provider_identity::{ProviderPlanDigest, ServiceSchemaDigest},
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
-pub enum AcceptedSemanticBindingRole {
-    ConsoleIo, // Explicit Console input/output policy; grants no process termination.
-    ProcessExitExitProcessI32, // Target-independent recognition of the canonical core `ProcessExit` boundary requirement realized by the bound package's provider.
-    FilesystemHostService, // Exact package-owned raw filesystem service classified as filesystem authority.
-    TimeHostService,       // Exact package-owned raw clock service.
-}
-
-impl AcceptedSemanticBindingRole {
-    /// Package locks and prepared dependency identities bind this role tag.
-    pub const fn canonical_tag(self) -> u8 {
-        match self {
-            Self::ConsoleIo => 10,
-            Self::ProcessExitExitProcessI32 => 1,
-            Self::FilesystemHostService => 2,
-            Self::TimeHostService => 3,
-        }
-    }
-
-    pub const fn from_canonical_tag(tag: u8) -> Option<Self> {
-        Some(match tag {
-            10 => Self::ConsoleIo,
-            1 => Self::ProcessExitExitProcessI32,
-            2 => Self::FilesystemHostService,
-            3 => Self::TimeHostService,
-            _ => return None,
-        })
-    }
-}
+mod service_roles;
+pub use service_roles::AcceptedSemanticBindingRole;
 
 #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
 pub struct AcceptedSemanticBinding {
@@ -210,24 +183,6 @@ impl AcceptedSemanticBinding {
 mod tests {
     use super::*;
     use semantic_vocabulary::{TerminalAuthorityClass, TerminalAuthorityDisposition};
-
-    #[test]
-    fn reviewed_binding_roles_keep_their_persisted_tags() {
-        use AcceptedSemanticBindingRole::*;
-        for tag in 0..=u8::MAX {
-            let role = match tag {
-                1 => Some(ProcessExitExitProcessI32),
-                2 => Some(FilesystemHostService),
-                3 => Some(TimeHostService),
-                10 => Some(ConsoleIo),
-                _ => None,
-            };
-            assert_eq!(AcceptedSemanticBindingRole::from_canonical_tag(tag), role);
-            if let Some(role) = role {
-                assert_eq!(role.canonical_tag(), tag);
-            }
-        }
-    }
 
     #[test]
     fn console_io_permission_cannot_grant_process_exit() {
