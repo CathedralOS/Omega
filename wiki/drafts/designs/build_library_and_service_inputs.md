@@ -2,6 +2,23 @@
 
 A release program, its interpreted Build, its product and each dependency Build have separate authority. The [program launch contract](../../spec/build/program_launch.md) settles host tool access. The [staged package input contract](../../spec/packages/staged_inputs.md) defines the library handoff and who supplies each binding.
 
+## Public Build vocabulary
+
+The [project role](../../spec/build/declarations.md#project-role) gives the
+entry one mutable `BuildPlan` and puts the product on that plan. The target
+public spellings are `BoundaryServiceReference` for the current
+`BoundaryServiceRef` and `Filesystem` for the system package's
+`FilesystemService` requirement. Console and filesystem providers follow the
+same selection rules. Qualify the interpreter target so readers can recognize
+its role at the call site. `BuildTarget::Interpreter` illustrates the intent.
+The target representation and a replacement name for `DependencyDescription`
+remain open.
+
+Disk-backed invocations come first. The public API for constructing a virtual
+filesystem, handing private backing to a successor, and choosing backing via
+command-line arguments is deferred. Filesystem examples below illustrate
+ownership and admission requirements for a future interface.
+
 ## A library for whom?
 
 The root invoker supplies the libraries its Build source can use. A parent supplies the corresponding bindings for a child before that child starts. Local `use tables.omg;` selects an existing local file. External `use {generator}/tables.omg;` selects a file through a previously supplied package alias. Neither import fetches code. The parent can also register a product dependency while it runs. That registration makes the library available to the later product compilation. A child package having its own `build.omg` says nothing about whether its parent consumes it as a Build library or a product library.
