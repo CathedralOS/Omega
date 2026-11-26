@@ -162,11 +162,14 @@ pub struct ReturnedPlanningStage {
 /// and observations stay with the eventual Product, separate from its own settings.
 #[derive(Default)]
 struct BuildPreparations {
+    supplied_package: bool,
+    first_stage_in_package: usize,
     demanded_programs: Vec<package_compilation::DelegatedProgram>,
     stages: Vec<(build_declarations::BuildEntryPath, EvaluatedBuild)>,
     files: Vec<std::path::PathBuf>,
     entries: Vec<(
         std::path::PathBuf,
+        String,
         Vec<package_compilation::source_imports::SuppliedBuildLibrary>,
         source_compiler::InterpretedProviderSelections,
         std::collections::BTreeSet<language_core::core_vocabulary::UnsafeAtom>,
@@ -175,6 +178,7 @@ struct BuildPreparations {
 
 /// Only the Build that returned this entry can issue its source view and incoming bindings.
 pub struct PreparedSuccessor {
+    issuer: package_compilation::CapturedLocalSource,
     enabled_unsafe_atoms: std::collections::BTreeSet<language_core::core_vocabulary::UnsafeAtom>,
     source_owner: Option<package_compilation::CompletedAnonymousSource>,
     providers: source_compiler::InterpretedProviderSelections,
@@ -185,6 +189,17 @@ pub struct PreparedSuccessor {
 }
 
 impl PreparedSuccessor {
+    /// Only the acquisition that issued this preparation may adopt its successor's source.
+    pub fn capture_for(
+        &self,
+        issuer: &package_compilation::CapturedLocalSource,
+    ) -> Result<&package_compilation::CapturedLocalSource, String> {
+        if self.issuer != *issuer {
+            return Err("successor directory was issued by another source acquisition".into());
+        }
+        Ok(&self.capture)
+    }
+
     pub fn path(&self) -> &std::path::Path {
         &self.path
     }
@@ -195,10 +210,10 @@ impl ReturnedPlanningStage {
         self,
         libraries: Vec<package_compilation::source_imports::SuppliedBuildLibrary>,
     ) -> Result<PreparedSuccessor, CompileFailure> {
+        let directory = self.returned.successor_directory().cloned();
         let (entry, capture) = self.returned.successor_source().map_err(refusal)?;
         let entry = entry.clone();
         let capture = capture.clone();
-        let path = capture.canonical_live_root().join(entry.as_str());
         let mut preparations = self.preparations;
         preparations
             .demanded_programs
@@ -207,14 +222,42 @@ impl ReturnedPlanningStage {
             .evaluation
             .complete_successor(self.returned, &libraries)?;
         let mut source = self.source;
+        let issuer = capture.clone();
+        preparations.supplied_package |= directory.is_some();
+        let capture = match directory {
+            Some(directory) => {
+                let staging = evaluated
+                    .configuration
+                    .observation_summary
+                    .as_ref()
+                    .and_then(|summary| summary.staged_output_tree());
+                let next = directory
+                    .freeze(capture.canonical_live_root(), staging)
+                    .map_err(refusal)?;
+                if next == capture {
+                    source
+                        .retain_build_files(capture.canonical_live_root(), &mut preparations.files);
+                } else {
+                    preparations.files.clear();
+                    preparations.first_stage_in_package = preparations.stages.len() + 1;
+                }
+                next
+            }
+            None => {
+                source.retain_build_files(capture.canonical_live_root(), &mut preparations.files);
+                capture
+            }
+        };
+        let path = capture.canonical_live_root().join(entry.as_str());
+        let identity = &capture.normalized().content_identity;
         let (providers, source_owner) =
             source.successor_provider_selections(&entry, &libraries, &evaluated)?;
         let enabled_unsafe_atoms = evaluated.configuration.enabled_unsafe_atoms.clone();
         if preparations
             .entries
             .iter()
-            .any(|(file, inputs, choices, atoms)| {
-                file == &path
+            .any(|(file, content, inputs, choices, atoms)| {
+                file == &path && content == identity
                     && inputs == &libraries
                     && choices == &providers
                     && atoms == &enabled_unsafe_atoms
@@ -224,12 +267,12 @@ impl ReturnedPlanningStage {
                 path.display()
             )));
         }
-        source.retain_build_files(capture.canonical_live_root(), &mut preparations.files);
         preparations.stages.push((entry, evaluated));
         preparations
             .entries
-            .push((path.clone(), libraries.clone(), providers.clone(), enabled_unsafe_atoms.clone()));
+            .push((path.clone(), identity.clone(), libraries.clone(), providers.clone(), enabled_unsafe_atoms.clone()));
         Ok(PreparedSuccessor {
+            issuer,
             enabled_unsafe_atoms,
             source_owner,
             providers,

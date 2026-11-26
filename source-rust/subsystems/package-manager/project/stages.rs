@@ -23,6 +23,7 @@ impl SourceHost<'_, '_> {
                 crate::transaction::restricted_build::dependency_subject(acquired, purpose)
             })
             .transpose()?;
+        let mut receiving = acquired.clone();
         let source = acquired.source_capture();
         let mut sources = PlanningSources::CapturedWithLibraries {
             source,
@@ -79,7 +80,7 @@ impl SourceHost<'_, '_> {
                 stage,
                 &mut services::SourceServices {
                     host: self,
-                    acquired,
+                    acquired: &receiving,
                     requests: &mut requests,
                 },
             )?;
@@ -87,6 +88,7 @@ impl SourceHost<'_, '_> {
                 .record_source_completion(stage.source_completion_accounting().clone());
             let Some(next_entry) = stage.returned().successor_entry().cloned() else {
                 return Ok(ExecutedBuild {
+                    receiving,
                     stage,
                     requests,
                     preparations,
@@ -94,9 +96,10 @@ impl SourceHost<'_, '_> {
             };
             self.acquisitions.admit_successor()?;
             let (libraries, inputs) =
-                self.successor_inputs(acquired, stage.returned(), requests)?;
+                self.successor_inputs(&receiving, stage.returned(), requests)?;
             preparations.push((next_entry, inputs));
             let successor = stage.finish_successor(libraries)?;
+            receiving.follow_successor(&successor)?;
             path = successor.path().to_owned();
             sources = PlanningSources::Successor(successor);
         }

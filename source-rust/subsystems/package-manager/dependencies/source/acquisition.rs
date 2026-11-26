@@ -476,6 +476,7 @@ pub(crate) struct SourceAcquisitionOrigin<'source> {
 #[derive(Clone)]
 pub struct AcquiredBuildSource {
     pub(super) capture: CapturedLocalSource,
+    pub(super) successor_capture: Option<CapturedLocalSource>,
     pub(super) lineage: SourceLineage,
     pub(super) limits: LocalSourceLimits,
     pub(super) resolution: ImmutableSourceResolution,
@@ -628,6 +629,7 @@ impl AcquiredBuildSource {
             source_context: context,
         };
         Ok(Self {
+            successor_capture: None,
             capture,
             lineage,
             limits,
@@ -667,6 +669,7 @@ impl AcquiredBuildSource {
         )
         .map_err(|error| error.to_string())?;
         Ok(Self {
+            successor_capture: None,
             capture,
             lineage: source.lineage().clone(),
             limits: source.source_limits(),
@@ -678,7 +681,16 @@ impl AcquiredBuildSource {
     }
 
     pub fn source_capture(&self) -> &CapturedLocalSource {
-        &self.capture
+        self.successor_capture.as_ref().unwrap_or(&self.capture)
+    }
+
+    pub(crate) fn follow_successor(
+        &mut self,
+        successor: &project_build::PreparedSuccessor,
+    ) -> Result<(), String> {
+        let next = successor.capture_for(self.source_capture())?;
+        self.successor_capture = (next != &self.capture).then(|| next.clone());
+        Ok(())
     }
 
     pub fn bind_returned_build(
@@ -754,14 +766,15 @@ impl AcquiredBuildSource {
             PackageKey::new(name.clone().into(), self.lineage.clone()),
             declaration.kind(),
             self.resolution.clone(),
-            super::PackageSourceMaterialization::from_local(self.capture.normalized()),
-            self.capture.canonical_live_root().to_path_buf(),
+            super::PackageSourceMaterialization::from_local(self.source_capture().normalized()),
+            self.source_capture().canonical_live_root().to_path_buf(),
             self.navigation.clone(),
             self.selection.clone(),
             self.limits,
             requests,
         )
-        .with_captured_source(std::sync::Arc::clone(self.capture.tree()));
+        .with_captured_source(std::sync::Arc::clone(self.source_capture().tree()))
+        .with_preparing_source(self.successor_capture.as_ref().map(|_| self.capture.clone()));
         Ok(DeclaredBuildSource {
             backings: Default::default(),
             custody,

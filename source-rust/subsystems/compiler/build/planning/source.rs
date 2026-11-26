@@ -215,6 +215,9 @@ pub fn prepare(
             }
             execution.prepared_unsafe_atoms = successor.enabled_unsafe_atoms;
             execution.interpreter_providers = successor.providers;
+            if successor.preparations.supplied_package {
+                execution.snapshot = Some(package_compilation::BuildSnapshotRequest::new(package_compilation::BuildSnapshotCapture::PackageInventory));
+            }
             successor_source = successor.capture;
             successor_owner = successor.source_owner;
             preparations = successor.preparations;
@@ -284,7 +287,7 @@ pub fn prepare(
         };
     let evaluation = prepare_build_evaluation(
         BuildEvaluationRequest {
-            preceding_entries: preparations.stages.iter().map(|(_, stage)| {
+            preceding_entries: preparations.stages[preparations.first_stage_in_package..].iter().map(|(_, stage)| {
                 stage.configuration.executed_entry.as_ref().map(|entry| &entry.declaration).ok_or_else(|| {
                     refusal("a preparing Build lost its entered declaration".to_owned())
                 })

@@ -229,10 +229,11 @@ impl SourceHost<'_, '_> {
                 .map_err(refused)?;
             return Ok(i);
         }
-        let stage = self
+        let executed = self
             .member_or_execute(child, purpose, programs)
-            .map_err(failure)?
-            .stage;
+            .map_err(failure)?;
+        let child = &executed.receiving;
+        let stage = executed.stage;
         let required_programs = stage.used_programs();
         let declared = child.declare_build(stage.returned()).map_err(refused)?;
         declared.require_dependency().map_err(refused)?;

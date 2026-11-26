@@ -92,6 +92,7 @@ pub struct ReturnedBuild {
     original_sources: Option<Arc<OriginalBuildSources>>,
     pub(crate) identity: terminal_codec::TerminalExecutionIdentity,
     destination: Option<project::Destination>,
+    successor_directory: Option<package_compilation::build_execution::SuccessorDirectory>,
     pub(crate) source_join: Option<Arc<package_compilation::PackageCompilationSourceInputs>>,
     pub(crate) requests: Vec<IssuedBuildRequest>,
     pub(crate) validation_requests: Vec<BuildValidationRequest>,
@@ -175,6 +176,10 @@ impl ReturnedBuild {
             project::Destination::Successor(path) => Some(path),
             project::Destination::Project(_) => None,
         }
+    }
+
+    pub fn successor_directory(&self) -> Option<&package_compilation::build_execution::SuccessorDirectory> {
+        self.successor_directory.as_ref()
     }
 
     /// The default next source view is the immutable package this Build received.
@@ -861,6 +866,16 @@ impl TerminalBuildActivation {
             &self.requests,
             &self.host.requests,
         )?;
+        let successor_directory = project::successor_directory(
+            &self.instance,
+            &self.host.machine,
+            &self.host.filesystem,
+        )?;
+        if successor_directory.is_some()
+            && !matches!(destination, Some(project::Destination::Successor(_)))
+        {
+            return Err("package_root requires an interpreted Build product".into());
+        }
         if self.host.default_source {
             if destination.is_some() || !self.requests.is_empty() {
                 return Err("default Build changed the product supplied by its invoker".into());
@@ -905,6 +920,7 @@ impl TerminalBuildActivation {
             original_sources: self.host.original_sources.clone(),
             identity: self.host.produced.view().custody_identity(),
             destination,
+            successor_directory,
             source_join: self.host.default_sources.clone(),
             requests: self.requests,
             validation_requests: self.host.requests.validation_requests()?,

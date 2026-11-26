@@ -24,13 +24,17 @@ impl BuildSnapshotRequest {
     /// Resolved dependencies receive their sealed package inventory. A local
     /// invocation without an explicit inventory can read its required source.
     pub fn for_activation(dependency_activation: bool) -> Self {
+        Self::new(if dependency_activation {
+            BuildSnapshotCapture::PackageInventory
+        } else {
+            BuildSnapshotCapture::RequiredSources
+        })
+    }
+
+    pub fn new(capture: BuildSnapshotCapture) -> Self {
         Self {
             required_outputs: Vec::new(),
-            capture: if dependency_activation {
-                BuildSnapshotCapture::PackageInventory
-            } else {
-                BuildSnapshotCapture::RequiredSources
-            },
+            capture,
             inputs: BTreeMap::new(),
             product_source_directory: None,
         }

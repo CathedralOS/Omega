@@ -68,9 +68,16 @@ public data BuildProduct<'storage> {
     case InterpretedBuild(entry: @'storage [u8]);
 }
 
+// An issued BuildPath selects one directory in this activation's held view.
+public data BuildPackageRoot {
+    case Current;
+    case Directory(path: BuildPath);
+}
+
 // Stored views in this plan share one explicit backing lifetime.
 public data BuildPlan<'storage> {
     product: BuildProduct<'storage>;
+    package_root: BuildPackageRoot;
     seal: BuildSeal in Issued;
     x86_deployment_features: X86DeploymentFeatures;
     subsystem: Subsystem;

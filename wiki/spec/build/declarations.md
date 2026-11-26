@@ -169,8 +169,17 @@ within the parent's authority. A mapped directory is available to runtime
 filesystem calls. It does not supply a second package root. The grant ends
 at this successor unless explicitly delegated onward.
 
-For example, a parent can select a generated directory as `package_root` and
-`configure.omg` as its entry. If the parent also maps an SDK at `/sdk`
+A parent selects its generated package with an issued path. An empty relative
+path selects the held directory itself.
+
+```omega
+let generated: BuildPath = BuildOutput::resolve(@plan.output, "");
+plan.package_root = BuildPackageRoot::Directory { path: generated };
+plan.product = BuildProduct::InterpretedBuild { entry: "configure.omg" };
+```
+
+With the default `BuildPackageRoot::Current`, the entry belongs to the
+preparing Build's captured package. If the parent also maps an SDK at `/sdk`
 read-only, the successor can read SDK data while it runs. With an empty
 mapping list it can still import and read its generated `parser.omg`, while
 the parent's SDK and output directory stay private.

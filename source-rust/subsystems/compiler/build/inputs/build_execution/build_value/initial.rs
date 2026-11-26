@@ -29,6 +29,13 @@ pub(super) fn initial_value(
             },
         ),
         (
+            "package_root".to_owned(),
+            BuildTimeValue::Case {
+                variant: "Current".into(),
+                payload: Vec::new(),
+            },
+        ),
+        (
             "seal".to_owned(),
             BuildTimeValue::Struct {
                 type_name: "$OmegaBuildSeal".to_owned(),
