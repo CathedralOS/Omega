@@ -198,7 +198,33 @@ fn bundled_core_fixtures_resolve_their_authored_imports() {
     ));
     units.push((31, "imported.omg", "use {omega}/language/core/float_accuracy/float_accuracy.omg; machine imported(value: f32) { |float_accuracy|::classify_f32(value); }"));
     let program = packages(&units, &[])
-    .expect("bundled Core imports resolve against the admitted Core package");
+        .expect("bundled Core imports resolve against the admitted Core package");
+    let supply = program
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == "ResourceProfileSupply")
+        .expect("layout declares ResourceProfileSupply");
+    let profile = program
+        .trait_machine_signatures(supply)
+        .iter()
+        .find(|signature| signature.name.as_str() == "profile")
+        .expect("ResourceProfileSupply declares profile");
+    let [storage] = program.state_signature_parameters(profile) else {
+        panic!("profile takes only its storage parameter");
+    };
+    let types = &program.type_reference_table;
+    let crate::source_state::types::TypeReferenceNode::Reference { referee, .. } =
+        types.type_reference(storage.type_reference)
+    else {
+        panic!("profile borrows storage");
+    };
+    assert_eq!(
+        types
+            .unconstrained_named_symbol(*referee)
+            .and_then(|symbol| program.symbols.core_vocabulary(symbol)),
+        Some(language_core::core_vocabulary::CoreVocabulary::Extent),
+    );
+
     use crate::source_state::deferred_refusals::DeferredRequest;
     for (name, expected) in [
         ("unimported", Some(DeferredRequest::UndeclaredCallName)),
