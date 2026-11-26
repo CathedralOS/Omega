@@ -101,7 +101,12 @@ pub fn reverify(
     // proof found by the producer's full-context fallback uses its ordinals.
     if let Some(narrowed) = crate::connected(&goal, &hypotheses)
         && let Ok(evidence) = crate::verify(
-            &prepared.context, machine, obligation, goal.clone(), narrowed, saved.clone(),
+            &prepared.context,
+            machine,
+            obligation,
+            goal.clone(),
+            narrowed,
+            saved.clone(),
         )
     {
         return Ok(evidence);
@@ -152,13 +157,8 @@ pub fn reverify_at_call(
     )?;
     let row = terminal_check_tables::row(&tables.invocations, invocation, caller, concerns)?;
     let lowered = crate::terminal_machine(&elaboration.module.machines, caller, caller)?;
-    let call = crate::call_contracts::invocation(
-        &elaboration.module,
-        lowered,
-        tables,
-        invocation,
-        row,
-    )?;
+    let call =
+        crate::call_contracts::invocation(&elaboration.module, lowered, tables, invocation, row)?;
     let actuals = crate::scalar_actuals(&row.actuals);
     let verdicts =
         &terminal_check_tables::row(&discharge.machines, caller, caller, Construct::Machine)?
@@ -413,14 +413,16 @@ impl Transport<'_> {
                 .collect::<Option<Vec<_>>>()
         };
         Some(match proposition {
-            Proposition::DeclarationIdentity(clause) if clause.is_float_meaning() => Proposition::DeclarationIdentity(
-                clause
-                    .map_float_sources::<&'static str>(|source| {
-                        self.term(source)
-                            .ok_or("float meaning source cannot be transported")
-                    })
-                    .ok()?,
-            ),
+            Proposition::DeclarationIdentity(clause) if clause.is_float_meaning() => {
+                Proposition::DeclarationIdentity(
+                    clause
+                        .map_float_sources::<&'static str>(|source| {
+                            self.term(source)
+                                .ok_or("float meaning source cannot be transported")
+                        })
+                        .ok()?,
+                )
+            }
             Proposition::FloatIntegerConversion(clause) => {
                 let mut mapped = clause.clone();
                 mapped.source = self.term(&clause.source)?;
@@ -839,8 +841,7 @@ pub fn reverify_specialization(
     })?;
     let prepared = crate::prepare(formed, domains, specialization, tables)?;
     let tables = &*tables;
-    let lowered =
-        crate::terminal_machine(&module.machines, specialization, specialization)?;
+    let lowered = crate::terminal_machine(&module.machines, specialization, specialization)?;
     let mut references = prepared.references(&module.types.structural_types);
     let storage = crate::places::Storage::new(
         specialization,
@@ -1490,7 +1491,9 @@ fn leaf_terms<'p>(proposition: &'p Proposition, out: &mut Vec<&'p ScalarTerm>) -
     }
     match proposition {
         Proposition::Truth | Proposition::Falsehood => true,
-        Proposition::DeclarationIdentity(clause) if clause.is_float_meaning() => clause.float_sources().all(|source| term(source, out)),
+        Proposition::DeclarationIdentity(clause) if clause.is_float_meaning() => {
+            clause.float_sources().all(|source| term(source, out))
+        }
         Proposition::FloatIntegerConversion(clause) => {
             term(&clause.source, out) && term(&clause.result, out)
         }
@@ -1600,13 +1603,8 @@ impl<'a> Carry<'a> {
         point: terminal_check_tables::ProgramPoint,
         goal: Proposition,
     ) -> Checked<Evidence> {
-        let hypotheses = crate::hypotheses(
-            graph,
-            self.tables,
-            self.specialization,
-            obligation,
-            point,
-        )?;
+        let hypotheses =
+            crate::hypotheses(graph, self.tables, self.specialization, obligation, point)?;
         let proof = self.proof(obligation, kind, &goal, &hypotheses)?;
         let identity = EvidenceIdentity::new(obligation.get()).ok_or_else(|| {
             self.refuse(
@@ -1674,33 +1672,32 @@ impl Carry<'_> {
     /// constant where the generic body reads its formal, so it has a value
     /// the generic body does not, and is refused.
     fn corresponds(&self) -> Checked<()> {
-        let same_values = self
-            .template
-            .values
-            .len()
-            .checked_sub(self.instantiation.bound.len())
-            .is_some_and(|matched| {
-                self.tables.values.len() >= matched
-                    && self.tables.values.iter().skip(matched).all(|(_, row)| {
-                        row.rigid.is_none()
-                            && row.origin.is_storage_observation()
-                    })
-            })
-            && self.template.values.iter().all(|(value, theirs)| {
-                match self.instantiation.moved(value) {
-                    Some(Moved::Value(mine)) => self
-                        .tables
-                        .values
-                        .get(mine)
-                        .is_some_and(|mine| self.same_value(theirs, mine)),
-                    // A value parameter is a formal there, whether or not
-                    // the contract mentions it.
-                    Some(Moved::Literal(_)) | None => matches!(
-                        theirs.origin,
-                        terminal_check_tables::values::ValueOrigin::MachineParameter { .. }
-                    ),
-                }
-            });
+        let same_values =
+            self.template
+                .values
+                .len()
+                .checked_sub(self.instantiation.bound.len())
+                .is_some_and(|matched| {
+                    self.tables.values.len() >= matched
+                        && self.tables.values.iter().skip(matched).all(|(_, row)| {
+                            row.rigid.is_none() && row.origin.is_storage_observation()
+                        })
+                })
+                && self.template.values.iter().all(|(value, theirs)| {
+                    match self.instantiation.moved(value) {
+                        Some(Moved::Value(mine)) => self
+                            .tables
+                            .values
+                            .get(mine)
+                            .is_some_and(|mine| self.same_value(theirs, mine)),
+                        // A value parameter is a formal there, whether or not
+                        // the contract mentions it.
+                        Some(Moved::Literal(_)) | None => matches!(
+                            theirs.origin,
+                            terminal_check_tables::values::ValueOrigin::MachineParameter { .. }
+                        ),
+                    }
+                });
         let same_actuals =
             |mine: &[terminal_check_tables::edges::Actual],
              theirs: &[terminal_check_tables::edges::Actual]| {
@@ -1793,8 +1790,7 @@ impl Carry<'_> {
             .get(entry)
             .ok_or_else(|| unsupported("the conformance witness was not discharged"))?
             .verdicts;
-        let lowered =
-            crate::terminal_machine(&selection.witness.module.machines, entry, entry)?;
+        let lowered = crate::terminal_machine(&selection.witness.module.machines, entry, entry)?;
         let mut invocations = tables.invocations.iter();
         let (Some((invocation, row)), None) = (invocations.next(), invocations.next()) else {
             return Err(unsupported(
@@ -2404,27 +2400,47 @@ impl<'a> Donors<'a> {
     /// the order given; distinct variants per source machine are retained in
     /// donor order.
     pub(crate) fn new(donors: impl IntoIterator<Item = (&'a Elaboration, &'a Discharge)>) -> Self {
-        let mut raw = Vec::new();
-        for (elaboration, discharge) in donors {
-            for (machine, symbol) in elaboration.machines.iter() {
-                let (Ok(lowered), Some(tables), Some(discharged)) = (
-                    crate::terminal_machine(&elaboration.module.machines, machine, machine),
-                    elaboration.tables.machines.get(machine),
-                    discharge.machines.get(machine),
-                ) else {
-                    continue;
-                };
-                raw.push(Donation {
-                    symbol: symbol_key(*symbol),
-                    lowered,
-                    view: DonationView {
-                        tables,
-                        verdicts: &discharged.verdicts,
-                        windows: &discharged.windows,
-                    },
-                });
-            }
-        }
+        Self::from_machines(donors.into_iter().flat_map(|(elaboration, discharge)| {
+            elaboration
+                .machines
+                .iter()
+                .filter_map(move |(machine, symbol)| {
+                    let (Ok(lowered), Some(tables), Some(discharged)) = (
+                        crate::terminal_machine(&elaboration.module.machines, machine, machine),
+                        elaboration.tables.machines.get(machine),
+                        discharge.machines.get(machine),
+                    ) else {
+                        return None;
+                    };
+                    Some((*symbol, lowered, tables, discharged))
+                })
+        }))
+    }
+
+    /// Build `Donors` directly from individual checked machine copies in
+    /// deterministic donor order.
+    pub(crate) fn from_machines(
+        entries: impl IntoIterator<
+            Item = (
+                symbols::SymbolHandle,
+                &'a TerminalMachine,
+                &'a MachineTables,
+                &'a crate::MachineDischarge,
+            ),
+        >,
+    ) -> Self {
+        let mut raw: Vec<Donation<'a>> = entries
+            .into_iter()
+            .map(|(symbol, lowered, tables, discharged)| Donation {
+                symbol: symbol_key(symbol),
+                lowered,
+                view: DonationView {
+                    tables,
+                    verdicts: &discharged.verdicts,
+                    windows: &discharged.windows,
+                },
+            })
+            .collect();
         // Stable: earlier donors stay first within each source machine's run.
         raw.sort_by_key(|donation| donation.symbol);
         let mut machines: Vec<Donation<'a>> = Vec::with_capacity(raw.len());

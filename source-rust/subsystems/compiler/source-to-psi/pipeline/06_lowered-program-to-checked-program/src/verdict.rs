@@ -722,7 +722,8 @@ fn exceeded_reach(
                 crate::ceilings::Permission::Entry(
                     terminal_psi::TerminalCallableInvocation::Service(service),
                 ) => module
-                    .interfaces.services
+                    .interfaces
+                    .services
                     .iter()
                     .find(|declaration| declaration.id == *service)
                     .and_then(|declaration| module.identities.text(declaration.identity))
@@ -982,14 +983,46 @@ struct Examined {
 ///
 /// `further` receives every machine refused as not supported after the one
 /// the verdict names, in machine order.
-fn examine(
+struct PhaseAStep1<'l> {
+    elaboration: Elaboration,
+    opaque_storage: terminal_psi::OpaqueStorageShapes,
+    tables: terminal_check_tables::CheckTables,
+    prepared: crate::PreparedDischarge<'l>,
+}
+
+impl<'l> PhaseAStep1<'l> {
+    fn view(&self) -> crate::ElaborationView<'_> {
+        crate::ElaborationView {
+            module: &self.elaboration.module,
+            domains: &self.elaboration.domains,
+            sources: &self.elaboration.sources,
+            requirements: &self.elaboration.requirements,
+            applications: &self.elaboration.applications,
+            local_results: &self.elaboration.local_results,
+            machines: &self.elaboration.machines,
+            nominal_calls: &self.elaboration.nominal_calls,
+            value_parameters: &self.elaboration.value_parameters,
+            value_arguments: &self.elaboration.value_arguments,
+            domain_sources: &self.elaboration.domain_sources,
+        }
+    }
+}
+
+struct PhaseAStep2<'m> {
+    summaries: terminal_semantics::plain_affine::AffineSummaries<'m>,
+    affine_unestablished: Vec<UnestablishedUse>,
+    verified_borrow_ends: Vec<(
+        MachineId,
+        Vec<(semantic_vocabulary::EdgeId, semantic_vocabulary::PlaceId)>,
+    )>,
+}
+
+fn prepare_phase_a_step1<'l>(
     elaborated: Checked<Elaboration>,
-    carried: &[crate::Carried<'_>],
-    donors: Option<&crate::reuse::Donors<'_>>,
-    laws: &[crate::laws::LawJudgment],
+    laws: &'l [crate::laws::LawJudgment],
     activity: &mut crate::ProofSearchActivity,
     further: &mut Vec<Refusal>,
-) -> Result<Examined, Checked<RouteVerdict>> {
+) -> Result<PhaseAStep1<'l>, Checked<RouteVerdict>> {
     let mut elaboration = match elaborated {
         Ok(elaboration) => elaboration,
         Err(refused) => return Err(fall_back_or_defect(refused)),
@@ -1043,23 +1076,71 @@ fn examine(
             ));
         }
     };
+    let tables = std::mem::take(&mut elaboration.tables);
+    Ok(PhaseAStep1 {
+        elaboration,
+        opaque_storage,
+        tables,
+        prepared,
+    })
+}
+
+fn prepare_phase_a_step2<'m>(
+    elaboration: &'m Elaboration,
+) -> (Result<PhaseAStep2<'m>, Checked<RouteVerdict>>, Vec<Refusal>) {
+    let mut local_further = Vec::new();
+    let summaries = terminal_semantics::plain_affine::AffineSummaries::new(&elaboration.module);
+    let result = check_affine(elaboration, &summaries, &mut local_further).map(
+        |(affine_unestablished, verified_borrow_ends)| PhaseAStep2 {
+            summaries,
+            affine_unestablished,
+            verified_borrow_ends,
+        },
+    );
+    (result, local_further)
+}
+
+fn examine(
+    elaborated: Checked<Elaboration>,
+    carried: &[crate::Carried<'_>],
+    donors: Option<&crate::reuse::Donors<'_>>,
+    laws: &[crate::laws::LawJudgment],
+    activity: &mut crate::ProofSearchActivity,
+    further: &mut Vec<Refusal>,
+) -> Result<Examined, Checked<RouteVerdict>> {
+    let step1 = prepare_phase_a_step1(elaborated, laws, activity, further)?;
+    let PhaseAStep1 {
+        mut elaboration,
+        opaque_storage,
+        mut tables,
+        prepared,
+    } = step1;
     // Build `AffineSummaries` once after `prepare_discharge` finishes editing
     // contracts and theorem citations, and share it across `candidates_sharing`,
     // `plan_affine_machines`, and `minted::follow_the_lowered_form`.
-    let summaries = terminal_semantics::plain_affine::AffineSummaries::new(&elaboration.module);
-    let (affine_unestablished, verified_borrow_ends) =
-        check_affine(&elaboration, &summaries, further)?;
+    let (step2_res, local_further) = prepare_phase_a_step2(&elaboration);
+    further.extend(local_further);
+    let PhaseAStep2 {
+        summaries,
+        affine_unestablished,
+        verified_borrow_ends,
+    } = step2_res?;
+    let view = crate::ElaborationView {
+        module: &elaboration.module,
+        domains: &elaboration.domains,
+        sources: &elaboration.sources,
+        requirements: &elaboration.requirements,
+        applications: &elaboration.applications,
+        local_results: &elaboration.local_results,
+        machines: &elaboration.machines,
+        nominal_calls: &elaboration.nominal_calls,
+        value_parameters: &elaboration.value_parameters,
+        value_arguments: &elaboration.value_arguments,
+        domain_sources: &elaboration.domain_sources,
+    };
     let finished = crate::finish_discharge(
-        crate::ElaborationView {
-            module: &elaboration.module,
-            domains: &elaboration.domains,
-            sources: &elaboration.sources,
-            requirements: &elaboration.requirements,
-            machines: &elaboration.machines,
-            nominal_calls: &elaboration.nominal_calls,
-            domain_sources: &elaboration.domain_sources,
-        },
-        &mut elaboration.tables,
+        view,
+        &mut tables,
         prepared,
         carried,
         Some(&verified_borrow_ends),
@@ -1068,6 +1149,7 @@ fn examine(
         activity,
     );
     drop(summaries);
+    elaboration.tables = tables;
     match finished.and_then(|discharged| {
         crate::publish_rankings(&mut elaboration.module, &discharged.machines)?;
         Ok(discharged)
@@ -1392,11 +1474,23 @@ fn conclude(
             // equality identifies the exact claim to underline on that path.
             let claim_site = match row.kind {
                 ObligationKind::NormalGuarantee { clause, .. }
-                    if elaboration.module.machine(machine)
+                    if elaboration
+                        .module
+                        .machine(machine)
                         .and_then(|body| body.ensures.get(clause as usize))
-                        .is_some_and(|row| matches!(row.proposition, semantic_vocabulary::Proposition::DeclarationIdentity(_))) => {
-                    elaboration.names.get(machine).and_then(|names| names.ensures.get(clause as usize))
-                        .and_then(|text| text.source).map(SourceOrigin::Authored)
+                        .is_some_and(|row| {
+                            matches!(
+                                row.proposition,
+                                semantic_vocabulary::Proposition::DeclarationIdentity(_)
+                            )
+                        }) =>
+                {
+                    elaboration
+                        .names
+                        .get(machine)
+                        .and_then(|names| names.ensures.get(clause as usize))
+                        .and_then(|text| text.source)
+                        .map(SourceOrigin::Authored)
                 }
                 _ => None,
             };
@@ -1649,11 +1743,8 @@ fn conclude(
         })?;
     if elaboration.module.identities.invocation_scope().is_some() {
         let inferred = std::mem::take(&mut discharged.inferred_results);
-        let results = crate::result_summaries::checked_results(
-            inferred,
-            &elaboration,
-            &discharged,
-        )?;
+        let results =
+            crate::result_summaries::checked_results(inferred, &elaboration, &discharged)?;
         elaboration
             .module
             .identities
@@ -1741,10 +1832,7 @@ pub(crate) fn judge_compilation_with_activity(
     match crate::callable_arrivals::check(prepared.arrivals, activity) {
         Ok(unproved) if unproved.is_empty() => {}
         Ok(unproved) => {
-            let verdict = if unproved
-                .iter()
-                .all(|failure| failure.cause.is_incomplete())
-            {
+            let verdict = if unproved.iter().all(|failure| failure.cause.is_incomplete()) {
                 RouteVerdict::Incomplete(unproved)
             } else {
                 RouteVerdict::Rejected {
@@ -1800,81 +1888,283 @@ pub(crate) fn judge_compilation_with_activity(
         })
         .collect();
     let first_wave = crate::reuse::first_wave(&held);
-    let (first, second): (Vec<_>, Vec<_>) = prepared
-        .witnesses
-        .into_iter()
-        .enumerate()
-        .partition(|(witness, _)| first_wave[*witness]);
-    // Generic check forms and the first wave of conformance witnesses share
-    // only immutable `laws`, so they run concurrently when workers are
-    // available and merge their refusals and activity in deterministic order.
-    let (forms, first) =
-        if worker_budget::current_workers() == 1 || prepared.forms.is_empty() || first.is_empty() {
-            let forms = examine_generic_forms(prepared.forms, laws, activity, &mut further);
-            let first = examine_witnesses(first, None, laws, activity);
-            (forms, first)
-        } else {
-            let mut forms_further = Vec::new();
-            let mut forms_activity = crate::ProofSearchActivity::default();
-            let mut first_activity = crate::ProofSearchActivity::default();
-            let (forms, first) = rayon::join(
-                || {
-                    examine_generic_forms(
-                        prepared.forms,
-                        laws,
-                        &mut forms_activity,
-                        &mut forms_further,
-                    )
-                },
-                || examine_witnesses(first, None, laws, &mut first_activity),
-            );
-            further.extend(forms_further);
-            activity.merge(forms_activity);
-            activity.merge(first_activity);
-            (forms, first)
-        };
-    let second = {
-        let donors = crate::reuse::Donors::new(first.iter().filter_map(|(_, examined, _)| {
-            examined
-                .as_ref()
-                .ok()
-                .map(|examined| (&examined.elaboration, &examined.discharged))
-        }));
-        examine_witnesses(second, Some(&donors), laws, activity)
+    let raw_closure = prepared.closure;
+    let raw_witnesses = prepared.witnesses;
+    let raw_forms = prepared.forms;
+    let (
+        (forms, forms_activity, forms_further),
+        (witness_step1s, (closure_step1, closure_a1_activity, closure_a1_further)),
+    ) = if worker_budget::current_workers() == 1 {
+        let mut forms_activity = crate::ProofSearchActivity::default();
+        let mut forms_further = Vec::new();
+        let forms = examine_generic_forms(raw_forms, laws, &mut forms_activity, &mut forms_further);
+        let witness_step1s = prepare_witnesses_step1(raw_witnesses, laws);
+        let mut closure_activity = crate::ProofSearchActivity::default();
+        let mut closure_further = Vec::new();
+        let closure_step1 = prepare_phase_a_step1(
+            raw_closure,
+            laws,
+            &mut closure_activity,
+            &mut closure_further,
+        );
+        (
+            (forms, forms_activity, forms_further),
+            (
+                witness_step1s,
+                (closure_step1, closure_activity, closure_further),
+            ),
+        )
+    } else {
+        rayon::join(
+            || {
+                let mut forms_activity = crate::ProofSearchActivity::default();
+                let mut forms_further = Vec::new();
+                let forms =
+                    examine_generic_forms(raw_forms, laws, &mut forms_activity, &mut forms_further);
+                (forms, forms_activity, forms_further)
+            },
+            || {
+                rayon::join(
+                    || prepare_witnesses_step1(raw_witnesses, laws),
+                    || {
+                        let mut closure_activity = crate::ProofSearchActivity::default();
+                        let mut closure_further = Vec::new();
+                        let closure_step1 = prepare_phase_a_step1(
+                            raw_closure,
+                            laws,
+                            &mut closure_activity,
+                            &mut closure_further,
+                        );
+                        (closure_step1, closure_activity, closure_further)
+                    },
+                )
+            },
+        )
     };
-    // Back in witness order, for the verdicts and the refusals beside them.
-    let mut ordered: Vec<_> = first.into_iter().chain(second).collect();
-    ordered.sort_by_key(|(witness, _, _)| *witness);
-    let mut examined_witnesses = Vec::with_capacity(ordered.len());
-    for (_, examined, local_further) in ordered {
-        further.extend(local_further);
-        examined_witnesses.push(examined);
-    }
-    let closure_verdict = match prepared.closure {
-        Ok(closure) => {
-            let witnesses = witnesses(
-                &closure,
-                &forms,
-                &prepared.specializations,
-                &prepared.selection_witnesses,
-                &examined_witnesses,
-            );
-            let carried = carried(&closure, &forms, &witnesses, &prepared.specializations);
-            let donors = crate::reuse::Donors::new(examined_witnesses.iter().filter_map(
-                |examined| {
-                    examined
-                        .as_ref()
-                        .ok()
-                        .map(|examined| (&examined.elaboration, &examined.discharged))
+    further.extend(forms_further);
+    activity.merge(forms_activity);
+    let mut witness_step1s: Vec<Result<PhaseAStep1<'_>, Checked<RouteVerdict>>> = witness_step1s
+        .into_iter()
+        .map(|(res, local_activity, local_further)| {
+            further.extend(local_further);
+            activity.merge(local_activity);
+            res
+        })
+        .collect();
+    further.extend(closure_a1_further);
+    activity.merge(closure_a1_activity);
+
+    let (closure_step1, mut closure_tables, closure_prepared) = match closure_step1 {
+        Ok(step1) => (
+            Ok((step1.elaboration, step1.opaque_storage)),
+            Some(step1.tables),
+            Some(step1.prepared),
+        ),
+        Err(decided) => (Err(decided), None, None),
+    };
+
+    let (mut witness_step2_results, (closure_step2_res, closure_a2_further)) =
+        if worker_budget::current_workers() == 1
+            || (witness_step1s.iter().filter(|w| w.is_ok()).count()
+                + usize::from(closure_step1.is_ok()))
+                < 2
+        {
+            let w2 = prepare_witnesses_step2(&witness_step1s);
+            let c2 = match &closure_step1 {
+                Ok((elaboration, _)) => prepare_phase_a_step2(elaboration),
+                Err(_) => (
+                    Err(Err(refusal(
+                        RefusalReason::Unsupported,
+                        MachineId::new(1).expect("1 is nonzero"),
+                        Construct::Machine,
+                        "closure already decided in phase A1",
+                    ))),
+                    Vec::new(),
+                ),
+            };
+            (w2, c2)
+        } else {
+            rayon::join(
+                || prepare_witnesses_step2(&witness_step1s),
+                || match &closure_step1 {
+                    Ok((elaboration, _)) => prepare_phase_a_step2(elaboration),
+                    Err(_) => (
+                        Err(Err(refusal(
+                            RefusalReason::Unsupported,
+                            MachineId::new(1).expect("1 is nonzero"),
+                            Construct::Machine,
+                            "closure already decided in phase A1",
+                        ))),
+                        Vec::new(),
+                    ),
                 },
-            ));
-            match examine(Ok(closure), &carried, Some(&donors), laws, activity, &mut further) {
-                Ok(examined) => conclude(examined, AppliedContracts::Undecided, true, &mut further),
-                Err(decided) => decided,
+            )
+        };
+    let mut witness_step2_failures: Vec<Option<Checked<RouteVerdict>>> =
+        (0..witness_step1s.len()).map(|_| None).collect();
+    let mut witness_step2s: Vec<Option<PhaseAStep2<'_>>> = Vec::with_capacity(witness_step1s.len());
+    for (w, (res, local_further)) in witness_step2_results.drain(..).enumerate() {
+        further.extend(local_further);
+        match res {
+            Ok(step2) => witness_step2s.push(Some(step2)),
+            Err(decided) => {
+                if witness_step1s[w].is_ok() {
+                    witness_step2_failures[w] = Some(decided);
+                }
+                witness_step2s.push(None);
             }
         }
-        Err(refused) => {
-            judge_owing_with_activity(Err(refused), AppliedContracts::Undecided, activity)
+    }
+    if closure_step1.is_ok() {
+        further.extend(closure_a2_further);
+    }
+
+    let (mut witness_tables, mut witness_discharges) =
+        run_witnesses_phase_b(&witness_step1s, &witness_step2s, &first_wave, activity);
+    drop(witness_step2s);
+
+    let examined_witnesses: Vec<Result<Examined, Checked<RouteVerdict>>> = witness_step1s
+        .iter_mut()
+        .enumerate()
+        .map(|(w, step1_slot)| {
+            let placeholder = Err(Ok(RouteVerdict::FallBack(refusal(
+                RefusalReason::Unsupported,
+                MachineId::new(1).expect("1 is nonzero"),
+                Construct::Machine,
+                "witness already consumed",
+            ))));
+            let step1_res = std::mem::replace(step1_slot, placeholder);
+            let mut step1 = match step1_res {
+                Ok(step1) => step1,
+                Err(decided) => return Err(decided),
+            };
+            if let Some(decided) = witness_step2_failures[w].take() {
+                return Err(decided);
+            }
+            let taken = std::mem::take(&mut witness_tables[w]);
+            for ((_, dst), src) in step1.tables.machines.iter_mut().zip(taken) {
+                *dst = src.expect("witness machine tables restored");
+            }
+            let (affine_unestablished, discharges) = witness_discharges[w]
+                .take()
+                .expect("witness phase B outcome present");
+            let mut machines = arena::IdTable::default();
+            for row in discharges {
+                match row.expect("witness machine discharge present") {
+                    Ok(discharged) => {
+                        machines.push(discharged);
+                    }
+                    Err(refused) => {
+                        return Err(fall_back_or_defect(
+                            Roster::of(&step1.elaboration).locate(refused),
+                        ));
+                    }
+                }
+            }
+            let crate::PreparedDischarge {
+                inferred_calls,
+                inferred_results,
+                ..
+            } = step1.prepared;
+            let discharged = crate::Discharge {
+                inferred_calls,
+                inferred_results,
+                machines,
+            };
+            step1.elaboration.tables = step1.tables;
+            if let Err(refused) =
+                crate::publish_rankings(&mut step1.elaboration.module, &discharged.machines)
+            {
+                return Err(fall_back_or_defect(
+                    Roster::of(&step1.elaboration).locate(refused),
+                ));
+            }
+            Ok(Examined {
+                elaboration: step1.elaboration,
+                opaque_storage: step1.opaque_storage,
+                discharged,
+                affine_unestablished,
+            })
+        })
+        .collect();
+
+    let closure_verdict = match &closure_step1 {
+        Ok((elaboration, _)) => match closure_step2_res {
+            Ok(PhaseAStep2 {
+                summaries,
+                affine_unestablished,
+                verified_borrow_ends,
+            }) => {
+                let witnesses = witnesses(
+                    elaboration,
+                    &forms,
+                    &prepared.specializations,
+                    &prepared.selection_witnesses,
+                    &examined_witnesses,
+                );
+                let carried = carried(elaboration, &forms, &witnesses, &prepared.specializations);
+                let donors =
+                    crate::reuse::Donors::new(examined_witnesses.iter().filter_map(|examined| {
+                        examined
+                            .as_ref()
+                            .ok()
+                            .map(|examined| (&examined.elaboration, &examined.discharged))
+                    }));
+                let mut tables = closure_tables.take().expect("closure tables present");
+                let prepared_closure = closure_prepared.expect("closure prepared present");
+                let view = crate::ElaborationView {
+                    module: &elaboration.module,
+                    domains: &elaboration.domains,
+                    sources: &elaboration.sources,
+                    requirements: &elaboration.requirements,
+                    applications: &elaboration.applications,
+                    local_results: &elaboration.local_results,
+                    machines: &elaboration.machines,
+                    nominal_calls: &elaboration.nominal_calls,
+                    value_parameters: &elaboration.value_parameters,
+                    value_arguments: &elaboration.value_arguments,
+                    domain_sources: &elaboration.domain_sources,
+                };
+                let finished = crate::finish_discharge(
+                    view,
+                    &mut tables,
+                    prepared_closure,
+                    &carried,
+                    Some(&verified_borrow_ends),
+                    Some(&donors),
+                    &summaries,
+                    activity,
+                );
+                drop(summaries);
+                let Ok((mut elaboration, opaque_storage)) = closure_step1 else {
+                    unreachable!("checked Ok above");
+                };
+                elaboration.tables = tables;
+                match finished.and_then(|discharged| {
+                    crate::publish_rankings(&mut elaboration.module, &discharged.machines)?;
+                    Ok(discharged)
+                }) {
+                    Ok(discharged) => conclude(
+                        Examined {
+                            elaboration,
+                            opaque_storage,
+                            discharged,
+                            affine_unestablished,
+                        },
+                        AppliedContracts::Undecided,
+                        true,
+                        &mut further,
+                    ),
+                    Err(refused) => fall_back_or_defect(Roster::of(&elaboration).locate(refused)),
+                }
+            }
+            Err(decided) => decided,
+        },
+        Err(_) => {
+            let Err(decided) = closure_step1 else {
+                unreachable!("checked Err above");
+            };
+            decided
         }
     };
     let mut verdicts = Vec::with_capacity(1 + forms.len() + examined_witnesses.len());
@@ -1896,9 +2186,12 @@ pub(crate) fn judge_compilation_with_activity(
     let conclude_witness = |witness: Result<Examined, Checked<RouteVerdict>>| {
         let mut local_further = Vec::new();
         let verdict = match witness {
-            Ok(examined) => {
-                conclude(examined, AppliedContracts::Undecided, false, &mut local_further)
-            }
+            Ok(examined) => conclude(
+                examined,
+                AppliedContracts::Undecided,
+                false,
+                &mut local_further,
+            ),
             Err(decided) => decided,
         }
         .map_err(CompilationRefusal::Elaboration);
@@ -1967,52 +2260,463 @@ pub(crate) fn judge_compilation_with_activity(
 
 /// One examined witness, by its position among the compilation's witnesses,
 /// with the refusals its examination put beside its verdict.
-type ExaminedWitness = (usize, Result<Examined, Checked<RouteVerdict>>, Vec<Refusal>);
-
-/// Examines `witnesses`, each with its position, on the workers when there
-/// are several; each may borrow proofs from `donors`. The result is in the
-/// order given.
-fn examine_witnesses(
-    witnesses: Vec<(usize, Checked<Elaboration>)>,
-    donors: Option<&crate::reuse::Donors<'_>>,
-    laws: &[crate::laws::LawJudgment],
-    activity: &mut crate::ProofSearchActivity,
-) -> Vec<ExaminedWitness> {
+fn prepare_witnesses_step1<'l>(
+    witnesses: Vec<Checked<Elaboration>>,
+    laws: &'l [crate::laws::LawJudgment],
+) -> Vec<(
+    Result<PhaseAStep1<'l>, Checked<RouteVerdict>>,
+    crate::ProofSearchActivity,
+    Vec<Refusal>,
+)> {
+    let run_one = |witness: Checked<Elaboration>| {
+        let mut local_activity = crate::ProofSearchActivity::default();
+        let mut local_further = Vec::new();
+        let res = prepare_phase_a_step1(witness, laws, &mut local_activity, &mut local_further);
+        (res, local_activity, local_further)
+    };
     if worker_budget::current_workers() == 1 || witnesses.len() < 2 {
-        return witnesses
-            .into_iter()
-            .map(|(position, witness)| {
-                let mut further = Vec::new();
-                let examined = examine(witness, &[], donors, laws, activity, &mut further);
-                (position, examined, further)
-            })
-            .collect();
+        return witnesses.into_iter().map(run_one).collect();
     }
     use rayon::prelude::*;
-    let results: Vec<_> = witnesses
+    witnesses
         .into_par_iter()
         .with_max_len(1)
-        .map(|(position, witness)| {
-            let mut local_activity = crate::ProofSearchActivity::default();
-            let mut further = Vec::new();
-            let examined = examine(
-                witness,
-                &[],
-                donors,
-                laws,
-                &mut local_activity,
-                &mut further,
-            );
-            ((position, examined, further), local_activity)
-        })
-        .collect();
-    results
-        .into_iter()
-        .map(|(examined, local_activity)| {
-            activity.merge(local_activity);
-            examined
-        })
+        .map(run_one)
         .collect()
+}
+
+fn prepare_witnesses_step2<'m>(
+    witness_step1s: &'m [Result<PhaseAStep1<'_>, Checked<RouteVerdict>>],
+) -> Vec<(Result<PhaseAStep2<'m>, Checked<RouteVerdict>>, Vec<Refusal>)> {
+    let run_one = |step1: &'m Result<PhaseAStep1<'_>, Checked<RouteVerdict>>| match step1 {
+        Ok(step1) => prepare_phase_a_step2(&step1.elaboration),
+        Err(_) => (
+            Err(Err(refusal(
+                RefusalReason::Unsupported,
+                MachineId::new(1).expect("1 is nonzero"),
+                Construct::Machine,
+                "witness already decided in phase A1",
+            ))),
+            Vec::new(),
+        ),
+    };
+    let surviving = witness_step1s.iter().filter(|w| w.is_ok()).count();
+    if worker_budget::current_workers() == 1 || surviving < 2 {
+        return witness_step1s.iter().map(run_one).collect();
+    }
+    use rayon::prelude::*;
+    witness_step1s
+        .par_iter()
+        .with_max_len(1)
+        .map(run_one)
+        .collect()
+}
+
+struct WitnessExecContext<'m> {
+    step1: &'m PhaseAStep1<'m>,
+    step2: &'m PhaseAStep2<'m>,
+    view: crate::ElaborationView<'m>,
+    formed: crate::formation::FormedModule<'m>,
+    inputs: crate::machine_inputs::PreparedMachineInputs<'m>,
+    empty_contracts: terminal_semantics::inhabitation::TerminalContracts<'m>,
+    replays: crate::ModuleReplays<'m>,
+}
+
+fn run_witness_machine_jobs(
+    jobs: &[(usize, MachineId)],
+    contexts: &[Option<WitnessExecContext<'_>>],
+    tables: &mut [Vec<Option<terminal_check_tables::MachineTables>>],
+    discharges: &mut [Option<(
+        Vec<UnestablishedUse>,
+        Vec<Option<Checked<crate::MachineDischarge>>>,
+    )>],
+    donors: Option<&crate::reuse::Donors<'_>>,
+    activity: &mut crate::ProofSearchActivity,
+) {
+    if jobs.is_empty() {
+        return;
+    }
+    let mut owned_jobs: Vec<(usize, MachineId, terminal_check_tables::MachineTables)> =
+        Vec::with_capacity(jobs.len());
+    for &(w, m) in jobs {
+        let index = usize::try_from(m.get() - 1).expect("nonzero MachineId");
+        let mtables = tables[w][index]
+            .take()
+            .expect("witness machine tables present");
+        owned_jobs.push((w, m, mtables));
+    }
+    let check_one =
+        |(w, m, mut mtables): (usize, MachineId, terminal_check_tables::MachineTables)| {
+            let mut local_activity = crate::ProofSearchActivity::default();
+            let ctx = contexts[w].as_ref().expect("witness context present");
+            let result = ctx.inputs.for_machine(m).and_then(|inputs| {
+                crate::check_single_machine(
+                    &ctx.view,
+                    ctx.formed,
+                    &ctx.step1.prepared.inhabitation,
+                    inputs,
+                    &ctx.step1.prepared.unreached,
+                    &[],
+                    Some(&ctx.step2.verified_borrow_ends),
+                    donors,
+                    &ctx.step1.prepared.law_instances,
+                    &ctx.step1.prepared.theorems,
+                    &ctx.empty_contracts,
+                    &ctx.replays,
+                    m,
+                    &mut mtables,
+                    &mut local_activity,
+                )
+            });
+            (w, m, mtables, result, local_activity)
+        };
+    let completed: Vec<_> = if worker_budget::current_workers() == 1 || owned_jobs.len() < 2 {
+        owned_jobs.into_iter().map(check_one).collect()
+    } else {
+        use rayon::prelude::*;
+        owned_jobs
+            .into_par_iter()
+            .with_max_len(1)
+            .map(check_one)
+            .collect()
+    };
+    for (w, m, mtables, result, local_activity) in completed {
+        activity.merge(local_activity);
+        let index = usize::try_from(m.get() - 1).expect("nonzero MachineId");
+        tables[w][index] = Some(mtables);
+        let (_, rows) = discharges[w]
+            .as_mut()
+            .expect("witness discharge slots present");
+        rows[index] = Some(result);
+    }
+}
+
+fn run_witnesses_phase_b<'m>(
+    witness_step1s: &'m [Result<PhaseAStep1<'m>, Checked<RouteVerdict>>],
+    witness_step2s: &'m [Option<PhaseAStep2<'m>>],
+    first_wave: &[bool],
+    activity: &mut crate::ProofSearchActivity,
+) -> (
+    Vec<Vec<Option<terminal_check_tables::MachineTables>>>,
+    Vec<
+        Option<(
+            Vec<UnestablishedUse>,
+            Vec<Option<Checked<crate::MachineDischarge>>>,
+        )>,
+    >,
+) {
+    let witness_count = witness_step1s.len();
+    let mut witness_tables: Vec<Vec<Option<terminal_check_tables::MachineTables>>> =
+        vec![Vec::new(); witness_count];
+    let mut witness_discharges: Vec<
+        Option<(
+            Vec<UnestablishedUse>,
+            Vec<Option<Checked<crate::MachineDischarge>>>,
+        )>,
+    > = Vec::with_capacity(witness_count);
+    let mut contexts: Vec<Option<WitnessExecContext<'m>>> = Vec::with_capacity(witness_count);
+    let mut all_machines: Vec<(usize, MachineId)> = Vec::new();
+
+    for w in 0..witness_count {
+        let (Ok(step1), Some(step2)) = (&witness_step1s[w], &witness_step2s[w]) else {
+            contexts.push(None);
+            witness_discharges.push(None);
+            continue;
+        };
+        let module = &step1.elaboration.module;
+        let formed = crate::formation::FormedModule::new(
+            module,
+            &step1.elaboration.nominal_calls,
+            &step1.elaboration.domain_sources,
+        );
+        let inputs = crate::machine_inputs::PreparedMachineInputs::new(
+            module,
+            &step1.elaboration.sources,
+            &step1.tables.machines,
+            &step1.elaboration.requirements,
+            &[],
+        );
+        let empty_contracts = terminal_semantics::inhabitation::TerminalContracts::new(
+            module.types.structural_types.iter(),
+        );
+        let replays = crate::ModuleReplays {
+            borrowed_storage:
+                terminal_semantics::descriptor_results::ModuleSummaries::borrowed_storage(
+                    module,
+                    formed.nominal_calls(),
+                ),
+            affine: &step2.summaries,
+        };
+        let mut row_tables = Vec::with_capacity(step1.tables.machines.len());
+        let mut row_discharges = Vec::with_capacity(step1.tables.machines.len());
+        for (machine_id, mtables) in step1.tables.machines.iter() {
+            row_tables.push(Some(mtables.clone()));
+            row_discharges.push(None);
+            all_machines.push((w, machine_id));
+        }
+        witness_tables[w] = row_tables;
+        witness_discharges.push(Some((step2.affine_unestablished.clone(), row_discharges)));
+        contexts.push(Some(WitnessExecContext {
+            step1,
+            step2,
+            view: step1.view(),
+            formed,
+            inputs,
+            empty_contracts,
+            replays,
+        }));
+    }
+
+    let canonicalize_one = |(w, m): &(usize, MachineId)| {
+        let w = *w;
+        let m = *m;
+        let ctx = contexts[w].as_ref().expect("witness context present");
+        let index = usize::try_from(m.get() - 1).expect("nonzero MachineId");
+        let mtables = witness_tables[w][index]
+            .as_ref()
+            .expect("witness machine tables present");
+        let borrow_ends = ctx
+            .step2
+            .verified_borrow_ends
+            .binary_search_by_key(&m, |(machine, _)| *machine)
+            .ok()
+            .map(|position| ctx.step2.verified_borrow_ends[position].1.as_slice());
+        let canon = ctx.inputs.for_machine(m).ok().and_then(|inputs| {
+            crate::canonical_discharge::canonicalize_witness_machine(
+                &ctx.view,
+                m,
+                mtables,
+                inputs,
+                borrow_ends,
+                &ctx.step1.prepared.law_instances,
+                &ctx.step1.prepared.theorems,
+                &ctx.replays,
+            )
+        });
+        (w, m, canon)
+    };
+    let canonicalized: Vec<(
+        usize,
+        MachineId,
+        Option<crate::canonical_discharge::CanonicalizedMachine>,
+    )> = if worker_budget::current_workers() == 1 || all_machines.len() < 2 {
+        all_machines.iter().map(canonicalize_one).collect()
+    } else {
+        use rayon::prelude::*;
+        all_machines
+            .par_iter()
+            .with_max_len(1)
+            .map(canonicalize_one)
+            .collect()
+    };
+
+    let mut canon_by_slot: Vec<Vec<Option<crate::canonical_discharge::CanonicalizedMachine>>> =
+        witness_tables
+            .iter()
+            .map(|rows| (0..rows.len()).map(|_| None).collect())
+            .collect();
+    let mut sortable: Vec<(usize, MachineId)> = Vec::new();
+    let mut wave1_jobs: Vec<(usize, MachineId)> = Vec::new();
+    let mut wave2_jobs: Vec<(usize, MachineId)> = Vec::new();
+
+    for (w, m, canon) in canonicalized {
+        let index = usize::try_from(m.get() - 1).expect("nonzero MachineId");
+        if let Some(canon) = canon {
+            canon_by_slot[w][index] = Some(canon);
+            sortable.push((w, m));
+        } else if first_wave[w] {
+            wave1_jobs.push((w, m));
+        } else {
+            wave2_jobs.push((w, m));
+        }
+    }
+
+    sortable.sort_by(|&(w_a, m_a), &(w_b, m_b)| {
+        let idx_a = usize::try_from(m_a.get() - 1).expect("nonzero MachineId");
+        let idx_b = usize::try_from(m_b.get() - 1).expect("nonzero MachineId");
+        let key_a = &canon_by_slot[w_a][idx_a].as_ref().unwrap().key;
+        let key_b = &canon_by_slot[w_b][idx_b].as_ref().unwrap().key;
+        key_a
+            .cmp(key_b)
+            .then_with(|| (!first_wave[w_a]).cmp(&(!first_wave[w_b])))
+            .then_with(|| w_a.cmp(&w_b))
+            .then_with(|| m_a.cmp(&m_b))
+    });
+
+    let mut duplicates: Vec<(usize, MachineId, usize, MachineId)> = Vec::new();
+    let mut cursor = 0;
+    while cursor < sortable.len() {
+        let (rep_w, rep_m) = sortable[cursor];
+        let rep_idx = usize::try_from(rep_m.get() - 1).expect("nonzero MachineId");
+        let rep_key = &canon_by_slot[rep_w][rep_idx].as_ref().unwrap().key;
+        if first_wave[rep_w] {
+            wave1_jobs.push((rep_w, rep_m));
+        } else {
+            wave2_jobs.push((rep_w, rep_m));
+        }
+        cursor += 1;
+        while cursor < sortable.len() {
+            let (dup_w, dup_m) = sortable[cursor];
+            let dup_idx = usize::try_from(dup_m.get() - 1).expect("nonzero MachineId");
+            let dup_key = &canon_by_slot[dup_w][dup_idx].as_ref().unwrap().key;
+            if dup_key != rep_key {
+                break;
+            }
+            duplicates.push((dup_w, dup_m, rep_w, rep_m));
+            cursor += 1;
+        }
+    }
+    wave1_jobs.sort_unstable();
+    wave2_jobs.sort_unstable();
+
+    run_witness_machine_jobs(
+        &wave1_jobs,
+        &contexts,
+        &mut witness_tables,
+        &mut witness_discharges,
+        None,
+        activity,
+    );
+
+    let mut wave1_pos: Vec<Vec<Option<usize>>> = witness_tables
+        .iter()
+        .map(|rows| vec![None; rows.len()])
+        .collect();
+    let mut wave1_completed = Vec::with_capacity(wave1_jobs.len());
+    for &(w, m) in &wave1_jobs {
+        let index = usize::try_from(m.get() - 1).expect("nonzero MachineId");
+        let mtables = witness_tables[w][index]
+            .take()
+            .expect("wave 1 machine tables present");
+        let (_, rows) = witness_discharges[w]
+            .as_mut()
+            .expect("wave 1 witness discharge slots present");
+        let result = rows[index]
+            .take()
+            .expect("wave 1 machine discharge present");
+        let pos = wave1_completed.len();
+        wave1_pos[w][index] = Some(pos);
+        wave1_completed.push((w, m, mtables, result));
+    }
+
+    let wave1_donors = crate::reuse::Donors::from_machines(wave1_completed.iter().filter_map(
+        |(w, m, mtables, result)| {
+            let discharge = result.as_ref().ok()?;
+            let ctx = contexts[*w].as_ref()?;
+            let symbol = *ctx.step1.elaboration.machines.get(*m)?;
+            let lowered =
+                crate::terminal_machine(&ctx.step1.elaboration.module.machines, *m, *m).ok()?;
+            Some((symbol, lowered, mtables, discharge))
+        },
+    ));
+
+    run_witness_machine_jobs(
+        &wave2_jobs,
+        &contexts,
+        &mut witness_tables,
+        &mut witness_discharges,
+        Some(&wave1_donors),
+        activity,
+    );
+
+    let materialize_one = |&(dup_w, dup_m, rep_w, rep_m): &(usize, MachineId, usize, MachineId)| {
+        let rep_idx = usize::try_from(rep_m.get() - 1).expect("nonzero MachineId");
+        let dup_idx = usize::try_from(dup_m.get() - 1).expect("nonzero MachineId");
+        let (rep_discharge, rep_tables) = if let Some(pos) = wave1_pos[rep_w][rep_idx] {
+            let (_, _, rep_tables, rep_res) = &wave1_completed[pos];
+            (rep_res.as_ref().map_err(|_| ())?, rep_tables)
+        } else {
+            let Some((_, rep_rows)) = witness_discharges[rep_w].as_ref() else {
+                return Err(());
+            };
+            let Some(Ok(rep_discharge)) = rep_rows[rep_idx].as_ref() else {
+                return Err(());
+            };
+            let rep_tables = witness_tables[rep_w][rep_idx].as_ref().ok_or(())?;
+            (rep_discharge, rep_tables)
+        };
+        let rep_canon = canon_by_slot[rep_w][rep_idx].as_ref().ok_or(())?;
+        let dup_canon = canon_by_slot[dup_w][dup_idx].as_ref().ok_or(())?;
+        let dup_tables = witness_tables[dup_w][dup_idx].as_ref().ok_or(())?;
+        let dup_ctx = contexts[dup_w].as_ref().ok_or(())?;
+        let dup_lowered =
+            crate::terminal_machine(&dup_ctx.step1.elaboration.module.machines, dup_m, dup_m)
+                .map_err(|_| ())?;
+        crate::canonical_discharge::prepare_duplicate_materialization(
+            rep_canon,
+            rep_discharge,
+            rep_tables,
+            dup_canon,
+            dup_m,
+            dup_lowered,
+            dup_tables,
+        )
+    };
+    let materialized: Vec<_> = if worker_budget::current_workers() == 1 || duplicates.len() < 2 {
+        duplicates.iter().map(materialize_one).collect()
+    } else {
+        use rayon::prelude::*;
+        duplicates
+            .par_iter()
+            .with_max_len(1)
+            .map(materialize_one)
+            .collect()
+    };
+
+    let mut fallback_wave1: Vec<(usize, MachineId)> = Vec::new();
+    let mut fallback_wave2: Vec<(usize, MachineId)> = Vec::new();
+    for (&(dup_w, dup_m, _, _), result) in duplicates.iter().zip(materialized) {
+        let dup_idx = usize::try_from(dup_m.get() - 1).expect("nonzero MachineId");
+        match result {
+            Ok(mat) => {
+                let mtables = witness_tables[dup_w][dup_idx]
+                    .as_mut()
+                    .expect("duplicate machine tables present");
+                mtables.propositions = mat.propositions;
+                mtables.knowledge = mat.knowledge;
+                let (_, rows) = witness_discharges[dup_w]
+                    .as_mut()
+                    .expect("duplicate discharge slots present");
+                rows[dup_idx] = Some(Ok(mat.discharge));
+            }
+            Err(()) => {
+                if first_wave[dup_w] {
+                    fallback_wave1.push((dup_w, dup_m));
+                } else {
+                    fallback_wave2.push((dup_w, dup_m));
+                }
+            }
+        }
+    }
+    fallback_wave1.sort_unstable();
+    fallback_wave2.sort_unstable();
+    run_witness_machine_jobs(
+        &fallback_wave1,
+        &contexts,
+        &mut witness_tables,
+        &mut witness_discharges,
+        None,
+        activity,
+    );
+    run_witness_machine_jobs(
+        &fallback_wave2,
+        &contexts,
+        &mut witness_tables,
+        &mut witness_discharges,
+        Some(&wave1_donors),
+        activity,
+    );
+    drop(wave1_donors);
+    for (w, m, mtables, result) in wave1_completed {
+        let index = usize::try_from(m.get() - 1).expect("nonzero MachineId");
+        witness_tables[w][index] = Some(mtables);
+        let (_, rows) = witness_discharges[w]
+            .as_mut()
+            .expect("wave 1 witness discharge slots present");
+        rows[index] = Some(result);
+    }
+
+    (witness_tables, witness_discharges)
 }
 
 /// The machines one judgment refuses as not supported yet, one refusal for
@@ -2250,7 +2954,11 @@ fn examine_generic_forms(
     further: &mut Vec<Refusal>,
 ) -> Vec<GenericForm> {
     let count = forms.len();
-    let mut examined = Vec::new();
+    enum FormWork {
+        Ready(GenericForm),
+        Check(symbols::SymbolHandle, Box<Elaboration>),
+    }
+    let mut work = Vec::new();
     for form in forms {
         let template = form.template;
         if form
@@ -2259,7 +2967,7 @@ fn examine_generic_forms(
             .is_none_or(|applied| applied.iter().any(|position| *position >= count))
         {
             let first = MachineId::new(1).expect("1 is nonzero");
-            examined.push(GenericForm::Decided(Err(refusal(
+            work.push(FormWork::Ready(GenericForm::Decided(Err(refusal(
                 RefusalReason::ForeignIdentity,
                 first,
                 Construct::Machine,
@@ -2267,24 +2975,70 @@ fn examine_generic_forms(
                     "generic machine `{}` has an incomplete dependency roster",
                     form.name
                 ),
-            ))));
+            )))));
             continue;
         }
         match form.forms {
-            Ok(forms) => examined.extend(forms.into_iter().map(|form| {
-                match examine(Ok(form), &[], None, laws, activity, further) {
-                    Ok(examined) => GenericForm::Examined { template, examined },
-                    Err(decided) => GenericForm::Decided(decided),
+            Ok(forms) => {
+                for form in forms {
+                    work.push(FormWork::Check(template, Box::new(form)));
                 }
-            })),
-            Err(refused) => examined.push(GenericForm::Decided(judge_owing_with_activity(
-                Err(refused),
-                AppliedContracts::Undecided,
-                activity,
+            }
+            Err(refused) => work.push(FormWork::Ready(GenericForm::Decided(
+                judge_owing_with_activity(Err(refused), AppliedContracts::Undecided, activity),
             ))),
         }
     }
-    examined
+    let check_count = work
+        .iter()
+        .filter(|item| matches!(item, FormWork::Check(..)))
+        .count();
+    if worker_budget::current_workers() == 1 || check_count < 2 {
+        return work
+            .into_iter()
+            .map(|item| match item {
+                FormWork::Ready(ready) => ready,
+                FormWork::Check(template, form) => {
+                    match examine(Ok(*form), &[], None, laws, activity, further) {
+                        Ok(examined) => GenericForm::Examined { template, examined },
+                        Err(decided) => GenericForm::Decided(decided),
+                    }
+                }
+            })
+            .collect();
+    }
+    use rayon::prelude::*;
+    let results: Vec<(GenericForm, crate::ProofSearchActivity, Vec<Refusal>)> = work
+        .into_par_iter()
+        .with_max_len(1)
+        .map(|item| match item {
+            FormWork::Ready(ready) => (ready, crate::ProofSearchActivity::default(), Vec::new()),
+            FormWork::Check(template, form) => {
+                let mut local_activity = crate::ProofSearchActivity::default();
+                let mut local_further = Vec::new();
+                let form = match examine(
+                    Ok(*form),
+                    &[],
+                    None,
+                    laws,
+                    &mut local_activity,
+                    &mut local_further,
+                ) {
+                    Ok(examined) => GenericForm::Examined { template, examined },
+                    Err(decided) => GenericForm::Decided(decided),
+                };
+                (form, local_activity, local_further)
+            }
+        })
+        .collect();
+    results
+        .into_iter()
+        .map(|(form, local_activity, local_further)| {
+            activity.merge(local_activity);
+            further.extend(local_further);
+            form
+        })
+        .collect()
 }
 
 /// Where an operation, edge or block arises in the source, from
