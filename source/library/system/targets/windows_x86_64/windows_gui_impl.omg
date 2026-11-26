@@ -1,5 +1,12 @@
 use posix_filesystem_host.omg as raw_fs;
 use windows_gui_host.omg as gui;
+use {omega}/language/core/filesystem_authority.omg as authority;
+use {omega}/language/core/native_execution_authority.omg as native_execution;
+use {omega}/language/core/presentation_authority.omg as presentation;
+use {omega}/language/core/process_authority.omg as process;
+use {omega}/language/core/process_exit.omg;
+use {omega}/language/core/time_authority.omg as time;
+
 // Stateless Win64 user32 adapters. CreateWindowExA receives the caller's
 // NUL-terminated class/title and ordinary geometry; optional owner, menu,
 // instance and creation-data pointers are NULL for these standalone windows.
@@ -19,79 +26,79 @@ boundary trait WindowsGuiIo {
     // terminated fixed copy whose whole extent the callee may read.
     machine create_window(extended_style: u32, class_name: @[u8; 4096], title: @[u8; 4096], style: u32, x: i32, y: i32, width: i32, height: i32, parent: u64, menu: u64, instance: u64, creation_data: u64) -> u64
     reaches
-        NativeCodeExecution + WindowManagement + SurfacePresentation +
-        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-        ClockObservation + ExecutionDelay + FilesystemContentRead +
-        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-        DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-        StandardOutput + ProcessExit
+        |native_execution|::NativeCodeExecution + |presentation|::WindowManagement + |presentation|::SurfacePresentation +
+        |presentation|::WindowEventObservation + |presentation|::WindowEventDispatch + |presentation|::GlobalInputObservation +
+        |time|::ClockObservation + |time|::ExecutionDelay + |authority|::FilesystemContentRead +
+        |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation +
+        |authority|::DirectoryEnumeration + |authority|::FilesystemNamespaceMutation + |process|::StandardInput +
+        |process|::StandardOutput + |process_exit|::ProcessExit
     crashes none;
     machine foreground_window() -> u64
-    reaches WindowManagement
+    reaches |presentation|::WindowManagement
     crashes none;
     machine is_window(window: u64) -> i32
-    reaches WindowManagement
+    reaches |presentation|::WindowManagement
     crashes none;
     machine destroy_window(window: u64) -> i32
     reaches
-        NativeCodeExecution + WindowManagement + SurfacePresentation +
-        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-        ClockObservation + ExecutionDelay + FilesystemContentRead +
-        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-        DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-        StandardOutput + ProcessExit
+        |native_execution|::NativeCodeExecution + |presentation|::WindowManagement + |presentation|::SurfacePresentation +
+        |presentation|::WindowEventObservation + |presentation|::WindowEventDispatch + |presentation|::GlobalInputObservation +
+        |time|::ClockObservation + |time|::ExecutionDelay + |authority|::FilesystemContentRead +
+        |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation +
+        |authority|::DirectoryEnumeration + |authority|::FilesystemNamespaceMutation + |process|::StandardInput +
+        |process|::StandardOutput + |process_exit|::ProcessExit
     crashes none;
     machine peek_message(message: @mutable |gui|::WindowsMessage, window: u64, minimum: u32, maximum: u32, remove: u32) -> i32
     reaches
-        NativeCodeExecution + WindowManagement + SurfacePresentation +
-        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-        ClockObservation + ExecutionDelay + FilesystemContentRead +
-        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-        DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-        StandardOutput + ProcessExit
+        |native_execution|::NativeCodeExecution + |presentation|::WindowManagement + |presentation|::SurfacePresentation +
+        |presentation|::WindowEventObservation + |presentation|::WindowEventDispatch + |presentation|::GlobalInputObservation +
+        |time|::ClockObservation + |time|::ExecutionDelay + |authority|::FilesystemContentRead +
+        |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation +
+        |authority|::DirectoryEnumeration + |authority|::FilesystemNamespaceMutation + |process|::StandardInput +
+        |process|::StandardOutput + |process_exit|::ProcessExit
     crashes none;
     machine translate_message(message: @|gui|::WindowsMessage) -> i32
-    reaches WindowEventDispatch
+    reaches |presentation|::WindowEventDispatch
     crashes none;
     machine dispatch_message(message: @|gui|::WindowsMessage) -> i64
     reaches
-        NativeCodeExecution + WindowManagement + SurfacePresentation +
-        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-        ClockObservation + ExecutionDelay + FilesystemContentRead +
-        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-        DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-        StandardOutput + ProcessExit
+        |native_execution|::NativeCodeExecution + |presentation|::WindowManagement + |presentation|::SurfacePresentation +
+        |presentation|::WindowEventObservation + |presentation|::WindowEventDispatch + |presentation|::GlobalInputObservation +
+        |time|::ClockObservation + |time|::ExecutionDelay + |authority|::FilesystemContentRead +
+        |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation +
+        |authority|::DirectoryEnumeration + |authority|::FilesystemNamespaceMutation + |process|::StandardInput +
+        |process|::StandardOutput + |process_exit|::ProcessExit
     crashes none;
     machine key_state(virtual_key: u32) -> i32
-    reaches GlobalInputObservation
+    reaches |presentation|::GlobalInputObservation
     crashes none;
     machine adjust_rectangle(rectangle: @mutable |gui|::WindowsRectangle, style: u32, menu: i32, extended_style: u32) -> i32
-    reaches WindowManagement
+    reaches |presentation|::WindowManagement
     crashes none;
     machine get_dc(window: u64) -> u64 reaches
-        SurfacePresentation + FilesystemContentRead + FilesystemContentWrite +
-        FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration +
-        FilesystemNamespaceMutation
+        |presentation|::SurfacePresentation + |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite +
+        |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation + |authority|::DirectoryEnumeration +
+        |authority|::FilesystemNamespaceMutation
     crashes none;
     machine release_dc(window: u64, device: u64) -> i32 reaches
-        SurfacePresentation + FilesystemContentRead + FilesystemContentWrite +
-        FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration +
-        FilesystemNamespaceMutation
+        |presentation|::SurfacePresentation + |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite +
+        |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation + |authority|::DirectoryEnumeration +
+        |authority|::FilesystemNamespaceMutation
     crashes none;
-    machine client_rectangle(window: u64, rectangle: @mutable |gui|::WindowsRectangle) -> i32 reaches WindowManagement
+    machine client_rectangle(window: u64, rectangle: @mutable |gui|::WindowsRectangle) -> i32 reaches |presentation|::WindowManagement
     crashes none;
     machine stretch_dibits(device: u64, destination_x: i32, destination_y: i32,
         destination_width: i32, destination_height: i32, source_x: i32, source_y: i32,
         source_width: i32, source_height: i32, pixels: @i32, info: @i32,
         usage: u32, raster_operation: u32) -> i32 reaches
-            SurfacePresentation + FilesystemContentRead + FilesystemContentWrite +
-            FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration +
-            FilesystemNamespaceMutation
+            |presentation|::SurfacePresentation + |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite +
+            |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation + |authority|::DirectoryEnumeration +
+            |authority|::FilesystemNamespaceMutation
     crashes none;
 }
 
 machine windows_gui_native_key_state(virtual_key: u32) -> u64
-reaches GlobalInputObservation
+reaches |presentation|::GlobalInputObservation
 invokes WindowsGuiIo {
     // SHORT's high bit marks the key down; the low-bit pressed-latch is noise
     // for a live-state query and is dropped by the mask.
@@ -101,12 +108,12 @@ invokes WindowsGuiIo {
 
 machine windows_gui_native_window_create(class_name: @[u8], title: @[u8], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64
 reaches
-    NativeCodeExecution + WindowManagement + SurfacePresentation +
-    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-    ClockObservation + ExecutionDelay + FilesystemContentRead +
-    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-    StandardOutput + ProcessExit
+    |native_execution|::NativeCodeExecution + |presentation|::WindowManagement + |presentation|::SurfacePresentation +
+    |presentation|::WindowEventObservation + |presentation|::WindowEventDispatch + |presentation|::GlobalInputObservation +
+    |time|::ClockObservation + |time|::ExecutionDelay + |authority|::FilesystemContentRead +
+    |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation +
+    |authority|::DirectoryEnumeration + |authority|::FilesystemNamespaceMutation + |process|::StandardInput +
+    |process|::StandardOutput + |process_exit|::ProcessExit
 invokes WindowsGuiIo {
     transition class_name.length > 0 && title.length > 0 {
         true -> terminated(class_name, title, style, x, y, width, height),
@@ -129,36 +136,36 @@ invokes WindowsGuiIo {
     }
 }
 machine windows_gui_native_foreground_window() -> u64
-reaches WindowManagement
+reaches |presentation|::WindowManagement
 invokes WindowsGuiIo {
     WindowsGuiIo::foreground_window()
 }
 machine windows_gui_native_is_window(window: u64) -> bool
-reaches WindowManagement
+reaches |presentation|::WindowManagement
 invokes WindowsGuiIo {
     let answer: i32 = WindowsGuiIo::is_window(window);
     answer != 0
 }
 machine windows_gui_native_window_destroy(window: u64) -> bool
 reaches
-    NativeCodeExecution + WindowManagement + SurfacePresentation +
-    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-    ClockObservation + ExecutionDelay + FilesystemContentRead +
-    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-    StandardOutput + ProcessExit
+    |native_execution|::NativeCodeExecution + |presentation|::WindowManagement + |presentation|::SurfacePresentation +
+    |presentation|::WindowEventObservation + |presentation|::WindowEventDispatch + |presentation|::GlobalInputObservation +
+    |time|::ClockObservation + |time|::ExecutionDelay + |authority|::FilesystemContentRead +
+    |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation +
+    |authority|::DirectoryEnumeration + |authority|::FilesystemNamespaceMutation + |process|::StandardInput +
+    |process|::StandardOutput + |process_exit|::ProcessExit
 invokes WindowsGuiIo {
     let answer: i32 = WindowsGuiIo::destroy_window(window);
     answer != 0
 }
 machine windows_gui_native_pump_message(message: @mutable |gui|::WindowsMessage) -> bool
 reaches
-    NativeCodeExecution + WindowManagement + SurfacePresentation +
-    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-    ClockObservation + ExecutionDelay + FilesystemContentRead +
-    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-    StandardOutput + ProcessExit
+    |native_execution|::NativeCodeExecution + |presentation|::WindowManagement + |presentation|::SurfacePresentation +
+    |presentation|::WindowEventObservation + |presentation|::WindowEventDispatch + |presentation|::GlobalInputObservation +
+    |time|::ClockObservation + |time|::ExecutionDelay + |authority|::FilesystemContentRead +
+    |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation +
+    |authority|::DirectoryEnumeration + |authority|::FilesystemNamespaceMutation + |process|::StandardInput +
+    |process|::StandardOutput + |process_exit|::ProcessExit
 invokes WindowsGuiIo {
     let answer: i32 = WindowsGuiIo::peek_message(message, 0, 0, 0, 1);
     transition answer != 0 { true -> dispatch(message), _ -> (false) }
@@ -173,45 +180,45 @@ invokes WindowsGuiIo {
 // `system/build.omg`; these adapters are what the `NativeWindowsGui` map forwards to.
 machine windows_gui_native_get_dc(window: u64) -> u64
 reaches
-        SurfacePresentation + FilesystemContentRead + FilesystemContentWrite +
-        FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration +
-        FilesystemNamespaceMutation
+        |presentation|::SurfacePresentation + |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite +
+        |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation + |authority|::DirectoryEnumeration +
+        |authority|::FilesystemNamespaceMutation
 invokes WindowsGuiIo {
     WindowsGuiIo::get_dc(window)
 }
 
 machine windows_gui_native_release_dc(window: u64, device: u64) -> i32
 reaches
-        SurfacePresentation + FilesystemContentRead + FilesystemContentWrite +
-        FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration +
-        FilesystemNamespaceMutation
+        |presentation|::SurfacePresentation + |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite +
+        |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation + |authority|::DirectoryEnumeration +
+        |authority|::FilesystemNamespaceMutation
 invokes WindowsGuiIo {
     WindowsGuiIo::release_dc(window, device)
 }
 
 machine windows_gui_native_client_rectangle(window: u64, rectangle: @mutable |gui|::WindowsRectangle) -> i32
-reaches WindowManagement
+reaches |presentation|::WindowManagement
 invokes WindowsGuiIo {
     WindowsGuiIo::client_rectangle(window, rectangle)
 }
 
 machine windows_gui_native_stretch_dibits(device: u64, destination_x: i32, destination_y: i32, destination_width: i32, destination_height: i32, source_x: i32, source_y: i32, source_width: i32, source_height: i32, pixels: @i32, info: @i32, usage: u32, raster_operation: u32) -> i32
 reaches
-            SurfacePresentation + FilesystemContentRead + FilesystemContentWrite +
-            FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration +
-            FilesystemNamespaceMutation
+            |presentation|::SurfacePresentation + |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite +
+            |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation + |authority|::DirectoryEnumeration +
+            |authority|::FilesystemNamespaceMutation
 invokes WindowsGuiIo {
     WindowsGuiIo::stretch_dibits(device, destination_x, destination_y, destination_width, destination_height, source_x, source_y, source_width, source_height, pixels, info, usage, raster_operation)
 }
 
 machine windows_gui_native_window_create_client(class_name: @[u8], title: @[u8], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64
 reaches
-    NativeCodeExecution + WindowManagement + SurfacePresentation +
-    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-    ClockObservation + ExecutionDelay + FilesystemContentRead +
-    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-    StandardOutput + ProcessExit
+    |native_execution|::NativeCodeExecution + |presentation|::WindowManagement + |presentation|::SurfacePresentation +
+    |presentation|::WindowEventObservation + |presentation|::WindowEventDispatch + |presentation|::GlobalInputObservation +
+    |time|::ClockObservation + |time|::ExecutionDelay + |authority|::FilesystemContentRead +
+    |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation +
+    |authority|::DirectoryEnumeration + |authority|::FilesystemNamespaceMutation + |process|::StandardInput +
+    |process|::StandardOutput + |process_exit|::ProcessExit
 invokes WindowsGuiIo {
     let mutable rectangle: |gui|::WindowsRectangle = |gui|::WindowsRectangle { left: 0, top: 0, right: width, bottom: height };
     let adjusted: i32 = WindowsGuiIo::adjust_rectangle(@mutable rectangle, style, 0, 0);
@@ -233,73 +240,73 @@ invokes WindowsGuiIo {
 NativeWindowsGui satisfies |gui|::WindowsGuiHost {
     machine window_create(class_name: @[u8], title: @[u8], style: u32,
         x: i32, y: i32, width: i32, height: i32) -> u64 reaches
-            NativeCodeExecution + WindowManagement + SurfacePresentation +
-            WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-            ClockObservation + ExecutionDelay + FilesystemContentRead +
-            FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-            DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-            StandardOutput + ProcessExit {
+            |native_execution|::NativeCodeExecution + |presentation|::WindowManagement + |presentation|::SurfacePresentation +
+            |presentation|::WindowEventObservation + |presentation|::WindowEventDispatch + |presentation|::GlobalInputObservation +
+            |time|::ClockObservation + |time|::ExecutionDelay + |authority|::FilesystemContentRead +
+            |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation +
+            |authority|::DirectoryEnumeration + |authority|::FilesystemNamespaceMutation + |process|::StandardInput +
+            |process|::StandardOutput + |process_exit|::ProcessExit {
         windows_gui_native_window_create(class_name, title, style, x, y, width, height)
     }
-    machine foreground_window() -> u64 reaches WindowManagement {
+    machine foreground_window() -> u64 reaches |presentation|::WindowManagement {
         windows_gui_native_foreground_window()
     }
-    machine is_window(window: u64) -> bool reaches WindowManagement {
+    machine is_window(window: u64) -> bool reaches |presentation|::WindowManagement {
         windows_gui_native_is_window(window)
     }
     machine window_destroy(window: u64) -> bool reaches
-        NativeCodeExecution + WindowManagement + SurfacePresentation +
-        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-        ClockObservation + ExecutionDelay + FilesystemContentRead +
-        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-        DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-        StandardOutput + ProcessExit {
+        |native_execution|::NativeCodeExecution + |presentation|::WindowManagement + |presentation|::SurfacePresentation +
+        |presentation|::WindowEventObservation + |presentation|::WindowEventDispatch + |presentation|::GlobalInputObservation +
+        |time|::ClockObservation + |time|::ExecutionDelay + |authority|::FilesystemContentRead +
+        |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation +
+        |authority|::DirectoryEnumeration + |authority|::FilesystemNamespaceMutation + |process|::StandardInput +
+        |process|::StandardOutput + |process_exit|::ProcessExit {
         windows_gui_native_window_destroy(window)
     }
     machine pump_message(message: @mutable |gui|::WindowsMessage) -> bool reaches
-        NativeCodeExecution + WindowManagement + SurfacePresentation +
-        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-        ClockObservation + ExecutionDelay + FilesystemContentRead +
-        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-        DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-        StandardOutput + ProcessExit {
+        |native_execution|::NativeCodeExecution + |presentation|::WindowManagement + |presentation|::SurfacePresentation +
+        |presentation|::WindowEventObservation + |presentation|::WindowEventDispatch + |presentation|::GlobalInputObservation +
+        |time|::ClockObservation + |time|::ExecutionDelay + |authority|::FilesystemContentRead +
+        |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation +
+        |authority|::DirectoryEnumeration + |authority|::FilesystemNamespaceMutation + |process|::StandardInput +
+        |process|::StandardOutput + |process_exit|::ProcessExit {
         windows_gui_native_pump_message(message)
     }
     machine get_dc(window: u64) -> u64 reaches
-        SurfacePresentation + FilesystemContentRead + FilesystemContentWrite +
-        FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration +
-        FilesystemNamespaceMutation {
+        |presentation|::SurfacePresentation + |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite +
+        |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation + |authority|::DirectoryEnumeration +
+        |authority|::FilesystemNamespaceMutation {
         windows_gui_native_get_dc(window)
     }
     machine release_dc(window: u64, device: u64) -> i32 reaches
-        SurfacePresentation + FilesystemContentRead + FilesystemContentWrite +
-        FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration +
-        FilesystemNamespaceMutation {
+        |presentation|::SurfacePresentation + |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite +
+        |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation + |authority|::DirectoryEnumeration +
+        |authority|::FilesystemNamespaceMutation {
         windows_gui_native_release_dc(window, device)
     }
-    machine client_rectangle(window: u64, rectangle: @mutable |gui|::WindowsRectangle) -> i32 reaches WindowManagement {
+    machine client_rectangle(window: u64, rectangle: @mutable |gui|::WindowsRectangle) -> i32 reaches |presentation|::WindowManagement {
         windows_gui_native_client_rectangle(window, rectangle)
     }
     machine stretch_dibits(device: u64, destination_x: i32, destination_y: i32,
         destination_width: i32, destination_height: i32, source_x: i32, source_y: i32,
         source_width: i32, source_height: i32, pixels: @i32, info: @i32,
         usage: u32, raster_operation: u32) -> i32 reaches
-            SurfacePresentation + FilesystemContentRead + FilesystemContentWrite +
-            FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration +
-            FilesystemNamespaceMutation {
+            |presentation|::SurfacePresentation + |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite +
+            |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation + |authority|::DirectoryEnumeration +
+            |authority|::FilesystemNamespaceMutation {
         windows_gui_native_stretch_dibits(device, destination_x, destination_y, destination_width, destination_height, source_x, source_y, source_width, source_height, pixels, info, usage, raster_operation)
     }
     machine window_create_client(class_name: @[u8], title: @[u8], style: u32,
         x: i32, y: i32, width: i32, height: i32) -> u64 reaches
-            NativeCodeExecution + WindowManagement + SurfacePresentation +
-            WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-            ClockObservation + ExecutionDelay + FilesystemContentRead +
-            FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-            DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-            StandardOutput + ProcessExit {
+            |native_execution|::NativeCodeExecution + |presentation|::WindowManagement + |presentation|::SurfacePresentation +
+            |presentation|::WindowEventObservation + |presentation|::WindowEventDispatch + |presentation|::GlobalInputObservation +
+            |time|::ClockObservation + |time|::ExecutionDelay + |authority|::FilesystemContentRead +
+            |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation +
+            |authority|::DirectoryEnumeration + |authority|::FilesystemNamespaceMutation + |process|::StandardInput +
+            |process|::StandardOutput + |process_exit|::ProcessExit {
         windows_gui_native_window_create_client(class_name, title, style, x, y, width, height)
     }
-    machine key_state(virtual_key: u32) -> u64 reaches GlobalInputObservation {
+    machine key_state(virtual_key: u32) -> u64 reaches |presentation|::GlobalInputObservation {
         windows_gui_native_key_state(virtual_key)
     }
 }
