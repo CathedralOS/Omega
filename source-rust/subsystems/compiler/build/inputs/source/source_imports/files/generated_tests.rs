@@ -99,7 +99,9 @@ fn generated_files_can_import_the_checked_base_and_one_another() {
         generated("math/value.omg", "public machine value() -> u8 { 7 }"),
         generated(
             "entry.omg",
-            "use math/value.omg; use types/base.omg; use linked.omg; public machine make() -> u8 { |value|::value() }",
+            "use math/value.omg; use types/base.omg; use linked.omg;
+             public machine make() -> u8 { |value|::value() }
+             machine through_link(value: |base|::Base) -> |linked|::Base { value }",
         ),
     ];
     let assemble =
