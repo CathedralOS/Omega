@@ -263,11 +263,9 @@ pub(crate) fn prepare_admitted_build(
         ));
     }
     let owner = packages.map(PackageCompilationInputs::root).or_else(|| {
-        typed
-            .symbols
-            .symbol_source_span(entry)
-            .and_then(|span| typed.symbols.source_file(span))
-            .and_then(|file| file.package_identity)
+        let source = anonymous_source?;
+        source.acquired_for(typed)?;
+        source.build_owner()
     });
     let subject = check_subject.then_some(owner);
     let providers =

@@ -6,6 +6,7 @@ use diagnostics::Diagnostic;
 
 #[derive(Clone, PartialEq, Eq, Default)]
 pub(crate) struct BuildProviderScope {
+    owner: Option<semantic_vocabulary::PackageKeyIdentity>,
     packages: Option<package_compilation::PackageCompilationInputs>,
     supplied_scope: Option<declaration_scope::PackageDeclarationScope>,
     dependency_edges: Vec<semantic_vocabulary::dependency_reach::DependencyServiceEdge>,
@@ -44,6 +45,7 @@ impl BuildProviderScope {
             );
         }
         Self {
+            owner,
             packages: packages.cloned(),
             dependency_edges,
             supplied_scope:
@@ -108,9 +110,7 @@ impl BuildProviderScope {
             None,
             entry,
             &checked,
-            self.packages
-                .as_ref()
-                .map(package_compilation::PackageCompilationInputs::root),
+            self.owner,
             authority
                 .as_ref()
                 .map(|a| a as &dyn declaration_scope::DeclarationSelectionAuthority),
