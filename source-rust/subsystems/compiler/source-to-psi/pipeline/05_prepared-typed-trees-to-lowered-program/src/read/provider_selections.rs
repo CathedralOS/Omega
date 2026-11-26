@@ -8,7 +8,7 @@ use semantic_vocabulary::MachineId;
 use terminal_check_tables::Checked;
 
 use super::{Program, services};
-use crate::provider_selections::{
+use crate::declare::provider_selections::{
     ProviderSelections, SourceProviderSelection, SourceProviderSelections,
 };
 
@@ -199,7 +199,7 @@ impl<'source> Program<'source> {
             for question in questions {
                 let (
                     Some(candidate),
-                    crate::static_contracts::SourceImplementation::Machine(machine),
+                    crate::callables::static_contracts::SourceImplementation::Machine(machine),
                 ) = (&question.provider, question.implementation)
                 else {
                     continue;
@@ -243,7 +243,7 @@ impl<'source> Program<'source> {
                 },
                 provider_application,
                 provider_package: typed.symbols.symbol_package_identity(provider),
-                provider_custody: crate::selection_questions::declaration_custody(
+                provider_custody: crate::publication::selection_questions::declaration_custody(
                     typed, provider,
                 )
                 .map_err(|reason| services::unavailable(context, reason.to_string()))?,

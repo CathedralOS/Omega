@@ -21,7 +21,7 @@ pub(crate) struct BoundarySource {
     pub kind: semantic_vocabulary::BoundaryRequirementKind,
     pub owner: SymbolHandle,
     pub signature: Signature,
-    pub envelope: crate::reach::SourceEnvelope,
+    pub envelope: crate::publication::reach::SourceEnvelope,
     pub completion: BoundaryCompletion,
     pub owning_service: Option<semantic_vocabulary::ServiceId>,
     pub declaration: crate::declare::BoundaryDeclarationSource,
@@ -69,7 +69,7 @@ impl BoundaryNamespace {
         outcomes: &IdTable<MachineId, Outcome>,
         records: &crate::lower::places::Records<'_>,
         callables: &crate::callables::CallableNamespace,
-        services: &crate::reach::ServiceMap,
+        services: &crate::publication::reach::ServiceMap,
         qualifications: &mut crate::qualifications::Qualifications,
         module: &mut TerminalModule,
         declarations: Option<&crate::read::Program<'_>>,
@@ -106,7 +106,11 @@ impl BoundaryNamespace {
             }
             let result_lifetimes = declarations
                 .ok_or_else(|| refusal("boundary lost its prepared source lifetime context"))?
-                .declared_result_lifetimes(context, &source.signature, &module.types.structural_types)
+                .declared_result_lifetimes(
+                    context,
+                    &source.signature,
+                    &module.types.structural_types,
+                )
                 .map_err(refusal)?
                 .ok_or_else(|| {
                     refusal("boundary result has an unresolved declared lifetime frontier")
@@ -150,8 +154,9 @@ impl BoundaryNamespace {
                     });
                 }
             }
-            let requires = StructuralDomainRequirement::declared_roots(&header.structural_parameters)
-                .collect();
+            let requires =
+                StructuralDomainRequirement::declared_roots(&header.structural_parameters)
+                    .collect();
             let reader = declarations.ok_or_else(|| refusal("boundary lost its source owner"))?;
             let execution = match reader.typed.symbols.sealed_intrinsic(source.source) {
                 Some(language_core::sealed_intrinsics::SealedIntrinsic::LayoutTargetFacts) => {
@@ -279,7 +284,9 @@ impl BoundaryNamespace {
                 .is_some_and(|(owner, signature)| {
                     owner.is_boundary && signature.service_reach_is_installation_bound
                 });
-            let content_guarantees = terminal_psi::BoundaryContentGuarantee::from_contract(&header.proof).map_err(refusal)?;
+            let content_guarantees =
+                terminal_psi::BoundaryContentGuarantee::from_contract(&header.proof)
+                    .map_err(refusal)?;
             module.interfaces.boundary_machines.push(BoundaryMachineDeclaration {
                 id,
                 declaration: Some(checked),

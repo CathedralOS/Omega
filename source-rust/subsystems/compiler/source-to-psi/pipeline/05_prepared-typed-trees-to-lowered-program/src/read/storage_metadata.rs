@@ -8,7 +8,7 @@ use terminal_check_tables::Checked;
 use terminal_psi::{CallingAbiStorage, CallingRuntimeFormal, CallingSignatureTelescope};
 
 use super::{Program, services};
-use crate::calling_publication::PreparedCallingStorage;
+use crate::publication::calling::PreparedCallingStorage;
 use crate::read::calling::SourceCallingPolicies;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

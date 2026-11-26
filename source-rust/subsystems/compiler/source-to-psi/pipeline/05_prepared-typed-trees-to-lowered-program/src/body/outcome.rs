@@ -339,7 +339,7 @@ impl<'b> Walk<'b> {
         self.causes.clear();
         self.contributed = Default::default();
         self.operational = [false; 2];
-        let declared_empty = crate::inhabitation::excludes_result(
+        let declared_empty = crate::body::inhabitation::excludes_result(
             self.inhabitation,
             self.signatures.get(machine.into(), machine)?.result,
         );
@@ -706,9 +706,9 @@ impl<'b> Walk<'b> {
             // A Trapping operation is its own `Trap` site (numeric_values.md,
             // "Policy operators": it "contributes that route to its
             // machine's crash contract like any other Trapping operation").
-            ExpressionKind::TestMembership { subject, predicate, .. } => {
-                Ok(self.expression(machine, subject)? && self.expression(machine, predicate)?)
-            }
+            ExpressionKind::TestMembership {
+                subject, predicate, ..
+            } => Ok(self.expression(machine, subject)? && self.expression(machine, predicate)?),
             ExpressionKind::Strict {
                 policy,
                 left,
@@ -857,7 +857,7 @@ impl<'b> Walk<'b> {
                 let signature =
                     self.signatures
                         .invocation((*callee).into(), *required_contract, machine)?;
-                let completes = !crate::inhabitation::excludes_result(
+                let completes = !crate::body::inhabitation::excludes_result(
                     self.inhabitation,
                     signature.result,
                 ) && !terminal_semantics::inhabitation::predicates_are_false(

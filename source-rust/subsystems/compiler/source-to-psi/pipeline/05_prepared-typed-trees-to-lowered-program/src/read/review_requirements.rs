@@ -2,11 +2,11 @@
 
 use super::Program;
 use crate::body::{Policy, Signature};
+use crate::callables::static_contracts::SourceServiceCeiling;
+use crate::publication::reach::SourceInvocation;
 use crate::publication::{
     RequirementInvocation, RequirementReview, RequirementReviewMetadata, RequirementService,
 };
-use crate::reach::SourceInvocation;
-use crate::static_contracts::SourceServiceCeiling;
 use crate::source_state::signature::StateSignature;
 use crate::source_state::trait_definition::{AppliedTraitScope, TraitDefinition};
 use semantic_vocabulary::MachineId;

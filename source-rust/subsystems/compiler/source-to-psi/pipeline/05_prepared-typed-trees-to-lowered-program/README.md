@@ -186,11 +186,19 @@ and the conformance witnesses. The semantic data it produces is defined in
 operands stays in the driver's publication envelope.
 [read.rs](src/read.rs) resolves a
 machine's typed trees into the closed body of [body.rs](src/body.rs);
-[outcome.rs](src/outcome.rs) then works out, callees first, whether each
+[body/outcome.rs](src/body/outcome.rs) then works out, callees first, whether each
 machine can complete normally and which crash routes it publishes;
 [lower.rs](src/lower.rs) turns each body into blocks, values, operations,
 edges and invocations. [canonical.rs](src/canonical.rs) holds the one route to
 Terminal Psi's canonical form for every proposition the crate builds.
+
+Find declaration and provider rows under [`declare/`](src/declare), and
+callable headers and formation checks under [`callables/`](src/callables).
+[`components/`](src/components) owns the call graph and ranking propagation.
+[`references/`](src/references) preserves reference ends, returned origins and
+borrowed defaults. [`publication/`](src/publication) assembles calling policies,
+claims, proof scope, service reach and the source's remaining questions for the
+next stage to judge.
 
 Both steps are split by construct family. `read.rs` holds the shared `Program`
 and `Slot`, and each family is a module beside it:
@@ -1351,7 +1359,7 @@ only by being proved on the entry's jump.
 
 **Outcomes.** Whether a machine completes normally and which causes it may
 crash with is the least fixed point over the call graph
-([outcome.rs](src/outcome.rs)): every machine starts as never completing,
+([body/outcome.rs](src/body/outcome.rs)): every machine starts as never completing,
 and the bodies are walked until nothing changes. A machine whose every path
 calls it again never completes, and a call of it is an `InvokeNoNormal`
 terminator (control flow: "An infinite path has no normal return").

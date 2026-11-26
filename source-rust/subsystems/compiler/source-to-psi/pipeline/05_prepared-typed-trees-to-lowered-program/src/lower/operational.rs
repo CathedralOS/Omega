@@ -38,7 +38,7 @@ pub(crate) fn boundary(expression: &mut Expression) {
 /// Resolve the parsed target token while the original typed call is still available.
 pub(crate) fn retain_callee_spans(
     typed: &crate::source_state::TypedTrees,
-    lowered: &mut super::lower::Lowered,
+    lowered: &mut super::Lowered,
 ) {
     use crate::source_state::{SourceNode, statement::StatementNode};
     use semantic_vocabulary::InvocationSite;
@@ -47,7 +47,10 @@ pub(crate) fn retain_callee_spans(
     let callee_span = |node| {
         let occurrence = match node {
             SourceNode::Expression(id) if typed.expression_table.expression_is_valid(id) => {
-                typed.expression_table.call_node(id)?.authored_call_selection
+                typed
+                    .expression_table
+                    .call_node(id)?
+                    .authored_call_selection
             }
             SourceNode::Statement(id) if typed.statement_table.statement_is_valid(id) => {
                 let StatementNode::Call(call) = typed.statement_table.statement(id) else {
@@ -134,8 +137,7 @@ fn statements(machine: MachineId, statements: &[Statement]) -> Checked<()> {
                 }
                 target(machine, arm)?;
             }
-            Statement::Declare { .. }
-            | Statement::CaptureReference { .. } => {}
+            Statement::Declare { .. } | Statement::CaptureReference { .. } => {}
         }
     }
     Ok(())
@@ -243,7 +245,11 @@ fn expression(machine: MachineId, value: &Expression) -> Checked<()> {
                 expression(machine, arm)?;
             }
         }
-        ExpressionKind::TestMembership { subject: left, predicate: right, .. }
+        ExpressionKind::TestMembership {
+            subject: left,
+            predicate: right,
+            ..
+        }
         | ExpressionKind::Strict { left, right, .. }
         | ExpressionKind::ShortCircuit { left, right, .. } => {
             expression(machine, left)?;

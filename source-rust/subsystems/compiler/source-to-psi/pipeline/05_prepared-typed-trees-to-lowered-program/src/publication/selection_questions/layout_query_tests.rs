@@ -114,7 +114,12 @@ fn layout_queries_keep_the_operand_and_refuse_stale_or_missing_nominal_calls() {
             unreachable!()
         };
         call.layout_query = Some(request);
-        call.layout_query.as_mut().unwrap().type_operand_mut().unwrap().symbol = SymbolHandle::from_parts(u32::MAX, 1);
+        call.layout_query
+            .as_mut()
+            .unwrap()
+            .type_operand_mut()
+            .unwrap()
+            .symbol = SymbolHandle::from_parts(u32::MAX, 1);
         let refused = capture(&typed).unwrap_err();
         assert!(
             refused

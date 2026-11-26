@@ -52,9 +52,10 @@ pub(crate) fn install(
     })?;
     // Each machine replays from its own analysis, and every analysis takes
     // the callee summaries another one already completed.
-    let summaries = crate::reference_results::module_summaries(module);
+    let summaries = crate::references::results::module_summaries(module);
     for (machine, required) in module.machines.iter().zip(defaults) {
-        let mut references = crate::reference_results::shared_analysis(module, &graph, &summaries);
+        let mut references =
+            crate::references::results::shared_analysis(module, &graph, &summaries);
         let unavailable =
             |detail| refuse(machine.id, Construct::Machine, Unserved::Machine(detail));
         let tables = tables

@@ -63,9 +63,12 @@ pub(crate) use calls::publish_write_frames;
 mod content_equations;
 mod control;
 mod join_reads;
+pub(crate) mod machine_order;
+pub(crate) mod operational;
 mod operations;
 pub(crate) mod places;
 mod ranking;
+pub(crate) mod suspension;
 
 use arena::IdTable;
 use semantic_vocabulary::{
@@ -85,9 +88,9 @@ use terminal_psi::{
 };
 
 use self::places::{Bound, Records, Witness};
+use crate::body::outcome::Outcome;
 use crate::body::{Body, Signature, Signatures, Statement, ValueType};
 use crate::canonical;
-use crate::outcome::Outcome;
 use crate::{MachineSources, SourceOrigin, Unpositioned, Unserved, refuse, reject};
 
 #[derive(Debug)]
@@ -142,7 +145,7 @@ pub(crate) fn machine(
     records: &Records<'_>,
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
     callables: &crate::callables::CallableNamespace,
-    boundaries: &crate::boundaries::BoundaryNamespace,
+    boundaries: &crate::declare::boundaries::BoundaryNamespace,
     requirement: bool,
     qualifications: &mut crate::qualifications::Qualifications,
 ) -> Checked<Lowered> {
@@ -191,7 +194,7 @@ pub(crate) fn machine(
 
 /// A signature's declarations, shared by named bodies and stored callable
 /// contracts. This creates no named machine or implementation selection.
-pub(crate) type SignatureHeader = crate::callable_headers::CallableHeader;
+pub(crate) type SignatureHeader = crate::callables::headers::CallableHeader;
 
 /// The same header preparation as an ordinary machine, without a body. The
 /// context names an existing machine for diagnostics; it is not published as
@@ -203,7 +206,7 @@ pub(crate) fn signature_header(
     outcomes: &IdTable<MachineId, Outcome>,
     records: &Records<'_>,
     callables: &crate::callables::CallableNamespace,
-    boundaries: &crate::boundaries::BoundaryNamespace,
+    boundaries: &crate::declare::boundaries::BoundaryNamespace,
     qualifications: &mut crate::qualifications::Qualifications,
 ) -> Checked<SignatureHeader> {
     // Standalone callable signatures have no published machine contract.
@@ -217,7 +220,7 @@ pub(crate) fn signature_header(
         records,
         callables,
         boundaries,
-        crate::callable_headers::CallableCrashPolicy::Closed,
+        crate::callables::headers::CallableCrashPolicy::Closed,
         qualifications,
     )
 }
@@ -230,16 +233,16 @@ pub(crate) fn static_signature_header(
     outcomes: &IdTable<MachineId, Outcome>,
     records: &Records<'_>,
     callables: &crate::callables::CallableNamespace,
-    boundaries: &crate::boundaries::BoundaryNamespace,
+    boundaries: &crate::declare::boundaries::BoundaryNamespace,
     qualifications: &mut crate::qualifications::Qualifications,
 ) -> Checked<SignatureHeader> {
     let policy = if matches!(
         signature.crashes,
         crate::body::CrashCeiling::Inferred
     ) {
-        crate::callable_headers::CallableCrashPolicy::Open
+        crate::callables::headers::CallableCrashPolicy::Open
     } else {
-        crate::callable_headers::CallableCrashPolicy::Closed
+        crate::callables::headers::CallableCrashPolicy::Closed
     };
     callable_header(
         context,
@@ -263,8 +266,8 @@ fn callable_header(
     outcomes: &IdTable<MachineId, Outcome>,
     records: &Records<'_>,
     callables: &crate::callables::CallableNamespace,
-    boundaries: &crate::boundaries::BoundaryNamespace,
-    crash_policy: crate::callable_headers::CallableCrashPolicy,
+    boundaries: &crate::declare::boundaries::BoundaryNamespace,
+    crash_policy: crate::callables::headers::CallableCrashPolicy,
     qualifications: &mut crate::qualifications::Qualifications,
 ) -> Checked<SignatureHeader> {
     // Header preparation constructs formals and the result without lowering
@@ -291,7 +294,7 @@ fn callable_header(
         crate::body::CrashCeiling::DeclaredNone => Vec::new(),
         crate::body::CrashCeiling::Authored(routes) => routes.clone(),
         crate::body::CrashCeiling::Inferred
-            if crash_policy == crate::callable_headers::CallableCrashPolicy::Open =>
+            if crash_policy == crate::callables::headers::CallableCrashPolicy::Open =>
         {
             Vec::new()
         }
@@ -313,7 +316,7 @@ fn begin<'a>(
     outcomes: &'a IdTable<MachineId, Outcome>,
     records: &'a Records<'a>,
     callables: &'a crate::callables::CallableNamespace,
-    boundaries: &'a crate::boundaries::BoundaryNamespace,
+    boundaries: &'a crate::declare::boundaries::BoundaryNamespace,
     slots: &'a [ValueType],
     qualifications: &'a mut crate::qualifications::Qualifications,
 ) -> Checked<(Lowering<'a>, BlockId, Formals, TerminalMachineResult)> {
@@ -481,7 +484,7 @@ impl<'a> Lowering<'a> {
         outcomes: &'a IdTable<MachineId, Outcome>,
         records: &'a Records<'a>,
         callables: &'a crate::callables::CallableNamespace,
-        boundaries: &'a crate::boundaries::BoundaryNamespace,
+        boundaries: &'a crate::declare::boundaries::BoundaryNamespace,
         slot_types: &'a [ValueType],
         qualifications: &'a mut crate::qualifications::Qualifications,
     ) -> Self {
@@ -793,7 +796,7 @@ struct Lowering<'a> {
     records: &'a Records<'a>,
     structural_types: &'a [terminal_psi::StructuralTypeDeclaration],
     callables: &'a crate::callables::CallableNamespace,
-    boundaries: &'a crate::boundaries::BoundaryNamespace,
+    boundaries: &'a crate::declare::boundaries::BoundaryNamespace,
     qualifications: &'a mut crate::qualifications::Qualifications,
     /// The first qualification edge minted by this machine, carried from
     /// construction instead of searching all preceding machines' edges.
@@ -1404,7 +1407,7 @@ impl<'a> Lowering<'a> {
             contract_header(contract, self.signature, formals, result, ensures, &outcome);
         self.qualify_contract(&mut proof)?;
         Ok(SignatureHeader {
-            crash_policy: crate::callable_headers::CallableCrashPolicy::Closed,
+            crash_policy: crate::callables::headers::CallableCrashPolicy::Closed,
             scalar_parameters: proof.parameters.clone(),
             parameter_order: proof.parameter_order.clone(),
             structural_parameters: proof.structural_parameters.clone(),

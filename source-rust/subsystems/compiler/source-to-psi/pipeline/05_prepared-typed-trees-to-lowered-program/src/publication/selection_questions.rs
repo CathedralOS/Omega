@@ -234,10 +234,10 @@ pub use lowered_source_publication::selection_questions::{
 
 /// Give each anonymous declaration this form selects or names, and that emits
 /// no row of its own, the invocation identity the lowered form uses for it.
-pub(super) fn bind_invocation_declarations(
+pub(crate) fn bind_invocation_declarations(
     mut questions: RawSelectionQuestions,
     typed: &TypedTrees,
-    form: &mut super::Elaboration,
+    form: &mut crate::Elaboration,
     records: &[crate::source_state::SourceRecordCorrespondence],
 ) -> Result<RawSelectionQuestions, &'static str> {
     if form.module.identities.invocation_scope().is_none() {
@@ -283,7 +283,7 @@ pub(super) fn bind_invocation_declarations(
                 == Some(source_admission::SourceOrigin::User)
             && typed.symbols.symbol_package_identity(symbol).is_none()
         {
-            let identity = super::declare::invocation_local(typed, symbol, &mut identities)?
+            let identity = crate::declare::invocation_local(typed, symbol, &mut identities)?
                 .and_then(|id| identities.text(id))
                 .ok_or("anonymous selection declaration lost its invocation identity")?;
             bound.push((symbol, identity.to_owned()));
@@ -501,7 +501,10 @@ fn formed_product_type_inputs(
                     retain(&input, typed.type_reference_symbol(reference), &names);
                 }
                 if product_alias_instances.contains(&reference) {
-                    for alias in typed.type_reference_table.type_alias_applications(reference) {
+                    for alias in typed
+                        .type_reference_table
+                        .type_alias_applications(reference)
+                    {
                         if let Ok(Some(input)) = product_alias_input(typed, alias) {
                             retain(&input, alias.declaration, &names);
                         }
@@ -1161,10 +1164,17 @@ impl TypedReferences for Capture<'_> {
             return true;
         }
         let typed = self.typed;
-        for alias in typed.type_reference_table.type_alias_applications(reference) {
+        for alias in typed
+            .type_reference_table
+            .type_alias_applications(reference)
+        {
             match product_alias_input(typed, alias) {
                 Ok(Some(_)) => {
-                    crate::source_state::references::visit_type_reference(typed, self, alias.application);
+                    crate::source_state::references::visit_type_reference(
+                        typed,
+                        self,
+                        alias.application,
+                    );
                 }
                 Ok(None) => {}
                 Err(reason) => {
@@ -1482,7 +1492,9 @@ pub(crate) fn capture_with_bodies(
     template_requirements.dedup();
     // Ordinary references need no additional walk over the alias table.
     // Retain malformed rows here so their first actual use reports the error.
-    let product_alias_instances = typed.type_reference_table.type_alias_applications_after(0)
+    let product_alias_instances = typed
+        .type_reference_table
+        .type_alias_applications_after(0)
         .filter(|alias| !matches!(product_alias_input(typed, alias), Ok(None)))
         .map(|alias| alias.instance)
         .collect();
@@ -1579,7 +1591,6 @@ pub fn declaration_custody(
 }
 
 #[cfg(test)]
-#[path = "selection_layout_query_tests.rs"]
 mod layout_query_tests;
 
 #[cfg(test)]
