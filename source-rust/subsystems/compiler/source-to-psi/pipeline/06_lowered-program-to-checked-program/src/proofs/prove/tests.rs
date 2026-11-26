@@ -116,6 +116,53 @@ mod exact_fact_index {
     }
 
     #[test]
+    fn a_mixed_integer_bound_can_discharge_its_exact_carrier_bound() {
+        let id = ValueId::new(1).unwrap();
+        let signed = IntegerType::new(IntegerSign::Signed, 32).unwrap();
+        let scalar = ScalarType::Integer(signed);
+        let values = IdTable::from_rows([(
+            id,
+            ValueRow {
+                scalar_type: scalar,
+                origin: ValueOrigin::MachineParameter { position: 0 },
+                rigid: None,
+            },
+        )])
+        .unwrap();
+        let context = context(&values);
+        let index = ScalarTerm::value(id, scalar);
+        let fixed_limit = ScalarTerm::integer(signed, IntegerValue::Signed(12)).unwrap();
+        let goal = Proposition::LessThan(index.clone(), fixed_limit);
+        let mathematical = |limit| {
+            Proposition::IntegerMathLessThan(
+                IntegerMathTerm::embed(index.clone()).unwrap(),
+                IntegerMathTerm::embed(literal(limit)).unwrap(),
+            )
+        };
+        let bound = mathematical(12);
+        for source in [
+            bound.clone(),
+            Proposition::Conjunction(vec![Proposition::Truth, bound]),
+        ] {
+            let premises = [source];
+            let mut activity = ProofSearchActivity::default();
+            let proof = Prover::new(&context, &premises, &[], &values, &mut activity)
+                .prove(&goal)
+                .unwrap();
+            proof_admission::accept_certificate(&context, &goal, &premises, &[], &proof).unwrap();
+        }
+        for limit in [13, u128::from(u64::MAX)] {
+            let premises = [mathematical(limit)];
+            let mut activity = ProofSearchActivity::default();
+            assert!(
+                Prover::new(&context, &premises, &[], &values, &mut activity)
+                    .prove(&goal)
+                    .is_err()
+            );
+        }
+    }
+
+    #[test]
     fn falsehood_remains_available_but_no_answer_crosses_premise_contexts() {
         let values = inputs();
         let context = context(&values);
