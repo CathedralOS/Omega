@@ -7036,6 +7036,21 @@ impl<'s, 'a, Inputs: InputPlaces<'a>> Returned<'s, 'a, Inputs> {
             ))
     }
 
+    /// The data subject a clause of the result names when `root` is the
+    /// declared structural result, and `None` for any other storage.
+    fn result_subject(&self, root: PlaceId) -> Result<Option<PlaceId>, crate::Unbound> {
+        if !self
+            .structural
+            .as_ref()
+            .is_some_and(|(declared, _)| *declared == root)
+        {
+            return Ok(None);
+        }
+        terminal_check_tables::program::self_place()
+            .map(Some)
+            .ok_or(crate::Unbound::Unsupported("data subject identity"))
+    }
+
     fn owned_inputs(&mut self, root: PlaceId) -> Result<&mut Inputs, crate::Unbound> {
         if self.formal_access(root)? != terminal_psi::StructuralAccess::Owned {
             return Err(crate::Unbound::Unsupported(
@@ -7119,18 +7134,12 @@ impl<'a, Inputs: InputPlaces<'a>> crate::Bindings for Returned<'_, 'a, Inputs> {
         path: &[CanonicalStructuralPathSegment],
         scalar_type: ScalarType,
     ) -> Result<ScalarTerm, crate::Unbound> {
-        if self
-            .structural
-            .as_ref()
-            .is_some_and(|(declared, _)| *declared == root)
-        {
+        if let Some(subject) = self.result_subject(root)? {
             if version == semantic_vocabulary::ContentPlaceVersion::Entry {
                 return Err(crate::Unbound::Unsupported(
                     "a result has no invocation-entry contents",
                 ));
             }
-            let subject = terminal_check_tables::program::self_place()
-                .ok_or(crate::Unbound::Unsupported("data subject identity"))?;
             return self.held()?.field(version, subject, path, scalar_type);
         }
         let access = self.formal_access(root)?;
@@ -7164,18 +7173,12 @@ impl<'a, Inputs: InputPlaces<'a>> crate::Bindings for Returned<'_, 'a, Inputs> {
         path: &[CanonicalStructuralPathSegment],
         scalar_type: ScalarType,
     ) -> Result<Vec<ScalarTerm>, crate::Unbound> {
-        if self
-            .structural
-            .as_ref()
-            .is_some_and(|(declared, _)| *declared == root)
-        {
+        if let Some(subject) = self.result_subject(root)? {
             if version == semantic_vocabulary::ContentPlaceVersion::Entry {
                 return Err(crate::Unbound::Unsupported(
                     "a result has no invocation-entry contents",
                 ));
             }
-            let subject = terminal_check_tables::program::self_place()
-                .ok_or(crate::Unbound::Unsupported("data subject identity"))?;
             return self
                 .held()?
                 .field_alternatives(version, subject, path, scalar_type);
@@ -7204,13 +7207,7 @@ impl<'a, Inputs: InputPlaces<'a>> crate::Bindings for Returned<'_, 'a, Inputs> {
         path: &[CanonicalStructuralPathSegment],
         scalar_type: semantic_vocabulary::IntegerType,
     ) -> Result<ScalarTerm, crate::Unbound> {
-        if self
-            .structural
-            .as_ref()
-            .is_some_and(|(declared, _)| *declared == root)
-        {
-            let subject = terminal_check_tables::program::self_place()
-                .ok_or(crate::Unbound::Unsupported("data subject identity"))?;
+        if let Some(subject) = self.result_subject(root)? {
             return self.held()?.extent(subject, path, scalar_type);
         }
         if self.formal_access(root)? == terminal_psi::StructuralAccess::Owned {
@@ -7227,13 +7224,7 @@ impl<'a, Inputs: InputPlaces<'a>> crate::Bindings for Returned<'_, 'a, Inputs> {
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
     ) -> Result<ScalarTerm, crate::Unbound> {
-        if self
-            .structural
-            .as_ref()
-            .is_some_and(|(declared, _)| *declared == root)
-        {
-            let subject = terminal_check_tables::program::self_place()
-                .ok_or(crate::Unbound::Unsupported("data subject identity"))?;
+        if let Some(subject) = self.result_subject(root)? {
             return self.held()?.byte_predicate(predicate, subject, path);
         }
         if self.formal_access(root)? != terminal_psi::StructuralAccess::SharedBorrow {
@@ -7249,13 +7240,7 @@ impl<'a, Inputs: InputPlaces<'a>> crate::Bindings for Returned<'_, 'a, Inputs> {
         path: &[CanonicalStructuralPathSegment],
         case: StructuralCaseId,
     ) -> Result<crate::CaseAnswer, crate::Unbound> {
-        if self
-            .structural
-            .as_ref()
-            .is_some_and(|(declared, _)| *declared == root)
-        {
-            let subject = terminal_check_tables::program::self_place()
-                .ok_or(crate::Unbound::Unsupported("data subject identity"))?;
+        if let Some(subject) = self.result_subject(root)? {
             return self.held()?.case(subject, path, case);
         }
         self.owned_inputs(root)?.case(root, path, case)

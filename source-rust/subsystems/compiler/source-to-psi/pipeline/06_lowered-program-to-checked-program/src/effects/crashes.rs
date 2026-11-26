@@ -274,18 +274,14 @@ fn block_site<'a>(
     site: BlockId,
     cause: CrashCause,
 ) -> Checked<Guard> {
-    let block = usize::try_from(site.get() - 1)
-        .ok()
-        .and_then(|position| lowered.blocks.get(position))
-        .filter(|block| block.id == site)
-        .ok_or_else(|| {
-            refusal(
-                RefusalReason::ForeignIdentity,
-                id,
-                concerns,
-                "the crash site is past the end",
-            )
-        })?;
+    let block = crate::arrivals::block(lowered, site).ok_or_else(|| {
+        refusal(
+            RefusalReason::ForeignIdentity,
+            id,
+            concerns,
+            "the crash site is past the end",
+        )
+    })?;
     match &block.terminator {
         Terminator::Crash {
             cause: crashes,
@@ -553,204 +549,162 @@ fn narrow_machine(
     let original =
         terminal_check_tables::row(&elaboration.tables.machines, id, id, Construct::Machine)?;
     let mut scratch = original.clone();
-    let prepared = crate::prepare_with_inhabitation(
+    let (_, narrowed) = crate::with_prepared_machine(
         scope.formed(),
         &elaboration.domains,
         id,
         &mut scratch,
         inhabitation,
-    )?;
-    let mut references = prepared.references(&module.types.structural_types);
-    let storage = Storage::new(
-        id,
-        lowered,
-        module,
-        &elaboration.domains,
-        &prepared.graph,
-        &scratch,
-        &prepared.types,
-        &mut references,
-    )?;
-    let declared_joins = crate::joins::prepare(
-        lowered,
-        id,
-        &mut scratch,
-        &prepared.graph,
-        &prepared.context,
-        &module.proofs.scalar_block_invariants,
-        &storage,
-        &mut references,
-        activity,
-    )?;
-    let beyond = unreached.values(lowered, &scratch);
-    let mut decided = (0..scratch.obligations.len())
-        .map(|_| None)
-        .collect::<Vec<_>>();
-    crate::joins::check(
-        &crate::joins::Machine {
-            module,
-            lowered,
-            storage: &storage,
-            id,
-            types: &prepared.types,
-            graph: &prepared.graph,
-            context: &prepared.context,
-            ranking_bindings: &prepared.ranking_bindings,
-            declared: &declared_joins,
-            unreached: &beyond,
-            law_instances: &[],
-        },
-        &mut scratch,
-        &mut decided,
-        activity,
-        &mut references,
-    )?;
-
-    let mut sites = Vec::new();
-    for (obligation, row) in scratch.obligations.iter() {
-        if let ObligationKind::CrashCoverage { site, cause } = row.kind {
-            let concerns = Construct::Obligation(obligation);
-            let guard = match site {
-                CrashSite::Block(block) => block_site(
-                    module,
-                    lowered,
-                    (&storage, &mut references),
-                    &scratch,
-                    id,
-                    concerns,
-                    block,
-                    cause,
-                )?,
-                CrashSite::Operation(operation) => operation_site(
-                    module,
-                    lowered,
-                    (&storage, &mut references),
-                    &scratch,
-                    &prepared.types,
-                    id,
-                    concerns,
-                    operation,
-                    cause,
-                )?,
-            };
-            sites.push((obligation, row.created_at, site, cause, guard));
-        }
-    }
-
-    let mut alternatives: Vec<(CrashCause, CrashRouteGuard)> = Vec::new();
-    for bucket in &lowered.contract.crash_routes {
-        if !bucket.alternatives.contains(&CrashRouteGuard::Truth) {
-            for guard in &bucket.alternatives {
-                alternatives.push((bucket.cause, guard.clone()));
-            }
-            continue;
-        }
-        let mut cause_guards: Vec<CrashRouteGuard> = Vec::new();
-        let mut keep_truth = false;
-        for &(obligation, created_at, site, cause, ref guard) in &sites {
-            if cause != bucket.cause {
-                continue;
-            }
-            let impossible_goal = compose_goal(guard.clone(), Proposition::Falsehood);
-            if crate::decide(
-                &prepared.context,
-                &prepared.graph,
-                &scratch,
-                id,
-                obligation,
-                created_at,
-                impossible_goal,
-                &beyond,
-                activity,
-            )
-            .is_ok()
-            {
-                continue;
-            }
-            if let Some(continuations) = site_call_continuations(lowered, site)
-                && let Some(call_bucket) = continuations.iter().find(|found| found.cause == cause)
-                && !call_bucket.alternatives.is_empty()
-                && call_bucket.alternatives.iter().all(|alt| match alt {
-                    CrashRouteGuard::Predicate(predicate) => {
-                        entry_context.validate(predicate.proposition()).is_ok()
-                    }
-                    CrashRouteGuard::Truth => false,
-                })
-            {
-                cause_guards.extend(call_bucket.alternatives.iter().cloned());
-                continue;
-            }
-            if let Guard::Path(parts) = guard
-                && !parts.is_empty()
-                && parts
-                    .iter()
-                    .all(|part| entry_context.validate(part).is_ok())
-            {
-                let combined = if parts.len() == 1 {
-                    parts[0].clone()
-                } else {
-                    Proposition::Conjunction(parts.clone())
-                };
-                if entry_context.validate(&combined).is_ok() {
-                    cause_guards.push(CrashRouteGuard::Predicate(CrashPredicateTerm::new(
-                        combined,
-                    )));
-                    continue;
+        None,
+        |mut machine, scratch| {
+            let beyond = machine.replay_joins(scratch, unreached, activity)?;
+            let mut sites = Vec::new();
+            for (obligation, row) in scratch.obligations.iter() {
+                if let ObligationKind::CrashCoverage { site, cause } = row.kind {
+                    let concerns = Construct::Obligation(obligation);
+                    let analysis = (machine.storage, &mut *machine.references);
+                    let guard = match site {
+                        CrashSite::Block(block) => block_site(
+                            module, lowered, analysis, scratch, id, concerns, block, cause,
+                        )?,
+                        CrashSite::Operation(operation) => operation_site(
+                            module,
+                            lowered,
+                            analysis,
+                            scratch,
+                            machine.types,
+                            id,
+                            concerns,
+                            operation,
+                            cause,
+                        )?,
+                    };
+                    sites.push((obligation, row.created_at, site, cause, guard));
                 }
             }
-            keep_truth = true;
-            break;
-        }
-        if keep_truth {
-            alternatives.push((bucket.cause, CrashRouteGuard::Truth));
-        } else if cause_guards.is_empty() {
-            if called {
-                alternatives.push((
-                    bucket.cause,
-                    CrashRouteGuard::Predicate(CrashPredicateTerm::new(Proposition::Falsehood)),
-                ));
+            let mut alternatives: Vec<(CrashCause, CrashRouteGuard)> = Vec::new();
+            for bucket in &lowered.contract.crash_routes {
+                if !bucket.alternatives.contains(&CrashRouteGuard::Truth) {
+                    for guard in &bucket.alternatives {
+                        alternatives.push((bucket.cause, guard.clone()));
+                    }
+                    continue;
+                }
+                let mut cause_guards: Vec<CrashRouteGuard> = Vec::new();
+                let mut keep_truth = false;
+                for &(obligation, created_at, site, cause, ref guard) in &sites {
+                    if cause != bucket.cause {
+                        continue;
+                    }
+                    let impossible_goal = compose_goal(guard.clone(), Proposition::Falsehood);
+                    if crate::decide(
+                        machine.context,
+                        machine.graph,
+                        scratch,
+                        id,
+                        obligation,
+                        created_at,
+                        impossible_goal,
+                        &beyond,
+                        activity,
+                    )
+                    .is_ok()
+                    {
+                        continue;
+                    }
+                    if let Some(continuations) = site_call_continuations(lowered, site)
+                        && let Some(call_bucket) =
+                            continuations.iter().find(|found| found.cause == cause)
+                        && !call_bucket.alternatives.is_empty()
+                        && call_bucket.alternatives.iter().all(|alt| match alt {
+                            CrashRouteGuard::Predicate(predicate) => {
+                                entry_context.validate(predicate.proposition()).is_ok()
+                            }
+                            CrashRouteGuard::Truth => false,
+                        })
+                    {
+                        cause_guards.extend(call_bucket.alternatives.iter().cloned());
+                        continue;
+                    }
+                    if let Guard::Path(parts) = guard
+                        && !parts.is_empty()
+                        && parts
+                            .iter()
+                            .all(|part| entry_context.validate(part).is_ok())
+                    {
+                        let combined = if parts.len() == 1 {
+                            parts[0].clone()
+                        } else {
+                            Proposition::Conjunction(parts.clone())
+                        };
+                        if entry_context.validate(&combined).is_ok() {
+                            cause_guards.push(CrashRouteGuard::Predicate(CrashPredicateTerm::new(
+                                combined,
+                            )));
+                            continue;
+                        }
+                    }
+                    keep_truth = true;
+                    break;
+                }
+                if keep_truth {
+                    alternatives.push((bucket.cause, CrashRouteGuard::Truth));
+                } else if cause_guards.is_empty() {
+                    if called {
+                        alternatives.push((
+                            bucket.cause,
+                            CrashRouteGuard::Predicate(CrashPredicateTerm::new(
+                                Proposition::Falsehood,
+                            )),
+                        ));
+                    }
+                } else {
+                    for guard in cause_guards {
+                        alternatives.push((bucket.cause, guard));
+                    }
+                }
             }
-        } else {
-            for guard in cause_guards {
-                alternatives.push((bucket.cause, guard));
-            }
-        }
-    }
 
-    let candidate_routes = terminal_codec::contract_forms::routes(alternatives);
-    if candidate_routes == lowered.contract.crash_routes {
-        return Ok(());
+            let candidate_routes = terminal_codec::contract_forms::routes(alternatives);
+            if candidate_routes == lowered.contract.crash_routes {
+                return Ok(None);
+            }
+            let mut proposed = lowered.contract.clone();
+            proposed.crash_routes = candidate_routes.clone();
+            if crate::formation::contract(module, id, &proposed, activity).is_err() {
+                return Ok(None);
+            }
+            for &(obligation, created_at, _, cause, ref guard) in &sites {
+                let Ok(cov) = crate::entry_goal(
+                    &coverage(&candidate_routes, cause),
+                    &mut machine.storage.at_entry(machine.references, scratch),
+                ) else {
+                    return Ok(None);
+                };
+                let goal = compose_goal(guard.clone(), cov);
+                if crate::decide(
+                    machine.context,
+                    machine.graph,
+                    scratch,
+                    id,
+                    obligation,
+                    created_at,
+                    goal,
+                    &beyond,
+                    activity,
+                )
+                .is_err()
+                {
+                    return Ok(None);
+                }
+            }
+            Ok(Some(candidate_routes))
+        },
+    )?;
+    match narrowed {
+        Some(routes) => scope.publish_crash_routes(id, routes, activity),
+        None => Ok(()),
     }
-    let mut proposed = lowered.contract.clone();
-    proposed.crash_routes = candidate_routes.clone();
-    if crate::formation::contract(module, id, &proposed, activity).is_err() {
-        return Ok(());
-    }
-    for &(obligation, created_at, _, cause, ref guard) in &sites {
-        let Ok(cov) = crate::entry_goal(
-            &coverage(&candidate_routes, cause),
-            &mut storage.at_entry(&mut references, &scratch),
-        ) else {
-            return Ok(());
-        };
-        let goal = compose_goal(guard.clone(), cov);
-        if crate::decide(
-            &prepared.context,
-            &prepared.graph,
-            &scratch,
-            id,
-            obligation,
-            created_at,
-            goal,
-            &beyond,
-            activity,
-        )
-        .is_err()
-        {
-            return Ok(());
-        }
-    }
-    scope.publish_crash_routes(id, candidate_routes, activity)
 }
 
 pub(crate) fn publish(
