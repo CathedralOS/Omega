@@ -235,23 +235,9 @@ impl Operand {
                         .machine_by_symbol(program.symbols.get(parameter).parent)
                         .is_some() =>
             {
+                // A nominal contract is judged by `require_nominal_callbacks`
+                // once the whole application's type arguments are known.
                 let chosen = named_callable(program, argument)?;
-                if let crate::source_state::data::MachineParameterContract::Nominal {
-                    receiving_trait,
-                    receiving_arguments,
-                    requirement,
-                    ..
-                } = contract
-                {
-                    require_nominal_selection(
-                        program,
-                        parameter,
-                        chosen,
-                        *requirement,
-                        *receiving_trait,
-                        receiving_arguments,
-                    )?;
-                }
                 (
                     Identity::Declaration(chosen),
                     StaticMachineBindingValue::Machine(argument.clone()),
@@ -278,6 +264,67 @@ impl Operand {
             value,
             scalar,
         })
+    }
+
+    /// Judge every nominal callback of one application after all of its
+    /// operands are read. The receiving trait may name the callee's own type
+    /// parameters, such as `for_each<Element, const Step: ElementStep<Element>::apply>`;
+    /// the callback must satisfy that trait with the types this call supplies,
+    /// whichever order the parameters are declared in.
+    pub fn require_nominal_callbacks(
+        program: &TypedTrees,
+        parameters: &[crate::source_state::data::TypeParameter],
+        operands: &[Operand],
+        supplying_owner: SymbolHandle,
+    ) -> Served<()> {
+        let bindings = operands
+            .iter()
+            .filter_map(|operand| match &operand.value {
+                StaticMachineBindingValue::Type(reference)
+                | StaticMachineBindingValue::Const(reference) => reference
+                    .is_valid()
+                    .then_some((operand.parameter, *reference)),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        for operand in operands {
+            let Some(binder) = parameters
+                .iter()
+                .find(|binder| binder.symbol == operand.parameter)
+            else {
+                return Err(Stop::Defect("an operand lost its declared parameter"));
+            };
+            let TypeParameterKind::Machine {
+                contract:
+                    crate::source_state::data::MachineParameterContract::Nominal {
+                        receiving_trait,
+                        receiving_arguments,
+                        requirement,
+                        ..
+                    },
+            } = &binder.kind
+            else {
+                continue;
+            };
+            let Identity::Declaration(chosen) = operand.identity else {
+                return Err(Stop::Defect(
+                    "a nominal callback operand lost its selected declaration",
+                ));
+            };
+            require_nominal_selection(
+                program,
+                nominal_callback::Receiving {
+                    parameter: operand.parameter,
+                    requirement: *requirement,
+                    receiving_trait: *receiving_trait,
+                    arguments: receiving_arguments,
+                },
+                chosen,
+                supplying_owner,
+                &bindings,
+            )?;
+        }
+        Ok(())
     }
 
     /// The declaration this operand names, if it names one.

@@ -1153,10 +1153,40 @@ fn check_prepared_machine(
             if let Proposition::DeclarationIdentity(clause) = &goal
                 && !clause.is_float_meaning()
             {
-                return equality::discharge(
-                    module, lowered, tables, graph, row.created_at, obligation, clause, law_instances,
-                    &mut storage.at_entry(references, tables),
-                ).map(Discharged::Identity);
+                return match row.kind {
+                    ObligationKind::NormalGuarantee { exit, .. } => {
+                        let mut at_exit = storage.at_return(
+                            references,
+                            tables,
+                            exit,
+                            Construct::Obligation(obligation),
+                        )?;
+                        equality::discharge(
+                            module,
+                            lowered,
+                            tables,
+                            graph,
+                            row.created_at,
+                            obligation,
+                            clause,
+                            law_instances,
+                            &mut at_exit,
+                        )
+                        .map(Discharged::Identity)
+                    }
+                    _ => equality::discharge(
+                        module,
+                        lowered,
+                        tables,
+                        graph,
+                        row.created_at,
+                        obligation,
+                        clause,
+                        law_instances,
+                        &mut storage.at_entry(references, tables),
+                    )
+                    .map(Discharged::Identity),
+                };
             }
             if let Some(carry) = &carrier
                 && let Ok(evidence) = carry.certify(

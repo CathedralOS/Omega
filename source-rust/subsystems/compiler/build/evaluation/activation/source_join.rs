@@ -28,7 +28,7 @@ impl ReturnedBuild {
         libraries: &[package_compilation::source_imports::SuppliedBuildLibrary],
     ) -> Result<(), String> {
         let mut supplied = libraries.iter();
-        for (ordinal, (source, alias)) in self
+        for (ordinal, (source, alias, max_reach)) in self
             .requests
             .iter()
             .filter_map(|issued| match issued.request() {
@@ -36,7 +36,8 @@ impl ReturnedBuild {
                     purpose: DependencyPurpose::Product,
                     source,
                     alias,
-                } => Some((source, alias.as_ref())),
+                    max_reach,
+                } => Some((source, alias.as_ref(), max_reach)),
                 _ => None,
             })
             .enumerate()
@@ -52,6 +53,7 @@ impl ReturnedBuild {
             if !matches!(library.request(), BuildRequest::Dependency {
                 purpose: DependencyPurpose::Build, source: received, ..
             } if received == source)
+                || library.max_reach() != max_reach
                 || expected_alias != Some(dependency.alias.as_str())
                 || self.demanded_sources.iter().any(|demand| {
                     demand.purpose.is_product()
@@ -166,7 +168,16 @@ impl ReturnedBuild {
         for library in self.supplied_libraries() {
             library.validate_join(inputs)?;
         }
-        for binding in self.requests.iter().filter_map(|issued| issued.forwarded()) {
+        for issued in &self.requests {
+            let Some(binding) = issued.forwarded() else {
+                continue;
+            };
+            let BuildRequest::Dependency { max_reach, .. } = issued.request() else {
+                return Err("forwarded package binding has no dependency request".into());
+            };
+            if !max_reach.is_subset_of(binding.library().max_reach()) {
+                return Err("forwarded dependency exceeds its incoming max_reach".into());
+            }
             binding
                 .library()
                 .validate_join_for(inputs, DependencyPurpose::Product)?;
@@ -247,7 +258,13 @@ pub(crate) fn validate_dependency_sources<'request>(
         )
     });
     for request in requests {
-        let BuildRequest::Dependency { purpose, alias, .. } = request else {
+        let BuildRequest::Dependency {
+            purpose,
+            alias,
+            max_reach,
+            ..
+        } = request
+        else {
             continue;
         };
         let (ordinal, selected, acquired) = match purpose {
@@ -280,6 +297,9 @@ pub(crate) fn validate_dependency_sources<'request>(
             != Some(selected.package)
         {
             return Err("acquired dependency does not match its executed alias and purpose".into());
+        }
+        if inputs.dependency_max_reach(inputs.root(), *purpose, alias) != Some(max_reach) {
+            return Err("dependency alias changes its executed max_reach".into());
         }
         let acquired = acquired.ok_or("issued dependency has no exact acquired request custody")?;
         if acquired.request_ordinal != *ordinal

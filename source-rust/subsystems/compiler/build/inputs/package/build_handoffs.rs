@@ -239,7 +239,7 @@ impl PackageCompilationInputs {
                     record
                         .dependencies
                         .values()
-                        .map(|dependency| (*dependency, scope)),
+                        .map(|dependency| (dependency.target, scope)),
                 );
             }
         }
