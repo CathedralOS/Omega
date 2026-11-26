@@ -15,6 +15,27 @@ fn check(entry: impl AsRef<Path>, target: &str) -> Output {
 }
 
 #[test]
+fn a_data_predicate_keeps_its_own_carrier_beside_the_target_contract() {
+    let scratch = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "predicate-carrier",
+        false,
+    )
+    .unwrap();
+    let entry = scratch.path().join("main.omg");
+    std::fs::write(
+        &entry,
+        "data NativePlace requires true { local: u64; }\npublic machine main() {}",
+    )
+    .unwrap();
+    let output = check(entry, "linux_x86_64");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
 fn a_layout_dependent_subtraction_must_fit_its_carrier() {
     let directory = "samples/cli/facts/size_align_layout_geometry";
     let positive = check(format!("{directory}/local/main.omg"), "linux_x86_64");

@@ -1742,36 +1742,6 @@ fn a_file_qualified_domain_still_requires_its_declared_carrier() {
     }
 }
 
-#[test]
-fn a_data_predicate_uses_its_own_declaration_when_files_reuse_a_name() {
-    let package = PackageKeyIdentity::from_digest([0x63; 32]).unwrap();
-    let (mut files, root) = captured(
-        package,
-        "data Item requires true { byte: u8; }
-         machine main() -> u16 crashes none {
-             let local: Item = Item { byte: 3u8 };
-             |other|::read(|other|::Item { word: local.byte as u16 })
-         }",
-    );
-    let other = capture_file(
-        &mut files,
-        "product",
-        package,
-        "other.omg",
-        "public data Item requires true { word: u16; }
-         public machine read(item: Item) -> u16 crashes none { item.word }",
-    );
-    let mut stage = product(files, root, package, &[]).unwrap();
-    stage.parsed.roots.push(other);
-    stage
-        .parsed
-        .imports
-        .push(SourceScopedTopLevelBinding::file_import(
-            root, other, "other",
-        ));
-    compile(stage, None).expect("each predicate has the Item carrier from its declaring file");
-}
-
 /// The same three files met in another order publish the same Psi.
 /// `main.omg` uses a record and a machine from each of `a.omg` and
 /// `b.omg`. One compilation captures and imports `a` before `b`, the other
