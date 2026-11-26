@@ -218,12 +218,15 @@ pub fn prepare(
             successor_source = successor.capture;
             successor_owner = successor.source_owner;
             preparations = successor.preparations;
-            // Only the read-only package selection crosses this handoff. The
-            // successor has its own staging, runtime directory grants and obligations.
+            // Only the selected package and explicitly returned runtime mounts cross this handoff.
             execution.snapshot = preparations
                 .package_capture
                 .take()
                 .map(package_compilation::BuildSnapshotRequest::new);
+            if !successor.directories.is_empty() {
+                let snapshot = execution.snapshot.take().unwrap_or_else(|| package_compilation::BuildSnapshotRequest::for_activation(false));
+                execution.snapshot = Some(snapshot.with_successor_directories(successor.directories));
+            }
             entry = CapturedBuildEntry::Successor {
                 path: request.root,
                 source_owner: successor_owner.as_ref(),

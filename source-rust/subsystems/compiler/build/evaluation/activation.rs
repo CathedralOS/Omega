@@ -92,6 +92,7 @@ pub struct ReturnedBuild {
     original_sources: Option<Arc<OriginalBuildSources>>,
     pub(crate) identity: terminal_codec::TerminalExecutionIdentity,
     destination: Option<project::Destination>,
+    pub successor_directories: package_compilation::build_execution::BuildDirectoryMappings,
     successor_directory: Option<package_compilation::build_execution::SuccessorDirectory>,
     pub(crate) source_join: Option<Arc<package_compilation::PackageCompilationSourceInputs>>,
     pub(crate) requests: Vec<IssuedBuildRequest>,
@@ -871,6 +872,16 @@ impl TerminalBuildActivation {
             &self.host.machine,
             &self.host.filesystem,
         )?;
+        let successor_directories = project::successor_directories(
+            &self.instance,
+            &self.host.machine,
+            &self.host.filesystem,
+        )?;
+        if !successor_directories.is_empty()
+            && !matches!(destination, Some(project::Destination::Successor(_)))
+        {
+            return Err("runtime directory handoff requires an interpreted Build product".into());
+        }
         if successor_directory.is_some()
             && !matches!(destination, Some(project::Destination::Successor(_)))
         {
@@ -921,6 +932,7 @@ impl TerminalBuildActivation {
             identity: self.host.produced.view().custody_identity(),
             destination,
             successor_directory,
+            successor_directories,
             source_join: self.host.default_sources.clone(),
             requests: self.requests,
             validation_requests: self.host.requests.validation_requests()?,

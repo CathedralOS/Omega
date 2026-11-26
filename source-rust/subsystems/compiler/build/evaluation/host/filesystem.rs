@@ -19,8 +19,8 @@ mod file_result;
 use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
 use filesystem_authority::FilesystemGrantRootIdentity;
 use package_compilation::build_execution::{
-    BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY, BuildFilesystemEffects,
-    BuildFilesystemRuntime, BuildMachineFilesystemScope,
+    BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY, BuildDirectory, BuildDirectoryMappings,
+    BuildFilesystemEffects, BuildFilesystemRuntime, BuildMachineFilesystemScope, DirectoryAccess,
 };
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use source_compiler::publication::{
@@ -42,6 +42,12 @@ struct Marker {
 enum MarkerKind {
     Source(FilesystemGrantRootIdentity),
     Path(FilesystemGrantRootIdentity, Vec<u8>),
+    Directory {
+        previous: Option<usize>,
+        guest: String,
+        view: BuildDirectory,
+        access: DirectoryAccess,
+    },
     Obligation(usize),
     Receipt,
 }
@@ -59,6 +65,7 @@ pub(crate) fn installed_operation(action: Operation) -> bool {
 }
 
 struct FilesystemFacets {
+    directories: TerminalStructuralValue,
     source: TerminalStructuralValue,
     inputs: TerminalStructuralValue,
     output: TerminalStructuralValue,
@@ -132,6 +139,7 @@ impl TerminalBuildFilesystemHost {
                 None
             } else {
                 Some(FilesystemFacets {
+                    directories: crate::host::requests::build_facet(artifact, original, "directories")?,
                     source: crate::host::requests::build_facet(artifact, original, "source")?,
                     inputs: crate::host::requests::build_facet(artifact, original, "inputs")?,
                     output: original_output.clone(),
@@ -178,6 +186,50 @@ impl TerminalBuildFilesystemHost {
             );
         };
         activation.runtime.successor_directory(*root, relative)
+    }
+
+    pub(crate) fn successor_directories(
+        &self,
+        selected: Option<&TerminalStructuralValue>,
+    ) -> Result<BuildDirectoryMappings, String> {
+        let mut mappings = BuildDirectoryMappings::default();
+        let Some(value) = selected else {
+            return Ok(mappings);
+        };
+        let guard = self
+            .activation
+            .lock()
+            .map_err(|_| "Build filesystem lock was poisoned")?;
+        let Some(activation) = guard.as_ref() else {
+            return Ok(mappings);
+        };
+        if self
+            .facets
+            .as_ref()
+            .is_none_or(|facets| &facets.directories == value)
+        {
+            return Ok(mappings);
+        }
+        let mut item = marker(&activation.markers, value)?;
+        loop {
+            let MarkerKind::Directory {
+                previous,
+                guest,
+                view,
+                access,
+            } = &item.kind
+            else {
+                return Err(
+                    "returned Build directories require a list issued by this activation".into(),
+                );
+            };
+            mappings
+                .insert(guest, view.clone(), *access)
+                .map_err(|error| format!("invalid successor directory mapping {guest}: {error}"))?;
+            let Some(index) = previous else { break };
+            item = &activation.markers[*index];
+        }
+        Ok(mappings)
     }
 
     pub(crate) fn adapter(
@@ -368,6 +420,18 @@ impl FilesystemAdapter {
                     retained.extend_from_slice(path);
                     Ok(MarkerKind::Path(root, retained))
                 })
+            }
+            Operation::MapDirectory => {
+                let prefix = structural(0)?;
+                // Only an issued list can contribute earlier grants. Ordinary
+                // constructed or zero-established values denote the empty list.
+                let previous = markers.iter().position(|marker| marker.value == *prefix && matches!(marker.kind, MarkerKind::Directory { .. }));
+                let (root, relative) = path(1)?;
+                let guest = std::str::from_utf8(bytes(2)?).map_err(|_| "guest directory is not UTF-8")?;
+                let Some(TerminalScalarValue::Boolean(writable)) = arguments.first() else { return Err("directory mapping requires a Boolean access choice".into()) };
+                let access = if *writable { DirectoryAccess::ReadWrite } else { DirectoryAccess::ReadOnly };
+                let view = runtime.runtime_directory(root, relative, access)?;
+                mint(markers, &self.host.account, result, guest.len() + relative.len(), || Ok(MarkerKind::Directory { previous, guest: guest.into(), view, access }))
             }
             Operation::NamedInput => {
                 if structural(0)? != &facets()?.inputs {

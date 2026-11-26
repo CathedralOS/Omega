@@ -178,6 +178,23 @@ plan.package_root = BuildPackageRoot::Directory { path: generated };
 plan.product = BuildProduct::InterpretedBuild { entry: "configure.omg" };
 ```
 
+A Build can also return additional runtime mounts while keeping its original package.
+For example, a preparing Build that holds the `sdk/headers` source subtree and its
+private output can lend both to its successor.
+
+```omega
+let headers: BuildPath = BuildSource::resolve(@plan.source, "sdk/headers");
+let out: BuildPath = BuildOutput::resolve(@plan.output, "");
+plan.directories = Build::map_readonly(plan.directories, headers, "/sdk");
+plan.directories = Build::map_readwrite(plan.directories, out, "/results");
+plan.product = BuildProduct::InterpretedBuild { entry: "configure.omg" };
+```
+
+Each call extends the supplied list. The returned plan selects the list the
+successor receives. Captured source and named inputs accept read-only mappings.
+A grant of private output retains its sponsor and is subject to the same limits
+on entries, bytes and file extent. Duplicate guest roots are rejected.
+
 With the default `BuildPackageRoot::Current`, the entry belongs to the
 preparing Build's captured package. If the parent also maps an SDK at `/sdk`
 read-only, the successor can read SDK data while it runs. With an empty

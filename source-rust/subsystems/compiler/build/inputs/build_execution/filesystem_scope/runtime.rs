@@ -86,8 +86,18 @@ impl BuildMachineFilesystemScope {
         if !self.has_private_staging() {
             return Err("Build Output is not owned by its private staging sponsor".into());
         }
-        Ok(BuildFilesystemRuntime {
-            staging: super::bound_directory::BoundDirectory::bind(&self.build_dir).map_err(|e| e.to_string())?,
+        let staging = super::bound_directory::BoundDirectory::bind(&self.build_dir)
+            .map_err(|e| e.to_string())?;
+        Ok(self.runtime_at(staging, account))
+    }
+
+    pub(super) fn runtime_at(
+        &self,
+        staging: super::bound_directory::BoundDirectory,
+        account: EvaluationInvocationAccount,
+    ) -> BuildFilesystemRuntime {
+        BuildFilesystemRuntime {
+            staging,
             account,
             descriptors: Vec::new(),
             effects: BuildFilesystemEffects {
@@ -100,7 +110,7 @@ impl BuildMachineFilesystemScope {
             sealed: Vec::new(),
             incomplete_attempt: None,
             refused: None,
-        })
+        }
     }
 }
 
@@ -168,6 +178,29 @@ impl BuildFilesystemRuntime {
                 Some(self.snapshot(root)?.clone())
             },
         })
+    }
+
+    pub fn runtime_directory(
+        &self,
+        root: FilesystemGrantRootIdentity,
+        relative: &[u8],
+        access: platform_custody::directory_mappings::DirectoryAccess,
+    ) -> Result<super::runtime_directory::BuildDirectory, String> {
+        use super::runtime_directory::BuildDirectory;
+        self.resolve_view(root, relative)?;
+        if root == BUILD_OUTPUT_ROOT_IDENTITY {
+            let selected = self.staging.subtree(relative).map_err(|e| e.to_string())?;
+            let mut scope = self.effects.scope.clone();
+            scope
+                .build_dir
+                .push(std::str::from_utf8(relative).map_err(|_| "staging path must be UTF-8")?);
+            scope.directories = Default::default();
+            return Ok(BuildDirectory::output(selected, scope));
+        }
+        if access == platform_custody::directory_mappings::DirectoryAccess::ReadWrite {
+            return Err("a captured Build directory cannot be delegated read-write".into());
+        }
+        BuildDirectory::captured(self.snapshot(root)?, relative).map_err(|e| e.to_string())
     }
 
     fn snapshot(
@@ -417,24 +450,36 @@ impl BuildFilesystemRuntime {
         access: FilesystemGrantAccess,
         operation: FilesystemHostOperation,
         perform: impl FnOnce(
-            &platform_custody::directory_mappings::DirectoryMapping,
+            &super::runtime_directory::BuildDirectory,
             &[u8],
-        ) -> std::io::Result<usize>,
+            &EvaluationInvocationAccount,
+        ) -> Result<std::io::Result<usize>, String>,
     ) -> Result<Result<usize, std::io::ErrorKind>, String> {
         use platform_custody::directory_mappings::DirectoryAccess;
         use std::io::ErrorKind;
         let relative = path
             .strip_prefix(b"/")
             .ok_or("mapped path must be absolute")?;
+        let mapping = self
+            .effects
+            .scope
+            .directories
+            .resolve_file(path)
+            .map(|(mapping, file)| (mapping.clone(), file));
+        let provider = mapping
+            .as_ref()
+            .map_or(FilesystemObservationProvider::RealScoped, |(mapping, _)| {
+                mapping.backing().provider()
+            });
         let ordinal = self.begin_path_attempt(
             operation,
             BuildFilesystemRoot::MappedDirectories,
-            FilesystemObservationProvider::RealScoped,
+            provider,
             relative,
             access,
             None,
         )?;
-        let result = match self.effects.scope.directories.resolve_file(path) {
+        let result = match mapping {
             Ok((directory, _))
                 if access == FilesystemGrantAccess::Write
                     && directory.access() == DirectoryAccess::ReadOnly =>
@@ -442,7 +487,7 @@ impl BuildFilesystemRuntime {
                 self.refuse_access(ordinal, access);
                 return Ok(Err(ErrorKind::PermissionDenied));
             }
-            Ok((directory, file)) => perform(directory, file),
+            Ok((directory, file)) => perform(directory.backing(), file, &self.account)?,
             Err(error) if error.kind() == ErrorKind::PermissionDenied => {
                 self.refuse_access(ordinal, access);
                 return Ok(Err(error.kind()));
@@ -492,11 +537,7 @@ impl BuildFilesystemRuntime {
                     path,
                     FilesystemGrantAccess::Read,
                     FilesystemHostOperation::Read,
-                    |directory, file| {
-                        directory
-                            .open_read(file)?
-                            .read(&mut buffer[..count as usize])
-                    },
+                    |directory, file, _| Ok(directory.read(file, &mut buffer[..count as usize])),
                 )
                 .map(|result| result.map(|bytes| bytes as u64));
         }
@@ -557,10 +598,7 @@ impl BuildFilesystemRuntime {
                     path,
                     FilesystemGrantAccess::Write,
                     FilesystemHostOperation::Write,
-                    |directory, file| {
-                        directory.open_write(file)?.write_all(bytes)?;
-                        Ok(bytes.len())
-                    },
+                    |directory, file, account| directory.write(account, file, bytes),
                 )
                 .map(|result| result.map(|_| ()));
         }
@@ -610,16 +648,21 @@ impl BuildFilesystemRuntime {
                     path,
                     FilesystemGrantAccess::Write,
                     operation,
-                    |mapping, path| {
-                        mapping.create_dir(path)?;
-                        Ok(0)
-                    },
+                    |mapping, path, account| mapping.create_dir(account, path),
                 )
                 .map(|result| result.map(|_| ()));
         }
         if let Err(kind) = self.private_destination(path, operation)? {
             return Ok(Err(kind));
         }
+        self.create_staged_directory(path)
+    }
+
+    pub(super) fn create_staged_directory(
+        &mut self,
+        path: &[u8],
+    ) -> Result<Result<(), std::io::ErrorKind>, String> {
+        let operation = FilesystemHostOperation::CreateDir;
         let ordinal = self.begin_attempt(
             operation,
             BUILD_OUTPUT_ROOT_IDENTITY,
@@ -1306,6 +1349,65 @@ mod tests {
                 .attempts
                 .iter()
                 .all(|attempt| attempt.provider == FilesystemObservationProvider::Captured)
+        );
+    }
+
+    #[test]
+    fn delegated_staging_retains_the_issuing_sponsors_limits() {
+        use platform_custody::directory_mappings::DirectoryAccess;
+        let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
+            "successor-directory-budget",
+            false,
+        )
+        .unwrap();
+        let mut child = scope(temporary.path(), "child");
+        let sponsor = filesystem_authority::FilesystemSponsor::create_private(
+            temporary.path().join("parent"),
+            filesystem_authority::FilesystemSponsorLimits {
+                maximum_entries: 8,
+                maximum_total_logical_bytes: 2,
+                maximum_object_extent: 2,
+            },
+        )
+        .unwrap();
+        let mut parent = BuildMachineFilesystemScope::for_root(
+            &temporary.path().join("source/build.omg"),
+            sponsor.session_root().unwrap().join("output"),
+            Some(sponsor),
+        )
+        .with_captured_source_input(child.captured_source_input.clone().unwrap())
+        .unwrap();
+        parent.establish_filesystem_access().unwrap();
+        let parent = parent.begin_filesystem_runtime(account()).unwrap();
+        let held = parent
+            .runtime_directory(BUILD_OUTPUT_ROOT_IDENTITY, b"", DirectoryAccess::ReadWrite)
+            .unwrap();
+        child
+            .directories
+            .insert("/out", held, DirectoryAccess::ReadWrite)
+            .unwrap();
+        drop(parent);
+        let mut runtime = child.begin_filesystem_runtime(account()).unwrap();
+        assert_eq!(
+            runtime.write_private_file(b"/out/first", b"ok").unwrap(),
+            Ok(())
+        );
+        let mut bytes = [0; 2];
+        assert_eq!(
+            runtime.read_file(b"/out/first", &mut bytes, 2).unwrap(),
+            Ok(2)
+        );
+        assert_eq!(&bytes, b"ok");
+        assert!(runtime.write_private_file(b"/out/second", b"X").is_err());
+        assert_eq!(
+            std::fs::read(temporary.path().join("parent/output/first")).unwrap(),
+            b"ok"
+        );
+        assert_eq!(
+            std::fs::metadata(temporary.path().join("parent/output/second"))
+                .unwrap()
+                .len(),
+            0
         );
     }
 

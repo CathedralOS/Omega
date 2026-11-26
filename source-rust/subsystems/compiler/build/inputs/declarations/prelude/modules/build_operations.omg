@@ -75,3 +75,11 @@ public machine exclude_crash(builder: @mutable BuildPlan, cause: CrashCause) {
 // physical mechanism classifier, independently of receiver permissions.
 public machine exclude_physical_authority(builder: @mutable BuildPlan, authority: PhysicalAuthorityClass) {
 }
+
+public machine map_readonly(prefix: BuildDirectories, directory: BuildPath, guest: @[u8]) -> BuildDirectories reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
+    BuildFilesystemOperations::map_directory(prefix, directory, guest, false)
+}
+
+public machine map_readwrite(prefix: BuildDirectories, directory: BuildPath, guest: @[u8]) -> BuildDirectories reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
+    BuildFilesystemOperations::map_directory(prefix, directory, guest, true)
+}
