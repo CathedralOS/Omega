@@ -476,16 +476,15 @@ impl SourceMap {
     pub fn product_description_visible(
         &self,
         supplier: PackageKeyIdentity,
-        stratum: SourceResolutionStratum,
         declaration: &SourceFile,
         public: bool,
     ) -> bool {
         declaration.dependency_scope == DependencyScope::Product
             && self.source_is_selected(declaration.source_id)
-            && Self::captured_reference_can_see_stratum(supplier, stratum, declaration)
             && (declaration.package_identity == Some(supplier)
                 || public
                     && (declaration.origin == SourceOrigin::Toolchain
+                        && declaration.resolution_stratum == SourceResolutionStratum::Base
                         || self
                             .product_dependencies
                             .get(&supplier)

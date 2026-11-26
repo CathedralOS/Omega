@@ -209,8 +209,7 @@ pub fn collect(
                 typed,
                 selected,
                 supplier_package,
-                scope.resolution_stratum,
-                binding,
+                    binding,
             )
             .map_err(|reason| refuse(&reason))?;
         }
@@ -341,8 +340,7 @@ pub fn capture_package_intents(
                     program,
                     requirements[index],
                     package,
-                    declarations[index].source.resolution_stratum,
-                    binding,
+                            binding,
                 )
                 .map_err(|reason| {
                     vec![Diagnostic::error(reason).with_source_span(event.request.source_span)]
@@ -510,8 +508,7 @@ pub fn collect_captured(
                 program,
                 requirement,
                 declaration.source.producer.package,
-                declaration.source.resolution_stratum,
-                binding,
+                    binding,
             )
             .map_err(|reason| vec![Diagnostic::error(reason).with_source_span(span)])?;
         }

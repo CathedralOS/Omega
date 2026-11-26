@@ -58,7 +58,6 @@ pub fn validate_function_field_binding(
     typed: &TypedTrees,
     requirement: SymbolHandle,
     supplier: semantic_vocabulary::PackageKeyIdentity,
-    stratum: source_admission::SourceResolutionStratum,
     binding: &semantic_vocabulary::FunctionFieldBinding,
 ) -> Result<(), String> {
     let (_, signature) = typed
@@ -102,7 +101,7 @@ pub fn validate_function_field_binding(
         .and_then(|span| typed.symbols.source_file(span))
         .ok_or("function table binding lost its Product table source")?;
     if !typed.symbols.source_map().is_some_and(|sources| {
-        sources.product_description_visible(supplier, stratum, declaration, data.is_public)
+        sources.product_description_visible(supplier, declaration, data.is_public)
     }) {
         return Err(
             "function table binding selects a table outside its supplier's Product scope".into(),
