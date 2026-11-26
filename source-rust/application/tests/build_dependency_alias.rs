@@ -22,6 +22,9 @@ use std::process::Command;
 
 #[test]
 fn a_build_that_aliases_a_path_dependency_compiles() {
+    let Some(host) = target::TargetProfile::host_if_supported() else {
+        return;
+    };
     let root = std::env::temp_dir().join(format!(
         "omega-build-dependency-alias-{}",
         std::process::id()
@@ -30,19 +33,23 @@ fn a_build_that_aliases_a_path_dependency_compiles() {
     std::fs::create_dir_all(root.join("dep")).expect("staging directory");
     std::fs::write(
         root.join("main.omg"),
-        "use kit;\n\nmachine entry() -> i32 {\n    kit\\value()\n}\n",
+        "use {kit}/main.omg as answers;\n\nmachine main() {\n    _ = |answers|::value();\n}\n",
     )
     .expect("staged program");
     std::fs::write(
         root.join("build.omg"),
-        "use {omega}/build/dependency.omg;
-machine build(builder: @mutable Build) {
-    Build::application(builder, \"consumer\");
-    let mutable description: DependencyDescription = |dependency|::from_source(Source::Path { location: \"dep\" });
-    |dependency|::with_alias(@mutable description, \"kit\");
-    let registered: DependencyRegistration = Build::dependency(builder, description);
-}
-",
+        format!(
+            r#"use {{omega}}/build/dependency.omg;
+machine build(builder: @mutable Build) {{
+    Build::application(builder, "consumer");
+    let mutable description: DependencyDescription = |dependency|::from_source(Source::Path {{ location: "dep" }});
+    |dependency|::with_alias(@mutable description, "kit");
+    _ = Build::dependency(builder, description);
+    Build::bind(builder, {}::ProgramEntry, main);
+}}
+"#,
+            host.target_name()
+        ),
     )
     .expect("staged Build");
     std::fs::write(
