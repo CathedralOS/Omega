@@ -611,19 +611,21 @@ impl Program<'_> {
                     && complete.invokes
                     && complete.suspends
                     && complete.blocks)
-                    .then(|| crate::callables::static_contracts::StaticSourceEnvelope {
-                        service_reach: if complete.reach {
-                            crate::callables::static_contracts::SourceServiceCeiling::Closed(
-                                envelope.service_reach.clone(),
-                            )
-                        } else {
-                            crate::callables::static_contracts::SourceServiceCeiling::Open
+                    .then(
+                        || crate::callables::static_contracts::StaticSourceEnvelope {
+                            service_reach: if complete.reach {
+                                crate::callables::static_contracts::SourceServiceCeiling::Closed(
+                                    envelope.service_reach.clone(),
+                                )
+                            } else {
+                                crate::callables::static_contracts::SourceServiceCeiling::Open
+                            },
+                            invocations: envelope.invocations.clone(),
+                            suspends: envelope.suspends,
+                            blocks: envelope.blocks,
+                            termination: envelope.termination.clone(),
                         },
-                        invocations: envelope.invocations.clone(),
-                        suspends: envelope.suspends,
-                        blocks: envelope.blocks,
-                        termination: envelope.termination.clone(),
-                    }),
+                    ),
             );
             if !complete.is_complete() {
                 continue;
@@ -1285,12 +1287,20 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut CallCollector<
                 collect_expression(default, calls);
             }
         }
-        E::TestMembership { subject: left, predicate: right, .. }
-        | E::Strict { left, right, .. } | E::ShortCircuit { left, right, .. } => {
+        E::TestMembership {
+            subject: left,
+            predicate: right,
+            ..
+        }
+        | E::Strict { left, right, .. }
+        | E::ShortCircuit { left, right, .. } => {
             collect_expression(left, calls);
             collect_expression(right, calls);
         }
-        E::PackedInteger { operands: elements, .. } | E::Array { elements } => {
+        E::PackedInteger {
+            operands: elements, ..
+        }
+        | E::Array { elements } => {
             for element in elements {
                 collect_expression(element, calls);
             }
@@ -1403,9 +1413,8 @@ impl Program<'_> {
                     "callable contract disappeared while projecting its envelope",
                 )
             })?;
-            row.signature.reaches = crate::Ceiling::Authored(
-                services.row(context, &row.envelope.service_reach)?,
-            );
+            row.signature.reaches =
+                crate::Ceiling::Authored(services.row(context, &row.envelope.service_reach)?);
             row.signature.invokes = crate::Ceiling::Authored(
                 services
                     .envelope(context, &row.envelope)?
@@ -1426,9 +1435,8 @@ impl Program<'_> {
                     "boundary disappeared while projecting its envelope",
                 )
             })?;
-            row.signature.reaches = crate::Ceiling::Authored(
-                services.row(context, &row.envelope.service_reach)?,
-            );
+            row.signature.reaches =
+                crate::Ceiling::Authored(services.row(context, &row.envelope.service_reach)?);
             row.signature.invokes = crate::Ceiling::Authored(
                 services
                     .envelope(context, &row.envelope)?
@@ -1547,10 +1555,15 @@ impl<'t> Program<'t> {
         }
         let signature =
             terminal_check_tables::row(&self.signatures, id, id, Construct::Machine)?.clone();
-        if signature
-            .result
-            .is_some_and(|result| self.value_has_borrowed_leaf(result))
-        {
+        let takes_borrow = !signature.borrowed.is_empty()
+            || signature
+                .parameters
+                .iter()
+                .any(|parameter| self.value_has_borrowed_leaf(*parameter));
+        if signature.result.is_some_and(|result| {
+            self.value_has_borrowed_leaf(result)
+                && (takes_borrow || !self.value_borrowed_leaves_are_shared_byte_views(result))
+        }) {
             return Ok(false);
         }
         // A caller keeps facts about the fields a `@mutable` callee leaves
@@ -1749,6 +1762,50 @@ impl<'t> Program<'t> {
                     .any(|field| self.value_has_borrowed_leaf(field.value_type))
             }),
             StorageShape::AtomicCell(_) | StorageShape::PrimitiveScalar { .. } => false,
+        }
+    }
+
+    fn value_borrowed_leaves_are_shared_byte_views(&self, value: ValueType) -> bool {
+        match value {
+            ValueType::Scalar(..) => true,
+            ValueType::Rigid(_) => false,
+            ValueType::Record(record, ..) => {
+                self.record_borrowed_leaves_are_shared_byte_views(record)
+            }
+        }
+    }
+
+    fn record_borrowed_leaves_are_shared_byte_views(
+        &self,
+        record: semantic_vocabulary::StructuralTypeId,
+    ) -> bool {
+        let Some(row) = self.records.get(record) else {
+            return false;
+        };
+        match &row.shape {
+            StorageShape::Opaque
+            | StorageShape::TypeParameter(_)
+            | StorageShape::Reference { .. }
+            | StorageShape::ElementView { .. } => false,
+            StorageShape::ByteSequence(carrier) => matches!(
+                carrier,
+                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                    | terminal_psi::ByteSequenceCarrier::BorrowedView {
+                        access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                    }
+            ),
+            StorageShape::FixedArray { element, .. } => {
+                self.record_borrowed_leaves_are_shared_byte_views(*element)
+            }
+            StorageShape::Record(fields) => fields
+                .iter()
+                .all(|field| self.value_borrowed_leaves_are_shared_byte_views(field.value_type)),
+            StorageShape::Sum(cases) => cases.iter().all(|case| {
+                case.fields
+                    .iter()
+                    .all(|field| self.value_borrowed_leaves_are_shared_byte_views(field.value_type))
+            }),
+            StorageShape::AtomicCell(_) | StorageShape::PrimitiveScalar { .. } => true,
         }
     }
 
