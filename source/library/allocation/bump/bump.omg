@@ -1,10 +1,6 @@
-use omega\language\core\Extent;
-use omega\language\core\Extent::Granted;
-use omega\language\core\Extent::Vacant;
-use omega\language\core\VacantExtentParts;
-use omega\language\core\split_vacant_extent;
-use omega\language\core\merge_vacant_extents;
-use omega\language\core\no_wrap;
+use main.omg as backing;
+use {omega}/language/core/extent.omg as range;
+
 
 // Only the tail is allocatable. Original geometry is a reset obligation,
 // not authority: every byte belongs to the tail or an issued linear extent.
@@ -13,16 +9,16 @@ public data Bump
 requires
     self.remaining == self.tail.length,
     self.remaining <= self.capacity,
-    no_wrap(self.base, self.capacity),
+    |range|::no_wrap(self.base, self.capacity),
     self.tail.length == 0 || embed(self.tail.base) + embed(self.tail.length) == embed(self.base) + embed(self.capacity)
 {
-    tail: Extent in Granted & Vacant;
+    tail: |backing|::VacantStorage;
     remaining: u64;
     base: addr;
     capacity: u64;
 }
 
-public machine Bump::open(whole: Extent in Granted & Vacant) -> Bump
+public machine open(whole: |backing|::VacantStorage) -> Bump
 ensures
     result.base == whole.base,
     result.capacity == whole.length,
@@ -33,7 +29,7 @@ ensures
     Bump { tail: whole, remaining: capacity, base: base, capacity: capacity }
 }
 public data Attempt {
-    case Allocated(allocation: Extent in Granted & Vacant);
+    case Allocated(allocation: |backing|::VacantStorage);
     case Exhausted;
 }
 
@@ -49,7 +45,7 @@ public machine try_allocate(strategy: @mutable Bump, length: u64) -> Attempt {
 
 // Publish the position needed to rejoin issued neighbors at release. An empty
 // tail has no one-past address obligation, so its base supplies no such equation.
-public machine allocate(strategy: @mutable Bump, length: u64, available: u64) -> Extent in Granted & Vacant
+public machine allocate(strategy: @mutable Bump, length: u64, available: u64) -> |backing|::VacantStorage
 requires
     available == strategy.remaining,
     length <= available
@@ -59,8 +55,8 @@ ensures
     result.length == length,
     available == 0 || embed(result.base) + embed(available) == embed(strategy.base) + embed(strategy.capacity)
 {
-    let tail: Extent in Granted & Vacant = strategy.tail;
-    let parts: VacantExtentParts = split_vacant_extent(tail, length);
+    let tail: |backing|::VacantStorage = strategy.tail;
+    let parts: |range|::VacantExtentParts = |range|::split_vacant_extent(tail, length);
     strategy.tail = parts.rest;
     strategy.remaining = available - length;
     parts.taken
@@ -70,7 +66,7 @@ public machine check_remaining(remaining: u64, previous: u64, length: u64)
 requires length <= previous, remaining == previous - length
 {}
 
-public machine check_extent_length(extent: @Extent in Granted & Vacant, expected: u64)
+public machine check_extent_length(extent: @|backing|::VacantStorage, expected: u64)
 requires extent.length == expected
 {}
 
@@ -79,10 +75,10 @@ requires extent.length == expected
 // scalar count nor release can replace an outstanding resident.
 public data Released {
     strategy: Bump;
-    retired_storage: Extent in Granted & Vacant;
+    retired_storage: |backing|::VacantStorage;
 }
 
-public machine release(strategy: Bump, returned: Extent in Granted & Vacant) -> Released
+public machine release(strategy: Bump, returned: |backing|::VacantStorage) -> Released
 ensures
     result.strategy.tail.length == strategy.tail.length,
     result.strategy.remaining == strategy.remaining,
@@ -98,7 +94,7 @@ ensures
 // Checked content conservation forbids holes, overlap, lost claims and live
 // residents. Original geometry prevents treating a returned suffix as a full
 // reset. No boundary, allocation, or new grant occurs here.
-public machine reset(strategy: Bump, retired: Extent in Granted & Vacant) -> Bump
+public machine reset(strategy: Bump, retired: |backing|::VacantStorage) -> Bump
 requires
     retired.base == strategy.base,
     embed(retired.length) + embed(strategy.remaining) == embed(strategy.capacity)
@@ -109,6 +105,6 @@ ensures
 {
     let base: addr = strategy.base;
     let capacity: u64 = strategy.capacity;
-    let whole: Extent in Granted & Vacant = merge_vacant_extents(retired, strategy.tail);
+    let whole: |backing|::VacantStorage = |range|::merge_vacant_extents(retired, strategy.tail);
     Bump { tail: whole, remaining: capacity, base: base, capacity: capacity }
 }
