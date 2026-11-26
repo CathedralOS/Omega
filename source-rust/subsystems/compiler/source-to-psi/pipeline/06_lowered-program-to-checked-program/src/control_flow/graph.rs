@@ -22,6 +22,7 @@ mod tests;
 pub(crate) struct Graph {
     machine: MachineId,
     dominance: Vec<DominanceInterval>,
+    immediate_dominators: Vec<Option<BlockId>>,
     /// Block and index of each operation, indexed by `OperationId - 1`.
     operations: Vec<Option<(BlockId, usize)>>,
     /// Every incoming edge is counted, including repeated sources.
@@ -138,10 +139,28 @@ impl Graph {
             .collect();
         let dominance = dominance_forest(&incoming_positions, &ordered_positions, &roots)
             .ok_or_else(|| refuse("control graph has no complete dominance forest"))?;
+        let mut by_preorder = (0..count).collect::<Vec<_>>();
+        by_preorder.sort_unstable_by_key(|&slot| dominance[slot].traversal_start());
+        let mut immediate_dominators = vec![None; count];
+        let mut dominator_stack: Vec<usize> = Vec::with_capacity(count);
+        for slot in by_preorder {
+            while let Some(&parent) = dominator_stack.last() {
+                if dominance[parent].dominates(&dominance[slot]) {
+                    break;
+                }
+                dominator_stack.pop();
+            }
+            if let Some(&parent) = dominator_stack.last() {
+                immediate_dominators[slot] =
+                    Some(BlockId::new(parent as u64 + 1).expect("dense block identity"));
+            }
+            dominator_stack.push(slot);
+        }
         let cyclic_blocks = cyclic_blocks(&predecessors, &successors, &ordered);
         Ok(Self {
             machine,
             dominance,
+            immediate_dominators,
             operations,
             predecessors,
             ordered,
@@ -316,6 +335,45 @@ impl Graph {
             return Ok(position <= used_position);
         }
         Ok(dominance.dominates(used_dominance))
+    }
+
+    pub(crate) fn immediate_dominator(&self, block: BlockId) -> Checked<Option<BlockId>> {
+        self.immediate_dominators
+            .get(index(block.get()))
+            .copied()
+            .ok_or_else(|| self.refuse(Construct::Block(block)))
+    }
+
+    pub(crate) fn dominance_of(&self, block: BlockId) -> Checked<&DominanceInterval> {
+        self.dominance
+            .get(index(block.get()))
+            .ok_or_else(|| self.refuse(Construct::Block(block)))
+    }
+
+    pub(crate) fn locate_with_dominance_info(
+        &self,
+        point: ProgramPoint,
+    ) -> Checked<(BlockId, usize, &DominanceInterval)> {
+        self.locate_with_dominance(point)
+    }
+
+    pub(crate) fn edge_dominator(
+        &self,
+        edge: semantic_vocabulary::EdgeId,
+    ) -> Checked<Option<BlockId>> {
+        let (_, destination) = self
+            .tables_edges
+            .get(index(edge.get()))
+            .ok_or_else(|| self.refuse(Construct::Edge(edge)))?;
+        let Destination::Block(target) = destination else {
+            return Ok(None);
+        };
+        if self.predecessors[index(target.get())].len() != 1
+            || self.dominance[index(target.get())].depth() == 1
+        {
+            return Ok(None);
+        }
+        Ok(Some(*target))
     }
 }
 
