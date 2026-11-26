@@ -46,6 +46,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 pub struct BuildEvaluationRequest<'request> {
+    pub preceding_entries: Vec<&'request source_admission::RetainedDeclaration>,
     pub execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose, // Measurement only; source custody and admission independently establish authority.
     pub root_path: &'request Path,
     pub interval: &'request TypedBuildInterval,
@@ -197,6 +198,7 @@ pub fn prepare_build_evaluation(
     timings: &mut CompileTimings,
 ) -> Result<PreparedBuildEvaluation, CompileFailure> {
     let BuildEvaluationRequest {
+        preceding_entries,
         execution_purpose,
         root_path,
         interval,
@@ -342,12 +344,27 @@ pub fn prepare_build_evaluation(
                 accounting: source_completion_accounting.clone(),
             });
         }
-        let original_sources = capture.map(|capture| {
-            Arc::new(crate::activation::OriginalBuildSources {
-                capture: capture.clone(),
-                libraries,
+        let original_sources = capture
+            .map(|capture| {
+                let declaration =
+                    source_compiler::representations::source_symbols::retain_declaration(
+                        &typed.symbols,
+                        selected_machine,
+                    )
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?;
+                let build_entries = package_compilation::PackageBuildEntries::from_selected(
+                    capture.canonical_live_root(),
+                    capture.tree(),
+                    preceding_entries.into_iter().chain([&declaration]),
+                )
+                .map_err(|reason| vec![Diagnostic::error(reason)])?;
+                Ok::<_, Vec<Diagnostic>>(Arc::new(crate::activation::OriginalBuildSources {
+                    capture: capture.clone(),
+                    libraries,
+                    build_entries,
+                }))
             })
-        });
+            .transpose()?;
         let execution =
             PreparedBuildExecution::prepare(admitted, execution_purpose, original_sources)?;
         Ok(PreparedBuildEvaluation {

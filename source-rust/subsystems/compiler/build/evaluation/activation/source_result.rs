@@ -17,7 +17,7 @@ impl<'result> BuildSourceResult<'result> {
     pub fn require_source_acquisition(
         &self,
         source: &package_compilation::CapturedLocalSource,
-    ) -> Result<(), String> {
+    ) -> Result<&package_compilation::PackageBuildEntries, String> {
         self.returned.require_source_acquisition(source)
     }
 

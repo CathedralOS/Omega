@@ -78,6 +78,7 @@ impl PackageCompilationInputs {
                 .insert(
                     package.identity,
                     PackageCompilationSourceRecord {
+                        build_entries: package.build_entries,
                         source_root: canonical_root.clone(),
                         canonical_name: package.canonical_name,
                         canonical_source_metadata,

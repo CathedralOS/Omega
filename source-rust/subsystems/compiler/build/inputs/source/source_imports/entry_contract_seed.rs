@@ -87,9 +87,10 @@ mod tests {
         let helper = root.join("helper.omg");
         std::fs::write(&helper, "public data Original {}").unwrap();
         let mut storage = SourceStorage::default();
-        storage.register_reconciled_package_root(
-            root.clone(),
-            semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32]).unwrap(),
+        storage.register_package_root(
+            &root,
+            Some(semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32]).unwrap()),
+            [],
         );
         assert_eq!(register_contract_root(&mut storage, &root).unwrap(), root);
         assert!(!storage.is_installed_source(&entry));

@@ -447,9 +447,7 @@ impl ProductQueryInputs {
                         "cannot join query source snapshots: {error}"
                     ))]
                 })?;
-            for (identity, root) in graph.packages() {
-                storage.register_reconciled_package_root(root.to_path_buf(), identity);
-            }
+            storage.register_package_graph(graph);
             storage
                 .sources
                 .retain_product_dependency_scope(graph.dependencies());
@@ -710,15 +708,14 @@ impl ProductQueryInputs {
                     "Product query source escapes its admitted source frontier",
                 )]);
             }
-            if !local
-                && package
-                && canonical
-                    .file_name()
-                    .is_some_and(|name| name == "build.omg")
+            if self.graphs().any(|inputs| inputs.package_for_source(&canonical).is_some_and(|owner| {
+                inputs.package_root(owner) != Some(storage.default_package_root())
+                    && inputs.dependency_build_file(owner, &canonical)
+            }))
             {
-                return Err(vec![Diagnostic::error(
-                    "Product query cannot import a dependency Build entry",
-                )]);
+                return Err(vec![Diagnostic::error(format!(
+                    "Product query cannot import dependency Build entry {}", canonical.display()
+                ))]);
             }
             validated.push((canonical, scope));
         }
