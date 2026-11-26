@@ -31,9 +31,10 @@ fn check(name: &str, body: &str) -> (bool, String) {
     std::fs::write(
         root.join("build.omg"),
         format!(
-            "machine build(builder: @mutable Build) {{
+            "use main.omg as app;
+machine build(builder: @mutable Build) {{
     Build::application(builder, \"promised\");
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
 {body}}}
 machine settle(builder: @mutable Build, settled: OutputCompletion) {{
     transition settled {{
@@ -89,7 +90,7 @@ fn a_required_output_the_host_never_issued_is_refused_on_loan() {
     assert!(!compiled);
     assert!(
         stderr.contains("Build filesystem value was not issued by this activation")
-            && stderr.contains("build.omg:5:")
+            && stderr.contains("build.omg:6:")
             && !stderr.contains("ExecutionSite")
             && !stderr.contains("EffectRejected"),
         "{stderr}"

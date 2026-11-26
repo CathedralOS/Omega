@@ -64,7 +64,7 @@ fn private_filesystems_are_fresh_per_test_and_engine() {
 fn private_backing_does_not_grant_a_sibling_group_the_same_operation() {
     let build = BUILD.replace(
         "group.inputs.private_filesystem = true;",
-        "group.inputs.private_filesystem = true;\n    _ = builder.tests.group::<Checks::plain>();",
+        "group.inputs.private_filesystem = true;\n    _ = builder.tests.group::<|app|::Checks::plain>();",
     );
     let program = PROGRAM.replace("trait Checks {", "trait Checks {\n    machine plain() reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation crashes Trap;") + "\nmachine sibling_file() satisfies Checks::plain { round_trip(67u8); }\n";
     let target = if cfg!(target_arch = "x86_64") {
