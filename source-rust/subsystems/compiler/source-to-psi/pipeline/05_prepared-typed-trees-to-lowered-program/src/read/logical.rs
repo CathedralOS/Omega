@@ -195,23 +195,35 @@ impl MathematicalInputs {
     pub(super) fn with_binders(
         typed: &TypedTrees,
         machine: MachineId,
-        binders: &[(SymbolHandle, ScalarType)],
+        binders: &[super::mathematics::DefinitionBinder],
         parameters: arena::RootRows<'_, crate::source_state::mathematical::MathematicalParameter>,
         address: MathematicalAddressContext<'_>,
     ) -> Checked<Self> {
         let mut inputs = Inputs::default();
         let member_arena = Arena::new();
         let mut type_arguments = Vec::new();
-        for (ordinal, &(symbol, scalar)) in binders.iter().enumerate() {
-            inputs.leaves.push(Leaf {
-                path: SymbolPath {
-                    root: symbol,
-                    members: HandleSpan::empty(),
-                },
-                scalar,
-                origin: ordinal,
-                reference: None,
-            });
+        for (ordinal, binder) in binders.iter().enumerate() {
+            match *binder {
+                super::mathematics::DefinitionBinder::Value(symbol, scalar) => {
+                    inputs.leaves.push(Leaf {
+                        path: SymbolPath {
+                            root: symbol,
+                            members: HandleSpan::empty(),
+                        },
+                        scalar,
+                        origin: ordinal,
+                        reference: None,
+                    });
+                }
+                super::mathematics::DefinitionBinder::Type(symbol) => {
+                    let slot = u32::try_from(ordinal)
+                        .map_err(|_| identity(machine, "mathematical formal ordinal overflow"))?;
+                    type_arguments.push((
+                        symbol,
+                        terminal_psi::MathematicalPredicateBody::TypeParameter(slot),
+                    ));
+                }
+            }
         }
         let leading = binders.len();
         for (ordinal, parameter) in parameters.iter().enumerate() {
@@ -282,13 +294,14 @@ impl MathematicalInputs {
                     || inputs.leaves.iter().any(|leaf| leaf.path.root == *symbol)
             })
             || inputs.lookup.windows(2).any(|pair| {
-            path_order(
-                &member_arena,
-                inputs.leaves[pair[0]].path,
-                inputs.leaves[pair[1]].path,
-            )
-            .is_eq()
-        }) {
+                path_order(
+                    &member_arena,
+                    inputs.leaves[pair[0]].path,
+                    inputs.leaves[pair[1]].path,
+                )
+                .is_eq()
+            })
+        {
             return Err(identity(
                 machine,
                 "mathematical declaration repeats a formal identity",
@@ -469,9 +482,14 @@ impl<'a> LogicalScope<'a> {
     /// The logical input `expression` names, as its value identity and
     /// carrier: what such a name denotes in a clause of this scope.
     pub(super) fn input(
-        &self, typed: &TypedTrees, expression: ExpressionHandle, explicit_old: bool,
+        &self,
+        typed: &TypedTrees,
+        expression: ExpressionHandle,
+        explicit_old: bool,
     ) -> Checked<Option<(ValueId, ScalarType)>> {
-        let Some(position) = self.source_leaf(typed, expression)? else { return Ok(None) };
+        let Some(position) = self.source_leaf(typed, expression)? else {
+            return Ok(None);
+        };
         if self.inputs.leaves[position].reference.is_some() {
             // A reference needs a separate receipt for the selected observation.
             let reason = if explicit_old {
@@ -482,7 +500,11 @@ impl<'a> LogicalScope<'a> {
                 None
             };
             if let Some(reason) = reason {
-                return Err(refuse(self.machine, Construct::Machine, Unserved::Contract(reason)));
+                return Err(refuse(
+                    self.machine,
+                    Construct::Machine,
+                    Unserved::Contract(reason),
+                ));
             }
         }
         let leaf = &self.inputs.leaves[position];
@@ -530,8 +552,6 @@ impl<'a> LogicalScope<'a> {
         };
         Ok(Some(self.inputs.lookup[found]))
     }
-
-
 
     pub(super) fn signature(
         self,
@@ -964,7 +984,9 @@ impl Inputs {
                             let refusal = refuse(
                                 machine,
                                 Construct::Machine,
-                                Unserved::Contract("logical premise needs its complete domain access plan"),
+                                Unserved::Contract(
+                                    "logical premise needs its complete domain access plan",
+                                ),
                             );
                             return Err(explain_policy_refusal(policy, refusal));
                         }
@@ -1079,8 +1101,7 @@ impl Inputs {
                     || !declaration.type_parameters.is_empty()
                     || !declaration.lifetime_parameters.is_empty()
                     || !declaration.conformance_bounds.is_empty()
-                    || declaration.supply_mode
-                        != language_core::DataSupplyMode::CheckedShape
+                    || declaration.supply_mode != language_core::DataSupplyMode::CheckedShape
                 {
                     return Err(refuse(
                         machine,
@@ -1579,13 +1600,8 @@ pub(crate) fn projected_arrival(
         slots: callee_signature.parameters,
         statements: Vec::new(),
     });
-    let mut elaboration = crate::lower_generic(
-        entry,
-        &bodies,
-        &signatures,
-        &IdTable::default(),
-        &[callee],
-    )?;
+    let mut elaboration =
+        crate::lower_generic(entry, &bodies, &signatures, &IdTable::default(), &[callee])?;
     elaboration.names.push(entry_names);
     elaboration.names.push(callee_names);
     elaboration.machines.push(required.symbol);

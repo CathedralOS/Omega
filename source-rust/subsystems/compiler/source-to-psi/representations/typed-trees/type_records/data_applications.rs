@@ -5,7 +5,10 @@
 
 use crate::source_state::TypedTrees;
 use crate::source_state::data::{DataMember, TypeParameterKind};
-use crate::source_state::types::{DomainConstraintSubject, FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+use crate::source_state::types::{
+    DomainConstraintSubject, FixedArrayLength, TypeConstraintNode, TypeReferenceHandle,
+    TypeReferenceNode,
+};
 use arena::HandleSpan;
 use symbols::{SymbolHandle, SymbolKind};
 
@@ -60,7 +63,9 @@ pub fn check_type_argument(
             owner = supplier;
         }
         match table.type_reference(reference) {
-            TypeReferenceNode::Reference { referee, lifetime, .. } => {
+            TypeReferenceNode::Reference {
+                referee, lifetime, ..
+            } => {
                 check_supplied_lifetimes(program, reference, owner, lifetime.as_slice())?;
                 reference = *referee;
             }
@@ -168,12 +173,11 @@ pub fn settle_const_argument(
     argument: TypeReferenceHandle,
     spelling: &str,
 ) -> Result<(), String> {
-    if !matches!(
-        program.type_reference_table.type_reference(argument),
-        TypeReferenceNode::ConstExpression(_)
-    ) {
+    let TypeReferenceNode::ConstExpression(settled_expression) =
+        *program.type_reference_table.type_reference(argument)
+    else {
         return Err("a settled const argument is not an expression to evaluate".into());
-    }
+    };
 
     let mut domain_sites = Vec::new();
     let mut extents = Vec::new();
@@ -218,6 +222,7 @@ pub fn settle_const_argument(
             "an applied array length is not a closed nonnegative integer".to_owned()
         })?)
     };
+    finalize_const_expression_operators(program, settled_expression);
     program.type_reference_table.substitute_node(
         argument,
         TypeReferenceNode::Named {
@@ -246,6 +251,75 @@ pub fn settle_const_argument(
         prepare(program, reference)?;
     }
     Ok(())
+}
+
+/// Complete any `CheckedOperator` selections inside a const expression whose
+/// value has just been settled in place, so later selection audits do not see
+/// an orphaned late-bound operator on the replaced expression.
+fn finalize_const_expression_operators(
+    program: &mut TypedTrees,
+    root: crate::source_state::expression::ExpressionHandle,
+) {
+    use crate::declaration_selection::{
+        AuthoredDeclarationSelectionIntrinsic as Intrinsic,
+        AuthoredDeclarationSelectionKind as Kind, AuthoredDeclarationSelectionLateBinding as Late,
+        AuthoredDeclarationSelectionTarget as Target,
+    };
+    use crate::source_state::expression::ExpressionNode;
+    let mut pending = vec![root];
+    let mut occurrences = Vec::new();
+    while let Some(handle) = pending.pop() {
+        if !program.expression_table.expression_is_valid(handle) {
+            continue;
+        }
+        match program.expression_table.expression(handle) {
+            ExpressionNode::Binary(binary) => {
+                for occurrence in program
+                    .expression_table
+                    .authored_selection_occurrences(handle)
+                {
+                    if program
+                        .authored_declaration_selections()
+                        .get(occurrence)
+                        .is_some_and(|row| {
+                            row.kind() == Kind::Operator
+                                && row.target() == Target::LateBound(Late::CheckedOperator)
+                        })
+                    {
+                        occurrences.push(occurrence);
+                    }
+                }
+                pending.push(binary.left);
+                pending.push(binary.right);
+            }
+            ExpressionNode::Unary(unary) => {
+                for occurrence in program
+                    .expression_table
+                    .authored_selection_occurrences(handle)
+                {
+                    if program
+                        .authored_declaration_selections()
+                        .get(occurrence)
+                        .is_some_and(|row| {
+                            row.kind() == Kind::Operator
+                                && row.target() == Target::LateBound(Late::CheckedOperator)
+                        })
+                    {
+                        occurrences.push(occurrence);
+                    }
+                }
+                pending.push(unary.operand);
+            }
+            _ => {}
+        }
+    }
+    for occurrence in occurrences {
+        let _ = program.finalize_authored_intrinsic_selection(
+            occurrence,
+            Late::CheckedOperator,
+            Intrinsic::BuiltinOperator,
+        );
+    }
 }
 
 /// Replace the former application coordinate wherever the same type occurrence
@@ -510,9 +584,10 @@ impl<'source> ApplicationPreparation<'source> {
             ),
             TypeReferenceNode::Reference { referee, .. } => self.reference(referee),
             TypeReferenceNode::Slice { element_type } => self.reference(element_type),
-            TypeReferenceNode::FixedArray {
-                element_type, ..
-            } => Ok(self.source.closed_fixed_array_length(reference).is_some() && self.reference(element_type)?),
+            TypeReferenceNode::FixedArray { element_type, .. } => {
+                Ok(self.source.closed_fixed_array_length(reference).is_some()
+                    && self.reference(element_type)?)
+            }
             TypeReferenceNode::Constrained { base_type, .. } => self.reference(base_type),
             TypeReferenceNode::Callable { contract } => {
                 self.source
@@ -657,7 +732,9 @@ impl<'source> ApplicationPreparation<'source> {
                 check_type_argument(
                     self.source,
                     argument,
-                    self.source.type_reference_table.operand_lifetime_owner(reference),
+                    self.source
+                        .type_reference_table
+                        .operand_lifetime_owner(reference),
                 )?;
             }
         }

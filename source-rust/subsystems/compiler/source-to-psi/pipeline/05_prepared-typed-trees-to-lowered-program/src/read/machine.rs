@@ -3207,11 +3207,11 @@ impl<'t> Program<'t> {
             .map_err(unavailable)?
         {
             None => Qualification::NONE,
-            Some(domain) => Qualification::of_policy(
-                crate::body::Policy::of_domain(domain).ok_or_else(|| {
-                    unavailable("numeric primitive has an unsupported result policy")
-                })?,
-            ),
+            Some(domain) => {
+                Qualification::of_policy(crate::body::Policy::of_domain(domain).ok_or_else(
+                    || unavailable("numeric primitive has an unsupported result policy"),
+                )?)
+            }
         };
         if parameters.len() != expected.operand_count
             || parameters
@@ -3547,11 +3547,9 @@ impl<'t> Program<'t> {
                 };
                 type_argument_meets_bounds(self.typed, parameter, reference).map_err(|reason| {
                     match reason {
-                        Stop::Rejected(detail) => crate::reject(
-                            id,
-                            self.declared_at(requirement.symbol),
-                            detail,
-                        ),
+                        Stop::Rejected(detail) => {
+                            crate::reject(id, self.declared_at(requirement.symbol), detail)
+                        }
                         Stop::Unserved(reason) => super::services::unavailable(id, reason),
                         Stop::Defect(reason) => super::services::unavailable(id, reason),
                     }
@@ -3709,9 +3707,7 @@ impl<'t> Program<'t> {
             let access = reference.as_ref().map(|reference| reference.access);
             let borrowed_regions = reference
                 .as_ref()
-                .map_or(crate::body::Regions::NONE, |reference| {
-                    reference.regions
-                });
+                .map_or(crate::body::Regions::NONE, |reference| reference.regions);
             if let Some(reference) = reference {
                 borrowed.push(crate::body::Borrowed {
                     position,
@@ -4302,6 +4298,9 @@ impl<'t> Program<'t> {
             // nothing reads; what the evidence is, the mathematical
             // signature checks (`families::evidence_witness`).
             if erased && !self.mathematical && self.names_indexed_data(formal.type_reference) {
+                if let Some(&owner) = self.symbols.get(id) {
+                    self.complete_index_operators(id, owner, formal.type_reference)?;
+                }
                 return Ok((super::families::evidence_witness(), true, None));
             }
             let value_type = self.value_type(id, formal.type_reference)?;
@@ -4586,9 +4585,7 @@ impl<'t> Program<'t> {
                     borrowed,
                     borrowed_regions: signature
                         .borrowed(position)
-                        .map_or(crate::body::Regions::NONE, |reference| {
-                            reference.regions
-                        }),
+                        .map_or(crate::body::Regions::NONE, |reference| reference.regions),
                 }
             })
             .collect();
@@ -5040,7 +5037,11 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
                 spans(default, binder, out);
             }
         }
-        ExpressionKind::TestMembership { subject: left, predicate: right, .. }
+        ExpressionKind::TestMembership {
+            subject: left,
+            predicate: right,
+            ..
+        }
         | ExpressionKind::Strict { left, right, .. }
         | ExpressionKind::ShortCircuit { left, right, .. } => {
             spans(left, binder, out);

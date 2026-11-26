@@ -21,19 +21,18 @@ use super::{
 };
 use crate::{Unserved, refuse};
 
-pub(super) fn mathematical_sort(
+pub(super) enum DefinitionBinder {
+    Value(SymbolHandle, semantic_vocabulary::ScalarType),
+    Type(SymbolHandle),
+}
+
+pub(super) fn type_reference_sort(
     typed: &crate::source_state::TypedTrees,
-    ty: crate::source_state::mathematical::MathematicalTypeHandle,
+    reference: crate::source_state::types::TypeReferenceHandle,
 ) -> Option<FixedCoreDeclaration> {
-    if !typed.mathematical_types.is_valid(ty) {
-        return None;
-    }
-    let MathematicalType::Ordinary(reference) = typed.mathematical_type(ty) else {
-        return None;
-    };
     if !typed
         .type_reference_table
-        .contains_type_reference(*reference)
+        .contains_type_reference(reference)
     {
         return None;
     }
@@ -42,7 +41,7 @@ pub(super) fn mathematical_sort(
         arguments,
         lifetime_arguments,
         ..
-    } = typed.type_reference_table.type_reference(*reference)
+    } = typed.type_reference_table.type_reference(reference)
     else {
         return None;
     };
@@ -73,7 +72,21 @@ pub(super) fn mathematical_sort(
         return None;
     };
     (typed.expression_table.expression_is_valid(*expression)
-            && matches!(typed.expression_table.expression(*expression), ExpressionNode::Integer(literal) if literal.value_u64() == Some(0))).then_some(sort)
+        && matches!(typed.expression_table.expression(*expression), ExpressionNode::Integer(literal) if literal.value_u64() == Some(0)))
+    .then_some(sort)
+}
+
+pub(super) fn mathematical_sort(
+    typed: &crate::source_state::TypedTrees,
+    ty: crate::source_state::mathematical::MathematicalTypeHandle,
+) -> Option<FixedCoreDeclaration> {
+    if !typed.mathematical_types.is_valid(ty) {
+        return None;
+    }
+    let MathematicalType::Ordinary(reference) = typed.mathematical_type(ty) else {
+        return None;
+    };
+    type_reference_sort(typed, *reference)
 }
 
 impl<'t> Program<'t> {
@@ -143,9 +156,10 @@ impl<'t> Program<'t> {
         if call.receiver.is_valid() || !call.evidence_arguments.is_empty() {
             return Err(unserved("open mathematical premise application"));
         }
-        // Each value binder stands for the static argument the call writes
-        // for it, which is bound before the ordinary formals.
-        let binders = self.definition_value_binders(id, definition)?;
+        // Each binder stands for the static argument the call writes for it,
+        // which is bound before the ordinary formals.
+        let binders = self.definition_binders(id, definition)?;
+        let mut actual_inputs = MathematicalInputs::empty();
         let mut bound = if binders.is_empty() {
             if !call.machine_arguments.is_empty() {
                 return Err(unserved("open mathematical premise application"));
@@ -164,12 +178,34 @@ impl<'t> Program<'t> {
                 ));
             }
             // A definition's application keeps no binding tuple: each
-            // argument is the binder's in written order, read as any static
-            // value at its carrier; a binder of the machine being read
-            // stands for its input (`bound_scalar_value`).
+            // argument is the binder's in written order. Value binders are
+            // read at their scalar carrier; type binders validate that a type
+            // argument was supplied and propagate any enclosing type parameter.
             let mut bound = Vec::with_capacity(binders.len());
-            for (&(symbol, scalar), argument) in binders.iter().zip(&call.machine_arguments) {
-                bound.push((symbol, self.bound_scalar_value(id, scalar, argument, true)?));
+            for (binder, argument) in binders.iter().zip(&call.machine_arguments) {
+                match binder {
+                    DefinitionBinder::Value(symbol, scalar) => {
+                        bound.push((
+                            *symbol,
+                            self.bound_scalar_value(id, *scalar, argument, true)?,
+                        ));
+                    }
+                    DefinitionBinder::Type(symbol) => {
+                        if argument.const_literal.is_some()
+                            || (!argument.symbol.is_valid() && argument.application.is_none())
+                        {
+                            return Err(unserved(
+                                "mathematical premise type binder without a type argument",
+                            ));
+                        }
+                        if argument.symbol.is_valid()
+                            && let Some(logical) = scope.logical
+                            && let Some(body) = logical.type_argument(argument.symbol)
+                        {
+                            actual_inputs.bind_type(*symbol, body.clone());
+                        }
+                    }
+                }
             }
             bound
         };
@@ -208,7 +244,6 @@ impl<'t> Program<'t> {
             return Err(unserved("mathematical premise argument correspondence"));
         }
         bound.reserve(parameters.len());
-        let mut actual_inputs = MathematicalInputs::empty();
         for (parameter, argument) in parameters.iter().zip(arguments) {
             if !self.typed.mathematical_types.is_valid(parameter.ty) {
                 return Err(unserved("mathematical premise input has no formed type"));
@@ -258,12 +293,7 @@ impl<'t> Program<'t> {
             let (term, actual) = self
                 .clause_term(id, scope, *argument, ClauseUse::Scalar(Some(scalar)))?
                 .scalar(id)?;
-            if actual
-                != crate::body::ValueType::Scalar(
-                    scalar,
-                    crate::body::Qualification::NONE,
-                )
-            {
+            if actual != crate::body::ValueType::Scalar(scalar, crate::body::Qualification::NONE) {
                 return Err(unserved("mathematical premise input carrier differs"));
             }
             bound.push((parameter.symbol, term));
@@ -338,7 +368,7 @@ impl<'t> Program<'t> {
         {
             return Err(unserved("mathematical predicate has no exact declaration"));
         }
-        let binders = self.definition_value_binders(id, definition)?;
+        let binders = self.definition_binders(id, definition)?;
         let parameters = self.typed.mathematical_parameters(definition.parameters);
         if parameters.len() != definition.parameters.len() {
             return Err(unserved("mathematical predicate formal correspondence"));
@@ -356,9 +386,9 @@ impl<'t> Program<'t> {
         }
         let mut expanding = expanding.to_vec();
         expanding.push(definition.symbol);
-        // This environment has only the declaration's value binders and
-        // formals. Actual argument terms enter later by exact symbol
-        // substitution, without caller assumptions.
+        // This environment has only the declaration's binders and formals.
+        // Actual argument terms enter later by exact symbol substitution,
+        // without caller assumptions.
         let formal_inputs =
             MathematicalInputs::with_binders(self.typed, id, &binders, parameters, address)?;
         let declaration_scope = ClauseScope {
@@ -400,39 +430,39 @@ impl<'t> Program<'t> {
         Ok(expression)
     }
 
-    /// The value binders of a definition, each with its scalar carrier, in
-    /// declared order. A binder of a type or a level is refused, and so is
-    /// a definition with binders that also takes an erased type formal,
-    /// whose formal ordinal would no longer be its position.
-    fn definition_value_binders(
+    /// The value and type binders of a definition, in declared order.
+    fn definition_binders(
         &self,
         id: MachineId,
         definition: &MathematicalDefinition,
-    ) -> Checked<Vec<(SymbolHandle, semantic_vocabulary::ScalarType)>> {
+    ) -> Checked<Vec<DefinitionBinder>> {
         use crate::source_state::data::TypeParameterKind;
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
         let typed = self.typed;
         let declared = typed.data_type_parameters.span_or_empty(definition.binders);
         let mut binders = Vec::with_capacity(declared.len());
         for binder in declared.iter() {
-            let (TypeParameterKind::Value { type_reference }
-            | TypeParameterKind::Const { type_reference }) = binder.kind
-            else {
-                return Err(unserved(
-                    "open mathematical predicate declaration over a type or level binder",
-                ));
-            };
-            binders.push((binder.symbol, self.scalar_type(id, type_reference)?));
-        }
-        if !binders.is_empty()
-            && typed
-                .mathematical_parameters(definition.parameters)
-                .iter()
-                .any(|parameter| parameter.relevance == language_core::BindingRelevance::Erased)
-        {
-            return Err(unserved(
-                "open mathematical predicate declaration with an erased formal",
-            ));
+            match binder.kind {
+                TypeParameterKind::Type => binders.push(DefinitionBinder::Type(binder.symbol)),
+                TypeParameterKind::Value { type_reference }
+                | TypeParameterKind::Const { type_reference } => {
+                    if type_reference_sort(typed, type_reference)
+                        == Some(FixedCoreDeclaration::Type)
+                    {
+                        binders.push(DefinitionBinder::Type(binder.symbol));
+                    } else {
+                        binders.push(DefinitionBinder::Value(
+                            binder.symbol,
+                            self.scalar_type(id, type_reference)?,
+                        ));
+                    }
+                }
+                _ => {
+                    return Err(unserved(
+                        "open mathematical predicate declaration over an unsupported binder",
+                    ));
+                }
+            }
         }
         Ok(binders)
     }
