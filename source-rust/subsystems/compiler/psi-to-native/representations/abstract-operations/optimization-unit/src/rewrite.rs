@@ -38,6 +38,7 @@ pub use contracts::{
 };
 
 pub use declarations::PsiCandidateDeclaration;
+pub(crate) use foundations::encode_provenance_rows;
 pub use foundations::{
     NodeLocation, ProvenanceDisposition, ProvenanceRewrite, PsiRealizationSite, ScalarSubstitution,
     encode_location,
@@ -149,6 +150,56 @@ mod foundations {
         crate::codec_bytes::push_encoded(canonical, location.machine.get().to_le_bytes());
         crate::codec_bytes::push_encoded(canonical, location.block.get().to_le_bytes());
         crate::codec_bytes::push_encoded(canonical, location.node.to_le_bytes());
+    }
+
+    pub(crate) fn encode_realization_site(bytes: &mut Vec<u8>, site: PsiRealizationSite) {
+        match site {
+            PsiRealizationSite::Node(location) => {
+                bytes.push(1);
+                encode_location(bytes, location);
+            }
+            PsiRealizationSite::Edge { machine, edge } => {
+                bytes.push(2);
+                crate::codec_bytes::push_encoded(bytes, machine.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, edge.get().to_le_bytes());
+            }
+        }
+    }
+
+    fn encode_provenance(bytes: &mut Vec<u8>, provenance: PsiProvenance) {
+        let (tag, id) = match provenance {
+            PsiProvenance::Operation(operation) => (1, operation.get()),
+            PsiProvenance::Edge(edge) => (2, edge.get()),
+        };
+        bytes.push(tag);
+        crate::codec_bytes::push_encoded(bytes, id.to_le_bytes());
+    }
+
+    /// Candidates and the transformation ledger encode provenance rows with
+    /// this one layout, so a ledger record names exactly what its candidate did.
+    pub(crate) fn encode_provenance_rows(bytes: &mut Vec<u8>, rows: &[ProvenanceRewrite]) {
+        let len = |bytes: &mut Vec<u8>, len: usize| {
+            bytes.extend_from_slice(
+                &u64::try_from(len)
+                    .expect("provenance row count fits u64")
+                    .to_le_bytes(),
+            );
+        };
+        len(bytes, rows.len());
+        for row in rows {
+            encode_realization_site(bytes, row.input);
+            bytes.push(row.disposition.canonical_tag());
+            encode_realization_site(bytes, row.disposition.site());
+            len(bytes, row.sources.len());
+            for source in &row.sources {
+                encode_provenance(bytes, *source);
+            }
+            len(bytes, row.work.len());
+            for settlement in &row.work {
+                encode_provenance(bytes, settlement.site);
+                crate::codec_bytes::push_encoded(bytes, settlement.units.to_le_bytes());
+            }
+        }
     }
 }
 
@@ -318,6 +369,21 @@ mod scalar_evaluation {
         Integer(IntegerValue),
     }
 
+    impl ScalarConstantValue {
+        pub(super) fn encode(self, bytes: &mut Vec<u8>) {
+            match self {
+                Self::Boolean(value) => {
+                    bytes.push(1);
+                    bytes.push(u8::from(value));
+                }
+                Self::Integer(value) => {
+                    bytes.push(2);
+                    encode_integer_value(bytes, value);
+                }
+            }
+        }
+    }
+
     pub fn literal_scalar_constant_fact_identity(
         input: OptimizationUnitIdentity,
         machine: MachineId,
@@ -337,16 +403,7 @@ mod scalar_evaluation {
         crate::codec_bytes::push_encoded(&mut canonical, definition.value.get().to_le_bytes());
         encode_scalar_type(&mut canonical, definition.scalar_type);
         encode_definition_site(&mut canonical, definition.site);
-        match constant {
-            ScalarConstantValue::Boolean(value) => {
-                canonical.push(1);
-                canonical.push(u8::from(value));
-            }
-            ScalarConstantValue::Integer(value) => {
-                canonical.push(2);
-                encode_integer_value(&mut canonical, value);
-            }
-        }
+        constant.encode(&mut canonical);
         crate::codec_bytes::push_encoded(&mut canonical, support.get().to_le_bytes());
         Some(ScalarConstantFactIdentity::from_canonical_bytes(&canonical))
     }
@@ -452,7 +509,7 @@ mod sccp {
         crate::codec_bytes::push_encoded(&mut canonical, definition.value.get().to_le_bytes());
         encode_scalar_type(&mut canonical, definition.scalar_type);
         encode_definition_site(&mut canonical, definition.site);
-        encode_scalar_constant_value(&mut canonical, constant);
+        constant.encode(&mut canonical);
         encode_len(&mut canonical, snapshot.blocks.len());
         for row in &snapshot.blocks {
             crate::codec_bytes::push_encoded(&mut canonical, row.block.get().to_le_bytes());
@@ -491,19 +548,6 @@ mod sccp {
             }
         }
         Some(ScalarConstantFactIdentity::from_canonical_bytes(&canonical))
-    }
-
-    fn encode_scalar_constant_value(bytes: &mut Vec<u8>, constant: ScalarConstantValue) {
-        match constant {
-            ScalarConstantValue::Boolean(value) => {
-                bytes.push(1);
-                bytes.push(u8::from(value));
-            }
-            ScalarConstantValue::Integer(value) => {
-                bytes.push(2);
-                encode_integer_value(bytes, value);
-            }
-        }
     }
 }
 
@@ -1384,16 +1428,17 @@ mod declarations {
 }
 
 mod codec {
+    use super::foundations::{encode_location, encode_provenance_rows};
     use super::canonical_encoding::{
         encode_integer_type, encode_integer_value, encode_len, encode_scalar_type,
     };
     use super::{
         BlockId, CanonicalStructuralPathSegment, OptimizationRuleContract,
-        OptimizationUnitIdentity, PsiProvenance,
+        OptimizationUnitIdentity,
     };
     use super::{
-        FieldValueResolution, FoldedFieldValue, NodeLocation, ProofCertifiedScalarIdentityKind,
-        ProvenanceRewrite, PsiRealizationSite, PsiRewriteDecisionPoint, PsiRewritePatch,
+        FieldValueResolution, FoldedFieldValue, ProofCertifiedScalarIdentityKind,
+        ProvenanceRewrite, PsiRewriteDecisionPoint, PsiRewritePatch,
         PsiRewriteWitness, ScalarEvaluationWitness, ScalarSubstitution, TotalScalarIdentityKind,
     };
     use crate::ownership::encode_ownership_frontier_site;
@@ -1475,39 +1520,7 @@ mod codec {
             crate::codec_bytes::push_encoded(&mut bytes, substitution.to.get().to_le_bytes());
             encode_scalar_type(&mut bytes, substitution.scalar_type);
         }
-        encode_len(&mut bytes, provenance.len());
-        for row in provenance {
-            encode_realization_site(&mut bytes, row.input);
-            bytes.push(row.disposition.canonical_tag());
-            encode_realization_site(&mut bytes, row.disposition.site());
-            encode_len(&mut bytes, row.sources.len());
-            for source in &row.sources {
-                match source {
-                    PsiProvenance::Operation(operation) => {
-                        bytes.push(1);
-                        crate::codec_bytes::push_encoded(&mut bytes, operation.get().to_le_bytes());
-                    }
-                    PsiProvenance::Edge(edge) => {
-                        bytes.push(2);
-                        crate::codec_bytes::push_encoded(&mut bytes, edge.get().to_le_bytes());
-                    }
-                }
-            }
-            encode_len(&mut bytes, row.work.len());
-            for settlement in &row.work {
-                match settlement.site {
-                    PsiProvenance::Operation(operation) => {
-                        bytes.push(1);
-                        crate::codec_bytes::push_encoded(&mut bytes, operation.get().to_le_bytes());
-                    }
-                    PsiProvenance::Edge(edge) => {
-                        bytes.push(2);
-                        crate::codec_bytes::push_encoded(&mut bytes, edge.get().to_le_bytes());
-                    }
-                }
-                crate::codec_bytes::push_encoded(&mut bytes, settlement.units.to_le_bytes());
-            }
-        }
+        encode_provenance_rows(&mut bytes, provenance);
         match witness {
             PsiRewriteWitness::ScalarEvaluation(ScalarEvaluationWitness::Unary {
                 operand_fact,
@@ -1914,26 +1927,6 @@ mod codec {
             }
         }
         bytes
-    }
-
-    pub(super) fn encode_location(bytes: &mut Vec<u8>, location: NodeLocation) {
-        crate::codec_bytes::push_encoded(bytes, location.machine.get().to_le_bytes());
-        crate::codec_bytes::push_encoded(bytes, location.block.get().to_le_bytes());
-        crate::codec_bytes::push_encoded(bytes, location.node.to_le_bytes());
-    }
-
-    pub(super) fn encode_realization_site(bytes: &mut Vec<u8>, site: PsiRealizationSite) {
-        match site {
-            PsiRealizationSite::Node(location) => {
-                bytes.push(1);
-                encode_location(bytes, location);
-            }
-            PsiRealizationSite::Edge { machine, edge } => {
-                bytes.push(2);
-                crate::codec_bytes::push_encoded(bytes, machine.get().to_le_bytes());
-                crate::codec_bytes::push_encoded(bytes, edge.get().to_le_bytes());
-            }
-        }
     }
 }
 

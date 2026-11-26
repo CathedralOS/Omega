@@ -50,7 +50,7 @@ use std::{collections::BTreeSet, sync::Arc};
 
 use abstract_operations::{
     AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractOperationPlan,
-    AbstractSuccessor, ValueBinding,
+    ValueBinding,
 };
 use optimization_core::{
     AcceptedObligationFactIdentity, OptimizationIdentityBundle, OptimizationSelections,
@@ -185,17 +185,9 @@ pub struct PsiOptimizationUnit {
 
 /// The machine a direct call transfers control to, whether or not the callee
 /// returns normally. Call-graph analysis and the pruning validator both read
-/// callees through this one match, so they cannot disagree about reachability.
+/// callees through `module_invocation`, so they cannot disagree about reachability.
 fn direct_call_machine(operation: &AbstractOperation) -> Option<MachineId> {
-    match operation {
-        AbstractOperation::Call { callee, .. }
-        | AbstractOperation::InvokeNoNormal { callee, .. } => Some(*callee),
-        AbstractOperation::CallStructural {
-            callee: abstract_operations::AbstractCallTarget::Machine(machine),
-            ..
-        } => Some(*machine),
-        _ => None,
-    }
+    operation.module_invocation().map(|invocation| invocation.callee)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
