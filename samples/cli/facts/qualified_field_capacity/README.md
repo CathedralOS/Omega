@@ -93,7 +93,7 @@ unchanged at 4191.
   Terminal interpretation both return zero for all nine positives. Other
   target bodies are source-checked; execution on those hosts is not claimed.
 
-The bundled `alloc::bump` canary also checks the actual library contract:
+The bundled `allocation::bump` canary also checks the actual library contract:
 remaining capacity equals tail length, and partition requests must fit that
 length. Its abstract provider is not a real allocator demonstration.
 Actual backing admission, initialization, placed reads, retirement and exact

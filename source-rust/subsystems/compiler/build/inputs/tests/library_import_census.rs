@@ -1,8 +1,8 @@
 // Repository-wide census over bundled-library imports in `.omg` sources. The
-// standalone `omega\language\std` and `omega\language\alloc` mount paths are
+// standalone `omega\language\std` and `omega\language\allocation` mount paths are
 // retired outside the libraries themselves: package-aware consumers must reach
 // bundled libraries through declared `build.omg` dependency edges and their
-// requester-local aliases (`omega_language_std`, `alloc`). Fail-tier fixtures
+// requester-local aliases (`omega_language_std`, `allocation`). Fail-tier fixtures
 // (under a feature’s `fail/` directory) and standalone roots without `build.omg` are excluded
 // from missing-edge assertions because their rejection is tested by the
 // compiler itself.
@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 
 const SCAN_ROOTS: &[&str] = &["tests", "samples", "source", "bootstrap"];
 const SKIPPED_DIRS: &[&str] = &["target", ".git", "node_modules"];
-const MOUNTED_LIBRARIES: &[&str] = &["std", "alloc"];
+const MOUNTED_LIBRARIES: &[&str] = &["std", "allocation"];
 
 fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -151,6 +151,12 @@ fn library_imports_ride_declared_edges_not_the_mount() {
         "the census must see the std package declaration"
     );
 
+    assert_eq!(
+        packages.get("allocation"),
+        Some(&repo.join("source/library/allocation")),
+        "the allocation package must be registered at its declared location"
+    );
+
     let mut sources = Vec::new();
     for root in SCAN_ROOTS {
         collect_omega_files(&repo.join(root), &mut sources);
@@ -229,7 +235,7 @@ fn library_imports_ride_declared_edges_not_the_mount() {
 
     assert!(
         mount_path_offenders.is_empty(),
-        "standalone std/alloc mount imports retired; offending sources:\n{}",
+        "standalone std/allocation mount imports retired; offending sources:\n{}",
         mount_path_offenders.join("\n")
     );
     assert!(inventoried > 0, "the census inventoried no alias imports");

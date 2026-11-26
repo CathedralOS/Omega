@@ -39,7 +39,7 @@ the execution.
 4. The carrier is library data over `Extent in Granted & Resident<P, S>`. The
    qualified extent owns one complete live `S` and returns to its provider; an
    allocator family wraps it with its return handle where one is needed. The
-   first owner family lands in `alloc` as the first customer.
+   first owner family lands in `allocation` as the first customer.
 5. Packing allocates nothing. It moves an established owner into the record.
 6. Stored operations take the owner, by reference or by value, not `@mutable S`.
    The consumer never specializes over the hidden type.

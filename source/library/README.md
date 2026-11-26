@@ -69,7 +69,7 @@ and old/replacement backing. Automatic reclamation must satisfy the ordinary
 infallible, terminating, nonblocking and nonsuspending cleanup contract;
 otherwise release is explicit.
 
-The concrete `alloc::vec` is a `u32` customer, not the completed generic container.
+The concrete `allocation::vec` is a `u32` customer, not the completed generic container.
 Reconcile the core placeholder and library implementation rather than creating
 two meanings of `Vec`. `EXTENT-LIBRARY-TRANSFORMS` in [TASKS.md](../../TASKS.md)
 owns this and the selected `Allocator` service; provisional `Arena` source is

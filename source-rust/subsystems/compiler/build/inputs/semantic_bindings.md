@@ -37,7 +37,7 @@ recognizes the exact bundled source, not service or method names.
 Ordinary std review uses resolver snapshots and its declared alias. It
 rejects non-core `omega::language::*` shortcuts with dependency guidance. Only the real core directory is excluded from the
 package overlap check; the repository's std directory may be an ordinary
-package. Standalone std/alloc provenance is temporary, until each consumer recognizes
+package. Standalone std/allocation provenance is temporary, until each consumer recognizes
 exact source bytes or has explicit bindings.
 Console and every physical program entry already use narrow byte-exact
 fallbacks: each target's bundled contract source is accepted beside its binding. Relabeling directory authority would not finish this migration.

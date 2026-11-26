@@ -1,6 +1,6 @@
 machine build(builder: @mutable Build) {
     Build::member(builder, "source/library/std");
-    Build::member(builder, "source/library/alloc");
+    Build::member(builder, "source/library/allocation");
     Build::member(builder, "source/foundation/wire");
     Build::member(builder, "source/subsystems/compiler/source_to_psi");
     Build::member(builder, "source/subsystems/compiler/alpha");

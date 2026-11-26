@@ -124,7 +124,7 @@ record. Its affine composition observes exactly-once cleanup; its controls rejec
 a different placement identity and reuse of the consumed element.
 
 The [library-growth production](https://github.com/CathedralOS/Omega/blob/1b22a248cfdb5a6c54b95613e5f82a8cc97a99bb/samples/cli/facts/resident_backing/library_growth/README.md) runs that lifecycle
-through the alloc package's runtime-sized u32 vector. The application provides
+through the allocation package's runtime-sized u32 vector. The application provides
 backing and its selected profile; the library preserves the initialized prefix
 and returns old storage for explicit release. Its twin omits vacancy issuance.
 

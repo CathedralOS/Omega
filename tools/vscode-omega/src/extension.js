@@ -136,7 +136,7 @@ async function importedFiles(target, folder, packageRoot, libraryRoot) {
 }
 
 // A module `a/b` is `a/b.omg`, `a/b/mod.omg` or `a/b/b.omg` (the library's
-// `alloc/vec/vec.omg`); failing those, the `.omg` files in folder `a/b`.
+// `allocation/vec/vec.omg`); failing those, the `.omg` files in folder `a/b`.
 async function moduleFiles(base, module) {
   const name = module.slice(module.lastIndexOf('/') + 1);
   const files = await existing([

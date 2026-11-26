@@ -145,7 +145,7 @@ fn typed_source(source: &str) -> crate::source_state::TypedTrees {
         semantic_vocabulary::PackageKeyIdentity::from_digest([0xA1; 32])
             .expect("retained test package"),
     )
-    .expect("type actual candidate core and alloc with matching compiler catalog")
+    .expect("type actual candidate core and allocation with matching compiler catalog")
 }
 
 fn reflected_schema(

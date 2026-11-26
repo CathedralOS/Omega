@@ -49,8 +49,8 @@ fn resolved_library_source(
         .join("core")
         .canonicalize()
         .map_err(|error| error.to_string())?;
-    let alloc_root = library
-        .join("alloc")
+    let allocation_root = library
+        .join("allocation")
         .canonicalize()
         .map_err(|error| error.to_string())?;
     let mut sources = crate::source_inputs::SourceMap::default();
@@ -74,21 +74,21 @@ fn resolved_library_source(
         .ok_or("real core source selection is empty")?
         .0;
     for name in allocator_units {
-        let path = alloc_root.join(name);
+        let path = allocation_root.join(name);
         let text = std::fs::read_to_string(&path).map_err(|error| error.to_string())?;
         let file = sources.add_with_metadata(
             path,
             text,
-            alloc_root.clone(),
+            allocation_root.clone(),
             Some(package),
             source_admission::SourceOrigin::User,
         );
         units.push((file.source_id, Arc::clone(&file.source)));
     }
     let file = sources.add_with_metadata(
-        alloc_root.join("query.omg"),
+        allocation_root.join("query.omg"),
         query_text.into(),
-        alloc_root,
+        allocation_root,
         Some(package),
         source_admission::SourceOrigin::User,
     );
@@ -133,7 +133,7 @@ fn resolved_library_source(
     request.sources = Some(Arc::new(sources));
     request.top_level_bindings = bindings;
     let resolved = crate::test_support::resolution::resolve(request)
-        .map_err(|errors| format!("resolve actual alloc/core: {errors:?}"))?;
+        .map_err(|errors| format!("resolve actual allocation/core: {errors:?}"))?;
     Ok(resolved)
 }
 

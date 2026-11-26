@@ -191,19 +191,17 @@ nor matching paths, grants compiler custody, platform authority or privileged
 provider selection. Those remain governed by exact primitives, admitted
 contracts and resolved dependencies.
 
-The physical rename remains implementation work under
+The system-library rename remains implementation work under
 [LIBRARY-RESPONSIBILITY-NAMES](../../../TASKS.md#pipeline-route).
-Existing `std` and `alloc` spellings in source and contracts identify the
-libraries pending that migration, not additional package kinds. Rename their
-declarations, registrations, imports and exact compiler binding references
-coherently, preserving owner checks rather than trusting the new short names.
+Existing `std` spellings identify the library pending that migration.
+The allocation package is registered under its declared name, `allocation`.
 The rename is separate from removing compiler coupling and does not demonstrate
 replaceability by itself.
 
 ## Ordinary library packages
 
 Named decision: `ordinary-library-packages`, settled 2026-11-12. `std` and
-`alloc`, wherever no compiler privilege is required, use ordinary package
+`allocation`, wherever no compiler privilege is required, use ordinary package
 ownership, dependencies, validation and immutable version selection. They may
 be distributed beside the compiler, fetched from Git or supplied by another
 accepted source without acquiring a new semantic package kind. Bundling is

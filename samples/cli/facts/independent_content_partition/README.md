@@ -63,7 +63,7 @@ samples/cli/facts/independent_content_partition/<place>/main.omg`. Each
   this row does not claim execution on unavailable hosts.
 
 The bundled core split applies both laws to actual `Granted & Vacant` inputs;
-`alloc::bump` uses it instead of an abstract split provider. Its compile-only
+`allocation::bump` uses it instead of an abstract split provider. Its compile-only
 canary still has abstract merge and resident services. Real backing admission,
 initialization under an admitted Stable profile, placed reads, retirement, and
 exact vacant return remain unfinished parent acceptance.
