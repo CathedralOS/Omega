@@ -347,8 +347,8 @@ mod tests {
     #[test]
     fn quoted_delimiters_leave_the_build_body_and_dependency_row_intact() {
         let source = r#"use {omega}/build/dependency.omg;
-machine build(builder: @mutable Build) {
-    Build::application(builder, "}");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "}" };
     _ = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "(" }));
 }
 "#;

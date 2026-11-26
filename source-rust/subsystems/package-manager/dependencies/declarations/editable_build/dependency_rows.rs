@@ -334,8 +334,8 @@ mod tests {
     fn rows_retain_their_purpose_alias_and_literal_occurrences() {
         let (trees, rows) = rows(
             r#"use {omega}/build/dependency.omg;
-machine build(builder: @mutable Build) {
-    Build::application(builder, "probe");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "probe" };
     _ = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "math" }));
     let mutable other: DependencyDescription = |dependency|::from_source(Source::Path { location: "other" });
     |dependency|::with_alias(@mutable other, "other");
@@ -387,7 +387,7 @@ machine build(builder: @mutable Build) {
         ];
         for statements in wrong_receiver {
             let source = format!(
-                "use {{omega}}/build/dependency.omg;\nmachine build(builder: @mutable Build) {{\n{statements}\n}}\n"
+                "use {{omega}}/build/dependency.omg;\nmachine build(builder: @mutable BuildPlan) {{\n{statements}\n}}\n"
             );
             assert_eq!(
                 rows(&source).map(|pair| pair.1),
@@ -408,7 +408,7 @@ machine build(builder: @mutable Build) {
         ];
         for statement in wrong_arguments {
             let source = format!(
-                "use {{omega}}/build/dependency.omg;\nmachine build(builder: @mutable Build) {{\n    Build::application(builder, \"probe\");\n    {statement};\n}}\n"
+                "use {{omega}}/build/dependency.omg;\nmachine build(builder: @mutable BuildPlan) {{\n    builder.product = BuildProduct::Application {{ name: \"probe\" }};\n    {statement};\n}}\n"
             );
             assert_eq!(
                 rows(&source).map(|pair| pair.1),
