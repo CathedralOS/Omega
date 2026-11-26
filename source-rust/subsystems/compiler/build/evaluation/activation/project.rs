@@ -1,47 +1,56 @@
-/*
-Normalize the authored project role (`BuildDeclaration`) from the activation's
-issued request ledger at normal return (`declaration`).
-
-An authored `build.omg` must declare exactly one role (`Build::package`,
-`Build::application`, or one or more `Build::member` workspace entries), and
-`Build::artifact_only` is permitted at most once and only on an `Application`
-role.
-*/
+//! A Build produces either a project declaration or the next interpreted Build entry.
 
 use build_declarations::{
-    ApplicationDeclaration, BuildDeclaration, BuildRequest, PackageDeclaration,
+    ApplicationDeclaration, BuildDeclaration, BuildEntryPath, BuildRequest, PackageDeclaration,
     WorkspaceDeclaration,
 };
 
 use crate::host::requests::IssuedBuildRequest;
 
-pub(super) fn declaration(requests: &[IssuedBuildRequest]) -> Result<BuildDeclaration, String> {
-    let mut role = None;
-    let mut members = Vec::new();
+pub(super) enum Destination {
+    Project(BuildDeclaration),
+    Successor(BuildEntryPath),
+}
+
+impl Destination {
+    pub(super) fn project(&self) -> Option<&BuildDeclaration> {
+        match self {
+            Self::Project(declaration) => Some(declaration),
+            Self::Successor(_) => None,
+        }
+    }
+}
+
+pub(super) fn destination(requests: &[IssuedBuildRequest]) -> Result<Destination, String> {
+    use BuildDeclaration::{Application, Package, Workspace};
+    use Destination::{Project, Successor};
+
+    let mut destination = None;
     let mut artifact_only = false;
     for issued in requests {
-        let next_role = match issued.request() {
+        let next = match issued.request() {
             BuildRequest::Package(name) => {
-                BuildDeclaration::Package(PackageDeclaration { name: name.clone() })
+                Project(Package(PackageDeclaration { name: name.clone() }))
             }
-            BuildRequest::Application(name) => {
-                BuildDeclaration::Application(ApplicationDeclaration {
-                    name: name.clone(),
-                    artifact_only: false,
-                })
-            }
+            BuildRequest::Application(name) => Project(Application(ApplicationDeclaration {
+                name: name.clone(),
+                artifact_only: false,
+            })),
+            BuildRequest::BuildEntry(path) => Successor(path.clone()),
             BuildRequest::Member(path) => {
-                if role.is_some() {
-                    return Err("Build returned mixed project roles".into());
+                if let Some(Project(Workspace(workspace))) = &mut destination {
+                    if workspace.members.contains(path) {
+                        return Err(format!(
+                            "Build repeated workspace member `{}`",
+                            path.as_str()
+                        ));
+                    }
+                    workspace.members.push(path.clone());
+                    continue;
                 }
-                if members.contains(path) {
-                    return Err(format!(
-                        "Build repeated workspace member `{}`",
-                        path.as_str()
-                    ));
-                }
-                members.push(path.clone());
-                continue;
+                Project(Workspace(WorkspaceDeclaration {
+                    members: vec![path.clone()],
+                }))
             }
             BuildRequest::ArtifactOnly => {
                 if artifact_only {
@@ -52,41 +61,34 @@ pub(super) fn declaration(requests: &[IssuedBuildRequest]) -> Result<BuildDeclar
             }
             BuildRequest::Dependency { .. } => continue,
         };
-        match (&role, &next_role) {
-            (Some(BuildDeclaration::Package(previous)), BuildDeclaration::Package(next)) => {
-                return Err(format!(
+        if let Some(previous) = destination {
+            return Err(match (previous, next) {
+                (Project(Package(previous)), Project(Package(next))) => format!(
                     "Build declared the package project role more than once (`{}` and `{}`)",
                     previous.name.as_str(),
                     next.name.as_str()
-                ));
-            }
-            (
-                Some(BuildDeclaration::Application(previous)),
-                BuildDeclaration::Application(next),
-            ) => {
-                return Err(format!(
+                ),
+                (Project(Application(previous)), Project(Application(next))) => format!(
                     "Build declared the application project role more than once (`{}` and `{}`)",
                     previous.name.as_str(),
                     next.name.as_str()
-                ));
-            }
-            _ if role.is_some() || !members.is_empty() => {
-                return Err("Build returned mixed project roles".into());
-            }
-            _ => role = Some(next_role),
+                ),
+                (Successor(previous), Successor(next)) => format!(
+                    "Build selected a successor more than once (`{}` and `{}`)",
+                    previous.as_str(),
+                    next.as_str()
+                ),
+                _ => "Build returned mixed project roles".into(),
+            });
         }
+        destination = Some(next);
     }
-    if !members.is_empty() {
-        role = Some(BuildDeclaration::Workspace(WorkspaceDeclaration {
-            members,
-        }));
-    }
-    let mut role = role.ok_or("Build returned no project role")?;
+    let mut destination = destination.ok_or("Build returned no project role")?;
     if artifact_only {
-        let BuildDeclaration::Application(application) = &mut role else {
+        let Project(Application(application)) = &mut destination else {
             return Err("artifact-only output requires an application role".into());
         };
         application.artifact_only = true;
     }
-    Ok(role)
+    Ok(destination)
 }

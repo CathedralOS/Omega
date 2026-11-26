@@ -9,6 +9,11 @@ pub use failure::CompileFailure;
 
 #[derive(Clone)]
 pub struct EvaluatedBuild {
+    /// Completed, independently admitted preparations in execution order.
+    pub preparations: Vec<(
+        build_declarations::BuildEntryPath,
+        std::sync::Arc<ComputedBuildConfig>,
+    )>,
     pub configuration: std::sync::Arc<ComputedBuildConfig>,
     pub restricted_build_requests: Vec<build_consent::RestrictedBuildRequest>,
     pub base_source_consumption_commitment:

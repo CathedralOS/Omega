@@ -94,6 +94,14 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
         self.locked_activations = true;
     }
 
+    /// A version 4 lock records one Build callable per source occurrence.
+    pub fn admit_successor(&self) -> Result<(), String> {
+        if self.locked_activations {
+            return Err("a version 4 package lock cannot authorize a successor Build entry".into());
+        }
+        Ok(())
+    }
+
     /// Admit a package's Build activation only when the lock accepted its
     /// exact source. Call this before the Build is scheduled to run.
     pub fn admit_locked_activation(&self, acquired: &AcquiredBuildSource) -> Result<(), String> {
@@ -605,10 +613,7 @@ impl AcquiredBuildSource {
         returned: &build_execution::ReturnedBuild,
     ) -> Result<DeclaredBuildSource, String> {
         returned.require_source_acquisition(self.source_capture())?;
-        self.declare_requests(
-            returned.declaration(),
-            returned.source_requests(),
-        )
+        self.declare_requests(returned.declaration(), returned.source_requests())
     }
 
     pub fn declare_source_result(

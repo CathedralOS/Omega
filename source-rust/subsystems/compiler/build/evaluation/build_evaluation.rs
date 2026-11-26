@@ -73,7 +73,8 @@ pub struct PreparedBuildEvaluation {
     restricted_build_requests: Vec<RestrictedBuildRequest>,
     base_source_consumption_commitment: Option<PackageSourceConsumptionCommitment>,
     constants: build_evaluation_result::BuildConstants,
-    source_completion_accounting: source_compiler::compile_time_invocations::SourceCompletionAccounting,
+    source_completion_accounting:
+        source_compiler::compile_time_invocations::SourceCompletionAccounting,
     restricted_build_grants: Option<Box<dyn RestrictedBuildGrants>>,
     subject_validation: BuildSubjectValidation,
 }
@@ -92,7 +93,8 @@ impl PreparedBuildEvaluation {
     /// Retain provider helper work charged to this returned activation with its source work.
     pub fn record_return(&mut self, returned: &crate::ReturnedBuild) -> Result<(), CompileFailure> {
         self.validate_return(returned)?;
-        self.source_completion_accounting.append(returned.helper_accounting.clone());
+        self.source_completion_accounting
+            .append(returned.helper_accounting.clone());
         Ok(())
     }
 
@@ -144,6 +146,23 @@ impl PreparedBuildEvaluation {
                     self.source_completion_accounting.clone(),
                 )
             })?;
+        self.finish(|execution| execution.complete(returned))
+    }
+
+    pub fn complete_successor(
+        self,
+        returned: crate::ReturnedBuild,
+        libraries: &[package_compilation::source_imports::SuppliedBuildLibrary],
+    ) -> Result<EvaluatedBuild, CompileFailure> {
+        self.finish(|execution| execution.complete_successor(returned, libraries))
+    }
+
+    fn finish(
+        self,
+        settle: impl FnOnce(
+            PreparedBuildExecution,
+        ) -> Result<crate::ComputedBuildConfig, Vec<Diagnostic>>,
+    ) -> Result<EvaluatedBuild, CompileFailure> {
         let Self {
             execution,
             restricted_build_requests,
@@ -156,9 +175,10 @@ impl PreparedBuildEvaluation {
         let failure = |diagnostics| {
             CompileFailure::source_completion(diagnostics, source_completion_accounting.clone())
         };
-        let configuration = Arc::new(execution.complete(returned).map_err(failure)?);
+        let configuration = Arc::new(settle(execution).map_err(failure)?);
         drop(restricted_build_grants);
         Ok(EvaluatedBuild {
+            preparations: Vec::new(),
             configuration,
             restricted_build_requests,
             base_source_consumption_commitment,
@@ -242,7 +262,10 @@ pub fn prepare_build_evaluation(
     let check_only = match (check_only_subject, anonymous_source) {
         (Some(subject), Some(capture)) if checks_whole_subject_first => {
             if subject.program.roots.partial_build_entry.is_some() {
-                return Err(vec![Diagnostic::error("Build subject validation requires a complete checked program")].into());
+                return Err(vec![Diagnostic::error(
+                    "Build subject validation requires a complete checked program",
+                )]
+                .into());
             }
             Some((subject.program.as_ref(), capture))
         }

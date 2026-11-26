@@ -35,6 +35,11 @@ pub enum PlanningSources<'a> {
         source: &'a CapturedLocalSource,
         libraries: Vec<SuppliedBuildLibrary>,
     },
+    Successor {
+        source: &'a CapturedLocalSource,
+        previous_build_files: &'a [std::path::PathBuf],
+        libraries: Vec<SuppliedBuildLibrary>,
+    },
     Package(&'a PackageCompilationInputs),
 }
 
@@ -192,9 +197,22 @@ pub fn prepare(
     preparation: SourcePreparation,
     mut timings: CompileTimings,
 ) -> Result<PreparedPlanningStage, CompileFailure> {
+    use package_compilation::source_assembly::CapturedBuildEntry;
+    let mut entry = CapturedBuildEntry::Initial(request.root);
     let (inputs, capture, supplied_libraries) = match request.sources {
         PlanningSources::Captured(capture) => (None, Some(capture), Vec::new()),
         PlanningSources::CapturedWithLibraries { source, libraries } => {
+            (None, Some(source), libraries)
+        }
+        PlanningSources::Successor {
+            source,
+            previous_build_files,
+            libraries,
+        } => {
+            entry = CapturedBuildEntry::Successor {
+                path: request.root,
+                previous_build_files,
+            };
             (None, Some(source), libraries)
         }
         PlanningSources::Package(inputs) => (Some(inputs), None, Vec::new()),
@@ -214,7 +232,7 @@ pub fn prepare(
     let assembled = {
         let mut catalogue = preparation.catalogue()?;
         let checkpoint = ImmutableSourceParseCheckpoint::prepare(
-            request.root,
+            entry,
             inputs,
             capture,
             &mut timings,
@@ -230,7 +248,13 @@ pub fn prepare(
             )?
         }
     };
-    let interval = resolve(&assembled, &preparation, profile, inputs, &supplied_libraries)?;
+    let interval = resolve(
+        &assembled,
+        &preparation,
+        profile,
+        inputs,
+        &supplied_libraries,
+    )?;
     // A dependency Build checks only what its entry reaches, so typing its
     // file under a check-only owner would produce a subject nothing judges.
     let check_only_subject =
@@ -346,6 +370,19 @@ fn deferred(assembled: AssembledSyntax) -> Result<DeferredProductSources, Compil
 }
 
 impl PlanningSource {
+    pub(super) fn retain_build_files(&self, root: &Path, previous: &mut Vec<std::path::PathBuf>) {
+        if let Some(authors) = &self.query_authors {
+            for file in authors.selected_files().filter(|file| {
+                file.package_root == root
+                    && file.dependency_scope == source_provenance::DependencyScope::Build
+            }) {
+                if !previous.contains(&file.path) {
+                    previous.push(file.path.clone());
+                }
+            }
+        }
+    }
+
     pub(super) fn provide(
         &self,
         owner: semantic_vocabulary::PackageKeyIdentity,
@@ -492,7 +529,11 @@ impl PlanningSource {
                 &evaluated.configuration.generated_sources,
                 &mut *self.preparation.catalogue()?,
             )?;
-            Some(extension.prepare_source_request(&source.parsed.files, inputs, &mut self.timings)?)
+            Some(extension.prepare_source_request(
+                &source.parsed.files,
+                inputs,
+                &mut self.timings,
+            )?)
         };
         Ok(PlannedProduct {
             generated,

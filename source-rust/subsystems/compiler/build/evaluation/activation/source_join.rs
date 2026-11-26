@@ -21,6 +21,55 @@ impl ReturnedBuild {
             .map_or(&[], |sources| sources.libraries.as_ref())
     }
 
+    /// A predecessor supplies each ordinary dependency in registration order. The next
+    /// activation imports it in Build scope under the name established by its own handoff.
+    pub(super) fn validate_successor_libraries(
+        &self,
+        libraries: &[package_compilation::source_imports::SuppliedBuildLibrary],
+    ) -> Result<(), String> {
+        let mut supplied = libraries.iter();
+        for (ordinal, (source, alias)) in self
+            .requests
+            .iter()
+            .filter_map(|issued| match issued.request() {
+                BuildRequest::Dependency {
+                    purpose: DependencyPurpose::Product,
+                    source,
+                    alias,
+                } => Some((source, alias.as_ref())),
+                _ => None,
+            })
+            .enumerate()
+        {
+            let library = supplied
+                .next()
+                .ok_or("successor is missing a registered library")?;
+            let dependency = library.dependency();
+            let package = dependency.inputs.root();
+            let expected_alias = alias
+                .map(|name| name.as_str())
+                .or_else(|| dependency.inputs.package_name(package));
+            if !matches!(library.request(), BuildRequest::Dependency {
+                purpose: DependencyPurpose::Build, source: received, ..
+            } if received == source)
+                || expected_alias != Some(dependency.alias.as_str())
+                || self.demanded_sources.iter().any(|demand| {
+                    demand.purpose.is_product()
+                        && demand.request_ordinal == ordinal
+                        && demand.package != package
+                })
+            {
+                return Err(
+                    "successor library differs from the executed dependency registration".into(),
+                );
+            }
+        }
+        if supplied.next().is_some() {
+            return Err("successor received an unregistered library".into());
+        }
+        Ok(())
+    }
+
     /// Only the source coordinator combines these two sets of inputs. The guest's
     /// request log remains the record of just the operations it performed.
     pub fn source_requests(&self) -> impl Iterator<Item = &BuildRequest> {
@@ -38,7 +87,7 @@ impl ReturnedBuild {
         if self.source_join.is_some() {
             return self.validate_source_join(Some(inputs), false);
         }
-        if self.declaration.is_none() {
+        if self.declaration().is_none() {
             return Err("unbound default Build cannot adopt a package source graph".into());
         }
         if inputs.dependency_acquisitions().is_empty() {
@@ -84,7 +133,7 @@ impl ReturnedBuild {
             library.validate_join(inputs)?;
         }
         validate_dependency_sources(
-            self.declaration.as_ref(),
+            self.declaration(),
             self.source_requests(),
             &self.demanded_sources,
             inputs,
@@ -105,7 +154,7 @@ impl ReturnedBuild {
             );
         }
         validate_source_join(
-            self.declaration.as_ref(),
+            self.declaration(),
             self.source_join.as_ref(),
             inputs,
             initially_unbound,
