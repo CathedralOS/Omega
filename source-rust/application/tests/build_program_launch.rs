@@ -244,6 +244,19 @@ int main(int count, char **args) {
     assert!(audit.status.success(), "{}", show(&audit));
     assert_eq!(std::fs::read(&lock).unwrap(), locked);
 
+    let compile = || {
+        Command::new(&public)
+            .args(["build", "--allow", "ProgramLaunch", "--program", "Packer"])
+            .arg(&image)
+            .arg(&entry)
+            .env("OMEGA_LIBRARY_ROOT", &library)
+            .output()
+            .unwrap()
+    };
+    let unchanged = compile();
+    assert!(unchanged.status.success(), "{}", show(&unchanged));
+    assert_eq!(std::fs::read(&lock).unwrap(), locked);
+
     // The same nominal selector and locator may now resolve to a different
     // image. Portable acceptance covers the approved bytes.
     {
@@ -265,16 +278,7 @@ int main(int count, char **args) {
 
     // The normal public entry still consumes package acceptance. A root
     // invocation cannot manufacture it by passing the reviewed executable.
-    let cli = Command::new(&public)
-        .args(["build", "--allow", "ProgramLaunch", "--program", "Packer"])
-        .arg(&image)
-        .arg(&entry)
-        .env(
-            "OMEGA_LIBRARY_ROOT",
-            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../source/library"),
-        )
-        .output()
-        .unwrap();
+    let cli = compile();
     assert!(
         !cli.status.success(),
         "ordinary compilation invented consent"
