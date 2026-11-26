@@ -522,6 +522,7 @@ pub(crate) struct ElaborationView<'a> {
     pub(crate) sources: &'a IdTable<MachineId, terminal_check_tables::program::MachineSources>,
     pub(crate) requirements: &'a [MachineId],
     pub(crate) nominal_calls: &'a [terminal_psi::generic_calls::NominalCallArgument],
+    pub(crate) schemas: &'a [terminal_check_tables::contracts::StaticSchemaQuestion],
     pub(crate) domain_sources: &'a IdTable<
         semantic_vocabulary::DomainSemanticId,
         terminal_check_tables::program::DomainSource,
@@ -689,7 +690,12 @@ pub(crate) fn finish_discharge<'m>(
         inferred_results,
     } = prepared;
     let module = view.module;
-    let formed = formation::FormedModule::new(module, view.nominal_calls, view.domain_sources);
+    let formed = formation::FormedModule::new(
+        module,
+        view.nominal_calls,
+        view.schemas,
+        view.domain_sources,
+    );
     let inputs = machine_inputs::PreparedMachineInputs::new(
         module,
         view.sources,
@@ -801,6 +807,7 @@ pub(crate) fn discharge_inner(
             sources: &elaboration.sources,
             requirements: &elaboration.requirements,
             nominal_calls: &elaboration.nominal_calls,
+            schemas: &elaboration.static_schemas,
             domain_sources: &elaboration.domain_sources,
         },
         &mut elaboration.tables,
@@ -1834,8 +1841,12 @@ fn with_prepared_machine<Outcome>(
     let graph = Graph::new(id, lowered, tables)?;
     theorems::validate(module, lowered, tables, &graph)?;
     minted::check_pending_operands(lowered, tables, &graph)?;
-    let reference_graph =
-        places::reference_graph_with_nominal_calls(module, id, formed.nominal_calls())?;
+    let reference_graph = places::reference_graph_with_generic_calls(
+        module,
+        id,
+        formed.nominal_calls(),
+        formed.schemas,
+    )?;
     let (context, ranking_bindings, result) = {
         let mut references =
             terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(

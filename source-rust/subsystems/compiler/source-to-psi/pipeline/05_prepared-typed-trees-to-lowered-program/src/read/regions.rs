@@ -255,6 +255,50 @@ impl Program<'_> {
             .collect()
     }
 
+    /// An invocation-local outer borrow may end at the call. A region which
+    /// also occurs inside a value, in the result, or on another formal keeps
+    /// its ordinary loan. Only the requirement's own family members qualify.
+    pub(crate) fn scoped_input_addresses(
+        &self,
+        declaration: SymbolHandle,
+        signature: &crate::body::Signature,
+    ) -> Vec<usize> {
+        let Some(requirement) = self.typed.retained_static_machine_contract(declaration) else {
+            return Vec::new();
+        };
+        let requirement = requirement.signature();
+        if !requirement.type_parameters.is_empty() {
+            return Vec::new();
+        }
+        let family = self.machine_lifetimes(requirement.symbol);
+        signature
+            .borrowed
+            .iter()
+            .filter_map(|input| {
+                let [region @ Region::Parameter(parameter)] = self.region_tuple(input.regions)
+                else {
+                    return None;
+                };
+                if input.referent != crate::body::BorrowedReferent::Value
+                    || !family.contains(parameter)
+                    || signature
+                        .parameters
+                        .iter()
+                        .copied()
+                        .chain(signature.result)
+                        .any(|value| self.region_tuple(value.regions()).contains(region))
+                    || signature.borrowed.iter().any(|other| {
+                        other.position != input.position
+                            && self.region_tuple(other.regions).contains(region)
+                    })
+                {
+                    return None;
+                }
+                Some(input.position)
+            })
+            .collect()
+    }
+
     /// `value_type` with every parameter `substitution` lists replaced by
     /// its region. A type that names no region is unchanged.
     pub(crate) fn substitute(

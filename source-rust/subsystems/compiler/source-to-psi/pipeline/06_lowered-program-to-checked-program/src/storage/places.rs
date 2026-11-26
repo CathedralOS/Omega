@@ -110,7 +110,7 @@ mod log;
 
 #[cfg(test)]
 pub(crate) use loans::reference_graph;
-pub(crate) use loans::reference_graph_with_nominal_calls;
+pub(crate) use loans::reference_graph_with_generic_calls;
 pub use loans::{ConflictingLoan, LoanConflict};
 use log::{Logged, Stored};
 use std::collections::BTreeMap;
@@ -3717,6 +3717,15 @@ impl<'a> Storage<'a> {
             let actual = self.argument(argument, concerns)?;
             let actual = self.backing(references, &actual, block, position, concerns)?;
             if !overlap(&watched, &actual) {
+                continue;
+            }
+            // Replacing one element leaves its enclosing sequence's length
+            // intact. A deeper projection can traverse an embedded descriptor.
+            if matches!(
+                watched.relative_suffix(&actual, &[]),
+                Some([Segment::FixedIndex(_) | Segment::RuntimeIndex { .. }])
+            ) {
+                covered = true;
                 continue;
             }
             let Some(suffix) = actual.relative_suffix(&watched, &[]) else {

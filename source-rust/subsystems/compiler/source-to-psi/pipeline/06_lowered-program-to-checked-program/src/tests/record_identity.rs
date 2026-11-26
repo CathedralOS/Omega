@@ -393,6 +393,7 @@ fn records_with_reference_view_atomic_or_erased_fields_refuse_at_the_unproved_fi
         let formed = crate::formation::FormedModule::new(
             &elaboration.module,
             &elaboration.nominal_calls,
+            &elaboration.static_schemas,
             &elaboration.domain_sources,
         );
         let prepared_machine =

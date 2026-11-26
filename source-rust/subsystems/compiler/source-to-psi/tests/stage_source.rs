@@ -242,6 +242,88 @@ fn loop_specializations_publish_the_reach_of_their_emitted_calls() {
 }
 
 #[test]
+fn the_core_iterator_instantiates_its_callback_borrow_for_each_element() {
+    let package = PackageKeyIdentity::from_digest([0x7a; 32]).unwrap();
+    let source = concat!(
+        include_str!("../../../../../source/library/core/iteration.omg"),
+        "\ndata Cell { value: i32; }
+        machine clear(item: @mutable Cell) satisfies ElementStep<Cell>::apply { item.value = 0; }
+        machine main() {
+            let mutable items: [Cell; 2] = [Cell { value: 1 }, Cell { value: 2 }];
+            for_each::<Cell, clear>(@mutable items[..]);
+        }",
+    );
+    let (files, root) = captured(package, source);
+    let artifact = compile(product(files, root, package, &[]).unwrap(), None)
+        .expect("the public core iterator checks its abstract callback and the selected body");
+    let bytes = artifact.to_bytes();
+    assert_eq!(
+        terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes)
+            .unwrap()
+            .to_bytes(),
+        bytes,
+    );
+}
+
+#[test]
+fn replacing_a_borrowed_field_retires_its_old_extent() {
+    let package = PackageKeyIdentity::from_digest([0x7b; 32]).unwrap();
+    let source = r#"
+        data Buffer<'back> { bytes: @'back [u8]; }
+        machine replace_bytes<'back>(item: @mutable Buffer<'back>, replacement: @'back [u8]) {
+            item.bytes = replacement;
+        }
+        machine read<'back>(item: @mutable Buffer<'back>, replacement: @'back [u8])
+        requires item.bytes.length > 0 {
+            replace_bytes(item, replacement);
+            let byte: u8 = item.bytes[0];
+        }
+        machine main() {}
+    "#;
+    let (files, root) = captured(package, source);
+    let errors = compile(product(files, root, package, &[]).unwrap(), None).unwrap_err();
+    assert!(
+        errors.iter().any(|error| error
+            .message
+            .contains("the bounds do not decide the comparison")),
+        "{errors:?}",
+    );
+}
+
+#[test]
+fn an_ended_record_borrow_preserves_the_loan_stored_in_its_field() {
+    let package = PackageKeyIdentity::from_digest([0x7c; 32]).unwrap();
+    let source = r#"
+        data Kept<'a> { bytes: @'a [u8]; }
+        machine observe<'a>(item: @mutable Kept<'a>) { }
+        machine first(bytes: @[u8]) -> u8 {
+         transition bytes.length > 0 { true -> head(bytes), _ -> empty() }
+         machine head(bytes: @[u8]) -> u8 requires bytes.length > 0 { bytes[0] }
+         machine empty() -> u8 { 0 }
+        }
+        machine main() {
+         let mutable source: [u8; 2] = [1, 2];
+         let mutable kept: Kept = Kept { bytes: @source[..] };
+         observe(@mutable kept);
+         {actions}
+        }
+    "#;
+    let compile_actions = |actions| {
+        let (files, root) = captured(package, &source.replace("{actions}", actions));
+        compile(product(files, root, package, &[]).unwrap(), None)
+    };
+    let errors = compile_actions("source[0] = 7; let seen: u8 = first(kept.bytes);").unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message.contains("conflicting reference remains live")),
+        "{errors:?}",
+    );
+    compile_actions("let seen: u8 = first(kept.bytes); source[0] = 7;")
+        .expect("the element may change after the field's final read");
+}
+
+#[test]
 fn an_indexed_generic_borrow_can_end_before_the_next_suffix() {
     let package = PackageKeyIdentity::from_digest([0x78; 32]).unwrap();
     let (files, root) = captured(
