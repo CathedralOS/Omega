@@ -25,9 +25,9 @@
 //! Every test lexes with the real lexer and parses through
 //! `source_parser::parse`.
 
-use crate::frontend_fixture::{Lexer, parse_syntax_trees};
+use crate::frontend_fixture::Lexer;
+use crate::parsing_support::{parse, snapshot, trees};
 use serde_json::{Value, json};
-use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::ExpressionNode;
 
 /// Declarations, a constant expression with a group, a record binding, a call
@@ -81,26 +81,6 @@ fn grammar_tokens(source: &str) -> Vec<(tokens::TokenKind, String, usize, usize)
             )
         })
         .collect()
-}
-
-fn parse(source: &str) -> Result<SyntaxTrees, source_parser::ParseError> {
-    let stream = Lexer::new(source).tokenize().expect("the source lexes");
-    parse_syntax_trees(&stream)
-}
-
-fn trees(source: &str) -> SyntaxTrees {
-    parse(source).unwrap_or_else(|error| {
-        let span = error.source_span.span;
-        panic!(
-            "{} at `{}` in {source:?}",
-            error.message,
-            &source[span.start..span.end]
-        )
-    })
-}
-
-fn snapshot(source: &str) -> Value {
-    serde_json::to_value(trees(source).snapshot()).expect("a syntax snapshot serializes")
 }
 
 /// The snapshot with each name the parser read from the source written as
@@ -541,3 +521,5 @@ use source_parser as parsing;
 
 #[path = "../../../../../../../tests/support/frontend_operations.rs"]
 mod frontend_fixture;
+#[path = "support/parsing.rs"]
+mod parsing_support;

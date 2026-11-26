@@ -1,4 +1,3 @@
-use crate::frontend_fixture::Lexer;
 use syntax_trees::expression::{BinaryOperator, ExpressionNode};
 use syntax_trees::item::{DataMember, Item};
 use syntax_trees::types::{TypeConstraintNode, TypeReferenceNode};
@@ -27,12 +26,10 @@ fn a_right_shift_in_a_static_argument_needs_parentheses() {
         ("implementation", ">", 1),
     ] {
         let text = static_argument_source(owner, "(8u64 >> 1u64)");
-        let tokens = Lexer::new(&text).tokenize().unwrap();
-        crate::parse_syntax_trees(&tokens).expect("a parenthesized shift is one argument");
+        crate::tests::parse_source(&text);
 
         let text = static_argument_source(owner, "8u64 >> 1u64");
-        let tokens = Lexer::new(&text).tokenize().unwrap();
-        let error = crate::parse_syntax_trees(&tokens).expect_err("`>` closes the list");
+        let error = crate::tests::parse_error(&text);
         let span = error.source_span.span;
         assert_eq!(
             &text[span.start..span.end],
@@ -53,8 +50,7 @@ fn a_right_shift_in_a_static_argument_needs_parentheses() {
 #[test]
 fn touching_closers_end_a_nested_type_application() {
     let text = "data Packet { value: Outer<Inner<u8>>; }";
-    let tokens = Lexer::new(text).tokenize().unwrap();
-    let syntax = crate::parse_syntax_trees(&tokens).expect("nested application");
+    let syntax = crate::tests::parse_source(text);
     let data = syntax
         .root_items()
         .find_map(|item| match item {
@@ -99,8 +95,7 @@ fn nested_static_values_keep_closers_shifts_and_named_argument_transactions() {
     ] {
         for owner in ["type", "domain", "implementation"] {
             let text = static_argument_source(owner, operand);
-            let tokens = Lexer::new(&text).tokenize().unwrap();
-            let syntax = crate::parse_syntax_trees(&tokens).expect("nested static argument");
+            let syntax = crate::tests::parse_source(&text);
             let argument = if owner == "implementation" {
                 let implementation = syntax
                     .root_items()
