@@ -78,13 +78,13 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
     let scratch = std::env::temp_dir().join(format!("omega-scaling-{}", std::process::id()));
 
     let mut points = Vec::new();
+    let mut units = None;
     for &size in &sizes {
         let project = scratch.join(format!("n{size}"));
         write_program(shape, size, &project)?;
-        let main = project.join("main.omg").display().to_string();
-        let template = ["--check", "--build-dir", "{build}", main.as_str()];
+        let plan = project.join("build.omg").display().to_string();
+        let template = ["--check", "--build-dir", "{build}", plan.as_str()];
         let mut costs = Vec::new();
-        let mut metric = "instructions_u";
         // One untimed warmup fills the file cache.
         for index in 0..=runs {
             let row = measure(
@@ -104,13 +104,25 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
             if index == 0 {
                 continue;
             }
-            let cost = row["instructions_u"].as_f64().or_else(|| {
-                metric = "cpu_s";
-                Some(row["user_cpu_s"].as_f64()? + row["sys_cpu_s"].as_f64()?)
-            });
-            costs.push(cost.ok_or("this platform reports neither instructions nor CPU time")?);
+            let (metric, cost) = if let Some(instructions) = row["instructions_u"].as_f64() {
+                ("instructions_u", instructions)
+            } else if let (Some(user), Some(system)) =
+                (row["user_cpu_s"].as_f64(), row["sys_cpu_s"].as_f64())
+            {
+                ("cpu_s", user + system)
+            } else {
+                return Err("this platform reports neither instructions nor CPU time".into());
+            };
+            if *units.get_or_insert(metric) != metric {
+                let _ = fs::remove_dir_all(&scratch);
+                return Err(
+                    "the measurement unit changed between runs; repeat the comparison".into(),
+                );
+            }
+            costs.push(cost);
         }
         let cost = median(&mut costs).expect("at least one run");
+        let metric = units.expect("at least one measured run");
         eprintln!("scaling: N={size} {metric} {cost:.4e}");
         points.push((size, cost, metric));
     }
@@ -119,7 +131,7 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
     let marginal =
         |pair: &[(usize, f64, &str)]| (pair[1].1 - pair[0].1) / (pair[1].0 - pair[0].0) as f64;
     let marginals: Vec<f64> = points.windows(2).map(marginal).collect();
-    let ratio = marginals[marginals.len() - 1] / marginals[0];
+    let ratio = per_unit_ratio(marginals[0], marginals[marginals.len() - 1]);
     let mut table = String::new();
     for (pair, cost) in points.windows(2).zip(&marginals) {
         let _ = writeln!(
@@ -137,6 +149,10 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
         "max_ratio": max_ratio,
     });
     println!("{report}");
+    let ratio = ratio.ok_or(
+        "inconclusive scaling measurement: the first and last cost increments must be positive; \
+         try wider size intervals or more runs",
+    )?;
     if ratio > max_ratio {
         return Err(format!(
             "per-unit cost grew {ratio:.2}x from the first to the last interval (limit {max_ratio}): \
@@ -147,6 +163,10 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+fn per_unit_ratio(first: f64, last: f64) -> Option<f64> {
+    (first > 0.0 && last > 0.0).then(|| last / first)
+}
+
 /// `machines`: the one-line program plus `size` uncalled copies of one machine,
 /// exposing checks that scan the whole program per machine.
 /// `citations`: one state citing the same lemma `size` times, every citation
@@ -154,24 +174,38 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
 /// per call (cost per citation then grows with the citations before it).
 fn write_program(shape: Shape, size: usize, directory: &Path) -> Result<(), String> {
     fs::create_dir_all(directory).map_err(|error| error.to_string())?;
-    let build = "machine build(builder: @mutable Build) {\n    Build::application(builder, \"machine_count\");\n}\n";
+    let build = r#"machine build(plan: @mutable BuildPlan) {
+    plan.product = BuildProduct::Package { name: "scaling" };
+}
+"#;
     let mut main = String::new();
     match shape {
         Shape::Machines => {
-            main.push_str("data Main {\n    marker: u64;\n}\nmachine main(main: @mut Main) {\n    main.marker = 0;\n}\n");
+            main.push_str("data Main { marker: u64; }\n");
+            main.push_str("machine main(main: @mutable Main) { main.marker = 0; }\n");
             for index in 1..=size {
-                let _ = write!(
+                let _ = writeln!(
                     main,
-                    "machine step_{index}(main: @mut Main) {{\n    main.marker = {index};\n}}\n"
+                    "machine step_{index}(main: @mutable Main) {{ main.marker = {index}; }}"
                 );
             }
         }
         Shape::Citations => {
-            main.push_str("machine keep(a: Nat, b: Nat)\nrequires\n    core\\Identity::<Nat>(saturating_sub(a, b), Nat::Zero)\nensures\n    core\\Identity::<Nat>(saturating_sub(a, b), Nat::Zero)\n{\n}\n\nmachine chain(a: Nat, b: Nat)\nrequires\n    core\\Identity::<Nat>(saturating_sub(a, b), Nat::Zero)\n{\n");
+            main.push_str("use {omega}/language/core/nat.omg;\n\n");
+            let operands = "a: |nat|::Nat, b: |nat|::Nat";
+            let law = r"core\Identity::<|nat|::Nat>(|nat|::saturating_sub(a, b), |nat|::Nat::Zero)";
+            let _ = writeln!(
+                main,
+                "machine keep({operands})\nrequires {law}\nensures {law}\n{{}}"
+            );
+            let _ = writeln!(
+                main,
+                "machine chain({operands})\nrequires {law}\nensures {law}\n{{"
+            );
             for _ in 0..size {
                 main.push_str("    keep(a, b);\n");
             }
-            main.push_str("}\n\nmachine main() {\n}\n");
+            main.push_str("}\n\nmachine main() {}\n");
         }
     }
     let write = |name: &str, text: &str| {
@@ -179,4 +213,17 @@ fn write_program(shape: Shape, size: usize, directory: &Path) -> Result<(), Stri
     };
     write("build.omg", build)?;
     write("main.omg", &main)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::per_unit_ratio;
+
+    #[test]
+    fn noisy_or_flat_costs_cannot_pass_as_a_speedup() {
+        assert_eq!(per_unit_ratio(-0.001, 0.032), None);
+        assert_eq!(per_unit_ratio(0.01, -0.01), None);
+        assert_eq!(per_unit_ratio(0.0, 0.02), None);
+        assert_eq!(per_unit_ratio(0.02, 0.01), Some(0.5));
+    }
 }

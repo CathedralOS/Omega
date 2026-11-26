@@ -36,12 +36,6 @@ const CONFORMANCE: [&str; 7] = [
     "mul_distributes",
 ];
 
-/// The fixture's proofs, without the entry that needs the standard library.
-fn proofs(source: &str) -> String {
-    let end = source.find("data Main").expect("the fixture's entry state");
-    source[..end].replace("use omega\\language\\core\\ProcessExit;\n", "")
-}
-
 fn judged(source: &str) -> Vec<RouteVerdict> {
     let typed = super::build_purpose::frontier_with_core(
         source,
@@ -97,7 +91,7 @@ fn unproved(verdicts: &[RouteVerdict]) -> &UnprovedLaw {
 #[test]
 fn a_program_over_the_library_nat_gets_its_whole_semiring_conformance() {
     use terminal_check_tables::mathematics::operand_law;
-    let verdicts = judged(&proofs(LICENSED));
+    let verdicts = judged(LICENSED);
     let judgment = signature(&verdicts);
     let law = |machine: &str| {
         judgment
@@ -160,8 +154,8 @@ fn a_program_over_the_library_nat_gets_its_whole_semiring_conformance() {
 
 #[test]
 fn an_operation_outside_the_conformance_gets_no_license_from_it() {
-    let source = proofs(UNLICENSED);
-    let verdicts = judged(&source);
+    let source = UNLICENSED;
+    let verdicts = judged(source);
     let law = unproved(&verdicts);
     assert_eq!(law.machine, "relies_on_nothing");
     assert_eq!(law.cause, UnprovedCause::NoDerivation);
@@ -173,7 +167,7 @@ fn an_operation_outside_the_conformance_gets_no_license_from_it() {
     );
     let site = law.site.expect("the law's ensures clause");
     assert!(
-        source[site.span.start..].starts_with("core\\Identity::<Nat>(plus_local("),
+        source[site.span.start..].starts_with("core\\Identity::<|nat|::Nat>("),
         "{site:?}"
     );
 }
@@ -188,7 +182,9 @@ fn an_operation_outside_the_conformance_gets_no_license_from_it() {
 /// operator machines among them.
 pub(super) fn library_declarations() -> String {
     let start = NAT.find("public data Nat {").expect("the data declaration");
-    let mut program = String::from("use omega\\language\\core\\CommutativeSemiring;\n");
+    let mut program = String::from(
+        "use {omega}/language/core/algebra.omg;\nuse omega\\language\\core\\CommutativeSemiring;\n",
+    );
     let mut skipping = false;
     for line in NAT[start..].lines() {
         skipping |= ["mod", "div", "gcd"]

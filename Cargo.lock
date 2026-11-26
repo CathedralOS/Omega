@@ -859,6 +859,7 @@ dependencies = [
 name = "evaluation-receipts"
 version = "0.1.0"
 dependencies = [
+ "evaluation-accounting",
  "evaluation-contracts",
  "psi-program-identity",
  "record-storage",

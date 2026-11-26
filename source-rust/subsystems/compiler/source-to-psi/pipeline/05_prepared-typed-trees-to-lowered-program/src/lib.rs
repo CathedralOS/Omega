@@ -1977,10 +1977,10 @@ fn lower_program_with_parallel<'source>(
         records: source_records,
         ..SourceFormCorrespondence::default()
     };
-    let mut loop_rows = terminal_check_tables::LoopCheckingRows::default();
+    let loop_rows = std::sync::Mutex::new(terminal_check_tables::LoopCheckingRows::default());
     let mut static_reach_applications = Vec::new();
     let decl_contracts_len = module.execution.declaration_contracts.len();
-    let lower_one = |position: usize| -> Checked<(lower::Lowered, bool)> {
+    let lower_one = |position: usize| -> Checked<lower::Lowered> {
         let id = MachineId::new(position as u64).ok_or_else(|| {
             refuse(
                 diagnostic,
@@ -2024,9 +2024,17 @@ fn lower_program_with_parallel<'source>(
             lowered.machine.declared_suspension = bounds.suspension;
             lowered.machine.declared_blocking = bounds.blocking;
         }
-        Ok((lowered, component.len() > 1))
+        // A family member keeps its own entry, edges, roots and proof obligations.
+        // Share equal machine-local rows before retaining the completed body.
+        if component.len() > 1 {
+            loop_rows
+                .lock()
+                .expect("loop row storage poisoned")
+                .retain(&mut lowered.tables);
+        }
+        Ok(lowered)
     };
-    let lowered_machines: Vec<Checked<(lower::Lowered, bool)>> = if parallel && bodies.len() >= 2 {
+    let lowered_machines: Vec<Checked<lower::Lowered>> = if parallel && bodies.len() >= 2 {
         use rayon::prelude::*;
         (0..bodies.len())
             .into_par_iter()
@@ -2036,8 +2044,9 @@ fn lower_program_with_parallel<'source>(
     } else {
         (1..=bodies.len()).map(lower_one).collect()
     };
+    drop(loop_rows);
     for lowered in lowered_machines {
-        let (mut lowered, cyclic) = lowered?;
+        let mut lowered = lowered?;
         lower::apply_machine_qualifications(&mut lowered, &mut qualifications)?;
         module.machines.push(lowered.machine);
         // Machines are lowered in identity order and each machine's heads in
@@ -2050,9 +2059,6 @@ fn lower_program_with_parallel<'source>(
             .proofs
             .theorem_applications
             .extend(lowered.theorem_applications);
-        if cyclic {
-            loop_rows.retain(&mut lowered.tables);
-        }
         tables.machines.push(lowered.tables);
         sources.push(lowered.sources);
         source.designated.push(lowered.designated);

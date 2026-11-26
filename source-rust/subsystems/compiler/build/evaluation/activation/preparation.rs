@@ -218,14 +218,14 @@ impl PreparedBuildExecution {
             .snapshot()
             .map_err(|error| self.refuse(&error.to_string()))?
             .record();
-        let history = Arc::new(completed.history);
+        let preparations = Arc::new(completed.preparations);
         let native_binding_evaluation = if completed.native_bindings.is_empty() {
             None
         } else {
             Some(Arc::new(
                 evaluation_receipts::NativeBuildEvaluation::from_execution(
                     completed.identity.semantic(),
-                    Arc::clone(&history),
+                    Arc::clone(&preparations),
                     usage,
                     observation_summary.identity().digest(),
                 )
@@ -250,7 +250,7 @@ impl PreparedBuildExecution {
             )
             .map_err(|reason| self.refuse(reason))?;
         Ok(ComputedBuildConfig {
-            execution_history: history,
+            dependency_preparations: preparations,
             accepted_builds: vec![self.produced.retain_code()],
             config,
             root_binding_requests: completed.root_bindings,

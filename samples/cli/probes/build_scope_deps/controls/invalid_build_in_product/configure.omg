@@ -1,0 +1,15 @@
+use {scope_kernel}/main.omg as kit;
+use main.omg as app;
+
+machine build(plan: @mutable BuildPlan) crashes Trap {
+    transition |kit|::v() == 7 {
+        true -> bind_entry(plan),
+        false -> refused()
+    }
+
+    machine bind_entry(plan: @mutable BuildPlan) {
+        plan.product = BuildProduct::Application { name: "invalid_build_in_product" };
+        Build::bind(plan, linux_x86_64::ProgramEntry, |app|::main);
+    }
+    machine refused() crashes Trap { crash Trap; }
+}

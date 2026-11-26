@@ -4,8 +4,10 @@
 //! charges. It carries no package resolver, source tree or execution capability.
 #![forbid(unsafe_code)]
 
-mod history;
-pub use history::{BuildCallSite, BuildExecutionHistory, BuildExecutionStep};
+mod dependencies;
+#[cfg(test)]
+mod tests;
+pub use dependencies::DependencyPreparations;
 use record_storage::Record;
 use std::sync::Arc;
 
@@ -20,7 +22,7 @@ pub struct NativeBuildEvaluation {
     pub terminal_code: psi_program_identity::TerminalPsiIdentity,
     pub usage: evaluation_contracts::BuildEvaluationUsage,
     pub observation_digest: [u8; 32],
-    pub execution_history: Arc<BuildExecutionHistory>,
+    pub dependency_preparations: Arc<DependencyPreparations>,
 }
 
 impl NativeBuildEvaluation {
@@ -34,12 +36,12 @@ impl NativeBuildEvaluation {
 
     pub fn from_execution(
         terminal_code: psi_program_identity::TerminalPsiIdentity,
-        execution_history: Arc<BuildExecutionHistory>,
+        dependency_preparations: Arc<DependencyPreparations>,
         usage: evaluation_contracts::BuildEvaluationUsage,
         observation_digest: [u8; 32],
     ) -> Result<Self, String> {
         let receipt = Self {
-            execution_history,
+            dependency_preparations,
             terminal_code,
             usage,
             observation_digest,
@@ -49,25 +51,15 @@ impl NativeBuildEvaluation {
     }
 
     pub fn validate(&self) -> Result<(), String> {
-        if !self.execution_history.ends_with(self.terminal_code) {
-            return Err("Build history ends in a different checked program".into());
-        }
         self.usage
             .validate()
             .map_err(|reason| format!("native Build evaluation usage: {reason:?}"))
     }
 
     pub fn identity_digest(&self) -> [u8; 32] {
-        let mut digest = if self.execution_history.steps().is_empty() {
-            wire::digest_encoder::DomainDigestEncoder::new(b"omega.native-build-evaluation.v1\0")
-        } else {
-            let mut digest = wire::digest_encoder::DomainDigestEncoder::new(
-                b"omega.native-build-evaluation.v2\0",
-            );
-            self.execution_history
-                .write_bytes(|bytes| digest.raw(bytes));
-            digest
-        };
+        let mut digest =
+            wire::digest_encoder::DomainDigestEncoder::new(b"omega.native-build-evaluation.v3\0");
+        self.dependency_preparations.write_identity(&mut digest);
         digest.raw(&self.terminal_code.vocabulary_marker.get().to_le_bytes());
         digest.raw(self.terminal_code.program_fingerprint.as_bytes());
         let usage = &self.usage;
@@ -96,8 +88,9 @@ impl NativeBuildEvaluation {
     }
 }
 
-// Existing package locks wrote the program, usage and observation consecutively.
-// A zero usage schema cannot describe a valid execution and announces the extension.
+// The fixed tag distinguishes this layout before any variable-length fields.
+const EVALUATION_RECORD_TAG: u32 = u32::from_le_bytes(*b"BER3");
+
 impl Record for NativeBuildEvaluation {
     fn write(
         &self,
@@ -105,16 +98,10 @@ impl Record for NativeBuildEvaluation {
     ) -> Result<(), record_storage::RecordError> {
         out.record(|out| {
             self.terminal_code.write(out)?;
-            if self.execution_history.steps().is_empty() {
-                self.usage.write(out)?;
-                return self.observation_digest.write(out);
-            }
-            let mut usage = self.usage;
-            usage.usage_schema_version = 0;
-            usage.write(out)?;
-            self.usage.usage_schema_version.write(out)?;
+            EVALUATION_RECORD_TAG.write(out)?;
+            self.usage.write(out)?;
             self.observation_digest.write(out)?;
-            self.execution_history.write(out)
+            self.dependency_preparations.write(out)
         })
     }
 
@@ -123,27 +110,13 @@ impl Record for NativeBuildEvaluation {
     ) -> Result<Self, record_storage::RecordError> {
         input.record(|input| {
             let code = psi_program_identity::TerminalPsiIdentity::read(input)?;
-            let mut usage = evaluation_contracts::BuildEvaluationUsage::read(input)?;
-            let staged = usage.usage_schema_version == 0;
-            if staged {
-                usage.usage_schema_version = u32::read(input)?;
+            if u32::read(input)? != EVALUATION_RECORD_TAG {
+                return Err(input.error("unrecognized Build evaluation receipt"));
             }
+            let usage = evaluation_contracts::BuildEvaluationUsage::read(input)?;
             let observations = <[u8; 32]>::read(input)?;
-            let history = if staged {
-                let history = Arc::<BuildExecutionHistory>::read(input)?;
-                if history.steps().is_empty() {
-                    return Err(input.error("extended Build receipt contains no execution history"));
-                }
-                history
-            } else {
-                let bytes = record_storage::shared_allocation_bytes(std::alloc::Layout::new::<
-                    BuildExecutionHistory,
-                >())
-                .ok_or_else(|| input.error("Build history allocation overflow"))?;
-                input.allocate(bytes)?;
-                Arc::default()
-            };
-            Self::from_execution(code, history, usage, observations)
+            let preparations = Arc::<DependencyPreparations>::read(input)?;
+            Self::from_execution(code, preparations, usage, observations)
                 .map_err(|_| input.error("invalid native Build execution receipt"))
         })
     }

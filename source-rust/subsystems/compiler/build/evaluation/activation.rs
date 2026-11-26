@@ -85,7 +85,7 @@ pub(crate) struct OriginalBuildSources {
 }
 
 pub struct ReturnedBuild {
-    pub(crate) history: evaluation_receipts::BuildExecutionHistory,
+    pub(crate) preparations: evaluation_receipts::DependencyPreparations,
     pub(crate) helper_accounting:
         source_compiler::compile_time_invocations::SourceCompletionAccounting,
     account: EvaluationInvocationAccount,
@@ -411,7 +411,7 @@ impl TerminalBuildHost {
             .map_err(|error| refuse(describe(error)))?;
         artifacts::compile_timings::counters::record_build_execution(self.execution_purpose);
         Ok(TerminalBuildActivation {
-            history: Default::default(),
+            preparations: Default::default(),
             instance,
             host: Arc::clone(self),
             ready_providers,
@@ -524,7 +524,7 @@ enum ActivationState {
 }
 
 pub struct TerminalBuildActivation {
-    history: evaluation_receipts::BuildExecutionHistory,
+    preparations: evaluation_receipts::DependencyPreparations,
     instance: TerminalInstance<'static, 'static>,
     host: Arc<TerminalBuildHost>,
     ready_providers: Vec<(
@@ -710,7 +710,7 @@ impl TerminalBuildActivation {
             );
         }
         self.host.requests.dependency_prepared()?;
-        self.history.prepared(
+        self.preparations.prepared(
             match selected.purpose {
                 build_declarations::DependencyPurpose::Product => {
                     source_provenance::DependencyScope::Product
@@ -899,7 +899,7 @@ impl TerminalBuildActivation {
         }
         let declared_product_selections = self.host.bindings.declared();
         Ok(ReturnedBuild {
-            history: self.history,
+            preparations: self.preparations,
             helper_accounting: self.helper_accounting,
             account: self.host.account.clone(),
             original_sources: self.host.original_sources.clone(),
