@@ -1,9 +1,9 @@
 // Unit tests and shared fixtures for `legalized_operations` call-source validation, scalar call
-// ABI shape checks, and canonical plan identity drift.
+// ABI shape checks, and value references.
 //
 // `call_aware_plan`, `installed_provider_plan`, and `scalar_call_unit_plan` construct baseline
 // `LegalizedOperationPlan` fixtures for testing call-source validation (`validate_source`),
-// ABI placement shape checks (`validate_shape`), and identity sensitivity. Origin consistency
+// ABI placement shape checks (`validate_shape`), and value references. Origin consistency
 // uses structural argument ordinals even when a scalar argument prefix is present, and empty
 // aggregate results (`ValueShape::integer(0, 1)`) retain `Some` result placement while rejecting
 // fabricated register or stack locations.
@@ -13,7 +13,7 @@ use super::{
     LegalizedScalarArgument, LegalizedScalarBlock, LegalizedScalarCall, LegalizedScalarFunction,
     LegalizedScalarInstruction, LegalizedScalarInstructionKind, LegalizedScalarReturn,
     LegalizedScalarReturnValue, LegalizedScalarTerminator, LegalizedStructuralContract,
-    LegalizedValueDefinition, NativeCallOrigin, legalized_operation_plan_identity,
+    LegalizedValueDefinition, NativeCallOrigin,
 };
 pub(super) use calling_conventions::{
     CallSignature, CallingPolicy, ValueShape, evaluate_call_plan,
@@ -39,8 +39,7 @@ pub(super) use terminal_psi::{
     StructuralTypeShape, TerminalPsiIdentity, VocabularyMarker,
 };
 
-mod identity;
-mod scalar_operations;
+mod value_references;
 
 pub(super) fn structural_call_mut(plan: &mut LegalizedOperationPlan) -> &mut LegalizedScalarCall {
     let LegalizedScalarInstructionKind::Call(call) =
@@ -650,10 +649,6 @@ fn structural_call_source_validation_preserves_installed_completion_custody() {
     let call = structural_call_mut(&mut installed);
     call.validate_source(&[OwnershipEvent::ClaimCompletion(completion_receipts())])
         .expect("installed provider source");
-    assert_ne!(
-        legalized_operation_plan_identity(&authored),
-        legalized_operation_plan_identity(&installed)
-    );
 
     let mut with_unrelated_source = installed.clone();
     let call = structural_call_mut(&mut with_unrelated_source);
@@ -675,10 +670,6 @@ fn structural_call_source_validation_preserves_installed_completion_custody() {
     });
     call.validate_source(&[OwnershipEvent::ClaimCompletion(completion_receipts())])
         .expect("unrelated retained caller source is permitted");
-    assert_ne!(
-        legalized_operation_plan_identity(&installed),
-        legalized_operation_plan_identity(&with_unrelated_source)
-    );
 
     let mut duplicate_source = installed.clone();
     let call = structural_call_mut(&mut duplicate_source);
@@ -1092,24 +1083,3 @@ fn fixed_integer_result_widths_reject_coherent_fragment_corruption() {
     }
 }
 
-#[test]
-fn register_call_identity_retains_argument_length_order_and_placement() {
-    let plan = scalar_call_unit_plan();
-    let identity = legalized_operation_plan_identity(&plan);
-    for mutation in 0..4 {
-        let mut proposed = plan.clone();
-        let call = call(&mut proposed);
-        match mutation {
-            0 => {
-                call.arguments.pop();
-            }
-            1 => call.arguments.swap(0, 1),
-            2 => *scalar_argument_mut(&mut call.arguments[0]).0 = id(999),
-            _ => scalar_argument_mut(&mut call.arguments[0])
-                .1
-                .locations
-                .clear(),
-        }
-        assert_ne!(legalized_operation_plan_identity(&proposed), identity);
-    }
-}

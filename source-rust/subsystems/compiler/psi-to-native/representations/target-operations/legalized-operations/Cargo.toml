@@ -25,4 +25,3 @@ terminal-psi = { path = "../../../../psi" }
 terminal-semantics = { path = "../../../../psi/semantics" }
 runtime-abi = { path = "../../../targets/runtime-abi" }
 terminal-wire = { path = "../../../../psi/artifact/wire" }
-sha2 = "0.10.9"
