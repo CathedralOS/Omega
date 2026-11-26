@@ -25,6 +25,7 @@ macro_rules! bundled_library_files {
             CoreFloatMeaning => "core/float_meaning.omg",
             CoreFloatOperations => "core/float_operations.omg",
             CoreFloatProvider => "core/float_provider.omg",
+            CoreFoundation => "core/foundation.omg",
             CoreIndexing => "core/indexing/indexing.omg",
             CoreInteger => "core/integer/integer.omg",
             CoreInterrupt => "core/interrupt.omg",
