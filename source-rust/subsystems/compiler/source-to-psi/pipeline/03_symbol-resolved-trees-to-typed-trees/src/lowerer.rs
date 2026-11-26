@@ -5,9 +5,6 @@ normalization (`progress`), target-machine family telescopes, and append-only
 seeded continuation (`seeded_continuation`).
 */
 
-use crate::source_resolved::SymbolResolvedTrees;
-use crate::source_state::TypedTrees;
-use crate::source_state::signature::AuthoredServiceReachTarget as ReachTarget;
 use crate::declarations::data::lower_data_definition;
 use crate::declarations::domain::lower_domain_definition;
 use crate::declarations::machine::{
@@ -16,17 +13,17 @@ use crate::declarations::machine::{
 use crate::declarations::mathematical::lower_mathematical_definition;
 use crate::declarations::operator::lower_operator_definition;
 use crate::declarations::proposition::lower_proposition_definition;
-use crate::declarations::provider_defaults::finalize_provider_default_calls;
 use crate::declarations::trait_definition::lower_trait_definition;
 use crate::declarations::type_aliases::lower_type_alias_definition;
 use crate::expressions::exhaustiveness::validate_case_dispatch_exhaustiveness_in;
 use crate::expressions::expression::lower_expression_handle;
 use crate::lowerer::progress::normalize_machine_progress_premises;
+use crate::source_resolved::SymbolResolvedTrees;
+use crate::source_state::TypedTrees;
+use crate::source_state::signature::AuthoredServiceReachTarget as ReachTarget;
 use crate::tables::resolved_expressions;
 use crate::type_reference::domain_constraints::normalize_domain_constraints;
-use crate::type_reference::{
-    lower_type_reference_into_table, normalize_const_argument_carriers, validate_computed_arguments,
-};
+use crate::type_reference::{lower_type_reference_into_table, validate_computed_arguments};
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
@@ -763,15 +760,21 @@ pub(crate) mod seeded_continuation {
             resolved
                 .generic_binding_overlaps
                 .retain(|row| selection.contains(row.machine));
-            let symbols = typed
-                .symbols
-                .clone()
-                .begin_source_activation(sources, bindings.clone())
-                .map_err(|reason| vec![Diagnostic::error(reason)])?
-                .finish()
-                .begin_source_activation(current_sources, bindings)
-                .map_err(|reason| vec![Diagnostic::error(reason)])?
-                .finish();
+            let previous_symbols = std::mem::take(&mut typed.symbols);
+            let symbols = if Arc::ptr_eq(&sources, &current_sources) || sources == current_sources {
+                previous_symbols
+                    .begin_source_activation(current_sources, bindings)
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?
+                    .finish()
+            } else {
+                previous_symbols
+                    .begin_source_activation(sources, bindings.clone())
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?
+                    .finish()
+                    .begin_source_activation(current_sources, bindings)
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?
+                    .finish()
+            };
             resolved.symbols = symbols.clone();
             typed.symbols = symbols;
             resolved.resolution_indexes = Default::default();
@@ -1150,7 +1153,8 @@ pub(crate) mod seeded_continuation {
             .service_reaches
             .definitions()
             .starts_with(base.service_reaches.definitions())
-            || candidate.service_reaches.definitions().len() != base.service_reaches.definitions().len()
+            || candidate.service_reaches.definitions().len()
+                != base.service_reaches.definitions().len()
         {
             return Err(Diagnostic::error(
                 "source continuation changed retained service definitions",
@@ -1270,11 +1274,11 @@ pub(crate) mod seeded_continuation {
     }
 }
 pub(crate) mod target_machine_families {
+    use crate::lowerer::name::lower_name;
     use crate::source_resolved::SymbolResolvedTrees;
     use crate::source_state::TypedTrees;
     use crate::source_state::deferred_refusals::DeferredRequest;
     use crate::source_state::machine::{Machine, TargetMachineFamily, TargetMachineFamilyMember};
-    use crate::lowerer::name::lower_name;
     use diagnostics::Diagnostic;
 
     /// `linux_arm64 machine write_byte(byte: i32)` and its siblings for the
@@ -1574,10 +1578,7 @@ pub(crate) fn validate_resolved_semantics_in(
     symbol_resolved_trees: &SymbolResolvedTrees,
     cohort: &TypingCohort<'_>,
 ) -> Result<(), Diagnostic> {
-    crate::expressions::equality::validate_equality_operands_in(
-        symbol_resolved_trees,
-        cohort,
-    )?;
+    crate::expressions::equality::validate_equality_operands_in(symbol_resolved_trees, cohort)?;
 
     validate_case_dispatch_exhaustiveness_in(symbol_resolved_trees, cohort)
 }
@@ -1639,12 +1640,22 @@ pub(crate) struct TypingCohort<'completed> {
     pub(crate) conformances: usize,
     pub(crate) wire_schemas: usize,
     pub(crate) generic_application_origins: usize,
-    completed_machines: &'completed [SymbolHandle],
+    pub(crate) completed_machines: &'completed [SymbolHandle],
     completed_keys: Vec<(u32, u32)>,
     pub(crate) typed_machines: usize,
     pub(crate) typed_type_parameters: usize,
     pub(crate) typed_type_references: usize,
     pub(crate) typed_expressions: usize,
+    pub(crate) typed_proof_facts: usize,
+    pub(crate) typed_machine_token_bindings: usize,
+    pub(crate) typed_service_reaches: usize,
+    pub(crate) typed_product_operand_applications: usize,
+    pub(crate) typed_static_machine_applications: usize,
+    pub(crate) resolved_state_parameters: usize,
+    pub(crate) resolved_machine_states: usize,
+    pub(crate) resolved_state_statements: usize,
+    pub(crate) resolved_data_members: usize,
+    pub(crate) resolved_data_payload_fields: usize,
 }
 
 impl<'completed> TypingCohort<'completed> {
@@ -1669,7 +1680,182 @@ impl<'completed> TypingCohort<'completed> {
             typed_type_parameters: typed.data_type_parameters.len(),
             typed_type_references: typed.type_reference_table.type_reference_count(),
             typed_expressions: typed.expression_table.expression_count(),
+            typed_proof_facts: typed.proof_facts.len(),
+            typed_machine_token_bindings: typed.machine_token_bindings().len(),
+            typed_service_reaches: typed.service_reaches.all_definitions().count(),
+            typed_product_operand_applications: typed.product_operand_applications.len(),
+            typed_static_machine_applications: typed
+                .expression_table
+                .static_machine_applications()
+                .count(),
+            resolved_state_parameters: resolved.tables.declarations.state_parameters.len(),
+            resolved_machine_states: resolved.tables.declarations.machine_states.len(),
+            resolved_state_statements: resolved.tables.declarations.state_statements.len(),
+            resolved_data_members: resolved.tables.declarations.data_members.len(),
+            resolved_data_payload_fields: resolved.tables.declarations.data_payload_fields.len(),
         }
+    }
+
+    pub(crate) fn with_type_references(frontier: usize) -> Self {
+        Self {
+            typed_type_references: frontier,
+            ..Default::default()
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn for_expressions(frontier: usize) -> Self {
+        Self {
+            typed_expressions: frontier,
+            ..Default::default()
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn for_expression_meanings(expressions: usize, type_references: usize) -> Self {
+        Self {
+            typed_expressions: expressions,
+            typed_type_references: type_references,
+            ..Default::default()
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn for_machines(frontier: usize, completed: &'completed [SymbolHandle]) -> Self {
+        Self {
+            typed_machines: frontier,
+            ..Default::default()
+        }
+        .completing(completed)
+    }
+
+    pub(crate) fn is_fresh(&self) -> bool {
+        self.const_declarations == 0
+            && self.data_definitions == 0
+            && self.type_aliases == 0
+            && self.domain_definitions == 0
+            && self.propositions == 0
+            && self.mathematical_definitions == 0
+            && self.machines == 0
+            && self.measures == 0
+            && self.operators == 0
+            && self.traits == 0
+            && self.conformances == 0
+            && self.wire_schemas == 0
+            && self.typed_machines == 0
+            && self.typed_expressions == 0
+            && self.typed_type_references == 0
+            && self.completed_machines.is_empty()
+    }
+
+    pub(crate) fn owns_machine(&self, ordinal: usize, symbol: SymbolHandle) -> bool {
+        ordinal >= self.typed_machines || self.completes(symbol)
+    }
+
+    pub(crate) fn declaration_keys(&self, program: &TypedTrees) -> Vec<(u32, u32)> {
+        let mut keys = Vec::new();
+        keys.extend(
+            program
+                .type_aliases()
+                .iter()
+                .skip(self.type_aliases)
+                .map(|item| symbol_key(item.symbol)),
+        );
+        keys.extend(
+            program
+                .data_definitions()
+                .iter()
+                .skip(self.data_definitions)
+                .map(|item| symbol_key(item.symbol)),
+        );
+        keys.extend(
+            program
+                .traits()
+                .iter()
+                .skip(self.traits)
+                .map(|item| symbol_key(item.symbol)),
+        );
+        keys.extend(
+            program
+                .conformances()
+                .iter()
+                .skip(self.conformances)
+                .map(|item| symbol_key(item.symbol)),
+        );
+        keys.extend(
+            program
+                .propositions()
+                .iter()
+                .skip(self.propositions)
+                .map(|item| symbol_key(item.symbol)),
+        );
+        keys.extend(
+            program
+                .mathematical_definitions()
+                .iter()
+                .skip(self.mathematical_definitions)
+                .map(|item| symbol_key(item.symbol)),
+        );
+        keys.extend(
+            program
+                .measures()
+                .iter()
+                .skip(self.measures)
+                .map(|item| symbol_key(item.symbol)),
+        );
+        keys.extend(
+            program
+                .const_declarations()
+                .iter()
+                .skip(self.const_declarations)
+                .map(|item| symbol_key(item.symbol)),
+        );
+        keys.extend(
+            program
+                .operators()
+                .iter()
+                .skip(self.operators)
+                .map(|item| symbol_key(item.symbol)),
+        );
+        keys.extend(
+            program
+                .machine_token_bindings()
+                .iter()
+                .skip(self.typed_machine_token_bindings)
+                .map(|item| symbol_key(item.symbol)),
+        );
+        keys.extend(
+            program
+                .domain_definitions()
+                .iter()
+                .skip(self.domain_definitions)
+                .flat_map(|domain| {
+                    std::iter::once(symbol_key(domain.symbol)).chain(
+                        program
+                            .domain_operators(domain)
+                            .iter()
+                            .map(|operator| symbol_key(operator.symbol)),
+                    )
+                }),
+        );
+        keys.extend(
+            program
+                .wire_schemas()
+                .iter()
+                .skip(self.wire_schemas)
+                .map(|item| symbol_key(item.symbol)),
+        );
+        keys.extend(
+            program
+                .machines()
+                .iter()
+                .skip(self.typed_machines)
+                .map(|item| symbol_key(item.symbol)),
+        );
+        keys.extend(self.completed_keys.iter().copied());
+        keys.sort_unstable();
+        keys.dedup();
+        keys
     }
 
     pub(crate) fn completing(mut self, machines: &'completed [SymbolHandle]) -> Self {
@@ -1784,8 +1970,7 @@ pub(crate) fn type_resolved_cohort(
     }
     for measure in source.measures.iter().skip(cohort.measures) {
         lowerer.typed_trees.begin_declaration_output();
-        let measure =
-            crate::declarations::measure::lower_measure_definition(lowerer, measure)?;
+        let measure = crate::declarations::measure::lower_measure_definition(lowerer, measure)?;
         lowerer.typed_trees.push_measure(measure);
     }
     for operator in source.operators.iter().skip(cohort.operators) {
@@ -1834,11 +2019,7 @@ fn complete_retained_machine_body(
         .ok_or_else(lost_base)?
         .clone();
     let implementation = lowerer.source_trees.machine(symbol).ok_or_else(lost_base)?;
-    crate::declarations::machine::complete_machine_body(
-        lowerer,
-        implementation,
-        &mut declaration,
-    )?;
+    crate::declarations::machine::complete_machine_body(lowerer, implementation, &mut declaration)?;
     lowerer.typed_trees.set_machine(ordinal, declaration);
     Ok(())
 }
@@ -1890,8 +2071,9 @@ pub(crate) fn close_typed_cohort(
     )?;
     // Result and effect queries must see the signature of the evaluated callee,
     // including calls in declaration contracts and initializers.
-    let mut callable_admission = crate::runtime_callables::bind_calls(
+    let mut callable_admission = crate::runtime_callables::bind_calls_in_cohort(
         &mut lowerer.typed_trees,
+        cohort,
         cohort.typed_expressions,
         cohort.typed_type_references,
     )?;
@@ -1902,19 +2084,27 @@ pub(crate) fn close_typed_cohort(
         .type_reference_count();
     settle_satisfied_declarations_from(&mut lowerer.typed_trees, cohort.typed_machines)?;
     normalize_machine_progress_premises(&mut lowerer.typed_trees, cohort.typed_machines)?;
-    lowerer
-        .typed_trees
-        .retain_static_argument_contexts()
+    crate::operand_owners::retain_cohort_static_argument_contexts(&mut lowerer.typed_trees, cohort)
         .map_err(Diagnostic::error)?;
     lowerer
         .typed_trees
         .instantiate_nominal_machine_parameter_contracts(cohort.typed_type_parameters)
-        .and_then(|_| lowerer.typed_trees.prepare_applied_callable_signatures())
         .map_err(|message| Diagnostic::error(message.to_owned()))?;
-    normalize_const_argument_carriers(
+    if crate::operand_owners::cohort_may_need_applied_callable_signatures(
+        &lowerer.typed_trees,
+        cohort,
+    ) {
+        lowerer
+            .typed_trees
+            .prepare_applied_callable_signatures()
+            .map_err(|message| Diagnostic::error(message.to_owned()))?;
+    }
+    let mut owners: Option<crate::operand_owners::CohortOperandOwners> = None;
+    crate::type_reference::normalize_const_argument_carriers_in_cohort(
         lowerer.source_trees,
         &mut lowerer.typed_trees,
-        cohort.typed_type_references,
+        cohort,
+        &mut owners,
     )?;
     normalize_domain_constraints(
         lowerer.source_trees,
@@ -1929,39 +2119,41 @@ pub(crate) fn close_typed_cohort(
         lowerer.source_trees,
         &lowerer.typed_trees,
     )?;
-    crate::constructor_applications::prepare(
+    let owners_ref = owners.get_or_insert_with(|| {
+        crate::operand_owners::CohortOperandOwners::collect(&lowerer.typed_trees, cohort)
+    });
+    crate::constructor_applications::prepare_in_cohort(
         lowerer.source_trees,
         &mut lowerer.typed_trees,
-        cohort.typed_expressions,
+        cohort,
+        owners_ref,
     )?;
     typed_trees::data_applications::prepare_from(
         &mut lowerer.typed_trees,
         cohort.typed_type_references,
     )
     .map_err(Diagnostic::error)?;
-    let cast_destinations = crate::expressions::construction_destinations::prepare(
+    let cast_destinations = crate::expressions::construction_destinations::prepare_in_cohort(
         lowerer.source_trees,
         &mut lowerer.typed_trees,
-        cohort.typed_expressions,
-        cohort.typed_machines,
-        cohort.completed_machines,
+        cohort,
+        owners_ref,
     )?;
-    crate::expressions::qualification_casts::normalize_qualification_casts(
+    crate::expressions::qualification_casts::normalize_qualification_casts_in_cohort(
         lowerer.source_trees,
         &mut lowerer.typed_trees,
-        cohort.typed_expressions,
-        cohort.typed_type_references,
+        cohort,
+        owners_ref,
         &cast_destinations,
     )?;
     // A projected assignment can acquire its receiving type only after a
     // domain cast on its reference has settled. Keep the ordinary landing
     // pass here as well; already prepared constructors retain their identity.
-    crate::expressions::construction_destinations::prepare(
+    crate::expressions::construction_destinations::prepare_in_cohort(
         lowerer.source_trees,
         &mut lowerer.typed_trees,
-        cohort.typed_expressions,
-        cohort.typed_machines,
-        cohort.completed_machines,
+        cohort,
+        owners_ref,
     )?;
     if !(cohort.generic_application_origins > 0
         && cohort.generic_application_origins
@@ -1976,26 +2168,32 @@ pub(crate) fn close_typed_cohort(
     {
         validate_computed_arguments(lowerer.source_trees)?;
     }
-    crate::equality_preparation::prepare(
+    crate::equality_preparation::prepare_in_cohort(
         &mut lowerer.typed_trees,
         cohort.typed_expressions,
         cohort.conformances,
+        owners_ref,
     )?;
-    finalize_provider_default_calls(&mut lowerer.typed_trees)?;
+    crate::declarations::provider_defaults::finalize_provider_default_calls_in_cohort(
+        &mut lowerer.typed_trees,
+        cohort,
+    )?;
     target_machine_families::append(
         lowerer.source_trees,
         &mut lowerer.typed_trees,
         cohort.machines,
     )?;
-    callable_admission.extend(crate::runtime_callables::bind_calls(
+    callable_admission.extend(crate::runtime_callables::bind_calls_in_cohort(
         &mut lowerer.typed_trees,
+        cohort,
         bound_expressions,
         bound_types,
     )?);
     crate::runtime_callables::admit_types(&lowerer.typed_trees, &callable_admission)?;
-    crate::constructor_applications::retain_indexed_operand_types(
+    crate::constructor_applications::retain_indexed_operand_types_in_cohort(
         &mut lowerer.typed_trees,
         cohort.typed_expressions,
+        owners_ref,
     )?;
     crate::type_reference::direct::check_fixed_array_extent_carriers(
         &lowerer.typed_trees,
@@ -2003,14 +2201,15 @@ pub(crate) fn close_typed_cohort(
     )?;
     // Constructor and cast preparation may finish a callee's retained type.
     // Bind those values before attributing any still-unserved call request.
-    crate::typing_queries::defer_unbound_calls(
+    crate::typing_queries::defer_unbound_calls_in_cohort(
         &mut lowerer.typed_trees,
-        cohort.typed_machines,
-        cohort.completed_machines,
+        cohort,
+        owners_ref,
     )?;
-    crate::undeclared_type_names::defer_undeclared_type_names(
+    crate::undeclared_type_names::defer_undeclared_type_names_in_cohort(
         lowerer.source_trees,
         &mut lowerer.typed_trees,
+        cohort,
     );
     Ok(())
 }
@@ -2030,9 +2229,7 @@ fn lower_service_applications(lowerer: &mut Lowerer<'_>) -> Result<(), Diagnosti
                     .child_type_references(reference.arguments)
                     .iter()
                     .map(|argument| {
-                        crate::type_reference::lower_type_reference_into_table(
-                            lowerer, argument,
-                        )
+                        crate::type_reference::lower_type_reference_into_table(lowerer, argument)
                     })
                     .collect::<Result<Vec<_>, Diagnostic>>()
             })?;
