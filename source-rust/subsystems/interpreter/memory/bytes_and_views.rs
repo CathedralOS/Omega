@@ -1148,13 +1148,11 @@ pub(crate) mod byte_sequences {
                     ));
                     }
                 };
-                let (machine, values) = if *depth == self.call_stack.len() {
-                    (self.current_machine, &self.byte_sequence_values)
-                } else {
-                    let frame = self.call_stack.get(*depth).ok_or(malformed())?;
-                    (frame.current_machine, &frame.byte_sequence_values)
-                };
-                if machine != *expected_machine {
+                let (machine, values) = crate::storage_primitives::frame_fields!(
+                    self,
+                    *depth => current_machine, byte_sequence_values
+                );
+                if *machine != *expected_machine {
                     return Err(malformed());
                 }
                 values.get(place).ok_or(malformed())?.immutable()
@@ -1179,21 +1177,11 @@ pub(crate) mod byte_sequences {
                     .ok_or(TerminalInterpretError::UnsupportedSemanticVariant("bounded byte owner requires its mutable byte-sequence storage representation"));
                     }
                 };
-                let (machine, values, structural_values) = if *depth == self.call_stack.len() {
-                    (
-                        self.current_machine,
-                        &self.byte_sequence_values,
-                        &self.structural_values,
-                    )
-                } else {
-                    let frame = self.call_stack.get(*depth).ok_or(malformed())?;
-                    (
-                        frame.current_machine,
-                        &frame.byte_sequence_values,
-                        &frame.structural_values,
-                    )
-                };
-                if machine != *expected_machine
+                let (machine, values, structural_values) = crate::storage_primitives::frame_fields!(
+                    self,
+                    *depth => current_machine, byte_sequence_values, structural_values
+                );
+                if *machine != *expected_machine
                     || !matches!(values.get(place), Some(ByteSequenceBinding::Immutable(_)))
                 {
                     return Err(malformed());
@@ -1285,6 +1273,10 @@ pub(crate) mod byte_sequences {
         use crate::engine::execution::{TerminalExecution, operation_kind};
 
         impl TerminalExecution<'_> {
+            fn u64_type() -> Result<IntegerType, TerminalInterpretError> {
+                IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| malformed())
+            }
+
             pub(crate) fn execute_structural_byte_sequence_field_length(
                 &mut self,
                 operation: &Operation,
@@ -1293,8 +1285,7 @@ pub(crate) mod byte_sequences {
                 let Some(result) = operation.result.as_scalar() else {
                     return Err(malformed());
                 };
-                let count_type =
-                    IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| malformed())?;
+                let count_type = Self::u64_type()?;
                 if result.scalar_type != ScalarType::Integer(count_type) {
                     return Err(malformed());
                 }
@@ -1326,21 +1317,12 @@ pub(crate) mod byte_sequences {
                 }
                 let (destination_field, capacity) =
                     self.resolve_structural_byte_sequence_field(*destination, path, *field, true)?;
-                let count_type =
-                    IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| malformed())?;
-                let byte_type =
-                    IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| malformed())?;
-                let count = |operand| self.unsigned_integer_value(operand, count_type);
-                let byte_index = count(*index)?;
-                let live_length = count(*length)?;
-                let TerminalScalarValue::Integer {
-                    scalar_type,
-                    value: IntegerValue::Unsigned(byte),
-                } = self.scalar_value(*value)?
-                else {
-                    return Err(malformed());
-                };
-                if scalar_type != byte_type || live_length > capacity || byte_index >= live_length {
+                let count_type = Self::u64_type()?;
+                let byte_type = crate::storage::primitive_storage::encoding::byte_integer_type()?;
+                let byte_index = self.unsigned_integer_value(*index, count_type)?;
+                let live_length = self.unsigned_integer_value(*length, count_type)?;
+                let byte = self.unsigned_integer_value(*value, byte_type)?;
+                if live_length > capacity || byte_index >= live_length {
                     return Err(malformed());
                 }
                 let byte = u8::try_from(byte).map_err(|_| malformed())?;
@@ -1370,17 +1352,14 @@ pub(crate) mod byte_sequences {
                 let Some(result) = operation.result.as_scalar() else {
                     return Err(malformed());
                 };
-                let byte_type =
-                    IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| malformed())?;
+                let byte_type = crate::storage::primitive_storage::encoding::byte_integer_type()?;
                 if result.scalar_type != ScalarType::Integer(byte_type) {
                     return Err(malformed());
                 }
                 let (source_field, capacity) = self.readable_byte_field(*source, path, *field)?;
-                let count_type =
-                    IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| malformed())?;
-                let count = |operand| self.unsigned_integer_value(operand, count_type);
-                let byte_index = count(*index)?;
-                let live_length = count(*length)?;
+                let count_type = Self::u64_type()?;
+                let byte_index = self.unsigned_integer_value(*index, count_type)?;
+                let live_length = self.unsigned_integer_value(*length, count_type)?;
                 if capacity.is_some_and(|capacity| live_length > capacity)
                     || byte_index >= live_length
                 {
@@ -1394,10 +1373,7 @@ pub(crate) mod byte_sequences {
                 let byte = bytes.read(byte_index)?;
                 self.values.insert(
                     result.id,
-                    TerminalScalarValue::Integer {
-                        scalar_type: byte_type,
-                        value: IntegerValue::Unsigned(u128::from(byte)),
-                    },
+                    crate::storage::primitive_storage::encoding::unsigned_byte_scalar(byte)?,
                 )?;
                 Ok(())
             }
@@ -2218,12 +2194,22 @@ pub(crate) mod byte_sequences {
                 .unwrap()
             }
 
-            #[test]
-            fn views_retain_the_full_backing_once_until_its_last_owner_drops() {
-                let sponsor = sponsor(5);
+            fn funded(
+                bytes: u64,
+            ) -> (
+                BuildEvaluationSponsor,
+                evaluation_accounting::EvaluationInvocationAccount,
+            ) {
+                let sponsor = sponsor(bytes);
                 let account = sponsor
                     .begin_invocation(sponsor.measurement(), 100)
                     .unwrap();
+                (sponsor, account)
+            }
+
+            #[test]
+            fn views_retain_the_full_backing_once_until_its_last_owner_drops() {
+                let (sponsor, account) = funded(5);
                 let original = ByteSequenceView::new(
                     ByteSequenceStorage::copy(b"abcd", Some(&account)).unwrap(),
                 );
@@ -2244,10 +2230,7 @@ pub(crate) mod byte_sequences {
             #[test]
             fn copy_on_write_reserves_the_overlapping_window_before_mutation() {
                 for limit in [5, 6] {
-                    let sponsor = sponsor(limit);
-                    let account = sponsor
-                        .begin_invocation(sponsor.measurement(), 100)
-                        .unwrap();
+                    let (sponsor, account) = funded(limit);
                     let original = ByteSequenceView::new(
                         ByteSequenceStorage::copy(b"abcd", Some(&account)).unwrap(),
                     );
@@ -2278,10 +2261,7 @@ pub(crate) mod byte_sequences {
 
             #[test]
             fn staged_growth_shares_the_budget_and_refuses_without_replacing_contents() {
-                let sponsor = sponsor(8);
-                let first = sponsor
-                    .begin_invocation(sponsor.measurement(), 100)
-                    .unwrap();
+                let (sponsor, first) = funded(8);
                 let second = sponsor
                     .begin_invocation(sponsor.measurement(), 100)
                     .unwrap();
@@ -2303,10 +2283,7 @@ pub(crate) mod byte_sequences {
 
             #[test]
             fn malformed_scalar_copy_retires_its_private_reservation() {
-                let sponsor = sponsor(8);
-                let account = sponsor
-                    .begin_invocation(sponsor.measurement(), 100)
-                    .unwrap();
+                let (sponsor, account) = funded(8);
                 assert!(
                     ByteSequenceStorage::from_values(2, [Ok(1), Err(malformed())], Some(&account))
                         .is_err()
@@ -5548,39 +5525,45 @@ pub(crate) mod element_views {
                 let unserved_identity = identities.intern("unserved-wide");
                 let mut module = TerminalModule::declarations();
                 module.identities = identities.build();
-                module.types.structural_types.push(StructuralTypeDeclaration {
-                    declaration_identity: Default::default(),
-                    quotient_carrier: None,
-                    id: root,
-                    identity: record,
-                    owns_linear_claim: false,
-                    multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
-                    no_code_affine_cleanup: false,
-                    descriptor_cleanup: false,
-                    nominal_cleanup: None,
-                    shape: StructuralTypeShape::Record {
-                        fields,
-                        storage: StructuralRecordStorage::Packed,
-                    },
-                    scalar_restriction: None,
-                    requires: Vec::new(),
-                });
+                module
+                    .types
+                    .structural_types
+                    .push(StructuralTypeDeclaration {
+                        declaration_identity: Default::default(),
+                        quotient_carrier: None,
+                        id: root,
+                        identity: record,
+                        owns_linear_claim: false,
+                        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                        no_code_affine_cleanup: false,
+                        descriptor_cleanup: false,
+                        nominal_cleanup: None,
+                        shape: StructuralTypeShape::Record {
+                            fields,
+                            storage: StructuralRecordStorage::Packed,
+                        },
+                        scalar_restriction: None,
+                        requires: Vec::new(),
+                    });
                 let unserved =
                     ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 128).unwrap());
-                module.types.structural_types.push(StructuralTypeDeclaration {
-                    declaration_identity: Default::default(),
-                    quotient_carrier: None,
-                    id: StructuralTypeId::new(2).unwrap(),
-                    identity: unserved_identity,
-                    owns_linear_claim: false,
-                    multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
-                    no_code_affine_cleanup: false,
-                    descriptor_cleanup: false,
-                    nominal_cleanup: None,
-                    shape: StructuralTypeShape::PrimitiveScalar(unserved),
-                    scalar_restriction: None,
-                    requires: Vec::new(),
-                });
+                module
+                    .types
+                    .structural_types
+                    .push(StructuralTypeDeclaration {
+                        declaration_identity: Default::default(),
+                        quotient_carrier: None,
+                        id: StructuralTypeId::new(2).unwrap(),
+                        identity: unserved_identity,
+                        owns_linear_claim: false,
+                        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                        no_code_affine_cleanup: false,
+                        descriptor_cleanup: false,
+                        nominal_cleanup: None,
+                        shape: StructuralTypeShape::PrimitiveScalar(unserved),
+                        scalar_restriction: None,
+                        requires: Vec::new(),
+                    });
                 let closed = terminal_codec::ClosedTerminalModule::new(module).unwrap();
                 let layout = terminal_semantics::representation_element_layout(
                     closed.module().types.structural_types.iter(),

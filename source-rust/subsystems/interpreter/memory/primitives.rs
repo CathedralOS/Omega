@@ -8,6 +8,61 @@
     identities.
 */
 
+macro_rules! frame_fields {
+    ($exec:expr, $depth:expr => $field:ident $(,)?) => {{
+        let depth = $depth;
+        if depth == $exec.call_stack.len() {
+            &$exec.$field
+        } else {
+            &$exec
+                .call_stack
+                .get(depth)
+                .ok_or_else(crate::boundary::errors::malformed)?
+                .$field
+        }
+    }};
+    ($exec:expr, $depth:expr => $($field:ident),+ $(,)?) => {{
+        let depth = $depth;
+        if depth == $exec.call_stack.len() {
+            ($(&$exec.$field),+)
+        } else {
+            let frame = $exec
+                .call_stack
+                .get(depth)
+                .ok_or_else(crate::boundary::errors::malformed)?;
+            ($(&frame.$field),+)
+        }
+    }};
+}
+pub(crate) use frame_fields;
+
+macro_rules! delegate_methods {
+    (to $target:tt; $($rest:tt)*) => {
+        delegate_methods!(@munch $target; $($rest)*);
+    };
+    (@munch $target:tt;) => {};
+    (@munch $target:tt; $vis:vis fn $name:ident(&self $(, $arg:ident : $arg_ty:ty)*) -> $ret:ty; $($rest:tt)*) => {
+        $vis fn $name(&self $(, $arg: $arg_ty)*) -> $ret {
+            delegate_methods!(@field self, $target).$name($($arg),*)
+        }
+        delegate_methods!(@munch $target; $($rest)*);
+    };
+    (@munch $target:tt; $vis:vis fn $name:ident(&mut self $(, $arg:ident : $arg_ty:ty)*) -> $ret:ty; $($rest:tt)*) => {
+        $vis fn $name(&mut self $(, $arg: $arg_ty)*) -> $ret {
+            delegate_methods!(@field self, $target).$name($($arg),*)
+        }
+        delegate_methods!(@munch $target; $($rest)*);
+    };
+    (@munch $target:tt; $vis:vis fn $name:ident(&mut self $(, $arg:ident : $arg_ty:ty)*); $($rest:tt)*) => {
+        $vis fn $name(&mut self $(, $arg: $arg_ty)*) {
+            delegate_methods!(@field self, $target).$name($($arg),*);
+        }
+        delegate_methods!(@munch $target; $($rest)*);
+    };
+    (@field $self:ident, ($field:tt)) => { $self.$field };
+}
+pub(crate) use delegate_methods;
+
 pub(crate) mod activation_storage {
     use crate::boundary::errors::{TerminalInterpretError, malformed};
     use crate::boundary::values::{StructuralRuntimePlace, TerminalStructuralValue};
@@ -183,7 +238,79 @@ pub(crate) mod activation_storage {
         descriptors: RuntimeRows<StructuralRuntimePlace, ByteSequenceBinding>,
     }
 
+    fn activation_descriptor_binding(
+        opaque_identity: u64,
+        claim_type: semantic_vocabulary::StructuralTypeId,
+        path: Vec<StructuralPathSegment>,
+        home: StructuralRuntimePlace,
+        capacity: u64,
+        referent: TerminalStructuralValue,
+    ) -> (StructuralRuntimePlace, ByteSequenceBinding) {
+        let descriptor = TerminalStructuralValue {
+            opaque_identity,
+            structural_type: claim_type,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            path,
+        };
+        (
+            StructuralRuntimePlace::from(&descriptor),
+            ByteSequenceBinding::MutableOwner {
+                home: ByteOwnerHome::Storage(home),
+                capacity,
+                referent,
+                descriptor_home: Some(descriptor),
+            },
+        )
+    }
+
     impl TerminalExecution<'_> {
+        pub(crate) fn unsigned_u64_scalar(
+            &self,
+            value: semantic_vocabulary::ValueId,
+        ) -> Result<u64, TerminalInterpretError> {
+            match self.scalar_value(value)? {
+                crate::boundary::values::TerminalScalarValue::Integer {
+                    value: semantic_vocabulary::IntegerValue::Unsigned(value),
+                    ..
+                } => u64::try_from(value).map_err(|_| malformed()),
+                _ => Err(malformed()),
+            }
+        }
+
+        fn resolve_activation_owner(
+            &self,
+            argument: &terminal_psi::StructuralArgument,
+            stage: &'static str,
+        ) -> Result<
+            (
+                TerminalStructuralValue,
+                StructuralRuntimePlace,
+                u64,
+                TerminalStructuralValue,
+            ),
+            TerminalInterpretError,
+        > {
+            let selected = crate::engine::custody::resolve_single_structural_argument(
+                &self.structural_types(),
+                &self.structural_values,
+                argument,
+            )?;
+            let binding = self
+                .byte_descriptor_binding(argument, &selected)
+                .map_err(|error| error.in_argument_preparation(stage))?;
+            let ByteSequenceBinding::MutableOwner {
+                home: ByteOwnerHome::Storage(home),
+                capacity,
+                referent,
+                ..
+            } = binding
+            else {
+                return Err(malformed());
+            };
+            Ok((selected, home, capacity, referent))
+        }
+
         pub(crate) fn execute_establish_activation_claim(
             &mut self,
             operation: &Operation,
@@ -203,13 +330,7 @@ pub(crate) mod activation_storage {
                 return Err(malformed());
             };
             let result = operation.result.structural().ok_or(malformed())?;
-            let committed = match self.scalar_value(committed)? {
-                crate::boundary::values::TerminalScalarValue::Integer {
-                    value: semantic_vocabulary::IntegerValue::Unsigned(value),
-                    ..
-                } => u64::try_from(value).map_err(|_| malformed())?,
-                _ => return Err(malformed()),
-            };
+            let committed = self.unsigned_u64_scalar(committed)?;
             let frame = (self.call_stack.len(), self.current_machine);
             if self
                 .activation_storage
@@ -220,6 +341,11 @@ pub(crate) mod activation_storage {
                 return Err(malformed());
             }
             let established = committed <= bound;
+            let case = if established {
+                established_case
+            } else {
+                rejected_case
+            };
             let value = TerminalStructuralValue::minted(
                 self.local_structural_identities.allocate()?,
                 result.structural_type,
@@ -227,14 +353,10 @@ pub(crate) mod activation_storage {
             );
             let root = StructuralRuntimePlace::from(&value);
             self.structural_cases.insert(
-                root.clone(),
+                root,
                 crate::boundary::structural_inputs::case_membership::StructuralCaseContents {
                     structural_type: result.structural_type,
-                    case: if established {
-                        established_case
-                    } else {
-                        rejected_case
-                    },
+                    case,
                 },
             )?;
             if established {
@@ -268,13 +390,13 @@ pub(crate) mod activation_storage {
                     self.account.as_ref(),
                 )?;
                 self.structural_byte_storage.insert(
-                home.clone(),
-                crate::boundary::structural_inputs::byte_arrays::storage::StructuralByteArrayStorage::new(
-                    backing_type,
-                    ByteSequenceView::new(bytes),
-                    self.account.as_ref(),
-                ),
-            )?;
+                    home.clone(),
+                    crate::boundary::structural_inputs::byte_arrays::storage::StructuralByteArrayStorage::new(
+                        backing_type,
+                        ByteSequenceView::new(bytes),
+                        self.account.as_ref(),
+                    ),
+                )?;
                 self.activation_storage
                     .owners
                     .insert(home.clone(), owner.clone())?;
@@ -288,22 +410,17 @@ pub(crate) mod activation_storage {
                 let Some(StructuralPathSegment::Field(_)) = binding.path.last() else {
                     return Err(malformed());
                 };
-                let descriptor = TerminalStructuralValue {
-                    opaque_identity: value.opaque_identity,
-                    structural_type: shape.claim_type,
-                    qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
-                    path: binding.path.clone(),
-                };
-                self.activation_storage.claim_descriptors.insert(
-                    StructuralRuntimePlace::from(&descriptor),
-                    ByteSequenceBinding::MutableOwner {
-                        home: ByteOwnerHome::Storage(home),
-                        capacity: bound,
-                        referent: owner,
-                        descriptor_home: Some(descriptor),
-                    },
-                )?;
+                let (place, descriptor_binding) = activation_descriptor_binding(
+                    value.opaque_identity,
+                    shape.claim_type,
+                    binding.path.clone(),
+                    home,
+                    bound,
+                    owner,
+                );
+                self.activation_storage
+                    .claim_descriptors
+                    .insert(place, descriptor_binding)?;
                 crate::engine::custody::bind_result_claim(
                     &mut self.live_claims,
                     binding,
@@ -313,13 +430,7 @@ pub(crate) mod activation_storage {
             }
             let mut frontier = self.live_affine_frontier.clone();
             self.stage_result_affine_frontier(result, &mut frontier, &|current| {
-                (current.place == result.place && current.path.is_empty()).then_some(
-                    if established {
-                        established_case
-                    } else {
-                        rejected_case
-                    },
-                )
+                (current.place == result.place && current.path.is_empty()).then_some(case)
             })?;
             self.live_affine_frontier = frontier;
             self.structural_values.insert(result.place, value)?;
@@ -355,22 +466,9 @@ pub(crate) mod activation_storage {
             let OperationKind::ReleaseActivationClaim { ref source, claim } = operation.kind else {
                 return Err(malformed());
             };
-            let selected = crate::engine::custody::resolve_single_structural_argument(
-                &self.structural_types(),
-                &self.structural_values,
-                source,
-            )?;
-            let binding = self
-                .byte_descriptor_binding(source, &selected)
-                .map_err(|error| error.in_argument_preparation("activation release descriptor"))?;
-            let ByteSequenceBinding::MutableOwner {
-                home: ByteOwnerHome::Storage(ref home),
-                ..
-            } = binding
-            else {
-                return Err(malformed());
-            };
-            let (frame, identity, _, _) = *self.activation_storage.grants.require(home)?;
+            let (selected, home, _, _) =
+                self.resolve_activation_owner(source, "activation release descriptor")?;
+            let (frame, identity, _, _) = *self.activation_storage.grants.require(&home)?;
             if frame != (self.call_stack.len(), self.current_machine)
                 || crate::engine::custody::has_live_loan(
                     self.reference_referents.as_map(),
@@ -387,8 +485,8 @@ pub(crate) mod activation_storage {
             }
             let targets_backing = |binding: &ByteSequenceBinding| {
                 matches!(binding,
-            ByteSequenceBinding::MutableOwner { home: ByteOwnerHome::Storage(candidate), .. }
-                if candidate == home)
+                    ByteSequenceBinding::MutableOwner { home: ByteOwnerHome::Storage(candidate), .. }
+                        if candidate == &home)
             };
             let owned_places = self
                 .live_affine_frontier
@@ -471,14 +569,10 @@ pub(crate) mod activation_storage {
             self.commit_constructor_operands(frontier, std::slice::from_ref(source), claims)?;
             self.activation_storage
                 .claim_descriptors
-                .retain(|_, binding| {
-                    !matches!(binding,
-            ByteSequenceBinding::MutableOwner { home: ByteOwnerHome::Storage(candidate), .. }
-                if candidate == home)
-                });
-            self.activation_storage.grants.remove(home);
-            self.activation_storage.owners.remove(home);
-            self.structural_byte_storage.remove(home);
+                .retain(|_, binding| !targets_backing(binding));
+            self.activation_storage.grants.remove(&home);
+            self.activation_storage.owners.remove(&home);
+            self.structural_byte_storage.remove(&home);
             Ok(OperationFlow::Advance)
         }
 
@@ -508,39 +602,13 @@ pub(crate) mod activation_storage {
             else {
                 return Err(malformed());
             };
-            let committed_at = match self.scalar_value(committed_at)? {
-                crate::boundary::values::TerminalScalarValue::Integer {
-                    value: semantic_vocabulary::IntegerValue::Unsigned(value),
-                    ..
-                } => u64::try_from(value).map_err(|_| malformed())?,
-                _ => return Err(malformed()),
-            };
-            let selected = crate::engine::custody::resolve_single_structural_argument(
-                &self.structural_types(),
-                &self.structural_values,
-                source,
-            )?;
-            let binding = self
-                .byte_descriptor_binding(source, &selected)
-                .map_err(|error| error.in_argument_preparation("activation split descriptor"))?;
-            let ByteSequenceBinding::MutableOwner {
-                home: ByteOwnerHome::Storage(ref home),
-                capacity,
-                ref referent,
-                ..
-            } = binding
-            else {
-                return Err(malformed());
-            };
-            let home = home.clone();
-            let referent = referent.clone();
+            let committed_at = self.unsigned_u64_scalar(committed_at)?;
+            let (_, home, capacity, referent) =
+                self.resolve_activation_owner(source, "activation split descriptor")?;
             let frame = (self.call_stack.len(), self.current_machine);
             let (grant_frame, identity, _, claim_type) =
                 *self.activation_storage.grants.require(&home)?;
-            if grant_frame != frame {
-                return Err(malformed());
-            }
-            if !self.structural_byte_storage.contains_key(&home) {
+            if grant_frame != frame || !self.structural_byte_storage.contains_key(&home) {
                 return Err(malformed());
             }
             let publication = self.prepare_activation_division(
@@ -598,61 +666,32 @@ pub(crate) mod activation_storage {
             else {
                 return Err(malformed());
             };
-            let lower_selected = crate::engine::custody::resolve_single_structural_argument(
-                &self.structural_types(),
-                &self.structural_values,
-                lower,
-            )?;
-            let upper_selected = crate::engine::custody::resolve_single_structural_argument(
-                &self.structural_types(),
-                &self.structural_values,
-                upper,
-            )?;
-            let lower_binding = self
-                .byte_descriptor_binding(lower, &lower_selected)
-                .map_err(|error| error.in_argument_preparation("activation merge descriptor"))?;
-            let upper_binding = self
-                .byte_descriptor_binding(upper, &upper_selected)
-                .map_err(|error| error.in_argument_preparation("activation merge descriptor"))?;
-            let ByteSequenceBinding::MutableOwner {
-                home: ByteOwnerHome::Storage(ref lower_home),
-                capacity,
-                ref referent,
-                ..
-            } = lower_binding
-            else {
-                return Err(malformed());
-            };
-            let ByteSequenceBinding::MutableOwner {
-                home: ByteOwnerHome::Storage(ref upper_home),
-                ..
-            } = upper_binding
-            else {
-                return Err(malformed());
-            };
+            let (_, lower_home, capacity, referent) =
+                self.resolve_activation_owner(lower, "activation merge descriptor")?;
+            let (_, upper_home, _, _) =
+                self.resolve_activation_owner(upper, "activation merge descriptor")?;
             let claim_type = self
                 .activation_storage
                 .grants
-                .get(lower_home)
+                .get(&lower_home)
                 .map(|grant| grant.3)
                 .ok_or(malformed())?;
             let publication = self.prepare_activation_division(
                 operation,
                 rejected_case,
-                lower_home,
+                &lower_home,
                 capacity,
-                referent,
+                &referent,
                 claim_type,
             )?;
             if lower_home != upper_home {
                 return self.publish_activation_division(operation, rejected_case, publication);
             }
-            let home = lower_home.clone();
             let frame = (self.call_stack.len(), self.current_machine);
             let merged = self
                 .activation_storage
                 .split_children
-                .get(&home)
+                .get(&lower_home)
                 .copied()
                 .and_then(|(lower_id, upper_id)| {
                     self.activation_storage
@@ -661,8 +700,8 @@ pub(crate) mod activation_storage {
                         .and_then(|ledger| ledger.merge(lower_id, upper_id))
                 });
             if let Some(merged) = merged {
-                self.activation_storage.split_children.remove(&home);
-                if let Some(grant) = self.activation_storage.grants.get_mut(&home) {
+                self.activation_storage.split_children.remove(&lower_home);
+                if let Some(grant) = self.activation_storage.grants.get_mut(&lower_home) {
                     grant.1 = merged;
                 }
                 let mut frontier = self.live_affine_frontier.clone();
@@ -706,22 +745,15 @@ pub(crate) mod activation_storage {
                 let Some(StructuralPathSegment::Field(_)) = binding.path.last() else {
                     continue;
                 };
-                let descriptor = TerminalStructuralValue {
-                    opaque_identity: value.opaque_identity,
-                    structural_type: claim_type,
-                    qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
-                    path: binding.path.clone(),
-                };
-                descriptors.insert(
-                    StructuralRuntimePlace::from(&descriptor),
-                    ByteSequenceBinding::MutableOwner {
-                        home: ByteOwnerHome::Storage(home.clone()),
-                        capacity,
-                        referent: referent.clone(),
-                        descriptor_home: Some(descriptor),
-                    },
-                )?;
+                let (place, descriptor_binding) = activation_descriptor_binding(
+                    value.opaque_identity,
+                    claim_type,
+                    binding.path.clone(),
+                    home.clone(),
+                    capacity,
+                    referent.clone(),
+                );
+                descriptors.insert(place, descriptor_binding)?;
             }
             let mut values = RuntimeRows::new(self.account.as_ref());
             values.insert(result.place, value)?;
@@ -749,8 +781,8 @@ pub(crate) mod activation_storage {
             publication.cases.get_mut(&root).ok_or(malformed())?.case = case;
             let on_case = |binding: &terminal_psi::StructuralResultClaimBinding| {
                 binding.path.iter().any(|segment| {
-                matches!(segment, StructuralPathSegment::Case(selected) if *selected == case)
-            })
+                    matches!(segment, StructuralPathSegment::Case(selected) if *selected == case)
+                })
             };
             publication.descriptors.retain(|descriptor, _| {
                 result
@@ -803,7 +835,6 @@ pub(crate) mod primitive_storage {
     };
     use crate::boundary::values::{TerminalScalarValue, TerminalStructuralValue};
     use crate::engine::custody::resolve_structural_path_type;
-    use crate::engine::execution::SuspendedCall;
     use crate::engine::execution::TerminalExecution;
     use crate::engine::execution::frame_field_mut;
     use crate::engine::scalar_operations::terminal_scalar_belongs_to_type;
@@ -1334,38 +1365,17 @@ pub(crate) mod primitive_storage {
                             if end > stored_width {
                                 return Err(malformed());
                             }
-                            let mut selected = Vec::new();
                             phase = "projection bit offset overflows";
                             let selected_start = byte_offset.checked_mul(8).ok_or(malformed())?;
                             phase = "projection bit end overflows";
                             let selected_end = end.checked_mul(8).ok_or(malformed())?;
-                            for (position, fragment) in fragments.iter().enumerate() {
-                                fragment_index = Some(position);
-                                let start = usize::from(fragment.destination_bit_offset);
-                                let fragment_end = start + usize::from(fragment.bit_length);
-                                let first = start.max(selected_start);
-                                let last = fragment_end.min(selected_end);
-                                if first >= last {
-                                    continue;
-                                }
-                                let mut fragment = fragment.clone();
-                                phase = "fragment source bit adjustment overflows";
-                                fragment.source_bit_offset = fragment
-                                    .source_bit_offset
-                                    .checked_add(
-                                        u8::try_from(first - start).map_err(|_| malformed())?,
-                                    )
-                                    .ok_or(malformed())?;
-                                phase = "fragment destination bit offset is too large";
-                                fragment.destination_bit_offset =
-                                    u8::try_from(first - selected_start)
-                                        .map_err(|_| malformed())?;
-                                phase = "fragment bit length is too large";
-                                fragment.bit_length =
-                                    u8::try_from(last - first).map_err(|_| malformed())?;
-                                selected.push(fragment);
-                            }
-                            *fragments = selected;
+                            *fragments = slice_projection_fragments(
+                                fragments,
+                                selected_start,
+                                selected_end,
+                                &mut fragment_index,
+                                &mut phase,
+                            )?;
                             let _ = logical;
                         }
                         PrimitiveStorageEndpoint::ArrayElement { array, index } => {
@@ -1410,12 +1420,11 @@ pub(crate) mod primitive_storage {
                             let end = start.checked_add(width).ok_or(malformed())?;
                             span_end = Some(end);
                             phase = "owned array activation is unavailable";
-                            let (machine, arrays) = if home.depth == self.call_stack.len() {
-                                (self.current_machine, &self.scalar_array_values)
-                            } else {
-                                let frame = self.call_stack.get(home.depth).ok_or(malformed())?;
-                                (frame.current_machine, &frame.scalar_array_values)
-                            };
+                            let (machine, arrays) = crate::storage_primitives::frame_fields!(
+                                self,
+                                home.depth => current_machine, scalar_array_values
+                            );
+                            let machine = *machine;
                             actual_machine = Some((home.machine, machine));
                             phase = "owned array backing is unavailable";
                             let array = arrays.backing(&home.place).ok_or(malformed())?;
@@ -1501,12 +1510,12 @@ pub(crate) mod primitive_storage {
                     Ok(())
                 })();
                 outcome.map_err(|error| TerminalInterpretError::ReferenceFormation {
-            stage: "position reference storage",
-            detail: format!(
-                "{phase}; endpoint={endpoint}, byte_offset={byte_offset}, width={width}, scalar={scalar:?}, codec={codec:?}, referent_identity_type_path_length={referent:?}, span_start={span_start:?}, span_end={span_end:?}, available={available:?}, requested_depth_place_type={requested_frame:?}, requested_actual_machine={actual_machine:?}, actual_type={actual_type:?}, current_depth={}, projection_logical_stored={projection_types:?}, fragment_count={fragment_count:?}, fragment_index={fragment_index:?}, first_fragment_logical_stored_offsets_length_addressable_codec={first_fragment:?}, first_mismatched_scalar={first_mismatched_scalar:?}: {error:?}",
-                self.call_stack.len()
-            ),
-        })
+                    stage: "position reference storage",
+                    detail: format!(
+                        "{phase}; endpoint={endpoint}, byte_offset={byte_offset}, width={width}, scalar={scalar:?}, codec={codec:?}, referent_identity_type_path_length={referent:?}, span_start={span_start:?}, span_end={span_end:?}, available={available:?}, requested_depth_place_type={requested_frame:?}, requested_actual_machine={actual_machine:?}, actual_type={actual_type:?}, current_depth={}, projection_logical_stored={projection_types:?}, fragment_count={fragment_count:?}, fragment_index={fragment_index:?}, first_fragment_logical_stored_offsets_length_addressable_codec={first_fragment:?}, first_mismatched_scalar={first_mismatched_scalar:?}: {error:?}",
+                        self.call_stack.len()
+                    ),
+                })
             }
 
             pub(crate) fn read_encoded_primitive(
@@ -1591,10 +1600,8 @@ pub(crate) mod primitive_storage {
                         let width =
                             reference_storage_byte_width(stored_scalar).ok_or(malformed())?;
                         for byte_index in 0..usize::from(width) {
-                            let byte = TerminalScalarValue::Integer {
-                                scalar_type: byte_integer_type()?,
-                                value: IntegerValue::Unsigned((bits >> (byte_index * 8)) & 255),
-                            };
+                            let byte =
+                                unsigned_byte_scalar(((bits >> (byte_index * 8)) & 255) as u8)?;
                             writes.stage(
                                 self,
                                 destination,
@@ -1616,21 +1623,54 @@ pub(crate) mod primitive_storage {
                 endpoint: &PrimitiveStorageEndpoint,
             ) -> Result<TerminalScalarValue, TerminalInterpretError> {
                 let value = match endpoint {
-            PrimitiveStorageEndpoint::Scalar(place) => self.primitive_cell(place)?,
-            PrimitiveStorageEndpoint::ScalarField(field) => self.scalar_field_cell(field)?,
-            _ => return Err(malformed()),
-        }
-        .ok_or(
-            crate::boundary::errors::TerminalInterpretError::StructuralPrimitiveStorageMissing(
-                source,
-            ),
-        )?
-        .read()?;
+                    PrimitiveStorageEndpoint::Scalar(place) => self.primitive_cell(place)?,
+                    PrimitiveStorageEndpoint::ScalarField(field) => self.scalar_field_cell(field)?,
+                    _ => return Err(malformed()),
+                }
+                .ok_or(
+                    crate::boundary::errors::TerminalInterpretError::StructuralPrimitiveStorageMissing(
+                        source,
+                    ),
+                )?
+                .read()?;
                 if !terminal_scalar_belongs_to_type(value) {
                     return Err(malformed());
                 }
                 Ok(value)
             }
+        }
+
+        fn slice_projection_fragments(
+            fragments: &[super::PrimitiveStorageFragment],
+            selected_start: usize,
+            selected_end: usize,
+            fragment_index: &mut Option<usize>,
+            phase: &mut &'static str,
+        ) -> Result<Vec<super::PrimitiveStorageFragment>, TerminalInterpretError> {
+            let mut selected = Vec::new();
+            for (position, fragment) in fragments.iter().enumerate() {
+                *fragment_index = Some(position);
+                let start = usize::from(fragment.destination_bit_offset);
+                let fragment_end = start + usize::from(fragment.bit_length);
+                let first = start.max(selected_start);
+                let last = fragment_end.min(selected_end);
+                if first >= last {
+                    continue;
+                }
+                let mut fragment = fragment.clone();
+                *phase = "fragment source bit adjustment overflows";
+                fragment.source_bit_offset = fragment
+                    .source_bit_offset
+                    .checked_add(u8::try_from(first - start).map_err(|_| malformed())?)
+                    .ok_or(malformed())?;
+                *phase = "fragment destination bit offset is too large";
+                fragment.destination_bit_offset =
+                    u8::try_from(first - selected_start).map_err(|_| malformed())?;
+                *phase = "fragment bit length is too large";
+                fragment.bit_length = u8::try_from(last - first).map_err(|_| malformed())?;
+                selected.push(fragment);
+            }
+            Ok(selected)
         }
 
         pub(crate) fn shifted_byte_endpoint(
@@ -1646,27 +1686,12 @@ pub(crate) mod primitive_storage {
                     if byte_offset >= width {
                         return Err(malformed());
                     }
-                    let mut selected = Vec::new();
                     let byte_start = byte_offset.checked_mul(8).ok_or(malformed())?;
                     let byte_end = byte_start.checked_add(8).ok_or(malformed())?;
-                    for fragment in fragments {
-                        let first = usize::from(fragment.destination_bit_offset);
-                        let last = first + usize::from(fragment.bit_length);
-                        let start = first.max(byte_start);
-                        let end = last.min(byte_end);
-                        if start >= end {
-                            continue;
-                        }
-                        let mut fragment = fragment.clone();
-                        fragment.source_bit_offset = fragment
-                            .source_bit_offset
-                            .checked_add(u8::try_from(start - first).map_err(|_| malformed())?)
-                            .ok_or(malformed())?;
-                        fragment.destination_bit_offset =
-                            u8::try_from(start - byte_start).map_err(|_| malformed())?;
-                        fragment.bit_length = u8::try_from(end - start).map_err(|_| malformed())?;
-                        selected.push(fragment);
-                    }
+                    let (mut idx, mut phase) = (None, "");
+                    let selected = slice_projection_fragments(
+                        fragments, byte_start, byte_end, &mut idx, &mut phase,
+                    )?;
                     let coverage = selected.iter().try_fold(0u16, |covered, fragment| {
                         (u16::from(fragment.destination_bit_offset) == covered)
                             .then(|| covered.checked_add(u16::from(fragment.bit_length)))
@@ -1720,11 +1745,19 @@ pub(crate) mod primitive_storage {
             }
         }
 
-        fn byte_integer_type() -> Result<IntegerType, TerminalInterpretError> {
+        pub(crate) fn byte_integer_type() -> Result<IntegerType, TerminalInterpretError> {
             IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| malformed())
         }
-        fn byte_type() -> Result<ScalarType, TerminalInterpretError> {
+        pub(crate) fn byte_type() -> Result<ScalarType, TerminalInterpretError> {
             Ok(ScalarType::Integer(byte_integer_type()?))
+        }
+        pub(crate) fn unsigned_byte_scalar(
+            value: u8,
+        ) -> Result<TerminalScalarValue, TerminalInterpretError> {
+            Ok(TerminalScalarValue::Integer {
+                scalar_type: byte_integer_type()?,
+                value: IntegerValue::Unsigned(u128::from(value)),
+            })
         }
 
         pub(crate) fn convert_scalar(
@@ -2263,11 +2296,10 @@ pub(crate) mod primitive_storage {
             match &storage.endpoint {
                 PrimitiveStorageEndpoint::OwnedArrayElement { home, index } => {
                     execution.owned_array_home(home)?;
-                    let arrays = if home.depth == execution.call_stack.len() {
-                        &execution.scalar_array_values
-                    } else {
-                        &execution.frame_at_depth(home.depth)?.scalar_array_values
-                    };
+                    let arrays = crate::storage_primitives::frame_fields!(
+                        execution,
+                        home.depth => scalar_array_values
+                    );
                     let stored = arrays
                         .backing(&home.place)
                         .filter(|array| array.structural_type == home.structural_type)
@@ -2401,14 +2433,8 @@ pub(crate) mod primitive_storage {
                         .checked_add(*index)
                         .filter(|index| *index < end)
                         .ok_or(malformed())?;
-                    let machine = if depth == self.call_stack.len() {
-                        self.current_machine
-                    } else {
-                        self.call_stack
-                            .get(depth)
-                            .ok_or(malformed())?
-                            .current_machine
-                    };
+                    let machine =
+                        *crate::storage_primitives::frame_fields!(self, depth => current_machine);
                     (
                         crate::storage::primitive_storage::PrimitiveStorageHome::captured_frame(
                             depth,
@@ -3258,15 +3284,10 @@ pub(crate) mod primitive_storage {
                     continue;
                 }
                 self.primitive_home_contract(home, false, path, None)?;
-                let homes = if home.depth == self.call_stack.len() {
-                    &self.structural_values
-                } else {
-                    &self
-                        .call_stack
-                        .get(home.depth)
-                        .ok_or(malformed())?
-                        .structural_values
-                };
+                let homes = crate::storage_primitives::frame_fields!(
+                    self,
+                    home.depth => structural_values
+                );
                 let owner = homes.get(&home.place).ok_or(malformed())?;
                 if owner.structural_type != home.structural_type {
                     return Err(malformed());
@@ -3299,23 +3320,11 @@ pub(crate) mod primitive_storage {
             path: &[StructuralPathSegment],
             expected: StructuralTypeId,
         ) -> Result<bool, TerminalInterpretError> {
-            let (machine, values, arrays, views) = if home.depth == self.call_stack.len() {
-                (
-                    self.current_machine,
-                    &self.structural_values,
-                    &self.scalar_array_values,
-                    &self.element_view_values,
-                )
-            } else {
-                let frame = self.call_stack.get(home.depth).ok_or(malformed())?;
-                (
-                    frame.current_machine,
-                    &frame.structural_values,
-                    &frame.scalar_array_values,
-                    &frame.element_view_values,
-                )
-            };
-            if machine != home.machine {
+            let (machine, values, arrays, views) = crate::storage_primitives::frame_fields!(
+                self,
+                home.depth => current_machine, structural_values, scalar_array_values, element_view_values
+            );
+            if *machine != home.machine {
                 return Err(malformed());
             }
             if let Some(loan) = views.get(&home.place) {
@@ -3379,28 +3388,18 @@ pub(crate) mod primitive_storage {
                 primitive_loan_values,
                 element_view_values,
                 aggregate_argument_backings,
-            ) = if home.depth == self.call_stack.len() {
-                (
-                    self.current_machine,
-                    &self.structural_values,
-                    &self.scalar_array_values,
-                    &self.byte_sequence_values,
-                    &self.primitive_loan_values,
-                    &self.element_view_values,
-                    &self.aggregate_argument_backings,
-                )
-            } else {
-                let frame = self.call_stack.get(home.depth).ok_or(malformed())?;
-                (
-                    frame.current_machine,
-                    &frame.structural_values,
-                    &frame.scalar_array_values,
-                    &frame.byte_sequence_values,
-                    &frame.primitive_loan_values,
-                    &frame.element_view_values,
-                    &frame.aggregate_argument_backings,
-                )
-            };
+            ) = crate::storage_primitives::frame_fields!(
+                self,
+                home.depth =>
+                    current_machine,
+                    structural_values,
+                    scalar_array_values,
+                    byte_sequence_values,
+                    primitive_loan_values,
+                    element_view_values,
+                    aggregate_argument_backings
+            );
+            let machine_id = *machine_id;
             if machine_id != home.machine {
                 return Err(malformed());
             }
@@ -3663,7 +3662,8 @@ pub(crate) mod primitive_storage {
                         if selected_case.is_some() {
                             return Err(malformed());
                         }
-                        let actual = self.case_at(&StructuralRuntimePlace::from(&projected))
+                        let actual = self
+                            .case_at(&StructuralRuntimePlace::from(&projected))
                             .ok_or(malformed())?;
                         if actual.structural_type != carrier || actual.case != *case {
                             return Err(malformed());
@@ -4372,22 +4372,14 @@ pub(crate) mod primitive_storage {
                 PrimitiveStorageEndpoint::RepresentationByte(byte) => {
                     use crate::storage::byte_sequences::read::RepresentationByteReader;
                     let value = self.read_representation_byte(&byte.view, byte.index)?;
-                    Ok(TerminalScalarValue::Integer {
-                        scalar_type: IntegerType::new(
-                            semantic_vocabulary::IntegerSign::Unsigned,
-                            8,
-                        )
-                        .map_err(|_| malformed())?,
-                        value: IntegerValue::Unsigned(u128::from(value)),
-                    })
+                    encoding::unsigned_byte_scalar(value)
                 }
                 PrimitiveStorageEndpoint::OwnedArrayElement { home, index } => {
                     self.owned_array_home(&home)?;
-                    let arrays = if home.depth == self.call_stack.len() {
-                        &self.scalar_array_values
-                    } else {
-                        &self.frame_at_depth(home.depth)?.scalar_array_values
-                    };
+                    let arrays = crate::storage_primitives::frame_fields!(
+                        self,
+                        home.depth => scalar_array_values
+                    );
                     arrays
                         .backing(&home.place)
                         .filter(|array| array.structural_type == home.structural_type)
@@ -4529,7 +4521,8 @@ pub(crate) mod primitive_storage {
             path: &[StructuralPathSegment],
             replacement: TerminalScalarValue,
         ) -> Result<(), TerminalInterpretError> {
-            let Some((StructuralPathSegment::FixedIndex(written_index), array_path)) = path.split_last()
+            let Some((StructuralPathSegment::FixedIndex(written_index), array_path)) =
+                path.split_last()
             else {
                 return Err(malformed());
             };
@@ -4546,9 +4539,11 @@ pub(crate) mod primitive_storage {
             else {
                 return Err(malformed());
             };
-            let byte_type =
-                semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8)
-                    .map_err(|_| malformed())?;
+            let byte_type = semantic_vocabulary::IntegerType::new(
+                semantic_vocabulary::IntegerSign::Unsigned,
+                8,
+            )
+            .map_err(|_| malformed())?;
             let TerminalScalarValue::Integer {
                 scalar_type,
                 value: IntegerValue::Unsigned(value),
@@ -4765,22 +4760,12 @@ pub(crate) mod primitive_storage {
             &self,
             home: &PrimitiveStorageHome,
         ) -> Result<MachineId, TerminalInterpretError> {
-            let owner_machine = if home.depth == self.call_stack.len() {
-                self.current_machine
-            } else {
-                self.call_stack
-                    .get(home.depth)
-                    .ok_or(malformed())?
-                    .current_machine
-            };
+            let owner_machine =
+                *crate::storage_primitives::frame_fields!(self, home.depth => current_machine);
             if owner_machine != home.machine {
                 return Err(malformed());
             }
             Ok(owner_machine)
-        }
-
-        fn frame_at_depth(&self, depth: usize) -> Result<&SuspendedCall, TerminalInterpretError> {
-            self.call_stack.get(depth).ok_or(malformed())
         }
     }
 
@@ -5096,40 +5081,25 @@ pub(crate) mod runtime_rows {
             })
         }
 
-        pub(crate) fn get(&self, key: &Key) -> Option<&Value> {
-            self.rows.get(key)
-        }
-
         pub(crate) fn require(&self, key: &Key) -> Result<&Value, TerminalInterpretError> {
             self.get(key).ok_or(malformed())
-        }
-        pub(crate) fn get_mut(&mut self, key: &Key) -> Option<&mut Value> {
-            self.rows.get_mut(key)
-        }
-        pub(crate) fn contains_key(&self, key: &Key) -> bool {
-            self.rows.contains_key(key)
-        }
-        pub(crate) fn len(&self) -> usize {
-            self.rows.len()
-        }
-        pub(crate) fn is_empty(&self) -> bool {
-            self.rows.is_empty()
-        }
-        pub(crate) fn keys(&self) -> btree_map::Keys<'_, Key, Value> {
-            self.rows.keys()
-        }
-        pub(crate) fn values(&self) -> btree_map::Values<'_, Key, Value> {
-            self.rows.values()
-        }
-        pub(crate) fn iter(&self) -> btree_map::Iter<'_, Key, Value> {
-            self.rows.iter()
-        }
-        pub(crate) fn iter_mut(&mut self) -> btree_map::IterMut<'_, Key, Value> {
-            self.rows.iter_mut()
         }
 
         pub(crate) fn as_map(&self) -> &BTreeMap<Key, Value> {
             &self.rows
+        }
+
+        super::delegate_methods! {
+            to (rows);
+            pub(crate) fn get(&self, key: &Key) -> Option<&Value>;
+            pub(crate) fn get_mut(&mut self, key: &Key) -> Option<&mut Value>;
+            pub(crate) fn contains_key(&self, key: &Key) -> bool;
+            pub(crate) fn len(&self) -> usize;
+            pub(crate) fn is_empty(&self) -> bool;
+            pub(crate) fn keys(&self) -> btree_map::Keys<'_, Key, Value>;
+            pub(crate) fn values(&self) -> btree_map::Values<'_, Key, Value>;
+            pub(crate) fn iter(&self) -> btree_map::Iter<'_, Key, Value>;
+            pub(crate) fn iter_mut(&mut self) -> btree_map::IterMut<'_, Key, Value>;
         }
     }
 
@@ -5802,20 +5772,13 @@ pub(crate) mod scalar_storage {
         {
             crate::storage::structural_storage::prune_rows(&mut self.0, root);
         }
-        pub(crate) fn get(&self, key: &Key) -> Option<&ScalarCell> {
-            self.0.get(key)
-        }
-        pub(crate) fn get_mut(&mut self, key: &Key) -> Option<&mut ScalarCell> {
-            self.0.get_mut(key)
-        }
-        pub(crate) fn remove(&mut self, key: &Key) -> Option<ScalarCell> {
-            self.0.remove(key)
-        }
-        pub(crate) fn contains_key(&self, key: &Key) -> bool {
-            self.0.contains_key(key)
-        }
-        pub(crate) fn len(&self) -> usize {
-            self.0.len()
+        super::delegate_methods! {
+            to (0);
+            pub(crate) fn get(&self, key: &Key) -> Option<&ScalarCell>;
+            pub(crate) fn get_mut(&mut self, key: &Key) -> Option<&mut ScalarCell>;
+            pub(crate) fn remove(&mut self, key: &Key) -> Option<ScalarCell>;
+            pub(crate) fn contains_key(&self, key: &Key) -> bool;
+            pub(crate) fn len(&self) -> usize;
         }
         pub(crate) fn keys(&self) -> impl Iterator<Item = &Key> {
             self.0.keys()
@@ -6509,7 +6472,11 @@ pub(crate) mod storage_addresses {
                     }
                 },
                 PrimitiveStorageEndpoint::ViewByte { bytes, index } if index < bytes.len() => Ok(1),
-                PrimitiveStorageEndpoint::RepresentationByte(byte) if byte.index < byte.view.len() => Ok(1),
+                PrimitiveStorageEndpoint::RepresentationByte(byte)
+                    if byte.index < byte.view.len() =>
+                {
+                    Ok(1)
+                }
                 PrimitiveStorageEndpoint::Projection {
                     fragments, stored, ..
                 } => {
@@ -6659,7 +6626,8 @@ pub(crate) mod storage_addresses {
             Arc::get_mut(&mut program)
                 .unwrap()
                 .fixture_module_mut()
-                .types.structural_types
+                .types
+                .structural_types
                 .extend([
                     declaration(
                         1,
@@ -6745,9 +6713,8 @@ pub(crate) mod storage_addresses {
                     byte_predicate: Some(terminal_psi::ByteSequencePredicate::ValidUtf8),
                     establishment_routes: None,
                 });
-            module.machines[0]
-                .structural_parameters
-                .push(terminal_psi::StructuralParameterDeclaration {
+            module.machines[0].structural_parameters.push(
+                terminal_psi::StructuralParameterDeclaration {
                     place: destination,
                     position: 0,
                     structural_type: root,
@@ -6756,7 +6723,8 @@ pub(crate) mod storage_addresses {
                     qualifications: vec![domain],
                     projected_qualifications: Vec::new(),
                     additional_input_qualifications: Vec::new(),
-                });
+                },
+            );
             let storage = array(&mut execution, 17);
             execution
                 .structural_values
@@ -6802,7 +6770,8 @@ pub(crate) mod storage_addresses {
                         range_obligation: None,
                     },
                 );
-                let status = execution.execute_primitive_store(&operation, destination, value, &path);
+                let status =
+                    execution.execute_primitive_store(&operation, destination, value, &path);
                 let mut candidate = bytes;
                 candidate[index] = replacement;
                 let valid = std::str::from_utf8(&candidate).is_ok();
@@ -6833,83 +6802,84 @@ pub(crate) mod storage_addresses {
                 })
         }
 
+        fn view_addr(
+            execution: &mut TerminalExecution<'_>,
+            bytes: ByteSequenceView,
+            index: usize,
+        ) -> (Option<u64>, u64, Vec<(u64, u64)>) {
+            execution
+                .endpoint_identity(PrimitiveStorageEndpoint::ViewByte { bytes, index })
+                .unwrap()
+        }
+
+        fn array_addr(
+            execution: &mut TerminalExecution<'_>,
+            array: &ArrayStorage,
+            index: usize,
+        ) -> (Option<u64>, u64, Vec<(u64, u64)>) {
+            execution
+                .endpoint_identity(PrimitiveStorageEndpoint::ArrayElement {
+                    array: array.clone(),
+                    index,
+                })
+                .unwrap()
+        }
+
+        fn publish_packed(
+            execution: &mut TerminalExecution<'_>,
+            place: semantic_vocabulary::PlaceId,
+            structural_type: StructuralTypeId,
+            bytes: &[u8],
+        ) {
+            let value = crate::storage::scalar_array::PackedScalarArrayValue::from_bytes(
+                structural_type,
+                bytes,
+                None,
+            )
+            .unwrap()
+            .snapshot()
+            .unwrap();
+            execution.scalar_array_values.publish(place, value).unwrap();
+        }
+
+        fn frame_array(
+            place: semantic_vocabulary::PlaceId,
+            structural_type: StructuralTypeId,
+            path: Vec<terminal_psi::StructuralPathSegment>,
+        ) -> ArrayStorage {
+            ArrayStorage {
+                referent: StructuralRuntimePlace {
+                    opaque_identity: 17,
+                    path,
+                },
+                home: ArrayStorageHome::Frame {
+                    depth: 0,
+                    place,
+                    structural_type,
+                },
+            }
+        }
+
         #[test]
         fn shared_array_views_and_nested_subslices_expose_the_original_element() {
             let mut execution = execution();
             let original = array(&mut execution, 17);
             let view = shared(&execution, &original);
             let nested = view.subslice(1, 4).unwrap().subslice(1, 2).unwrap();
-            let original_address = execution
-                .endpoint_identity(PrimitiveStorageEndpoint::ArrayElement {
-                    array: original.clone(),
-                    index: 2,
-                })
-                .unwrap();
-            assert_eq!(
-                execution
-                    .endpoint_identity(PrimitiveStorageEndpoint::ViewByte {
-                        bytes: view.clone(),
-                        index: 2
-                    })
-                    .unwrap(),
-                original_address
-            );
-            assert_eq!(
-                execution
-                    .endpoint_identity(PrimitiveStorageEndpoint::ViewByte {
-                        bytes: nested,
-                        index: 0
-                    })
-                    .unwrap(),
-                original_address
-            );
-            assert_ne!(
-                execution
-                    .endpoint_identity(PrimitiveStorageEndpoint::ArrayElement {
-                        array: original.clone(),
-                        index: 1
-                    })
-                    .unwrap(),
-                original_address
-            );
+            let original_address = array_addr(&mut execution, &original, 2);
+            assert_eq!(view_addr(&mut execution, view.clone(), 2), original_address);
+            assert_eq!(view_addr(&mut execution, nested, 0), original_address);
+            assert_ne!(array_addr(&mut execution, &original, 1), original_address);
             let other = array(&mut execution, 18);
-            assert_ne!(
-                execution
-                    .endpoint_identity(PrimitiveStorageEndpoint::ViewByte {
-                        bytes: shared(&execution, &other),
-                        index: 2
-                    })
-                    .unwrap(),
-                original_address
-            );
+            let other_view = shared(&execution, &other);
+            assert_ne!(view_addr(&mut execution, other_view, 2), original_address);
             let snapshot = view.owned_snapshot();
-            let snapshot_address = execution
-                .endpoint_identity(PrimitiveStorageEndpoint::ViewByte {
-                    bytes: snapshot.clone(),
-                    index: 2,
-                })
-                .unwrap();
+            let snapshot_address = view_addr(&mut execution, snapshot.clone(), 2);
             assert_ne!(snapshot_address, original_address);
-            assert_eq!(
-                execution
-                    .endpoint_identity(PrimitiveStorageEndpoint::ViewByte {
-                        bytes: snapshot,
-                        index: 2
-                    })
-                    .unwrap(),
-                snapshot_address
-            );
+            assert_eq!(view_addr(&mut execution, snapshot, 2), snapshot_address);
             let independent =
                 ByteSequenceView::new(ByteSequenceStorage::copy(&[1, 2, 3, 4], None).unwrap());
-            assert_ne!(
-                execution
-                    .endpoint_identity(PrimitiveStorageEndpoint::ViewByte {
-                        bytes: independent,
-                        index: 2
-                    })
-                    .unwrap(),
-                snapshot_address
-            );
+            assert_ne!(view_addr(&mut execution, independent, 2), snapshot_address);
         }
 
         #[test]
@@ -6933,113 +6903,53 @@ pub(crate) mod storage_addresses {
                 .reborrow_byte_sequence_binding(&binding, &referent, StructuralAccess::SharedBorrow)
                 .unwrap();
             let bytes = shared.immutable().unwrap().subslice(1, 2).unwrap();
-            let expected = execution
-                .endpoint_identity(PrimitiveStorageEndpoint::ArrayElement {
-                    array: original,
-                    index: 2,
-                })
-                .unwrap();
-            assert_eq!(
-                execution
-                    .endpoint_identity(PrimitiveStorageEndpoint::ViewByte { bytes, index: 0 })
-                    .unwrap(),
-                expected
-            );
+            let actual = view_addr(&mut execution, bytes, 0);
+            let expected = array_addr(&mut execution, &original, 2);
+            assert_eq!(actual, expected);
         }
 
         #[test]
         fn shared_frame_array_view_exposes_the_same_runtime_occurrence() {
-            use crate::storage::scalar_array::PackedScalarArrayValue;
             use semantic_vocabulary::PlaceId;
             let mut execution = execution();
-            let mut arrays = Vec::new();
-            for id in [1, 2] {
-                let place = PlaceId::new(id).unwrap();
-                let structural_type = StructuralTypeId::new(2).unwrap();
-                execution
-                    .scalar_array_values
-                    .publish(
-                        place,
-                        PackedScalarArrayValue::from_bytes(structural_type, &[1, 2, 3, 4], None)
-                            .unwrap()
-                            .snapshot()
-                            .unwrap(),
-                    )
-                    .unwrap();
-                arrays.push(ArrayStorage {
-                    referent: StructuralRuntimePlace {
-                        opaque_identity: 17,
-                        path: Vec::new(),
-                    },
-                    home: ArrayStorageHome::Frame {
-                        depth: 0,
-                        place,
-                        structural_type,
-                    },
-                });
-            }
-            let bytes = shared(&execution, &arrays[0]).subslice(1, 4).unwrap();
-            let view_address = execution
-                .endpoint_identity(PrimitiveStorageEndpoint::ViewByte { bytes, index: 1 })
-                .unwrap();
-            let expected = execution
-                .endpoint_identity(PrimitiveStorageEndpoint::ArrayElement {
-                    array: arrays[0].clone(),
-                    index: 2,
+            let ty = StructuralTypeId::new(2).unwrap();
+            let arrays: Vec<_> = [1, 2]
+                .into_iter()
+                .map(|id| {
+                    let place = PlaceId::new(id).unwrap();
+                    publish_packed(&mut execution, place, ty, &[1, 2, 3, 4]);
+                    frame_array(place, ty, Vec::new())
                 })
-                .unwrap();
-            assert_eq!(view_address, expected);
+                .collect();
+            let bytes = shared(&execution, &arrays[0]).subslice(1, 4).unwrap();
+            let expected = array_addr(&mut execution, &arrays[0], 2);
+            assert_eq!(view_addr(&mut execution, bytes, 1), expected);
             let other = shared(&execution, &arrays[1]);
-            assert_ne!(
-                execution
-                    .endpoint_identity(PrimitiveStorageEndpoint::ViewByte {
-                        bytes: other,
-                        index: 2,
-                    })
-                    .unwrap(),
-                expected
-            );
+            assert_ne!(view_addr(&mut execution, other, 2), expected);
         }
 
         #[test]
         fn shared_projected_frame_arrays_preserve_absolute_storage_coordinates() {
             use crate::storage::primitive_storage::PrimitiveStorageHome;
-            use crate::storage::scalar_array::PackedScalarArrayValue;
             use semantic_vocabulary::{MachineId, PlaceId};
             let mut execution = execution();
             let place = PlaceId::new(1).unwrap();
             let structural_type = StructuralTypeId::new(4).unwrap();
-            execution
-                .scalar_array_values
-                .publish(
-                    place,
-                    PackedScalarArrayValue::from_bytes(
-                        structural_type,
-                        &[1, 2, 3, 4, 5, 6, 7, 8],
-                        None,
-                    )
-                    .unwrap()
-                    .snapshot()
-                    .unwrap(),
-                )
-                .unwrap();
+            publish_packed(
+                &mut execution,
+                place,
+                structural_type,
+                &[1, 2, 3, 4, 5, 6, 7, 8],
+            );
             let mut exposed = Vec::new();
             for child in [0, 1] {
-                let array = ArrayStorage {
-                    referent: StructuralRuntimePlace {
-                        opaque_identity: 17,
-                        path: vec![StructuralPathSegment::FixedIndex(child)],
-                    },
-                    home: ArrayStorageHome::Frame {
-                        depth: 0,
-                        place,
-                        structural_type,
-                    },
-                };
+                let array = frame_array(
+                    place,
+                    structural_type,
+                    vec![StructuralPathSegment::FixedIndex(child)],
+                );
                 let bytes = shared(&execution, &array).subslice(1, 4).unwrap();
-                let view_address = execution
-                    .endpoint_identity(PrimitiveStorageEndpoint::ViewByte { bytes, index: 1 })
-                    .unwrap();
+                let view_address = view_addr(&mut execution, bytes, 1);
                 let direct = execution
                     .endpoint_identity(PrimitiveStorageEndpoint::OwnedArrayElement {
                         home: PrimitiveStorageHome::captured_frame(
@@ -7060,7 +6970,6 @@ pub(crate) mod storage_addresses {
         #[test]
         fn the_resumed_array_loan_writes_the_same_retired_backing() {
             use crate::storage::primitive_storage::{PrimitiveStorage, PrimitiveStorageHome};
-            use crate::storage::scalar_array::PackedScalarArrayValue;
             use semantic_vocabulary::{MachineId, PlaceId};
 
             let mut execution = execution();
@@ -7068,16 +6977,7 @@ pub(crate) mod storage_addresses {
             let ty = StructuralTypeId::new(2).unwrap();
             let home =
                 PrimitiveStorageHome::captured_frame(0, execution.current_machine, place, ty);
-            execution
-                .scalar_array_values
-                .publish(
-                    place,
-                    PackedScalarArrayValue::from_bytes(ty, &[1, 2, 3, 4], None)
-                        .unwrap()
-                        .snapshot()
-                        .unwrap(),
-                )
-                .unwrap();
+            publish_packed(&mut execution, place, ty, &[1, 2, 3, 4]);
             execution.scalar_array_values.remove(&place);
             assert!(execution.retains_entry_array_element(&home, 2));
             assert!(!execution.retains_entry_array_element(&home, 4));
