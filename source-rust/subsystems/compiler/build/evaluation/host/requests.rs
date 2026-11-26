@@ -313,7 +313,7 @@ impl TerminalBuildRequestAdapter {
                 } else {
                     "Build::prepare_dependency"
                 };
-                refuse(format!("{operation} requires a registration this activation issued; an authored `DependencyRegistration {{}}` names none"))
+                TerminalEffectRejection::new(format!("{operation} requires a registration this activation issued; an authored `DependencyRegistration {{}}` names none"))
             })?;
         Ok(position)
     }
