@@ -77,7 +77,23 @@ impl PackageReviewRound<'_> {
             consumed_units: subject.consumed_units().to_vec(),
             component_description: checked.component_description,
         };
+        let preparations = evaluated
+            .preparations
+            .iter()
+            .map(|(successor, stage)| {
+                let executed = stage.executed_entry.as_ref().ok_or_else(invalid)?;
+                let source = executed.declaration.source();
+                let file = source.logical_filename().map_err(|_| invalid())?;
+                Ok(super::super::super::review_set::ReviewedPreparation {
+                    file,
+                    callable: executed.callable_identity.clone(),
+                    successor: successor.clone(),
+                    observation: stage.observation_summary.clone().ok_or_else(invalid)?,
+                })
+            })
+            .collect::<Result<_, CompileResolvedPackageReviewsError>>()?;
         let review = CompilerIssuedPackageReview {
+            preparations,
             key: key.clone(),
             resolution: occurrence.custody.resolution().clone(),
             source_consumption_commitment,

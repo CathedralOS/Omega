@@ -63,3 +63,79 @@ public machine output_ceiling() reaches |process|::StandardOutput {}"#,
         "{summary}"
     );
 }
+
+#[test]
+fn fresh_audit_reports_each_build_and_a_version_four_lock_refuses_the_chain() {
+    let project = TemporaryDirectory::create("audit-staged-package", false).unwrap();
+    let root = project.path();
+    for (file, source) in [
+        (
+            "build.omg",
+            r#"machine build(b: @mutable Build) { Build::build_entry(b, "prepare.omg"); }"#,
+        ),
+        (
+            "prepare.omg",
+            r#"machine build(b: @mutable Build) { Build::build_entry(b, "configure.omg"); }"#,
+        ),
+        (
+            "configure.omg",
+            r#"machine build(b: @mutable Build) { Build::package(b, "meter"); }"#,
+        ),
+        ("main.omg", "public machine value() -> u64 { 17u64 }"),
+    ] {
+        fs::write(root.join(file), source).unwrap();
+    }
+    let command = |args: &[&str]| {
+        let output = Command::new(env!("CARGO_BIN_EXE_omega"))
+            .current_dir(root)
+            .env(
+                "OMEGA_LIBRARY_ROOT",
+                support::repository_root().join("source/library"),
+            )
+            .arg("packages")
+            .args(args)
+            .args(["--target", "linux_x86_64", "--offline"])
+            .output()
+            .unwrap();
+        let text = format!(
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        (output.status.code(), text)
+    };
+    let (code, report) = command(&["audit"]);
+    assert!(matches!(code, Some(0 | 3)), "{report}");
+    assert!(report.contains("fresh-analysis complete"), "{report}");
+    assert!(
+        report.contains("source-changed unknown (no accepted baseline)"),
+        "{report}"
+    );
+    let stages: Vec<_> = report
+        .lines()
+        .filter(|line| line.starts_with("preparing Build") || line.starts_with("final Build"))
+        .collect();
+    assert_eq!(stages.len(), 3, "{report}");
+    assert!(
+        stages[0].starts_with("preparing Build \"build.omg\"")
+            && stages[0].ends_with("selected \"prepare.omg\""),
+        "{report}"
+    );
+    assert!(
+        stages[1].starts_with("preparing Build \"prepare.omg\"")
+            && stages[1].ends_with("selected \"configure.omg\""),
+        "{report}"
+    );
+    assert!(
+        stages[2].starts_with("final Build \"configure.omg\""),
+        "{report}"
+    );
+    assert!(!root.join("omega.lock").exists());
+    let (code, report) = command(&["update", "--dangerously-accept-all"]);
+    assert_ne!(code, Some(0), "{report}");
+    assert!(
+        report.contains("a version 4 package lock cannot"),
+        "{report}"
+    );
+    assert!(!root.join("omega.lock").exists());
+}
