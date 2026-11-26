@@ -17,7 +17,7 @@ use super::exact_revision::GitExactRevisionAcquisition;
 
 pub(super) struct RecordedGitRevision {
     pub(super) commit: String,
-    pub(super) tree: String,
+    pub(super) tree: Option<String>,
     pub(super) algorithm: GitObjectIdAlgorithm,
     pub(super) acquisition: GitExactRevisionAcquisition,
 }
@@ -26,11 +26,11 @@ impl RecordedGitRevision {
     pub(super) fn new(
         request: &GitSourceRequest,
         commit: &GitCommitId,
-        tree: &GitTreeId,
+        tree: Option<&GitTreeId>,
         acquisition: GitExactRevisionAcquisition,
     ) -> Result<Self, SourceResolveError> {
         let commit_hex = commit.to_hex();
-        if commit.algorithm() != tree.algorithm() {
+        if tree.is_some_and(|tree| commit.algorithm() != tree.algorithm()) {
             return Err(SourceResolveError::GitObjectInvalid {
                 oid: commit_hex,
                 message: "recorded commit and root tree use different object formats".to_owned(),
@@ -39,7 +39,7 @@ impl RecordedGitRevision {
         verify_exact_git_revision(request.requested_revision(), &commit_hex)?;
         Ok(Self {
             commit: commit_hex,
-            tree: tree.to_hex(),
+            tree: tree.map(GitTreeId::to_hex),
             algorithm: commit.algorithm(),
             acquisition,
         })
@@ -91,7 +91,7 @@ impl<'a> GitRevisionSelection<'a> {
     pub(super) fn expected_tree(self) -> Option<&'a str> {
         match self {
             Self::Ordinary(pin) => pin.map(GitAcquisitionPin::tree),
-            Self::Recorded(recorded) => Some(&recorded.tree),
+            Self::Recorded(recorded) => recorded.tree.as_deref(),
         }
     }
 

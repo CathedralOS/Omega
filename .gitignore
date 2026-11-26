@@ -19,6 +19,7 @@
 /tests/psi/**/omega.lock
 /tests/psi/**/omega.admissions
 /source/**/build/
+!/source/library/build/
 /source/**/omega.lock
 /source/**/omega.admissions
 

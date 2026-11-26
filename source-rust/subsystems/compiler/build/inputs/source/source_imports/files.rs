@@ -136,7 +136,7 @@ impl<'a> FileImport<'a> {
     ) -> Result<FileSelection, Vec<Diagnostic>> {
         if self.source.scope == DependencyScope::Build
             && (self.import.only_product_operands
-                || build_declarations::build_file_namespace(self.root, self.path).is_some())
+                || build_declarations::build_file(self.root, self.path).is_some())
         {
             return Ok(FileSelection::Unbound);
         }
@@ -161,7 +161,7 @@ impl<'a> FileImport<'a> {
     ) -> Result<FileSelection, Vec<Diagnostic>> {
         if self.source.scope == DependencyScope::Build
             && (self.import.only_product_operands
-                || build_declarations::build_file_namespace(self.root, self.path).is_some())
+                || build_declarations::build_file(self.root, self.path).is_some())
         {
             return Ok(FileSelection::Unbound);
         }

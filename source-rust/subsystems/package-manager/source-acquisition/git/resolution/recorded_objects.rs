@@ -42,15 +42,20 @@ pub(super) fn recorded_revision_needs_fetch(
         &recorded.commit,
         ExactGitObjectKind::Commit,
     )?;
-    if commit_present {
-        authenticate_git_commit(executor, repository, &recorded.commit, &recorded.tree)?;
-    }
-    let tree_present = present(
-        executor,
-        repository,
-        &recorded.tree,
-        ExactGitObjectKind::Tree,
-    )?;
+    let tree = if commit_present {
+        Some(authenticate_git_commit(
+            executor,
+            repository,
+            &recorded.commit,
+            recorded.tree.as_deref(),
+        )?)
+    } else {
+        recorded.tree.clone()
+    };
+    let tree_present = match tree {
+        Some(tree) => present(executor, repository, &tree, ExactGitObjectKind::Tree)?,
+        None => false,
+    };
     repository.verify_current(limits)?;
     if commit_present && tree_present {
         return Ok(false);

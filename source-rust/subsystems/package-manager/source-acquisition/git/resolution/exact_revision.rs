@@ -27,7 +27,7 @@ pub fn resolve_git_source_at_revision_in_lane(
     primary_git: &PrimaryGitSelection,
     request: &GitSourceRequest,
     commit: &GitCommitId,
-    tree: &GitTreeId,
+    tree: Option<&GitTreeId>,
     acquisition: GitExactRevisionAcquisition,
     lane: &RetainedStorageLane,
     limits: LocalSourceLimits,

@@ -127,7 +127,7 @@ pub(super) fn inspect_verified_git_cache_entry<Evidence, PlannerError>(
         .into());
     }
     repository.verify_current(limits)?;
-    authenticate_git_commit(executor, &repository, &commit, &tree)?;
+    authenticate_git_commit(executor, &repository, &commit, Some(&tree))?;
     let evidence = inspect(executor, &repository, &commit, &tree, limits)?;
     repository.verify_current(limits)?;
     Ok(evidence)

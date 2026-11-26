@@ -1,0 +1,10 @@
+// A build asks for the selected revision. The updater reads tracking from this source.
+public machine dependency<'storage>(
+    alias: @'storage [u8], repository: @'storage [u8], tracking: @[u8], revision: @'storage [u8]
+) -> DependencyDescription<'storage> {
+    DependencyDescription {
+        source: Source::Git { repository: repository, revision: revision, selection: PackageSelection::Root },
+        explicit_alias: true,
+        alias: alias
+    }
+}

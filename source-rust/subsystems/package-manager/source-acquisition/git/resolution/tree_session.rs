@@ -66,7 +66,7 @@ impl GitWorkspaceSession {
         storage: &SourceResolver,
         request: &GitSourceRequest,
         commit: &GitCommitId,
-        tree: &GitTreeId,
+        tree: Option<&GitTreeId>,
         acquisition: GitExactRevisionAcquisition,
         limits: LocalSourceLimits,
         declaration_limits: GitWorkspaceDeclarationLimits,
@@ -204,7 +204,7 @@ impl GitWorkspaceSession {
         RecordedGitRevision::new(
             &self.request,
             &commit,
-            &tree,
+            Some(&tree),
             GitExactRevisionAcquisition::Offline,
         )
     }
