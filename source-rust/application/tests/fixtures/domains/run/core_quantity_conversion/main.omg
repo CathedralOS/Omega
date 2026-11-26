@@ -1,12 +1,9 @@
-use omega\language\core\Units;
-use omega\language\core\Quantity;
-use omega\language\core\kilometers_i64;
-use omega\language\core\kilometers_to_meters_trapping_i64;
+use {omega}/language/core/units.omg;
 
 machine main() crashes Trap {
-    let start: i64 in Quantity<Units::KILOMETER> = kilometers_i64(2);
-    let distance: i64 in Quantity<Units::METER> = kilometers_to_meters_trapping_i64(start);
-    let measured: i64 = distance as -Quantity<Units::METER>;
+    let start: i64 in |units|::Quantity<|units|::Units::KILOMETER> = |units|::kilometers_i64(2);
+    let distance: i64 in |units|::Quantity<|units|::Units::METER> = |units|::kilometers_to_meters_trapping_i64(start);
+    let measured: i64 = distance as - |units|::Quantity<|units|::Units::METER>;
     transition measured == 2000 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() crashes Trap { crash Trap; }

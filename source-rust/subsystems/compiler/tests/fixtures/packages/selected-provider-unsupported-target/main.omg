@@ -1,6 +1,4 @@
-use omega\language\core\F64;
-use omega\language\core\F64::from_i32;
-use omega\language\core\F64::from_u32;
+use {omega}/language/core/float_operations.omg;
 
 public data Coordinates {
     x: f64;
@@ -14,12 +12,12 @@ public data Coordinates {
 // A reusable package checks these bodies without deploying them on each
 // consumer's target. The six conversions match an unused platform helper.
 public machine coordinates(x: i32, y: i32, width: i32, height: i32, source_width: u32, source_height: u32) -> Coordinates {
-    let rx: f64 = F64::from_i32(x);
-    let ry: f64 = F64::from_i32(y);
-    let rw: f64 = F64::from_i32(width);
-    let rh: f64 = F64::from_i32(height);
-    let sw: f64 = F64::from_u32(source_width);
-    let sh: f64 = F64::from_u32(source_height);
+    let rx: f64 = |float_operations|::F64::from_i32(x);
+    let ry: f64 = |float_operations|::F64::from_i32(y);
+    let rw: f64 = |float_operations|::F64::from_i32(width);
+    let rh: f64 = |float_operations|::F64::from_i32(height);
+    let sw: f64 = |float_operations|::F64::from_u32(source_width);
+    let sh: f64 = |float_operations|::F64::from_u32(source_height);
     Coordinates { x: rx, y: ry, width: rw, height: rh, source_width: sw, source_height: sh }
 }
 

@@ -1,29 +1,24 @@
 // Expected rejection: the Saturating policy is not implicitly removed from the result.
 // Saturating conversions keep their result policy until explicitly removed.
-use omega\language\core\I32;
-use omega\language\core\U32;
-use omega\language\core\I32::from_f32;
-use omega\language\core\I32::from_f64;
-use omega\language\core\U32::from_f32;
-use omega\language\core\U32::from_f64;
+use {omega}/language/core/float_operations.omg;
 machine signed32(value: f32) -> i32
 requires true {
-    let converted: i32 in Saturating = I32::from_f32(value);
+    let converted: i32 in Saturating = |float_operations|::I32::from_f32(value);
     converted
 }
 machine signed64(value: f64) -> i32
 requires true {
-    let converted: i32 in Saturating = I32::from_f64(value);
+    let converted: i32 in Saturating = |float_operations|::I32::from_f64(value);
     converted as -Saturating
 }
 machine unsigned32(value: f32) -> u32
 requires true {
-    let converted: u32 in Saturating = U32::from_f32(value);
+    let converted: u32 in Saturating = |float_operations|::U32::from_f32(value);
     converted as -Saturating
 }
 machine unsigned64(value: f64) -> u32
 requires true {
-    let converted: u32 in Saturating = U32::from_f64(value);
+    let converted: u32 in Saturating = |float_operations|::U32::from_f64(value);
     converted as -Saturating
 }
 machine main() crashes Trap {

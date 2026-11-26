@@ -1,81 +1,76 @@
 // Expected error: missing ordinary-conversion upper bound
 // Named 8-bit conversions retain toward-zero results, policy and guarded failures.
-use omega\language\core\I8;
-use omega\language\core\U8;
-use omega\language\core\I8::from_f32;
-use omega\language\core\I8::from_f64;
-use omega\language\core\U8::from_f32;
-use omega\language\core\U8::from_f64;
+use {omega}/language/core/float_operations.omg;
 machine signed32_plain(value: f32) -> i8
 requires value == value && value > -129.0f32
 crashes none {
-    let converted: i8 = I8::from_f32(value);
+    let converted: i8 = |float_operations|::I8::from_f32(value);
     converted
 }
 machine signed64_plain(value: f64) -> i8
 requires value == value && value > -129.0f64 && value < 128.0f64
 crashes none {
-    let converted: i8 = I8::from_f64(value);
+    let converted: i8 = |float_operations|::I8::from_f64(value);
     converted
 }
 machine unsigned32_plain(value: f32) -> u8
 requires value == value && value > -1.0f32 && value < 256.0f32
 crashes none {
-    let converted: u8 = U8::from_f32(value);
+    let converted: u8 = |float_operations|::U8::from_f32(value);
     converted
 }
 machine unsigned64_plain(value: f64) -> u8
 requires value == value && value > -1.0f64 && value < 256.0f64
 crashes none {
-    let converted: u8 = U8::from_f64(value);
+    let converted: u8 = |float_operations|::U8::from_f64(value);
     converted
 }
 machine signed32_trapping(value: f32) -> i8
 requires value == value && value > -129.0f32 && value < 128.0f32
 crashes none {
-    let converted: i8 in Trapping = I8::from_f32(value);
+    let converted: i8 in Trapping = |float_operations|::I8::from_f32(value);
     converted as -Trapping
 }
 machine signed64_trapping(value: f64) -> i8
 requires value == value && value > -129.0f64 && value < 128.0f64
 crashes none {
-    let converted: i8 in Trapping = I8::from_f64(value);
+    let converted: i8 in Trapping = |float_operations|::I8::from_f64(value);
     converted as -Trapping
 }
 machine unsigned32_trapping(value: f32) -> u8
 requires value == value && value > -1.0f32 && value < 256.0f32
 crashes none {
-    let converted: u8 in Trapping = U8::from_f32(value);
+    let converted: u8 in Trapping = |float_operations|::U8::from_f32(value);
     converted as -Trapping
 }
 machine unsigned64_trapping(value: f64) -> u8
 requires value == value && value > -1.0f64 && value < 256.0f64
 crashes none {
-    let converted: u8 in Trapping = U8::from_f64(value);
+    let converted: u8 in Trapping = |float_operations|::U8::from_f64(value);
     converted as -Trapping
 }
 machine signed32_saturating(value: f32) -> i8
 requires true
 crashes none {
-    let converted: i8 in Saturating = I8::from_f32(value);
+    let converted: i8 in Saturating = |float_operations|::I8::from_f32(value);
     converted as -Saturating
 }
 machine signed64_saturating(value: f64) -> i8
 requires true
 crashes none {
-    let converted: i8 in Saturating = I8::from_f64(value);
+    let converted: i8 in Saturating = |float_operations|::I8::from_f64(value);
     converted as -Saturating
 }
 machine unsigned32_saturating(value: f32) -> u8
 requires true
 crashes none {
-    let converted: u8 in Saturating = U8::from_f32(value);
+    let converted: u8 in Saturating = |float_operations|::U8::from_f32(value);
     converted as -Saturating
 }
 machine unsigned64_saturating(value: f64) -> u8
 requires true
 crashes none {
-    let converted: u8 in Saturating = U8::from_f64(value);
+    let converted: u8 in Saturating = |float_operations|::U8::from_f64(value);
     converted as -Saturating
 }
 machine main() crashes Trap {
