@@ -233,6 +233,54 @@ fn a_nested_machine_inherits_its_enclosing_nominal_callback_contract() {
 }
 
 #[test]
+fn the_callback_contract_owns_its_dependency_on_an_unsubstituted_type() {
+    let client = PackageKeyIdentity::from_digest([0x7b; 32]).unwrap();
+    let library = PackageKeyIdentity::from_digest([0x7c; 32]).unwrap();
+    let types = PackageKeyIdentity::from_digest([0x7d; 32]).unwrap();
+    let (mut files, root) = captured(
+        client,
+        "public machine visit<T, const Run: |api|::Step<T>::apply>(items: @mutable [T]) {
+            transition items.length > 0 { true -> done(), _ -> done() }
+            machine done() {}
+        }
+        public machine main() {
+            let mutable items: [i32; 1] = [1];
+            visit::<i32, |api|::reset>(@mutable items[..])
+        }",
+    );
+    let api = capture_file(
+        &mut files,
+        "library",
+        library,
+        "callback.omg",
+        "public trait Step<T> {
+            machine apply(item: @mutable T, stamp: |types|::Token) terminates;
+        }
+        public machine reset(item: @mutable i32, stamp: |types|::Token)
+            satisfies Step<i32>::apply {}",
+    );
+    let token = capture_file(
+        &mut files,
+        "types",
+        types,
+        "types.omg",
+        "public data Token { value: i32; }",
+    );
+    let mut stage = product(files, root, client, &[]).unwrap();
+    stage.parsed.roots.extend([api, token]);
+    stage.parsed.imports.extend([
+        SourceScopedTopLevelBinding::file_import(root, api, "api"),
+        SourceScopedTopLevelBinding::file_import(api, token, "types"),
+    ]);
+    stage.product.declaration_scope =
+        Some(Arc::new(ProductDeclarationScope::from_direct_dependencies(
+            &[client, library, types],
+            [(client, library), (library, types)],
+        )));
+    compile(stage, None).expect("only the callback library names Token");
+}
+
+#[test]
 fn a_nested_generic_callback_can_update_a_plain_record() {
     let package = PackageKeyIdentity::from_digest([0x76; 32]).unwrap();
     let source = r#"

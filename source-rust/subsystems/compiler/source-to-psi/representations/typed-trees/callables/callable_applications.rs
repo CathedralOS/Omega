@@ -9422,7 +9422,7 @@ impl TypedTrees {
             };
             // A lexical helper captures the supplying declaration's binder. Its
             // requirement is the same application only for the same receiver
-            // and argument tuple. Record that earlier row before mutating the indexed table.
+            // and argument tuple. Find that row before changing the indexed table.
             let earlier = self.with_type_parameter_declarations(parameter.symbol, |rows| {
                 rows.iter().copied().take_while(|&row| row != handle).find(|&row| {
                     matches!(&self.data_type_parameters.get(row).kind, Machine {

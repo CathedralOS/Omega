@@ -997,6 +997,11 @@ impl TypedReferences for Capture<'_> {
     fn callable_signature(&mut self, signature: &crate::source_state::signature::StateSignature) {
         self.seen_signatures.insert(signature.symbol);
     }
+    fn expands_nominal_callback_binders(&self) -> bool {
+        // A binder names its requirement and supplies arguments. A use that
+        // reads the applied header already visits that precise signature view.
+        false
+    }
     fn callable_signature_contents(
         &mut self,
         signature: &crate::source_state::signature::StateSignature,
