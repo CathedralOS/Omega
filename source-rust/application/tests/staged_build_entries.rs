@@ -108,7 +108,8 @@ machine build(plan: @mutable BuildPlan) {
     select_workspace(plan);
 }
 machine select_workspace(plan: @mutable BuildPlan) {
-    let second: WorkspaceMembers = |workspace|::with_member(plan, WorkspaceMembers {}, "tools");
+    let path: [u8; 5] = [116u8, 111u8, 111u8, 108u8, 115u8];
+    let second: WorkspaceMembers = |workspace|::with_member(plan, WorkspaceMembers {}, @path[..]);
     plan.product = BuildProduct::Workspace { members: second };
 }"#;
     let tools = build(r#"builder.product = BuildProduct::Package { name: "tools" };"#);
