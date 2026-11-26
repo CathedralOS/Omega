@@ -29,16 +29,7 @@ Every positive place (and root `main.omg`) binds `ProgramEntry` for all four hos
 `omega run --both` reports Terminal Psi interpreter and native execution agreement:
 
 ```sh
-omega run --both samples/cli/facts/outcome_structural_evidence/main.omg
-omega run --both samples/cli/facts/outcome_structural_evidence/local/main.omg
-omega run --both samples/cli/facts/outcome_structural_evidence/field/main.omg
-omega run --both samples/cli/facts/outcome_structural_evidence/parameter/main.omg
-omega run --both samples/cli/facts/outcome_structural_evidence/call_result/main.omg
-omega run --both samples/cli/facts/outcome_structural_evidence/match_join/main.omg
-omega run --both samples/cli/facts/outcome_structural_evidence/const_name/main.omg
-omega run --both samples/cli/facts/outcome_structural_evidence/other_state/main.omg
-omega run --both samples/cli/facts/outcome_structural_evidence/other_machine/main.omg
-omega run --both samples/cli/facts/outcome_structural_evidence/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/outcome_structural_evidence
 ```
 
 Every positive place and the root witness observe `native exit 0` and `interp exit: 0`.

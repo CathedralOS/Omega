@@ -44,16 +44,7 @@ declares `Expected exit: 0`, and must pass `omega run --both` with Terminal Psi
 and native execution agreeing:
 
 ```sh
-omega run --both samples/cli/facts/address_count_partition/main.omg
-omega run --both samples/cli/facts/address_count_partition/local/main.omg
-omega run --both samples/cli/facts/address_count_partition/field/main.omg
-omega run --both samples/cli/facts/address_count_partition/parameter/main.omg
-omega run --both samples/cli/facts/address_count_partition/call_result/main.omg
-omega run --both samples/cli/facts/address_count_partition/match_join/main.omg
-omega run --both samples/cli/facts/address_count_partition/const_name/main.omg
-omega run --both samples/cli/facts/address_count_partition/other_state/main.omg
-omega run --both samples/cli/facts/address_count_partition/other_machine/main.omg
-omega run --both samples/cli/facts/address_count_partition/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/address_count_partition
 ```
 
 ### Historical oracle checks

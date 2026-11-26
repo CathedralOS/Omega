@@ -30,16 +30,7 @@ Every place performs the same operation: construct and return a 24-byte (three-`
 Root `main.omg` and all nine place projects bind `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declare `Expected exit: 0`, and carry `expected_native_exit.txt` (`0`). Run any positive directly:
 
 ```sh
-omega run --both samples/cli/facts/sret_aggregate_return_bound/main.omg
-omega run --both samples/cli/facts/sret_aggregate_return_bound/local/main.omg
-omega run --both samples/cli/facts/sret_aggregate_return_bound/field/main.omg
-omega run --both samples/cli/facts/sret_aggregate_return_bound/parameter/main.omg
-omega run --both samples/cli/facts/sret_aggregate_return_bound/call_result/main.omg
-omega run --both samples/cli/facts/sret_aggregate_return_bound/match_join/main.omg
-omega run --both samples/cli/facts/sret_aggregate_return_bound/const_name/main.omg
-omega run --both samples/cli/facts/sret_aggregate_return_bound/other_state/main.omg
-omega run --both samples/cli/facts/sret_aggregate_return_bound/other_machine/main.omg
-omega run --both samples/cli/facts/sret_aggregate_return_bound/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/sret_aggregate_return_bound
 ```
 
 Each place has an `invalid/` twin whose `c` field bound and value is `91u64` instead of `40u64` (violating `c <= 90u64`), causing exact subtraction `remaining = 90u64 - t.c` to fail proof checking with `may overflow `u64`` (`exact subtraction underflow`). Check each twin with:

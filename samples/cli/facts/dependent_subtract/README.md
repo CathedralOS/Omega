@@ -41,7 +41,7 @@ bodies need no runtime entry because checking must refuse them before execution.
 Run a place and its control:
 
 ```sh
-omega run --both samples/cli/facts/dependent_subtract/call_result/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/dependent_subtract/call_result
 omega --check --verify samples/cli/facts/dependent_subtract/invalid_call_result/main.omg
 ```
 

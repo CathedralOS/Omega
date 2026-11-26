@@ -29,7 +29,7 @@ declares `Expected exit: 0`, and passes `omega run --both` — Terminal Psi and
 native execution agreeing:
 
 ```sh
-omega run --both samples/cli/facts/scalar_width_shifts/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/scalar_width_shifts
 omega run --both samples/cli/facts/scalar_width_shifts/<place>/main.omg
 ```
 

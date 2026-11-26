@@ -25,16 +25,7 @@ return `0` as `i32` to exit `0`. Only the transport of the quotient changes.
 Every positive place (and root `main.omg`) binds `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and declares `Expected exit: 0`. `omega run --both` reports Terminal Psi interpreter and native execution agreement (`interp exit: 0` and `native exit 0`):
 
 ```sh
-omega run --both samples/cli/facts/signed_division_quotient/main.omg
-omega run --both samples/cli/facts/signed_division_quotient/local/main.omg
-omega run --both samples/cli/facts/signed_division_quotient/field/main.omg
-omega run --both samples/cli/facts/signed_division_quotient/parameter/main.omg
-omega run --both samples/cli/facts/signed_division_quotient/call_result/main.omg
-omega run --both samples/cli/facts/signed_division_quotient/match_join/main.omg
-omega run --both samples/cli/facts/signed_division_quotient/const_name/main.omg
-omega run --both samples/cli/facts/signed_division_quotient/other_state/main.omg
-omega run --both samples/cli/facts/signed_division_quotient/other_machine/main.omg
-omega run --both samples/cli/facts/signed_division_quotient/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/signed_division_quotient
 ```
 
 ### The oracle discriminates

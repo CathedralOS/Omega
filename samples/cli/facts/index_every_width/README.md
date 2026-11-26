@@ -32,16 +32,7 @@ indexed at `0, 1, 2, 3, 0, 1, 2, 2` XORing to 12. The match witness also execute
 arm whose indices are all 3 and whose XOR is 0. A wrong result crashes `Trap`. Run with `omega run --both`:
 
 ```sh
-omega run --both samples/cli/facts/index_every_width/main.omg
-omega run --both samples/cli/facts/index_every_width/local/main.omg
-omega run --both samples/cli/facts/index_every_width/field/main.omg
-omega run --both samples/cli/facts/index_every_width/parameter/main.omg
-omega run --both samples/cli/facts/index_every_width/call_result/main.omg
-omega run --both samples/cli/facts/index_every_width/match_join/main.omg
-omega run --both samples/cli/facts/index_every_width/const_name/main.omg
-omega run --both samples/cli/facts/index_every_width/other_state/main.omg
-omega run --both samples/cli/facts/index_every_width/other_machine/main.omg
-omega run --both samples/cli/facts/index_every_width/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/index_every_width
 ```
 
 All 10 samples report `native exit 0` and `interp exit: 0`.

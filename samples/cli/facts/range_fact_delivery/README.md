@@ -147,7 +147,7 @@ rejection diagnostic. (The `float_range_delivery_through_*` family pins the
 sibling `samples/cli/facts/float_range_delivery/` row, not this folder.)
 
 ```sh
-omega run --both samples/cli/facts/range_fact_delivery/local/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/range_fact_delivery/local
 omega --check samples/cli/facts/range_fact_delivery/local/controls/missing_bound/main.omg
 ```
 

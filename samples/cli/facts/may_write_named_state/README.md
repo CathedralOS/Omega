@@ -39,7 +39,7 @@ Every positive and root binds `ProgramEntry` for all four hosted targets and
 declares `Expected exit: 0`. There is no `system` dependency.
 
 ```sh
-omega run --both samples/cli/facts/may_write_named_state/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/may_write_named_state/target_body
 ```
 
 ## Requirements established by this row

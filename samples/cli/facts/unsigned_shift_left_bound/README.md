@@ -28,16 +28,7 @@ Every positive place and the root `main.omg` probe binds `ProgramEntry` for
 Each positive place is an application that exits 0 in both Terminal Psi and native execution:
 
 ```sh
-omega run --both samples/cli/facts/unsigned_shift_left_bound/main.omg
-omega run --both samples/cli/facts/unsigned_shift_left_bound/local/main.omg
-omega run --both samples/cli/facts/unsigned_shift_left_bound/field/main.omg
-omega run --both samples/cli/facts/unsigned_shift_left_bound/parameter/main.omg
-omega run --both samples/cli/facts/unsigned_shift_left_bound/call_result/main.omg
-omega run --both samples/cli/facts/unsigned_shift_left_bound/match_join/main.omg
-omega run --both samples/cli/facts/unsigned_shift_left_bound/const_name/main.omg
-omega run --both samples/cli/facts/unsigned_shift_left_bound/other_state/main.omg
-omega run --both samples/cli/facts/unsigned_shift_left_bound/other_machine/main.omg
-omega run --both samples/cli/facts/unsigned_shift_left_bound/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/unsigned_shift_left_bound
 ```
 
 All 10 applications pass with `native exit 0` and `interp exit: 0`.

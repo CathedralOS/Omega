@@ -29,16 +29,7 @@ Every positive place and the root witness bind `ProgramEntry` across all four ho
 Run each positive place with `omega run --both`:
 
 ```sh
-omega run --both samples/cli/facts/signed_8bit_shift_left_bound/main.omg
-omega run --both samples/cli/facts/signed_8bit_shift_left_bound/local/main.omg
-omega run --both samples/cli/facts/signed_8bit_shift_left_bound/field/main.omg
-omega run --both samples/cli/facts/signed_8bit_shift_left_bound/parameter/main.omg
-omega run --both samples/cli/facts/signed_8bit_shift_left_bound/call_result/main.omg
-omega run --both samples/cli/facts/signed_8bit_shift_left_bound/match_join/main.omg
-omega run --both samples/cli/facts/signed_8bit_shift_left_bound/const_name/main.omg
-omega run --both samples/cli/facts/signed_8bit_shift_left_bound/other_state/main.omg
-omega run --both samples/cli/facts/signed_8bit_shift_left_bound/other_machine/main.omg
-omega run --both samples/cli/facts/signed_8bit_shift_left_bound/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/signed_8bit_shift_left_bound
 ```
 
 All 10 samples report `native exit 0` and `interp exit: 0`.

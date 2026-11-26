@@ -30,16 +30,7 @@ Each positive place and the root `main.omg` is an application that exits 0 in bo
 native execution:
 
 ```sh
-omega run --both samples/cli/facts/signed_8bit_exact_subtraction_bound/main.omg
-omega run --both samples/cli/facts/signed_8bit_exact_subtraction_bound/local/main.omg
-omega run --both samples/cli/facts/signed_8bit_exact_subtraction_bound/field/main.omg
-omega run --both samples/cli/facts/signed_8bit_exact_subtraction_bound/parameter/main.omg
-omega run --both samples/cli/facts/signed_8bit_exact_subtraction_bound/call_result/main.omg
-omega run --both samples/cli/facts/signed_8bit_exact_subtraction_bound/match_join/main.omg
-omega run --both samples/cli/facts/signed_8bit_exact_subtraction_bound/const_name/main.omg
-omega run --both samples/cli/facts/signed_8bit_exact_subtraction_bound/other_state/main.omg
-omega run --both samples/cli/facts/signed_8bit_exact_subtraction_bound/other_machine/main.omg
-omega run --both samples/cli/facts/signed_8bit_exact_subtraction_bound/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/signed_8bit_exact_subtraction_bound
 ```
 
 ### Acceptance Gate

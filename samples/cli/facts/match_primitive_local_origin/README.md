@@ -39,16 +39,7 @@ and declares `Expected exit: 0`. `omega run --both` reports Terminal Psi
 interpreter and native execution agreement (`native exit 0` and `interp exit: 0`):
 
 ```sh
-target/debug/omega run --both samples/cli/facts/match_primitive_local_origin/main.omg
-target/debug/omega run --both samples/cli/facts/match_primitive_local_origin/local/main.omg
-target/debug/omega run --both samples/cli/facts/match_primitive_local_origin/field/main.omg
-target/debug/omega run --both samples/cli/facts/match_primitive_local_origin/parameter/main.omg
-target/debug/omega run --both samples/cli/facts/match_primitive_local_origin/call_result/main.omg
-target/debug/omega run --both samples/cli/facts/match_primitive_local_origin/match_join/main.omg
-target/debug/omega run --both samples/cli/facts/match_primitive_local_origin/const_name/main.omg
-target/debug/omega run --both samples/cli/facts/match_primitive_local_origin/other_state/main.omg
-target/debug/omega run --both samples/cli/facts/match_primitive_local_origin/other_machine/main.omg
-target/debug/omega run --both samples/cli/facts/match_primitive_local_origin/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/match_primitive_local_origin
 ```
 
 ### The oracle discriminates

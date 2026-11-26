@@ -26,16 +26,7 @@ when the byte is 8. Only the transport of the window length changes.
 Every positive place (and root `main.omg`) binds `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and declares `Expected exit: 0`. `omega run --both` reports Terminal Psi interpreter and native execution agreement (`interp exit: 0` and `native exit 0`):
 
 ```sh
-omega run --both samples/cli/facts/length/main.omg
-omega run --both samples/cli/facts/length/local/main.omg
-omega run --both samples/cli/facts/length/field/main.omg
-omega run --both samples/cli/facts/length/parameter/main.omg
-omega run --both samples/cli/facts/length/call_result/main.omg
-omega run --both samples/cli/facts/length/match_join/main.omg
-omega run --both samples/cli/facts/length/const_name/main.omg
-omega run --both samples/cli/facts/length/other_state/main.omg
-omega run --both samples/cli/facts/length/other_machine/main.omg
-omega run --both samples/cli/facts/length/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/length
 ```
 
 ### The oracle discriminates

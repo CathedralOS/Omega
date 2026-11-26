@@ -44,7 +44,7 @@ field displacement traps. This observes writes through live caller-owned storage
 ## Reproduction and retention
 
 ```sh
-omega run --both samples/cli/facts/build_activation_borrow/field/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/build_activation_borrow/field
 ```
 
 The unchanged minimal field program rejects on `aea6289579e399b931161740f7ffd6f770c78830`

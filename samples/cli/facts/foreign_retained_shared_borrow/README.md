@@ -43,7 +43,7 @@ actual deliberate trap status; Python exception translation is not that oracle.
 ```sh
 python3 samples/cli/facts/foreign_retained_shared_borrow/fixture/prepare.py
 export LD_LIBRARY_PATH="$PWD/build/foreign_retained_fixture${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-build/gate-cli/debug/omega run --both samples/cli/facts/foreign_retained_shared_borrow/local/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/foreign_retained_shared_borrow/local
 ```
 
 On macOS ARM64, prepare the same fixture and supply its dylib search directory:

@@ -31,16 +31,7 @@ containing `0` beside its entry. `omega run --both` must report Terminal Psi
 and native execution agreeing, so each line below observes both engines:
 
 ```sh
-omega run --both samples/cli/facts/abi_multi_arg_spill/main.omg
-omega run --both samples/cli/facts/abi_multi_arg_spill/local/main.omg
-omega run --both samples/cli/facts/abi_multi_arg_spill/field/main.omg
-omega run --both samples/cli/facts/abi_multi_arg_spill/parameter/main.omg
-omega run --both samples/cli/facts/abi_multi_arg_spill/call_result/main.omg
-omega run --both samples/cli/facts/abi_multi_arg_spill/match_join/main.omg
-omega run --both samples/cli/facts/abi_multi_arg_spill/const_name/main.omg
-omega run --both samples/cli/facts/abi_multi_arg_spill/other_state/main.omg
-omega run --both samples/cli/facts/abi_multi_arg_spill/other_machine/main.omg
-omega run --both samples/cli/facts/abi_multi_arg_spill/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/abi_multi_arg_spill
 ```
 
 Every one of the ten places was observed with `native exit 0` and
