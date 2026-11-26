@@ -2,9 +2,9 @@ use {omega}/language/core/external_binding.omg as native;
 use main.omg as app;
 use {omega}/build/dependency.omg;
 
-machine build(builder: @mutable BuildPlan) {
-    builder.product = BuildProduct::Application { name: "reader" };
-    _ = Build::dependency(builder,
+machine build(builder: @mutable Build) {
+    Build::application(builder, "reader");
+    let registration: DependencyRegistration = Build::dependency(builder,
         |dependency|::from_source(Source::Path { location: "../reading" }));
     Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
     Build::bind_native::<|app|::ReadParent::read>(builder, linux_x86_64,

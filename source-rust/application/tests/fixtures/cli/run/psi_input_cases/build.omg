@@ -1,12 +1,13 @@
+use {omega}/language/core/external_binding.omg as native;
 use main.omg as app;
 
 machine build(builder: @mutable Build) {
     Build::application(builder, "psi_input_cases");
     Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
     Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
-    Build::bind_native::<|app|::Streams::read>(builder, linux_x86_64, ForeignBinding::Syscall { number: 0 });
-    Build::bind_native::<|app|::Streams::write>(builder, linux_x86_64, ForeignBinding::Syscall { number: 1 });
-    Build::bind_native::<|app|::Streams::read>(builder, linux_arm64, ForeignBinding::Syscall { number: 63 });
-    Build::bind_native::<|app|::Streams::write>(builder, linux_arm64, ForeignBinding::Syscall { number: 64 });
+    Build::bind_native::<|app|::Streams::read>(builder, linux_x86_64, |native|::ForeignBinding::Syscall { number: 0 });
+    Build::bind_native::<|app|::Streams::write>(builder, linux_x86_64, |native|::ForeignBinding::Syscall { number: 1 });
+    Build::bind_native::<|app|::Streams::read>(builder, linux_arm64, |native|::ForeignBinding::Syscall { number: 63 });
+    Build::bind_native::<|app|::Streams::write>(builder, linux_arm64, |native|::ForeignBinding::Syscall { number: 64 });
     _ = builder.tests.group::<|app|::Checks::ready>();
 }
