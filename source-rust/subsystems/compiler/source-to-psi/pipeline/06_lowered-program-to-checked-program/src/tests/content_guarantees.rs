@@ -7,20 +7,20 @@ use source_provenance::DependencyScope;
 use terminal_psi::{BoundaryContentGuarantee, StructuralPlaceDeclaration};
 
 const SOURCE: &str = r#"
-use omega\language\core\Content;
-use omega\language\core\CountedQuantity;
-use omega\language\core\Nat;
+use {omega}/language/core/content.omg;
+use {omega}/language/core/nat.omg;
+use {omega}/language/core/foundation.omg as proof;
 data Bytes {}
 data Region { length: u64; }
 domain Region::Owned;
-machine Owned::measure(subject: @Region) -> CountedQuantity<Bytes>
-satisfies Content<Region, CountedQuantity<Bytes>>::project {
-    CountedQuantity { magnitude: embed(subject.length) as Nat }
+machine Owned::measure(subject: @Region) -> |content|::CountedQuantity<Bytes>
+satisfies |content|::Content<Region, |content|::CountedQuantity<Bytes>>::project {
+    |content|::CountedQuantity { magnitude: embed(subject.length) as |nat|::Nat }
 }
 public boundary trait Transfer {
     machine pass(input: Region in Owned) -> Region
     reaches none
-    ensures result in Owned, core\Identity::<CountedQuantity<Bytes>>(
+    ensures result in Owned, |proof|::Identity::<|content|::CountedQuantity<Bytes>>(
         Owned::measure(old(@input)), Owned::measure(@result))
     crashes none;
 }
@@ -175,7 +175,7 @@ fn with_content(source: &str) -> crate::source_state::TypedTrees {
 fn checked_conservation_follows_the_owned_input_through_an_explicit_erasure() {
     let (definitions, _) = SOURCE.split_once("public boundary trait Transfer").unwrap();
     let source = format!(r#"{}machine relay(input: Region in Owned) -> Region
-        ensures result in Owned, core\Identity::<CountedQuantity<Bytes>>(
+        ensures result in Owned, |proof|::Identity::<CountedQuantity<Bytes>>(
             Owned::measure(old(@input)), Owned::measure(@result))
         {{ input as -Owned }}"#, definitions.replace("data Region {", "data Region [linear] {"));
     let typed = with_content(&source);
@@ -210,7 +210,7 @@ fn selected_provider_must_return_the_promised_input_under_its_result_field() {
     let (definitions, _) = SOURCE.split_once("public boundary trait Transfer").unwrap();
     let definitions = definitions.replace("data Region {", "data Region [linear] {");
     let header = r#"machine pass(first: Region in Owned, second: Region in Owned) -> Pair
-        reaches none ensures result.left in Owned, core\Identity::<CountedQuantity<Bytes>>(
+        reaches none ensures result.left in Owned, |proof|::Identity::<CountedQuantity<Bytes>>(
             Owned::measure(old(@first)), Owned::measure(@result.left)) crashes none"#;
     let checked = |supplied: &str, left: &str, right: &str| {
         let source = format!(r#"{definitions}
