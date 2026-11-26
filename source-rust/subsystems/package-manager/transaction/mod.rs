@@ -43,7 +43,6 @@ use build_evaluation_result::CompileFailure;
 use package_compilation::build_execution::BuildSnapshotRequest;
 use platform_custody::record_file::{RecordFileRoot, RootRecordRead};
 use proposal::PendingPackageChange;
-pub(crate) use proposal::legacy_publication_kind;
 use source_acquisition::PrimaryGitChoices;
 use source_acquisition::git::resolution::GitExactRevisionAcquisition;
 use source_acquisition::local::staging::StagedLocalSnapshot;
