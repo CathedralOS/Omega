@@ -10,6 +10,7 @@ activation ticket before recording or executing an effect.
 
 pub mod bindings;
 pub(crate) mod filesystem;
+pub(crate) mod programs;
 pub mod requests;
 
 // The original Output occupies the top existing host-marker slot. Dynamic

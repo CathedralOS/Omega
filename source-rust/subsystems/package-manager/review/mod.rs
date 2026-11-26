@@ -34,8 +34,10 @@ pub(crate) use compare::{
 };
 pub(crate) use decision::{
     PackagePolicyDecisionSubject, PackagePolicyResolution, PackagePolicyReviewError,
-    ReviewOnlyRootPolicyDisposition, recover_package_policy_review, render_package_policy_review,
+    ReviewOnlyRootPolicyDisposition, recover_package_policy_review, render_build_request,
+    render_package_policy_review,
 };
+pub(crate) use restricted_build_grants::RootRestrictedBuildGrants;
 pub use restricted_build_grants::UngrantedRestrictedBuildRequest;
 
 pub(crate) mod build_session;

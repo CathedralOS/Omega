@@ -1,7 +1,7 @@
 use {omega}/build/dependency.omg;
 
-machine build(builder: @mutable Build) {
-    Build::package(builder, "compiler_request");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: "compiler_request" };
     let wire_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {
         location: "../../../foundation/wire"
     }));

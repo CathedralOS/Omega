@@ -15,7 +15,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("omega", type=Path)
     cli = parser.parse_args().omega.resolve()
-    fixture = PACKAGE / "tests/fixtures/source_spans"
+    fixture = PACKAGE.parent / "tests/fixtures/source_to_psi/source_spans"
     with tempfile.TemporaryDirectory(prefix="omega-source-spans-") as directory:
         project = Path(directory)
         source = Path("representations/source_files/source.omg")

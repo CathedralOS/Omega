@@ -17,10 +17,10 @@ use symbols::SymbolHandle;
 
 #[must_use = "an admitted build program must prepare its execution"]
 pub(crate) struct AdmittedBuildProgram {
-    pub(crate) diagnostic_output_bytes: Option<u64>,
+    pub(crate) programs: std::sync::Arc<crate::host::programs::ProgramInstallation>,
     pub(crate) prepared: std::sync::Arc<source_compiler::publication::AcceptedTerminalSource>,
     pub(crate) produced: std::sync::Arc<source_compiler::publication::ProducedTerminalProgram>,
-    pub(crate) providers: super::provider_execution::BuildProviderScope,
+    pub(crate) providers: super::provider_execution::BuildProviderInstallation,
     pub(crate) machine: SelectedBuildMachine,
     pub(crate) filesystem_scope: BuildMachineFilesystemScope,
     pub(crate) evaluation_sponsor: Option<BuildEvaluationSponsor>,
@@ -33,11 +33,25 @@ pub(crate) struct AdmittedBuildProgram {
 
 impl AdmittedBuildProgram {
     pub fn restricted_build_requests(&self) -> Vec<RestrictedBuildRequest> {
-        self.filesystem_scope.restricted_build_requests(
+        let mut requests = self.filesystem_scope.restricted_build_requests(
             self.evaluation_sponsor.as_ref(),
             self.artifact_only,
             &self.machine.execution_mode,
-        )
+        );
+        let bounds = package_compilation::build_execution::RestrictedBuildBounds::from_retained(
+            None,
+            self.evaluation_sponsor
+                .as_ref()
+                .map(BuildEvaluationSponsor::limits),
+            self.filesystem_scope
+                .required_outputs()
+                .iter()
+                .cloned()
+                .collect(),
+            self.artifact_only,
+        );
+        requests.extend(self.programs.requests(&bounds, self.execution_profile));
+        requests
     }
 }
 
@@ -52,18 +66,19 @@ pub(crate) fn admit_build_program(
     artifact_only: bool,
     source: package_compilation::BuildSourceSelection,
     package_inputs: Option<&package_compilation::PackageCompilationInputs>,
+    programs: &package_compilation::build_execution::BuildProgramInvocation,
 ) -> Result<AdmittedBuildProgram, Vec<Diagnostic>> {
     let prepared = invocation.accepted();
     let typed = prepared.source();
-    if !typed
+    let entry_span = typed
         .symbols
         .symbol_source_span(machine_symbol)
-        .is_some_and(|span| span.source_id == source.source_id())
-    {
-        return Err(vec![Diagnostic::error(
-            "Build entry differs from its source-owned selection",
-        )]);
-    }
+        .filter(|span| span.source_id == source.source_id())
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "Build entry differs from its source-owned selection",
+            )]
+        })?;
     let mut filesystem_scope = filesystem_scope.clone();
     let (machine, publication) =
         admit_build_machine(invocation, machine_symbol, &mut filesystem_scope)?;
@@ -97,8 +112,28 @@ pub(crate) fn admit_build_program(
                 "Build declaration-selection admission: {reason}"
             ))]
         })?;
+    let (providers, imports) = providers
+        .admit(&produced, diagnostic_output_bytes)
+        .map_err(|mut errors| {
+            if let Some(span) = prepared.source().symbols.symbol_source_span(machine.symbol) {
+                for error in &mut errors {
+                    error.source_span.get_or_insert(span);
+                }
+            }
+            errors
+        })?;
+
+    let programs = crate::host::programs::ProgramInstallation::admit(
+        prepared.source(),
+        &produced,
+        package_inputs,
+        programs,
+        (&machine.name, entry_span),
+        &filesystem_scope,
+        &imports,
+    )?;
     Ok(AdmittedBuildProgram {
-        diagnostic_output_bytes,
+        programs,
         prepared: std::sync::Arc::new(prepared),
         produced: std::sync::Arc::new(produced),
         providers,

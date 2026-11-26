@@ -836,8 +836,15 @@ impl Program<'_> {
             .max()
             .map_or(Some(0), |last| last.checked_add(1))
             .ok_or_else(|| unavailable(id, "abstract requirement type namespace overflow"))?;
+        let nominal_requirement = match self.typed.retained_static_machine_contract(declaration) {
+            Some(crate::source_state::data::MachineParameterContractView::Nominal {
+                requirement,
+                ..
+            }) => Some(requirement.symbol),
+            _ => None,
+        };
         let source = SourceSchemaRequirement {
-            instance: Some(id),
+            instance: Some((id, nominal_requirement)),
             declaration,
             abstract_types,
             signature: Some(signature.clone()),
@@ -869,7 +876,7 @@ impl Program<'_> {
                 if schema
                     .requirements
                     .last()
-                    .is_some_and(|row| row.instance.is_some_and(|earlier| earlier >= id))
+                    .is_some_and(|row| row.instance.is_some_and(|(earlier, _)| earlier >= id))
                 {
                     return Err(unavailable(
                         id,

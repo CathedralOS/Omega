@@ -1,12 +1,16 @@
-machine build(builder: @mutable Build) {
-    Build::member(builder, "source/library/system");
-    Build::member(builder, "source/library/allocation");
-    Build::member(builder, "source/library/simd");
-    Build::member(builder, "source/foundation/wire");
-    Build::member(builder, "source/subsystems/compiler/source_to_psi");
-    Build::member(builder, "source/subsystems/compiler/alpha");
-    Build::member(builder, "source/subsystems/compiler/driver");
-    Build::member(builder, "source/subsystems/compiler/request");
-    Build::member(builder, "source/application/construction");
-    Build::member(builder, "source/application/ocreq");
+use {omega}/build/workspace.omg;
+
+machine build(plan: @mutable BuildPlan) {
+    let mutable members: WorkspaceMembers = WorkspaceMembers {};
+    members = |workspace|::with_member(plan, members, "source/library/system");
+    members = |workspace|::with_member(plan, members, "source/library/allocation");
+    members = |workspace|::with_member(plan, members, "source/library/simd");
+    members = |workspace|::with_member(plan, members, "source/foundation/wire");
+    members = |workspace|::with_member(plan, members, "source/subsystems/compiler/source_to_psi");
+    members = |workspace|::with_member(plan, members, "source/subsystems/compiler/alpha");
+    members = |workspace|::with_member(plan, members, "source/subsystems/compiler/driver");
+    members = |workspace|::with_member(plan, members, "source/subsystems/compiler/request");
+    members = |workspace|::with_member(plan, members, "source/application/construction");
+    members = |workspace|::with_member(plan, members, "source/application/ocreq");
+    plan.product = BuildProduct::Workspace { members: members };
 }

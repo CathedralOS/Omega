@@ -109,8 +109,8 @@ machine main() reaches Source invokes Source crashes Trap {
     let profile = target::TargetProfile::host();
     let forwarding_binding = if forward {
         format!(
-            r#"    Build::bind_native::<Sink::read>(builder, {target}, ForeignBinding::DllImport {{
-        import: DllImport::ElfVersioned {{ object: "{library}", symbol: "omega_reference_read", version: "REFERENCE_1.0" }}
+            r#"    Build::bind_native::<Sink::read>(builder, {target}, |native|::ForeignBinding::DllImport {{
+        import: |native|::DllImport::ElfVersioned {{ object: "{library}", symbol: "omega_reference_read", version: "REFERENCE_1.0" }}
     }});
 "#,
             target = profile.target_name(),
@@ -123,16 +123,15 @@ machine main() reaches Source invokes Source crashes Trap {
         root.join("build.omg"),
         format!(
             r#"
-use omega\language\core\DllImport;
-use omega\language\core\ForeignBinding;
-machine build(builder: @mutable Build) {{
-    Build::application(builder, "provider_reference");
+use {{omega}}/language/core/external_binding.omg as native;
+machine build(builder: @mutable BuildPlan) {{
+    builder.product = BuildProduct::Application {{ name: "provider_reference" }};
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);
     Build::bind(builder, macos_arm64::ProgramEntry, main);
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
-    Build::bind_native::<Source::cell>(builder, {target}, ForeignBinding::DllImport {{
-        import: DllImport::ElfVersioned {{ object: "{library}", symbol: "omega_reference_cell", version: "REFERENCE_1.0" }}
+    Build::bind_native::<Source::cell>(builder, {target}, |native|::ForeignBinding::DllImport {{
+        import: |native|::DllImport::ElfVersioned {{ object: "{library}", symbol: "omega_reference_cell", version: "REFERENCE_1.0" }}
     }});
 {forwarding_binding}}}
 "#,
@@ -323,8 +322,8 @@ machine main() reaches TableSource + Operation invokes TableSource invokes Opera
     std::fs::write(root.join("main.omg"), program).unwrap();
     let build = r#"use {omega}/language/core/external_binding.omg as native;
 use {omega}/language/core/reflect/reflect.omg as reflection;
-machine build<'selection>(builder: @mutable Build) {
-    Build::application(builder, "table_calls");
+machine build<'selection>(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "table_calls" };
     Build::bind(builder, TARGET::ProgramEntry, main);
     Build::bind_native::<TableSource::provide>(builder, TARGET,
         |native|::ForeignBinding::DllImport { import: |native|::DllImport::ElfVersioned {

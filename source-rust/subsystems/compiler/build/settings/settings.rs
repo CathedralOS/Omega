@@ -132,7 +132,7 @@ fn read_structural(
         }
         StructuralTypeShape::Sum { cases } => {
             let observed = instance
-                .observe_borrowed_entry(0, path)
+                .observe_storage(terminal_interpreter::TerminalObservationRoot::ReturnedArgument(0), path)
                 .map_err(|error| format!("Build case readback: {error:?}"))?;
             let TerminalStorageObservationValue::Storage(TerminalStorageContents::Case(selected)) =
                 observed
@@ -204,7 +204,7 @@ fn read_fields(
 
 fn read_leaf(instance: &TerminalInstance<'_, '_>, path: &[Path]) -> Result<BuildTimeValue, String> {
     let observed = instance
-        .observe_borrowed_entry(0, path)
+        .observe_storage(terminal_interpreter::TerminalObservationRoot::ReturnedArgument(0), path)
         .map_err(|error| format!("Build field readback: {error:?}"))?;
     match observed {
         TerminalStorageObservationValue::Bytes(bytes) => {

@@ -85,7 +85,7 @@ impl PackageReviewRound<'_> {
             selected_build_machine_identity: checked.selected_build_machine_identity,
             build_evaluation_usage: build.evaluation_usage,
             build_observation_summary: build.observation_summary.clone(),
-            restricted_build_requests: evaluated.restricted_build_requests.clone(),
+            restricted_build_requests: checked.restricted_build_requests,
             semantic_bindings,
             semantic_binding_candidates: checked.semantic_binding_candidates,
             build_handoff,

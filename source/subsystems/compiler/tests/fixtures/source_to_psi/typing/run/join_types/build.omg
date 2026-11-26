@@ -1,0 +1,9 @@
+use main.omg as program;
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "join_types" };
+    Build::bind(builder, linux_x86_64::ProgramEntry, |program|::start);
+    Build::bind(builder, linux_arm64::ProgramEntry, |program|::start);
+    Build::bind(builder, macos_arm64::ProgramEntry, |program|::start);
+    Build::bind(builder, windows_arm64::ProgramEntry, |program|::start);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |program|::start);
+}

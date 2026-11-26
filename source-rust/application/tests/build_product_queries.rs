@@ -3,7 +3,7 @@
 End-to-end CLI check that a Build can ask for a Product declaration by path
 (`omega --check`).
 
-`BuildProduct::entry(@builder.product, "support::setup::launch", slot)` asks
+`BuildDeclarations::entry(@builder.declarations, "support::setup::launch", slot)` asks
 which machine a path names and hands back a description a root binding can
 use (`wiki/spec/build/scoped_execution.md`, "Selecting product declarations
 without executing them"). The path is read in the package of the Build
@@ -90,7 +90,7 @@ fn run_with_kit(root: &Path, library: &str, target: target::TargetProfile) -> Re
         true,
         false,
         &output.path().join("build"),
-        None,
+        Default::default(),
     )
     .map_err(|errors| format!("{errors:?}"))?;
     let product = products
@@ -179,7 +179,7 @@ machine build(builder: @mutable Build) suspends {
     machine wrong(builder: @mutable Build) { Build::application(builder, "wrong"); }
 }
 machine entry(builder: @mutable Build, slot: @[u8]) -> ProductEntryRef {
-    BuildProduct::entry(@builder.product, "kit::launch", slot)
+    BuildDeclarations::entry(@builder.declarations, "kit::launch", slot)
 }
 "#.replace("HOST", host.target_name());
     std::fs::write(root.join("build.omg"), build).unwrap();
@@ -212,7 +212,7 @@ fn a_query_issued_by_a_generated_build_helper_keeps_its_source() {
     let kit = root.join("vendor");
     std::fs::create_dir(&kit).unwrap();
     let generated = r#"public machine select(builder: @mutable Build, slot: @[u8]) -> ProductEntryRef {
-    BuildProduct::entry(@builder.product, "launch", slot)
+    BuildDeclarations::entry(@builder.declarations, "launch", slot)
 }
 "#;
     let fixture = support::repository_root().join("source-rust/subsystems/compiler/tests/fixtures/build/pass/captured_source_generated_constant/build.omg");

@@ -3188,12 +3188,23 @@ pub(crate) mod execution {
             if path
                 .iter()
                 .any(|step| !matches!(step, StructuralPathSegment::Field(_)))
-                || !terminal_semantics::projection_stays_in_inline_storage(
-                    self.structural_types().values(),
-                    root.structural_type,
-                    path,
-                )
             {
+                return Err(malformed());
+            }
+            self.inline_empty_host_value(root, path)
+        }
+
+        /// The caller establishes every active case before reading a projected host value.
+        pub(crate) fn inline_empty_host_value(
+            &self,
+            root: &TerminalStructuralValue,
+            path: &[StructuralPathSegment],
+        ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
+            if !terminal_semantics::projection_stays_in_inline_storage(
+                self.structural_types().values(),
+                root.structural_type,
+                path,
+            ) {
                 return Err(malformed());
             }
             let structural_type = crate::engine::custody::resolve_structural_path_type(

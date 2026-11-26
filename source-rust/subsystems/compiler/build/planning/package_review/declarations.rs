@@ -5,6 +5,7 @@
 
 use super::input::PolicySource;
 use diagnostics::Diagnostic;
+use review_evidence::record::PackageReviewDomainEstablishmentRoute as ReviewedIssuer;
 use review_evidence::record::{
     PackagePolicyDataShape, PackagePolicyDomainShape, PackageReviewByteSequencePredicate,
     PackageReviewContractBinaryOperator, PackageReviewContractCallTarget,
@@ -17,7 +18,7 @@ use review_evidence::record::{
 use semantic_vocabulary::PackageKeyIdentity;
 use source_compiler::representations::source_state::TypedTrees;
 use source_compiler::representations::source_state::data::{DataField, DataMember};
-use source_compiler::representations::source_state::domain::DomainDefinition;
+use source_compiler::representations::source_state::domain::{DomainDefinition, DomainIssuance};
 use source_compiler::representations::source_state::evidence::byte_predicates::{
     ByteSequencePredicate, byte_domain_predicate,
 };
@@ -435,6 +436,47 @@ impl<'a> PolicySource<'a> {
         Ok(rows)
     }
 
+    fn domain_issuance(
+        &self,
+        domain: &DomainDefinition,
+    ) -> Result<Option<Vec<ReviewedIssuer>>, Vec<Diagnostic>> {
+        use source_declarations::DomainEstablishmentRoute as Source;
+
+        if domain.requires_access_retention() {
+            return Err(unavailable("the domain's evaluated access rules"));
+        }
+        let routes = match domain.issuance() {
+            DomainIssuance::Unrestricted => return Ok(None),
+            DomainIssuance::Only(routes) => routes,
+            DomainIssuance::Planned(_) => return Err(unavailable("domain issuance authority")),
+        };
+        let mut result = Vec::with_capacity(routes.len());
+        for route in routes {
+            result.push(match *route {
+                Source::CheckedRequirement {
+                    trait_definition,
+                    requirement,
+                } => ReviewedIssuer::CheckedRequirement {
+                    trait_identity: self.nominal(trait_definition)?,
+                    requirement_identity: self.nominal(requirement)?,
+                },
+                Source::BoundaryRequirement {
+                    boundary_trait,
+                    requirement,
+                } => ReviewedIssuer::BoundaryRequirement {
+                    trait_identity: self.nominal(boundary_trait)?,
+                    requirement_identity: self.nominal(requirement)?,
+                },
+                Source::ExactMachine { machine } => ReviewedIssuer::ExactMachine {
+                    machine_identity: self.nominal(machine)?,
+                },
+            });
+        }
+        result.sort();
+        result.dedup();
+        Ok(Some(result))
+    }
+
     pub(super) fn public_domains(
         &self,
         package: PackageKeyIdentity,
@@ -459,12 +501,6 @@ impl<'a> PolicySource<'a> {
                 return Err(unavailable(
                     "this domain's complete parameter, alias or role contract",
                 ));
-            }
-            // The legacy route list cannot represent a planned policy's
-            // explicit empty issuer set. Never turn that denial into an
-            // unrestricted domain while the policy projection is unserved.
-            if definition.access_policy.is_some() || !definition.establishment_routes.is_empty() {
-                return Err(unavailable("domain issuance authority"));
             }
             if definition.semantic_roles.denotation_dimension.is_some()
                 || definition.semantic_roles.arithmetic_policy.is_some()
@@ -496,7 +532,7 @@ impl<'a> PolicySource<'a> {
                 alias_expansion: None,
                 classification: None,
                 semantic_roles: Vec::new(),
-                establishment_routes: Vec::new(),
+                issuance: self.domain_issuance(definition)?,
             });
         }
         rows.sort_by(|left, right| left.identity.cmp(&right.identity));

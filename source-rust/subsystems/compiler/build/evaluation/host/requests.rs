@@ -14,14 +14,12 @@ carries its own storage lease, and `BuildLog` retains its line leases until
 normal-return settlement charges result custody and publishes the log bytes.
 */
 
-use build_declarations::{
-    BuildDependencySource, BuildEntryPath, BuildRequest, DependencyPurpose, ProjectName,
-    WorkspaceMemberPath,
-};
+use build_declarations::{BuildDependencySource, BuildRequest, DependencyPurpose, ProjectName};
 use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
 mod input_bindings;
 mod output;
 mod reach;
+mod workspace;
 pub use input_bindings::FrozenBuildBinding;
 use input_bindings::InputBindings;
 pub(crate) use output::BuildRequestOutput;
@@ -55,8 +53,11 @@ impl IssuedBuildRequest {
 }
 
 pub struct TerminalBuildRequestHost {
+    programs: Arc<super::programs::ProgramInstallation>,
+    filesystem: Arc<super::filesystem::TerminalBuildFilesystemHost>,
     inputs: InputBindings,
     reach: reach::ReachSets,
+    workspace: workspace::WorkspaceCatalogs,
     artifact: terminal_codec::TerminalExecutionIdentity,
     calls: Arc<[TerminalBuildRequestCall]>,
     original: TerminalStructuralValue,
@@ -106,9 +107,11 @@ pub struct BuildDependencyPreparation {
 }
 
 impl TerminalBuildRequestHost {
-    pub fn new(
+    pub(crate) fn new(
         artifact: terminal_codec::TerminalExecutionView<'_>,
         requests: &TerminalBuildRequests,
+        programs: Arc<super::programs::ProgramInstallation>,
+        filesystem: Arc<super::filesystem::TerminalBuildFilesystemHost>,
         original: TerminalStructuralValue,
         diagnostic_output_bytes: Option<u64>,
         account: Option<&EvaluationInvocationAccount>,
@@ -123,9 +126,12 @@ impl TerminalBuildRequestHost {
             None
         };
         Ok(Arc::new(Self {
+            programs,
+            filesystem,
             artifact: artifact.custody_identity(),
             calls: Arc::clone(calls),
             inputs: InputBindings::new(libraries),
+            workspace: Default::default(),
             reach: reach::ReachSets::from_module(
                 artifact.module(),
                 calls
@@ -144,6 +150,13 @@ impl TerminalBuildRequestHost {
 
     pub(crate) fn reflected_services(&self) -> Arc<ReflectedServices> {
         Arc::clone(&self.reach.reflections)
+    }
+
+    pub(crate) fn workspace_members(
+        &self,
+        marker: &TerminalStructuralValue,
+    ) -> Result<Vec<build_declarations::WorkspaceMemberPath>, String> {
+        self.workspace.paths(marker)
     }
 
     pub fn adapter(
@@ -362,6 +375,56 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
         ))
     }
 
+    fn storage_requirements(
+        &self,
+        boundary: semantic_vocabulary::BoundaryMachineId,
+        _: &[TerminalScalarValue],
+    ) -> terminal_interpreter::TerminalCallStorageRequirements<'_> {
+        let program = self.host.calls.iter().any(|call| {
+            call.site.boundary == boundary && matches!(call.action, Operation::LaunchProgram { .. })
+        });
+        terminal_interpreter::TerminalCallStorageRequirements {
+            arguments: if program { &[0] } else { &[] },
+            original: false,
+        }
+    }
+
+    fn handle_effect_with_buffers(
+        &mut self,
+        effect: &TerminalEffect,
+        bytes: &mut [terminal_interpreter::TerminalBoundaryByteBuffer],
+        storage: &mut [terminal_interpreter::TerminalBoundaryStorageBuffer],
+    ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
+        crate::host::require_effect_owner(effect, &self.host.artifact)?;
+        let launch = self.host.calls.iter().find_map(|call| {
+            if crate::host::is_call_at(effect, call.site)
+                && let Operation::LaunchProgram { program } = call.action
+            {
+                Some(program)
+            } else {
+                None
+            }
+        });
+        if let Some(program) = launch {
+            if !bytes.is_empty() {
+                return Err(TerminalEffectRejection::new(
+                    "program arguments may only borrow immutable byte views",
+                ));
+            }
+            return self
+                .host
+                .programs
+                .run(program, storage, &self.host.filesystem)
+                .map_err(TerminalEffectRejection::new);
+        }
+        if !bytes.is_empty() || !storage.is_empty() {
+            return Err(TerminalEffectRejection::new(
+                "unexpected storage in a Build request",
+            ));
+        }
+        self.handle_effect_result(effect)
+    }
+
     fn handle_effect_result(
         &mut self,
         effect: &TerminalEffect,
@@ -457,6 +520,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                 | Operation::InputBinding
                 | Operation::AddBinding
                 | Operation::ExtendReach
+                | Operation::ExtendWorkspace
         );
         if structural_arguments.first() != Some(&self.host.original)
             || byte_sequence_arguments.first() != Some(&None)
@@ -507,14 +571,13 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             }
         };
         let (scalar_count, structural_count) = match call.action {
+            Operation::LaunchProgram { .. } => {
+                return Err(refuse("program call lost its borrowed argument list"));
+            }
             Operation::ArtifactOnly => (0, 1),
-            Operation::Package
-            | Operation::Application
-            | Operation::Member
-            | Operation::BuildEntry => (0, 2),
             Operation::InputBinding => (0, 2),
             Operation::AddBinding => (0, 3),
-            Operation::ExtendReach => (0, 3),
+            Operation::ExtendReach | Operation::ExtendWorkspace => (0, 3),
             Operation::PathDependency => (2, 4),
             Operation::GitDependency => (3, 6),
             Operation::ConfigureTestFixture
@@ -542,6 +605,28 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                 .select(
                     text(1)?,
                     binding.structural_type,
+                    self.host.account.as_ref(),
+                )
+                .map(TerminalEffectResult::Structural);
+        }
+        if call.action == Operation::ExtendWorkspace {
+            let terminal_psi::BoundaryMachineResult::Structural(result) = result else {
+                return Err(refuse(
+                    "workspace member extension requires a snapshot result",
+                ));
+            };
+            let [None, None, Some(path)] = byte_sequence_arguments.as_slice() else {
+                return Err(refuse(
+                    "workspace member extension requires its pathname bytes",
+                ));
+            };
+            return self
+                .host
+                .workspace
+                .extend(
+                    &structural_arguments[1],
+                    path,
+                    result.structural_type,
                     self.host.account.as_ref(),
                 )
                 .map(TerminalEffectResult::Structural);
@@ -596,11 +681,6 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             }
         };
         match call.action {
-            Operation::Package | Operation::Application => name(text(1)?)?,
-            Operation::BuildEntry => BuildEntryPath::validate(text(1)?).map_err(refuse)?,
-            Operation::Member if !WorkspaceMemberPath::is_valid(text(1)?) => {
-                return Err(refuse("Build workspace member path is not canonical"));
-            }
             Operation::PathDependency | Operation::GitDependency => {
                 flag(0)?;
                 if flag(1)? {
@@ -673,6 +753,9 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
         let project_name =
             |value: &str| ProjectName::parse(copy(value)?).map_err(TerminalEffectRejection::new);
         let request = match call.action {
+            Operation::LaunchProgram { .. } => {
+                return Err(refuse("program call lost its borrowed argument list"));
+            }
             Operation::ConfigureTestFixture
             | Operation::ConfigureTestEngine
             | Operation::SandboxWrite
@@ -682,17 +765,8 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             | Operation::PublishSource => {
                 return Err(refuse("Build request did not complete its host request"));
             }
-            Operation::Package => BuildRequest::Package(project_name(text(1)?)?),
-            Operation::Application => BuildRequest::Application(project_name(text(1)?)?),
-            Operation::Member => BuildRequest::Member(
-                WorkspaceMemberPath::parse(copy(text(1)?)?)
-                    .map_err(|error| TerminalEffectRejection::new(error.to_string()))?,
-            ),
-            Operation::BuildEntry => {
-                BuildRequest::BuildEntry(BuildEntryPath::parse(copy(text(1)?)?).map_err(refuse)?)
-            }
             Operation::ArtifactOnly => BuildRequest::ArtifactOnly,
-            Operation::InputBinding | Operation::ExtendReach => {
+            Operation::InputBinding | Operation::ExtendReach | Operation::ExtendWorkspace => {
                 return Err(refuse(
                     "Build input binding or service set already returned",
                 ));

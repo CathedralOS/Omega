@@ -59,7 +59,7 @@ unchecked declaration.
 
 ## Build::validate
 
-`Build::validate(builder: @mutable Build, dependency: @DependencyRegistration)`
+`Build::validate(builder: @mutable BuildPlan, dependency: @DependencyRegistration)`
 borrows an exact dependency registration and records a full-package validation
 request. It performs no alias-string lookup and adds no dependency identifier
 syntax. Both directly selected product libraries and the Build libraries supplied to
@@ -69,8 +69,8 @@ the exact registration available to the builder. It cannot add an import.
 ```omega
 use {omega}/build/dependency.omg;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "app");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "app" };
     let mutable description: DependencyDescription = |dependency|::from_source(Source::Path { location: "producer" });
     |dependency|::with_alias(@mutable description, "producer");
     let registered: DependencyRegistration = Build::dependency(builder, description);

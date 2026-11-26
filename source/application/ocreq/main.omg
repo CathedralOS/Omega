@@ -1,61 +1,54 @@
 // Read one sealed OCREQ V1 request and publish its OCOUT frame and exit tag.
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
-use system\ByteRead;
-use system\Console;
-use compiler_request\Outcome;
-use compiler_request\Request;
-use compiler_request\clear;
-use compiler_request\compile_request;
-use compiler_request\frame_byte;
-use compiler_request\frame_length;
-use compiler_request\outcome_tag_value;
-use compiler_request\request_stage;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
+use {compiler_request}/request.omg;
+use {compiler_request}/outcome.omg;
+use {compiler_request}/protocol.omg;
 
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput crashes Trap blocks {
-    let mutable request: Request;
-    clear(@mutable request);
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput crashes Trap blocks {
+    let mutable request: |request|::Request;
+    |request|::clear(@mutable request);
     transition { _ -> block read(@mutable request) }
 
-    machine read(request: @mutable Request) {
-        let input: ByteRead = block Console::read_byte();
+    machine read(request: @mutable |request|::Request) {
+        let input: |console|::ByteRead = block |console|::Console::read_byte();
         transition input {
-            ByteRead::Error -> ProcessExit::exit_process(74),
-            ByteRead::Byte { value } -> block stage(request, value),
-            ByteRead::Eof -> publish(request)
+            |console|::ByteRead::Error -> |process_exit|::ProcessExit::exit_process(74),
+            |console|::ByteRead::Byte { value } -> block stage(request, value),
+            |console|::ByteRead::Eof -> publish(request)
         }
     }
 
-    machine stage(request: @mutable Request, value: i32)
+    machine stage(request: @mutable |request|::Request, value: i32)
     requires value >= 0 && value <= 255
     {
-        request_stage(request, value as u8);
+        |request|::request_stage(request, value as u8);
         transition { _ -> block read(request) }
     }
 
-    machine publish(request: @Request) {
-        let outcome: Outcome = compile_request(request);
+    machine publish(request: @|request|::Request) {
+        let outcome: |outcome|::Outcome = |protocol|::compile_request(request);
         write_frame(outcome);
-        let tag: u8 = outcome_tag_value(outcome.tag);
-        ProcessExit::exit_process(tag as i32);
+        let tag: u8 = |outcome|::outcome_tag_value(outcome.tag);
+        |process_exit|::ProcessExit::exit_process(tag as i32);
     }
 }
 
-machine write_frame(outcome: Outcome) reaches StandardOutput crashes Trap {
+machine write_frame(outcome: |outcome|::Outcome) reaches |process_authority|::StandardOutput crashes Trap {
     transition { _ -> next(outcome, 0 as +Trapping) }
 
-    machine next(outcome: Outcome, index: u64 in Trapping) {
-        let length: u64 in Trapping = frame_length(outcome);
+    machine next(outcome: |outcome|::Outcome, index: u64 in Trapping) {
+        let length: u64 in Trapping = |outcome|::frame_length(outcome);
         transition index < length {
             true -> write(outcome, index),
             _ -> done()
         }
     }
 
-    machine write(outcome: Outcome, index: u64 in Trapping) {
-        let value: u8 = frame_byte(outcome, index);
-        Console::write_byte(value as i32);
+    machine write(outcome: |outcome|::Outcome, index: u64 in Trapping) {
+        let value: u8 = |outcome|::frame_byte(outcome, index);
+        |console|::Console::write_byte(value as i32);
         transition { _ -> next(outcome, index + 1) }
     }
 

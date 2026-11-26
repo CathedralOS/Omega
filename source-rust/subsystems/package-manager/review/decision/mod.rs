@@ -18,7 +18,8 @@
 mod document;
 
 pub(crate) use document::{
-    PackagePolicyReviewError, recover_package_policy_review, render_package_policy_review,
+    PackagePolicyReviewError, recover_package_policy_review, render_build_request,
+    render_package_policy_review,
 };
 
 use crate::review::timings;
