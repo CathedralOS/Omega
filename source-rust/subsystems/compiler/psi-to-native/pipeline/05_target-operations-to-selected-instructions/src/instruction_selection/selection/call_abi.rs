@@ -951,7 +951,7 @@ pub(crate) mod normalized_foreign {
         match call.binding.mechanism {
             target_vocabulary::NormalizedForeignCallMechanism::Import { .. }
             | target_vocabulary::NormalizedForeignCallMechanism::CompilerImport { .. }
-            | target_vocabulary::NormalizedForeignCallMechanism::HostedImport { .. }
+            | target_vocabulary::NormalizedForeignCallMechanism::BuildImport { .. }
             | target_vocabulary::NormalizedForeignCallMechanism::Component { .. }
             | target_vocabulary::NormalizedForeignCallMechanism::Table { .. } => {
                 register_model::RegisterConstraintFamily::Call

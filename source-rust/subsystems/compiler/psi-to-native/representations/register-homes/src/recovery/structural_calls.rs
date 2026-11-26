@@ -1025,7 +1025,8 @@ fn decode_call_binding(
         let locator = locator.ok_or(FixedViewCopyDecodeError::InvalidForeignTargetProfile)?;
         let binding = NormalizedForeignCallBinding {
             boundary_entry_plan: BoundaryEntryPlan { call, state },
-            mechanism: target_vocabulary::NormalizedForeignCallMechanism::HostedImport {
+            mechanism: target_vocabulary::NormalizedForeignCallMechanism::BuildImport {
+                stack: target_vocabulary::NativeBindingStack::Hosted,
                 locator,
                 receipt,
                 requirement_identity,
@@ -1092,7 +1093,7 @@ fn decode_call_binding(
                     byte_offset,
                     table_operand,
                     dispatch_only,
-                    same_stack_contribution: contribution,
+                    source: target_vocabulary::TableBindingSource::Provider(contribution),
                 }
             }
             _ => return Err(FixedViewCopyDecodeError::InvalidForeignTargetProfile),
@@ -2166,7 +2167,7 @@ mod tests {
         source.call.provider_execution =
             target_vocabulary::ExternalExecutionBinding::NativeBinding(execution);
         source.call.binding.mechanism =
-            target_vocabulary::NormalizedForeignCallMechanism::HostedImport {
+            target_vocabulary::NormalizedForeignCallMechanism::BuildImport {
                 locator,
                 receipt: execution.receipt(),
                 requirement_identity: "Foreign::leaf".into(),
@@ -2193,7 +2194,7 @@ mod tests {
                 Err(FixedViewCopyDecodeError::InvalidProviderExecution)
             );
         }
-        let target_vocabulary::NormalizedForeignCallMechanism::HostedImport { receipt, .. } =
+        let target_vocabulary::NormalizedForeignCallMechanism::BuildImport { receipt, .. } =
             &mut source.call.binding.mechanism
         else {
             unreachable!()

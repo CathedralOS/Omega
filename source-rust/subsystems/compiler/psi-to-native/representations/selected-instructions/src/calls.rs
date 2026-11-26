@@ -101,7 +101,7 @@ pub mod constraints {
         let expected_family = match call.binding.mechanism {
             NormalizedForeignCallMechanism::Import { .. }
             | NormalizedForeignCallMechanism::CompilerImport { .. }
-            | NormalizedForeignCallMechanism::HostedImport { .. }
+            | NormalizedForeignCallMechanism::BuildImport { .. }
             | NormalizedForeignCallMechanism::Component { .. }
             | NormalizedForeignCallMechanism::Table { .. } => RegisterConstraintFamily::Call,
             NormalizedForeignCallMechanism::SystemCall(_) => RegisterConstraintFamily::SystemCall,
@@ -900,7 +900,7 @@ pub mod normalized_foreign {
                             ),
                         binding: NormalizedForeignCallBinding {
                             boundary_entry_plan: plan,
-                            mechanism: NormalizedForeignCallMechanism::HostedImport {
+                            mechanism: NormalizedForeignCallMechanism::BuildImport {
                                 locator,
                                 receipt: [1; 32],
                                 requirement_identity: "Foreign::leaf".to_owned(),

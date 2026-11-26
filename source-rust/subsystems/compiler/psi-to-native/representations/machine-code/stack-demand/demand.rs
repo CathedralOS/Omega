@@ -126,8 +126,16 @@ fn visit(
         peak = peak.max(composed);
     }
     for call in &function.foreign_calls {
-        let contribution = match &call.extent {
-            ForeignStackExtent::Admitted(contribution) => contribution,
+        let foreign_bytes = match &call.extent {
+            ForeignStackExtent::Admitted(contribution) => {
+                composition.reports.insert(contribution.report_identity());
+                composition.commitments.insert(contribution.commitment());
+                contribution.bytes()
+            }
+            ForeignStackExtent::NativeBinding { bytes, commitment } => {
+                composition.commitments.insert(*commitment);
+                bytes.get()
+            }
             extent => {
                 if let ForeignStackExtent::CompilerImport(import) = extent {
                     composition.compiler_imports.insert(*import);
@@ -160,15 +168,13 @@ fn visit(
             callback_peak = callback_peak.max(demand.ceiling_bytes);
         }
         let composed = u64::from(call.caller_live_bytes)
-            .checked_add(contribution.bytes())
+            .checked_add(foreign_bytes)
             .and_then(|bytes| bytes.checked_add(callback_peak))
             .ok_or(Error::TerminalStackCompositionOverflow {
                 caller: machine,
                 owner: call.owner,
             })?;
         peak = peak.max(composed);
-        composition.reports.insert(contribution.report_identity());
-        composition.commitments.insert(contribution.commitment());
     }
     composition.active[index] = false;
     composition.peaks[index] = Some(peak);

@@ -28,20 +28,29 @@ pub(crate) use application_identity::callback_declarations::BOUNDARY_CALLBACK_CA
 
 pub(crate) const CALLBACK_FIELD_PATH_CAPACITY: usize = 16;
 
-pub fn decode_boundary_plan_result(value: &BuildTimeValue) -> Result<BoundaryPlanResult, String> {
+pub fn decode_boundary_plan_result(
+    value: &BuildTimeValue,
+) -> Result<(BoundaryPlanResult, Option<NativeParameterId>), String> {
     let (variant, payload) = case_parts(value, "BoundaryPlanResult")?;
     match variant {
-        "Accepted" => Ok(BoundaryPlanResult::Accepted(decode_boundary_entry_plan(
-            field(payload, "plan", "Accepted")?,
-        )?)),
+        "Accepted" => {
+            let plan = field(payload, "plan", "Accepted")?;
+            let fields = struct_parts(plan, "BoundaryEntryPlan")?;
+            let (role, argument) = case_parts(field(fields, "table_arguments", "BoundaryEntryPlan")?, "TableArguments")?;
+            let dispatch = match role {
+                "PassAll" => None,
+                "DispatchOnly" => Some(NativeParameterId::new(uint(field(argument, "parameter", role)?, "dispatch parameter")?)
+                    .ok_or("DispatchOnly requires a nonzero native parameter identity")?),
+                other => return Err(format!("unknown table argument role `{other}`")),
+            };
+            Ok((BoundaryPlanResult::Accepted(decode_boundary_entry_plan(plan)?), dispatch))
+        }
         "Rejected" => {
             let reason = struct_parts(field(payload, "reason", "Rejected")?, "rejection")?;
             let bytes = text(field(reason, "reason", "CallingPolicyRejection")?, "reason")?;
             let reason = String::from_utf8(bytes.to_vec())
                 .map_err(|_| "CallingPolicyRejection.reason is not valid UTF-8".to_owned())?;
-            Ok(BoundaryPlanResult::Rejected(CallingPolicyRejection::new(
-                reason,
-            )))
+            Ok((BoundaryPlanResult::Rejected(CallingPolicyRejection::new(reason)), None))
         }
         other => Err(format!(
             "BoundaryPlanResult case `{other}` is outside the compiler-owned vocabulary"

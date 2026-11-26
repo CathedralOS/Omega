@@ -15976,7 +15976,7 @@ mod normalized_foreign_call {
                             byte_offset,
                             table_operand,
                             dispatch_only: false,
-                            same_stack_contribution,
+                            source: target_operations::TableBindingSource::Provider(same_stack_contribution),
                         };
                     let encoded = encode_x86_64_selected_table_call_form(
                         &record,
@@ -16060,7 +16060,7 @@ mod normalized_foreign_call {
                             byte_offset: 16,
                             table_operand: wire_count as u32,
                             dispatch_only: true,
-                            same_stack_contribution,
+                            source: target_operations::TableBindingSource::Provider(same_stack_contribution),
                         };
                     let constraint =
                         crate::machine_effects::normalized_foreign_constraint(&record).unwrap();

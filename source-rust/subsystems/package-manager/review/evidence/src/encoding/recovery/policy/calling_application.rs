@@ -50,6 +50,7 @@ pub(in crate::encoding::recovery) fn application(
             })
         })?,
         semantic_result: reader.option(type_identity)?,
+        dispatch_only_formal: reader.option(|reader| reader.u32())?,
         native_parameters: reader.sequence(15, |reader| {
             Ok(PackagePolicyNativeParameter {
                 name: reader.string()?,

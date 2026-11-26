@@ -1,7 +1,7 @@
 //! Settle the numeric operations and native binding descriptions needed by
 //! package review. Only the selected execution's own rosters grant runtime
 //! supply; a library may expose additional authored declarations for review.
-use crate::calling_policy_plans::{CallingProgram, NativeCallingResults};
+use crate::calling_policy_plans::CallingProgram;
 use crate::target_supply::{NormalizedNativeSupply, SelectedProviderRealization};
 use diagnostics::Diagnostic;
 use evaluation_receipts::NativeBindingMaterialization;
@@ -16,9 +16,13 @@ pub(crate) struct PreparedReview {
 
 pub(super) fn prepare(
     program: &CallingProgram,
-    target: target::TargetProfile,
     requirements: PackageReviewRequirements,
-    defaults: &NativeCallingResults,
+    plan_calling: impl FnOnce(
+        &[NormalizedNativeSupply],
+    ) -> Result<
+        Vec<calling_conventions::BoundaryCallingApplication>,
+        Vec<Diagnostic>,
+    >,
 ) -> PreparedReview {
     let module = program.artifact.semantic_module();
     let bindings = requirements.bindings.and_then(|bindings| {
@@ -51,13 +55,7 @@ pub(super) fn prepare(
                 materialization,
             });
         }
-        let calling = crate::calling_policy_plans::native_calling_results(
-            target,
-            program,
-            &normalized,
-            Some(defaults),
-        )
-        .map(|rows| rows.applications);
+        let calling = plan_calling(&normalized);
         Ok(ReviewedNativeBindings {
             identities: identities.build(),
             rows,

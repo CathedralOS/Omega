@@ -43,7 +43,8 @@ impl PackagePolicyNativeBinding {
     }
     pub fn producer(&self) -> Option<&crate::record::PackagePolicyEvaluatedBindingProducer> {
         match &self.binding {
-            PackagePolicyProviderBinding::Import { producer, .. } => Some(producer),
+            PackagePolicyProviderBinding::Import { producer, .. }
+            | PackagePolicyProviderBinding::FunctionField { producer, .. } => Some(producer),
             PackagePolicyProviderBinding::Syscall {
                 evaluated: Some(evaluated),
                 ..
@@ -85,6 +86,22 @@ impl PackagePolicyNativeBinding {
         }
         if calling.abi.requirement_identity == calling.requirement.path {
             return Err("native inventory has no complete declaration ABI key");
+        }
+        if let PackagePolicyProviderBinding::FunctionField { selector, .. } = &self.binding {
+            let expected = self
+                .application
+                .as_deref()
+                .unwrap_or(&calling.abi.requirement_identity);
+            if selector.table.requirement_application != expected.as_bytes()
+                || selector.table.declaration_position >= self.method.parameter_count as u64
+                || calling
+                    .dispatch_only_formal
+                    .is_some_and(|formal| u64::from(formal) != selector.table.declaration_position)
+            {
+                return Err("function table selects a formal outside its reviewed requirement");
+            }
+        } else if calling.dispatch_only_formal.is_some() {
+            return Err("native argument is only omitted for table dispatch");
         }
         crate::record::package::validate_native_service_method(&self.method, target)?;
         self.binding.validate_native(target)

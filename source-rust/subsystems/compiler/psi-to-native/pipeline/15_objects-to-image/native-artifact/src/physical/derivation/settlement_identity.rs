@@ -120,13 +120,15 @@ pub(crate) fn admitted_provider_boundary_trait_settlement_identity(
             digest.raw(selected_plan);
             hash_bytes(&mut digest, requirement_identity.as_bytes());
         }
-        target_vocabulary::NormalizedForeignCallMechanism::HostedImport {
+        target_vocabulary::NormalizedForeignCallMechanism::BuildImport {
+            stack,
             locator,
             receipt,
             requirement_identity,
         } => {
             digest.byte(5);
             digest.raw(&locator.identity_digest().as_bytes());
+            digest.raw(&stack.commitment());
             digest.raw(receipt);
             hash_bytes(&mut digest, requirement_identity.as_bytes());
         }
@@ -135,14 +137,14 @@ pub(crate) fn admitted_provider_boundary_trait_settlement_identity(
             byte_offset,
             table_operand,
             dispatch_only,
-            same_stack_contribution,
+            source,
         } => {
             digest.byte(3);
             hash_bytes(&mut digest, target.target_name().as_bytes());
             digest.raw(&byte_offset.to_le_bytes());
             digest.raw(&table_operand.to_le_bytes());
             digest.byte(u8::from(*dispatch_only));
-            digest.raw(&same_stack_contribution.commitment().as_bytes());
+            digest.raw(&source.commitment());
         }
         target_vocabulary::NormalizedForeignCallMechanism::Import {
             locator,

@@ -1267,7 +1267,8 @@ mod tests {
                 .unwrap()
                 .plan()
                 .clone(),
-                mechanism: target_vocabulary::NormalizedForeignCallMechanism::HostedImport {
+                mechanism: target_vocabulary::NormalizedForeignCallMechanism::BuildImport {
+                    stack: target_vocabulary::NativeBindingStack::Hosted,
                     locator,
                     receipt: [1; 32],
                     requirement_identity: "positioned filesystem test".into(),

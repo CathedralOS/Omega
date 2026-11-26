@@ -95,6 +95,14 @@ pub(crate) fn encode_application(
         application.semantic_result.as_ref(),
         signature_type,
     )?;
+    encoder.option_field(
+        "dispatch_only_formal",
+        application.dispatch_only_formal.as_ref(),
+        |encoder, ordinal| {
+            encoder.u32(*ordinal);
+            Ok(())
+        },
+    )?;
     encoder.field("native_parameters", |encoder| {
         encoder.sequence(&application.native_parameters, |encoder, parameter| {
             encoder.field("name", |encoder| encoder.string(&parameter.name))?;

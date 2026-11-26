@@ -389,6 +389,11 @@ fn binding_policy(
     producer: PackagePolicyEvaluatedBindingProducer,
 ) -> PackagePolicyProviderBinding {
     match binding {
+        EvaluatedNativeBinding::FunctionField(field) => PackagePolicyProviderBinding::FunctionField {
+            target: field.target().identity().as_str().to_owned(),
+            selector: Box::new(field.selector().clone()),
+            producer,
+        },
         EvaluatedNativeBinding::Import(import) => {
             let locator = import.locator();
             PackagePolicyProviderBinding::Import {

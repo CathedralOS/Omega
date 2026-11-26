@@ -118,6 +118,12 @@ does not supply a second policy or change that mapping. Missing, duplicate,
 wrong-requirement or incompatible mappings reject; a native binding with no
 table lookup cannot leave a dispatch-only formal unaccounted for.
 
+The policy returns `BoundaryEntryPlan.table_arguments`. `TableArguments::PassAll`
+places every argument. `TableArguments::DispatchOnly { parameter: id }`
+takes the selected formal’s `NativeParameterIdentity.identity` from this
+invocation’s signature. A private callback or an identity from a different
+requirement cannot supply the lookup formal.
+
 All other parameters keep their existing order and callback mappings. There is
 no dispatch-prefix rule or general argument-reordering facility. Evaluation,
 readability, lifetime, authority and memory effects of the selected table remain
