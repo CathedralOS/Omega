@@ -203,7 +203,7 @@ impl Program<'_> {
                 id,
                 Construct::Machine,
                 Unserved::Declaration(
-                    "content requires nonnegative proof arithmetic over u8/u16/u32/u64/addr subject fields",
+                    "content requires nonnegative proof arithmetic over u8/u16/u32/u64/address subject fields",
                 ),
             )
         };

@@ -371,7 +371,7 @@ impl Program<'_> {
                 }
                 ExpressionNode::Cast(_) => return Err(unavailable("cast in a mathematical term")),
                 // counts_and_addresses.md: valid geometry proves
-                // `embed(base) + embed(length) <= addr::Bound` "in unbounded
+                // `embed(base) + embed(length) <= address::Bound` "in unbounded
                 // proof integers". The bound is one past the largest
                 // address. The scope says which address carrier: the
                 // ordinary lowered one, or the exact retained model of a

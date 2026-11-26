@@ -11,7 +11,7 @@ use uefi_x86_64_handoff.omg as boot;
 // ProgramStorageEntry::enter. The ABI alone conveys no storage grant or
 // firmware-service authority.
 public data EfiImageHandle {
-    raw: addr;
+    raw: address;
 }
 
 public data EfiSystemTable = |tables|::EfiSystemTable;

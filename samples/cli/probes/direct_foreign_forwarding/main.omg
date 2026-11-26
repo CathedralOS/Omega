@@ -7,7 +7,7 @@ data NativeProcess {}
 data NativeUnused {}
 // Checked source may retain a table declaration beyond this target's native
 // record-layout envelope when no executed call demands its realization.
-data UnusedWideTable { padding: [u8; 65536]; invoke: addr; }
+data UnusedWideTable { padding: [u8; 65536]; invoke: address; }
 boundary trait UnusedWideCall { machine invoke(table: @UnusedWideTable) -> u32 reaches none crashes none; }
 windows_x86_64 machine UnusedWideTable::invoke(table: @UnusedWideTable) -> u32
 satisfies UnusedWideCall::invoke via ForeignBinding::TableFunction(invoke);

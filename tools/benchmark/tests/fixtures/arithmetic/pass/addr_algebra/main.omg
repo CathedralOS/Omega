@@ -2,28 +2,28 @@
 // Address offsets keep the count carrier and exact-fit requirement in both orders.
 data Main { marker: u64; }
 machine exercise(state: @mutable Main) {
-    let a: addr = 4096;
-    let b: addr = 4000;
-    let back: addr = a - 16;
+    let a: address = 4096;
+    let b: address = 4000;
+    let back: address = a - 16;
     let distance: u64 = a - b;
     state.marker = distance;
 }
-machine advance(base: addr, count: u64) -> addr
-requires embed(base) + embed(count) < addr::Bound
+machine advance(base: address, count: u64) -> address
+requires embed(base) + embed(count) < address::Bound
 { base + count }
-machine advance_reversed(count: u64, base: addr) -> addr
-requires embed(base) + embed(count) < addr::Bound
+machine advance_reversed(count: u64, base: address) -> address
+requires embed(base) + embed(count) < address::Bound
 { count + base }
 machine main() crashes Trap {
     let mutable state: Main = Main { marker: 7 };
     exercise(@mutable state);
-    let base: addr = 4096;
+    let base: address = 4096;
     let count: u64 = 17;
-    let forward: addr = advance(base, count);
-    let reverse_base: addr = 8192;
-    let reversed: addr = advance_reversed(count, reverse_base);
-    let anonymous_right: addr = base + 17;
-    let anonymous_left: addr = 17 + base;
+    let forward: address = advance(base, count);
+    let reverse_base: address = 8192;
+    let reversed: address = advance_reversed(count, reverse_base);
+    let anonymous_right: address = base + 17;
+    let anonymous_left: address = 17 + base;
     transition state.marker == 96 && forward == 4113 && reversed == 8209 &&
         anonymous_right == 4113 && anonymous_left == 4113 {
         true -> done(),

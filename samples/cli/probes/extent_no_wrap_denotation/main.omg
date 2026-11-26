@@ -3,7 +3,7 @@
 // machine `requires`. The caller must prove base + length
 // does not wrap the address space.
 //
-//   * `machine geometry(base: addr, length: u64)
+//   * `machine geometry(base: address, length: u64)
 //     requires no_wrap(base, length)` — denotation
 //     requires on raw address + extent params.
 //   * `forwarded` carries the same requires and its call
@@ -11,7 +11,7 @@
 //   * Learning: `no_wrap` is a proof-only mathematical
 //     term — it cannot be a transition subject ("cannot
 //     be used as executable values or statements") and
-//     literal arguments cannot reach it at all (addr vs
+//     literal arguments cannot reach it at all (address vs
 //     u64 mathematical-application mismatch); only a
 //     caller's own requires/domain guarantee discharges
 //     the callee's clause.
@@ -21,11 +21,11 @@
 
 use omega\language\core\no_wrap;
 
-machine geometry(base: addr, length: u64)
+machine geometry(base: address, length: u64)
 requires no_wrap(base, length)
 {}
 
-machine forwarded(base: addr, length: u64)
+machine forwarded(base: address, length: u64)
 requires no_wrap(base, length)
 {
     geometry(base, length);

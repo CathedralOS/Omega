@@ -543,7 +543,7 @@ mod codec_tests {
         let expression =
             PackageReviewContractExpression::Nominal(crate::record::PackageReviewNominalIdentity {
                 owner: crate::record::PackageReviewNominalOwner::Unresolved,
-                path: "addr::Bound".to_owned(),
+                path: "address::Bound".to_owned(),
             });
         let mut encoder = Encoder::bounded(64);
         assert!(encode_contract_expression(&mut encoder, &expression).is_err());

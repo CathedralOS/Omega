@@ -9,8 +9,8 @@
 //   * `satisfies Mixed::via_import via import_binding()`
 //     — a machine call as the via-target (evaluated
 //     binding, not a literal).
-//   * `data NativeTable { reserved0: addr; ...;
-//     via_vtable: addr; }` — addr-typed vtable layout.
+//   * `data NativeTable { reserved0: address; ...;
+//     via_vtable: address; }` — address-typed vtable layout.
 //
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.
@@ -37,7 +37,7 @@ macos_arm64 machine import_binding() -> ForeignBinding<17, 5, 0> {
 
 macos_arm64 machine import_leaf() satisfies Mixed::via_import via import_binding();
 
-data NativeTable { reserved0: addr; reserved1: addr; via_vtable: addr; }
+data NativeTable { reserved0: address; reserved1: address; via_vtable: address; }
 
 macos_arm64 machine NativeTable::vtable_leaf() satisfies Mixed::via_vtable via ForeignBinding::VtableField(via_vtable);
 

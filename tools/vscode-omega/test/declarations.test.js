@@ -124,7 +124,7 @@ test('no reference inside comments, strings, keywords or lifetimes', () => {
 test('local bindings: let, parameter and generic parameter', () => {
   const source = (body) => [
     'machine view_from_profile<View, const Bound: u64>(main: @mutable Main, length: u64) -> u64 {',
-    '    let base: addr = main.base;',
+    '    let base: address = main.base;',
     '    if length > 0 {',
     '        let inner: u64 = 1;',
     '    }',

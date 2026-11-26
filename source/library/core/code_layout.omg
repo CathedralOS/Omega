@@ -1,11 +1,11 @@
 // Compiler-known late-native query result. These are ordinary runtime
 // carriers, not semantic constants or a grant of authority over code storage.
 public data CodeRegion [copy] {
-    base: addr;
+    base: address;
     length: u64;
 }
 
 public data CodeLayout<'code> [copy] {
-    entry: addr;
+    entry: address;
     regions: @'code [CodeRegion];
 }

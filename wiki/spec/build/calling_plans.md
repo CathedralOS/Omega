@@ -62,7 +62,7 @@ The compiler checks the plan against the signature and target and uses it to
 emit calls and entries.
 
 The `system\calling` vocabulary describes normalized signatures, placement, machine
-state, acceptance, and rejection. Its quantities use `u64`, not `addr`; narrowing
+state, acceptance, and rejection. Its quantities use `u64`, not `address`; narrowing
 to a compiler field requires a checked range conversion. Policies choose from
 closed primitives; they cannot emit instructions, supply relocation bytes,
 inspect private carriers, or bypass validation. Extending the primitive

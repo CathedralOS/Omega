@@ -57,7 +57,7 @@ MemorySupply satisfies |layout|::ResourceProfileSupply<TestMemory> {
 }
 
 boundary trait NativeAllocation {
-    machine allocate(count: u64, width: u64) -> addr reaches none crashes none;
+    machine allocate(count: u64, width: u64) -> address reaches none crashes none;
 }
 TestRoots satisfies |extent|::ExtentRootProvider {
     machine grant(root: |extent|::Extent) -> |extent|::Extent { root }
@@ -75,9 +75,9 @@ TestVacant satisfies |extent|::VacantContentTransfer {
 // Place: const_name.
 const CAPACITY: u64 = 64;
 machine main() crashes Trap {
-    let address: addr = NativeAllocation::allocate(1, CAPACITY);
+    let address: address = NativeAllocation::allocate(1, CAPACITY);
     transition address != 0 { true -> allocated(address), false -> bad() }
-    machine allocated(address: addr) {
+    machine allocated(address: address) {
         let granted: |extent|::Extent in |extent|::Extent::Granted =
             |extent|::ExtentRootProvider::grant(|extent|::Extent { base: address, length: CAPACITY })
                 as + |extent|::Extent::Granted;

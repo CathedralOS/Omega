@@ -1,5 +1,5 @@
 use omega\language\core\ProgramImage;
 
 public TestImage satisfies ProgramImage {
-    machine retained_suffix_start() -> addr { 64 }
+    machine retained_suffix_start() -> address { 64 }
 }

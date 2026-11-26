@@ -76,7 +76,7 @@ follows it, as in `state: StatePlan;` or `write(out, value)`. Builtin type names
 and literal suffixes follow the
 [lexical profile](../../wiki/spec/language/data_and_literals.md#lexical-profile)
 and [builtin type names](../../wiki/spec/language/modules.md#builtin-type-names):
-`bool`, `addr`, `f32`, `f64` and any `i`/`u` width such as `u13`. Bare `i` and
+`bool`, `address`, `f32`, `f64` and any `i`/`u` width such as `u13`. Bare `i` and
 `u` stay uncolored because value bindings often use those spellings. The
 retired `dyn` spelling is marked deprecated.
 

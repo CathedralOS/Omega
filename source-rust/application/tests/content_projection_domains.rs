@@ -78,7 +78,7 @@ fn an_arbitrary_helper_call_remains_outside_the_content_projection_fragment() {
 #[test]
 fn interval_projection_orders_proof_naturals_before_qualifying_the_resource() {
     let source = FIELD_PROJECTION
-        .replace("data Region { length: u64; }", "data Region { base: addr; length: u64; }")
+        .replace("data Region { length: u64; }", "data Region { base: address; length: u64; }")
         .replace("CountedQuantity", "IntervalSet")
         .replace("magnitude: embed(subject.length) as |nat|::Nat", "start: embed(subject.base) as |nat|::Nat, end: (embed(subject.base) + embed(subject.length)) as |nat|::Nat");
     let (output, report) = program::invoke(&source, &["psi", "inspect", "--machine", "retain"]);

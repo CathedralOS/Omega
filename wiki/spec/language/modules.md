@@ -138,7 +138,7 @@ competing declarations.
 
 Named decision: `role-separated-builtin-type-names`, ratified 2026-11-13.
 
-Compiler-defined type names, such as `bool`, `f32`, `f64`, `addr` and the
+Compiler-defined type names, such as `bool`, `f32`, `f64`, `address` and the
 integer family, exist only in the type role. The integer family is open-ended:
 `i`, `u`, and every `i` or `u` followed by decimal digits, whether or not the
 digits form a valid width. `u0` is a family spelling and an invalid type. A

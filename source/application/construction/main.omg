@@ -154,7 +154,7 @@ machine directory_name(name: @[u8]) -> bool crashes Trap {
         }
     }
     machine spelling(name: @[u8], integer_family: bool) -> bool {
-        !integer_family && name != "self" && name != "bool" && name != "addr"
+        !integer_family && name != "self" && name != "bool" && name != "address"
             && name != "f32" && name != "f64" && name != "Slice"
             && name != "SyscallResult" && name != "Terminal" && name != "UInt"
             && name != "Int" && name != "AtomicBool" && name != "AtomicU32"

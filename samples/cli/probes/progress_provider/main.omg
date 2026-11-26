@@ -31,7 +31,7 @@ public boundary trait Scheduler {
     machine grant(provider: @SchedulerProvider, handle: SchedulerHandle) -> SchedulerHandle in WeakFair reaches none crashes none;
 }
 
-public data SchedulerProvider { grant: addr; notify: addr; }
+public data SchedulerProvider { grant: address; notify: address; }
 
 linux_x86_64 machine SchedulerProvider::notify(provider: @SchedulerProvider, value: i32)
 satisfies Scheduler::notify

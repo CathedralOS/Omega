@@ -164,10 +164,10 @@ fn rejects_legacy_named_compiler_intrinsic_payload() {
 fn retired_vtable_slot_rejects_before_consuming_its_payload() {
     let source = r#"
         boundary trait Firmware {
-            machine invoke(this: addr) reaches none crashes none;
+            machine invoke(this: address) reaches none crashes none;
         }
 
-        machine legacy(this: addr)
+        machine legacy(this: address)
         satisfies Firmware::invoke
         via ForeignBinding::VtableSlot(not_an_integer_payload);
     "#;

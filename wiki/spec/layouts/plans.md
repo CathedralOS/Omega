@@ -139,7 +139,7 @@ or bytes. Decode establishes its erased term by checked elaboration; erasure
 never renumbers other members.
 
 Opaque member keys, stable identities, sizes, alignment, offsets, bit widths
-and indices, tags, and counts use `u64`, not `addr`. An absent stable identity
+and indices, tags, and counts use `u64`, not `address`. An absent stable identity
 is `Optional<u64>`, not an integer sentinel. Evaluation preserves all 64 bits;
 host-size conversion is checked only at the consuming allocation or slice
 boundary. Compact schema/layout fingerprints are report coordinates, not

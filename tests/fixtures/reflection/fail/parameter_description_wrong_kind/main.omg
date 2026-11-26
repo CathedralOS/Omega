@@ -6,7 +6,7 @@ use omega\language\core\reflect;
 use omega\language\core\reflect\ParameterInfo;
 use omega\language\core\reflect\FieldInfo;
 
-data Table { padding: u64; invoke: addr; }
+data Table { padding: u64; invoke: address; }
 boundary trait Query {
     machine invoke(seed: u64, table: @Table) -> u64 reaches none crashes none;
 }
