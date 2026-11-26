@@ -12,10 +12,12 @@ its role at the call site. `BuildTarget::Interpreter` illustrates the intent.
 The target representation and a replacement name for `DependencyDescription`
 remain open.
 
-Disk-backed invocations come first. The public API for constructing a virtual
-filesystem, handing private backing to a successor, and choosing backing via
-command-line arguments is deferred. Track the [virtual filesystem handoff](../../../OWNER_QUESTIONS.md#build-product-source-view-selection) and the [CLI invocation](../../../OWNER_QUESTIONS.md#interpreted-cli-filesystem-inputs) separately. Filesystem examples below illustrate
-ownership and admission requirements for a future interface.
+The [interpreted Product CLI](../../spec/build/command_line.md#runtime-directory-mappings)
+accepts live disk mappings. [Memory backing for interpreted runs](run_memory_filesystem.md)
+is a proposal. The [Build invocation CLI](../../../OWNER_QUESTIONS.md#interpreted-cli-filesystem-inputs)
+and [virtual filesystem handoff](../../../OWNER_QUESTIONS.md#build-product-source-view-selection)
+remain open. Filesystem examples below illustrate custody requirements for a
+future Build interface.
 
 ## A library for whom?
 
