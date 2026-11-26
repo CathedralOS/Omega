@@ -98,7 +98,7 @@ impl ResultShape {
             RunStatus::Exited(code) => (
                 self.exited,
                 vec![(
-                    vec![Path::Case(self.exited), Path::Field(self.status)],
+                    vec![Path::Field(self.status)],
                     TerminalScalarValue::Integer {
                         scalar_type: IntegerType::new(IntegerSign::Unsigned, 32)
                             .map_err(|e| format!("{e:?}"))?,
