@@ -26,6 +26,7 @@ use aliases::validate_alias_uniqueness;
 use build_declarations::BuildRequest;
 pub use build_declarations::DependencyPurpose;
 pub(crate) use projection::{EditableSource, extract_scoped_from_source, project_source_for_edit};
+use semantic_vocabulary::dependency_reach::DependencyReach;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum PackageSelection {
@@ -47,13 +48,26 @@ pub(crate) enum DependencySourceRequest {
     },
 }
 
+/// One ordered dependency registration within its requester's Build or Product scope.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct DependencyUse {
+    pub source: DependencySourceRequest,
+    pub max_reach: DependencyReach,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ProjectedDependencies {
-    authored_dependencies: Vec<DependencySourceRequest>,
+    authored_dependencies: Vec<DependencyUse>,
 }
 
 impl ProjectedDependencies {
-    pub(crate) fn authored_dependencies(&self) -> &[DependencySourceRequest] {
+    pub(crate) fn issued(authored_dependencies: Vec<DependencyUse>) -> Self {
+        Self {
+            authored_dependencies,
+        }
+    }
+
+    pub(crate) fn authored_dependencies(&self) -> &[DependencyUse] {
         &self.authored_dependencies
     }
 
@@ -67,9 +81,15 @@ impl ProjectedDependencies {
 
 impl From<Vec<DependencySourceRequest>> for ProjectedDependencies {
     fn from(authored_dependencies: Vec<DependencySourceRequest>) -> Self {
-        Self {
-            authored_dependencies,
-        }
+        Self::issued(
+            authored_dependencies
+                .into_iter()
+                .map(|source| DependencyUse {
+                    source,
+                    max_reach: DependencyReach::default(),
+                })
+                .collect(),
+        )
     }
 }
 
@@ -84,11 +104,11 @@ impl DependencyProjections {
         requests: impl IntoIterator<Item = &'request BuildRequest>,
     ) -> Result<Self, String> {
         use build_declarations::{BuildDependencySource, BuildRequest};
-        let mut product = Vec::new();
-        let mut build = Vec::new();
+        let mut projected = Self::new(Vec::new().into(), Vec::new().into());
         for request in requests {
             let BuildRequest::Dependency {
                 purpose,
+                max_reach,
                 alias,
                 source,
             } = request
@@ -118,12 +138,16 @@ impl DependencyProjections {
                     },
                 },
             };
-            match purpose {
-                DependencyPurpose::Product => product.push(request),
-                DependencyPurpose::Build => build.push(request),
-            }
+            let scope = match purpose {
+                DependencyPurpose::Product => &mut projected.product,
+                DependencyPurpose::Build => &mut projected.build,
+            };
+            scope.authored_dependencies.push(DependencyUse {
+                source: request,
+                max_reach: max_reach.clone(),
+            });
         }
-        Ok(Self::new(product.into(), build.into()))
+        Ok(projected)
     }
 
     pub fn new(product: ProjectedDependencies, build: ProjectedDependencies) -> Self {
@@ -145,7 +169,7 @@ impl DependencyProjections {
         }
     }
 
-    pub fn requests(&self, purpose: DependencyPurpose) -> &[DependencySourceRequest] {
+    pub fn requests(&self, purpose: DependencyPurpose) -> &[DependencyUse] {
         self.projections(purpose).authored_dependencies()
     }
 
@@ -176,7 +200,11 @@ impl From<ProjectedDependencies> for DependencyProjections {
 }
 
 impl DependencySourceRequest {
-    pub(crate) fn build_request(&self, purpose: DependencyPurpose) -> Result<BuildRequest, String> {
+    pub(crate) fn build_request(
+        &self,
+        purpose: DependencyPurpose,
+        max_reach: semantic_vocabulary::dependency_reach::DependencyReach,
+    ) -> Result<BuildRequest, String> {
         use build_declarations::{BuildDependencySource, BuildRequest, ProjectName};
         let alias = self
             .explicit_alias()
@@ -200,6 +228,7 @@ impl DependencySourceRequest {
         };
         Ok(BuildRequest::Dependency {
             purpose,
+            max_reach,
             alias,
             source,
         })

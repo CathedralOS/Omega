@@ -4,6 +4,7 @@
 //! selection also checks the receiving catalog against the supplying artifact.
 #![forbid(unsafe_code)]
 
+pub mod dependency_reach;
 pub mod logical_reach;
 
 mod component;

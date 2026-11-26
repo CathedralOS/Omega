@@ -50,7 +50,8 @@ pub(super) fn project(
                         navigation: observer.navigation().clone(),
                         purpose: selection.purpose,
                         ordinal: selection.request_ordinal,
-                        request: CanonicalDependencySourceRequest::from(request),
+                        request: CanonicalDependencySourceRequest::from(&request.source),
+                        max_reach: request.max_reach.clone(),
                         provider,
                     };
                     if let Some(previous) = dependencies.iter().find(|previous| {
@@ -259,6 +260,10 @@ mod tests {
             ),
             purpose: DependencyPurpose::Build,
             ordinal: 0,
+            max_reach:
+                semantic_vocabulary::dependency_reach::DependencyReach::from_checked_services([
+                    "example::Telemetry".to_owned(),
+                ]),
             request: CanonicalDependencySourceRequest::Git {
                 explicit_alias: None,
                 repository: "https://catalog.invalid/helper.git".into(),
@@ -291,11 +296,18 @@ mod tests {
             )
             .unwrap();
         let text = subject.canonical_text(Limits::default()).unwrap();
-        assert!(text.starts_with("omega-source-closure 5\n"));
+        assert!(text.starts_with("omega-source-closure 6\n"));
         assert!(text.contains("ordinal 0\npurpose \"product\"\n"));
         let recovered =
             CanonicalSourceClosureSubject::recover_text(&text, Limits::default()).unwrap();
         assert_eq!(recovered, subject);
+        let mut narrowed = recovered.clone();
+        narrowed.catalog_dependencies[0].max_reach = Default::default();
+        assert!(!recovered.same_source_graph(&narrowed));
+        let narrowed_text = narrowed.canonical_text(Limits::default()).unwrap();
+        let narrowed =
+            CanonicalSourceClosureSubject::recover_text(&narrowed_text, Limits::default()).unwrap();
+        assert_ne!(recovered.fingerprint(), narrowed.fingerprint());
         assert_eq!(recovered.packages().len(), 1);
         assert_eq!(recovered.catalog_dependencies.len(), 2);
         assert!(!previous.same_source_graph(&subject));
@@ -307,7 +319,7 @@ mod tests {
         );
         assert!(
             CanonicalSourceClosureSubject::recover_text(
-                &text.replace("omega-source-closure 5", "omega-source-closure 3"),
+                &text.replace("omega-source-closure 6", "omega-source-closure 3"),
                 Limits::default()
             )
             .is_err()
@@ -318,10 +330,17 @@ mod tests {
     fn catalog_execution_roundtrip_preserves_product_roster_and_helper_pin() {
         let subject = catalog_graph();
         let text = subject.canonical_text(Limits::default()).unwrap();
-        assert!(text.starts_with("omega-source-closure 5\n"));
+        assert!(text.starts_with("omega-source-closure 6\n"));
         let recovered =
             CanonicalSourceClosureSubject::recover_text(&text, Limits::default()).unwrap();
         assert_eq!(recovered, subject);
+        let mut narrowed = recovered.clone();
+        narrowed.catalog_dependencies[0].max_reach = Default::default();
+        assert!(!recovered.same_source_graph(&narrowed));
+        let narrowed_text = narrowed.canonical_text(Limits::default()).unwrap();
+        let narrowed =
+            CanonicalSourceClosureSubject::recover_text(&narrowed_text, Limits::default()).unwrap();
+        assert_ne!(recovered.fingerprint(), narrowed.fingerprint());
         assert_eq!(
             recovered.packages().len(),
             1,
@@ -388,12 +407,12 @@ mod tests {
     fn catalog_free_subject_uses_the_current_identity() {
         let subject = source_graph("selected", "https://catalog.invalid/workspace.git");
         let text = subject.canonical_text(Limits::default()).unwrap();
-        assert!(text.starts_with("omega-source-closure 5\n"));
+        assert!(text.starts_with("omega-source-closure 6\n"));
         assert!(text.contains("authored-build 0\n"));
         assert!(text.ends_with("catalog-dependencies 0\nend\n"));
         for retired in 1..=4 {
             let old = text.replacen(
-                "omega-source-closure 5",
+                "omega-source-closure 6",
                 &format!("omega-source-closure {retired}"),
                 1,
             );

@@ -7,7 +7,7 @@
 use crate::declarations::BuildDeclarationKind;
 use crate::declarations::PackageKey;
 use crate::declarations::dependencies::read::{
-    DependencyProjections, DependencyPurpose, DependencySourceRequest,
+    DependencyProjections, DependencyPurpose, DependencyUse,
 };
 use crate::resolution::source::{
     PackageSourceMaterialization, PackageSourceNavigation, PackageSourceSelectionEvidence,
@@ -129,7 +129,7 @@ impl PackageSourceCustody {
         self.source_limits
     }
 
-    pub fn dependency_requests(&self, purpose: DependencyPurpose) -> &[DependencySourceRequest] {
+    pub fn dependency_requests(&self, purpose: DependencyPurpose) -> &[DependencyUse] {
         self.dependency_projections.requests(purpose)
     }
 
