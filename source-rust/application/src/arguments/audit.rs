@@ -92,7 +92,8 @@ pub(super) fn parse(arguments: &mut super::Arguments) -> Result<Option<ParsedAud
         return Ok(None);
     }
     super::programs::finish(&mut programs)?;
-    let project_arguments = programs.allow || project_root.is_some()
+    let project_arguments = programs.allow
+        || project_root.is_some()
         || !target_names.is_empty()
         || details
         || offline
@@ -119,7 +120,8 @@ pub(super) fn parse(arguments: &mut super::Arguments) -> Result<Option<ParsedAud
         Some(BuildSourceCaptureRequest::new(build_inputs)?)
     };
     Ok(Some(ParsedAudit::Project(PackageInspectionOptions {
-        programs,        project_root: project_root.unwrap_or_else(|| PathBuf::from(".")),
+        programs,
+        project_root: project_root.unwrap_or_else(|| PathBuf::from(".")),
         targets,
         details,
         offline,

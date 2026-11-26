@@ -12,7 +12,8 @@ pub struct RestrictedBuildSite {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum RestrictedBuildOperation {    ProgramLaunch(Box<RestrictedProgramLaunch>),
+pub enum RestrictedBuildOperation {
+    ProgramLaunch(Box<RestrictedProgramLaunch>),
     ScopedFilesystemExecution, // Execute against scoped real filesystem read/write roots.
     UnscopedFilesystemExecution, // Execute against the real filesystem without path grants.
 }

@@ -202,7 +202,9 @@ impl PackageCommandTransaction {
                             before,
                             proposal.proposed_build.clone(),
                         ),
-                        updates: proposal.resume_updates(accepted.as_ref()).map_err(failure)?,
+                        updates: proposal
+                            .resume_updates(accepted.as_ref())
+                            .map_err(failure)?,
                     },
                     proposal.targets.clone(),
                     Some(proposal),
@@ -345,9 +347,9 @@ impl<'workspace, 'storage> PackageCommandPreparation<'workspace, 'storage> {
             refresh: if source.is_some() {
                 Some(Default::default())
             } else {
-                self.updates.as_ref().map(|keys| {
-                    keys.iter().map(|key| key.identity().digest()).collect()
-                })
+                self.updates
+                    .as_ref()
+                    .map(|keys| keys.iter().map(|key| key.identity().digest()).collect())
             },
             source,
             build_requests,
@@ -471,7 +473,11 @@ impl<'workspace, 'storage> PackageCommandPreparation<'workspace, 'storage> {
                 "candidate sources or dependency graph changed since the proposal; discard it and review a fresh candidate",
             ));
         }
-        let proposal = if self.recovered.as_ref().is_none_or(|pending| pending.source.is_none()) {
+        let proposal = if self
+            .recovered
+            .as_ref()
+            .is_none_or(|pending| pending.source.is_none())
+        {
             Some(self.proposal(Some(source), self.previous_build_requests()))
         } else {
             None
@@ -837,7 +843,8 @@ pub struct PackageCommandError {
 }
 
 #[derive(Debug)]
-enum PackageCommandCause {    Message(String),
+enum PackageCommandCause {
+    Message(String),
     Review(Box<CompileResolvedPackageReviewsError>),
     Change(Box<crate::review::PackageChangeError>),
     Compilation(CompileFailure),
@@ -875,7 +882,8 @@ impl PackageCommandError {
 
     pub fn compilation_failure(&self) -> Option<&CompileFailure> {
         match &self.cause {
-            PackageCommandCause::Compilation(failure) | PackageCommandCause::RootBuildPreparation(failure) => Some(failure),
+            PackageCommandCause::Compilation(failure)
+            | PackageCommandCause::RootBuildPreparation(failure) => Some(failure),
             _ => None,
         }
     }
@@ -969,7 +977,8 @@ impl PackageCommandError {
             PackageCommandCause::Review(error) => error.fmt_with_diagnostics(formatter, render),
             PackageCommandCause::Change(error) => error.fmt_with_diagnostics(formatter, render),
             PackageCommandCause::Preparation(error) => fmt::Display::fmt(error, formatter),
-            PackageCommandCause::Compilation(failure) | PackageCommandCause::RootBuildPreparation(failure) => {
+            PackageCommandCause::Compilation(failure)
+            | PackageCommandCause::RootBuildPreparation(failure) => {
                 render(formatter, &failure.clone().into_diagnostics())
             }
         }

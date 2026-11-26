@@ -55,7 +55,8 @@ impl SourceHost<'_, '_> {
                 },
                 Default::default(),
                 planning_timings(self.timings),
-            ).map_err(|failure| PackageCommandError::for_build_preparation(failure, !dependency))?;
+            )
+            .map_err(|failure| PackageCommandError::for_build_preparation(failure, !dependency))?;
             let mut requests = Default::default();
             let stage = project_build::interpret(
                 stage,

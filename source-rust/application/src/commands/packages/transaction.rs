@@ -47,7 +47,10 @@ pub(super) fn inspect_packages(
                 &mut session,
                 acquired,
                 &mut inspection.source_acquisitions()?,
-                RootBuildInputs { snapshot: inspection.build_snapshot().cloned(), programs },
+                RootBuildInputs {
+                    snapshot: inspection.build_snapshot().cloned(),
+                    programs,
+                },
             )?;
             inspection.complete_source_resolution(sources)
         })();

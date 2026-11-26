@@ -87,12 +87,17 @@ pub(crate) fn produce(
                 None
             };
             let launcher = is_installed_launcher(source, owner.symbol, requirement.name.as_str());
-            if stream.is_none() && !launcher && ![
-                SELECTION_PROTOCOL,
-                "BuildRequestOperations",
-                "BuildFilesystemOperations",
-                "BuildProductOperations",
-            ].into_iter().any(protocol) {
+            if stream.is_none()
+                && !launcher
+                && ![
+                    SELECTION_PROTOCOL,
+                    "BuildRequestOperations",
+                    "BuildFilesystemOperations",
+                    "BuildProductOperations",
+                ]
+                .into_iter()
+                .any(protocol)
+            {
                 continue;
             }
             let InvocationSite::Operation(operation) = invocation.site else {
@@ -109,26 +114,37 @@ pub(crate) fn produce(
                 name: requirement.name.as_str(),
             };
             if let Some(action) = stream {
-                companions.requests.push(TerminalBuildRequestCall { site: call.site, action });
+                companions.requests.push(TerminalBuildRequestCall {
+                    site: call.site,
+                    action,
+                });
             } else if launcher {
-                let application = elaboration.boundaries.get(boundary)
+                let application = elaboration
+                    .boundaries
+                    .get(boundary)
                     .and_then(|symbol| source.closed_requirement_application(*symbol))
                     .ok_or_else(|| refused("program launcher requires one closed program type"))?;
                 let Some([argument]) = application.local_arguments.as_array() else {
                     return Err(refused("program launcher requires one closed program type"));
                 };
-                let crate::source_state::types::TypeReferenceNode::Named { symbol, .. } =
-                    source.type_reference_table.type_reference(argument.type_reference())
+                let crate::source_state::types::TypeReferenceNode::Named { symbol, .. } = source
+                    .type_reference_table
+                    .type_reference(argument.type_reference())
                 else {
-                    return Err(refused("ProgramLaunch requires an exact nominal data declaration"));
+                    return Err(refused(
+                        "ProgramLaunch requires an exact nominal data declaration",
+                    ));
                 };
                 let authored = source.symbols.authored_origin(*symbol);
                 if source.unique_data_definition_by_symbol(authored).is_none() {
-                    return Err(refused("ProgramLaunch requires an exact nominal data declaration"));
+                    return Err(refused(
+                        "ProgramLaunch requires an exact nominal data declaration",
+                    ));
                 }
                 let program = authored_span(source, authored)?;
                 companions.requests.push(TerminalBuildRequestCall {
-                    site: call.site, action: TerminalBuildRequestOperation::LaunchProgram { program }
+                    site: call.site,
+                    action: TerminalBuildRequestOperation::LaunchProgram { program },
                 });
             } else if protocol(SELECTION_PROTOCOL) {
                 designated += 1;

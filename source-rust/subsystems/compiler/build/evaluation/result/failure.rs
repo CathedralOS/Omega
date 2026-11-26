@@ -2,7 +2,8 @@
 use diagnostics::Diagnostic;
 
 #[derive(Debug, Clone)]
-pub enum CompileFailure {    Diagnostics(Vec<Diagnostic>),
+pub enum CompileFailure {
+    Diagnostics(Vec<Diagnostic>),
     /// Actual source invocations ran before preparation, judgment or target
     /// admission failed. Keep their records alongside the diagnostic cause.
     SourceCompletion {
@@ -58,12 +59,14 @@ impl CompileFailure {
                 Self::source_completion(diagnostics, accounting)
             }
             Self::BuildConsentRequired {
-                site, requests,
+                site,
+                requests,
                 accounting: attempted,
             } => {
                 accounting.append(attempted);
                 Self::BuildConsentRequired {
-                    site, requests,
+                    site,
+                    requests,
                     accounting,
                 }
             }
@@ -126,7 +129,10 @@ mod tests {
             None,
         );
         let failure = CompileFailure::BuildConsentRequired {
-            site: build_consent::RestrictedBuildSite { entry: "build".into(), program: [7;32] },
+            site: build_consent::RestrictedBuildSite {
+                entry: "build".into(),
+                program: [7; 32],
+            },
             requests: vec![request.clone()],
             accounting: Default::default(),
         }

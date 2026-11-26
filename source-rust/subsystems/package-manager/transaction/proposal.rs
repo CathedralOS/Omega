@@ -216,7 +216,9 @@ impl PendingPackageChange {
             None
         } else {
             if refresh.as_ref().is_none_or(|keys| !keys.is_empty()) {
-                return Err("a resolved package proposal must preserve the selected revisions".into());
+                return Err(
+                    "a resolved package proposal must preserve the selected revisions".into(),
+                );
             }
             let source = CanonicalSourceClosureSubject::recover_text(source_text, source_limits)
                 .map_err(|error| error.to_string())?;
@@ -390,7 +392,10 @@ mod tests {
             if refresh.as_ref().is_some_and(|keys| !keys.is_empty()) {
                 assert!(restored.resume_updates(None).is_err());
             } else {
-                assert_eq!(restored.resume_updates(None).unwrap(), refresh.map(|_| vec![]));
+                assert_eq!(
+                    restored.resume_updates(None).unwrap(),
+                    refresh.map(|_| vec![])
+                );
             }
         }
     }

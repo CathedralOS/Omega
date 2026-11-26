@@ -576,7 +576,10 @@ mod tests {
             None,
         );
         let failure = CompileFailure::BuildConsentRequired {
-            site: package_compilation::build_execution::RestrictedBuildSite { entry: "build".into(), program: [7;32] },
+            site: package_compilation::build_execution::RestrictedBuildSite {
+                entry: "build".into(),
+                program: [7; 32],
+            },
             requests: vec![request.clone()],
             accounting: prepared.accounting.clone(),
         }

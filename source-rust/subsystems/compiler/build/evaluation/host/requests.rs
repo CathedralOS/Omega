@@ -126,7 +126,8 @@ impl TerminalBuildRequestHost {
             None
         };
         Ok(Arc::new(Self {
-            programs, filesystem,
+            programs,
+            filesystem,
             artifact: artifact.custody_identity(),
             calls: Arc::clone(calls),
             inputs: InputBindings::new(libraries),
@@ -538,7 +539,9 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             }
         };
         let (scalar_count, structural_count) = match call.action {
-            Operation::LaunchProgram { .. } => return Err(refuse("program call lost its borrowed argument list")),
+            Operation::LaunchProgram { .. } => {
+                return Err(refuse("program call lost its borrowed argument list"));
+            }
             Operation::ArtifactOnly => (0, 1),
             Operation::Package
             | Operation::Application
@@ -702,7 +705,9 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
         let project_name =
             |value: &str| ProjectName::parse(copy(value)?).map_err(TerminalEffectRejection::new);
         let request = match call.action {
-            Operation::LaunchProgram { .. } => return Err(refuse("program call lost its borrowed argument list")),
+            Operation::LaunchProgram { .. } => {
+                return Err(refuse("program call lost its borrowed argument list"));
+            }
             Operation::ConfigureTestFixture
             | Operation::ConfigureTestEngine
             | Operation::SandboxWrite

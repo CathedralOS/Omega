@@ -354,7 +354,9 @@ pub fn prepare_build_evaluation(
                     Some(grants) => grants.admits(&site, request)?,
                     None => false,
                 };
-                if !accepted { pending.push(request.clone()); }
+                if !accepted {
+                    pending.push(request.clone());
+                }
             }
             if !pending.is_empty() {
                 return Err(CompileFailure::BuildConsentRequired {
