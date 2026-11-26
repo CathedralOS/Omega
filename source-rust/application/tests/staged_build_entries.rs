@@ -218,7 +218,7 @@ fn the_selected_build_must_accept_the_original_builder() {
         ("machine main() {}", "declares no free build machine"),
         (
             "machine build() {} machine main() {}",
-            "one original Build parameter",
+            "one original BuildPlan parameter",
         ),
     ] {
         let (status, report) = invoke(

@@ -1,22 +1,22 @@
 //! Admit the toolchain declaration for the Build value the host issues.
 //!
-//! A Build script runs against one compiler-owned `Build` value: the host
-//! builds it, hands the script `@mutable Build`, and decodes what the script left
+//! A Build script runs against one compiler-owned `BuildPlan` value: the host
+//! builds it, hands the script `@mutable BuildPlan`, and decodes what the script left
 //! in it by field. Two things must hold before that is sound.
 //!
 //! The first is the vocabulary the host decodes: the program declares the
-//! toolchain's `Build` exactly once. Its deployment features and optimizations
+//! toolchain's `BuildPlan` exactly once. Its deployment features and optimizations
 //! must use the corresponding toolchain declarations.
 //!
-//! The second is that source cannot construct, store or return a `Build`
+//! The second is that source cannot construct, store or return a `BuildPlan`
 //! value of its own, because the host would decode a forged one as if it had
-//! issued it. That rule belongs to `Build`'s declaration: its one `seal`
+//! issued it. That rule belongs to `BuildPlan`'s declaration: its one `seal`
 //! field is the toolchain's `BuildSeal`, which is not `[copy]`, in the
 //! toolchain's domain that an access policy governs
 //! ([access policies](../../../../../../../../wiki/spec/resources/access.md)). The
 //! lowered-form checker admits no source issuer for such a domain and no
 //! zero-established or literal value of a record holding one, so the only
-//! `Build` a script holds is the one it was lent. That the declaration has
+//! `BuildPlan` a script holds is the one it was lent. That the declaration has
 //! this shape is checked here; the checker judges the program against it.
 
 use diagnostics::Diagnostic;
@@ -39,7 +39,7 @@ pub(super) fn admit_toolchain_build_activation(
     });
     let Some(build) = builds.next() else {
         return Err(refused(
-            "Build evaluation requires the toolchain-provided Build declaration".into(),
+            "Build evaluation requires the toolchain-provided BuildPlan declaration".into(),
         ));
     };
     if builds.next().is_some() {
@@ -64,12 +64,12 @@ pub(super) fn admit_toolchain_build_activation(
         });
     let (Some(seal), None) = (seals.next(), seals.next()) else {
         return Err(refused(
-            "toolchain Build must declare exactly one `seal` field".into(),
+            "toolchain BuildPlan must declare exactly one `seal` field".into(),
         ));
     };
     if !is_issued_seal(typed, seal.type_reference) {
         return Err(refused(
-            "toolchain Build.seal must be the toolchain BuildSeal, not `[copy]`, in the toolchain domain an access policy governs".into(),
+            "toolchain BuildPlan.seal must be the toolchain BuildSeal, not `[copy]`, in the toolchain domain an access policy governs".into(),
         ));
     }
     Ok(build)
@@ -90,7 +90,7 @@ fn require_toolchain_field(
         });
     let (Some(field), None) = (fields.next(), fields.next()) else {
         return Err(vec![Diagnostic::error(format!(
-            "toolchain Build must declare exactly one `{name}` field"
+            "toolchain BuildPlan must declare exactly one `{name}` field"
         ))]);
     };
     let exact = typed
@@ -100,17 +100,17 @@ fn require_toolchain_field(
         .is_some_and(|symbol| is_exact_toolchain_build_prelude_data(typed, symbol, expected_type));
     if !exact {
         return Err(vec![Diagnostic::error(format!(
-            "toolchain Build.{name} must have the exact toolchain {expected_type} type"
+            "toolchain BuildPlan.{name} must have the exact toolchain {expected_type} type"
         ))]);
     }
     Ok(())
 }
 
-/// Whether `reference` is what keeps source from producing a `Build`: the
+/// Whether `reference` is what keeps source from producing a `BuildPlan`: the
 /// prelude's own `BuildSeal`, which cannot be duplicated, in exactly one
 /// domain, the prelude's own, whose issuers are those its access policy
 /// plans. The checker admits no source issuer for such a domain, so the only
-/// `Build` a script can hold is the one it was lent.
+/// `BuildPlan` a script can hold is the one it was lent.
 fn is_issued_seal(typed: &TypedTrees, reference: TypeReferenceHandle) -> bool {
     let types = &typed.type_reference_table;
     let TypeReferenceNode::Constrained {
@@ -247,7 +247,7 @@ public data BuildPlan<'storage> {
             let own = typed(&format!("{source}\nmachine build_entry() {{ }}"), None);
             assert_eq!(
                 refusal(&own),
-                "Build evaluation requires the toolchain-provided Build declaration"
+                "Build evaluation requires the toolchain-provided BuildPlan declaration"
             );
         }
     }
@@ -257,7 +257,7 @@ public data BuildPlan<'storage> {
         let missing = PRELUDE.replace("    optimizations: Optimizations;\n", "");
         assert_eq!(
             refusal(&typed("machine build_entry() { }", Some(&missing))),
-            "toolchain Build must declare exactly one `optimizations` field"
+            "toolchain BuildPlan must declare exactly one `optimizations` field"
         );
         let wrong = PRELUDE.replace(
             "optimizations: Optimizations;",
@@ -265,7 +265,7 @@ public data BuildPlan<'storage> {
         );
         assert_eq!(
             refusal(&typed("machine build_entry() { }", Some(&wrong))),
-            "toolchain Build.optimizations must have the exact toolchain Optimizations type"
+            "toolchain BuildPlan.optimizations must have the exact toolchain Optimizations type"
         );
     }
 
@@ -279,7 +279,7 @@ public data BuildPlan<'storage> {
         );
         assert_eq!(
             refusal(&missing),
-            "toolchain Build must declare exactly one `x86_deployment_features` field"
+            "toolchain BuildPlan must declare exactly one `x86_deployment_features` field"
         );
         let foreign = typed(
             "machine build_entry() { }",
@@ -287,29 +287,29 @@ public data BuildPlan<'storage> {
         );
         assert_eq!(
             refusal(&foreign),
-            "toolchain Build.x86_deployment_features must have the exact toolchain X86DeploymentFeatures type"
+            "toolchain BuildPlan.x86_deployment_features must have the exact toolchain X86DeploymentFeatures type"
         );
     }
 
-    /// The seal is what keeps source from producing a `Build`, so a prelude
-    /// whose `Build` has none, or one source could make or duplicate, is
+    /// The seal is what keeps source from producing a `BuildPlan`, so a prelude
+    /// whose `BuildPlan` has none, or one source could make or duplicate, is
     /// refused before anything runs. Each prelude changes one declaration
     /// of `PRELUDE`.
     #[test]
     fn a_toolchain_build_that_source_could_produce_is_refused_as_that() {
-        const SEAL: &str = "toolchain Build.seal must be the toolchain BuildSeal, not `[copy]`, in the toolchain domain an access policy governs";
+        const SEAL: &str = "toolchain BuildPlan.seal must be the toolchain BuildSeal, not `[copy]`, in the toolchain domain an access policy governs";
         let unsealed = PRELUDE.replace("    seal: BuildSeal in Issued;\n", "");
         assert_ne!(unsealed, PRELUDE);
         assert_eq!(
             refusal(&typed("machine build_entry() { }", Some(&unsealed))),
-            "toolchain Build must declare exactly one `seal` field"
+            "toolchain BuildPlan must declare exactly one `seal` field"
         );
         for (declared, changed) in [
             // The bare carrier: a literal makes one.
             ("seal: BuildSeal in Issued;", "seal: BuildSeal;"),
             // No policy: anybody may add the domain.
             ("Issued access BuildSealAccess;", "Issued;"),
-            // A seal that copies out of the lent `Build`.
+            // A seal that copies out of the lent `BuildPlan`.
             ("data BuildSeal { }", "data BuildSeal [copy] { }"),
         ] {
             let prelude = PRELUDE.replace(declared, changed);

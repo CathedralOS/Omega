@@ -102,7 +102,7 @@ fn a_renamed_build_can_select_a_product_from_the_same_file() {
     let invalid = invoke(root, &["build", "release.omg"]);
     assert!(!invalid.status.success());
     let reason = String::from_utf8_lossy(&invalid.stderr);
-    assert!(reason.contains("one original Build parameter"), "{reason}");
+    assert!(reason.contains("one original BuildPlan parameter"), "{reason}");
 
     std::fs::write(
         root.join("release.omg"),

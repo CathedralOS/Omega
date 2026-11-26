@@ -33,7 +33,7 @@ fn source_receiver(typed: &TypedTrees, machine: &Machine) -> Result<symbols::Sym
         .first()
         .ok_or("Build entry has no source entry state")?;
     let Some([parameter]) = typed.state_parameters(entry).as_array() else {
-        return Err("Build activation requires its one original Build parameter".into());
+        return Err("Build activation requires its one original BuildPlan parameter".into());
     };
     if parameter.is_const || parameter.relevance.is_erased() {
         return Err("Build entry requires an executable mutable borrow of Build".into());
