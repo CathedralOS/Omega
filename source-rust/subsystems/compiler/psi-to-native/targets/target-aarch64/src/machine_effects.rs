@@ -154,14 +154,10 @@ mod scalar_call {
                     implicit_unit_clobbers: row.clobbers.clone(),
                     memory: match table {
                         Some((_, byte_offset)) => {
-                            let position =
-                            selected_instructions::calls::constraints::foreign_argument_registers(
-                                &record.call,
-                            )
-                            .iter()
-                            .position(|(parameter, _)| *parameter == 0)?;
+                            use selected_instructions::calls::constraints::table_pointer_register_operand;
+                            let pointer_operand = table_pointer_register_operand(&record.call)?;
                             MachineEncodedMemoryEffect::ReadTableFieldV1 {
-                                pointer_operand: u16::try_from(position).ok()?,
+                                pointer_operand,
                                 byte_offset,
                             }
                         }

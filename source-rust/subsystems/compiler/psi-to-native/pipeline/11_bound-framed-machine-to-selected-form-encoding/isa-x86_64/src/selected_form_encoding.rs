@@ -15955,9 +15955,9 @@ mod normalized_foreign_call {
                 encode_x86_64_selected_table_call_form, validate_x86_64_selected_table_call_form,
             };
             for windows in [false, true] {
-                for byte_offset in [0, 8, 65_536] {
+                for (table_operand, byte_offset) in [(0, 0), (1, 8), (1, 65_536)] {
                     let (_, _, alternative, operands, accesses, _, mut record) =
-                        inputs(windows, 1, 1);
+                        inputs(windows, 2, 1);
                     let same_stack_contribution = record
                         .call
                         .binding
@@ -15972,7 +15972,7 @@ mod normalized_foreign_call {
                                 target::TargetProfile::LinuxX64
                             },
                             byte_offset,
-                            table_operand: 0,
+                            table_operand,
                             dispatch_only: false,
                             same_stack_contribution,
                         };
@@ -15984,6 +15984,18 @@ mod normalized_foreign_call {
                     )
                     .unwrap();
                     assert_eq!(encoded.bytes.len(), 10);
+                    assert_eq!(
+                        encoded.footprint().encoded.memory,
+                        super::super::MachineEncodedMemoryEffect::ReadTableFieldV1 {
+                            pointer_operand: table_operand as u16,
+                            byte_offset,
+                        }
+                    );
+                    let argument_registers = if windows { [1, 2] } else { [7, 6] };
+                    assert_eq!(
+                        encoded.bytes[2],
+                        0x98 | argument_registers[table_operand as usize]
+                    );
                     assert_eq!(&encoded.bytes[3..7], &byte_offset.to_le_bytes());
                     assert_eq!(&encoded.bytes[7..], &[0x41, 0xff, 0xd3]);
                     for position in 0..encoded.bytes.len() {
