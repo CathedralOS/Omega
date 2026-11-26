@@ -75,7 +75,7 @@ machine build(build: @mutable Build) {{
     Build::application(build, "pinned");
     let answers: DependencyDescription = |upstream|::dependency(
         "pinned_answers", "ssh://git@pin.invalid/answers.git", "refs/heads/no-such-tracking-ref", "{pin}");
-    Build::dependency(build, answers);
+    _ = Build::dependency(build, answers);
     Build::bind(build, {}\ProgramEntry, main);
 }}"#, target.target_name())).unwrap();
     fs::write(

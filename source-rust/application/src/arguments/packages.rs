@@ -30,7 +30,7 @@ machine build(build: @mutable Build) {
     let layout: DependencyDescription = |git|::dependency(
         "layout", "https://example.org/layout.git", "refs/heads/stable",
         "8e76d2a18f2ecb674b75670ab380aa1cf32f9d44");
-    Build::dependency(build, layout);
+    _ = Build::dependency(build, layout);
 }
 
 Replace the example repository and commit with the verified upstream revision. Import the library in that product with `use {layout}/api.omg;`. The default edge reach ceiling is empty. Register only the services the use requires."#),
