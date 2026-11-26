@@ -1516,6 +1516,242 @@ impl<'t> Program<'t> {
         Ok(self.services.push((scope, parents)))
     }
 
+    /// Replace a witness's closed transitive callee with a bodyless requirement
+    /// seeded from its already-checked compilation summary (`CalleeSummary`).
+    /// Returns `false` when the callee must still read its body.
+    pub(crate) fn stub_witness_callee(
+        &mut self,
+        id: MachineId,
+        summaries: &crate::CalleeSummaries,
+    ) -> Checked<bool> {
+        use crate::body::{CrashCeiling, Termination};
+
+        if self.requirements.contains(&id)
+            || self.unread_rows.contains(&id)
+            || self
+                .selections
+                .iter()
+                .any(|selected| selected.implementation == id)
+        {
+            return Ok(false);
+        }
+        let symbol = *terminal_check_tables::row(&self.symbols, id, id, Construct::Machine)?;
+        let Some(summary) = summaries.get(symbol) else {
+            return Ok(false);
+        };
+        let Some(machine) = self.typed.machine_by_symbol(symbol) else {
+            return Ok(false);
+        };
+        if self.is_family_theorem(machine) {
+            return Ok(false);
+        }
+        let signature =
+            terminal_check_tables::row(&self.signatures, id, id, Construct::Machine)?.clone();
+        if signature
+            .result
+            .is_some_and(|result| self.value_has_borrowed_leaf(result))
+        {
+            return Ok(false);
+        }
+        // A caller keeps facts about the fields a `@mutable` callee leaves
+        // untouched only through the write frame inferred from its body, and
+        // a bodyless header cannot publish one (`validate_write_frames`). A
+        // stub would make the call overwrite the whole referent, so the
+        // witness reads that body instead.
+        if signature
+            .borrowed
+            .iter()
+            .any(|borrowed| borrowed.access == language_core::ReferenceAccess::Mutable)
+        {
+            return Ok(false);
+        }
+        if matches!(signature.crashes, CrashCeiling::Inferred)
+            && !summary.crash_routes.iter().all(|bucket| {
+                bucket
+                    .alternatives
+                    .iter()
+                    .all(|guard| matches!(guard, terminal_psi::CrashRouteGuard::Truth))
+            })
+        {
+            return Ok(false);
+        }
+        if matches!(signature.termination, Termination::Silent)
+            && matches!(
+                &summary.envelope.termination,
+                TerminalCallableTermination::Terminates { premises } if !premises.is_empty()
+            )
+        {
+            return Ok(false);
+        }
+
+        let summary_reaches = if matches!(signature.reaches, crate::Ceiling::Inferred) {
+            let mut reaches = summary
+                .envelope
+                .service_reach
+                .iter()
+                .map(|source| self.applied_source_service(id, *source))
+                .collect::<Checked<Vec<_>>>()?;
+            reaches.sort_unstable();
+            reaches.dedup();
+            Some(reaches)
+        } else {
+            None
+        };
+        let summary_invokes = if matches!(signature.invokes, crate::Ceiling::Inferred) {
+            let mut entries = summary
+                .envelope
+                .invocations
+                .iter()
+                .filter_map(|entry| match entry {
+                    Invocation::Service(service) => Some(*service),
+                    Invocation::Parameter(_) => None,
+                })
+                .map(|source| self.applied_source_service(id, source))
+                .collect::<Checked<Vec<_>>>()?;
+            entries.sort_unstable();
+            entries.dedup();
+            Some(entries)
+        } else {
+            None
+        };
+
+        let existing_policy = self
+            .declared_envelope_policies
+            .get(id)
+            .and_then(Option::as_ref)
+            .cloned();
+        let policy_reach = if summary_reaches.is_some() {
+            Some(summary.envelope.service_reach.clone())
+        } else if let Some(policy) = &existing_policy {
+            policy.reach.clone()
+        } else {
+            crate::publication::reach::written_ceiling(self.typed, id, symbol)?
+        };
+        let policy_invokes = if summary_invokes.is_some() {
+            summary.envelope.invocations.clone()
+        } else if let Some(policy) = &existing_policy {
+            policy.invokes.clone().unwrap_or_default()
+        } else {
+            let authored = self
+                .typed
+                .signature_invokes
+                .span(machine.invokes)
+                .ok_or_else(|| unavailable(id, "named invocation permission span is stale"))?;
+            if authored.is_empty() {
+                Vec::new()
+            } else {
+                let states = self
+                    .typed
+                    .machine_states
+                    .span(machine.states)
+                    .ok_or_else(|| unavailable(id, "named callable has a stale state span"))?;
+                let Some([state]) = states.as_array() else {
+                    return Err(unavailable(
+                        id,
+                        "named callable needs one exact entry state",
+                    ));
+                };
+                let parameters = self
+                    .typed
+                    .state_parameters
+                    .span(state.parameters)
+                    .ok_or_else(|| unavailable(id, "named callable has a stale parameter span"))?;
+                invocations(self.typed, id, authored, parameters)?
+            }
+        };
+
+        let signature_mut = self
+            .signatures
+            .get_mut(id)
+            .ok_or_else(|| unavailable(id, "stubbed callee has no retained signature"))?;
+        if let Some(reaches) = summary_reaches {
+            signature_mut.reaches = crate::Ceiling::Authored(reaches);
+        }
+        if let Some(invokes) = summary_invokes {
+            signature_mut.invokes = crate::Ceiling::Authored(invokes);
+        }
+        if matches!(signature_mut.crashes, CrashCeiling::Inferred) {
+            signature_mut.crashes = CrashCeiling::Authored(summary.crash_routes.clone());
+        }
+        if signature_mut.operational.suspension.is_none() {
+            signature_mut.operational.suspension = Some(summary.envelope.suspends);
+        }
+        if signature_mut.operational.blocking.is_none() {
+            signature_mut.operational.blocking = Some(summary.envelope.blocks);
+        }
+        if matches!(signature_mut.termination, Termination::Silent)
+            && matches!(
+                summary.envelope.termination,
+                TerminalCallableTermination::Terminates { .. }
+            )
+        {
+            signature_mut.termination = Termination::Promised;
+        }
+        let policy_termination = match signature_mut.termination {
+            Termination::Promised => TerminalCallableTermination::Terminates {
+                premises: Vec::new(),
+            },
+            Termination::Silent => TerminalCallableTermination::NotGuaranteed,
+        };
+        let policy = Policy {
+            reach: policy_reach,
+            invokes: Some(policy_invokes),
+            suspends: signature_mut.operational.suspension,
+            blocks: signature_mut.operational.blocking,
+            termination: policy_termination,
+        };
+        while self.declared_envelope_policies.len() < id.get() as usize {
+            self.declared_envelope_policies.push(None);
+        }
+        *self
+            .declared_envelope_policies
+            .get_mut(id)
+            .ok_or_else(|| unavailable(id, "stubbed callee lost its source policy coordinate"))? =
+            Some(policy);
+        if !summary.completes_normally && !self.non_returning_requirements.contains(&id) {
+            self.non_returning_requirements.push(id);
+        }
+        if !self.requirements.contains(&id) {
+            self.requirements.push(id);
+        }
+        Ok(true)
+    }
+
+    fn value_has_borrowed_leaf(&self, value: ValueType) -> bool {
+        match value {
+            ValueType::Scalar(..) => false,
+            ValueType::Rigid(_) => true,
+            ValueType::Record(record, ..) => self.record_has_borrowed_leaf(record),
+        }
+    }
+
+    fn record_has_borrowed_leaf(&self, record: semantic_vocabulary::StructuralTypeId) -> bool {
+        let Some(row) = self.records.get(record) else {
+            return true;
+        };
+        match &row.shape {
+            StorageShape::Opaque
+            | StorageShape::TypeParameter(_)
+            | StorageShape::Reference { .. }
+            | StorageShape::ElementView { .. } => true,
+            StorageShape::ByteSequence(carrier) => matches!(
+                carrier,
+                terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                    | terminal_psi::ByteSequenceCarrier::BoundedView { .. }
+            ),
+            StorageShape::FixedArray { element, .. } => self.record_has_borrowed_leaf(*element),
+            StorageShape::Record(fields) => fields
+                .iter()
+                .any(|field| self.value_has_borrowed_leaf(field.value_type)),
+            StorageShape::Sum(cases) => cases.iter().any(|case| {
+                case.fields
+                    .iter()
+                    .any(|field| self.value_has_borrowed_leaf(field.value_type))
+            }),
+            StorageShape::AtomicCell(_) | StorageShape::PrimitiveScalar { .. } => false,
+        }
+    }
+
     fn applied_source_service(
         &mut self,
         caller: MachineId,

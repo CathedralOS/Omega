@@ -107,6 +107,7 @@ pub(crate) fn outcomes(
     bodies: &IdTable<MachineId, Body>,
     signatures: Signatures<'_>,
     requirements: &[MachineId],
+    non_returning_requirements: &[MachineId],
     callables: &crate::callables::CallableNamespace,
     local_bodies: Option<&[MachineId]>,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
@@ -116,6 +117,7 @@ pub(crate) fn outcomes(
         bodies,
         signatures,
         requirements,
+        non_returning_requirements,
         callables,
         local_bodies,
         inhabitation,
@@ -141,6 +143,7 @@ pub(crate) fn counted_outcomes(
         bodies,
         signatures,
         requirements,
+        &[],
         &callables,
         local_bodies,
         inhabitation,
@@ -223,6 +226,8 @@ struct Walk<'b> {
     inhabitation: &'b terminal_semantics::inhabitation::Inhabitation,
     /// Machines that are a requirement's contract and have no body.
     requirements: &'b [MachineId],
+    /// Stubbed requirement callees whose original body does not return normally.
+    non_returning_requirements: &'b [MachineId],
     reached: IdTable<MachineId, Reached>,
     /// Every cause a path of the body being walked may crash with.
     causes: BTreeSet<CrashCause>,
@@ -239,6 +244,7 @@ impl<'b> Walk<'b> {
         bodies: &IdTable<MachineId, Body>,
         signatures: Signatures<'b>,
         requirements: &'b [MachineId],
+        non_returning_requirements: &'b [MachineId],
         callables: &'b crate::callables::CallableNamespace,
         local_bodies: Option<&[MachineId]>,
         inhabitation: &'b terminal_semantics::inhabitation::Inhabitation,
@@ -261,6 +267,7 @@ impl<'b> Walk<'b> {
             callables,
             local,
             requirements,
+            non_returning_requirements,
             inhabitation,
             reached: bodies.map(|_, _| Reached::default()),
             causes: BTreeSet::new(),
@@ -344,7 +351,7 @@ impl<'b> Walk<'b> {
             self.signatures.get(machine.into(), machine)?.result,
         );
         let completes_normally = if self.requirements.contains(&machine) {
-            !declared_empty
+            !declared_empty && !self.non_returning_requirements.contains(&machine)
         } else {
             // Always walk the body for its other effects. Only its
             // normal-completion inference is private to the unit.
