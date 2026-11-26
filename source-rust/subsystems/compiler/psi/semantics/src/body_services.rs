@@ -169,7 +169,10 @@ pub fn body_service_reaches(
                             .iter()
                             .zip(&invocation.structural_actual_types)
                             .all(|(expected, actual)| {
-                                (expected.structural_type, expected.access) == *actual
+                                program.structural_actual_matches(
+                                    *actual,
+                                    (expected.structural_type, expected.access),
+                                )
                             })
                     {
                         return Err(

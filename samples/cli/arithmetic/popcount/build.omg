@@ -1,12 +1,18 @@
-// Population-count sample build sketch. Needs only process.exit.
+// Population-count sample with console input, console output, and process exit.
 
 use {omega}/build/dependency.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
 
 machine build(builder: @mutable Build) {
     Build::application(builder, "popcount");
-    let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {
-        location: "../../../../source/library/system"
-    }));
+    let allowed: [BoundaryServiceRef; 3] = [
+        Build::service::<|process_authority|::StandardInput>(builder),
+        Build::service::<|process_authority|::StandardOutput>(builder),
+        Build::service::<|process_exit|::ProcessExit>(builder)
+    ];
+    let adapter: DependencyDescription = |dependency|::from_source(Source::Path { location: "../../../../source/library/system" });
+    _ = |dependency|::add(builder, adapter, @allowed[..]);
     Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_arm64::ProgramEntry, entry_start);

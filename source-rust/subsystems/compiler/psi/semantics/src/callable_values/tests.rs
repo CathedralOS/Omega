@@ -688,6 +688,112 @@ fn body_service_summary_refuses_an_unknown_instruction_service() {
 }
 
 #[test]
+fn body_service_summary_checks_boundary_reborrows_like_ordinary_calls() {
+    use StructuralAccess::{MutableBorrow, SharedBorrow};
+    use terminal_psi::{ByteSequenceCarrier, StructuralArgument};
+
+    let mut module = service_summary_module();
+    let place = PlaceId::new(1).unwrap();
+    let formal = StructuralTypeId::new(1).unwrap();
+    let actual = StructuralTypeId::new(2).unwrap();
+    let descriptor = |id, identity, access, multiplicity| StructuralTypeDeclaration {
+        id,
+        identity: TerminalIdentityIndex(identity),
+        declaration_identity: TerminalIdentityIndex(1),
+        requires: Vec::new(),
+        quotient_carrier: None,
+        owns_linear_claim: false,
+        no_code_affine_cleanup: true,
+        multiplicity,
+        descriptor_cleanup: true,
+        nominal_cleanup: None,
+        shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { access }),
+        scalar_restriction: None,
+    };
+    module.types.structural_types = vec![
+        descriptor(formal, 1, None, StructuralMultiplicity::Unrestricted),
+        descriptor(
+            actual,
+            2,
+            Some(MutableBorrow),
+            StructuralMultiplicity::Affine,
+        ),
+    ];
+    let parameter = |structural_type, multiplicity| StructuralParameterDeclaration {
+        place,
+        position: 0,
+        structural_type,
+        multiplicity,
+        access: MutableBorrow,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+        additional_input_qualifications: Vec::new(),
+    };
+    let parent = ServiceId::new(1).unwrap();
+    let service = ServiceId::new(2).unwrap();
+    let mut requirement = boundary(1, false);
+    requirement.completion = semantic_vocabulary::BoundaryCompletion::NormalReturn;
+    requirement
+        .parameter_order
+        .push(BoundaryParameterKind::Structural);
+    requirement
+        .structural_parameters
+        .push(parameter(formal, StructuralMultiplicity::Unrestricted));
+    requirement.published_service_ceiling = vec![parent, service];
+    let caller = &mut module.machines[0];
+    caller
+        .structural_parameters
+        .push(parameter(actual, StructuralMultiplicity::Affine));
+    caller
+        .parameter_order
+        .push(BoundaryParameterKind::Structural);
+    caller.structural_places.push(StructuralPlaceDeclaration {
+        id: place,
+        kind: StructuralPlaceKind::Parameter { position: 0 },
+    });
+    caller.blocks[0].operations.push(Operation::unsuspended(
+        operation_id(1),
+        OperationResult::Unit,
+        O::BoundaryCall {
+            boundary: requirement.id,
+            arguments: Vec::new(),
+            structural_arguments: vec![StructuralArgument::whole(place, MutableBorrow)],
+            completion_receipts: Vec::new(),
+            requirement_obligations: Vec::new(),
+        },
+    ));
+    module.interfaces.boundary_machines.push(requirement);
+
+    // Alternate presentations of the same mutable view retain its reach.
+    let summaries = crate::body_services::body_service_reaches(&module, &[]).unwrap();
+    assert_eq!(summaries.get(machine_id(1)).unwrap(), &[parent, service]);
+
+    // Neither replacing the view geometry nor claiming mutation of a shared
+    // referent can be justified by the ordinary reborrow rule.
+    let refuses = |module: &TerminalModule| {
+        assert_eq!(
+            crate::body_services::body_service_reaches(module, &[]).unwrap_err(),
+            "body service boundary actuals disagree with its complete formal telescope",
+        );
+    };
+    let mut bounded = module.clone();
+    bounded.types.structural_types[1].shape =
+        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
+            access: Some(MutableBorrow),
+            capacity: 16,
+        });
+    refuses(&bounded);
+
+    module.types.structural_types[1].shape =
+        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+            access: Some(SharedBorrow),
+        });
+    module.types.structural_types[1].multiplicity = StructuralMultiplicity::Unrestricted;
+    module.machines[0].structural_parameters[0].multiplicity = StructuralMultiplicity::Unrestricted;
+    refuses(&module);
+}
+
+#[test]
 fn callable_arguments_preserve_descriptor_reborrow_authority_and_identity() {
     use StructuralAccess::{MutableBorrow, Owned, SharedBorrow};
     use terminal_psi::ByteSequenceCarrier;
