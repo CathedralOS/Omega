@@ -1,3 +1,5 @@
+use extent.omg;
+
 // Core device-extent access authority.
 //
 // A DMA transfer is an external borrow of an `Extent` range by a device the
@@ -82,7 +84,7 @@ public data DeviceCompletionAttempt {
 // Acquisition custody: the restored `Granted` range on success, or the
 // retained completion candidate for a later `acquire` retry.
 public data DeviceAcquisitionAttempt {
-    case Acquired(extent: Extent in Granted);
+    case Acquired(extent: |extent|::Extent in |extent|::Extent::Granted);
     case Pending(completion: DeviceOrderingEvent in DeviceOrderingEvent::Completion);
 }
 
@@ -97,24 +99,24 @@ public boundary trait DeviceLoanProvider {
     // provisioned, so the pool owner — not an extent-geometry caller — mints
     // the `Granted` claim. A hosted entry supplies no arrival extents; this
     // is the only `Granted` source a hosted program reaches today.
-    machine reserve(length: u64) -> Extent
+    machine reserve(length: u64) -> |extent|::Extent
     reaches none
     ensures
-        result in Extent::Granted
+        result in |extent|::Extent::Granted
     crashes Trap crashes Abort;
 
     // Returns a restored range's `Granted` authority to the provider's pool,
     // ending the caller's claim. Every reserved extent terminates here or
     // beneath a frame that never exits.
-    machine release(range: Extent in Granted) reaches none crashes Trap crashes Abort;
+    machine release(range: |extent|::Extent in |extent|::Extent::Granted) reaches none crashes Trap crashes Abort;
 
-    machine lend_for_read(range: Extent in Granted) -> DeviceLoan
+    machine lend_for_read(range: |extent|::Extent in |extent|::Extent::Granted) -> DeviceLoan
     reaches none
     ensures
         result in DeviceLoan::DeviceReads
     crashes Trap crashes Abort;
 
-    machine lend_for_write(range: Extent in Granted) -> DeviceLoan
+    machine lend_for_write(range: |extent|::Extent in |extent|::Extent::Granted) -> DeviceLoan
     reaches none
     ensures
         result in DeviceLoan::DeviceWrites

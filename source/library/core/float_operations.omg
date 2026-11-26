@@ -1,4 +1,6 @@
 use {omega}/language/core/foundation.omg as proof;
+use float_format.omg;
+use float_meaning.omg;
 
 // Public floating-point operations.
 //
@@ -28,20 +30,20 @@ public data FloatClass [copy] {
 // signatures supplied by the closed catalog because this sealed toolchain
 // source declares them with exactly this path and shape. Merely naming a
 // declaration `Float::meaning32` elsewhere grants no primitive.
-machine Float::meaning32(value: f32) -> FloatMeaning;
-machine Float::meaning64(value: f64) -> FloatMeaning;
+machine Float::meaning32(value: f32) -> |float_meaning|::FloatMeaning;
+machine Float::meaning64(value: f64) -> |float_meaning|::FloatMeaning;
 
 // Public proof views are ordinary machines. The sealed projections remain
 // private and keep their exact artifact contract; clients receive their
 // meaning through these checked library result guarantees.
-public machine F32::meaning(value: f32) -> FloatMeaning
-ensures |proof|::Identity::<FloatMeaning>(result, Float::meaning32(value))
+public machine F32::meaning(value: f32) -> |float_meaning|::FloatMeaning
+ensures |proof|::Identity::<|float_meaning|::FloatMeaning>(result, Float::meaning32(value))
 {
     Float::meaning32(value)
 }
 
-public machine F64::meaning(value: f64) -> FloatMeaning
-ensures |proof|::Identity::<FloatMeaning>(result, Float::meaning64(value))
+public machine F64::meaning(value: f64) -> |float_meaning|::FloatMeaning
+ensures |proof|::Identity::<|float_meaning|::FloatMeaning>(result, Float::meaning64(value))
 {
     Float::meaning64(value)
 }
@@ -55,241 +57,241 @@ ensures |proof|::Identity::<FloatMeaning>(result, Float::meaning64(value))
 // realizations cite the same identities. Merely naming a declaration
 // `FloatSemantics::add` elsewhere grants no primitive.
 public machine FloatSemantics::add(
-    format: FloatFormat,
-    left: FloatMeaning,
-    right: FloatMeaning
-) -> FloatMeaning;
+    format: |float_format|::FloatFormat,
+    left: |float_meaning|::FloatMeaning,
+    right: |float_meaning|::FloatMeaning
+) -> |float_meaning|::FloatMeaning;
 
 public machine FloatSemantics::subtract(
-    format: FloatFormat,
-    left: FloatMeaning,
-    right: FloatMeaning
-) -> FloatMeaning;
+    format: |float_format|::FloatFormat,
+    left: |float_meaning|::FloatMeaning,
+    right: |float_meaning|::FloatMeaning
+) -> |float_meaning|::FloatMeaning;
 
 public machine FloatSemantics::multiply(
-    format: FloatFormat,
-    left: FloatMeaning,
-    right: FloatMeaning
-) -> FloatMeaning;
+    format: |float_format|::FloatFormat,
+    left: |float_meaning|::FloatMeaning,
+    right: |float_meaning|::FloatMeaning
+) -> |float_meaning|::FloatMeaning;
 
 public machine FloatSemantics::divide(
-    format: FloatFormat,
-    left: FloatMeaning,
-    right: FloatMeaning
-) -> FloatMeaning;
+    format: |float_format|::FloatFormat,
+    left: |float_meaning|::FloatMeaning,
+    right: |float_meaning|::FloatMeaning
+) -> |float_meaning|::FloatMeaning;
 
 public machine FloatSemantics::negate(
-    format: FloatFormat,
-    value: FloatMeaning
-) -> FloatMeaning;
+    format: |float_format|::FloatFormat,
+    value: |float_meaning|::FloatMeaning
+) -> |float_meaning|::FloatMeaning;
 
 public machine FloatSemantics::square_root(
-    format: FloatFormat,
-    value: FloatMeaning
-) -> FloatMeaning;
+    format: |float_format|::FloatFormat,
+    value: |float_meaning|::FloatMeaning
+) -> |float_meaning|::FloatMeaning;
 
 public machine FloatSemantics::convert(
-    format: FloatFormat,
-    value: FloatMeaning
-) -> FloatMeaning;
+    format: |float_format|::FloatFormat,
+    value: |float_meaning|::FloatMeaning
+) -> |float_meaning|::FloatMeaning;
 
 // Primitive integer carriers project to one mathematical integer before the
 // destination format performs its nearest-even landing.
-public machine FloatSemantics::from_integer(format: FloatFormat, value: i8) -> FloatMeaning;
-public machine FloatSemantics::from_integer(format: FloatFormat, value: i16) -> FloatMeaning;
-public machine FloatSemantics::from_integer(format: FloatFormat, value: i32) -> FloatMeaning;
-public machine FloatSemantics::from_integer(format: FloatFormat, value: i64) -> FloatMeaning;
-public machine FloatSemantics::from_integer(format: FloatFormat, value: u8) -> FloatMeaning;
-public machine FloatSemantics::from_integer(format: FloatFormat, value: u16) -> FloatMeaning;
-public machine FloatSemantics::from_integer(format: FloatFormat, value: u32) -> FloatMeaning;
-public machine FloatSemantics::from_integer(format: FloatFormat, value: u64) -> FloatMeaning;
+public machine FloatSemantics::from_integer(format: |float_format|::FloatFormat, value: i8) -> |float_meaning|::FloatMeaning;
+public machine FloatSemantics::from_integer(format: |float_format|::FloatFormat, value: i16) -> |float_meaning|::FloatMeaning;
+public machine FloatSemantics::from_integer(format: |float_format|::FloatFormat, value: i32) -> |float_meaning|::FloatMeaning;
+public machine FloatSemantics::from_integer(format: |float_format|::FloatFormat, value: i64) -> |float_meaning|::FloatMeaning;
+public machine FloatSemantics::from_integer(format: |float_format|::FloatFormat, value: u8) -> |float_meaning|::FloatMeaning;
+public machine FloatSemantics::from_integer(format: |float_format|::FloatFormat, value: u16) -> |float_meaning|::FloatMeaning;
+public machine FloatSemantics::from_integer(format: |float_format|::FloatFormat, value: u32) -> |float_meaning|::FloatMeaning;
+public machine FloatSemantics::from_integer(format: |float_format|::FloatFormat, value: u64) -> |float_meaning|::FloatMeaning;
 
 // Normal-return meanings for toward-zero float-to-integer conversion. The
 // unqualified and Trapping requirements share the exact semantic value on
 // successful return; Saturating owns its total clamp/NaN-to-zero meaning.
-public machine FloatSemantics::to_i8(value: FloatMeaning) -> i8;
-public machine FloatSemantics::to_i16(value: FloatMeaning) -> i16;
-public machine FloatSemantics::to_i32(value: FloatMeaning) -> i32;
-public machine FloatSemantics::to_i64(value: FloatMeaning) -> i64;
-public machine FloatSemantics::to_u8(value: FloatMeaning) -> u8;
-public machine FloatSemantics::to_u16(value: FloatMeaning) -> u16;
-public machine FloatSemantics::to_u32(value: FloatMeaning) -> u32;
-public machine FloatSemantics::to_u64(value: FloatMeaning) -> u64;
-public machine FloatSemantics::to_i8_saturating(value: FloatMeaning) -> i8;
-public machine FloatSemantics::to_i16_saturating(value: FloatMeaning) -> i16;
-public machine FloatSemantics::to_i32_saturating(value: FloatMeaning) -> i32;
-public machine FloatSemantics::to_i64_saturating(value: FloatMeaning) -> i64;
-public machine FloatSemantics::to_u8_saturating(value: FloatMeaning) -> u8;
-public machine FloatSemantics::to_u16_saturating(value: FloatMeaning) -> u16;
-public machine FloatSemantics::to_u32_saturating(value: FloatMeaning) -> u32;
-public machine FloatSemantics::to_u64_saturating(value: FloatMeaning) -> u64;
+public machine FloatSemantics::to_i8(value: |float_meaning|::FloatMeaning) -> i8;
+public machine FloatSemantics::to_i16(value: |float_meaning|::FloatMeaning) -> i16;
+public machine FloatSemantics::to_i32(value: |float_meaning|::FloatMeaning) -> i32;
+public machine FloatSemantics::to_i64(value: |float_meaning|::FloatMeaning) -> i64;
+public machine FloatSemantics::to_u8(value: |float_meaning|::FloatMeaning) -> u8;
+public machine FloatSemantics::to_u16(value: |float_meaning|::FloatMeaning) -> u16;
+public machine FloatSemantics::to_u32(value: |float_meaning|::FloatMeaning) -> u32;
+public machine FloatSemantics::to_u64(value: |float_meaning|::FloatMeaning) -> u64;
+public machine FloatSemantics::to_i8_saturating(value: |float_meaning|::FloatMeaning) -> i8;
+public machine FloatSemantics::to_i16_saturating(value: |float_meaning|::FloatMeaning) -> i16;
+public machine FloatSemantics::to_i32_saturating(value: |float_meaning|::FloatMeaning) -> i32;
+public machine FloatSemantics::to_i64_saturating(value: |float_meaning|::FloatMeaning) -> i64;
+public machine FloatSemantics::to_u8_saturating(value: |float_meaning|::FloatMeaning) -> u8;
+public machine FloatSemantics::to_u16_saturating(value: |float_meaning|::FloatMeaning) -> u16;
+public machine FloatSemantics::to_u32_saturating(value: |float_meaning|::FloatMeaning) -> u32;
+public machine FloatSemantics::to_u64_saturating(value: |float_meaning|::FloatMeaning) -> u64;
 
 public machine FloatSemantics::multiply_then_add(
-    format: FloatFormat,
-    left: FloatMeaning,
-    right: FloatMeaning,
-    addend: FloatMeaning
-) -> FloatMeaning;
+    format: |float_format|::FloatFormat,
+    left: |float_meaning|::FloatMeaning,
+    right: |float_meaning|::FloatMeaning,
+    addend: |float_meaning|::FloatMeaning
+) -> |float_meaning|::FloatMeaning;
 
 public machine FloatSemantics::fused_multiply_add(
-    format: FloatFormat,
-    left: FloatMeaning,
-    right: FloatMeaning,
-    addend: FloatMeaning
-) -> FloatMeaning;
+    format: |float_format|::FloatFormat,
+    left: |float_meaning|::FloatMeaning,
+    right: |float_meaning|::FloatMeaning,
+    addend: |float_meaning|::FloatMeaning
+) -> |float_meaning|::FloatMeaning;
 
 public machine FloatSemantics::minimum(
-    left: FloatMeaning,
-    right: FloatMeaning
-) -> FloatMeaning;
+    left: |float_meaning|::FloatMeaning,
+    right: |float_meaning|::FloatMeaning
+) -> |float_meaning|::FloatMeaning;
 
 public machine FloatSemantics::maximum(
-    left: FloatMeaning,
-    right: FloatMeaning
-) -> FloatMeaning;
+    left: |float_meaning|::FloatMeaning,
+    right: |float_meaning|::FloatMeaning
+) -> |float_meaning|::FloatMeaning;
 
 public machine FloatSemantics::equal(
-    left: FloatMeaning,
-    right: FloatMeaning
+    left: |float_meaning|::FloatMeaning,
+    right: |float_meaning|::FloatMeaning
 ) -> bool;
 
 public machine FloatSemantics::not_equal(
-    left: FloatMeaning,
-    right: FloatMeaning
+    left: |float_meaning|::FloatMeaning,
+    right: |float_meaning|::FloatMeaning
 ) -> bool;
 
 public machine FloatSemantics::less(
-    left: FloatMeaning,
-    right: FloatMeaning
+    left: |float_meaning|::FloatMeaning,
+    right: |float_meaning|::FloatMeaning
 ) -> bool;
 
 public machine FloatSemantics::less_or_equal(
-    left: FloatMeaning,
-    right: FloatMeaning
+    left: |float_meaning|::FloatMeaning,
+    right: |float_meaning|::FloatMeaning
 ) -> bool;
 
 public machine FloatSemantics::greater(
-    left: FloatMeaning,
-    right: FloatMeaning
+    left: |float_meaning|::FloatMeaning,
+    right: |float_meaning|::FloatMeaning
 ) -> bool;
 
 public machine FloatSemantics::greater_or_equal(
-    left: FloatMeaning,
-    right: FloatMeaning
+    left: |float_meaning|::FloatMeaning,
+    right: |float_meaning|::FloatMeaning
 ) -> bool;
 
 public machine FloatSemantics::classify(
-    format: FloatFormat,
-    value: FloatMeaning
+    format: |float_format|::FloatFormat,
+    value: |float_meaning|::FloatMeaning
 ) -> FloatClass;
 
-public machine FloatSemantics::is_finite(value: FloatMeaning) -> bool;
-public machine FloatSemantics::is_nan(value: FloatMeaning) -> bool;
-public machine FloatSemantics::is_infinite(value: FloatMeaning) -> bool;
+public machine FloatSemantics::is_finite(value: |float_meaning|::FloatMeaning) -> bool;
+public machine FloatSemantics::is_nan(value: |float_meaning|::FloatMeaning) -> bool;
+public machine FloatSemantics::is_infinite(value: |float_meaning|::FloatMeaning) -> bool;
 public machine FloatSemantics::is_normal(
-    format: FloatFormat,
-    value: FloatMeaning
+    format: |float_format|::FloatFormat,
+    value: |float_meaning|::FloatMeaning
 ) -> bool;
 public machine FloatSemantics::is_subnormal(
-    format: FloatFormat,
-    value: FloatMeaning
+    format: |float_format|::FloatFormat,
+    value: |float_meaning|::FloatMeaning
 ) -> bool;
 
 public machine FloatSemantics::add_toward_zero(
-    format: FloatFormat,
-    left: FloatMeaning,
-    right: FloatMeaning
-) -> FloatMeaning;
+    format: |float_format|::FloatFormat,
+    left: |float_meaning|::FloatMeaning,
+    right: |float_meaning|::FloatMeaning
+) -> |float_meaning|::FloatMeaning;
 public machine FloatSemantics::add_toward_positive(
-    format: FloatFormat,
-    left: FloatMeaning,
-    right: FloatMeaning
-) -> FloatMeaning;
+    format: |float_format|::FloatFormat,
+    left: |float_meaning|::FloatMeaning,
+    right: |float_meaning|::FloatMeaning
+) -> |float_meaning|::FloatMeaning;
 public machine FloatSemantics::add_toward_negative(
-    format: FloatFormat,
-    left: FloatMeaning,
-    right: FloatMeaning
-) -> FloatMeaning;
+    format: |float_format|::FloatFormat,
+    left: |float_meaning|::FloatMeaning,
+    right: |float_meaning|::FloatMeaning
+) -> |float_meaning|::FloatMeaning;
 
 public machine FloatSemantics::subtract_toward_zero(
-    format: FloatFormat,
-    left: FloatMeaning,
-    right: FloatMeaning
-) -> FloatMeaning;
+    format: |float_format|::FloatFormat,
+    left: |float_meaning|::FloatMeaning,
+    right: |float_meaning|::FloatMeaning
+) -> |float_meaning|::FloatMeaning;
 public machine FloatSemantics::subtract_toward_positive(
-    format: FloatFormat,
-    left: FloatMeaning,
-    right: FloatMeaning
-) -> FloatMeaning;
+    format: |float_format|::FloatFormat,
+    left: |float_meaning|::FloatMeaning,
+    right: |float_meaning|::FloatMeaning
+) -> |float_meaning|::FloatMeaning;
 public machine FloatSemantics::subtract_toward_negative(
-    format: FloatFormat,
-    left: FloatMeaning,
-    right: FloatMeaning
-) -> FloatMeaning;
+    format: |float_format|::FloatFormat,
+    left: |float_meaning|::FloatMeaning,
+    right: |float_meaning|::FloatMeaning
+) -> |float_meaning|::FloatMeaning;
 
 public machine FloatSemantics::multiply_toward_zero(
-    format: FloatFormat,
-    left: FloatMeaning,
-    right: FloatMeaning
-) -> FloatMeaning;
+    format: |float_format|::FloatFormat,
+    left: |float_meaning|::FloatMeaning,
+    right: |float_meaning|::FloatMeaning
+) -> |float_meaning|::FloatMeaning;
 public machine FloatSemantics::multiply_toward_positive(
-    format: FloatFormat,
-    left: FloatMeaning,
-    right: FloatMeaning
-) -> FloatMeaning;
+    format: |float_format|::FloatFormat,
+    left: |float_meaning|::FloatMeaning,
+    right: |float_meaning|::FloatMeaning
+) -> |float_meaning|::FloatMeaning;
 public machine FloatSemantics::multiply_toward_negative(
-    format: FloatFormat,
-    left: FloatMeaning,
-    right: FloatMeaning
-) -> FloatMeaning;
+    format: |float_format|::FloatFormat,
+    left: |float_meaning|::FloatMeaning,
+    right: |float_meaning|::FloatMeaning
+) -> |float_meaning|::FloatMeaning;
 
 public machine FloatSemantics::divide_toward_zero(
-    format: FloatFormat,
-    left: FloatMeaning,
-    right: FloatMeaning
-) -> FloatMeaning;
+    format: |float_format|::FloatFormat,
+    left: |float_meaning|::FloatMeaning,
+    right: |float_meaning|::FloatMeaning
+) -> |float_meaning|::FloatMeaning;
 public machine FloatSemantics::divide_toward_positive(
-    format: FloatFormat,
-    left: FloatMeaning,
-    right: FloatMeaning
-) -> FloatMeaning;
+    format: |float_format|::FloatFormat,
+    left: |float_meaning|::FloatMeaning,
+    right: |float_meaning|::FloatMeaning
+) -> |float_meaning|::FloatMeaning;
 public machine FloatSemantics::divide_toward_negative(
-    format: FloatFormat,
-    left: FloatMeaning,
-    right: FloatMeaning
-) -> FloatMeaning;
+    format: |float_format|::FloatFormat,
+    left: |float_meaning|::FloatMeaning,
+    right: |float_meaning|::FloatMeaning
+) -> |float_meaning|::FloatMeaning;
 
 public machine FloatSemantics::square_root_toward_zero(
-    format: FloatFormat,
-    value: FloatMeaning
-) -> FloatMeaning;
+    format: |float_format|::FloatFormat,
+    value: |float_meaning|::FloatMeaning
+) -> |float_meaning|::FloatMeaning;
 public machine FloatSemantics::square_root_toward_positive(
-    format: FloatFormat,
-    value: FloatMeaning
-) -> FloatMeaning;
+    format: |float_format|::FloatFormat,
+    value: |float_meaning|::FloatMeaning
+) -> |float_meaning|::FloatMeaning;
 public machine FloatSemantics::square_root_toward_negative(
-    format: FloatFormat,
-    value: FloatMeaning
-) -> FloatMeaning;
+    format: |float_format|::FloatFormat,
+    value: |float_meaning|::FloatMeaning
+) -> |float_meaning|::FloatMeaning;
 
 public machine FloatSemantics::fused_multiply_add_toward_zero(
-    format: FloatFormat,
-    left: FloatMeaning,
-    right: FloatMeaning,
-    addend: FloatMeaning
-) -> FloatMeaning;
+    format: |float_format|::FloatFormat,
+    left: |float_meaning|::FloatMeaning,
+    right: |float_meaning|::FloatMeaning,
+    addend: |float_meaning|::FloatMeaning
+) -> |float_meaning|::FloatMeaning;
 public machine FloatSemantics::fused_multiply_add_toward_positive(
-    format: FloatFormat,
-    left: FloatMeaning,
-    right: FloatMeaning,
-    addend: FloatMeaning
-) -> FloatMeaning;
+    format: |float_format|::FloatFormat,
+    left: |float_meaning|::FloatMeaning,
+    right: |float_meaning|::FloatMeaning,
+    addend: |float_meaning|::FloatMeaning
+) -> |float_meaning|::FloatMeaning;
 public machine FloatSemantics::fused_multiply_add_toward_negative(
-    format: FloatFormat,
-    left: FloatMeaning,
-    right: FloatMeaning,
-    addend: FloatMeaning
-) -> FloatMeaning;
+    format: |float_format|::FloatFormat,
+    left: |float_meaning|::FloatMeaning,
+    right: |float_meaning|::FloatMeaning,
+    addend: |float_meaning|::FloatMeaning
+) -> |float_meaning|::FloatMeaning;
 
 // Primitive fixed-token identities. Selection is operand-driven and recorded
 // in checked operator evidence; the result contract is equality with the one
@@ -300,10 +302,10 @@ public machine FloatSemantics::fused_multiply_add_toward_negative(
 // the token.
 public boundary machine + Float::add(left: f32, right: f32) -> f32
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning32(result),
         FloatSemantics::add(
-            FloatFormat::BINARY32,
+            |float_format|::FloatFormat::BINARY32,
             Float::meaning32(left),
             Float::meaning32(right)
         )
@@ -311,10 +313,10 @@ ensures
 
 public boundary machine + Float::add(left: f64, right: f64) -> f64
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning64(result),
         FloatSemantics::add(
-            FloatFormat::BINARY64,
+            |float_format|::FloatFormat::BINARY64,
             Float::meaning64(left),
             Float::meaning64(right)
         )
@@ -322,10 +324,10 @@ ensures
 
 public boundary machine - Float::subtract(left: f32, right: f32) -> f32
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning32(result),
         FloatSemantics::subtract(
-            FloatFormat::BINARY32,
+            |float_format|::FloatFormat::BINARY32,
             Float::meaning32(left),
             Float::meaning32(right)
         )
@@ -333,10 +335,10 @@ ensures
 
 public boundary machine - Float::subtract(left: f64, right: f64) -> f64
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning64(result),
         FloatSemantics::subtract(
-            FloatFormat::BINARY64,
+            |float_format|::FloatFormat::BINARY64,
             Float::meaning64(left),
             Float::meaning64(right)
         )
@@ -344,10 +346,10 @@ ensures
 
 public boundary machine * Float::multiply(left: f32, right: f32) -> f32
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning32(result),
         FloatSemantics::multiply(
-            FloatFormat::BINARY32,
+            |float_format|::FloatFormat::BINARY32,
             Float::meaning32(left),
             Float::meaning32(right)
         )
@@ -355,10 +357,10 @@ ensures
 
 public boundary machine * Float::multiply(left: f64, right: f64) -> f64
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning64(result),
         FloatSemantics::multiply(
-            FloatFormat::BINARY64,
+            |float_format|::FloatFormat::BINARY64,
             Float::meaning64(left),
             Float::meaning64(right)
         )
@@ -366,10 +368,10 @@ ensures
 
 public boundary machine / Float::divide(left: f32, right: f32) -> f32
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning32(result),
         FloatSemantics::divide(
-            FloatFormat::BINARY32,
+            |float_format|::FloatFormat::BINARY32,
             Float::meaning32(left),
             Float::meaning32(right)
         )
@@ -377,10 +379,10 @@ ensures
 
 public boundary machine / Float::divide(left: f64, right: f64) -> f64
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning64(result),
         FloatSemantics::divide(
-            FloatFormat::BINARY64,
+            |float_format|::FloatFormat::BINARY64,
             Float::meaning64(left),
             Float::meaning64(right)
         )
@@ -475,28 +477,28 @@ ensures
 // ambient control-state parameter.
 public boundary machine F32::negate(value: f32) -> f32
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning32(result),
         FloatSemantics::negate(
-            FloatFormat::BINARY32,
+            |float_format|::FloatFormat::BINARY32,
             Float::meaning32(value)
         )
     );
 public boundary machine F64::negate(value: f64) -> f64
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning64(result),
         FloatSemantics::negate(
-            FloatFormat::BINARY64,
+            |float_format|::FloatFormat::BINARY64,
             Float::meaning64(value)
         )
     );
 public boundary machine F32::multiply_then_add(left: f32, right: f32, addend: f32) -> f32
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning32(result),
         FloatSemantics::multiply_then_add(
-            FloatFormat::BINARY32,
+            |float_format|::FloatFormat::BINARY32,
             Float::meaning32(left),
             Float::meaning32(right),
             Float::meaning32(addend)
@@ -504,10 +506,10 @@ ensures
     );
 public boundary machine F64::multiply_then_add(left: f64, right: f64, addend: f64) -> f64
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning64(result),
         FloatSemantics::multiply_then_add(
-            FloatFormat::BINARY64,
+            |float_format|::FloatFormat::BINARY64,
             Float::meaning64(left),
             Float::meaning64(right),
             Float::meaning64(addend)
@@ -515,10 +517,10 @@ ensures
     );
 public boundary machine F32::fused_multiply_add(left: f32, right: f32, addend: f32) -> f32
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning32(result),
         FloatSemantics::fused_multiply_add(
-            FloatFormat::BINARY32,
+            |float_format|::FloatFormat::BINARY32,
             Float::meaning32(left),
             Float::meaning32(right),
             Float::meaning32(addend)
@@ -526,10 +528,10 @@ ensures
     );
 public boundary machine F64::fused_multiply_add(left: f64, right: f64, addend: f64) -> f64
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning64(result),
         FloatSemantics::fused_multiply_add(
-            FloatFormat::BINARY64,
+            |float_format|::FloatFormat::BINARY64,
             Float::meaning64(left),
             Float::meaning64(right),
             Float::meaning64(addend)
@@ -537,25 +539,25 @@ ensures
     );
 public boundary machine F32::square_root(value: f32) -> f32
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning32(result),
         FloatSemantics::square_root(
-            FloatFormat::BINARY32,
+            |float_format|::FloatFormat::BINARY32,
             Float::meaning32(value)
         )
     );
 public boundary machine F64::square_root(value: f64) -> f64
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning64(result),
         FloatSemantics::square_root(
-            FloatFormat::BINARY64,
+            |float_format|::FloatFormat::BINARY64,
             Float::meaning64(value)
         )
     );
 public boundary machine F32::minimum(left: f32, right: f32) -> f32
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning32(result),
         FloatSemantics::minimum(
             Float::meaning32(left),
@@ -564,7 +566,7 @@ ensures
     );
 public boundary machine F64::minimum(left: f64, right: f64) -> f64
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning64(result),
         FloatSemantics::minimum(
             Float::meaning64(left),
@@ -573,7 +575,7 @@ ensures
     );
 public boundary machine F32::maximum(left: f32, right: f32) -> f32
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning32(result),
         FloatSemantics::maximum(
             Float::meaning32(left),
@@ -582,7 +584,7 @@ ensures
     );
 public boundary machine F64::maximum(left: f64, right: f64) -> f64
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning64(result),
         FloatSemantics::maximum(
             Float::meaning64(left),
@@ -594,19 +596,19 @@ ensures
 // infinities) and round nearest-even; same-format qualification remains `as`.
 public boundary machine F32::from_f64(value: f64) -> f32
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning32(result),
         FloatSemantics::convert(
-            FloatFormat::BINARY32,
+            |float_format|::FloatFormat::BINARY32,
             Float::meaning64(value)
         )
     );
 public boundary machine F64::from_f32(value: f32) -> f64
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning64(result),
         FloatSemantics::convert(
-            FloatFormat::BINARY64,
+            |float_format|::FloatFormat::BINARY64,
             Float::meaning32(value)
         )
     );
@@ -614,85 +616,85 @@ ensures
 // Integer-to-float conversion is total and rounds nearest-even. The source
 // spelling is part of the destination-owned requirement identity.
 public boundary machine F32::from_i8(value: i8) -> f32
-ensures |proof|::Identity::<FloatMeaning>(
+ensures |proof|::Identity::<|float_meaning|::FloatMeaning>(
     Float::meaning32(result),
-    FloatSemantics::from_integer(FloatFormat::BINARY32, value)
+    FloatSemantics::from_integer(|float_format|::FloatFormat::BINARY32, value)
 );
 public boundary machine F32::from_i16(value: i16) -> f32
-ensures |proof|::Identity::<FloatMeaning>(
+ensures |proof|::Identity::<|float_meaning|::FloatMeaning>(
     Float::meaning32(result),
-    FloatSemantics::from_integer(FloatFormat::BINARY32, value)
+    FloatSemantics::from_integer(|float_format|::FloatFormat::BINARY32, value)
 );
 public boundary machine F32::from_i32(value: i32) -> f32
-ensures |proof|::Identity::<FloatMeaning>(
+ensures |proof|::Identity::<|float_meaning|::FloatMeaning>(
     Float::meaning32(result),
-    FloatSemantics::from_integer(FloatFormat::BINARY32, value)
+    FloatSemantics::from_integer(|float_format|::FloatFormat::BINARY32, value)
 );
 public boundary machine F32::from_i64(value: i64) -> f32
-ensures |proof|::Identity::<FloatMeaning>(
+ensures |proof|::Identity::<|float_meaning|::FloatMeaning>(
     Float::meaning32(result),
-    FloatSemantics::from_integer(FloatFormat::BINARY32, value)
+    FloatSemantics::from_integer(|float_format|::FloatFormat::BINARY32, value)
 );
 public boundary machine F32::from_u8(value: u8) -> f32
-ensures |proof|::Identity::<FloatMeaning>(
+ensures |proof|::Identity::<|float_meaning|::FloatMeaning>(
     Float::meaning32(result),
-    FloatSemantics::from_integer(FloatFormat::BINARY32, value)
+    FloatSemantics::from_integer(|float_format|::FloatFormat::BINARY32, value)
 );
 public boundary machine F32::from_u16(value: u16) -> f32
-ensures |proof|::Identity::<FloatMeaning>(
+ensures |proof|::Identity::<|float_meaning|::FloatMeaning>(
     Float::meaning32(result),
-    FloatSemantics::from_integer(FloatFormat::BINARY32, value)
+    FloatSemantics::from_integer(|float_format|::FloatFormat::BINARY32, value)
 );
 public boundary machine F32::from_u32(value: u32) -> f32
-ensures |proof|::Identity::<FloatMeaning>(
+ensures |proof|::Identity::<|float_meaning|::FloatMeaning>(
     Float::meaning32(result),
-    FloatSemantics::from_integer(FloatFormat::BINARY32, value)
+    FloatSemantics::from_integer(|float_format|::FloatFormat::BINARY32, value)
 );
 public boundary machine F32::from_u64(value: u64) -> f32
-ensures |proof|::Identity::<FloatMeaning>(
+ensures |proof|::Identity::<|float_meaning|::FloatMeaning>(
     Float::meaning32(result),
-    FloatSemantics::from_integer(FloatFormat::BINARY32, value)
+    FloatSemantics::from_integer(|float_format|::FloatFormat::BINARY32, value)
 );
 
 public boundary machine F64::from_i8(value: i8) -> f64
-ensures |proof|::Identity::<FloatMeaning>(
+ensures |proof|::Identity::<|float_meaning|::FloatMeaning>(
     Float::meaning64(result),
-    FloatSemantics::from_integer(FloatFormat::BINARY64, value)
+    FloatSemantics::from_integer(|float_format|::FloatFormat::BINARY64, value)
 );
 public boundary machine F64::from_i16(value: i16) -> f64
-ensures |proof|::Identity::<FloatMeaning>(
+ensures |proof|::Identity::<|float_meaning|::FloatMeaning>(
     Float::meaning64(result),
-    FloatSemantics::from_integer(FloatFormat::BINARY64, value)
+    FloatSemantics::from_integer(|float_format|::FloatFormat::BINARY64, value)
 );
 public boundary machine F64::from_i32(value: i32) -> f64
-ensures |proof|::Identity::<FloatMeaning>(
+ensures |proof|::Identity::<|float_meaning|::FloatMeaning>(
     Float::meaning64(result),
-    FloatSemantics::from_integer(FloatFormat::BINARY64, value)
+    FloatSemantics::from_integer(|float_format|::FloatFormat::BINARY64, value)
 );
 public boundary machine F64::from_i64(value: i64) -> f64
-ensures |proof|::Identity::<FloatMeaning>(
+ensures |proof|::Identity::<|float_meaning|::FloatMeaning>(
     Float::meaning64(result),
-    FloatSemantics::from_integer(FloatFormat::BINARY64, value)
+    FloatSemantics::from_integer(|float_format|::FloatFormat::BINARY64, value)
 );
 public boundary machine F64::from_u8(value: u8) -> f64
-ensures |proof|::Identity::<FloatMeaning>(
+ensures |proof|::Identity::<|float_meaning|::FloatMeaning>(
     Float::meaning64(result),
-    FloatSemantics::from_integer(FloatFormat::BINARY64, value)
+    FloatSemantics::from_integer(|float_format|::FloatFormat::BINARY64, value)
 );
 public boundary machine F64::from_u16(value: u16) -> f64
-ensures |proof|::Identity::<FloatMeaning>(
+ensures |proof|::Identity::<|float_meaning|::FloatMeaning>(
     Float::meaning64(result),
-    FloatSemantics::from_integer(FloatFormat::BINARY64, value)
+    FloatSemantics::from_integer(|float_format|::FloatFormat::BINARY64, value)
 );
 public boundary machine F64::from_u32(value: u32) -> f64
-ensures |proof|::Identity::<FloatMeaning>(
+ensures |proof|::Identity::<|float_meaning|::FloatMeaning>(
     Float::meaning64(result),
-    FloatSemantics::from_integer(FloatFormat::BINARY64, value)
+    FloatSemantics::from_integer(|float_format|::FloatFormat::BINARY64, value)
 );
 public boundary machine F64::from_u64(value: u64) -> f64
-ensures |proof|::Identity::<FloatMeaning>(
+ensures |proof|::Identity::<|float_meaning|::FloatMeaning>(
     Float::meaning64(result),
-    FloatSemantics::from_integer(FloatFormat::BINARY64, value)
+    FloatSemantics::from_integer(|float_format|::FloatFormat::BINARY64, value)
 );
 
 // Destination-owned float-to-integer conversion. Unqualified results require
@@ -964,7 +966,7 @@ ensures
     |proof|::Identity::<FloatClass>(
         result,
         FloatSemantics::classify(
-            FloatFormat::BINARY32,
+            |float_format|::FloatFormat::BINARY32,
             Float::meaning32(value)
         )
     );
@@ -973,7 +975,7 @@ ensures
     |proof|::Identity::<FloatClass>(
         result,
         FloatSemantics::classify(
-            FloatFormat::BINARY64,
+            |float_format|::FloatFormat::BINARY64,
             Float::meaning64(value)
         )
     );
@@ -998,84 +1000,84 @@ ensures
 public boundary machine F32::is_normal(value: f32) -> bool
 ensures
     result == FloatSemantics::is_normal(
-        FloatFormat::BINARY32,
+        |float_format|::FloatFormat::BINARY32,
         Float::meaning32(value)
     );
 public boundary machine F64::is_normal(value: f64) -> bool
 ensures
     result == FloatSemantics::is_normal(
-        FloatFormat::BINARY64,
+        |float_format|::FloatFormat::BINARY64,
         Float::meaning64(value)
     );
 public boundary machine F32::is_subnormal(value: f32) -> bool
 ensures
     result == FloatSemantics::is_subnormal(
-        FloatFormat::BINARY32,
+        |float_format|::FloatFormat::BINARY32,
         Float::meaning32(value)
     );
 public boundary machine F64::is_subnormal(value: f64) -> bool
 ensures
     result == FloatSemantics::is_subnormal(
-        FloatFormat::BINARY64,
+        |float_format|::FloatFormat::BINARY64,
         Float::meaning64(value)
     );
 
 public boundary machine F32::add_toward_zero(left: f32, right: f32) -> f32
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning32(result),
         FloatSemantics::add_toward_zero(
-            FloatFormat::BINARY32,
+            |float_format|::FloatFormat::BINARY32,
             Float::meaning32(left),
             Float::meaning32(right)
         )
     );
 public boundary machine F64::add_toward_zero(left: f64, right: f64) -> f64
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning64(result),
         FloatSemantics::add_toward_zero(
-            FloatFormat::BINARY64,
+            |float_format|::FloatFormat::BINARY64,
             Float::meaning64(left),
             Float::meaning64(right)
         )
     );
 public boundary machine F32::add_toward_positive(left: f32, right: f32) -> f32
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning32(result),
         FloatSemantics::add_toward_positive(
-            FloatFormat::BINARY32,
+            |float_format|::FloatFormat::BINARY32,
             Float::meaning32(left),
             Float::meaning32(right)
         )
     );
 public boundary machine F64::add_toward_positive(left: f64, right: f64) -> f64
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning64(result),
         FloatSemantics::add_toward_positive(
-            FloatFormat::BINARY64,
+            |float_format|::FloatFormat::BINARY64,
             Float::meaning64(left),
             Float::meaning64(right)
         )
     );
 public boundary machine F32::add_toward_negative(left: f32, right: f32) -> f32
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning32(result),
         FloatSemantics::add_toward_negative(
-            FloatFormat::BINARY32,
+            |float_format|::FloatFormat::BINARY32,
             Float::meaning32(left),
             Float::meaning32(right)
         )
     );
 public boundary machine F64::add_toward_negative(left: f64, right: f64) -> f64
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning64(result),
         FloatSemantics::add_toward_negative(
-            FloatFormat::BINARY64,
+            |float_format|::FloatFormat::BINARY64,
             Float::meaning64(left),
             Float::meaning64(right)
         )
@@ -1083,60 +1085,60 @@ ensures
 
 public boundary machine F32::subtract_toward_zero(left: f32, right: f32) -> f32
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning32(result),
         FloatSemantics::subtract_toward_zero(
-            FloatFormat::BINARY32,
+            |float_format|::FloatFormat::BINARY32,
             Float::meaning32(left),
             Float::meaning32(right)
         )
     );
 public boundary machine F64::subtract_toward_zero(left: f64, right: f64) -> f64
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning64(result),
         FloatSemantics::subtract_toward_zero(
-            FloatFormat::BINARY64,
+            |float_format|::FloatFormat::BINARY64,
             Float::meaning64(left),
             Float::meaning64(right)
         )
     );
 public boundary machine F32::subtract_toward_positive(left: f32, right: f32) -> f32
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning32(result),
         FloatSemantics::subtract_toward_positive(
-            FloatFormat::BINARY32,
+            |float_format|::FloatFormat::BINARY32,
             Float::meaning32(left),
             Float::meaning32(right)
         )
     );
 public boundary machine F64::subtract_toward_positive(left: f64, right: f64) -> f64
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning64(result),
         FloatSemantics::subtract_toward_positive(
-            FloatFormat::BINARY64,
+            |float_format|::FloatFormat::BINARY64,
             Float::meaning64(left),
             Float::meaning64(right)
         )
     );
 public boundary machine F32::subtract_toward_negative(left: f32, right: f32) -> f32
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning32(result),
         FloatSemantics::subtract_toward_negative(
-            FloatFormat::BINARY32,
+            |float_format|::FloatFormat::BINARY32,
             Float::meaning32(left),
             Float::meaning32(right)
         )
     );
 public boundary machine F64::subtract_toward_negative(left: f64, right: f64) -> f64
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning64(result),
         FloatSemantics::subtract_toward_negative(
-            FloatFormat::BINARY64,
+            |float_format|::FloatFormat::BINARY64,
             Float::meaning64(left),
             Float::meaning64(right)
         )
@@ -1144,60 +1146,60 @@ ensures
 
 public boundary machine F32::multiply_toward_zero(left: f32, right: f32) -> f32
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning32(result),
         FloatSemantics::multiply_toward_zero(
-            FloatFormat::BINARY32,
+            |float_format|::FloatFormat::BINARY32,
             Float::meaning32(left),
             Float::meaning32(right)
         )
     );
 public boundary machine F64::multiply_toward_zero(left: f64, right: f64) -> f64
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning64(result),
         FloatSemantics::multiply_toward_zero(
-            FloatFormat::BINARY64,
+            |float_format|::FloatFormat::BINARY64,
             Float::meaning64(left),
             Float::meaning64(right)
         )
     );
 public boundary machine F32::multiply_toward_positive(left: f32, right: f32) -> f32
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning32(result),
         FloatSemantics::multiply_toward_positive(
-            FloatFormat::BINARY32,
+            |float_format|::FloatFormat::BINARY32,
             Float::meaning32(left),
             Float::meaning32(right)
         )
     );
 public boundary machine F64::multiply_toward_positive(left: f64, right: f64) -> f64
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning64(result),
         FloatSemantics::multiply_toward_positive(
-            FloatFormat::BINARY64,
+            |float_format|::FloatFormat::BINARY64,
             Float::meaning64(left),
             Float::meaning64(right)
         )
     );
 public boundary machine F32::multiply_toward_negative(left: f32, right: f32) -> f32
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning32(result),
         FloatSemantics::multiply_toward_negative(
-            FloatFormat::BINARY32,
+            |float_format|::FloatFormat::BINARY32,
             Float::meaning32(left),
             Float::meaning32(right)
         )
     );
 public boundary machine F64::multiply_toward_negative(left: f64, right: f64) -> f64
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning64(result),
         FloatSemantics::multiply_toward_negative(
-            FloatFormat::BINARY64,
+            |float_format|::FloatFormat::BINARY64,
             Float::meaning64(left),
             Float::meaning64(right)
         )
@@ -1205,60 +1207,60 @@ ensures
 
 public boundary machine F32::divide_toward_zero(left: f32, right: f32) -> f32
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning32(result),
         FloatSemantics::divide_toward_zero(
-            FloatFormat::BINARY32,
+            |float_format|::FloatFormat::BINARY32,
             Float::meaning32(left),
             Float::meaning32(right)
         )
     );
 public boundary machine F64::divide_toward_zero(left: f64, right: f64) -> f64
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning64(result),
         FloatSemantics::divide_toward_zero(
-            FloatFormat::BINARY64,
+            |float_format|::FloatFormat::BINARY64,
             Float::meaning64(left),
             Float::meaning64(right)
         )
     );
 public boundary machine F32::divide_toward_positive(left: f32, right: f32) -> f32
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning32(result),
         FloatSemantics::divide_toward_positive(
-            FloatFormat::BINARY32,
+            |float_format|::FloatFormat::BINARY32,
             Float::meaning32(left),
             Float::meaning32(right)
         )
     );
 public boundary machine F64::divide_toward_positive(left: f64, right: f64) -> f64
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning64(result),
         FloatSemantics::divide_toward_positive(
-            FloatFormat::BINARY64,
+            |float_format|::FloatFormat::BINARY64,
             Float::meaning64(left),
             Float::meaning64(right)
         )
     );
 public boundary machine F32::divide_toward_negative(left: f32, right: f32) -> f32
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning32(result),
         FloatSemantics::divide_toward_negative(
-            FloatFormat::BINARY32,
+            |float_format|::FloatFormat::BINARY32,
             Float::meaning32(left),
             Float::meaning32(right)
         )
     );
 public boundary machine F64::divide_toward_negative(left: f64, right: f64) -> f64
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning64(result),
         FloatSemantics::divide_toward_negative(
-            FloatFormat::BINARY64,
+            |float_format|::FloatFormat::BINARY64,
             Float::meaning64(left),
             Float::meaning64(right)
         )
@@ -1266,55 +1268,55 @@ ensures
 
 public boundary machine F32::square_root_toward_zero(value: f32) -> f32
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning32(result),
         FloatSemantics::square_root_toward_zero(
-            FloatFormat::BINARY32,
+            |float_format|::FloatFormat::BINARY32,
             Float::meaning32(value)
         )
     );
 public boundary machine F64::square_root_toward_zero(value: f64) -> f64
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning64(result),
         FloatSemantics::square_root_toward_zero(
-            FloatFormat::BINARY64,
+            |float_format|::FloatFormat::BINARY64,
             Float::meaning64(value)
         )
     );
 public boundary machine F32::square_root_toward_positive(value: f32) -> f32
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning32(result),
         FloatSemantics::square_root_toward_positive(
-            FloatFormat::BINARY32,
+            |float_format|::FloatFormat::BINARY32,
             Float::meaning32(value)
         )
     );
 public boundary machine F64::square_root_toward_positive(value: f64) -> f64
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning64(result),
         FloatSemantics::square_root_toward_positive(
-            FloatFormat::BINARY64,
+            |float_format|::FloatFormat::BINARY64,
             Float::meaning64(value)
         )
     );
 public boundary machine F32::square_root_toward_negative(value: f32) -> f32
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning32(result),
         FloatSemantics::square_root_toward_negative(
-            FloatFormat::BINARY32,
+            |float_format|::FloatFormat::BINARY32,
             Float::meaning32(value)
         )
     );
 public boundary machine F64::square_root_toward_negative(value: f64) -> f64
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning64(result),
         FloatSemantics::square_root_toward_negative(
-            FloatFormat::BINARY64,
+            |float_format|::FloatFormat::BINARY64,
             Float::meaning64(value)
         )
     );
@@ -1325,10 +1327,10 @@ public boundary machine F32::fused_multiply_add_toward_zero(
     addend: f32
 ) -> f32
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning32(result),
         FloatSemantics::fused_multiply_add_toward_zero(
-            FloatFormat::BINARY32,
+            |float_format|::FloatFormat::BINARY32,
             Float::meaning32(left),
             Float::meaning32(right),
             Float::meaning32(addend)
@@ -1340,10 +1342,10 @@ public boundary machine F64::fused_multiply_add_toward_zero(
     addend: f64
 ) -> f64
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning64(result),
         FloatSemantics::fused_multiply_add_toward_zero(
-            FloatFormat::BINARY64,
+            |float_format|::FloatFormat::BINARY64,
             Float::meaning64(left),
             Float::meaning64(right),
             Float::meaning64(addend)
@@ -1355,10 +1357,10 @@ public boundary machine F32::fused_multiply_add_toward_positive(
     addend: f32
 ) -> f32
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning32(result),
         FloatSemantics::fused_multiply_add_toward_positive(
-            FloatFormat::BINARY32,
+            |float_format|::FloatFormat::BINARY32,
             Float::meaning32(left),
             Float::meaning32(right),
             Float::meaning32(addend)
@@ -1370,10 +1372,10 @@ public boundary machine F64::fused_multiply_add_toward_positive(
     addend: f64
 ) -> f64
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning64(result),
         FloatSemantics::fused_multiply_add_toward_positive(
-            FloatFormat::BINARY64,
+            |float_format|::FloatFormat::BINARY64,
             Float::meaning64(left),
             Float::meaning64(right),
             Float::meaning64(addend)
@@ -1385,10 +1387,10 @@ public boundary machine F32::fused_multiply_add_toward_negative(
     addend: f32
 ) -> f32
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning32(result),
         FloatSemantics::fused_multiply_add_toward_negative(
-            FloatFormat::BINARY32,
+            |float_format|::FloatFormat::BINARY32,
             Float::meaning32(left),
             Float::meaning32(right),
             Float::meaning32(addend)
@@ -1400,10 +1402,10 @@ public boundary machine F64::fused_multiply_add_toward_negative(
     addend: f64
 ) -> f64
 ensures
-    |proof|::Identity::<FloatMeaning>(
+    |proof|::Identity::<|float_meaning|::FloatMeaning>(
         Float::meaning64(result),
         FloatSemantics::fused_multiply_add_toward_negative(
-            FloatFormat::BINARY64,
+            |float_format|::FloatFormat::BINARY64,
             Float::meaning64(left),
             Float::meaning64(right),
             Float::meaning64(addend)
