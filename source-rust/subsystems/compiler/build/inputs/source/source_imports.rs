@@ -139,7 +139,8 @@ pub(crate) fn discover_imports(
 }
 
 #[derive(Clone, Copy)]
-pub(crate) enum PackageImportPhase {    TargetIndependent,
+pub(crate) enum PackageImportPhase {
+    TargetIndependent,
     ExactTarget,
 }
 
