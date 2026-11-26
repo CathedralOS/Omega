@@ -5,29 +5,45 @@ the data half: records, sums, literals, locals and constants.
 
 ## Hello world
 
-```omega
-use system\console;
+`main.omg` imports the console from the system package and the output authority
+from core.
 
-machine start() {
-    Console::write_line("Hello, Omega.");
+```omega
+use {system}/console.omg;
+use {omega}/language/core/process_authority.omg as process;
+
+public machine start()
+reaches |process|::StandardOutput
+crashes none
+{
+    |console|::Console::write_line("Hello, Omega.");
 }
 ```
 
-A project's `build.omg` names the application and says which machine is its
-entry:
+For a copy of the system package at `../system`, this `build.omg` declares
+the dependency, grants it standard output and selects the Linux x64 entry.
 
 ```omega
-machine build(builder: @mutable Build) {
-    Build::application(builder, "hello");
-    Build::bind(builder, windows_x86_64::ProgramEntry, start);
+use main.omg as app;
+use {omega}/build/dependency.omg;
+use {omega}/language/core/process_authority.omg as process;
+
+machine build(plan: @mutable BuildPlan) {
+    plan.product = BuildProduct::Application { name: "hello" };
+    let system: DependencyDescription = |dependency|::from_source(
+        Source::Path { location: "../system" }
+    );
+    let allowed: [BoundaryServiceReference; 1] = [
+        Build::service::<|process|::StandardOutput>(plan)
+    ];
+    _ = |dependency|::add(plan, system, @allowed[..]);
+    Build::bind(plan, linux_x86_64::ProgramEntry, |app|::start);
 }
 ```
 
-The [CLI sample](../../samples/cli/basics/cli_mvp/main.omg) and its
-[build file](../../samples/cli/basics/cli_mvp/build.omg) show a complete
-project, including the standard-library dependency.
-[Chapter 19](chapter_19_capabilities_effects_boundaries.md) explains where
-`Console` comes from.
+The installation guide shows how to acquire the system package from a pinned
+Git revision. [Installation](../installation.md#build-a-native-program) ·
+[Capabilities and boundaries](chapter_19_capabilities_effects_boundaries.md)
 
 ## Records
 

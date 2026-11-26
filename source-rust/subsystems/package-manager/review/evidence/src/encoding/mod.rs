@@ -28,12 +28,13 @@ pub(crate) use recovery::{PackagePolicyRecoveryError, PackagePolicyRecoveryUsage
 // Domain records distinguish unrestricted issuance from an empty permitted issuer set.
 // Service method records in each of these layouts carry the foreign caller-stack bound.
 // Native callers also retain their selected function field and formal mapping.
-pub(crate) const BASELINE_WITHOUT_STRUCTURAL_PARAMETERS: u16 = 55;
-pub(crate) const BASELINE_WITH_STRUCTURAL_PARAMETERS: u16 = 56;
-pub(crate) const BASELINE_WITH_PROVIDER_APPLICATION_GRANTS: u16 = 57;
-pub(crate) const BASELINE_WITH_TYPE_ALIASES: u16 = 58;
-pub(crate) const BASELINE_WITH_CARRIED_TYPES: u16 = 59;
-pub(crate) const BASELINE_WITH_APPLIED_SERVICES: u16 = 60;
+// These baseline layouts omit the retired assumed-binding roster.
+pub(crate) const BASELINE_WITHOUT_STRUCTURAL_PARAMETERS: u16 = 61;
+pub(crate) const BASELINE_WITH_STRUCTURAL_PARAMETERS: u16 = 62;
+pub(crate) const BASELINE_WITH_PROVIDER_APPLICATION_GRANTS: u16 = 63;
+pub(crate) const BASELINE_WITH_TYPE_ALIASES: u16 = 64;
+pub(crate) const BASELINE_WITH_CARRIED_TYPES: u16 = 65;
+pub(crate) const BASELINE_WITH_APPLIED_SERVICES: u16 = 66;
 pub const PACKAGE_POLICY_BASELINE_VERSION: u16 = BASELINE_WITH_APPLIED_SERVICES;
 pub(crate) const PACKAGE_POLICY_BASELINE_MAGIC: &[u8] = b"OMEGA-PACKAGE-POLICY\0";
 

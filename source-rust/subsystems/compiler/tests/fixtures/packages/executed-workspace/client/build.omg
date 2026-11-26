@@ -1,7 +1,7 @@
 use {omega}/build/dependency.omg;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "executed_workspace_source_join_exit");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "executed_workspace_source_join_exit" };
     let mutable selected_dependency: DependencyDescription = |dependency|::from_source(Source::Git {
         repository: "https://omega-source.invalid/executed-source.git",
         revision: "executed-build-fixture-v1",

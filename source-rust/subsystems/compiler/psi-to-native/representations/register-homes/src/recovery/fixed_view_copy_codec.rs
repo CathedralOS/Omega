@@ -1,6 +1,6 @@
 /*
 We encode and decode the self-authenticating `FixedViewCopyPlan` artifact
-(`OMGFCV\0\0`, version 120), binding the source selected-instruction, live-range,
+(`OMGFCV\0\0`, version 121), binding the source selected-instruction, live-range,
 and legality roots, the required segment-home evidence, the inserted
 fixed-view copies, and the authenticated transformed `SelectedInstructionPlan`
 payload. Native-binding receipts and hosted imports remain distinct from finite
@@ -62,7 +62,7 @@ const MAGIC: &[u8; 8] = b"OMGFCV\0\0";
 // The transformed selected identity binds every transferred claim's structural path.
 // Operation result qualifications retain their domain and establishment route.
 // Reject predecessor recovery schemas before reading their payload.
-pub(super) const VERSION: u32 = 120;
+pub(super) const VERSION: u32 = 121;
 pub(super) const ENVELOPE: Envelope = Envelope::new(MAGIC, VERSION);
 const ENVELOPE_DOMAIN: &[u8] = b"omega-fixed-view-copy-envelope-v64\0";
 

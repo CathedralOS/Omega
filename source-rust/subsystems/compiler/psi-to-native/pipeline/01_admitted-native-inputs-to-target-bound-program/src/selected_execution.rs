@@ -154,10 +154,6 @@ impl SelectedExecution {
                     artifact,
                 )
             })
-            .map(|mut selection| {
-                selection.assumed_bindings = self.plans().assumed_bindings().to_vec();
-                selection
-            })
             .map_err(|reason| vec![format!("provider proposal for `{target}`: {reason}")]);
         Some(target_provider_admission::TerminalTargetProviderProposal {
             target: target.to_owned(),

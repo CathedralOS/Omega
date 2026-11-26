@@ -108,7 +108,7 @@ impl TerminalPermissionAcceptance {
         accepted.sort_unstable_by_key(|(key, _)| *key);
         if !rows.iter().eq(accepted) {
             return Err(vec![Diagnostic::error(
-                "checked runtime policy differs from accepted root Product permissions and assumed bindings; run omega packages update",
+                "checked runtime policy differs from accepted root Product permissions and component assumptions; run omega packages update",
             )]);
         }
         Ok(())
@@ -268,17 +268,15 @@ mod tests {
 
     #[test]
     fn runtime_consent_matches_each_exact_coordinate_and_meaning_across_lock_order() {
-        use PackagePolicyRowKind::{
-            AssumedBindingContract, ComponentAssumption, TerminalPermission,
-        };
+        use PackagePolicyRowKind::{ComponentAssumption, TerminalPermission};
         let permission = row(TerminalPermission, 1, "terminal permission");
-        let binding = row(AssumedBindingContract, 2, "assumed contract");
+        let other_permission = row(TerminalPermission, 2, "second permission");
         let component = row(ComponentAssumption, 3, "component premise");
         let lock = TerminalPermissionAcceptance {
             schema_version: PACKAGE_POLICY_ROW_VERSION,
             package: PackageKeyIdentity::from_digest([1; 32]).unwrap(),
             target: TargetProfile::host(),
-            rows: [&binding, &component, &permission]
+            rows: [&other_permission, &component, &permission]
                 .map(|r| {
                     (
                         wire::digest_encoder::content_identity(r.key_bytes()),
@@ -287,13 +285,17 @@ mod tests {
                 })
                 .to_vec(),
         };
-        let provisions = vec![component.clone(), permission.clone(), binding.clone()];
+        let provisions = vec![
+            component.clone(),
+            permission.clone(),
+            other_permission.clone(),
+        ];
         assert!(lock.compare_rows(provisions.clone()).is_ok());
         let mut extra = provisions.clone();
         extra.push(row(PackagePolicyRowKind::Callable, 4, "regular callable"));
         assert!(lock.compare_rows(extra).is_ok());
         assert!(
-            lock.compare_rows(vec![component.clone(), binding.clone()])
+            lock.compare_rows(vec![component.clone(), other_permission.clone()])
                 .is_err()
         );
         for changed in [
@@ -301,7 +303,7 @@ mod tests {
             row(ComponentAssumption, 4, "component premise"),
         ] {
             let failure = lock
-                .compare_rows(vec![changed.clone(), permission.clone(), binding.clone()])
+                .compare_rows(vec![changed.clone(), permission.clone(), other_permission.clone()])
                 .unwrap_err();
             assert!(failure[0].message.contains(changed.canonical_text()));
         }

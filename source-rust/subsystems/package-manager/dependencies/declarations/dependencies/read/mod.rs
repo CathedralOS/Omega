@@ -26,7 +26,9 @@ use crate::declarations::{AliasName, PackageName};
 use aliases::validate_alias_uniqueness;
 use build_declarations::BuildRequest;
 pub use build_declarations::DependencyPurpose;
-pub(crate) use projection::{EditableSource, extract_scoped_from_source, project_source_for_edit};
+pub(crate) use projection::{
+    EditableSource, extract_requests_from_source, project_source_for_edit,
+};
 use semantic_vocabulary::dependency_reach::DependencyReach;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

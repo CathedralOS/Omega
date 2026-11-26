@@ -86,6 +86,12 @@ mod catalog_declaration;
 pub use catalog_declaration::SourceBuildDeclaration;
 
 impl PreparedBuildEvaluation {
+    pub fn demanded_programs(
+        &self,
+    ) -> impl Iterator<Item = &package_compilation::DelegatedProgram> {
+        self.execution.programs.demanded()
+    }
+
     pub fn source_completion_accounting(
         &self,
     ) -> &source_compiler::compile_time_invocations::SourceCompletionAccounting {
@@ -351,6 +357,9 @@ pub fn prepare_build_evaluation(
         let restricted_build_requests = admitted.restricted_build_requests();
         if !restricted_build_requests.is_empty() {
             let site = package_compilation::build_execution::RestrictedBuildSite {
+                subject: restricted_build_grants
+                    .as_ref()
+                    .and_then(|grants| grants.subject()),
                 entry: admitted.machine.normalized_callable_identity.clone(),
                 program: *admitted
                     .produced

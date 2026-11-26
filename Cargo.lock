@@ -2036,6 +2036,7 @@ dependencies = [
  "build-consent",
  "build-declarations",
  "build-output",
+ "build-program-launch",
  "build-time-values",
  "cap-fs-ext",
  "cap-primitives",

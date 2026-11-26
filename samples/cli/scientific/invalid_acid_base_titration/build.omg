@@ -1,1 +1,1 @@
-machine build(builder: @mutable Build) { Build::application(builder, "acid_species_bound"); }
+machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Application { name: "acid_species_bound" }; }

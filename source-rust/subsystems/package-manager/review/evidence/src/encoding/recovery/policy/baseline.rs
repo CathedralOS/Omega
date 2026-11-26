@@ -63,7 +63,6 @@ impl PackagePolicyBaseline {
             })?,
             boundary_applications: boundary::applications(&mut reader)?,
             restricted_build_requests: restricted_build::requests(&mut reader)?,
-            assumed_bindings: reader.sequence(1, |reader| reader.string())?,
             service_audits: reader.sequence(1, service)?,
             component_assumptions: reader.sequence(1, component_assumption)?,
         };

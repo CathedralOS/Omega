@@ -337,28 +337,6 @@ pub fn admit_prepared_native_realization<'execution>(
         providers.check_isolated_execution_grant(grant)?;
     }
     let mut input = input;
-    input.retain_admitted_assumed_bindings(
-        providers
-            .installation
-            .as_ref()
-            .map(|installation| {
-                installation
-                    .terminal_selection()
-                    .assumed_bindings()
-                    .iter()
-                    .map(|row| {
-                        operation_evidence::provider_calls::InstalledAssumedBindingEvidence {
-                            required: row.required,
-                            supplied_requirement: row.supplied_requirement,
-                            implementation: row.implementation,
-                            selected_requirement: row.selected_requirement,
-                            supply_path: row.supply_path.clone(),
-                        }
-                    })
-                    .collect()
-            })
-            .unwrap_or_default(),
-    );
     input.retain_admitted_native_callbacks(providers.take_native_callbacks());
     let installed_interrupts = providers.take_installed_interrupts();
     if installed_interrupts.psi() != input.plan().psi {

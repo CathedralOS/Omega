@@ -1,4 +1,4 @@
-//! Activation-owned, immutable sets of exact reflected service applications.
+//! Issue and resolve this activation’s service and program selections for each dependency registration.
 use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
 use semantic_vocabulary::{StructuralTypeId, dependency_reach::DependencyReach};
 use std::collections::{BTreeMap, BTreeSet};
@@ -50,21 +50,26 @@ struct Service {
     identity: String,
     parents: Vec<TerminalIdentityIndex>,
 }
+#[derive(Clone, Copy)]
+enum EdgeOption {
+    Service(TerminalIdentityIndex),
+    Program(source_text::SourceSpan),
+}
 struct IssuedSet {
     marker: TerminalStructuralValue,
     prior: Option<usize>,
-    service: TerminalIdentityIndex,
+    option: EdgeOption,
     _storage: Option<EvaluationStorageLease>,
 }
 
 #[derive(Default)]
-pub(super) struct ReachSets {
+pub(super) struct IssuedDependencyOptions {
     pub(super) reflections: Arc<ReflectedServices>,
     services: BTreeMap<TerminalIdentityIndex, Service>,
     sets: Mutex<Vec<IssuedSet>>,
 }
 
-impl ReachSets {
+impl IssuedDependencyOptions {
     pub fn from_module(module: &TerminalModule, reflects: bool) -> Result<Self, String> {
         let mut sets = Self::default();
         if reflects {
@@ -127,35 +132,55 @@ impl ReachSets {
                 "reflected boundary service is absent from this Build",
             ));
         }
+        self.issue(Some(prior), EdgeOption::Service(service), ty, account)
+    }
+
+    pub fn forward_program(
+        &self,
+        program: source_text::SourceSpan,
+        ty: StructuralTypeId,
+        account: Option<&EvaluationInvocationAccount>,
+    ) -> Result<TerminalStructuralValue, TerminalEffectRejection> {
+        self.issue(None, EdgeOption::Program(program), ty, account)
+    }
+
+    fn issue(
+        &self,
+        prior: Option<&TerminalStructuralValue>,
+        option: EdgeOption,
+        ty: StructuralTypeId,
+        account: Option<&EvaluationInvocationAccount>,
+    ) -> Result<TerminalStructuralValue, TerminalEffectRejection> {
+        let refuse = TerminalEffectRejection::new;
         let mut sets = self
             .sets
             .lock()
-            .map_err(|_| refuse("Build service sets lock poisoned"))?;
-        let previous = Self::issued(&sets, prior);
+            .map_err(|_| refuse("Build dependency options lock poisoned"))?;
+        let previous = prior.and_then(|prior| Self::issued(&sets, prior));
         let identity = u64::try_from(sets.len())
             .ok()
             .filter(|&index| index < SET_BASE)
-            .ok_or_else(|| refuse("Build service set markers exhausted"))?;
+            .ok_or_else(|| refuse("Build dependency option markers exhausted"))?;
         let lease = account
             .map(|account| account.reserve_site(0, 1, 0))
             .transpose()
             .map_err(|error| {
-                TerminalEffectRejection::new(format!("Build service set storage: {error:?}"))
+                TerminalEffectRejection::new(format!("Build dependency option storage: {error:?}"))
             })?;
         let marker = TerminalStructuralValue::minted(SET_BASE + identity, ty, Vec::new());
         sets.try_reserve(1)
-            .map_err(|_| refuse("cannot retain Build service set"))?;
+            .map_err(|_| refuse("cannot retain Build dependency options"))?;
         sets.push(IssuedSet {
             marker: marker.clone(),
             prior: previous,
-            service,
+            option,
             _storage: lease,
         });
         Ok(marker)
     }
 
     /// The authored empty record denotes the empty set. Only a row this activation
-    /// issued can contribute a service, and each row points strictly backwards.
+    /// issued can contribute authority, and each row points strictly backwards.
     fn issued(sets: &[IssuedSet], marker: &TerminalStructuralValue) -> Option<usize> {
         let index = usize::try_from(marker.opaque_identity.checked_sub(SET_BASE)?).ok()?;
         sets.get(index)
@@ -166,17 +191,26 @@ impl ReachSets {
     pub fn get(
         &self,
         marker: &TerminalStructuralValue,
-    ) -> Result<DependencyReach, TerminalEffectRejection> {
+    ) -> Result<(DependencyReach, Vec<source_text::SourceSpan>), TerminalEffectRejection> {
         let refuse = TerminalEffectRejection::new;
         let sets = self
             .sets
             .lock()
-            .map_err(|_| refuse("Build service sets lock poisoned"))?;
+            .map_err(|_| refuse("Build dependency options lock poisoned"))?;
         let mut node = Self::issued(&sets, marker);
         let mut applications = BTreeSet::new();
+        let mut programs = Vec::new();
         while let Some(index) = node {
             let row = &sets[index];
-            applications.insert(row.service);
+            match row.option {
+                EdgeOption::Service(service) => {
+                    applications.insert(service);
+                }
+                EdgeOption::Program(program) if !programs.contains(&program) => {
+                    programs.push(program)
+                }
+                EdgeOption::Program(_) => {}
+            }
             node = row.prior;
         }
         let mut work: Vec<_> = applications.into_iter().collect();
@@ -190,8 +224,9 @@ impl ReachSets {
                 work.extend(row.parents.iter().copied());
             }
         }
-        Ok(DependencyReach::from_checked_services(
-            services.into_iter().map(str::to_owned),
+        Ok((
+            DependencyReach::from_checked_services(services.into_iter().map(str::to_owned)),
+            programs,
         ))
     }
 }

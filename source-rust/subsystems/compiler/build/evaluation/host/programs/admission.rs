@@ -3,7 +3,8 @@ use super::{ProgramBinding, ProgramInstallation, ResultShape};
 use build_program_launch::ReviewedProgram;
 use diagnostics::Diagnostic;
 use package_compilation::build_execution::{
-    BuildProgramBinding, BuildProgramInvocation, ProgramDeclarationOwner, RestrictedProgramLaunch,
+    BuildProgramBinding, BuildProgramInvocation, DelegatedProgram, ProgramDeclarationOwner,
+    RestrictedProgramLaunch,
 };
 use source_compiler::publication::{ProducedTerminalProgram, TerminalBuildRequestOperation};
 use source_compiler::representations::source_state::TypedTrees;
@@ -61,8 +62,10 @@ impl ProgramInstallation {
             .iter()
             .filter(|call| imports.contains(&call.site.boundary))
         {
-            let TerminalBuildRequestOperation::LaunchProgram { program } = call.action else {
-                continue;
+            let program = match call.action {
+                TerminalBuildRequestOperation::LaunchProgram { program }
+                | TerminalBuildRequestOperation::ForwardProgram { program } => program,
+                _ => continue,
             };
             if !invocation.allow {
                 return Err(refuse_demand(
@@ -73,6 +76,12 @@ impl ProgramInstallation {
             }
             if !demands.iter().any(|&(required, _)| required == program) {
                 demands.push((program, call.site.machine));
+            }
+            if matches!(
+                call.action,
+                TerminalBuildRequestOperation::ForwardProgram { .. }
+            ) {
+                continue;
             }
             let boundary = view
                 .module()
@@ -140,6 +149,34 @@ impl ProgramInstallation {
                 .map_err(refused)?;
             selected.push(grant);
         }
+        for &(program, _) in &demands {
+            let file = source
+                .symbols
+                .source_file(program)
+                .ok_or_else(|| refused("lost the declaring file of an inherited program".into()))?;
+            if let Some(grant) = invocation
+                .inherited
+                .iter()
+                .find(|grant| grant.names(file, program.span))
+            {
+                if selected.iter().any(|binding| binding.source == program) {
+                    return Err(refused(
+                        "a local and an inherited grant select the same program".into(),
+                    ));
+                }
+                selected.push(ProgramBinding {
+                    source: program,
+                    review_owner: declaration_owner(
+                        file,
+                        !file.origin.is_toolchain()
+                            && file.package_root == entry_file.package_root
+                            && file.package_identity == entry_file.package_identity,
+                    )
+                    .map_err(refused)?,
+                    grant: grant.clone(),
+                });
+            }
+        }
         for &(program, caller) in &demands {
             if !selected.iter().any(|binding| binding.source == program) {
                 return Err(refuse_demand(
@@ -155,10 +192,22 @@ impl ProgramInstallation {
                 .any(|&(program, _)| program == binding.source)
         });
         for binding in &selected {
+            if let Some(files) = &binding.grant.files {
+                if let Some(output) = &files.output {
+                    output.require_live().map_err(refused)?;
+                }
+                continue;
+            }
             filesystem
-                .admit_program_files(&binding.meaning.readable, &binding.meaning.writable)
+                .admit_program_files(
+                    &binding.grant.meaning.readable,
+                    &binding.grant.meaning.writable,
+                )
                 .map_err(|why| {
-                    refused(format!("program `{}`: {why}", binding.meaning.declaration))
+                    refused(format!(
+                        "program `{}`: {why}",
+                        binding.grant.meaning.declaration
+                    ))
                 })?;
         }
         if !selected.is_empty() {
@@ -204,17 +253,7 @@ impl ProgramBinding {
         if readable.windows(2).any(|p| p[0] == p[1]) || writable.windows(2).any(|p| p[0] == p[1]) {
             return Err(format!("duplicate resource for `{declaration}`"));
         }
-        let owner = if at_root {
-            ProgramDeclarationOwner::RequestingSource
-        } else if let Some(owner) = file.package_identity {
-            ProgramDeclarationOwner::Package(owner.digest())
-        } else if file.origin.is_toolchain() {
-            ProgramDeclarationOwner::Toolchain(
-                source_admission::source_identity::toolchain_source_identity_digest(file)?,
-            )
-        } else {
-            return Err(format!("program `{declaration}` has no reviewed owner"));
-        };
+        let owner = declaration_owner(file, at_root)?;
         let meaning = RestrictedProgramLaunch {
             owner,
             declaration,
@@ -226,8 +265,36 @@ impl ProgramBinding {
         };
         Ok(Self {
             source: span,
-            meaning,
-            image,
+            review_owner: owner,
+            grant: DelegatedProgram {
+                declaration: file.clone(),
+                declaration_span: span.span,
+                meaning,
+                image,
+                files: None,
+            },
         })
+    }
+}
+
+/// RequestingSource is relative to this Build. Recompute the displayed owner
+/// when an exact checked declaration arrives through a different package.
+fn declaration_owner(
+    file: &source_admission::SourceFile,
+    at_root: bool,
+) -> Result<ProgramDeclarationOwner, String> {
+    if at_root {
+        Ok(ProgramDeclarationOwner::RequestingSource)
+    } else if let Some(owner) = file.package_identity {
+        Ok(ProgramDeclarationOwner::Package(owner.digest()))
+    } else if file.origin.is_toolchain() {
+        Ok(ProgramDeclarationOwner::Toolchain(
+            source_admission::source_identity::toolchain_source_identity_digest(file)?,
+        ))
+    } else {
+        Err(format!(
+            "program declaration in {} has no reviewed owner",
+            file.logical_filename()?
+        ))
     }
 }

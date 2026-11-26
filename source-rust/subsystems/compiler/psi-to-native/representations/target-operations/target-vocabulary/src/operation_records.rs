@@ -22,7 +22,6 @@ pub enum NativeCallOrigin {
     InstalledProvider {
         boundary: BoundaryMachineId,
         provider: ProviderCandidateConformance,
-        assumption: Option<crate::InstalledAssumedBindingEvidence>,
         completion_claim_sources: Vec<CompletionClaimSource>,
         completion_receipts: Vec<CompletionReceipt>,
     },

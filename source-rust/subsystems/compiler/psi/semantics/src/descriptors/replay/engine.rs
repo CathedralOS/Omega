@@ -232,21 +232,33 @@ pub(crate) struct UnobservedWrite {
 #[derive(Clone)]
 pub(crate) enum EffectObservations {
     Observed(Vec<DescriptorStoredEffect>),
-    /// None is an unplaceable writable ceiling, never an empty write set.
-    Unobserved(Option<Vec<UnobservedWrite>>),
+    Incomplete {
+        observed: Vec<DescriptorStoredEffect>,
+        /// None means the writable ceiling cannot be located.
+        unobserved: Option<Vec<UnobservedWrite>>,
+    },
 }
 
 impl EffectObservations {
+    pub(super) fn known_writes(&self) -> &[DescriptorStoredEffect] {
+        match self {
+            Self::Observed(effects)
+            | Self::Incomplete {
+                observed: effects, ..
+            } => effects,
+        }
+    }
+
     pub(crate) fn observed(&self) -> Option<&Vec<DescriptorStoredEffect>> {
         match self {
             Self::Observed(effects) => Some(effects),
-            Self::Unobserved(_) => None,
+            Self::Incomplete { .. } => None,
         }
     }
     pub(crate) fn into_observed(self) -> Option<Vec<DescriptorStoredEffect>> {
         match self {
             Self::Observed(effects) => Some(effects),
-            Self::Unobserved(_) => None,
+            Self::Incomplete { .. } => None,
         }
     }
 }
@@ -2559,6 +2571,42 @@ impl<'a> Replay<'a> {
         let mut replacements = BTreeMap::new();
         for write in writes.as_ref()? {
             let query = self.actual_contents(machine, call, write.parameter, &write.steps)?;
+            if query.steps.last()
+                == Some(&DescriptorContentsStep::Address(DescriptorPathSegment::UnknownContents))
+            {
+                // The carrier has a storage address. Its packet records the
+                // evidence about every loan the value can contain.
+                let mut carrier = query.clone();
+                carrier.steps.pop();
+                let location = carrier.exact_location()?;
+                let root_type = *machine.place_types.get(&location.root)?;
+                let selected = self
+                    .type_index
+                    .descriptor_location_type(root_type, &location.path)?;
+                if self.location_capture(machine, &location, reads).is_some() {
+                    return None;
+                }
+                let inventory = self
+                    .slot_kind
+                    .owned_inventory(self.types, location.root, selected)?;
+                if !inventory.slots.is_empty() {
+                    return None;
+                }
+                if !inventory.unknown_contents.is_empty() {
+                    let packet = self.canonical_contents_packet(
+                        machine, before, &query.exact_location()?,
+                    )?;
+                    replacements.insert(
+                        DescriptorPayloadTarget::Storage {
+                            location: packet,
+                            completed: None,
+                        },
+                        None,
+                    );
+                }
+                retire(&carrier);
+                continue;
+            }
             retire(&query);
             self.contents_replacements_with_depth(
                 machine,
@@ -2635,7 +2683,7 @@ impl<'a> Replay<'a> {
         }
         let mut replacements = match &summary.effects {
             EffectObservations::Observed(_) => BTreeMap::new(),
-            EffectObservations::Unobserved(writes) => {
+            EffectObservations::Incomplete { unobserved: writes, .. } => {
                 let unknown = self
                     .unobserved_effect_replacements(
                         machine,
@@ -2671,7 +2719,7 @@ impl<'a> Replay<'a> {
             }
         };
         let mut destinations = Vec::new();
-        for effect in summary.effects.observed().into_iter().flatten() {
+        for effect in summary.effects.known_writes() {
             if !effect.origins.is_empty()
                 && effect
                     .origins
@@ -4131,7 +4179,7 @@ impl<'a> Replay<'a> {
             let summary = Summary {
                 result: ResultObservations::NoNormalBodyObservation,
                 result_cases: Default::default(),
-                effects: EffectObservations::Unobserved(writable),
+                effects: EffectObservations::Incomplete { observed: Vec::new(), unobserved: writable },
                 invalidates_contents: states.values().any(|state| state.contents_invalidated),
                 storage_frame: StorageFrame::default(),
             };
@@ -4263,6 +4311,7 @@ impl<'a> Replay<'a> {
         };
         let mut written: Vec<(usize, Vec<DescriptorContentsStep>, BTreeSet<Origin>)> =
             Vec::new();
+        let mut unobserved = Vec::new();
         for row in &machine.places {
             let DescriptorDefinition::Parameter {
                 position: parameter,
@@ -4274,8 +4323,40 @@ impl<'a> Replay<'a> {
                 continue;
             };
             let slots = if self.slot_kind.tracks_references() {
-                self.slot_kind
-                    .writable_slots(self.types, row.place, structural_type, access)?
+                let inventory = self.slot_kind.writable_inventory(
+                    self.types, row.place, structural_type, access,
+                )?;
+                for opaque in inventory.unknown_contents {
+                    // The packet describes the entire opaque value. A normal
+                    // path can preserve its entry identity, or lose it through
+                    // a write. In the latter case replay must retire that packet
+                    // at the corresponding actual without inventing an origin.
+                    if opaque.kind != UnknownContentsKind::Value {
+                        return None;
+                    }
+                    let incoming = BTreeSet::from([Origin::Incoming(opaque.location.clone())]);
+                    let mut lost = false;
+                    for exit in completed.values() {
+                        match self.read(machine, exit, &opaque.location) {
+                            Some(packet) if packet == incoming => {
+                                lost |= exit.contents_invalidated;
+                            }
+                            None if exit.contents_invalidated => lost = true,
+                            // A known replacement needs its own lifetime account,
+                            // even if another write invalidated some observations.
+                            _ => return None,
+                        }
+                    }
+                    if lost {
+                        unobserved.push(UnobservedWrite {
+                            parameter,
+                            steps: opaque.location.path.into_iter()
+                                .map(DescriptorContentsStep::Address)
+                                .collect(),
+                        });
+                    }
+                }
+                inventory.slots
             } else {
                 if !matches!(access, terminal_psi::exclusive_borrow_pair_pattern!())
                     && !matches!(
@@ -4373,7 +4454,11 @@ impl<'a> Replay<'a> {
                 unknown: unknown_results,
             },
             result_cases,
-            effects: EffectObservations::Observed(effects),
+            effects: if unobserved.is_empty() {
+                EffectObservations::Observed(effects)
+            } else {
+                EffectObservations::Incomplete { observed: effects, unobserved: Some(unobserved) }
+            },
             invalidates_contents,
             storage_frame: StorageFrame::default(),
         };

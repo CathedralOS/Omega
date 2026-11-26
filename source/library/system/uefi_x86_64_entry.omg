@@ -1,15 +1,14 @@
 use calling.omg as abi;
 use {omega}/language/core/extent.omg as storage;
-use {omega}/language/core/program_image.omg as image;
+use uefi_x86_64_handoff.omg as boot;
 
 // Target-owned UEFI x86-64 physical contract. Source-owned firmware calls
 // obtain Loaded Image geometry; an application explicitly selects its checked
-// physical adapter. The
-// generated shell invokes that adapter under this calling policy. The adapter
-// validates physical arrival, composes the scoped image correspondence and
-// independent initial storage through scoped firmware providers, accounts for
-// its stack, and crosses ProgramStorageEntry::enter; this ABI alone establishes
-// no root or firmware-service authority.
+// physical adapter. The generated shell enters the adapter under this calling
+// policy. The adapter validates arrival, obtains the image and initial storage
+// through scoped firmware providers, accounts for its stack, and crosses
+// ProgramStorageEntry::enter. The ABI alone conveys no storage grant or
+// firmware-service authority.
 public data EfiImageHandle {
     raw: addr;
 }
@@ -25,8 +24,8 @@ public boundary trait UefiPhysicalEntry {
         image_handle: EfiImageHandle,
         system_table: @EfiSystemTable
     ) -> EfiStatus
-        reaches |image|::ProgramImage
-        invokes |image|::ProgramImage
+        reaches |boot|::UefiBootServices
+        invokes |storage|::ProgramStorageEntry
         crashes Trap crashes Abort;
 }
 

@@ -1,0 +1,30 @@
+machine even(value: u32) -> bool {
+    let odd: u32 = value & 1u32;
+    odd == 0u32
+}
+
+machine validate(value: u32, expected: bool) crashes Trap {
+    transition value {
+        0 -> done(),
+        _ -> next(value, expected)
+    }
+    machine next(value: u32, expected: bool) crashes Trap
+    requires value > 0u32
+    {
+        transition even(value) == expected {
+            true -> recur(value, expected),
+            _ -> fail()
+        }
+    }
+    machine recur(value: u32, expected: bool) crashes Trap
+    requires value > 0u32
+    {
+        transition { _ -> validate(value - 1u32, !expected) }
+    }
+    machine done() {}
+    machine fail() crashes Trap { crash Trap; }
+}
+
+public machine start() crashes Trap {
+    validate(4u32, even(4u32));
+}

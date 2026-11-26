@@ -246,8 +246,9 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
         ordinal: usize,
     ) -> Result<AcquiredSourceSelection, String> {
         if result
-            .frozen_dependencies()
-            .contains_key(&(purpose, ordinal))
+            .dependency_backings()
+            .get(&(purpose, ordinal))
+            .is_some_and(|backing| backing.frozen.is_some())
         {
             return Err("a frozen binding requires its already settled source".into());
         }
@@ -712,7 +713,7 @@ impl AcquiredBuildSource {
         let entries = returned.require_source_acquisition(self.source_capture())?;
         let mut source =
             self.declare_requests(returned.declaration(), returned.source_requests())?;
-        source.frozen = returned.frozen_dependencies();
+        source.backings = returned.dependency_backings();
         source.custody.build_entries = entries.clone();
         Ok(source)
     }
@@ -723,7 +724,7 @@ impl AcquiredBuildSource {
     ) -> Result<DeclaredBuildSource, String> {
         let entries = result.require_source_acquisition(self.source_capture())?;
         let mut source = self.declare_requests(result.declaration(), result.source_requests())?;
-        source.frozen = result.frozen_dependencies();
+        source.backings = result.dependency_backings();
         source.custody.build_entries = entries.clone();
         Ok(source)
     }
@@ -760,7 +761,7 @@ impl AcquiredBuildSource {
         )
         .with_captured_source(std::sync::Arc::clone(self.capture.tree()));
         Ok(DeclaredBuildSource {
-            frozen: Default::default(),
+            backings: Default::default(),
             custody,
             root_request: self.root_request.clone(),
         })

@@ -18,7 +18,6 @@ belong with these records; this crate contains no prepared instruction graph.
 
 pub use calling_conventions::MachineRegister;
 pub use operation_evidence::completion_claims::CompletionClaimSource;
-pub use operation_evidence::provider_calls::InstalledAssumedBindingEvidence;
 pub use operation_operands::values::{AbstractResult, ValueBinding};
 
 pub mod calls;

@@ -11,11 +11,12 @@ public data Source<'storage> {
 public boundary trait BuildRequestOperations {
     machine extend_workspace(builder: @BuildPlan, prefix: WorkspaceMembers, path: @[u8]) -> WorkspaceMembers reaches none crashes none;
     machine artifact_only(builder: @BuildPlan) reaches none crashes none;
-    machine register_path_dependency(builder: @BuildPlan, build_scope: bool, explicit_alias: bool, alias: @[u8], location: @[u8], max_reach: PackageReach) -> DependencyRegistration reaches none crashes none;
-    machine register_git_dependency(builder: @BuildPlan, build_scope: bool, explicit_alias: bool, alias: @[u8], repository: @[u8], revision: @[u8], named_package: bool, package: @[u8], max_reach: PackageReach) -> DependencyRegistration reaches none crashes none;
+    machine register_path_dependency(builder: @BuildPlan, explicit_alias: bool, alias: @[u8], location: @[u8], max_reach: DependencyOptions) -> DependencyRegistration reaches none crashes none;
+    machine register_git_dependency(builder: @BuildPlan, explicit_alias: bool, alias: @[u8], repository: @[u8], revision: @[u8], named_package: bool, package: @[u8], max_reach: DependencyOptions) -> DependencyRegistration reaches none crashes none;
     machine input_binding(builder: @BuildPlan, alias: @[u8]) -> PackageBinding reaches none crashes none;
-    machine extend_reach(builder: @BuildPlan, prior: PackageReach, service: BoundaryServiceReference) -> PackageReach reaches none crashes none;
-    machine add_binding(builder: @BuildPlan, binding: PackageBinding, max_reach: PackageReach) -> DependencyRegistration reaches none crashes none;
+    machine forward_program<Program>() -> DependencyOptions reaches none crashes none;
+    machine extend_reach(builder: @BuildPlan, prior: DependencyOptions, service: BoundaryServiceReference) -> DependencyOptions reaches none crashes none;
+    machine add_binding(builder: @BuildPlan, binding: PackageBinding, max_reach: DependencyOptions) -> DependencyRegistration reaches none crashes none;
     machine validate_dependency(builder: @BuildPlan, registered: DependencyRegistration) reaches none crashes none;
     machine prepare_dependency(builder: @BuildPlan, registered: DependencyRegistration) reaches none crashes none suspends;
     machine publish_source(builder: @BuildPlan, name: @[u8], source: @[u8]) reaches none crashes none;
@@ -25,8 +26,8 @@ public boundary trait BuildRequestOperations {
 }
 // Configured dependency description
 // (wiki/spec/build/scoped_execution.md#dependency-declarations-and-binding).
-// Ordinary helpers prepare it before registration; `Build::dependency` or
-// `Build::build_dependency` consumes it, so no alias can change afterwards.
+// Ordinary helpers prepare it before registration. `Build::dependency` fixes
+// the source and alias for the immediate product.
 // Constructing one grants no host or package authority.
 public data DependencyDescription<'storage> {
     source: Source<'storage>;
@@ -47,4 +48,4 @@ public data DependencyRegistration [copy] {
 public data PackageBinding [copy] {}
 // The host recognizes only service references issued by this Build activation.
 public data BoundaryServiceReference [copy] {}
-public data PackageReach [copy] {}
+public data DependencyOptions [copy] {}

@@ -40,7 +40,6 @@ pub(super) fn count(policy: &PackagePolicyBaseline) -> Result<usize, PackageRevi
         policy.semantic_dependencies.len(),
         policy.boundary_applications.demands.len(),
         policy.restricted_build_requests.len(),
-        policy.assumed_bindings.len(),
         policy.service_audits.len(),
         policy.component_assumptions.len(),
     ];
@@ -80,7 +79,6 @@ pub(super) fn acceptance_count(
         policy.native_bindings.len(),
         policy.dangerous_capabilities.len(),
         policy.restricted_build_requests.len(),
-        policy.assumed_bindings.len(),
         policy.service_audits.len(),
         policy.component_assumptions.len(),
     ]
@@ -141,7 +139,6 @@ pub(super) fn project(
         semantic_dependencies: _,
         boundary_applications,
         restricted_build_requests,
-        assumed_bindings,
         service_audits,
         component_assumptions,
     } = policy;
@@ -155,7 +152,6 @@ pub(super) fn project(
             encoder.string_field("target", target.identity().as_str())
         },
     )?;
-    assumed(builder, assumed_bindings)?;
     declarations::project(builder, public_api, *schema_version)?;
     for service in service_audits {
         builder.push(
@@ -318,25 +314,6 @@ pub(super) fn project(
                 Ok(())
             },
             |encoder| baseline::restricted_build::request(encoder, request),
-        )?;
-    }
-    Ok(())
-}
-
-pub(super) fn assumed(
-    builder: &mut Builder,
-    assumed_bindings: &[String],
-) -> Result<(), PackageReviewEncodingError> {
-    for (ordinal, row) in assumed_bindings.iter().enumerate() {
-        builder.push(
-            PackagePolicyRowKind::AssumedBindingContract,
-            true,
-            true,
-            |encoder| {
-                encoder.u64(ordinal as u64);
-                Ok(())
-            },
-            |encoder| encoder.string(row),
         )?;
     }
     Ok(())

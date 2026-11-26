@@ -784,7 +784,7 @@ pub(in crate::function_fragments) fn admit(
                             && row.call.requirement_obligations == *requirement_obligations
                             && row.call.crash_continuations == *crash_continuations
                             && row.call.arguments.iter().filter_map(|argument| match argument {
-                                legalized_operations::LegalizedScalarArgument::Scalar { source, .. } => Some(*source),
+                                legalized_operations::LegalizedScalarArgument::Scalar { source, .. } => Some(source.value),
                                 _ => None,
                             }).eq(arguments.iter().copied())
                             && row.call.arguments.iter().filter_map(|argument| match argument {

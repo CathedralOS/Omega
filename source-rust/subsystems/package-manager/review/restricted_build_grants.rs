@@ -76,7 +76,8 @@ impl std::fmt::Display for UngrantedRestrictedBuildRequest {
 /// A shared root Build executes once for its requested deployments. Every
 /// participating deployment must have accepted the complete normalized row
 /// for this exact occurrence, source and evaluator.
-pub(crate) struct RootRestrictedBuildGrants {
+pub(crate) struct OccurrenceBuildGrants {
+    pub(crate) subject: package_compilation::RestrictedBuildSubject,
     pub(crate) name: Option<String>,
     pub(crate) phase: Option<crate::transaction::restricted_build::BuildPhaseGrants>,
     deployments: Vec<(
@@ -86,9 +87,10 @@ pub(crate) struct RootRestrictedBuildGrants {
     )>,
 }
 
-impl RootRestrictedBuildGrants {
+impl OccurrenceBuildGrants {
     pub(crate) fn for_phase(phase: crate::transaction::restricted_build::BuildPhaseGrants) -> Self {
         Self {
+            subject: package_compilation::RestrictedBuildSubject::Root,
             name: None,
             phase: Some(phase),
             deployments: Vec::new(),
@@ -99,24 +101,36 @@ impl RootRestrictedBuildGrants {
         sections: &[&crate::lock::PackageLockTarget],
         acquired: &crate::resolution::source::AcquiredBuildSource,
         host: target::TargetProfile,
+        purpose: Option<build_declarations::DependencyPurpose>,
     ) -> Option<Self> {
         use review_evidence::record::PackagePolicyRowKind;
-        let root_key = sections.first()?.source().root().selected().key();
+        let mut name = None;
+        if sections.is_empty() {
+            return None;
+        }
         let origin = acquired.acquisition_origin();
         let mut deployments = Vec::new();
         for section in sections {
             let source = section.source();
-            let root = source.root().selected();
-            if root.key() != root_key
-                || root.key().source_lineage() != origin.lineage
-                || root.resolution() != origin.resolution
-                || source.package_navigation(root.key()) != Some(origin.navigation)
+            let candidates = if purpose.is_some() {
+                source.packages()
+            } else {
+                std::slice::from_ref(source.root().selected())
+            };
+            let mut matching = candidates.iter().filter(|candidate| {
+                candidate.key().source_lineage() == origin.lineage
+                    && candidate.resolution() == origin.resolution
+                    && source.package_navigation(candidate.key()) == Some(origin.navigation)
+            });
+            let key = matching.next()?.key();
+            if matching.next().is_some() || name.as_ref().is_some_and(|n| n != key.name().as_str())
             {
                 return None;
             }
-            let package = root.key().identity();
+            name = Some(key.name().as_str().to_owned());
+            let package = key.identity();
             let context = PackageCheckedContext::new(
-                build_declarations::DependencyPurpose::Product,
+                purpose.unwrap_or(build_declarations::DependencyPurpose::Product),
                 section.target(),
                 Some(host),
             );
@@ -134,14 +148,19 @@ impl RootRestrictedBuildGrants {
             deployments.push((package, context, rows));
         }
         Some(Self {
-            name: Some(root_key.name().as_str().to_owned()),
+            subject: package_compilation::RestrictedBuildSubject::Root,
+            name,
             phase: None,
             deployments,
         })
     }
 }
 
-impl package_compilation::build_execution::RestrictedBuildGrants for RootRestrictedBuildGrants {
+impl package_compilation::build_execution::RestrictedBuildGrants for OccurrenceBuildGrants {
+    fn subject(&self) -> Option<package_compilation::RestrictedBuildSubject> {
+        Some(self.subject.clone())
+    }
+
     fn admits(
         &mut self,
         site: &package_compilation::build_execution::RestrictedBuildSite,

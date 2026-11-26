@@ -1,1 +1,4 @@
 public boundary trait NativeCodeExecution {}
+
+// Loading an image can occur without entering any code in the image.
+public boundary trait NativeImageLoad {}

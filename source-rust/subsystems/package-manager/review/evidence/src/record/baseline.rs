@@ -3,8 +3,7 @@
 //
 // `PackagePolicyBaseline` records one reviewed package in one exact target
 // activation for comparison, not an acceptance decision or compiler
-// certificate. `assumed_bindings` retains build-host requests in issue order as
-// standalone decision rows without host paths or live grant state.
+// certificate.
 
 use crate::record::PackagePolicyBoundaryApplications;
 use crate::record::PackagePolicyCallables;
@@ -47,7 +46,6 @@ pub struct PackagePolicyBaseline {
     pub slack_uses: Vec<PackageReviewDangerousAuthoritySlack>,
     pub semantic_dependencies: Vec<PackagePolicySemanticDependency>,
     pub boundary_applications: PackagePolicyBoundaryApplications,
-    pub assumed_bindings: Vec<String>, // Build-host requests in issue order without host paths or live grants.
     pub service_audits: Vec<PackageReviewServiceIdentity>,
     pub restricted_build_requests: Vec<PackagePolicyRestrictedBuildRequest>,
     pub component_assumptions: Vec<PackagePolicyComponentAssumption>,

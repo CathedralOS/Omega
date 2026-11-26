@@ -117,7 +117,7 @@ impl<'program, 'artifact> SelectedPolicies<'program, 'artifact> {
             .calling_declaration_owner(artifact.view().into(), declaration)
             .map_err(refuse)?;
         let providers =
-            psi_provider_selections::admit_provider_installation(artifact.view(), &[], &[])
+            psi_provider_selections::admit_provider_installation(artifact.view(), &[])
                 .map_err(|error| refuse(format!("{error:?}")))?;
         let analysis = self
             .analysis

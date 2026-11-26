@@ -1,7 +1,7 @@
 use {omega}/build/dependency.omg;
 
-machine build(builder:@mutable Build) {
- Build::application(builder,"disk_guard_composition");
+machine build(builder:@mutable BuildPlan) {
+ builder.product = BuildProduct::Application { name: "disk_guard_composition" };
     let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../../../../../../source/library/system" }));
  Build::bind(builder,linux_x86_64::ProgramEntry,entry_start);
 }

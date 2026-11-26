@@ -659,7 +659,7 @@ fn folded_layout_reopens_only_with_its_selected_target_and_plan_preimages() {
     .unwrap();
     assert!(!preimages.is_empty());
     let admit = |target, inputs: &[Vec<u8>]| {
-        psi_provider_selections::admit_provider_installation(view, &[], &[])
+        psi_provider_selections::admit_provider_installation(view, &[])
             .unwrap()
             .admit_folded_constant_closure(view, target, inputs)
     };

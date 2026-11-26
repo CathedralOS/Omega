@@ -1911,8 +1911,6 @@ pub(crate) mod instance {
                 || entry.scalar_entry_checks.is_some()
                 || frame.entry_results.is_some()
                 || entry.entry_results.is_some()
-                || !frame.assumed_bindings.is_empty()
-                || !entry.assumed_bindings.is_empty()
                 || frame.x86_flags.is_some()
                 || entry.x86_flags.is_some()
                 || frame.memory_ordering.is_some()
@@ -2923,7 +2921,6 @@ pub(crate) mod program {
                     code_identity: self.program.identity.clone(),
                     entry: None,
                     supplies: BTreeMap::new(),
-                    assumed_bindings: Vec::new(),
                     folded_constant_target: None,
                     target_machines: None,
                     target_layouts: None,
@@ -3057,10 +3054,6 @@ pub(crate) mod program {
                 ));
             }
             if installation.supplies.contains_key(&boundary)
-                || installation
-                    .assumed_bindings
-                    .iter()
-                    .any(|binding| binding.required == boundary)
             {
                 return Err(rejected(
                     "external supply duplicates or competes with a selected supply",
@@ -3483,7 +3476,6 @@ pub(crate) mod program {
                 || installation.target_machines.as_ref() != primary.targets()
                 || installation.provider_selections.as_ref() != Some(primary.providers())
                 || installation.target_layouts.as_deref() != primary.layouts()
-                || installation.assumed_bindings != expected.assumed_bindings
                 || expected
                     .supplies
                     .iter()
@@ -3513,7 +3505,6 @@ pub(crate) mod program {
                 || installation.target_machines.as_ref() != observations.targets()
                 || installation.provider_selections.as_ref() != Some(observations.providers())
                 || installation.supplies != expected_providers.supplies
-                || installation.assumed_bindings != expected_providers.assumed_bindings
                 || installation.target_layouts.as_deref() != observations.layouts()
                 || observations
                     .entry(application)

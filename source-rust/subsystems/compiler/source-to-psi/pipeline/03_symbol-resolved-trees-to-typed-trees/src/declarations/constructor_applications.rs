@@ -762,7 +762,10 @@ fn select_closed_call(
         let Some(state) = program.machine_states(machine).first() else {
             return Ok(None);
         };
-        if program.normalized_result_dispatch_set(state.return_type) != expected_dispatch {
+        let parameters = program.state_parameters(state);
+        if parameters.len() != call.arguments.len()
+            || program.normalized_result_dispatch_set(state.return_type) != expected_dispatch
+        {
             continue;
         }
         // Lifetime names do not choose a carrier overload. The existing
@@ -780,8 +783,7 @@ fn select_closed_call(
         }
         headers.push((
             candidate,
-            program
-                .state_parameters(state)
+            parameters
                 .iter()
                 .map(|parameter| parameter.type_reference)
                 .collect::<Vec<_>>(),
@@ -789,9 +791,6 @@ fn select_closed_call(
     }
     let mut selected = None;
     for (candidate, parameters) in headers {
-        if parameters.len() != call.arguments.len() {
-            continue;
-        }
         let mut compatible = true;
         for (argument, expected) in call.arguments.iter().zip(&parameters) {
             let actual = infer_at_destination(program, *argument, *expected, &mut Vec::new())?;
@@ -1897,6 +1896,35 @@ mod tests {
             panic!("one authored call in {owner}; found {}", calls.len())
         };
         *call
+    }
+
+    #[test]
+    fn a_generic_sibling_with_another_arity_cannot_block_a_file_qualified_call() {
+        let program = checked(&[
+            (
+                "kit.omg",
+                "public machine read(value: u32) -> u32 { value } \
+                 public machine read<T>(value: T, other: u32) -> u32 { other }",
+            ),
+            (
+                "main.omg",
+                "use kit.omg; machine matching(value: u32) -> u32 { |kit|::read(value) } \
+                 machine wrong(value: bool) -> u32 { |kit|::read(value) }",
+            ),
+        ])
+        .unwrap();
+        let (target, occurrence) = owned_call(&program, "matching");
+        let machine = program.machine_by_own_or_state_symbol(target).unwrap();
+        assert!(program.machine_type_parameters(machine).is_empty());
+        let choice = program
+            .authored_declaration_selections()
+            .get(occurrence.unwrap())
+            .unwrap();
+        assert_eq!(
+            choice.target().as_resolved().unwrap().selected_symbol(),
+            target
+        );
+        assert!(!owned_call(&program, "wrong").0.is_valid());
     }
 
     #[test]

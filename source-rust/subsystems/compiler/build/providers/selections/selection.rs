@@ -1,5 +1,5 @@
-//! Keep the exact selected provider plans and their checked installation,
-//! specialization and assumed-binding rows. Retained candidates must reproduce
+//! Keep the exact selected provider plans and their checked installation
+//! and specialization rows. Retained candidates must reproduce
 //! these identities when they re-enter Build or native admission.
 #![forbid(unsafe_code)]
 
@@ -18,12 +18,6 @@ impl SelectedProviderClosureDigest {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AssumedBindingContractSelection {
-    pub required: String,
-    pub supplied: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedExternalRequirementApplication {
     pub provider_plan_report_identity: u64,
     pub provider_plan_digest: ProviderPlanDigest,
@@ -34,7 +28,6 @@ pub struct SelectedExternalRequirementApplication {
 #[derive(Clone, PartialEq, Eq)]
 pub struct SelectedProviderPlanCandidate {
     pub plans: Vec<ProviderPlan>,
-    pub assumed_bindings: Vec<AssumedBindingContractSelection>,
     pub report_fingerprint: u64,
     pub installation_reach_resolutions: Vec<InstallationReachResolution>,
     pub specialized_requirement_rows: Vec<SelectedRequirementSpecialization>,
@@ -46,7 +39,6 @@ pub struct SelectedProviderPlanCandidate {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedProviderPlanFacts {
     plans: Vec<ProviderPlan>,
-    assumed_bindings: Vec<AssumedBindingContractSelection>,
     report_fingerprint: u64,
     installation_reach_resolutions: Vec<InstallationReachResolution>,
     specialized_requirement_rows: Vec<SelectedRequirementSpecialization>,
@@ -59,7 +51,6 @@ impl Default for SelectedProviderPlanFacts {
     fn default() -> Self {
         Self {
             plans: Vec::new(),
-            assumed_bindings: Vec::new(),
             report_fingerprint: selected_plans_report_fingerprint(&[]),
             installation_reach_resolutions: Vec::new(),
             specialized_requirement_rows: Vec::new(),
@@ -74,7 +65,6 @@ impl SelectedProviderPlanFacts {
     pub fn recovery_candidate(&self) -> SelectedProviderPlanCandidate {
         let Self {
             plans,
-            assumed_bindings,
             report_fingerprint,
             installation_reach_resolutions,
             specialized_requirement_rows,
@@ -84,7 +74,6 @@ impl SelectedProviderPlanFacts {
         } = self;
         SelectedProviderPlanCandidate {
             plans: plans.clone(),
-            assumed_bindings: assumed_bindings.clone(),
             report_fingerprint: *report_fingerprint,
             installation_reach_resolutions: installation_reach_resolutions.clone(),
             specialized_requirement_rows: specialized_requirement_rows.clone(),
@@ -92,63 +81,6 @@ impl SelectedProviderPlanFacts {
             toolchain_settled_identities: toolchain_settled_identities.clone(),
             identities: identities.clone(),
         }
-    }
-
-    pub fn with_assumed_bindings(mut self, rows: Vec<AssumedBindingContractSelection>) -> Self {
-        self.assumed_bindings = rows;
-        self
-    }
-
-    pub fn assumed_supplier_identity<'a>(
-        &'a self,
-        requirement: &'a str,
-    ) -> Result<&'a str, String> {
-        let mut current = requirement;
-        for _ in 0..=self.assumed_bindings.len() {
-            if let Some(row) = self
-                .assumed_bindings
-                .iter()
-                .find(|row| row.required == current)
-            {
-                current = &row.supplied;
-            } else {
-                return Ok(current);
-            }
-        }
-        Err("cyclic assumed binding supply".to_owned())
-    }
-
-    pub fn assumed_bindings(&self) -> &[AssumedBindingContractSelection] {
-        &self.assumed_bindings
-    }
-
-    pub fn assumed_binding_coordinates(
-        &self,
-        module: &terminal_psi::TerminalModule,
-    ) -> Result<
-        Vec<(
-            semantic_vocabulary::BoundaryMachineId,
-            semantic_vocabulary::BoundaryMachineId,
-        )>,
-        String,
-    > {
-        let find = |identity: &str| {
-            let mut rows = module
-                .interfaces.boundary_machines
-                .iter()
-                .filter(|row| module.identities.text(row.identity) == Some(identity));
-            let row = rows
-                .next()
-                .ok_or("assumed binding requirement absent from canonical artifact")?;
-            if rows.next().is_some() {
-                return Err("assumed binding requirement is ambiguous");
-            }
-            Ok(row.id)
-        };
-        self.assumed_bindings
-            .iter()
-            .map(|row| Ok((find(&row.required)?, find(&row.supplied)?)))
-            .collect()
     }
 
     pub fn from_selected_plans(mut plans: Vec<ProviderPlan>) -> Result<Self, String> {
@@ -205,7 +137,6 @@ impl SelectedProviderPlanFacts {
         }
         Ok(Self {
             plans,
-            assumed_bindings: Vec::new(),
             report_fingerprint,
             installation_reach_resolutions: Vec::new(),
             specialized_requirement_rows: Vec::new(),
@@ -348,7 +279,7 @@ impl SelectedProviderPlanFacts {
     }
 
     pub fn identity_digest(&self) -> SelectedProviderClosureDigest {
-        let mut encoder = DomainDigestEncoder::new(b"omega.selected-provider-closure.sha256.v5\0");
+        let mut encoder = DomainDigestEncoder::new(b"omega.selected-provider-closure.sha256.v6\0");
         encoder.len(self.plans.len());
         for plan in &self.plans {
             encoder.bytes(plan.identity_digest().as_bytes());
@@ -384,15 +315,6 @@ impl SelectedProviderPlanFacts {
                 }
             }
         }
-        encoder.len(self.assumed_bindings.len());
-        for row in &self.assumed_bindings {
-            encoder.string(&row.required);
-            encoder.string(&row.supplied);
-        }
-        // Version 5 records every selected plan in the caller address space.
-        encoder.byte(0);
-        encoder.len(0);
-
         encoder.len(self.installation_reach_resolutions.len());
         for resolution in &self.installation_reach_resolutions {
             encoder.string(self.identity_text(resolution.requirement_identity));
@@ -991,10 +913,6 @@ impl SelectedProviderPlanCandidate {
             );
         }
         recovered.identities = self.identities.clone();
-        recovered = recovered.with_assumed_bindings(self.assumed_bindings.clone());
-        for row in &self.assumed_bindings {
-            recovered.assumed_supplier_identity(&row.required)?;
-        }
         recovered = recovered.with_installation_reach_resolutions(
             self.installation_reach_resolutions.clone(),
             &self.identities,

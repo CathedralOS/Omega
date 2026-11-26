@@ -459,6 +459,46 @@ pub use proof::{
     lift_fixed_integer_relation, lower_integer_math_relation,
 };
 
+/// Build a certificate candidate for the other spelling of a fixed integer relation.
+/// A directly cited assumption or axiom can carry the requested conclusion. A
+/// derived relation first enters the premise context with its existing proof.
+/// Certificate admission checks the equivalence in either case.
+pub fn restate_integer_relation(
+    goal: semantic_vocabulary::Proposition,
+    proof: ProofNode,
+    assumptions: usize,
+) -> ProofNode {
+    use semantic_vocabulary::Proposition;
+
+    if matches!(
+        proof.rule,
+        ProofRule::Assumption { .. } | ProofRule::SemanticAxiom { .. }
+    ) {
+        return ProofNode {
+            conclusion: goal,
+            rule: proof.rule,
+        };
+    }
+    ProofNode {
+        conclusion: goal.clone(),
+        rule: ProofRule::ImplicationElimination {
+            implication: Box::new(ProofNode {
+                conclusion: Proposition::Implication {
+                    premise: Box::new(proof.conclusion.clone()),
+                    conclusion: Box::new(goal.clone()),
+                },
+                rule: ProofRule::ImplicationIntroduction {
+                    body: Box::new(ProofNode {
+                        conclusion: goal,
+                        rule: ProofRule::Assumption { index: assumptions },
+                    }),
+                },
+            }),
+            premise: Box::new(proof),
+        },
+    }
+}
+
 #[cfg(test)]
 pub(crate) fn forge_term_and_assert_rejected(denoted: &mut BoundedDenotation) -> TermHandle {
     let evidence = denoted.certificate.term;

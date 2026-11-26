@@ -1,6 +1,3 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
 // Bit-shift scaling -- multiply and divide by powers of two with `<<` and `>>`,
 // the cheap operators behind unit conversions and bit packing. `kibibytes << 10`
 // scales by 1024 (KiB -> bytes), and `bytes >> 10` scales back (bytes -> KiB), so
@@ -9,7 +6,9 @@ use omega\language\core\ProcessExit;
 // separate feature still pending; `<<`/`>>` are fully supported.)
 // Expected exit: 64.
 
-use system\Console;
+use {system}/console.omg;
+use {omega}/language/core/process_authority.omg as streams;
+use {omega}/language/core/process_exit.omg as process;
 
 // Only the console binding and the input buffer are program state. The shift
 // operands are computed and consumed in one body, and the recovered count is
@@ -18,8 +17,10 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("bit_shift: KiB->bytes->KiB round trip -- 64 << 10 == 65536, then >> 10 back to 64");
+machine main(main: @mutable Main)
+blocks
+reaches |process|::ProcessExit + |streams|::StandardInput + |streams|::StandardOutput {
+    |console|::Console::write_line("bit_shift: KiB->bytes->KiB round trip -- 64 << 10 == 65536, then >> 10 back to 64");
     let kibibytes: i32 in Wrapping = 64 as +Wrapping;
     let bytes: i32 in Wrapping = kibibytes << 10;
     let recovered: i32 in Wrapping = bytes >> 10;
@@ -27,15 +28,17 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     transition { _ -> block done(main, recovered) }
 
     machine done(main: @mutable Main, recovered: i32 in Wrapping) {
-        Console::write_line("result: the recovered KiB count, 64 for this round trip (the exit code)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(recovered as i32);
+        |console|::Console::write_line("result: the recovered KiB count, 64 for this round trip (the exit code)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process|::ProcessExit::exit_process(recovered as i32);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+public machine entry_start()
+blocks
+reaches |process|::ProcessExit + |streams|::StandardInput + |streams|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

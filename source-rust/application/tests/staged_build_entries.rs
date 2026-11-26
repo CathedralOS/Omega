@@ -34,6 +34,22 @@ fn build(body: &str) -> String {
 }
 
 #[test]
+fn a_build_cannot_register_a_library_for_its_own_activation() {
+    let source = r#"use {omega}/build/dependency.omg;
+machine build(plan: @mutable BuildPlan) {
+    let description: DependencyDescription = |dependency|::from_source(Source::Path { location: "unsupplied" });
+    _ = Build::build_dependency(plan, description);
+    plan.product = BuildProduct::Package { name: "example" };
+}"#;
+    let (status, report) = invoke(&[("build.omg", source)], &["build"]);
+    assert!(!status.success(), "{report}");
+    assert!(
+        report.contains("no visible declaration") && report.contains("build.omg:4:9"),
+        "{report}"
+    );
+}
+
+#[test]
 fn successive_builds_select_the_final_native_and_psi_entry() {
     let Some(host) = target::TargetProfile::host_if_supported() else {
         return;
@@ -198,6 +214,13 @@ machine select_workspace(plan: @mutable BuildPlan) {
         &["--check", "--build-input", "build.omg", "--build-input", "tools"],
     );
     assert!(status.success(), "{report}");
+
+    let (status, report) = invoke(&[("build.omg", workspace)], &["build"]);
+    assert!(!status.success(), "{report}");
+    assert!(
+        report.contains("a workspace declaration does not name a Product source owner"),
+        "{report}"
+    );
 
     let duplicate = workspace.replace(
         "plan.product = BuildProduct::Workspace { members: second };",

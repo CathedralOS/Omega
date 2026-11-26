@@ -21,7 +21,7 @@ pub(crate) mod borrowed_argument {
     use crate::instruction_selection::selection::established_view_input::{
         accepts_at, accepts_view_loan, completed_descriptor, element_view_type, view_access,
     };
-    use crate::instruction_selection::selection::scalar_call_abi::scalar_value_type;
+    use crate::instruction_selection::selection::scalar_call_abi::scalar_argument_shape;
     use crate::instruction_selection::structural_inputs::structural_reference_input::{
         bounded_byte_field_owner, fixed_byte_array_view, fixed_element_array_view,
         internal_borrow_shape, owned_storage_shape, runtime_borrowed_projection,
@@ -594,7 +594,7 @@ pub(crate) mod borrowed_argument {
                 source: value,
                 placement,
             } = argument
-                && placement.shape != scalar_shape(scalar_value_type(source, *value)?)?
+                && scalar_argument_shape(source, *value) != Some(placement.shape)
             {
                 return None;
             }
@@ -2157,7 +2157,7 @@ pub(crate) fn validate(
         }
         if scalar_stack_placement(placement).is_some() {
             if !matches!(call.arguments.get(index), Some(LegalizedScalarArgument::Scalar { source: value, placement: actual })
-                if actual == placement && scalar_value_shape(source, *value) == Some(placement.shape))
+                if actual == placement && scalar_argument_shape(source, *value) == Some(placement.shape))
             {
                 return Err(invalid());
             }
@@ -2248,7 +2248,7 @@ pub(crate) fn validate(
                 return Err(invalid());
             }
             if let LegalizedScalarArgument::Scalar { source: value, .. } = argument
-                && scalar_value_shape(source, *value) != Some(placement.shape)
+                && scalar_argument_shape(source, *value) != Some(placement.shape)
             {
                 return Err(invalid());
             }
@@ -2329,11 +2329,13 @@ pub(crate) fn load_transfer(
     })
 }
 
-fn scalar_value_shape(
+fn scalar_argument_shape(
     source: &crate::instruction_selection::native_geometry::NativeFunction<'_>,
-    value: ValueId,
+    argument: operation_operands::values::AbstractResult,
 ) -> Option<ValueShape> {
-    scalar_value_type(source, value).and_then(scalar_shape)
+    let declared = scalar_value_type(source, argument.value)?;
+    (declared.as_checking() == argument.scalar_type).then_some(())?;
+    scalar_shape(declared)
 }
 
 fn scalar_value_type(

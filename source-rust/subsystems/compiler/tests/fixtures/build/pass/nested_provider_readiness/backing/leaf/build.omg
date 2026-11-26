@@ -1,4 +1,4 @@
-machine build(builder: @mutable Build) {
-    Build::package(builder, "readiness_leaf");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: "readiness_leaf" };
     BuildLog::write_line(@mutable builder.log, "leaf once");
 }

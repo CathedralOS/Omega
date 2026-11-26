@@ -85,12 +85,7 @@ impl BuildProviderScope {
             psi_provider_selections::logical_reach::admit_interpreted_providers(artifact)?;
         let implementations = checked
             .providers()
-            .chain(
-                checked
-                    .assumed_bindings()
-                    .iter()
-                    .map(|row| (row.required, row.implementation)),
-            )
+
             .map(|(boundary, machine)| {
                 terminal_semantics::callable_values::CallableBoundaryImplementation {
                     boundary,

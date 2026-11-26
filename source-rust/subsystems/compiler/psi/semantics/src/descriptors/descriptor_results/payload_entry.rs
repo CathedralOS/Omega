@@ -149,7 +149,9 @@ fn prove_with_budget(
         && let Some(proof) =
             prove_with_budget(context, &lowered, requirements, depth + 1, remaining)
     {
-        return Some(bridge(goal.clone(), proof, requirements.len()));
+        return Some(proof_admission::restate_integer_relation(
+            goal.clone(), proof, requirements.len(),
+        ));
     }
     for (index, requirement) in requirements.iter().enumerate() {
         let proof = ProofNode {
@@ -217,7 +219,9 @@ fn select(
         || proof_admission::lower_integer_math_relation(&proof.conclusion).as_ref()
             == Some(goal)
     {
-        return Some(bridge(goal.clone(), proof, assumptions));
+        return Some(proof_admission::restate_integer_relation(
+            goal.clone(), proof, assumptions,
+        ));
     }
     if let Some(derived) = order::derive(context, goal, &proof, assumptions) {
         return Some(derived);
@@ -287,27 +291,6 @@ fn select(
         }
     }
     None
-}
-
-fn bridge(goal: Proposition, proof: ProofNode, assumptions: usize) -> ProofNode {
-    ProofNode {
-        conclusion: goal.clone(),
-        rule: ProofRule::ImplicationElimination {
-            implication: Box::new(ProofNode {
-                conclusion: Proposition::Implication {
-                    premise: Box::new(proof.conclusion.clone()),
-                    conclusion: Box::new(goal.clone()),
-                },
-                rule: ProofRule::ImplicationIntroduction {
-                    body: Box::new(ProofNode {
-                        conclusion: goal,
-                        rule: ProofRule::Assumption { index: assumptions },
-                    }),
-                },
-            }),
-            premise: Box::new(proof),
-        },
-    }
 }
 
 #[cfg(test)]

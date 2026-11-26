@@ -368,9 +368,11 @@ pub struct DefaultRequirements<'a> {
     routed: bool,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum DefaultDemand {
-    Snapshot,
+type SnapshotIndices<'a> = dyn Fn(PlaceId, &[StructuralPathSegment], u64) -> Option<Vec<u64>> + 'a;
+
+#[derive(Clone, Copy)]
+enum DefaultDemand<'a> {
+    Snapshot(&'a SnapshotIndices<'a>),
     Restoration,
 }
 
@@ -454,7 +456,7 @@ impl<'a> DefaultRequirements<'a> {
         root: PlaceId,
         path: &[StructuralPathSegment],
         carrier: StructuralTypeId,
-        demand: DefaultDemand,
+        demand: DefaultDemand<'_>,
     ) -> Judged<Vec<DefaultRequirement>> {
         let mut result = Vec::new();
         for position in 0..self.declaration(carrier)?.requires.len() {
@@ -486,7 +488,7 @@ impl<'a> DefaultRequirements<'a> {
         id: StructuralDomainId,
         carrier: StructuralTypeId,
         path: &[StructuralPathSegment],
-        demand: DefaultDemand,
+        demand: DefaultDemand<'_>,
     ) -> Judged<Vec<StructuralDomainId>> {
         let mut named = Vec::new();
         let row = self
@@ -505,7 +507,7 @@ impl<'a> DefaultRequirements<'a> {
             // Snapshot demand names predicate operands. Restoring storage additionally
             // owes the value's content, which predicate clauses cannot establish.
             if !domain.complete_predicate_theory
-                || demand == DefaultDemand::Restoration && domain.content_projection.is_some()
+                || matches!(demand, DefaultDemand::Restoration) && domain.content_projection.is_some()
             {
                 return Err(self.error("a named default has no complete storage predicate theory"));
             }
@@ -540,9 +542,13 @@ impl<'a> DefaultRequirements<'a> {
         )
     }
 
-    /// Every clause used for snapshot demand, including nested type defaults.
-    /// This inventory supplies no assumptions about those contents.
-    pub fn declared(&self) -> Judged<Vec<DefaultRequirement>> {
+    /// Name the held storage visible to the machine. At each fixed array the
+    /// caller can select the observed indices, or request the full extent.
+    /// Explicit projected qualifications and restoration have independent demands.
+    pub fn declared(
+        &self,
+        observed_indices: impl Fn(PlaceId, &[StructuralPathSegment], u64) -> Option<Vec<u64>>,
+    ) -> Judged<Vec<DefaultRequirement>> {
         let mut result = Vec::new();
         for (place, ty, _) in &self.declared.declared {
             if self
@@ -557,7 +563,7 @@ impl<'a> DefaultRequirements<'a> {
                 *place,
                 &mut Vec::new(),
                 *ty,
-                DefaultDemand::Snapshot,
+                DefaultDemand::Snapshot(&observed_indices),
                 &mut Vec::new(),
                 &mut result,
             )?;
@@ -586,7 +592,7 @@ impl<'a> DefaultRequirements<'a> {
         root: PlaceId,
         path: &mut Vec<StructuralPathSegment>,
         carrier: StructuralTypeId,
-        demand: DefaultDemand,
+        demand: DefaultDemand<'_>,
         active: &mut Vec<StructuralTypeId>,
         result: &mut Vec<DefaultRequirement>,
     ) -> Judged<()> {
@@ -594,15 +600,22 @@ impl<'a> DefaultRequirements<'a> {
             return Err(self.error("recursive inline storage has no finite default inventory"));
         }
         active.push(carrier);
-        let zero = demand == DefaultDemand::Restoration;
+        let zero = matches!(demand, DefaultDemand::Restoration);
         result.extend(self.at(root, path, carrier, demand)?);
         match &self.declaration(carrier)?.shape {
             StructuralTypeShape::FixedArray {
                 element,
                 length: terminal_psi::ArrayExtent::Literal(length),
             } => {
-                let mut all = self.type_has_defaults(*element)?;
+                let element_has_defaults = self.type_has_defaults(*element)?;
                 let mut selected = Vec::new();
+                let mut all = element_has_defaults;
+                if all && let DefaultDemand::Snapshot(observed) = demand
+                    && let Some(indices) = observed(root, path, *length)
+                {
+                    selected.extend(indices.into_iter().filter(|index| index < length));
+                    all = false;
+                }
                 if let Some(row) = self.declared.row(root) {
                     for qualified in &row.2.projected {
                         let Some(suffix) =
@@ -695,7 +708,7 @@ impl<'a> DefaultRequirements<'a> {
         root: PlaceId,
         path: &mut Vec<StructuralPathSegment>,
         fields: &[terminal_psi::StructuralFieldDeclaration],
-        demand: DefaultDemand,
+        demand: DefaultDemand<'_>,
         active: &mut Vec<StructuralTypeId>,
         result: &mut Vec<DefaultRequirement>,
     ) -> Judged<()> {

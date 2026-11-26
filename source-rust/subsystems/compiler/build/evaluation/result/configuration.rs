@@ -3,8 +3,7 @@ use behavior_exclusion_requests::AuthoredBehaviorExclusion;
 use checked_program_to_psi::provider_choice_inputs::{NativeBuildSupply, ProviderSelection};
 use normalized_build_settings::EvaluatedBuildSettings;
 use source_declarations::source_selections::{
-    AssumedBindingContract, RootBinding, ServiceAuditRegistration, TestGroupRegistration,
-    WireCompatibilityDemand,
+    RootBinding, ServiceAuditRegistration, TestGroupRegistration, WireCompatibilityDemand,
 };
 use symbols::root_grants::AuthoredRootGrant;
 use typed_trees::source_state::opaque_representations::OpaqueRepresentationSelection;
@@ -18,7 +17,6 @@ pub struct BuildConfig {
     pub native_bindings: Vec<NativeBuildSupply>,
     pub native_binding_evaluation:
         Option<std::sync::Arc<evaluation_receipts::NativeBuildEvaluation>>,
-    pub assumed_bindings: Vec<AssumedBindingContract>,
     pub opaque_representation_selections: Vec<OpaqueRepresentationSelection>,
     pub wire_compatibility_demands: Vec<WireCompatibilityDemand>,
     pub root_bindings: Vec<RootBinding>,

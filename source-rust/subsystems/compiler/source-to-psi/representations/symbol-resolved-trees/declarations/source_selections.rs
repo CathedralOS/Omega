@@ -33,15 +33,6 @@ pub struct WireCompatibilityDemand {
     pub require_complete_migration: bool,
 }
 
-/// An explicit contract assumption attributed to the selecting Build declaration.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AssumedBindingContract {
-    pub required: SymbolHandle,
-    pub supplied: SymbolHandle,
-    pub selecting_machine: SymbolHandle,
-    pub source_span: SourceSpan,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ServiceAuditRegistration {
     pub declaration: source_admission::RetainedDeclaration,

@@ -5,7 +5,7 @@ use super::{PackageCommandError, PackageCommandKind, failure};
 use crate::declarations::{
     AliasName, BuildDependencyEditPlan, BuildFileReplacement, DependencySourceRequest, PackageKey,
     PackageName, PackageSelection, plan_dependency_addition_from_source,
-    plan_dependency_replacement_from_source,
+    plan_git_revision_from_source,
 };
 use crate::lock::PackageLock;
 use crate::resolution::graph::{CanonicalDependencySourceRequest, CanonicalSourceClosureSubject};
@@ -93,18 +93,12 @@ pub(super) fn update(
                 revision: before_revision.clone(),
                 selection: selection.clone(),
             };
-            let candidate = DependencySourceRequest::Git {
-                explicit_alias: explicit_alias.clone(),
-                repository: repository.clone(),
-                revision: validated.requested_revision().to_owned(),
-                selection: selection.clone(),
-            };
-            let edit = plan_dependency_replacement_from_source(
+            let edit = plan_git_revision_from_source(
                 build_path.clone(),
                 proposed_source.clone(),
                 edge.purpose(),
                 &before_request,
-                &candidate,
+                validated.requested_revision(),
             )
             .map_err(failure)?;
             proposed_source = proposed(edit, &proposed_source)?;

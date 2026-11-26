@@ -1849,7 +1849,10 @@ impl<'a> DescriptorAnalysis<'a> {
             .ok_or_else(incomplete_step)?;
         step.may_escape |= summary.invalidates_contents;
         let mut outputs = Vec::new();
-        if let EffectObservations::Unobserved(writes) = &summary.effects {
+        if let EffectObservations::Incomplete {
+            unobserved: writes, ..
+        } = &summary.effects
+        {
             let unknown = self
                 .replay
                 .unobserved_effect_replacements(
@@ -1873,6 +1876,12 @@ impl<'a> DescriptorAnalysis<'a> {
             }
             for target in unknown.keys() {
                 match target {
+                    // Losing an opaque packet retires an observation. The
+                    // input above keeps its backing live across this call.
+                    DescriptorPayloadTarget::Storage {
+                        location,
+                        completed: None,
+                    } if location.path.last() == Some(&DescriptorPathSegment::UnknownContents) => {}
                     DescriptorPayloadTarget::Storage {
                         location,
                         completed: None,
@@ -1887,7 +1896,7 @@ impl<'a> DescriptorAnalysis<'a> {
                 }
             }
         }
-        for effect in summary.effects.observed().into_iter().flatten() {
+        for effect in summary.effects.known_writes() {
             // The callee returns with this storage holding what it
             // held on entry: nothing was written, so no descriptor
             // is defined, copied or handed anywhere here. Reading it

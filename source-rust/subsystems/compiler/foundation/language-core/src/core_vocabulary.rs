@@ -52,6 +52,9 @@ pub enum CoreVocabulary {
     StandardOutputService,
     ProcessExitService,
     NetworkService,
+    UnsafeService,
+    UnsafeAtom(UnsafeAtom),
+    NativeImageLoadService,
     /// One of core `filesystem_authority.omg`'s capability-only services.
     FilesystemService(FilesystemService),
     /// A private segment-selector primitive in core `code_segment.omg` or
@@ -89,6 +92,15 @@ pub enum CoreVocabulary {
     ExternalBinding(ExternalBindingVocabulary),
     /// Core `integer.omg`'s carrier metadata query or its result type.
     IntegerCarrier(IntegerCarrierDeclaration),
+}
+
+/// Specific Product opt-ins admitted by the memberless core Unsafe parent.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum UnsafeAtom {
+    RawMemoryRead,
+    RawMemoryWrite,
+    BorrowMutabilityUpgrade,
+    ForeignCodeExecution,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -273,6 +285,42 @@ const ROWS: &[CoreVocabularyRow] = &[
         "Nat",
         BundledFile::CoreNat,
         CoreVocabulary::ProofNatural,
+    ),
+    row(
+        "native_execution_authority.omg",
+        "NativeImageLoad",
+        BundledFile::CoreNativeExecutionAuthority,
+        CoreVocabulary::NativeImageLoadService,
+    ),
+    row(
+        "unsafe.omg",
+        "Unsafe",
+        BundledFile::CoreUnsafe,
+        CoreVocabulary::UnsafeService,
+    ),
+    row(
+        "unsafe.omg",
+        "RawMemoryRead",
+        BundledFile::CoreUnsafe,
+        CoreVocabulary::UnsafeAtom(UnsafeAtom::RawMemoryRead),
+    ),
+    row(
+        "unsafe.omg",
+        "RawMemoryWrite",
+        BundledFile::CoreUnsafe,
+        CoreVocabulary::UnsafeAtom(UnsafeAtom::RawMemoryWrite),
+    ),
+    row(
+        "unsafe.omg",
+        "BorrowMutabilityUpgrade",
+        BundledFile::CoreUnsafe,
+        CoreVocabulary::UnsafeAtom(UnsafeAtom::BorrowMutabilityUpgrade),
+    ),
+    row(
+        "unsafe.omg",
+        "ForeignCodeExecution",
+        BundledFile::CoreUnsafe,
+        CoreVocabulary::UnsafeAtom(UnsafeAtom::ForeignCodeExecution),
     ),
     row(
         "network_authority.omg",

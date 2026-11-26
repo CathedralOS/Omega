@@ -81,7 +81,6 @@ fn policy(positions: Option<Vec<u32>>) -> PackagePolicyBaseline {
             demands: vec![],
             realizations: vec![],
         },
-        assumed_bindings: vec![],
         service_audits: vec![],
         restricted_build_requests: vec![],
         component_assumptions: vec![],

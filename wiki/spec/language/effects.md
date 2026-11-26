@@ -295,7 +295,8 @@ the [native borrow contract](../resources/native_borrows.md#build-admission-and-
 
 ## Native images and foreign calls
 
-Core declares two distinct service identities. `NativeImageLoad` covers an
+Core declares `NativeImageLoad` in `{omega}/language/core/native_execution_authority.omg` and
+`ForeignCodeExecution` in `{omega}/language/core/unsafe.omg`. `NativeImageLoad` covers an
 operation that can load a native executable image into the running process or
 execution environment. `ForeignCodeExecution` covers an operation that can
 enter an implementation across a foreign boundary. Declare the union of what

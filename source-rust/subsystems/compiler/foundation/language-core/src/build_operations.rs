@@ -4,7 +4,6 @@
 pub enum BuildOperation {
     ProviderReadiness,
     ProviderSelection,
-    AssumedBindingContract,
     RepresentationSelection,
     ServiceExclusion,
     ServiceAudit,
@@ -41,16 +40,14 @@ impl BuildOperation {
                 | Self::BoundaryAcceptance
                 | Self::WireCompatibilityRequest
                 | Self::RepresentationSelection
-                | Self::AssumedBindingContract
                 | Self::TestGroupRegistration
         )
     }
 
-    pub const ALL: [Self; 15] = [
+    pub const ALL: [Self; 14] = [
         Self::ProviderReadiness,
         Self::ServiceDescription,
         Self::ProviderSelection,
-        Self::AssumedBindingContract,
         Self::RepresentationSelection,
         Self::ServiceExclusion,
         Self::ServiceAudit,
@@ -72,7 +69,6 @@ impl BuildOperation {
             Self::NativeBinding => "bind_native",
             Self::ProviderReadiness => "await_provider",
             Self::ProviderSelection => "select_provider",
-            Self::AssumedBindingContract => "assume_binding_contract",
             Self::RepresentationSelection => "select_representation",
             Self::ServiceExclusion => "exclude_service",
             Self::ServiceAudit => "audit_service",
@@ -123,7 +119,7 @@ impl BuildOperation {
             (Self::BoundaryAcceptance, 0) => Some(Role::RootGrantSubject),
             (Self::ParameterDescription, 0) => Some(Role::Formal),
             (Self::FieldDescription, 0) => Some(Role::Field),
-            (Self::AssumedBindingContract, 0 | 1) | (Self::NativeBinding, 0) => {
+            (Self::NativeBinding, 0) => {
                 Some(Role::Requirement)
             }
             (Self::TestGroupRegistration, 0) => Some(Role::TestRequirement),
@@ -143,9 +139,7 @@ impl BuildOperation {
             | Self::NativeBinding
             | Self::ParameterDescription
             | Self::FieldDescription => count == 1,
-            Self::ProviderSelection
-            | Self::RepresentationSelection
-            | Self::AssumedBindingContract => count == 2,
+            Self::ProviderSelection | Self::RepresentationSelection => count == 2,
             Self::ServiceExclusion | Self::ServiceAudit | Self::BoundaryAcceptance => count == 1,
             Self::TestGroupRegistration => matches!(count, 1 | 2),
             Self::WireCompatibilityRequest => count >= 5,

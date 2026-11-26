@@ -28,11 +28,16 @@ handle to pass around for the service itself. `reaches Readable` on
 
 ## Select a provider
 
-The build says what implements each boundary trait:
+For a Build with a registered system dependency, this selection supplies
+the console provider on Linux x64.
 
 ```omega
-machine build(builder: @mutable Build) {
-    Build::select_provider::<Console, TestConsole>(builder, linux_x86_64);
+use {system}/console.omg;
+use test_console.omg as provider;
+
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: "terminal_tests" };
+    Build::select_provider::<|console|::Console, |provider|::TestConsole>(builder, linux_x86_64);
 }
 ```
 
@@ -104,9 +109,13 @@ boundary trait SteadyClock: ClockOps<NoState> {}
 ```
 
 ```omega
-machine build(builder: @mutable Build) {
-    Build::select_provider::<WallClock, HostWallClock>(builder);
-    Build::select_provider::<SteadyClock, HostSteadyClock>(builder);
+use clocks.omg;
+use host_clocks.omg as host;
+
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: "clocks" };
+    Build::select_provider::<|clocks|::WallClock, |host|::HostWallClock>(builder, linux_x86_64);
+    Build::select_provider::<|clocks|::SteadyClock, |host|::HostSteadyClock>(builder, linux_x86_64);
 }
 ```
 

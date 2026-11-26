@@ -35,7 +35,7 @@ mod project;
 mod provider_installation;
 mod source_join;
 mod source_result;
-pub use source_join::BuildDependencySelection;
+pub use source_join::{BuildDependencySelection, DependencyBacking};
 pub use source_result::BuildSourceResult;
 
 use evaluation_accounting::EvaluationInvocationAccount;

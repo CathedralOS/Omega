@@ -53,7 +53,7 @@
 2 source-rust/subsystems/compiler/psi/artifact/publication/machine_provenance.rs
 2 source-rust/subsystems/compiler/psi/artifact/wire/src/foundation_validation.rs
 1 source-rust/subsystems/compiler/psi/artifact/wire/src/term_wire.rs
-4 source-rust/subsystems/compiler/psi/execution-inputs/providers/selections.rs
+2 source-rust/subsystems/compiler/psi/execution-inputs/providers/selections.rs
 1 source-rust/subsystems/compiler/psi/semantics/proofs/bounded/bounded.rs
 5 source-rust/subsystems/compiler/psi/semantics/proofs/bounded/bounded_denotation.rs
 2 source-rust/subsystems/compiler/psi/semantics/proofs/bounded/integer_rules.rs

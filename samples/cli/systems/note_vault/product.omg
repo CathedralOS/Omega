@@ -4,8 +4,8 @@ use {omega}/language/core/filesystem_authority.omg as authority;
 use {omega}/language/core/process_exit.omg as process;
 use {system}/time_host.omg as clock_host;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "note_vault");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "note_vault" };
     let allowed: [BoundaryServiceReference; 8] = [
         Build::service::<|authority|::DirectoryEnumeration>(builder),
         Build::service::<|authority|::FilesystemContentRead>(builder),

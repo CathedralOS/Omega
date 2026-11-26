@@ -122,7 +122,7 @@ pub fn admit_component_provider<'receiver>(
     {
         return Err("component import/export declared result lifetimes differ".into());
     }
-    let selection = admit_provider_installation(provider, std::slice::from_ref(selected), &[])
+    let selection = admit_provider_installation(provider, std::slice::from_ref(selected))
         .map_err(|error| format!("component export provider admission: {error:?}"))?;
     let input_memberships = memberships::admit_input_memberships(
         receiver.module(),

@@ -1,20 +1,20 @@
 use {omega}/build/dependency.omg;
 use {omega}/language/core/program_image.omg as image;
 
-machine build(builder: @mutable Build)
+machine build(builder: @mutable BuildPlan)
 requires addr::Bound == 18446744073709551616 {
     let observed: addr = |image|::ProgramImage::retained_suffix_start();
     transition observed == 64 {
         true -> declare_member(builder),
         _ -> wrong_helper(builder)
     }
-    machine declare_member(builder: @mutable Build) {
-        Build::package(builder, "workspace_unselected");
+    machine declare_member(builder: @mutable BuildPlan) {
+        builder.product = BuildProduct::Package { name: "workspace_unselected" };
         let mutable missing_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "../never_acquired" });
         |dependency|::with_alias(@mutable missing_dependency, "missing");
         _ = |dependency|::add(builder, missing_dependency);
     }
-    machine wrong_helper(builder: @mutable Build) {
-        Build::package(builder, "workspace_selected");
+    machine wrong_helper(builder: @mutable BuildPlan) {
+        builder.product = BuildProduct::Package { name: "workspace_selected" };
     }
 }

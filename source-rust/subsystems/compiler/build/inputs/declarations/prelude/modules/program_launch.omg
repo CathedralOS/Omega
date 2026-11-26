@@ -1,0 +1,3 @@
+public machine Inherit<Program>() -> DependencyOptions reaches BuildRequestOperations crashes none {
+    BuildRequestOperations::forward_program::<Program>()
+}

@@ -1151,13 +1151,11 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
             .first()
             .is_some_and(|token| token.kind == TokenKind::StringLiteral)
         {
+            let span = input.current_source_span();
             let (value, input) = input.take_string_bytes()?;
-            return Ok(Step::Value(
-                syntax_trees
-                    .expressions
-                    .insert(ExpressionNode::String(value)),
-                input,
-            ));
+            let expression = syntax_trees.expressions.insert(ExpressionNode::String(value));
+            syntax_trees.expressions.set_source_span(expression, span);
+            return Ok(Step::Value(expression, input));
         }
 
         if input.at_punctuation(PunctuationKind::LeftParen) {

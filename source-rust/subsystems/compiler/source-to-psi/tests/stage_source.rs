@@ -136,6 +136,47 @@ fn an_entryless_checked_product_publishes_reopenable_psi() {
 }
 
 #[test]
+fn a_mutably_borrowed_generic_value_can_cross_an_unchanged_call() {
+    let package = PackageKeyIdentity::from_digest([0x74; 32]).unwrap();
+    let source = "data Item { field: i32; }
+        machine inner<T>(value: @mutable T) {}
+        public machine outer<T>(value: @mutable T) { inner::<T>(value); }
+        public machine observed() -> i32 {
+            let mutable item: Item = Item { field: 42 };
+            outer::<Item>(@mutable item);
+            item.field
+        }";
+    let (files, root) = captured(package, source);
+    let program = compile(product(files, root, package, &[]).unwrap(), None).unwrap();
+    let bytes = program.to_bytes();
+    let reopened = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes).unwrap();
+    assert_eq!(reopened.to_bytes(), bytes);
+}
+
+#[test]
+fn a_nested_generic_callback_can_update_a_plain_record() {
+    let package = PackageKeyIdentity::from_digest([0x76; 32]).unwrap();
+    let source = r#"
+        data Item { value: i32; }
+        trait Modify<T> { machine apply(value: @mutable T) terminates; }
+        machine mark(item: @mutable Item) satisfies Modify<Item>::apply { item.value = 42; }
+        machine invoke<T, const F: Modify<T>::apply>(item: @mutable T) terminates {
+            child(item)
+            machine child(item: @mutable T) { F(item); }
+        }
+        public machine run() -> i32 {
+            let mutable item: Item = Item { value: 1 };
+            invoke::<Item, mark>(@mutable item);
+            item.value
+        }"#;
+    let (files, root) = captured(package, source);
+    let program = compile(product(files, root, package, &[]).unwrap(), None).unwrap();
+    let bytes = program.to_bytes();
+    let reopened = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes).unwrap();
+    assert_eq!(reopened.to_bytes(), bytes);
+}
+
+#[test]
 fn a_static_callback_requirement_reads_the_type_supplied_by_its_generic_machine() {
     let package = PackageKeyIdentity::from_digest([0x75; 32]).unwrap();
     let source = "data Item { value: i32; }
@@ -179,6 +220,24 @@ fn a_nested_machine_uses_the_applied_callback_from_its_lexical_scope() {
             .any(|error| error.message.contains("must satisfy the exact requirement")),
         "{errors:?}"
     );
+}
+
+#[test]
+fn a_nested_callback_reads_its_argument_type_in_the_supplying_machine() {
+    let package = PackageKeyIdentity::from_digest([0x59; 32]).unwrap();
+    let source = "data Item { value: i32; }
+        trait Get<T> { machine receive(value: @T) -> i32 terminates; }
+        machine get(value: @Item) -> i32 satisfies Get<Item>::receive { value.value }
+        machine read<T, const F: Get<T>::receive>(value: @T) -> i32 terminates {
+            child(value)
+            machine child(value: @T) -> i32 { F(value) }
+        }
+        public machine run() -> i32 {
+            let item: Item = Item { value: 42 };
+            read::<Item, get>(@item)
+        }";
+    let (files, root) = captured(package, source);
+    compile(product(files, root, package, &[]).unwrap(), None).unwrap();
 }
 
 #[test]
