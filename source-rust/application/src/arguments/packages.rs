@@ -33,7 +33,7 @@ machine build(build: @mutable Build) {
     _ = Build::dependency(build, layout);
 }
 
-Replace the example repository and commit with the verified upstream revision. Import the library in that product with `use {layout}/api.omg;`. The default edge reach ceiling is empty. Register only the services the use requires."#),
+Replace the example repository and commit with the verified upstream revision. Import the library in that product with `use {layout}/api.omg;`. This example uses a service-free library."#),
         Some("update") => Ok("Find the executed Git declaration in the consuming Build. Resolve its tracking reference with Git and verify the candidate commit. Replace the revision argument in that call, keeping the alias and reach ceiling intact.
 If several calls or branches match, show their filenames, locations and proposed edits so the author can choose the occurrence.
 Run `omega build build.omg` on the candidate. Use `omega packages audit` to inspect the selected project and target. A historical comparison requires the old inputs or a comparable recorded result."),
