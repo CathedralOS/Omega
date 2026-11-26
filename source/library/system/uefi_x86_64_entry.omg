@@ -1,4 +1,5 @@
 use calling.omg as abi;
+use targets/uefi_x86_64/tables.omg as tables;
 use {omega}/language/core/extent.omg as storage;
 use uefi_x86_64_handoff.omg as boot;
 
@@ -13,7 +14,7 @@ public data EfiImageHandle {
     raw: addr;
 }
 
-public boundary data EfiSystemTable;
+public data EfiSystemTable = |tables|::EfiSystemTable;
 
 public data EfiStatus {
     code: u64;

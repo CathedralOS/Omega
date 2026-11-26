@@ -12,6 +12,7 @@
 // implicit four-byte pads after `revision` and `load_options_size` are ABI
 // alignment the report encodes as gaps between declared members.
 use {omega}/language/core/layout.omg;
+use {omega}/language/core/c_layout.omg;
 
 data EfiLoadedImage {
     revision: u32;
@@ -55,13 +56,10 @@ EfiLoadedImageLayout satisfies |layout|::FixedLayout<EfiLoadedImage> {
 // checked-schema discipline as the Loaded Image protocol above.
 // `EfiTableHeader` is the shared EFI_TABLE_HEADER preamble both protocol
 // tables open with; `EfiSystemTableView` and `EfiBootServicesView` declare the
-// semantic members the program continuation projects. The physical arrival
-// keeps its own opaque boundary carriers (`boundary data EfiSystemTable` in
-// entry.omg, the `UefiPhysicalEntry::enter` parameter), so these views stay
-// distinct from the firmware-arrival surface. The evaluated `*Layout::plan`
-// policies own the firmware ABI's byte positions. The Rust side binds each
-// evaluated report to recorded commitments rather than keeping a second field
-// catalog.
+// members of each table. Physical entry borrows the system table using
+// EfiSystemTableViewLayout. The common header uses its C representation.
+// Reading a pointer field yields its address bits. Calls through firmware
+// tables require their own checked authority.
 //
 // EFI_SYSTEM_TABLE's pointer members are u64 address carriers; the implicit
 // four-byte pad after `firmware_revision` is ABI alignment the report encodes
@@ -77,8 +75,10 @@ data EfiTableHeader {
     reserved: u32;
 }
 
+public data EfiSystemTable = |layout|::LayoutStorage<EfiSystemTableView, EfiSystemTableViewLayout>;
+
 data EfiSystemTableView {
-    header: EfiTableHeader;
+    header: |c_layout|::CLayout<EfiTableHeader>;
     firmware_vendor: u64;
     firmware_revision: u32;
     console_in_handle: u64;

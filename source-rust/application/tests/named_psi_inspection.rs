@@ -410,7 +410,13 @@ use {system}/uefi_x86_64_handoff.omg as boot;
 RejectArrival satisfies |firmware|::UefiPhysicalEntry {
     machine enter(image_handle: |firmware|::EfiImageHandle, system_table: @|firmware|::EfiSystemTable) -> |firmware|::EfiStatus
     reaches |boot|::UefiBootServices invokes |memory|::ProgramStorageEntry crashes none {
-        |firmware|::EfiStatus { code: 0x8000000000000002 }
+        match system_table.header.signature == 0x5453595320494249u64
+            && system_table.header.header_size >= 120u32
+            && system_table.boot_services != 0u64
+            && system_table.console_out != 0u64 {
+            true -> |firmware|::EfiStatus { code: 0x8000000000000006 },
+            false -> |firmware|::EfiStatus { code: 0x8000000000000002 },
+        }
     }
 }
 machine semantic_entry(image: |memory|::Extent in |memory|::Extent::Granted, storage: |memory|::Extent in |memory|::Extent::Granted)
