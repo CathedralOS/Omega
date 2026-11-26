@@ -641,7 +641,7 @@ pub(crate) fn declared_projection_field<'program>(
     Ok(field)
 }
 
-fn declared_field_type(
+pub(crate) fn declared_field_type(
     program: &TypedTrees,
     reference: TypeReferenceHandle,
     name: &str,
