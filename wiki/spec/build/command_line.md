@@ -65,8 +65,12 @@ restricts acquisition, resume and historical-source diagnostics to local
 sources and cached recorded Git pins; it skips no check and does not authorize
 a cached branch for a newly requested selection. Package audit retains project
 targets, details, offline and Build-input options. Inspection retains both source-machine and artifact forms.
-`omega --check` with no root inside a workspace checks every declared member
-as a [validation subject](validation_subjects.md). `--verify` withholds trust
+With no explicit root, `omega --check` looks for a conventional `build.omg`
+in the current directory and its ancestors. One candidate selects that entry.
+If none exists, the command reports a missing enclosing entry. Multiple candidates
+require an explicit path, before any candidate runs. Name the workspace
+catalog to check every declared member as a [validation subject](validation_subjects.md),
+or name the member's entry to check that member alone. `--verify` withholds trust
 acceptance and re-verifies; it does not widen the subject set.
 
 The locator audit examines a package source, not editable program text.

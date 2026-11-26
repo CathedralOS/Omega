@@ -32,7 +32,7 @@ is claimed here.
 
 - Subject set by request: the selected package; every declared member for a
   workspace check with no member named; the admitted revision at admission;
-  plus any direct dependency selected by its registration with `Build::validate`. Locality,
+  plus dependencies selected by registration or incoming Build binding with `Build::validate`. Locality,
   bundling and editability do not make a subject.
 - Closure from every subject declaration, including unused ones, plus
   executed Build and preparation entries, product entries and selection
@@ -105,6 +105,7 @@ package is the "real" one.
 | Dependency Build executes during preparation | Its closure checks before execution; unrelated dependency bodies stay outside the job |
 | Dependency gains an unrelated valid private function | Consumer body-checking work does not grow |
 | `Build::validate(builder, @registered)` on a direct dependency | Its invalid unused declaration fails the product check; another Build activation cannot add subjects |
+| `Build::validate(builder, @binding)` on an incoming Build library | Its invalid unused declaration fails the Build-host check and its package stays outside Product scope |
 | Optional optimizations disabled | Coverage and verdicts unchanged |
 
 ### Registration and root controls
