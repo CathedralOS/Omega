@@ -17,6 +17,7 @@ public boundary trait BuildRequestOperations {
     machine forward_program<Program>() -> DependencyOptions reaches none crashes none;
     machine extend_reach(builder: @BuildPlan, prior: DependencyOptions, service: BoundaryServiceReference) -> DependencyOptions reaches none crashes none;
     machine add_binding(builder: @BuildPlan, binding: PackageBinding, max_reach: DependencyOptions) -> DependencyRegistration reaches none crashes none;
+    machine validate_binding(builder: @BuildPlan, binding: PackageBinding) reaches none crashes none;
     machine validate_dependency(builder: @BuildPlan, registered: DependencyRegistration) reaches none crashes none;
     machine prepare_dependency(builder: @BuildPlan, registered: DependencyRegistration) reaches none crashes none suspends;
     machine publish_source(builder: @BuildPlan, name: @[u8], source: @[u8]) reaches none crashes none;

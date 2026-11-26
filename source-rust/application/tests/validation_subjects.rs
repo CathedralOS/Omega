@@ -350,6 +350,19 @@ machine build(builder: @mutable BuildPlan) {
     );
     std::fs::write(root.join("build.omg"), selected).unwrap();
     assert_refused_in(&root, "unrelated_build_library_body");
+
+    // The successor can check its incoming library under the same alias as its
+    // independent Product registration. The preparing Build requests no validation.
+    std::fs::write(root.join("build.omg"), prepare).unwrap();
+    let incoming = configure.replace(
+        "    Build::validate(builder, @registered);",
+        r#"    let incoming: PackageBinding = |dependency|::input(builder, "vendor");
+    Build::validate(builder, @incoming);
+    Build::validate(builder, @incoming);
+    Build::validate(builder, @registered);"#,
+    );
+    std::fs::write(root.join("configure.omg"), &incoming).unwrap();
+    assert_refused_in(&root, "unrelated_build_library_body");
     std::fs::write(
         tools.join("unused.omg"),
         "public machine valid() -> u64 { 1u64 }",
@@ -360,7 +373,9 @@ machine build(builder: @mutable BuildPlan) {
     assert!(
         report
             .stdout
-            .contains("validated package build_tools (build, "),
+            .matches("validated package build_tools (build, ")
+            .count()
+            == 1,
         "{}",
         report.stdout
     );
@@ -370,5 +385,19 @@ machine build(builder: @mutable BuildPlan) {
             .contains("validated package acceptance_vendor (product, linux_x86_64)"),
         "{}",
         report.stdout
+    );
+    let forged = incoming.replace(
+        r#"|dependency|::input(builder, "vendor")"#,
+        "PackageBinding {}",
+    );
+    std::fs::write(root.join("configure.omg"), forged).unwrap();
+    let denied = check(&root);
+    assert!(
+        !denied.success
+            && denied
+                .stderr
+                .contains("requires a PackageBinding this activation issued"),
+        "{}",
+        denied.stderr
     );
 }

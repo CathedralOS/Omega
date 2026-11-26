@@ -62,8 +62,7 @@ pub trait PlanningServices {
     fn validation_subject(
         &mut self,
         _issued: &[build_execution::host::requests::IssuedBuildRequest],
-        _purpose: build_declarations::DependencyPurpose,
-        _ordinal: usize,
+        _request: &build_execution::host::requests::BuildValidationRequest,
     ) -> Result<build_execution::DependencyValidationSubject, CompileFailure> {
         Err(refusal(
             "Build validation requires a registered dependency service".into(),
@@ -415,8 +414,8 @@ pub fn interpret(
         };
         failure.with_source_completion_accounting(evaluation.source_completion_accounting().clone())
     })?;
-    returned.resolve_validation_requests(|issued, purpose, ordinal| {
-        services.validation_subject(issued, purpose, ordinal)
+    returned.resolve_validation_requests(|issued, request| {
+        services.validation_subject(issued, request)
     })?;
     evaluation.record_return(&returned)?;
     Ok(ReturnedPlanningStage {

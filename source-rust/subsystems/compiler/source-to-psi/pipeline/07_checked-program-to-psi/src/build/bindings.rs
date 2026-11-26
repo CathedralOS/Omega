@@ -405,6 +405,7 @@ pub(crate) mod build_requests {
         ExtendWorkspace,
         PrepareDependency,
         ValidateDependency,
+        ValidateBinding,
         LogLine,
         PublishSource,
         ConfigureTestFixture,

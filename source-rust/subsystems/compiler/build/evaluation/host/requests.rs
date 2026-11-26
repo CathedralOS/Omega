@@ -57,6 +57,24 @@ impl IssuedBuildRequest {
     }
 }
 
+/// The package occurrence the executing Build explicitly selected for a full check.
+pub enum BuildValidationRequest {
+    Registered {
+        purpose: DependencyPurpose,
+        ordinal: usize,
+    },
+    Incoming(FrozenBuildBinding),
+}
+
+impl BuildValidationRequest {
+    pub fn purpose(&self) -> DependencyPurpose {
+        match self {
+            Self::Registered { purpose, .. } => *purpose,
+            Self::Incoming(_) => DependencyPurpose::Build,
+        }
+    }
+}
+
 pub struct TerminalBuildRequestHost {
     programs: Arc<super::programs::ProgramInstallation>,
     filesystem: Arc<super::filesystem::TerminalBuildFilesystemHost>,
@@ -221,17 +239,19 @@ impl TerminalBuildRequestHost {
             .map_err(|_| "Build request output lock was poisoned")
     }
 
-    pub(crate) fn validation_requests(&self) -> Result<Vec<(DependencyPurpose, usize)>, String> {
+    pub(crate) fn validation_requests(&self) -> Result<Vec<BuildValidationRequest>, String> {
         let registrations = self
             .registrations
             .lock()
             .map_err(|_| REGISTRATIONS_POISONED)?;
-        Ok(registrations
-            .issued
-            .iter()
-            .filter(|r| r.validate)
-            .map(|r| (r.purpose, r.request_ordinal))
-            .collect())
+        let mut selected = self.inputs.validation_requests()?;
+        selected.extend(registrations.issued.iter().filter(|r| r.validate).map(|r| {
+            BuildValidationRequest::Registered {
+                purpose: r.purpose,
+                ordinal: r.request_ordinal,
+            }
+        }));
+        Ok(selected)
     }
 
     pub(crate) fn take_output(&self) -> Result<BuildRequestOutput, String> {
@@ -597,7 +617,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                 return Err(refuse("program call lost its borrowed argument list"));
             }
             Operation::ArtifactOnly => (0, 1),
-            Operation::InputBinding => (0, 2),
+            Operation::InputBinding | Operation::ValidateBinding => (0, 2),
             Operation::AddBinding => (0, 3),
             Operation::ExtendReach | Operation::ExtendWorkspace => (0, 3),
             Operation::PathDependency => (1, 4),
@@ -617,6 +637,13 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             return Err(refuse(
                 "Build request argument roster differs from its protocol",
             ));
+        }
+        if call.action == Operation::ValidateBinding {
+            if byte_sequence_arguments[1].is_some() {
+                return Err(refuse("Build validation requires a PackageBinding"));
+            }
+            self.host.inputs.validate(&structural_arguments[1])?;
+            return Ok(TerminalEffectResult::Unit);
         }
         if call.action == Operation::InputBinding {
             let terminal_psi::BoundaryMachineResult::Structural(binding) = result else {
@@ -798,6 +825,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             }
             Operation::ArtifactOnly => BuildRequest::ArtifactOnly,
             Operation::InputBinding
+            | Operation::ValidateBinding
             | Operation::ExtendWorkspace
             | Operation::ExtendReach
             | Operation::ForwardProgram { .. } => {

@@ -568,6 +568,7 @@ fn request_operation(name: &str) -> Result<TerminalBuildRequestOperation, Diagno
         "register_path_dependency" => Request::PathDependency,
         "register_git_dependency" => Request::GitDependency,
         "prepare_dependency" => Request::PrepareDependency,
+        "validate_binding" => Request::ValidateBinding,
         "validate_dependency" => Request::ValidateDependency,
         "input_binding" => Request::InputBinding,
         "add_binding" => Request::AddBinding,

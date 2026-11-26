@@ -25,6 +25,7 @@ impl FrozenBuildBinding {
 struct IssuedBinding {
     marker: TerminalStructuralValue,
     binding: FrozenBuildBinding,
+    validate: bool,
     _storage: Option<EvaluationStorageLease>,
 }
 
@@ -80,6 +81,7 @@ impl InputBindings {
         issued.push(IssuedBinding {
             marker: marker.clone(),
             binding: FrozenBuildBinding::new(Arc::clone(&self.libraries), ordinal),
+            validate: false,
             _storage: storage,
         });
         Ok(marker)
@@ -89,7 +91,34 @@ impl InputBindings {
         &self,
         marker: &TerminalStructuralValue,
     ) -> Result<FrozenBuildBinding, TerminalEffectRejection> {
+        self.with_issued(marker, |row| row.binding.clone())
+    }
+
+    pub fn validate(
+        &self,
+        marker: &TerminalStructuralValue,
+    ) -> Result<(), TerminalEffectRejection> {
+        self.with_issued(marker, |row| row.validate = true)
+    }
+
+    pub fn validation_requests(&self) -> Result<Vec<super::BuildValidationRequest>, String> {
         let issued = self
+            .issued
+            .lock()
+            .map_err(|_| "Build input bindings lock was poisoned")?;
+        Ok(issued
+            .iter()
+            .filter(|row| row.validate)
+            .map(|row| super::BuildValidationRequest::Incoming(row.binding.clone()))
+            .collect())
+    }
+
+    fn with_issued<T>(
+        &self,
+        marker: &TerminalStructuralValue,
+        use_binding: impl FnOnce(&mut IssuedBinding) -> T,
+    ) -> Result<T, TerminalEffectRejection> {
+        let mut issued = self
             .issued
             .lock()
             .map_err(|_| TerminalEffectRejection::new("Build input bindings lock was poisoned"))?;
@@ -97,12 +126,12 @@ impl InputBindings {
             .opaque_identity
             .checked_sub(super::FIRST_REGISTRATION_IDENTITY + 1)
             .and_then(|index| usize::try_from(index).ok())
-            .and_then(|index| issued.get(index))
+            .and_then(|index| issued.get_mut(index))
             .filter(|row| &row.marker == marker)
-            .map(|row| row.binding.clone())
+            .map(use_binding)
             .ok_or_else(|| {
                 TerminalEffectRejection::new(
-                    "Build dependency registration requires a PackageBinding this activation issued",
+                    "Build requires a PackageBinding this activation issued",
                 )
             })
     }
