@@ -451,3 +451,31 @@ ensures embed(a) + (embed(x) + embed(y)) <= addr::Bound
         );
     }
 }
+
+/// Concrete field observations establish both orders of the mathematical
+/// endpoint. An endpoint one byte beyond it satisfies only one order.
+#[test]
+fn mathematical_equality_joins_the_two_proved_endpoint_orders() {
+    let check = |base| {
+        judge_build(&format!(
+            "data Region {{ base: addr; length: u64; }}
+machine build_entry(a: @Region, b: @Region)
+requires a.base == 10, a.length == 16, b.base == {base}
+ensures embed(b.base) == embed(a.base) + embed(a.length)
+{{}}"
+        ))
+        .unwrap()
+    };
+    let RouteVerdict::Accepted(accepted) = check(26) else {
+        panic!("the two endpoint bounds should establish equality");
+    };
+    accepted.publish_invocation().unwrap();
+    for base in [25, 27] {
+        let verdict = check(base);
+        assert!(
+            matches!(verdict, RouteVerdict::Incomplete(ref unproved) | RouteVerdict::Rejected { ref unproved, .. }
+                if unproved.iter().any(|row| matches!(row.kind, ObligationKind::NormalGuarantee { .. }))),
+            "{verdict:?}"
+        );
+    }
+}

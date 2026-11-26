@@ -8546,13 +8546,9 @@ mod elaboration {
                     .map_err(BoundedDenotationError::Certificate)?;
                     self.rules
                         .insert(AcceptedProofRule::IntegerOrderAntisymmetry);
-                    let Proposition::LessOrEqual(left, right) = &forward.conclusion else {
-                        unreachable!("checked antisymmetry order");
-                    };
                     let conclusion = self.denotation.denote(&proof.conclusion)?;
                     self.denotation.order_antisymmetry_evidence(
-                        left,
-                        right,
+                        &forward.conclusion,
                         forward_evidence,
                         backward_evidence,
                         conclusion,
@@ -9296,14 +9292,21 @@ mod forbidden_roots {
     impl Denotation {
         pub(super) fn order_antisymmetry_evidence(
             &mut self,
-            left: &ScalarTerm,
-            right: &ScalarTerm,
+            order: &Proposition,
             forward: TermHandle,
             backward: TermHandle,
             conclusion: TermHandle,
         ) -> Result<TermHandle, BoundedDenotationError> {
-            let left = self.fixed_scalar_term(left)?;
-            let right = self.fixed_scalar_term(right)?;
+            let (left, right) = match order {
+                Proposition::LessOrEqual(left, right) => (
+                    self.fixed_scalar_term(left)?,
+                    self.fixed_scalar_term(right)?,
+                ),
+                Proposition::IntegerMathLessOrEqual(left, right) => {
+                    (self.math_term(left)?, self.math_term(right)?)
+                }
+                _ => return Err(BoundedDenotationError::Unsupported("antisymmetry order")),
+            };
             let evidence = self.roots_law_application(
                 Law::LessOrEqualAntisymmetry,
                 &[left, right, forward, backward],
@@ -16891,6 +16894,35 @@ mod order_antisymmetry_tests {
                     .is_err()
             );
         }
+    }
+
+    #[test]
+    fn two_mathematical_orders_certify_equality_of_their_exact_endpoints() {
+        use semantic_vocabulary::IntegerMathTerm as Term;
+        let carrier = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+        let at = |id| Term::embed(value(carrier, id)).unwrap();
+        let a = at(3);
+        let b = Term::Add(Box::new(at(1)), Box::new(at(2)));
+        let (a, b) = if a <= b { (a, b) } else { (b, a) };
+        let premises = [
+            Proposition::IntegerMathLessOrEqual(a.clone(), b.clone()),
+            Proposition::IntegerMathLessOrEqual(b.clone(), a.clone()),
+        ];
+        let proof = ProofNode {
+            conclusion: Proposition::IntegerMathEqual(a, b),
+            rule: ProofRule::IntegerOrderAntisymmetry {
+                forward: Box::new(assumption_proof(premises[0].clone(), 0)),
+                backward: Box::new(assumption_proof(premises[1].clone(), 1)),
+            },
+        };
+        let context = context(carrier);
+        verify_and_assert_forged(&context, &proof.conclusion, &premises, &[], &proof);
+        assert!(
+            check_certificate(&context, &proof.conclusion, &premises[..1], &[], &proof).is_err()
+        );
+        let mut wrong = proof;
+        wrong.conclusion = Proposition::IntegerMathEqual(at(1), at(3));
+        assert!(check_certificate(&context, &wrong.conclusion, &premises, &[], &wrong).is_err());
     }
 
     #[test]
