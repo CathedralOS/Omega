@@ -2,6 +2,10 @@
 //! The reader registers only contracts and selections the program actually names;
 //! lowering copies these rows into the module without rediscovering declarations.
 
+pub(crate) mod formations;
+pub(crate) mod headers;
+pub(crate) mod static_contracts;
+
 use crate::source_state::callable_values::RuntimeCallableContractHandle;
 use arena::IdTable;
 use semantic_vocabulary::{
@@ -20,7 +24,7 @@ use crate::Signature;
 pub(crate) struct CallableNamespace {
     pub contracts: IdTable<CallableContractId, CallableContract>,
     pub descriptors: IdTable<MachineDescriptorId, MachineSelection>,
-    pub envelopes: IdTable<MachineId, Option<crate::reach::SourceEnvelope>>,
+    pub envelopes: IdTable<MachineId, Option<crate::publication::reach::SourceEnvelope>>,
     sources: Vec<Option<(RuntimeCallableContractHandle, CallableContractId)>>,
     pub resolving: Vec<RuntimeCallableContractHandle>,
 }
@@ -30,7 +34,7 @@ pub(crate) struct CallableContract {
     pub lifetimes: Vec<crate::source_state::type_identity::LifetimeParameterIdentity>,
     pub identity: String,
     pub signature: Signature,
-    pub envelope: crate::reach::SourceEnvelope,
+    pub envelope: crate::publication::reach::SourceEnvelope,
 }
 
 #[derive(Debug, Clone)]
@@ -46,7 +50,7 @@ impl CallableNamespace {
     pub fn bind_machine_envelope(
         &mut self,
         machine: MachineId,
-        envelope: crate::reach::SourceEnvelope,
+        envelope: crate::publication::reach::SourceEnvelope,
     ) -> Result<(), &'static str> {
         while self.envelopes.len() < machine.get() as usize {
             self.envelopes.push(None);
@@ -108,9 +112,9 @@ impl CallableNamespace {
         signatures: &IdTable<MachineId, Signature>,
         outcomes: &IdTable<MachineId, crate::Outcome>,
         records: &crate::lower::places::Records<'_>,
-        boundaries: &crate::boundaries::BoundaryNamespace,
+        boundaries: &crate::declare::boundaries::BoundaryNamespace,
         tables: &CheckTables,
-        services: &crate::reach::ServiceMap,
+        services: &crate::publication::reach::ServiceMap,
         qualifications: &mut crate::qualifications::Qualifications,
         module: &mut TerminalModule,
         declarations: Option<&crate::read::Program<'_>>,

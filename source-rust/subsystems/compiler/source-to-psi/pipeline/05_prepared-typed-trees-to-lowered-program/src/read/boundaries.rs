@@ -7,7 +7,7 @@ use symbols::SymbolHandle;
 use terminal_check_tables::Checked;
 
 use super::{Program, services};
-use crate::{Signature, boundaries::BoundarySource};
+use crate::{Signature, declare::boundaries::BoundarySource};
 
 impl Program<'_> {
     pub(super) fn names_boundary_carrier(
@@ -203,7 +203,7 @@ impl Program<'_> {
                 kind,
                 owner: target,
                 signature: signature.clone(),
-                envelope: crate::reach::SourceEnvelope {
+                envelope: crate::publication::reach::SourceEnvelope {
                     service_reach: Vec::new(),
                     invocations: Vec::new(),
                     suspends: false,

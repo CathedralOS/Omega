@@ -41,7 +41,7 @@ arena = { path = "../../foundation/arena" }
 semantic-vocabulary = { path = "../compiler/foundation/semantic-records" }
 filesystem-authority = { path = "../compiler/build/evaluation/authority/filesystem" }
 diagnostics = { path = "../../foundation/diagnostics" }
-source-syntax = { path = "../compiler/source-to-psi/pipeline/01_tokens-to-syntax-trees/source-syntax" }
+source-syntax = { path = "../compiler/source-to-psi/source-syntax" }
 syntax-trees = { path = "../compiler/source-to-psi/representations/syntax-trees" }
 terminal-psi = { path = "../compiler/psi" }
 tokens = { path = "../compiler/source-to-psi/representations/tokens" }

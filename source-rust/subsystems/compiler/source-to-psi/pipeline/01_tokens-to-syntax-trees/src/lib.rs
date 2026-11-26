@@ -270,7 +270,6 @@ fn parse_recorded_source(
     })
 }
 
-mod machine_bodies;
 mod statements {
     pub(crate) mod destructuring;
     pub(crate) mod expressions;
@@ -308,6 +307,7 @@ mod declarations {
     pub(crate) mod domains;
     pub(crate) mod imports;
     pub(crate) mod items;
+    pub(crate) mod machine_bodies;
     pub(crate) mod machines;
     pub(crate) mod mathematical_bindings;
     pub(crate) mod measures;

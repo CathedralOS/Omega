@@ -549,7 +549,7 @@ impl PreparedCallingAbis {
             .collect::<Vec<_>>();
         module.identities = identities.build();
         module.interfaces.calling_abi_signatures =
-            crate::calling_publication::join_abi_declarations(
+            crate::publication::calling::join_abi_declarations(
                 self.entry,
                 &module.identities,
                 &module.types.structural_types,

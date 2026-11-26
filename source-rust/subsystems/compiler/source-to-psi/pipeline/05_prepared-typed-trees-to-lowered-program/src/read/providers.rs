@@ -14,7 +14,7 @@ use symbols::SymbolHandle;
 use terminal_check_tables::Checked;
 
 use super::{Program, services};
-use crate::external_providers::{ExternalProviderSource, ProviderOwnerSource};
+use crate::declare::external_providers::{ExternalProviderSource, ProviderOwnerSource};
 
 impl Program<'_> {
     pub(super) fn select_native_provider(
@@ -255,7 +255,7 @@ impl Program<'_> {
                 requirement,
                 satisfaction.external_binding,
             )?;
-            if !crate::reach::has_authored_ceiling(typed, context, requirement.symbol)? {
+            if !crate::publication::reach::has_authored_ceiling(typed, context, requirement.symbol)? {
                 return Err(services::unavailable(
                     context,
                     "native conformance requirement has an open service ceiling",
@@ -339,12 +339,7 @@ impl Program<'_> {
         &mut self,
         context: MachineId,
         target: SymbolHandle,
-    ) -> Checked<
-        Option<(
-            semantic_vocabulary::BoundaryMachineId,
-            crate::Signature,
-        )>,
-    > {
+    ) -> Checked<Option<(semantic_vocabulary::BoundaryMachineId, crate::Signature)>> {
         let typed = self.typed;
         let Some(machine) = typed.machine_by_own_or_state_symbol(target) else {
             return Ok(None);
@@ -365,7 +360,7 @@ impl Program<'_> {
         let boundary = self
             .boundaries
             .rows
-            .push(crate::boundaries::BoundarySource {
+            .push(crate::declare::boundaries::BoundarySource {
                 source: target,
                 owner,
                 signature: signature.clone(),

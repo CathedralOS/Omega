@@ -61,7 +61,7 @@ impl<'t> Program<'t> {
                 .symbol_provenance_source_span(declared.symbol)
                 .unwrap_or_default(),
         );
-        if !crate::reach::has_authored_ceiling(typed, machine, declared.symbol)? {
+        if !crate::publication::reach::has_authored_ceiling(typed, machine, declared.symbol)? {
             return Err(crate::reject(
                 machine,
                 site,
