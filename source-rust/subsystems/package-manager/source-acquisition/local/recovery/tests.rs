@@ -1,5 +1,5 @@
 // Unit tests for historical local snapshot recovery, origin isolation,
-// corruption rejection, and lookup budgets.
+// corruption rejection, and source limits.
 //
 // In `byte_identical_content_does_not_cross_local_origins`, we construct the
 // parent-traversal path using `MAIN_SEPARATOR_STR` rather than `Path::join`:
@@ -9,7 +9,7 @@
 // with the platform separator.
 
 use super::{
-    LOCAL_CACHE_SNAPSHOTS, LocalSourceLimits, Path, SourceContentDigest, recover_bounded,
+    LOCAL_CACHE_SNAPSHOTS, LocalSourceLimits, Path, SourceContentDigest,
     recover_cached_local_source_in_lane,
 };
 use crate::PrimaryGitChoices;
@@ -83,6 +83,41 @@ fn historical_snapshot_survives_changed_and_deleted_live_source() {
         !fixture.0.join("source").exists(),
         "historical recovery recreated live source"
     );
+}
+
+#[test]
+fn recovery_uses_only_the_published_origin_and_content_address() {
+    let fixture = Fixture::new();
+    let storage = fixture.storage();
+    let captured = fixture.capture(&storage);
+    let origin = captured.canonical_live_root();
+    let identity = &captured.normalized().content_identity;
+    let expected = SourceContentDigest::derive(identity.as_bytes());
+    let publication = captured.snapshot_root().parent().unwrap();
+
+    // Park a genuine snapshot under the retired cache key. Its bytes and origin
+    // still match, so this distinguishes an exact lookup from a fallback scan.
+    let mut old_key = crate::digest_encoder::DomainDigestEncoder::new(b"");
+    old_key.bytes(b"omega-local-source-snapshot-custody-v1");
+    old_key.bytes(&crate::tree::filesystem::raw_os_bytes(origin.as_os_str()));
+    old_key.bytes(identity.as_bytes());
+    let name = format!(
+        "source-{}",
+        crate::identity::digest::format_sha256(&old_key.finish())
+    );
+    let parked = publication.with_file_name(name);
+    fs::rename(publication, &parked).unwrap();
+    assert!(
+        recover_cached_local_source_in_lane(
+            origin,
+            &expected,
+            storage.external_local_sources(),
+            LocalSourceLimits::default()
+        )
+        .unwrap()
+        .is_none()
+    );
+    assert!(parked.is_dir());
 }
 
 #[test]
@@ -182,21 +217,11 @@ fn corrupted_snapshot_is_rejected_without_repairing_it() {
 }
 
 #[test]
-fn source_and_lookup_limits_are_enforced_independently() {
+fn recovery_enforces_source_byte_limit() {
     let fixture = Fixture::new();
     let storage = fixture.storage();
     let old = fixture.capture(&storage);
     let expected = SourceContentDigest::derive(old.normalized().content_identity.as_bytes());
-    assert!(
-        recover_bounded(
-            old.canonical_live_root(),
-            &expected,
-            storage.external_local_sources(),
-            LocalSourceLimits::default(),
-            0
-        )
-        .is_err()
-    );
     let limits = LocalSourceLimits {
         max_bytes: 1,
         ..LocalSourceLimits::default()
