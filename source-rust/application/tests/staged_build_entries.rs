@@ -140,3 +140,43 @@ fn the_selected_build_must_accept_the_original_builder() {
         assert!(report.contains(reason), "{report}");
     }
 }
+
+#[test]
+fn dependency_imports_respect_the_build_files_the_child_entered() {
+    let consumer = build(
+        r#"Build::application(builder, "consumer");
+        let kit: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "kit" }));"#,
+    );
+    let first = build(r#"Build::build_entry(builder, "prepare.omg");"#);
+    let prepare = build(r#"Build::build_entry(builder, "configure.omg");"#);
+    let configure = build(r#"Build::package(builder, "kit");"#);
+    let marker = "public machine marker() -> i32 { 3 }";
+    let prepare = format!("{prepare}\n{marker}");
+    let configure = format!("{configure}\n{marker}");
+    for (path, permitted) in [
+        ("library/build.omg", true),
+        ("prepare.omg", false),
+        ("configure.omg", false),
+    ] {
+        let source =
+            format!("use {{kit}}/{path} as lib; machine main() -> i32 {{ |lib|::marker() }}");
+        let (status, report) = invoke(
+            &[
+                ("build.omg", &consumer),
+                ("main.omg", &source),
+                ("kit/build.omg", &first),
+                ("kit/prepare.omg", &prepare),
+                ("kit/configure.omg", &configure),
+                ("kit/library/build.omg", marker),
+            ],
+            &["--check"],
+        );
+        assert_eq!(status.success(), permitted, "{path}: {report}");
+        if !permitted {
+            assert!(
+                report.contains("may not load dependency build file") && report.contains(path),
+                "{report}"
+            );
+        }
+    }
+}
