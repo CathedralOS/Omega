@@ -12,7 +12,7 @@ machine main() {}"#;
 
 #[test]
 fn a_declaring_package_cannot_choose_an_arbitrary_content_algebra() {
-    let (output, report) = program::invoke(ARBITRARY_ALGEBRA, &["run", "--both"]);
+    let (output, report) = program::invoke(ARBITRARY_ALGEBRA, &["--check"]);
     assert!(!output.status.success(), "{report}");
     assert!(
         report.contains("core Content requires IntervalSet<Space> or CountedQuantity<Unit>"),
@@ -107,7 +107,7 @@ fn promising_content_membership_requires_a_qualified_returned_value() {
     );
     program::assert_silent_return(&promise);
     let forged = promise.replace("input as -Owned", "Region { length: 0u64 }");
-    let (output, report) = program::invoke(&forged, &["run", "--both"]);
+    let (output, report) = program::invoke(&forged, &["--check"]);
     assert!(!output.status.success(), "{report}");
     assert!(
         report.contains("normal completion does not establish its promised runtime membership"),
@@ -217,7 +217,7 @@ fn an_admitted_content_guarantee_reopens_with_its_actual_input_and_result() {
 fn a_content_guarantee_cannot_borrow_an_unqualified_input_or_an_entry_result() {
     let declaration = with_transfer_contract();
     let unqualified = declaration.replace("pass(input: Region in Owned)", "pass(input: Region)");
-    let (output, report) = program::invoke(&unqualified, &["run", "--both"]);
+    let (output, report) = program::invoke(&unqualified, &["--check"]);
     assert!(!output.status.success(), "{report}");
     assert!(
         report.contains("exact qualification on its observed place"),
@@ -225,7 +225,7 @@ fn a_content_guarantee_cannot_borrow_an_unqualified_input_or_an_entry_result() {
     );
     let invalid_old =
         declaration.replace("Owned::measure(@result)", "Owned::measure(old(@result))");
-    let (output, report) = program::invoke(&invalid_old, &["run", "--both"]);
+    let (output, report) = program::invoke(&invalid_old, &["--check"]);
     assert!(!output.status.success(), "{report}");
     assert!(report.contains("has no entry content"), "{report}");
 }

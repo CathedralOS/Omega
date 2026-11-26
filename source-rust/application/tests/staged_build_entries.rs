@@ -47,16 +47,16 @@ fn successive_builds_select_the_final_native_and_psi_entry() {
         machine main() crashes Trap {{ crash Trap; }}"#,
         host.target_name()
     );
+    for (engine, observation) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
     let (status, report) = invoke(
         &[
             ("build.omg", &first),
             ("stages/configure.omg", &middle),
             ("release.lock.omg", &last),
         ],
-        &["run", "--both"],
+        &["run", "--engine", engine],
     );
     assert!(status.success(), "{report}");
-    for observation in ["native exit 0", "interp exit: 0"] {
         assert!(report.lines().any(|line| line == observation), "{report}");
     }
 }

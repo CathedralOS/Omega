@@ -12,7 +12,7 @@ fn forwarding_an_extent_preserves_its_runtime_fields() {
 fn an_unserved_content_equation_points_at_the_mathematical_identity() {
     let (output, report) = program::invoke(
         include_str!("fixtures/contracts/fail/interval_content_identity/main.omg"),
-        &["run", "--both"],
+        &["--check"],
     );
     assert!(!output.status.success(), "{report}");
     assert!(

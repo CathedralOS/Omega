@@ -10,10 +10,11 @@
 //! The wildcard and proved-coverage fixtures must select the same values in
 //! both engines. A gap between two comparisons owes a proof at the last guard.
 
+#[path = "support/observations.rs"]
+mod observations;
 mod support;
 
 use platform_custody::temporary_directory::TemporaryDirectory;
-use std::process::{Command, Output, Stdio};
 
 fn fixture(tier: &str, case: &str) -> String {
     let path = support::repository_root()
@@ -26,7 +27,7 @@ fn fixture(tier: &str, case: &str) -> String {
 
 /// Run `omega` on a copy of one source file, so nothing the compiler writes
 /// lands in the checkout.
-fn invoke(source: &str, arguments: &[&str]) -> (Output, String) {
+fn project(source: &str) -> TemporaryDirectory {
     let scratch = TemporaryDirectory::create("subjectless-match", false).unwrap();
     std::fs::write(scratch.path().join("main.omg"), source).unwrap();
     std::fs::write(
@@ -34,45 +35,29 @@ fn invoke(source: &str, arguments: &[&str]) -> (Output, String) {
         include_str!("fixtures/patterns/run/subjectless_match/build.omg"),
     )
     .unwrap();
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(arguments)
-        .args([
-            "--build-input",
-            "main.omg",
-            "--build-input",
-            "build.omg",
-            "build.omg",
-        ])
-        .current_dir(scratch.path())
-        .stdin(Stdio::null())
-        .output()
-        .expect("the compiler runs on the fixture");
-    let report = format!(
-        "{}{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    eprintln!("{report}");
-    (output, report)
+    scratch
 }
+
+const INPUTS: &[&str] = &[
+    "--build-input",
+    "main.omg",
+    "--build-input",
+    "build.omg",
+    "build.omg",
+];
 
 #[test]
 fn a_match_without_a_subject_runs_natively_and_in_psi() {
-    let (output, report) = invoke(&fixture("run", "subjectless_match"), &["run", "--both"]);
-    assert_eq!(output.status.code(), Some(0), "{report}");
-    for receipt in ["native exit 0", "interp exit: 0"] {
-        assert!(report.lines().any(|line| line == receipt), "{report}");
-    }
+    observations::assert_silent_return(|| project(&fixture("run", "subjectless_match")), INPUTS);
 }
 
 #[test]
 fn the_last_guard_must_cover_the_remaining_inputs() {
     let complete = fixture("run", "subjectless_match_ladder");
-    let (output, report) = invoke(&complete, &["run", "--both"]);
-    assert!(output.status.success(), "{report}");
+    observations::assert_silent_return(|| project(&complete), INPUTS);
     let gap = complete.replace("a <= b -> b", "a < b -> b");
     assert_ne!(gap, complete);
-    let (output, report) = invoke(&gap, &["--check"]);
+    let (output, report) = observations::run(&project(&gap), &["--check"], INPUTS);
     assert!(!output.status.success(), "{report}");
     assert!(
         report.contains("cannot prove the last guard covers every remaining arrival"),
@@ -84,11 +69,7 @@ fn the_last_guard_must_cover_the_remaining_inputs() {
 #[test]
 fn complementary_guards_cover_values_and_transitions() {
     let source = fixture("run", "complementary_guards");
-    let (output, report) = invoke(&source, &["run", "--both"]);
-    assert!(output.status.success(), "{report}");
-    for receipt in ["native exit 0", "interp exit: 0"] {
-        assert!(report.lines().any(|line| line == receipt), "{report}");
-    }
+    observations::assert_silent_return(|| project(&source), INPUTS);
     for uncovered in [
         source.replace("a != b -> 7", "a != 0 -> 7"),
         source
@@ -97,7 +78,7 @@ fn complementary_guards_cover_values_and_transitions() {
             .replace("seen !=", "read_then_clear(@mutable flag) !="),
     ] {
         assert_ne!(uncovered, source);
-        let (output, report) = invoke(&uncovered, &["--check"]);
+        let (output, report) = observations::run(&project(&uncovered), &["--check"], INPUTS);
         assert!(!output.status.success(), "{report}");
         assert!(
             report.contains("cannot prove the last guard covers every remaining arrival"),
