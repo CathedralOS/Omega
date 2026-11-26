@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "generic_requirement_statement_call_target_body");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "generic_requirement_statement_call_target_body" };
     Build::select_provider::<Mark, LinuxX8664Counting>(builder, linux_x86_64);
     Build::select_provider::<Mark, LinuxArm64Counting>(builder, linux_arm64);
     Build::select_provider::<Mark, MacosArm64Counting>(builder, macos_arm64);

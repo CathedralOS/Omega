@@ -1,7 +1,7 @@
 use {omega}/build/dependency.omg;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "component_scalar_lending_other_state");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "component_scalar_lending_other_state" };
     let mutable producer_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "../../../support/fact_dependencies/scalar_lending_producer" });
     |dependency|::with_alias(@mutable producer_dependency, "producer");
     let producer_registration: DependencyRegistration = Build::dependency(builder, producer_dependency);

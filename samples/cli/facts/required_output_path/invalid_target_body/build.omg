@@ -1,13 +1,13 @@
 // An issued required-output path survives ordinary byte-view transport, so Build seals that exact reserved member and selects the product from its observed bytes.
-machine build(builder: @mutable Build) {
-    Build::application(builder, "required_output_path_target_body");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "required_output_path_target_body" };
     let obligation: RequiredOutput = BuildOutput::require(@mutable builder.output, "answer.dat");
     let path: @[u8] = RequiredOutput::path(@obligation);
     let file: BuildPath = use_path(builder, path);
     let settled: OutputCompletion = BuildOutput::complete(@mutable builder.output, obligation, file);
     settle(builder, settled);
 }
-machine use_path(builder: @mutable Build, path: @mutable [u8]) -> BuildPath {
+machine use_path(builder: @mutable BuildPlan, path: @mutable [u8]) -> BuildPath {
     let file: BuildPath = BuildOutput::resolve(@builder.output, path);
     let descriptor: i32 = BuildOutput::create(@mutable builder.output, file, 0);
     _ = BuildOutput::write(@mutable builder.output, descriptor, "forty-two");
@@ -15,32 +15,32 @@ machine use_path(builder: @mutable Build, path: @mutable [u8]) -> BuildPath {
     select_path(builder, path);
     file
 }
-machine select_entry(builder: @mutable Build, first: u8) {
+machine select_entry(builder: @mutable BuildPlan, first: u8) {
     transition first == 97 { true -> correct(builder), false -> wrong(builder) }
 }
-machine correct(builder: @mutable Build) {
+machine correct(builder: @mutable BuildPlan) {
     Build::bind(builder, linux_x86_64::ProgramEntry, SelectedEntry::enter);
     Build::bind(builder, linux_arm64::ProgramEntry, SelectedEntry::enter);
     Build::bind(builder, macos_arm64::ProgramEntry, SelectedEntry::enter);
     Build::bind(builder, windows_x86_64::ProgramEntry, SelectedEntry::enter);
 }
-machine wrong(builder: @mutable Build) {
+machine wrong(builder: @mutable BuildPlan) {
     Build::bind(builder, linux_x86_64::ProgramEntry, RejectedEntry::enter);
     Build::bind(builder, linux_arm64::ProgramEntry, RejectedEntry::enter);
     Build::bind(builder, macos_arm64::ProgramEntry, RejectedEntry::enter);
     Build::bind(builder, windows_x86_64::ProgramEntry, RejectedEntry::enter);
 }
-machine settle(builder: @mutable Build, settled: OutputCompletion) {
+machine settle(builder: @mutable BuildPlan, settled: OutputCompletion) {
     transition settled {
         OutputCompletion::Sealed { receipt } -> done(),
         OutputCompletion::Retry { obligation, file } -> failed(builder, obligation)
     }
     machine done() {}
-    machine failed(builder: @mutable Build, obligation: RequiredOutput) {
+    machine failed(builder: @mutable BuildPlan, obligation: RequiredOutput) {
         BuildOutput::fail(@mutable builder.output, obligation, "output was not sealed");
     }
 }
 
-machine select_path(builder: @mutable Build, path: @[u8]) {
+machine select_path(builder: @mutable BuildPlan, path: @[u8]) {
     transition path.length > 0 { true -> select_entry(builder, path[0]), false -> wrong(builder) }
 }

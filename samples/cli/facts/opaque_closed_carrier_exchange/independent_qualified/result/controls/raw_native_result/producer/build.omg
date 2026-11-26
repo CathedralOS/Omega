@@ -1,7 +1,7 @@
 use omega\language\core\DllImport;
 use omega\language\core\ForeignBinding;
-machine build(builder: @mutable Build) {
- Build::package(builder, "raw_qualified_result_producer");
+machine build(builder: @mutable BuildPlan) {
+ builder.product = BuildProduct::Package { name: "raw_qualified_result_producer" };
  Build::select_representation::<InternetAddress, AddressRepresentation>(builder);
  Build::bind(builder, linux_x86_64::ProgramEntry, component_entry);
  Build::bind(builder, linux_arm64::ProgramEntry, component_entry);

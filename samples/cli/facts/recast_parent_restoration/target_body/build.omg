@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "recast_parent_restoration");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "recast_parent_restoration" };
     Build::select_provider::<RestorationValue, SelectedRestoration>(builder, windows_x86_64);
     Build::select_provider::<RestorationValue, SelectedRestoration>(builder, linux_x86_64);
     Build::select_provider::<RestorationValue, SelectedRestoration>(builder, macos_arm64);

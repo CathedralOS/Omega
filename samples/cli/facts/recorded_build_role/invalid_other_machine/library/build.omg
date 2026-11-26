@@ -1,6 +1,6 @@
 // An executed Build package name survives ordinary value transport, so the product imports that exact package and historical review reuses its recorded description at the verified source pin.
-machine forward(builder: @mutable Build, name: @[u8]) { declare(builder, name); }
-machine declare(builder: @mutable Build, name: @[u8]) { Build::package(builder, name); }
-machine build(builder: @mutable Build) {
+machine forward(builder: @mutable BuildPlan, name: @[u8]) { declare(builder, name); }
+machine declare<'storage>(builder: @mutable BuildPlan<'storage>, name: @'storage [u8]) { builder.product = BuildProduct::Package { name: name }; }
+machine build(builder: @mutable BuildPlan) {
     forward(builder, "wrong_library");
 }

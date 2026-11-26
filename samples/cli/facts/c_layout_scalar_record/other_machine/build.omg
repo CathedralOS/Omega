@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "c_layout_scalar_record_other_machine");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "c_layout_scalar_record_other_machine" };
     Build::bind(builder, macos_arm64::ProgramEntry, main);
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);

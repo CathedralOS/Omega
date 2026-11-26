@@ -1,1 +1,1 @@
-machine build(builder: @mutable Build) { Build::package(builder, "alias_rhs_buffers"); }
+machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "alias_rhs_buffers" }; }
