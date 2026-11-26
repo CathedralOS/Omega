@@ -1,10 +1,7 @@
-// Source layout discovery and insertion boundaries for conservative `build.omg` dependency edits.
-// `discover_build_layout` returns `None` when no `build` machine exists and `Some(None)` when a valid `build` machine has a noncanonical signature or body layout requiring manual editing.
+// Locate the unconditional insertion point in an authored Build entry.
 // Dependency declarations belong to the implicit entry before its first transition or nested state; `entry_insertion_start` locates the last top-level semicolon preceding that boundary so adding a dependency never splits a transition or makes the row conditional.
 
 use crate::declarations::dependencies::edit::BUILD_MACHINE_NAME;
-use crate::declarations::editable_build::{project_build_entry_syntax, project_dependency_rows};
-use syntax_trees::SyntaxTrees;
 use syntax_trees::item::Item;
 use syntax_trees::statement::StatementNode;
 use tokens::{PunctuationKind, TokenKind, TokenStream};
@@ -15,14 +12,9 @@ pub(super) struct BuildLayout {
     body_open_end: usize,
     body_close_start: usize,
     entry_end_start: usize,
-    dependency_rows: Vec<DependencyRow>,
 }
 
 impl BuildLayout {
-    pub(super) fn dependency_rows(&self) -> &[DependencyRow] {
-        &self.dependency_rows
-    }
-
     pub(super) fn insert_statement(&self, source: &str, statement: &str) -> Option<String> {
         let newline = if source.contains("\r\n") {
             "\r\n"
@@ -64,33 +56,10 @@ impl BuildLayout {
         );
         Some(replacement)
     }
-
-    // A replacement keeps the replaced row's first-line indent for every line.
-    pub(super) fn replace_row(source: &str, row: &DependencyRow, statement: &str) -> String {
-        let newline = if source.contains("\r\n") {
-            "\r\n"
-        } else {
-            "\n"
-        };
-        let indent = line_indent(source, row.start).unwrap_or_default();
-        let mut replacement = source.to_owned();
-        replacement.replace_range(
-            row.start..row.end,
-            &indent_continuation_lines(statement, indent, newline),
-        );
-        replacement
-    }
 }
 
 fn indent_continuation_lines(statement: &str, indent: &str, newline: &str) -> String {
     statement.replace('\n', &format!("{newline}{indent}"))
-}
-
-#[derive(Debug)]
-pub(super) struct DependencyRow {
-    pub(super) start: usize,
-    pub(super) end: usize,
-    pub(super) contains_comment: bool,
 }
 
 pub(super) fn discover_build_layout(
@@ -135,9 +104,6 @@ pub(super) fn discover_build_layout(
     let machine_indent = line_indent(source, tokens[machine_token].span.start)
         .unwrap_or_default()
         .to_owned();
-    let Some(dependency_rows) = dependency_rows(syntax, tokens, body_open, body_close) else {
-        return Some(None);
-    };
     let states = syntax.items.state_handles(build.states);
     let Some(entry) = states.first().map(|handle| syntax.items.state(*handle)) else {
         return Some(None);
@@ -172,7 +138,6 @@ pub(super) fn discover_build_layout(
         body_open_end: tokens[body_open].span.end,
         body_close_start: tokens[body_close].span.start,
         entry_end_start,
-        dependency_rows,
     }))
 }
 
@@ -237,103 +202,6 @@ fn matching_brace(tokens: &TokenStream<'_>, open: usize) -> Option<usize> {
     None
 }
 
-// The projector owns row membership. The tokens supply byte and comment ranges for the edit.
-fn dependency_rows(
-    syntax: &SyntaxTrees,
-    tokens: &TokenStream<'_>,
-    body_open: usize,
-    body_close: usize,
-) -> Option<Vec<DependencyRow>> {
-    let build = project_build_entry_syntax(syntax).ok()?;
-    let rows = project_dependency_rows(syntax, &build).ok()?;
-    let statements = top_level_statements(tokens, body_open, body_close);
-    let token_range = |handle| {
-        let anchor = match syntax.statements.statement(handle) {
-            StatementNode::LocalData(local) => local.name.source_span().span,
-            StatementNode::Call(call) => call.call(syntax).target.source_span().span,
-            _ => return None,
-        };
-        statements.iter().position(|&(first, last)| {
-            tokens[first].span.start <= anchor.start && anchor.end <= tokens[last].span.end
-        })
-    };
-    rows.iter()
-        .map(|row| {
-            let handles = row.statements();
-            let start = token_range(*handles.first()?)?;
-            // An editable group covers adjacent, complete statements.
-            for (offset, handle) in handles.iter().enumerate() {
-                if token_range(*handle)? != start + offset {
-                    return None;
-                }
-            }
-            let first = statements[start].0;
-            let last = statements[start + handles.len() - 1].1;
-            // A preceding block may not end with a semicolon. Refuse to include its text in an edit.
-            let anchor = match syntax.statements.statement(handles[0]) {
-                StatementNode::LocalData(local) => (local.name.source_span().span.start, "let"),
-                StatementNode::Call(call) if call.discards_result => {
-                    (call.call(syntax).target.source_span().span.start, "_")
-                }
-                _ => return None,
-            };
-            let actual_start = (first..=last)
-                .take_while(|&index| tokens[index].span.start < anchor.0)
-                .filter(|&index| tokens.spelling(&tokens[index]) == anchor.1)
-                .last()?;
-            if actual_start != first {
-                return None;
-            }
-            Some(DependencyRow {
-                start: tokens[first].span.start,
-                end: tokens[last].span.end,
-                contains_comment: tokens[first..=last]
-                    .iter()
-                    .any(|token| token.comment().is_some()),
-            })
-        })
-        .collect()
-}
-
-// Inclusive token ranges of the body's depth-0 statements, each ending at its
-// semicolon. Nested blocks, calls and literals stay inside their statement.
-fn top_level_statements(
-    tokens: &TokenStream<'_>,
-    body_open: usize,
-    body_close: usize,
-) -> Vec<(usize, usize)> {
-    let mut statements = Vec::new();
-    let mut depth = 0usize;
-    let mut start = None;
-    for index in semantic_indices(tokens)
-        .into_iter()
-        .filter(|index| *index > body_open && *index < body_close)
-    {
-        if depth == 0 {
-            start.get_or_insert(index);
-        }
-        match tokens[index].punctuation() {
-            Some(
-                PunctuationKind::LeftBrace
-                | PunctuationKind::LeftParen
-                | PunctuationKind::LeftBracket,
-            ) => depth += 1,
-            Some(
-                PunctuationKind::RightBrace
-                | PunctuationKind::RightParen
-                | PunctuationKind::RightBracket,
-            ) => depth = depth.saturating_sub(1),
-            Some(PunctuationKind::Semicolon) if depth == 0 => {
-                if let Some(first) = start.take() {
-                    statements.push((first, index));
-                }
-            }
-            _ => {}
-        }
-    }
-    statements
-}
-
 fn line_indent(source: &str, offset: usize) -> Option<&str> {
     let line_start = source[..offset].rfind('\n').map_or(0, |index| index + 1);
     let prefix = &source[line_start..offset];
@@ -356,12 +224,7 @@ machine build(builder: @mutable BuildPlan) {
             .unwrap()
             .unwrap();
         assert_eq!(layout.body_close_start, source.rfind('}').unwrap());
-        let [row] = layout.dependency_rows() else {
-            panic!("one dependency row");
-        };
-        assert_eq!(
-            &source[row.start..row.end],
-            r#"_ = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "(" }));"#
-        );
+        let inserted = layout.insert_statement(source, "other();").unwrap();
+        assert_eq!(inserted, source.replace("\n}\n", "\n    other();\n}\n"));
     }
 }

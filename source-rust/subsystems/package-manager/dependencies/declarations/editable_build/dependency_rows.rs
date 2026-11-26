@@ -45,7 +45,6 @@ pub const DEPENDENCY_DESCRIPTION_TYPE_NAME: &str = "DependencyDescription";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DependencyRow {
-    statements: Vec<StatementHandle>,
     operation: DependencyOperation,
     alias: Option<ExpressionHandle>,
     source: ExpressionHandle,
@@ -53,11 +52,6 @@ pub struct DependencyRow {
 }
 
 impl DependencyRow {
-    /// The row's statements in authored order; the registration is last.
-    pub fn statements(&self) -> &[StatementHandle] {
-        &self.statements
-    }
-
     #[cfg(test)]
     pub const fn operation(&self) -> DependencyOperation {
         self.operation
@@ -130,7 +124,6 @@ pub fn project_dependency_rows(
                 return Err(DependencyRowError::WrongArguments);
             };
             rows.push(DependencyRow {
-                statements: vec![handle],
                 operation: registration.operation,
                 alias: None,
                 source,
@@ -139,14 +132,15 @@ pub fn project_dependency_rows(
         } else if let StatementNode::LocalData(local) = syntax_trees.statements.statement(handle)
             && let Some(source) = fresh_description(syntax_trees, local.initial_value)
         {
+            let group = statements[position..].first_chunk::<3>().ok_or(DependencyRowError::WrongArguments)?;
             let row = aliased_row(
                 syntax_trees,
-                &statements[position..],
+                group,
                 local,
                 source,
                 receiver,
             )?;
-            position += row.statements.len();
+            position += group.len();
             rows.push(row);
             continue;
         }
@@ -260,15 +254,13 @@ fn single_name(syntax_trees: &SyntaxTrees, expression: ExpressionHandle) -> Opti
 
 fn aliased_row(
     syntax_trees: &SyntaxTrees,
-    statements: &[StatementHandle],
+    statements: &[StatementHandle; 3],
     local: &syntax_trees::statement::TableLocalData,
     source: ExpressionHandle,
     receiver: &str,
 ) -> Result<DependencyRow, DependencyRowError> {
     let name = local.name.as_str(syntax_trees);
-    let [declaration, configuration, registration, ..] = statements else {
-        return Err(DependencyRowError::WrongArguments);
-    };
+    let [_, configuration, registration] = statements;
     if !local.is_mutable {
         return Err(DependencyRowError::WrongArguments);
     }
@@ -306,7 +298,6 @@ fn aliased_row(
         return Err(DependencyRowError::WrongArguments);
     }
     Ok(DependencyRow {
-        statements: vec![*declaration, *configuration, *registration],
         operation: register.operation,
         alias: Some(*alias),
         source,
@@ -375,8 +366,6 @@ machine build(builder: @mutable BuildPlan) {
         assert_eq!(rows[1].operation(), DependencyOperation::Dependency);
         assert_eq!(rows[3].operation(), DependencyOperation::BuildDependency);
         assert_eq!(rows[0].alias(), None);
-        assert_eq!(rows[0].statements().len(), 1);
-        assert_eq!(rows[1].statements().len(), 3);
         assert_eq!(
             string_literal(&trees, rows[1].alias().expect("alias row")),
             "other"
