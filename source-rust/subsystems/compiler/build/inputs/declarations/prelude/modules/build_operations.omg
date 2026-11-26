@@ -3,15 +3,14 @@ public machine dependency(builder: @mutable BuildPlan, description: DependencyDe
 }
 
 public machine dependency(builder: @mutable BuildPlan, source: Source) -> DependencyRegistration reaches BuildRequestOperations invokes BuildRequestOperations {
-    Build::dependency(builder, DependencyDescription { source: source, explicit_alias: false, alias: "" })
+    Build::request_dependency(builder, false, false, "", source, DependencyOptions {})
 }
 
-public machine dependency<Program>(builder: @mutable BuildPlan, source: Source, grant: ProgramDelegation<Program>) -> DependencyRegistration reaches BuildRequestOperations invokes BuildRequestOperations {
-    Build::dependency::<Program>(builder, DependencyDescription { source: source, explicit_alias: false, alias: "" }, grant)
+public machine dependency(builder: @mutable BuildPlan, source: Source, options: DependencyOptions) -> DependencyRegistration reaches BuildRequestOperations invokes BuildRequestOperations {
+    Build::request_dependency(builder, false, false, "", source, options)
 }
 
-public machine dependency<Program>(builder: @mutable BuildPlan, description: DependencyDescription, grant: ProgramDelegation<Program>) -> DependencyRegistration reaches BuildRequestOperations invokes BuildRequestOperations {
-    let options: DependencyOptions = BuildRequestOperations::forward_program::<Program>(builder);
+public machine dependency(builder: @mutable BuildPlan, description: DependencyDescription, options: DependencyOptions) -> DependencyRegistration reaches BuildRequestOperations invokes BuildRequestOperations {
     Build::request_dependency(builder, false, description.explicit_alias, description.alias, description.source, options)
 }
 

@@ -516,6 +516,23 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             }
             return Ok(TerminalEffectResult::Unit);
         }
+        if let Operation::ForwardProgram { program } = call.action {
+            let ([], [], [], terminal_psi::BoundaryMachineResult::Structural(result)) = (
+                arguments.as_slice(),
+                structural_arguments.as_slice(),
+                byte_sequence_arguments.as_slice(),
+                result,
+            ) else {
+                return Err(refuse(
+                    "program delegation requires one nominal selection and an opaque result",
+                ));
+            };
+            return self
+                .host
+                .options
+                .forward_program(program, result.structural_type, self.host.account.as_ref())
+                .map(TerminalEffectResult::Structural);
+        }
         // A registration returns the marker that names it; every other
         // request returns nothing.
         let registers = matches!(
@@ -525,7 +542,6 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                 | Operation::InputBinding
                 | Operation::AddBinding
                 | Operation::ExtendReach
-                | Operation::ForwardProgram { .. }
                 | Operation::ExtendWorkspace
         );
         if structural_arguments.first() != Some(&self.host.original)
@@ -584,10 +600,10 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             Operation::InputBinding => (0, 2),
             Operation::AddBinding => (0, 3),
             Operation::ExtendReach | Operation::ExtendWorkspace => (0, 3),
-            Operation::ForwardProgram { .. } => (0, 1),
             Operation::PathDependency => (2, 4),
             Operation::GitDependency => (3, 6),
-            Operation::ConfigureTestFixture
+            Operation::ForwardProgram { .. }
+            | Operation::ConfigureTestFixture
             | Operation::ConfigureTestEngine
             | Operation::SandboxWrite
             | Operation::LogLine
@@ -636,18 +652,6 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                     result.structural_type,
                     self.host.account.as_ref(),
                 )
-                .map(TerminalEffectResult::Structural);
-        }
-        if let Operation::ForwardProgram { program } = call.action {
-            let terminal_psi::BoundaryMachineResult::Structural(result) = result else {
-                return Err(refuse(
-                    "a forwarded program requires its opaque dependency options",
-                ));
-            };
-            return self
-                .host
-                .options
-                .forward_program(program, result.structural_type, self.host.account.as_ref())
                 .map(TerminalEffectResult::Structural);
         }
         if call.action == Operation::ExtendReach {
