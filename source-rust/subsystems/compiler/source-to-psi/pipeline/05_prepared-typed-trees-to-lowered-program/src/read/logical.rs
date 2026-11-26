@@ -202,8 +202,13 @@ impl MathematicalInputs {
         let mut inputs = Inputs::default();
         let member_arena = Arena::new();
         let mut type_arguments = Vec::new();
-        for (ordinal, binder) in binders.iter().enumerate() {
+        let mut level_binders = Vec::new();
+        let mut next_ordinal = 0usize;
+        for binder in binders {
             match *binder {
+                super::mathematics::DefinitionBinder::Level(symbol) => {
+                    level_binders.push(symbol);
+                }
                 super::mathematics::DefinitionBinder::Value(symbol, scalar) => {
                     inputs.leaves.push(Leaf {
                         path: SymbolPath {
@@ -211,23 +216,25 @@ impl MathematicalInputs {
                             members: HandleSpan::empty(),
                         },
                         scalar,
-                        origin: ordinal,
+                        origin: next_ordinal,
                         reference: None,
                     });
+                    next_ordinal += 1;
                 }
                 super::mathematics::DefinitionBinder::Type(symbol) => {
-                    let slot = u32::try_from(ordinal)
+                    let slot = u32::try_from(next_ordinal)
                         .map_err(|_| identity(machine, "mathematical formal ordinal overflow"))?;
                     type_arguments.push((
                         symbol,
                         terminal_psi::MathematicalPredicateBody::TypeParameter(slot),
                     ));
+                    next_ordinal += 1;
                 }
             }
         }
-        let leading = binders.len();
-        for (ordinal, parameter) in parameters.iter().enumerate() {
-            let ordinal = leading + ordinal;
+        for parameter in parameters.iter() {
+            let ordinal = next_ordinal;
+            next_ordinal += 1;
             if !typed.symbols.symbols().nodes().is_valid(parameter.symbol)
                 || !typed.mathematical_types.is_valid(parameter.ty)
             {
@@ -236,9 +243,11 @@ impl MathematicalInputs {
                     "mathematical formal has no exact declaration/type",
                 ));
             }
-            if parameter.relevance == language_core::BindingRelevance::Erased
-                && super::mathematics::mathematical_sort(typed, parameter.ty)
-                    == Some(symbols::FixedCoreDeclaration::Type)
+            if super::mathematics::mathematical_sort_with_levels(
+                typed,
+                parameter.ty,
+                &level_binders,
+            ) == Some(symbols::FixedCoreDeclaration::Type)
             {
                 let slot = u32::try_from(ordinal)
                     .map_err(|_| identity(machine, "mathematical formal ordinal overflow"))?;

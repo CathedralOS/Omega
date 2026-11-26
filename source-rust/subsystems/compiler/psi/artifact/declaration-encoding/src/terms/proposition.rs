@@ -87,6 +87,7 @@ impl TermEncoding for PropositionTable {
                 premise,
                 conclusion,
             } => children.extend([premise.as_ref(), conclusion.as_ref()]),
+            Proposition::IsMere(inner) => children.push(inner.as_ref()),
             _ => {}
         }
     }
@@ -330,6 +331,7 @@ fn write_proposition_row(writer: &mut Writer, proposition: &Proposition) -> Resu
             encode_scalar_term(writer, source)?;
             encode_ieee_float_format(writer, *target);
         }
+        Proposition::IsMere(_) => writer.u8(24),
     }
     Ok(())
 }
@@ -410,6 +412,13 @@ fn read_proposition_row(
             target: decode_ieee_float_format(reader)?,
         },
         23 => Proposition::DeclarationIdentity(read_identity(reader)?),
+        24 => {
+            let mut operands = children.take(reader, 1)?.into_iter();
+            match operands.next() {
+                Some(inner) => Proposition::IsMere(Box::new(inner)),
+                None => return Err(CodecError::NonCanonicalTermTable("proposition")),
+            }
+        }
         tag => return Err(CodecError::InvalidTag("Proposition", tag)),
     })
 }

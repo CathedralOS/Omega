@@ -78,19 +78,33 @@ impl PredicateBudget {
                 self.count(clause.values.len())?;
                 for value in &clause.values {
                     match &value.operand {
-                        semantic_vocabulary::ClauseOperand::Scalar(term) => self.scalar(term, depth + 1)?,
-                        semantic_vocabulary::ClauseOperand::Application { arguments, .. } => self.count(arguments.len())?,
-                        semantic_vocabulary::ClauseOperand::Input(subject) => self.count(subject.path().len())?,
+                        semantic_vocabulary::ClauseOperand::Scalar(term) => {
+                            self.scalar(term, depth + 1)?
+                        }
+                        semantic_vocabulary::ClauseOperand::Application { arguments, .. } => {
+                            self.count(arguments.len())?
+                        }
+                        semantic_vocabulary::ClauseOperand::Input(subject) => {
+                            self.count(subject.path().len())?
+                        }
                         semantic_vocabulary::ClauseOperand::Formal(_) => {}
                         semantic_vocabulary::ClauseOperand::FloatMeaning(
-                            semantic_vocabulary::FloatMeaningClauseValue::Projection { source, .. },
+                            semantic_vocabulary::FloatMeaningClauseValue::Projection {
+                                source, ..
+                            },
                         ) => self.scalar(source, depth + 1)?,
                         semantic_vocabulary::ClauseOperand::FloatMeaning(
-                            semantic_vocabulary::FloatMeaningClauseValue::Application { operands, .. },
+                            semantic_vocabulary::FloatMeaningClauseValue::Application {
+                                operands,
+                                ..
+                            },
                         ) => {
                             self.count(operands.len())?;
                             for operand in operands {
-                                if let semantic_vocabulary::FloatMeaningClauseOperand::Integer(source) = operand {
+                                if let semantic_vocabulary::FloatMeaningClauseOperand::Integer(
+                                    source,
+                                ) = operand
+                                {
                                     self.scalar(source, depth + 1)?;
                                 }
                             }
@@ -110,6 +124,7 @@ impl PredicateBudget {
                 self.content(value.left(), depth + 1)?;
                 self.content(value.right(), depth + 1)?;
             }
+            Proposition::IsMere(inner) => self.proposition(inner, depth + 1)?,
             Proposition::Truth | Proposition::Falsehood | Proposition::Atom(_) => {}
         }
         Ok(())

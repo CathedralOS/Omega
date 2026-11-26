@@ -692,10 +692,21 @@ impl Proving<'_> {
                 SEARCH_STEPS,
                 &mut Budget::new(SEARCH_COMPUTING),
             ) {
-                // Two classes of a quotient are equal when their
-                // representatives are related.
+                // Plain data is a set (Hedberg's theorem, no UIP), two classes
+                // of a quotient are equal when their representatives are
+                // related (soundness), and equal classes imply related
+                // representatives (effectivity, using the selected
+                // `MereEquivalence` laws).
                 Err(SearchError::NoProof) => self
-                    .sound(&context, frame.goal, &evidence)
+                    .is_mere(&context, frame.goal)
+                    .and_then(|proof| match proof {
+                        Some(proof) => Ok(Some(proof)),
+                        None => self.sound(&context, frame.goal, &evidence),
+                    })
+                    .and_then(|proof| match proof {
+                        Some(proof) => Ok(Some(proof)),
+                        None => self.effective(&context, frame.goal, &evidence),
+                    })
                     .and_then(|proof| proof.ok_or(SearchError::NoProof))
                     .map_err(|error| failure(reported, error)),
                 proved => proved.map_err(|error| failure(reported, error)),
@@ -802,6 +813,147 @@ impl Proving<'_> {
             &mut Budget::new(SEARCH_COMPUTING),
         )?;
         Ok(Some(family.sound(self.arena, left, right, held)))
+    }
+
+    /// A derived proof of `IsMere(Id D x y)` (`Π (p q: Id D x y). Id (Id D x y) p q`)
+    /// when `D` is plain inductive data, using `PlainData::is_set` (Hedberg's
+    /// theorem, zero assumptions, no UIP).
+    fn is_mere(
+        &mut self,
+        context: &Context,
+        goal: TermHandle,
+    ) -> Result<Option<TermHandle>, SearchError> {
+        let Term::Pi {
+            domain: prop,
+            codomain: inner,
+        } = self.arena.get(goal)
+        else {
+            return Ok(None);
+        };
+        let Term::Pi {
+            domain: prop_1,
+            codomain: eq,
+        } = self.arena.get(inner)
+        else {
+            return Ok(None);
+        };
+        let Term::Id {
+            ty: prop_2,
+            left: p,
+            right: q,
+        } = self.arena.get(eq)
+        else {
+            return Ok(None);
+        };
+        if !matches!(self.arena.get(p), Term::Variable(1))
+            || !matches!(self.arena.get(q), Term::Variable(0))
+        {
+            return Ok(None);
+        }
+        let expected_1 = proof_admission::shift(self.arena, prop, 0, 1);
+        let expected_2 = proof_admission::shift(self.arena, prop, 0, 2);
+        if !self.arena.structurally_equal(prop_1, expected_1)
+            || !self.arena.structurally_equal(prop_2, expected_2)
+        {
+            return Ok(None);
+        }
+        let prop = normal(
+            self.arena,
+            context,
+            self.definitions,
+            prop,
+            &mut Budget::new(SEARCH_COMPUTING),
+        )?;
+        let Term::Id { ty, left, right } = self.arena.get(prop) else {
+            return Ok(None);
+        };
+        let Term::Constant { declaration, .. } = self.arena.get(ty) else {
+            return Ok(None);
+        };
+        let Some(SignatureEntryKind::Data { shape, .. }) = self
+            .entries
+            .get(declaration as usize)
+            .map(|entry| &entry.kind)
+        else {
+            return Ok(None);
+        };
+        let set_proof = shape.is_set(self.arena, declaration);
+        Ok(Some(self.arena.apply_arguments(set_proof, &[left, right])))
+    }
+
+    /// A proof of `R(a, b)` from evidence of `Id Q (project a) (project b)`,
+    /// using the quotient's effectivity assumption and its four selected
+    /// `MereEquivalence` laws (`[propositional, reflexive, symmetric, transitive]`).
+    fn effective(
+        &mut self,
+        context: &Context,
+        goal: TermHandle,
+        evidence: &[TermHandle],
+    ) -> Result<Option<TermHandle>, SearchError> {
+        let mut budget = Budget::new(SEARCH_COMPUTING);
+        let goal_normal = normal(self.arena, context, self.definitions, goal, &mut budget)?;
+        for &item in evidence {
+            let Ok(item_ty) = proof_admission::infer_type(self.arena, context, item, &mut budget)
+            else {
+                continue;
+            };
+            let Term::Id { ty, left, right } = self.arena.get(item_ty) else {
+                continue;
+            };
+            let Term::Constant { declaration, .. } = self.arena.get(ty) else {
+                continue;
+            };
+            let Some(&SignatureEntryKind::Quotient {
+                carrier,
+                relation,
+                laws: [propositional, reflexive, symmetric, transitive],
+                ..
+            }) = self
+                .entries
+                .get(declaration as usize)
+                .map(|entry| &entry.kind)
+            else {
+                continue;
+            };
+            let family = proof_admission::QuotientFamily {
+                levels: [Level::Constant(0), Level::Constant(0)],
+                carrier: constant(self.arena, carrier),
+                relation: constant(self.arena, relation),
+            };
+            let representative = |proving: &mut Self, side: TermHandle| {
+                let Term::Apply { argument, .. } = proving.arena.get(side) else {
+                    return None;
+                };
+                let projected = family.project(proving.arena, argument);
+                proving
+                    .arena
+                    .structurally_equal(projected, side)
+                    .then_some(argument)
+            };
+            let (Some(a), Some(b)) = (representative(self, left), representative(self, right))
+            else {
+                continue;
+            };
+            let related = self.arena.apply_arguments(family.relation, &[a, b]);
+            let related_normal =
+                normal(self.arena, context, self.definitions, related, &mut budget)?;
+            if self.arena.structurally_equal(related_normal, goal_normal) {
+                let relation_laws = proof_admission::EquivalenceProofs {
+                    propositional: constant(self.arena, propositional),
+                    reflexive: constant(self.arena, reflexive),
+                    symmetric: constant(self.arena, symmetric),
+                    transitive: constant(self.arena, transitive),
+                };
+                return Ok(Some(family.effective(
+                    self.arena,
+                    &relation_laws,
+                    a,
+                    b,
+                    item,
+                )));
+            }
+        }
+        Ok(None)
     }
 
     /// The proof of the frame's goal by the cases of a computed value.
