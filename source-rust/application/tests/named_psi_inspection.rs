@@ -407,11 +407,11 @@ machine build(builder: @mutable BuildPlan) {
         std::fs::write(producer.path().join("main.omg"), r#"use {omega}/language/core/extent.omg as memory;
 use {system}/uefi_x86_64_entry.omg as firmware;
 use {system}/uefi_x86_64_handoff.omg as boot;
+use {system}/uefi_x86_64_integrity.omg as integrity;
 RejectArrival satisfies |firmware|::UefiPhysicalEntry {
     machine enter(image_handle: |firmware|::EfiImageHandle, system_table: @|firmware|::EfiSystemTable) -> |firmware|::EfiStatus
     reaches |boot|::UefiBootServices invokes |memory|::ProgramStorageEntry crashes none {
-        match system_table.header.signature == 0x5453595320494249u64
-            && system_table.header.header_size >= 120u32
+        match |integrity|::validate_system_table(system_table, 0x00020000u32)
             && system_table.boot_services != 0u64
             && system_table.console_out != 0u64 {
             true -> |firmware|::EfiStatus { code: 0x8000000000000006 },
