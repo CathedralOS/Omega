@@ -34,6 +34,27 @@ impl ProgramInstallation {
             .build_requests()
             .calls_for(view)
             .ok_or_else(|| refused("lost the program demand source".into()))?;
+        let refuse_demand = |program, caller, reason: &str| {
+            let Some(name) = source.data_definitions().iter().find_map(|data| {
+                (source.symbols.symbol_source_span(data.symbol) == Some(program))
+                    .then(|| source.symbols.display_path(data.symbol, "::"))
+            }) else {
+                return refused("requested program lost its declaration".into());
+            };
+            let caller = view
+                .module()
+                .machine(caller)
+                .and_then(|body| body.declaration.as_ref())
+                .and_then(|declaration| {
+                    view.module()
+                        .identities
+                        .text(declaration.machine.identity())
+                })
+                .unwrap_or(entry);
+            vec![Diagnostic::error(format!(
+                "Build entry `{entry}`: `{caller}` requests ProgramLaunch for `{name}` and {reason}"
+            )).with_source_span(program)]
+        };
         let mut demands = Vec::new();
         let mut result = None;
         for call in calls
@@ -44,10 +65,14 @@ impl ProgramInstallation {
                 continue;
             };
             if !invocation.allow {
-                return Err(vec![Diagnostic::error(format!("Build `{entry}` requests ProgramLaunch without the root --allow ProgramLaunch ceiling")).with_source_span(program)]);
+                return Err(refuse_demand(
+                    program,
+                    call.site.machine,
+                    "lacks the root --allow ProgramLaunch ceiling",
+                ));
             }
-            if !demands.contains(&program) {
-                demands.push(program);
+            if !demands.iter().any(|&(required, _)| required == program) {
+                demands.push((program, call.site.machine));
             }
             let boundary = view
                 .module()
@@ -115,20 +140,20 @@ impl ProgramInstallation {
                 .map_err(refused)?;
             selected.push(grant);
         }
-        for demand in &demands {
-            if !selected.iter().any(|binding| binding.source == *demand) {
-                let name = source
-                    .data_definitions()
-                    .iter()
-                    .find(|data| source.symbols.symbol_source_span(data.symbol) == Some(*demand))
-                    .map(|data| source.symbols.display_path(data.symbol, "::"))
-                    .ok_or_else(|| refused("requested program lost its declaration".into()))?;
-                return Err(vec![Diagnostic::error(format!(
-                    "Build `{entry}` lacks an executable binding for ProgramLaunch declaration `{name}`"
-                )).with_source_span(*demand)]);
+        for &(program, caller) in &demands {
+            if !selected.iter().any(|binding| binding.source == program) {
+                return Err(refuse_demand(
+                    program,
+                    caller,
+                    "lacks an executable binding",
+                ));
             }
         }
-        selected.retain(|binding| demands.contains(&binding.source));
+        selected.retain(|binding| {
+            demands
+                .iter()
+                .any(|&(program, _)| program == binding.source)
+        });
         for binding in &selected {
             filesystem
                 .admit_program_files(&binding.meaning.readable, &binding.meaning.writable)

@@ -127,7 +127,9 @@ int main(int count, char **args) {
     ] {
         let diagnostics = refusal(grants).into_diagnostics();
         assert!(
-            diagnostics.iter().any(|d| d.message.contains(expected)),
+            diagnostics
+                .iter()
+                .any(|d| d.message.contains(expected) && d.message.contains("Packer")),
             "expected {expected:?}, got {diagnostics:?}"
         );
     }
