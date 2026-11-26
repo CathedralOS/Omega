@@ -2264,21 +2264,6 @@ pub(crate) mod namespaces {
                 }
                 _ => return Err("named application changed its complete map constructor"),
             };
-            if arguments.len() != parameters.len()
-                || arguments.iter().any(|argument| {
-                    !self.type_reference_table.contains_type_reference(*argument)
-                        || self
-                            .region_free_scoped_type_identity(
-                                crate::source_state::type_identity::TypeIdentityRequest::ordinary(
-                                    *argument,
-                                ),
-                                &[],
-                            )
-                            .is_none()
-                })
-            {
-                return Err("named application lost a complete region-free map argument");
-            }
             let source = self.static_machine_application(call.authored_machine_application);
             let template = self
                 .closed_requirement_application(call.target_symbol)
@@ -2298,6 +2283,24 @@ pub(crate) mod namespaces {
                     .is_valid(source.lexical_owner)
             {
                 return Err("named application changed its requirement or supplying owner");
+            }
+            if arguments.len() != parameters.len()
+                || arguments.iter().any(|argument| {
+                    !self.type_reference_table.contains_type_reference(*argument)
+                        || self
+                            .scoped_type_identity_in_region_scope(
+                                crate::source_state::type_identity::TypeIdentityRequest::ordinary(
+                                    *argument,
+                                ),
+                                &[],
+                                source.lexical_owner,
+                            )
+                            .is_none()
+                })
+            {
+                return Err(
+                    "named application lost a complete map argument in its supplying scope",
+                );
             }
             let scope = self
                 .applied_requirement_scope(source.lexical_owner, call.requirement_application)
@@ -2377,8 +2380,18 @@ pub(crate) mod namespaces {
             let environment = scope.environment();
             let type_arguments = arguments
                 .iter()
-                .map(|argument| self.normalized_type_identity_text(*argument))
-                .collect();
+                .map(|argument| {
+                    self.scoped_type_identity_in_region_scope(
+                        crate::source_state::type_identity::TypeIdentityRequest::ordinary(
+                            *argument,
+                        ),
+                        &[],
+                        owner,
+                    )
+                    .and_then(|identity| self.type_identity_text(identity))
+                    .ok_or("named application lost the identity of a supplied map argument")
+                })
+                .collect::<Result<_, _>>()?;
             let operands = arguments
                 .iter()
                 .map(|reference| {
