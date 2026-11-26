@@ -3,7 +3,7 @@
 // unrequested purpose row and must be rejected.
 
 use {omega}/build/dependency.omg;
-use prod;
+use {prod}/main.omg as prod;
 
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "invalid_product_edge_in_build_scope" };

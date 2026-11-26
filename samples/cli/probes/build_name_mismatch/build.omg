@@ -5,7 +5,7 @@
 // import name; the directory is on-disk reality — none needs to match.
 
 use {omega}/build/dependency.omg;
-use depkit;
+use {depkit}/main.omg as depkit;
 
 machine build(builder: @mutable BuildPlan)
 suspends
@@ -18,7 +18,7 @@ suspends
     |dependency|::with_alias(@mutable depkit_dependency_2, "depkit");
     let depkit_registration_2: DependencyRegistration = Build::dependency(builder, depkit_dependency_2);
     suspend Build::prepare_dependency(builder, depkit_registration);
-    let observed: i32 = depkit\value();
+    let observed: i32 = |depkit|::value();
     transition observed == 9 {
         true -> done(),
         _ -> wrong()

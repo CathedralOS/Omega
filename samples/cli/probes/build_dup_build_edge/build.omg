@@ -3,7 +3,7 @@
 // this probes whether the build-purpose row family behaves the same way.
 
 use {omega}/build/dependency.omg;
-use k1;
+use {k1}/main.omg as k1;
 
 machine build(builder: @mutable BuildPlan)
 suspends
@@ -16,7 +16,7 @@ suspends
     |dependency|::with_alias(@mutable k2_dependency, "k2");
     let k2_registration: DependencyRegistration = Build::build_dependency(builder, k2_dependency);
     suspend Build::prepare_dependency(builder, k1_registration);
-    let observed: i32 = k1\seed();
+    let observed: i32 = |k1|::seed();
     transition observed == 3 {
         true -> done(),
         _ -> wrong()

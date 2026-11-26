@@ -1,5 +1,5 @@
 use {omega}/build/dependency.omg;
-use kit;
+use {kit}/main.omg as kit;
 
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "invalid_build_import_product_edge" };

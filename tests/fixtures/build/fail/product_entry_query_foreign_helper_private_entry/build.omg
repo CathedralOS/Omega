@@ -4,7 +4,7 @@
 // passing Build lends operational capability, not visibility into the
 // owner's product namespace, so the helper cannot enumerate it.
 use {omega}/build/dependency.omg;
-use support\configure;
+use {support}/configure/configure.omg;
 
 machine build(builder: @mutable Build)
 suspends
@@ -14,5 +14,5 @@ suspends
     |dependency|::with_alias(@mutable support_dependency, "support");
     let support_registration: DependencyRegistration = Build::build_dependency(builder, support_dependency);
     suspend Build::prepare_dependency(builder, support_registration);
-    configure\configure(builder);
+    |configure|::configure(builder);
 }

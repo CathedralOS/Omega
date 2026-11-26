@@ -1,5 +1,5 @@
 use {omega}/build/dependency.omg;
-use shared;
+use {shared}/main.omg as shared;
 
 machine build(builder: @mutable BuildPlan)
 suspends
@@ -9,7 +9,7 @@ suspends
     |dependency|::with_alias(@mutable shared_dependency, "shared");
     let shared_registration: DependencyRegistration = Build::build_dependency(builder, shared_dependency);
     suspend Build::prepare_dependency(builder, shared_registration);
-    let seed: i32 = shared\shared_seed();
+    let seed: i32 = |shared|::shared_seed();
     transition seed == 3 {
         true -> emit(builder),
         _ -> wrong()

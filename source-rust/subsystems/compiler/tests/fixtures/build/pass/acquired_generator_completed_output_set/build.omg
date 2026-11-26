@@ -1,5 +1,5 @@
 use {omega}/build/dependency.omg;
-use build_support;
+use build_support/build_support.omg;
 
 machine build(builder: @mutable Build) {
     Build::application(builder, "acquired_generator_completed_output_set");
@@ -21,14 +21,14 @@ machine build(builder: @mutable Build) {
     let mutable template: [u8; 6];
     let count: i64 = BuildSource::read(@builder.source, reader, @mutable template[..], 6);
     _ = BuildSource::close(@builder.source, reader);
-    transition count == 6 && build_support\generated_value() == 7 {
+    transition count == 6 && |build_support|::generated_value() == 7 {
         true -> generate(builder, companion, source, @template),
         _ -> failed(builder, companion, source)
     }
     machine generate(builder: @mutable Build, companion: RequiredOutput, source: RequiredOutput, template: @[u8; 6]) {
         // The local helper receives only these six captured bytes, not the
         // source capability or the caller's host paths.
-        let bytes: [u8; 6] = build_support\generate_companion(template);
+        let bytes: [u8; 6] = |build_support|::generate_companion(template);
         let companion_path: BuildPath = BuildOutput::resolve(@builder.output, "companion.txt");
         let companion_writer: i32 = BuildOutput::create(@mutable builder.output, companion_path, 0);
         _ = BuildOutput::write(@mutable builder.output, companion_writer, @bytes[..]);
@@ -38,7 +38,7 @@ machine build(builder: @mutable Build) {
 
         let generated: BuildPath = BuildOutput::resolve(@builder.output, "generated.omg");
         let source_writer: i32 = BuildOutput::create(@mutable builder.output, generated, 0);
-        let declaration: [u8; 34] = build_support\generate_declaration();
+        let declaration: [u8; 34] = |build_support|::generate_declaration();
         _ = BuildOutput::write(@mutable builder.output, source_writer, @declaration[..]);
         _ = BuildOutput::close(@mutable builder.output, source_writer);
         Build::include_source(builder, "generated.omg", @declaration[..]);

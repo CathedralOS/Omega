@@ -1,11 +1,11 @@
 use {omega}/build/dependency.omg;
-use omega\language\core\ProgramImage;
+use {omega}/language/core/program_image.omg as image;
 
 machine build(builder: @mutable BuildPlan) suspends {
     builder.product = BuildProduct::Application { name: "readiness_unadmitted" };
     let mutable backing_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "backing" });
     |dependency|::with_alias(@mutable backing_dependency, "backing");
     let backing_registration: DependencyRegistration = Build::build_dependency(builder, backing_dependency);
-    suspend Build::await_provider::<ProgramImage, backing\Selected>(builder);
-    let observed: addr = ProgramImage::retained_suffix_start();
+    suspend Build::await_provider::<|image|::ProgramImage, backing\Selected>(builder);
+    let observed: addr = |image|::ProgramImage::retained_suffix_start();
 }
