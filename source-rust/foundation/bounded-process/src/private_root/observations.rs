@@ -1,5 +1,6 @@
 //! Retain the guest's private mount until the sponsor has read the declared files.
 //! The child sends its root before exec. The executable receives neither socket.
+use super::PrivateFilesystemPurpose;
 use std::{collections::BTreeMap, io, sync::Arc};
 
 /// Byte paths are relative to the root of the new filesystem. Initial files are
@@ -17,6 +18,30 @@ pub struct PrivateFilesystemOutputs {
 }
 
 impl PrivateFilesystemOutputs {
+    /// Create the outer sponsor's observation channel. A trusted namespace
+    /// supervisor forwards its captured root before exiting. The sponsor
+    /// can then wait for the complete namespace to disappear before reading.
+    #[cfg(target_os = "linux")]
+    pub fn channel(paths: Vec<Vec<u8>>) -> io::Result<(Self, std::os::fd::OwnedFd)> {
+        let (sender, receiver) = std::os::unix::net::UnixDatagram::pair()?;
+        Ok((
+            Self {
+                paths,
+                receiver: Some(receiver),
+            },
+            sender.into(),
+        ))
+    }
+
+    #[cfg(target_os = "linux")]
+    pub fn forward_root(self, destination: &impl std::os::fd::AsFd) -> io::Result<()> {
+        if !self.paths.is_empty() {
+            let root = linux::receive_root(self.receiver.ok_or(io::ErrorKind::NotConnected)?)?;
+            linux::send_root(destination, &root)?;
+        }
+        Ok(())
+    }
+
     /// Call after the bounded child and its descendants have been reaped.
     pub fn collect(self, byte_limit: usize) -> io::Result<Vec<Option<Vec<u8>>>> {
         if self.paths.is_empty() {
@@ -84,6 +109,8 @@ impl PrivateFilesystemOutputs {
 #[derive(Debug)]
 pub(crate) struct Setup {
     #[cfg(target_os = "linux")]
+    pub(super) purpose: PrivateFilesystemPurpose,
+    #[cfg(target_os = "linux")]
     pub(super) scratch: std::path::PathBuf,
     #[cfg(target_os = "linux")]
     pub(super) contents: linux::Contents,
@@ -93,6 +120,7 @@ impl Setup {
     pub(crate) fn new(
         _scratch: &std::path::Path,
         files: PrivateFilesystemFiles,
+        purpose: PrivateFilesystemPurpose,
     ) -> io::Result<(Self, PrivateFilesystemOutputs)> {
         for path in files.initial.keys().chain(&files.outputs) {
             if path.len() >= 4096
@@ -108,11 +136,19 @@ impl Setup {
             }
         }
         #[cfg(target_os = "linux")]
-        let (contents, receiver) = linux::Contents::new(files.initial, !files.outputs.is_empty())?;
+        let (contents, receiver) = linux::Contents::new(
+            files.initial,
+            &files.outputs,
+            purpose != PrivateFilesystemPurpose::NativeTest,
+        )?;
+        #[cfg(not(target_os = "linux"))]
+        let _ = purpose;
         Ok((
             Self {
                 #[cfg(target_os = "linux")]
                 scratch: _scratch.to_owned(),
+                #[cfg(target_os = "linux")]
+                purpose,
                 #[cfg(target_os = "linux")]
                 contents,
             },
@@ -149,14 +185,15 @@ pub(super) mod linux {
     #[derive(Debug)]
     pub(in super::super) struct Contents {
         directories: Vec<CString>,
-        files: Vec<(CString, Arc<[u8]>)>,
+        files: Vec<(CString, Arc<[u8]>, bool)>,
         sender: Option<UnixDatagram>,
     }
 
     impl Contents {
         pub(super) fn new(
             files: BTreeMap<Vec<u8>, Arc<[u8]>>,
-            observe: bool,
+            outputs: &[Vec<u8>],
+            protect_inputs: bool,
         ) -> io::Result<(Self, Option<UnixDatagram>)> {
             let mut parents = BTreeSet::new();
             let mut total = 0usize;
@@ -183,15 +220,27 @@ pub(super) mod linux {
                     }
                 }
             }
+            if protect_inputs {
+                for path in outputs {
+                    for (index, &byte) in path.iter().enumerate() {
+                        if byte == b'/' {
+                            parents.insert(path[..index].to_owned());
+                        }
+                    }
+                }
+            }
             let directories = parents
                 .into_iter()
                 .map(CString::new)
                 .collect::<Result<_, _>>()?;
             let files = files
                 .into_iter()
-                .map(|(path, bytes)| Ok((CString::new(path)?, bytes)))
+                .map(|(path, bytes)| {
+                    let read_only = protect_inputs && !outputs.contains(&path);
+                    Ok((CString::new(path)?, bytes, read_only))
+                })
                 .collect::<io::Result<_>>()?;
-            let (sender, receiver) = if observe {
+            let (sender, receiver) = if !outputs.is_empty() {
                 let (sender, receiver) = UnixDatagram::pair()?;
                 (Some(sender), Some(receiver))
             } else {
@@ -213,7 +262,7 @@ pub(super) mod linux {
             for directory in &self.directories {
                 rustix::fs::mkdir(directory.as_c_str(), Mode::from_raw_mode(0o755))?;
             }
-            for (path, contents) in &self.files {
+            for (path, contents, read_only) in &self.files {
                 let file = rustix::fs::open(
                     path.as_c_str(),
                     OFlags::WRONLY | OFlags::CREATE | OFlags::EXCL | OFlags::CLOEXEC,
@@ -228,6 +277,24 @@ pub(super) mod linux {
                         Err(error) => return Err(error.into()),
                     }
                 }
+                if *read_only {
+                    // Binding the captured file read-only also prevents the
+                    // private-root owner from reopening it after a chmod.
+                    let file = path.as_ptr();
+                    unsafe {
+                        super::super::check_mount(file, file, libc::MS_BIND)?;
+                        super::super::check_mount(
+                            std::ptr::null(),
+                            file,
+                            libc::MS_BIND
+                                | libc::MS_REMOUNT
+                                | libc::MS_RDONLY
+                                | libc::MS_NOSUID
+                                | libc::MS_NODEV
+                                | libc::MS_NOEXEC,
+                        )?;
+                    }
+                }
             }
             if let Some(sender) = &self.sender {
                 let root = rustix::fs::open(
@@ -235,24 +302,29 @@ pub(super) mod linux {
                     OFlags::PATH | OFlags::DIRECTORY | OFlags::CLOEXEC,
                     Mode::empty(),
                 )?;
-                let fds = [root.as_fd()];
-                let mut space = [MaybeUninit::uninit(); rustix::cmsg_space!(ScmRights(1))];
-                let mut control = SendAncillaryBuffer::new(&mut space);
-                if !control.push(SendAncillaryMessage::ScmRights(&fds)) {
-                    return Err(io::ErrorKind::InvalidData.into());
-                }
-                let sent = sendmsg(
-                    sender,
-                    &[IoSlice::new(b"R")],
-                    &mut control,
-                    SendFlags::NOSIGNAL,
-                )?;
-                if sent != 1 {
-                    return Err(io::ErrorKind::WriteZero.into());
-                }
+                send_root(sender, &root)?;
             }
             Ok(())
         }
+    }
+
+    pub(super) fn send_root(sender: &impl AsFd, root: &impl AsFd) -> io::Result<()> {
+        let fds = [root.as_fd()];
+        let mut space = [MaybeUninit::uninit(); rustix::cmsg_space!(ScmRights(1))];
+        let mut control = SendAncillaryBuffer::new(&mut space);
+        if !control.push(SendAncillaryMessage::ScmRights(&fds)) {
+            return Err(io::ErrorKind::InvalidData.into());
+        }
+        let sent = sendmsg(
+            sender,
+            &[IoSlice::new(b"R")],
+            &mut control,
+            SendFlags::NOSIGNAL,
+        )?;
+        if sent != 1 {
+            return Err(io::ErrorKind::WriteZero.into());
+        }
+        Ok(())
     }
 
     pub(super) fn receive_root(socket: UnixDatagram) -> io::Result<OwnedFd> {
@@ -290,7 +362,7 @@ pub(super) mod linux {
 
 #[cfg(test)]
 mod tests {
-    use super::{PrivateFilesystemFiles, Setup};
+    use super::{PrivateFilesystemFiles, PrivateFilesystemPurpose, Setup};
     use std::{io, path::Path};
 
     #[test]
@@ -301,7 +373,7 @@ mod tests {
                 ..Default::default()
             };
             assert!(
-                matches!(Setup::new(Path::new("."), fixture), Err(e) if e.kind() == io::ErrorKind::InvalidInput)
+                matches!(Setup::new(Path::new("."), fixture, PrivateFilesystemPurpose::NativeTest), Err(e) if e.kind() == io::ErrorKind::InvalidInput)
             );
         }
     }
@@ -317,7 +389,7 @@ mod tests {
             ..Default::default()
         };
         assert!(
-            matches!(Setup::new(Path::new("."), fixture), Err(e) if e.kind() == io::ErrorKind::InvalidInput)
+            matches!(Setup::new(Path::new("."), fixture, PrivateFilesystemPurpose::NativeTest), Err(e) if e.kind() == io::ErrorKind::InvalidInput)
         );
     }
 }

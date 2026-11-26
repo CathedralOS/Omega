@@ -382,6 +382,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "build-program-launch"
+version = "0.1.0"
+dependencies = [
+ "bounded-process",
+ "libc",
+ "platform-custody",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "build-scalar-evaluation"
 version = "0.1.0"
 dependencies = [
@@ -1874,6 +1885,7 @@ dependencies = [
  "bounded-process",
  "build-declarations",
  "build-execution",
+ "build-program-launch",
  "compiler",
  "diagnostics",
  "installation-conditions",

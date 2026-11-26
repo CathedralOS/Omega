@@ -44,8 +44,10 @@ pub use bounded_process::{
     BoundedCaptureBudget, BoundedCaptureLimits, BoundedProcessInput, BoundedProcessOutput,
     BoundedProcessRunError, run_bounded_process,
 };
-pub use private_root::{PrivateFilesystemFiles, PrivateFilesystemOutputs};
 pub use preparation::{BoundedProcessLimits, BoundedProcessPrepared};
+pub use private_root::{
+    PrivateFilesystemFiles, PrivateFilesystemOutputs, PrivateFilesystemPurpose,
+};
 pub use process_child::{
     BoundedProcessChild, BoundedProcessCompletion, BoundedProcessExitStatus, ProcessLimit,
     ProcessResourceUsage, ToolCommandChild,
