@@ -376,7 +376,7 @@ fn forwarded_private_callbacks_keep_the_original_selection_visibility() {
                 None,
             )
             .unwrap_err();
-        assert_eq!(refused.detail, "call private machine of another package");
+        assert_eq!(refused.detail, "cannot call a private machine of another package");
         assert!(
             program
                 .static_machine_target(caller, fixture.helper, binder)
@@ -426,7 +426,7 @@ fn a_callback_receipt_cannot_retarget_its_authored_selection() {
         assert_eq!(
             refused.detail,
             if exposure == Exposure::PublicInterface {
-                "call private machine in a public interface"
+                "a public interface cannot select a private machine"
             } else {
                 "call static call argument changed its authored selection"
             }
@@ -453,8 +453,20 @@ fn a_callback_selection_in_another_package_does_not_grant_private_visibility() {
     let (instance, _) = fixture.static_callback(true, Some(occurrence));
     let mut program = Program::new(&fixture.typed, false);
     let refused = program.machine(instance).unwrap_err();
-    assert_eq!(refused.detail, "call private machine of another package");
+    assert_eq!(
+        refused.reason,
+        terminal_check_tables::RefusalReason::Violation
+    );
+    assert_eq!(
+        refused.source_span,
+        fixture.typed.symbols.symbol_source_span(fixture.helper)
+    );
+    assert_eq!(
+        refused.detail,
+        "cannot call a private machine of another package"
+    );
 }
+
 
 #[test]
 fn a_public_interface_can_select_a_public_callback() {
@@ -544,7 +556,10 @@ fn reusing_a_specialization_checks_each_callers_static_selection() {
     let refused = program
         .applies_nothing(caller, instance, forged, &[])
         .unwrap_err();
-    assert_eq!(refused.detail, "call private machine of another package");
+    assert_eq!(
+        refused.detail,
+        "cannot call a private machine of another package"
+    );
     assert!(
         program
             .applies_nothing(caller, instance, missing, &[])
@@ -592,7 +607,7 @@ fn a_generic_body_keeps_boundary_routing_and_private_visibility() {
         } else {
             assert_eq!(
                 read.unwrap_err().detail,
-                "call private machine of another package"
+                "cannot call a private machine of another package"
             );
         }
     }
@@ -645,7 +660,10 @@ fn a_selected_private_boundary_still_refuses_another_packages_call() {
             None,
         )
         .unwrap_err();
-    assert_eq!(refused.detail, "call private machine of another package");
+    assert_eq!(
+        refused.detail,
+        "cannot call a private machine of another package"
+    );
 }
 
 #[test]
