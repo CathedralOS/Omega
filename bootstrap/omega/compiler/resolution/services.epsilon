@@ -28,7 +28,7 @@ machine OmegaScalarCompiler::check_service_declarations(&mut self, source: &[u8]
     }
     state compare(index: i32, name: OmegaRelativeSpan, unit: i32, other: i32, prior: OmegaRelativeSpan) {
         transition (self.parser.sources.equal_name(source, name, prior) == 1) &&
-            (self.same_module(source, unit, self.parser.sources.unit_at(prior.start)) == 1) {
+            (unit == self.parser.sources.unit_at(prior.start)) {
             true -> rejected(name.start)
             _ -> previous(index, name, unit, other + 1)
         }
@@ -41,7 +41,7 @@ machine OmegaScalarCompiler::check_service_declarations(&mut self, source: &[u8]
     }
     state compare_record(index: i32, name: OmegaRelativeSpan, unit: i32, record: i32, other: OmegaRelativeSpan) {
         transition (self.parser.sources.equal_name(source, name, other) == 1) &&
-            (self.same_module(source, unit, self.parser.sources.unit_at(other.start)) == 1) {
+            (unit == self.parser.sources.unit_at(other.start)) {
             true -> rejected(name.start)
             _ -> record_name(index, name, unit, record + 1)
         }

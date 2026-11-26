@@ -13,7 +13,7 @@ data Main {
 machine Main::main(&mut self) {
     self.check_arm_condition("machine p(x:R) { transition { x.kind == 0 || x.ready -> pass(), _ -> fail() } }");
     self.check_invokes_rows("boundary trait Clock { machine sleep(ms:u32) reaches Clock invokes Raw invokes Other blocks crashes none; machine idle(); } trait Reader { machine run() invokes First; } machine f(x:u8)->u8 requires x>0 invokes Last { 42 }");
-    self.check_declared_domains("domain u8::Raw; public domain [u8]::Utf8 requires byte_observation\\valid_utf8(@self[..]); domain u8::Checked requires true,;");
+    self.check_declared_domains("domain u8::Raw; public domain [u8]::Utf8 requires |byte_observation|::valid_utf8(@self[..]); domain u8::Checked requires true,;");
     self.parser.parse_view("domain u8::D(subject);");
     self.check_syntax_refused(12, 13);
     self.parser.parse_view("domain u8::D {}");
@@ -254,7 +254,7 @@ machine Main::main(&mut self) {
     assert self.parser.call_expressions[0].argument_count == 1;
     self.check_call_stacks_empty();
 
-    self.parser.parse_view("machine p() { let x: u8 = wrap::<A>(pick::<B, ns\\C>(1)); }");
+    self.parser.parse_view("machine p() { let x: u8 = wrap::<A>(pick::<B, |ns|::C>(1)); }");
     self.check_complete();
     assert self.parser.call_expression_count == 2;
     assert self.parser.static_machine_argument_count == 3;
@@ -262,8 +262,8 @@ machine Main::main(&mut self) {
     assert self.parser.call_expressions[0].machine_argument_count == 2;
     assert self.parser.call_expressions[1].first_machine_argument == 0;
     assert self.parser.call_expressions[1].machine_argument_count == 1;
-    assert self.parser.static_machine_arguments[2].path_member_count == 2;
-    self.parser.parse_view("machine p(builder: @mutable Build) { Build::select_provider::<Exit, std\\NativeExit>(builder, alpha_bootstrap); }");
+    assert self.parser.static_machine_arguments[2].path_member_count == 1;
+    self.parser.parse_view("machine p(builder: @mutable Build) { Build::select_provider::<Exit, |std|::NativeExit>(builder, alpha_bootstrap); }");
     self.check_complete();
     assert self.parser.call_statements[0].name_member_count == 2;
     assert self.parser.call_statements[0].machine_argument_count == 2;
