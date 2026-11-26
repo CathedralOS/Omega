@@ -56,7 +56,8 @@ impl Ord for Identity {
         match (self, other) {
             (Self::Type(left), Self::Type(right)) => left.cmp(right),
             (Self::Declaration(left), Self::Declaration(right)) => {
-                (left.arena_index(), left.generation()).cmp(&(right.arena_index(), right.generation()))
+                (left.arena_index(), left.generation())
+                    .cmp(&(right.arena_index(), right.generation()))
             }
             (Self::Scalar(left), Self::Scalar(right)) | (Self::Value(left), Self::Value(right)) => {
                 left.cmp(right)
@@ -121,7 +122,7 @@ impl Operand {
         let mut scalar = None;
         let (identity, value) = match kind {
             TypeParameterKind::Type => {
-                let mut reference = named_type(program, argument, supplying_owner)?;
+                let reference = named_type(program, argument, supplying_owner)?;
                 type_argument_meets_bounds(program, binder, reference)?;
                 let identity = if matches!(
                     program.type_reference_table.type_reference(reference),
@@ -131,20 +132,7 @@ impl Operand {
                 {
                     Identity::Declaration(argument.symbol)
                 } else {
-                    let request = crate::type_identity::TypeIdentityRequest::ordinary(reference);
-                    if let Some(identity) = program.region_free_scoped_type_identity(request, &[]) {
-                        Identity::Type(identity)
-                    } else {
-                        let identity = program
-                            .scoped_type_identity_in_region_scope(request, &[], supplying_owner)
-                            .ok_or_else(|| unserved("static type operand lost its supplying region"))?;
-                        // The copied signature reads its actual outside the caller.
-                        // Retain the supplying scope on that type occurrence, too.
-                        reference = program
-                            .static_operand_type_reference_in_scope(argument, supplying_owner)
-                            .map_err(unserved)?;
-                        Identity::Type(identity)
-                    }
+                    Identity::Type(program.normalized_type_identity(reference))
                 };
                 (identity, StaticMachineBindingValue::Type(reference))
             }
@@ -357,6 +345,36 @@ impl Operand {
     pub fn is_open(&self, program: &TypedTrees) -> bool {
         self.argument.application.is_some()
             || !crate::source_state::domain::static_argument_is_closed(program, &self.argument)
+    }
+
+    /// A receiving application keeps the caller that supplied each named lifetime.
+    /// Its executable specialization still uses the erased type identity.
+    pub fn supplied_value(
+        &self,
+        program: &mut TypedTrees,
+        owner: SymbolHandle,
+    ) -> Served<StaticMachineBindingValue> {
+        let StaticMachineBindingValue::Type(reference) = self.value else {
+            return Ok(self.value.clone());
+        };
+        let request = crate::type_identity::TypeIdentityRequest::ordinary(reference);
+        if program
+            .type_reference_table
+            .operand_lifetime_owner(reference)
+            .is_valid()
+            || program
+                .region_free_scoped_type_identity(request, &[])
+                .is_some()
+        {
+            return Ok(self.value.clone());
+        }
+        program
+            .scoped_type_identity_in_region_scope(request, &[], owner)
+            .ok_or_else(|| unserved("static type operand lost its supplying region"))?;
+        let actual = program
+            .static_operand_type_reference_in_scope(&self.argument, owner)
+            .map_err(unserved)?;
+        Ok(StaticMachineBindingValue::Type(actual))
     }
 
     /// How this operand is spelled in a generated machine's name.
@@ -769,15 +787,22 @@ pub fn bind(
     program: &mut TypedTrees,
     application: StaticMachineApplicationHandle,
     operands: &[Operand],
-) {
+) -> Served<()> {
+    let supplier = program
+        .expression_table
+        .static_machine_application(application)
+        .lexical_owner;
     let bindings = operands
         .iter()
-        .map(|operand| StaticMachineBinding {
-            parameter: operand.parameter,
-            value: operand.value.clone(),
+        .map(|operand| {
+            Ok(StaticMachineBinding {
+                parameter: operand.parameter,
+                value: operand.supplied_value(program, supplier)?,
+            })
         })
-        .collect::<Vec<_>>();
+        .collect::<Served<Vec<_>>>()?;
     program
         .expression_table
         .set_static_machine_application_bindings(application, &bindings);
+    Ok(())
 }
