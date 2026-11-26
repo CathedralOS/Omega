@@ -377,20 +377,30 @@ impl BuildFilesystemRuntime {
             &[u8],
         ) -> std::io::Result<usize>,
     ) -> Result<Result<usize, std::io::ErrorKind>, String> {
+        use platform_custody::directory_mappings::DirectoryAccess;
+        use std::io::ErrorKind;
+        let relative = path
+            .strip_prefix(b"/")
+            .ok_or("mapped path must be absolute")?;
         let ordinal = self.begin_path_attempt(
-            operation,
-            BuildFilesystemRoot::MappedDirectories,
-            FilesystemObservationProvider::RealScoped,
-            path,
-            access,
-            None,
+            operation, BuildFilesystemRoot::MappedDirectories, FilesystemObservationProvider::RealScoped,
+            relative, access, None,
         )?;
-        let result = self
-            .effects
-            .scope
-            .directories
-            .resolve_file(path)
-            .and_then(|(directory, file)| perform(directory, file));
+        let result = match self.effects.scope.directories.resolve_file(path) {
+            Ok((directory, _))
+                if access == FilesystemGrantAccess::Write
+                    && directory.access() == DirectoryAccess::ReadOnly =>
+            {
+                self.refuse_access(ordinal, access);
+                return Ok(Err(ErrorKind::PermissionDenied));
+            }
+            Ok((directory, file)) => perform(directory, file),
+            Err(error) if error.kind() == ErrorKind::PermissionDenied => {
+                self.refuse_access(ordinal, access);
+                return Ok(Err(error.kind()));
+            }
+            Err(error) => Err(error),
+        };
         match result {
             Ok(count) => {
                 self.complete_attempt(
@@ -409,11 +419,7 @@ impl BuildFilesystemRuntime {
                     std::io::ErrorKind::InvalidInput => 22,
                     _ => error.raw_os_error().unwrap_or(5),
                 };
-                if kind == std::io::ErrorKind::PermissionDenied {
-                    self.refuse_access(ordinal, access);
-                } else {
-                    self.complete_attempt(ordinal, -1, errno);
-                }
+                self.complete_attempt(ordinal, -1, errno);
                 Ok(Err(kind))
             }
         }

@@ -71,6 +71,10 @@ impl DirectoryMappings {
 }
 
 impl DirectoryMapping {
+    pub fn access(&self) -> DirectoryAccess {
+        self.access
+    }
+
     pub fn open_read(&self, relative: &[u8]) -> io::Result<std::fs::File> {
         self.backing.open_read(relative)
     }

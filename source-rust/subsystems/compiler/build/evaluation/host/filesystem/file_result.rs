@@ -19,6 +19,7 @@ pub(super) struct FileResult {
     error: StructuralCaseId,
     kind: StructuralFieldId,
     errors: Vec<(ErrorKind, StructuralCaseId)>,
+    other_error: StructuralCaseId,
 }
 
 impl FileResult {
@@ -61,6 +62,9 @@ impl FileResult {
             (ErrorKind::InvalidInput, "InvalidInput"),
             (ErrorKind::IsADirectory, "IsADirectory"),
             (ErrorKind::PermissionDenied, "PermissionDenied"),
+            (ErrorKind::WouldBlock, "WouldBlock"),
+            (ErrorKind::Unsupported, "Unsupported"),
+            (ErrorKind::WriteZero, "WriteZero"),
         ]
         .into_iter()
         .map(|(kind, name)| Ok((kind, case(kind_type, name)?.id)))
@@ -72,6 +76,7 @@ impl FileResult {
             error: error.id,
             kind: kind.id,
             errors,
+            other_error: case(kind_type, "Other")?.id,
         })
     }
 
@@ -99,17 +104,17 @@ impl FileResult {
                 return Err("filesystem success payload disagrees with its declaration".into());
             }
             (Err(error), _) => {
-                let (_, kind) = self
+                let kind = self
                     .errors
                     .iter()
                     .find(|(kind, _)| *kind == error)
-                    .ok_or_else(|| format!("unknown filesystem error {error:?}"))?;
+                    .map_or(self.other_error, |(_, case)| *case);
                 TerminalAggregateValue {
                     structural_type: self.result,
                     result_case: Some(self.error),
                     fields: vec![TerminalBoundaryStorageValue {
                         path: vec![Path::Field(self.kind)],
-                        contents: TerminalStorageContents::Case(*kind),
+                        contents: TerminalStorageContents::Case(kind),
                     }],
                 }
             }
