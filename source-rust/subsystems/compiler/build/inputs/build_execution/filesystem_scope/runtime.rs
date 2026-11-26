@@ -872,7 +872,7 @@ mod tests {
                     .is_err()
             );
             assert!(
-                crate::BuildSnapshotRequest::new([])
+                crate::BuildSnapshotRequest::for_activation(true)
                     .with_inputs([(b"assets".to_vec(), inventory.clone())])
                     .is_err()
             );

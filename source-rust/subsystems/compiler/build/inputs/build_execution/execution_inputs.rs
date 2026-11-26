@@ -78,11 +78,19 @@ impl BuildExecutionInputs {
     pub fn resolve_compilation_defaults(
         mut self,
         inputs: Option<&PackageCompilationInputs>,
+        has_anonymous_source: bool,
     ) -> Self {
         self.profile = self.profile.or_else(TargetProfile::host_if_supported);
-        self.snapshot = self
-            .snapshot
-            .or_else(|| BuildSnapshotRequest::automatic_package_inventory(inputs));
+        if self.snapshot.is_none()
+            && (has_anonymous_source
+                || inputs.is_some_and(|inputs| {
+                    inputs.canonical_source_metadata(inputs.root()).is_some()
+                }))
+        {
+            self.snapshot = Some(BuildSnapshotRequest::for_activation(
+                self.dependency_activation,
+            ));
+        }
         self
     }
 }

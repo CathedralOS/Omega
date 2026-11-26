@@ -87,9 +87,11 @@ pub fn prepare_filesystem_scope(
         build_machine_filesystem_scope = build_machine_filesystem_scope
             .with_package_activation(inputs.root(), inputs.root_role());
     }
-    let automatic_snapshot =
-        retained_input.map(|_| crate::BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>()));
-    let build_snapshot = build_snapshot.or(automatic_snapshot.as_ref());
+    if retained_input.is_some() && build_snapshot.is_none() {
+        return Err(vec![Diagnostic::error(
+            "captured Build source requires a selected filesystem inventory",
+        )]);
+    }
     if let Some(build_snapshot) = build_snapshot {
         if build_machine_filesystem_scope.sponsor.is_none() {
             let sponsor = loop {
@@ -142,40 +144,29 @@ pub fn prepare_filesystem_scope(
                     })?
                 }
             },
-            crate::BuildSnapshotCapture::Scoped(request) => {
+            selection => {
+                let filesystem = package_inputs
+                    .map(|inputs| inputs.source_filesystem())
+                    .or_else(|| anonymous_source.map(|source| source.filesystem()));
+                let required_members =
+                    required_source_members(root_path, &source_root, required_sources, filesystem)?;
+                let inferred;
+                let request = if let crate::BuildSnapshotCapture::Scoped(request) = selection {
+                    request
+                } else {
+                    let entries = required_members
+                        .iter()
+                        .map(|path| {
+                            crate::source::source_snapshot::capture_relative_path_bytes(path)
+                                .map(|bytes| (bytes, crate::BuildSourceCaptureObligation::Required))
+                        })
+                        .collect::<Result<Vec<_>, _>>()
+                        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+                    inferred = crate::BuildSourceCaptureRequest::new(entries)
+                        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+                    &inferred
+                };
                 let captured = if let Some(complete) = retained_input {
-                    let filesystem = package_inputs
-                        .map(|inputs| inputs.source_filesystem())
-                        .or_else(|| anonymous_source.map(|source| source.filesystem()))
-                        .ok_or_else(|| {
-                            vec![Diagnostic::error(
-                                "retained Build input lost its source namespace",
-                            )]
-                        })?;
-                    let mut required_members = Vec::new();
-                    let authored_members = required_sources.selected_files().filter(|file| {
-                        file.origin == source_admission::SourceOrigin::User
-                            && file.resolution_stratum
-                                == source_admission::SourceResolutionStratum::Base
-                            && file.package_root == source_root
-                    });
-                    for path in std::iter::once(root_path)
-                        .chain(authored_members.map(|file| file.path.as_path()))
-                    {
-                        let resolved = filesystem.canonicalize(path).map_err(|error| {
-                            vec![Diagnostic::error(format!(
-                                "could not resolve required source member {} in the invocation namespace: {error}",
-                                path.display()
-                            ))]
-                        })?;
-                        let relative = resolved.strip_prefix(&source_root).map_err(|error| {
-                            vec![Diagnostic::error(format!(
-                                "required source member {} is outside its captured root: {error}",
-                                path.display()
-                            ))]
-                        })?;
-                        required_members.push(relative.to_path_buf());
-                    }
                     crate::source::source_snapshot::retained_scoped_source_input(
                         complete,
                         request,
@@ -185,10 +176,7 @@ pub fn prepare_filesystem_scope(
                     crate::capture_scoped_source_input(
                         &source_root,
                         request,
-                        required_sources
-                            .selected_files()
-                            .map(|file| file.path.clone())
-                            .chain(std::iter::once(root_path.to_path_buf())),
+                        required_members.iter().map(|path| source_root.join(path)),
                     )
                 };
                 captured.map_err(|reason| {
@@ -200,10 +188,7 @@ pub fn prepare_filesystem_scope(
         };
         build_machine_filesystem_scope =
             if (package_inputs.is_some() || anonymous_source.is_some())
-                && matches!(
-                    build_snapshot.capture(),
-                    crate::BuildSnapshotCapture::Scoped(_)
-                )
+                && !matches!(build_snapshot.capture(), crate::BuildSnapshotCapture::PackageInventory)
             {
                 let physical_complete;
                 let complete = match retained_input {
@@ -227,4 +212,39 @@ pub fn prepare_filesystem_scope(
             .with_required_outputs(build_snapshot.required_outputs().iter().cloned())?;
     }
     Ok(build_machine_filesystem_scope)
+}
+
+fn required_source_members(
+    entry: &Path,
+    root: &Path,
+    sources: &source_compiler::representations::source_inputs::SourceMap,
+    filesystem: Option<&source_capture::SourceFileSystem>,
+) -> Result<std::collections::BTreeSet<std::path::PathBuf>, Vec<Diagnostic>> {
+    let authored = sources.selected_files().filter(|file| {
+        file.origin == source_admission::SourceOrigin::User
+            && file.resolution_stratum == source_admission::SourceResolutionStratum::Base
+            && file.package_root == root
+    });
+    let paths = std::iter::once(entry).chain(authored.map(|file| file.path.as_path()));
+    let mut required_members = std::collections::BTreeSet::new();
+    for path in paths {
+        let resolved = match filesystem {
+            Some(filesystem) => filesystem.canonicalize(path),
+            None => path.canonicalize(),
+        }
+        .map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "could not resolve required source member {}: {error}",
+                path.display()
+            ))]
+        })?;
+        let relative = resolved.strip_prefix(root).map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "required source member {} is outside its captured root: {error}",
+                path.display()
+            ))]
+        })?;
+        required_members.insert(relative.to_path_buf());
+    }
+    Ok(required_members)
 }
