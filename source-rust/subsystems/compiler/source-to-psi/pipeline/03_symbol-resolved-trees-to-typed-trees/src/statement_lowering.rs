@@ -1866,8 +1866,8 @@ mod scoped_field_tests {
 
     #[test]
     fn field_initializer_uses_the_explicit_receivers_package() {
-        let left = "data Packet { value: u32; } machine read_left(packet: @Packet) -> u32 { let from_left = packet.value; from_left }";
-        let right = "data Packet { value: u64; } machine read_right(packet: @Packet) -> u64 { let from_right = packet.value; from_right }";
+        let left = "data Packet { value: u32; } machine read_left(packet: @Packet) -> u32 { let from_left: u32 = packet.value; from_left }";
+        let right = "data Packet { value: u64; } machine read_right(packet: @Packet) -> u64 { let from_right: u64 = packet.value; from_right }";
         let program =
             packages(&[(1, "left.omg", left), (2, "right.omg", right)], &[], &[]).unwrap();
         let locals = program

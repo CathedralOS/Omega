@@ -26,7 +26,7 @@ const COUNT: &str = "data Lease dropped by finish { mark: u64; } \
     machine finish(l: Lease) { let Lease { mark as _ } = l; } \
     machine leaf(n: u64) -> u64 { n } \
     machine count(n: u64, m: u64) -> u64 terminates by n { \
-        let lease = Lease { mark: 0 }; \
+        let lease: Lease = Lease { mark: 0 }; \
         transition { \
             n == 0 -> leaf(n), \
             n <= m -> count(n - 1, m +% lease.mark), \

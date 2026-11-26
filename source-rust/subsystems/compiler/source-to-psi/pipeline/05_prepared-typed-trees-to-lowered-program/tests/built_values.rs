@@ -250,7 +250,7 @@ fn refused(source: &str) -> EarlierRefusal {
 fn a_record_field_is_writable_only_through_a_mutable_binding() {
     let program = Program::of(
         "data Point [copy] { x: u8; } \
-         machine make() -> u8 { let mutable p = (Point { x: 1 }); p.x = 2; p.x }",
+         machine make() -> u8 { let mutable p: Point = (Point { x: 1 }); p.x = 2; p.x }",
     );
     let lowered = program.lower();
     let make = lowered.machine("make");
@@ -269,7 +269,7 @@ fn a_record_field_is_writable_only_through_a_mutable_binding() {
 
     let immutable = refused(
         "data Point [copy] { x: u8; } \
-         machine make() -> u8 { let p = (Point { x: 1 }); p.x = 2; p.x }",
+         machine make() -> u8 { let p: Point = (Point { x: 1 }); p.x = 2; p.x }",
     );
     assert_eq!((immutable.stage, immutable.at.as_str()), ("lowering", "x"));
     assert!(
@@ -287,7 +287,7 @@ fn a_record_field_is_writable_only_through_a_mutable_binding() {
 #[test]
 fn a_linear_value_left_unconsumed_is_rejected() {
     Program::of(
-        "data Point { x: u8; } machine make() { let mutable p = (Point { x: 1 }); p.x = 2; }",
+        "data Point { x: u8; } machine make() { let mutable p: Point = (Point { x: 1 }); p.x = 2; }",
     )
     .judged(|_| {})
     .accepted();
@@ -300,11 +300,11 @@ fn a_linear_value_left_unconsumed_is_rejected() {
     // holds, or, for a formal, the machine as a whole.
     for (source, at) in [
         (
-            "data Point [linear] { x: u8; } machine make() { let mutable p = (Point { x: 1 }); p.x = 2; }",
+            "data Point [linear] { x: u8; } machine make() { let mutable p: Point = (Point { x: 1 }); p.x = 2; }",
             "Point { x: 1 }",
         ),
         (
-            "data Lease [linear] {} data Held { a: Lease; } machine keep() { let h = Held { a: Lease {} }; }",
+            "data Lease [linear] {} data Held { a: Lease; } machine keep() { let h: Held = Held { a: Lease {} }; }",
             "Held { a: Lease {} }",
         ),
         ("data Lease [linear] {} machine stop(l: Lease) {}", ""),
@@ -406,9 +406,9 @@ fn an_omitted_sum_takes_its_first_case_and_an_omitted_reference_is_rejected() {
 fn an_omitted_array_is_one_zeroing_and_an_omitted_float_is_its_formats_zero() {
     for source in [
         "data Buffer { length: u64; bytes: [u8; 65536]; } \
-         machine build(id: u64) { let buffer = Buffer { length: id, .. }; }",
+         machine build(id: u64) { let buffer: Buffer = Buffer { length: id, .. }; }",
         "data Slot { case Empty; case Entry(value: u8); } data Plan { id: u8; slots: [Slot; 70000]; } \
-         machine build(id: u8) { let plan = Plan { id: id, .. }; }",
+         machine build(id: u8) { let plan: Plan = Plan { id: id, .. }; }",
     ] {
         let program = Program::of(source);
         let lowered = program.lower();
@@ -428,7 +428,7 @@ fn an_omitted_array_is_one_zeroing_and_an_omitted_float_is_its_formats_zero() {
 
     let program = Program::of(
         "data Options { count: u8; ratio: f32; scale: f64; } \
-         machine build(count: u8) { let options = Options { count: count, .. }; }",
+         machine build(count: u8) { let options: Options = Options { count: count, .. }; }",
     );
     let lowered = program.lower();
     let floats: Vec<_> = lowered

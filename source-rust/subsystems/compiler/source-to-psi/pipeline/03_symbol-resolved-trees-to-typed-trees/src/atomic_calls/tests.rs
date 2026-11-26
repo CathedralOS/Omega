@@ -83,7 +83,7 @@ fn selected_cells_check_ordering_and_keep_the_event_and_its_result() {
             let prior: u32 = cell.fetch_add(1, GlobalOrder);
             let swapped: u32 = cell.swap(1, NoOrdering);
             let compared: u32 = cell.compare_exchange(0, 1, Receive, NoOrdering);
-            let once = cell.compare_exchange_once(0, 1, Receive, NoOrdering);
+            let once: AtomicCompareExchangeOnceOutcome<u32> = cell.compare_exchange_once(0, 1, Receive, NoOrdering);
         }",
     )
     .unwrap();

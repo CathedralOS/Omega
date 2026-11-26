@@ -131,7 +131,7 @@ pub(crate) fn parse_positional_pattern<'tokens, 'source>(
         // so this spelling would not say whether a field is decomposed.
         return Err(opened.error_here(
             "one name in parentheses is not a positional pattern: write `(name,)` to decompose \
-             a record with one field, or bind the whole value with `let name = ...`",
+             a record with one field, or bind the whole value with `let name: T = ...`",
         ));
     }
     Ok((PositionalPattern { rows, has_rest }, input))

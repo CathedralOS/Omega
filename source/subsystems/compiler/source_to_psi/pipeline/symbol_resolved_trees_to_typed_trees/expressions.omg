@@ -179,7 +179,7 @@ crashes Trap
         reference_row.inner = view;
         let handle: u64 in Trapping = |typing_state|::typer_intern(typer, reference_row, expression.source_span);
         |typed_trees|::set_expression_type(@mutable typer.output, index, handle);
-        let quoted = |quoted_literals|::inspect_quoted(sources, expression.source_span);
+        let quoted: |quoted_literals|::QuotedLiteral = |quoted_literals|::inspect_quoted(sources, expression.source_span);
         |typed_trees|::typing_set_value(@mutable typer.output, index, |integers|::exact_integer_of((quoted.length as -Trapping) as +Wrapping));
         |typed_trees|::set_roster(@mutable typer.output, index, quoted.roster);
     }

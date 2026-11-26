@@ -7,7 +7,6 @@ use syntax_trees::expression::{
     ExpressionHandle, ExpressionNode, TableIndexedExpression, TableMemberExpression,
 };
 use syntax_trees::statement::{StatementHandle, StatementNode, TableLocalData};
-use syntax_trees::types::TypeReferenceHandle;
 use tokens::PunctuationKind;
 
 pub(crate) fn parse_discard_statement_handle<'tokens, 'source>(
@@ -107,12 +106,12 @@ pub(crate) fn parse_local_data<'tokens, 'source>(
     let (name, input) = input.take_identifier()?;
     let (relevance, input) =
         crate::parameters::relevance::parse_binding_relevance_brackets(input, "local")?;
-    let (type_reference, input) = if input.at_punctuation(PunctuationKind::Colon) {
-        let input = input.take_punctuation(PunctuationKind::Colon, ":")?;
-        parse_type_reference_handle_allowing_borrow(syntax_trees, input)?
-    } else {
-        (TypeReferenceHandle::invalid(), input)
-    };
+    if !input.at_punctuation(PunctuationKind::Colon) {
+        return Err(input.error_here("a named local must declare its type"));
+    }
+    let input = input.take_punctuation(PunctuationKind::Colon, ":")?;
+    let (type_reference, input) =
+        parse_type_reference_handle_allowing_borrow(syntax_trees, input)?;
     let (initial_value, input) = if input.at_punctuation(PunctuationKind::Equal) {
         let input = input.take_punctuation(PunctuationKind::Equal, "=")?;
         let (expression, input) = parse_expression_handle(syntax_trees, input)?;
@@ -120,9 +119,6 @@ pub(crate) fn parse_local_data<'tokens, 'source>(
     } else {
         (ExpressionHandle::invalid(), input)
     };
-    if !type_reference.is_valid() && !initial_value.is_valid() {
-        return Err(input.error_here("a local without a type annotation requires an initializer"));
-    }
     let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
 
     Ok((

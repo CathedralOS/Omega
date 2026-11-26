@@ -263,7 +263,7 @@ fn a_local_exclusive_view_is_formed_from_the_formal_it_names() {
     for (position, name) in [(0, "left"), (1, "right")] {
         let program = Program::of(&format!(
             "machine pick(left: @mutable [u32], right: @mutable [u32]) -> u64 \
-             {{ let chosen = {name}; chosen.length }}"
+             {{ let chosen: @mutable [u32] = {name}; chosen.length }}"
         ));
         let pick = program.machine("pick");
         let view = the_operation(pick, |kind| {

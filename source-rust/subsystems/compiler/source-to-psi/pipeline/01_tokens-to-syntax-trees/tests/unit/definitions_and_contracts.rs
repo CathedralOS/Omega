@@ -1343,9 +1343,9 @@ fn parses_evidence_term_member_as_a_distinct_proof_static_argument() {
 }
 
 #[test]
-fn local_annotations_are_optional_only_with_an_initializer() {
+fn named_locals_require_a_type_with_or_without_an_initializer() {
     let parsed = crate::tests::parse_source(
-        "machine main() { let value = produce(); let mutable flag = true; let prepared: u64; } machine produce() -> u64 { 29u64 }",
+        "machine main() { let value: u64 = produce(); let mutable flag: bool = true; let prepared: u64; } machine produce() -> u64 { 29u64 }",
         "initialized locals may infer their types",
     );
     let machine = crate::tests::root_machine(&parsed, "main is the first machine");
@@ -1362,18 +1362,16 @@ fn local_annotations_are_optional_only_with_an_initializer() {
     let [value, flag, prepared] = locals.as_slice() else {
         panic!("three local declarations")
     };
-    assert!(!value.type_reference.is_valid() && value.initial_value.is_valid());
-    assert!(!flag.type_reference.is_valid() && flag.initial_value.is_valid() && flag.is_mutable);
+    assert!(value.type_reference.is_valid() && value.initial_value.is_valid());
+    assert!(flag.type_reference.is_valid() && flag.initial_value.is_valid() && flag.is_mutable);
     assert!(prepared.type_reference.is_valid() && !prepared.initial_value.is_valid());
 
-    let tokens = Lexer::new("machine main() { let absent; }")
-        .tokenize()
-        .unwrap();
-    let refusal = parse_syntax_trees(&tokens).expect_err("an omitted type needs an initializer");
-    assert!(
-        format!("{refusal:?}")
-            .contains("a local without a type annotation requires an initializer")
-    );
+    for binding in ["let absent;", "let value = produce();", "let mutable flag = true;"] {
+        let source = format!("machine main() {{ {binding} }}");
+        let tokens = Lexer::new(&source).tokenize().unwrap();
+        let refusal = parse_syntax_trees(&tokens).expect_err("the local must name its type");
+        assert!(format!("{refusal:?}").contains("a named local must declare its type"));
+    }
 }
 
 #[test]

@@ -6,19 +6,19 @@ machine start() crashes Trap {
     let mutable lowerer: |lower|::ScalarLowerer;
     lowerer.output.operation_count = 0 as +Trapping;
     lowerer.output.status = |program|::ScalarStatus::Complete;
-    let first = |lower|::scalar_append(@mutable lowerer, |program|::ScalarOperationKind::IntegerConstant,
+    let first: u64 in Trapping = |lower|::scalar_append(@mutable lowerer, |program|::ScalarOperationKind::IntegerConstant,
         42 as +Trapping, 0 as +Trapping, 0 as +Trapping);
-    let branch = |lower|::scalar_append(@mutable lowerer, |program|::ScalarOperationKind::BranchZero,
+    let branch: u64 in Trapping = |lower|::scalar_append(@mutable lowerer, |program|::ScalarOperationKind::BranchZero,
         1 as +Trapping, 0 as +Trapping, 0 as +Trapping);
     |lower|::scalar_patch_branch(@mutable lowerer, branch, 9 as +Trapping);
     lowerer.output.operation_count = 16383 as +Trapping;
-    let last = |lower|::scalar_append(@mutable lowerer, |program|::ScalarOperationKind::Store,
+    let last: u64 in Trapping = |lower|::scalar_append(@mutable lowerer, |program|::ScalarOperationKind::Store,
         11 as +Trapping, 17 as +Trapping, 4 as +Trapping);
-    let refused = |lower|::scalar_append(@mutable lowerer, |program|::ScalarOperationKind::ReturnUnit,
+    let refused: u64 in Trapping = |lower|::scalar_append(@mutable lowerer, |program|::ScalarOperationKind::ReturnUnit,
         0 as +Trapping, 0 as +Trapping, 0 as +Trapping);
-    let front = |program|::scalar_operation(@lowerer.output, 0 as +Trapping);
-    let patched = |program|::scalar_operation(@lowerer.output, 1 as +Trapping);
-    let back = |program|::scalar_operation(@lowerer.output, 16383 as +Trapping);
+    let front: |program|::ScalarOperation = |program|::scalar_operation(@lowerer.output, 0 as +Trapping);
+    let patched: |program|::ScalarOperation = |program|::scalar_operation(@lowerer.output, 1 as +Trapping);
+    let back: |program|::ScalarOperation = |program|::scalar_operation(@lowerer.output, 16383 as +Trapping);
     transition first == 1 && last == 16384 && refused == 0 && lowerer.output.operation_count == 16384
         && lowerer.output.status == |program|::ScalarStatus::Capacity
         && front.kind == |program|::ScalarOperationKind::IntegerConstant && front.left == 42
