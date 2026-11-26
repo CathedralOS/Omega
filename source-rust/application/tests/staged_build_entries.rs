@@ -86,6 +86,16 @@ fn a_successor_must_be_one_canonical_file_in_the_frozen_source_view() {
 }
 
 #[test]
+fn an_authored_build_must_fill_its_initially_unselected_product() {
+    let (status, report) = invoke(&[("build.omg", &build(""))], &["--check"]);
+    assert!(!status.success(), "{report}");
+    assert!(
+        report.contains("Build returned no project role"),
+        "{report}"
+    );
+}
+
+#[test]
 fn the_returned_product_is_the_last_value_in_the_plan() {
     let first = build(
         r#"builder.product = BuildProduct::InterpretedBuild { entry: "not_selected.omg" };
