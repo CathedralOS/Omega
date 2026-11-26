@@ -20,9 +20,7 @@ use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::values::Justification;
 use terminal_check_tables::{Checked, ProgramPoint, RefusalReason};
 
-use crate::{
-    Discharge, Discharged, Evidence, RouteVerdict, UnprovedObligation, discharge, judge,
-};
+use crate::{Discharge, Discharged, Evidence, RouteVerdict, UnprovedObligation, discharge, judge};
 use terminal_check_tables::{Construct, Refusal, UnprovedCause};
 
 mod address_bounds;
@@ -1329,12 +1327,10 @@ fn the_prover_has_rules_for_integer_goals_and_not_for_other_forms() {
         ScalarTerm::boolean(false),
     )));
     // One uncovered part leaves the whole goal without a rule.
-    assert!(!crate::has_rules_for(&Proposition::Conjunction(
-        vec![
-            at_most(1, 10),
-            Proposition::Equal(flag, ScalarTerm::boolean(true)),
-        ]
-    )));
+    assert!(!crate::has_rules_for(&Proposition::Conjunction(vec![
+        at_most(1, 10),
+        Proposition::Equal(flag, ScalarTerm::boolean(true)),
+    ])));
     // A clause may state a Wrapping or Saturating operation directly
     // (`requires left +% right == 3`). The rules say nothing of what one
     // computes, at any depth of the compared term, so a goal over one has no
@@ -3677,10 +3673,7 @@ fn payloads_of_two_cases_under_one_sum_overlap() {
     let of = |place| crate::places::lineage(id(1), &places, place).unwrap();
     let may = |left, right| {
         let forward = crate::places::overlap(&of(left), &of(right));
-        assert_eq!(
-            forward,
-            crate::places::overlap(&of(right), &of(left))
-        );
+        assert_eq!(forward, crate::places::overlap(&of(right), &of(left)));
         forward
     };
     assert!(may(at, l));
@@ -6706,6 +6699,235 @@ mod reuse {
             }
         }
     }
+
+    #[test]
+    fn canonical_witness_discharge_reuses_across_alpha_renamed_ids_and_symbols() {
+        // Shows: two conformance witnesses with distinct `SymbolHandle`s and
+        // shifted `MachineId`s (so `Donors` matches nothing by symbol) still
+        // deduplicate after `prepare_discharge`: the second witness reuses
+        // discharged `verdicts` and `knowledge` with zero additional searches.
+        let trivial_closure = || {
+            let mut m = lower(vec![machine(Vec::new(), vec![returns(unsigned(0))])]).unwrap();
+            m.machines = IdTable::default();
+            m.machines.push(symbols::SymbolHandle::from_parts(99, 1));
+            m
+        };
+        let witness_a = || module_of(add(10), [100, 200]);
+        let witness_b_shifted = || {
+            let invoke = Statement::discard(call(3, vec![unsigned(1), unsigned(2)]));
+            let entry = machine(Vec::new(), vec![invoke, returns(unsigned(0))]);
+            let unused_pad = machine(Vec::new(), vec![returns(unsigned(0))]);
+            let mut m = lower(vec![entry, unused_pad, add(10)]).unwrap();
+            m.machines = IdTable::default();
+            for source in [101, 102, 201] {
+                m.machines
+                    .push(symbols::SymbolHandle::from_parts(source, 1));
+            }
+            m
+        };
+
+        let (single_verdicts, single_searches) = judged(trivial_closure(), vec![witness_a()]);
+        let (dup_verdicts, dup_searches) =
+            judged(trivial_closure(), vec![witness_a(), witness_b_shifted()]);
+
+        assert!(
+            matches!(single_verdicts[1], Ok(RouteVerdict::Accepted(_))),
+            "{:?}",
+            single_verdicts[1]
+        );
+        let Ok(RouteVerdict::Accepted(first)) = &dup_verdicts[1] else {
+            panic!("first witness must accept: {:?}", dup_verdicts[1]);
+        };
+        let Ok(RouteVerdict::Accepted(second)) = &dup_verdicts[2] else {
+            panic!("duplicate witness must accept: {:?}", dup_verdicts[2]);
+        };
+        assert_eq!(
+            dup_searches, single_searches,
+            "duplicate alpha-renamed witness started extra searches: {dup_searches} vs {single_searches}"
+        );
+        assert_eq!(
+            verdicts(&first.elaboration, &first.discharge, 2, safety).len(),
+            verdicts(&second.elaboration, &second.discharge, 3, safety).len(),
+        );
+        assert_eq!(
+            first
+                .elaboration
+                .tables
+                .machines
+                .get(id(2))
+                .unwrap()
+                .knowledge
+                .len(),
+            second
+                .elaboration
+                .tables
+                .machines
+                .get(id(3))
+                .unwrap()
+                .knowledge
+                .len(),
+        );
+    }
+
+    #[test]
+    fn canonical_witness_negative_twin_refuses_callee_contract_domain_and_reach_changes() {
+        // Negative twin 1: differs only in the callee's `requires` contract (`a <= 10` missing).
+        let witness_ok = || module_of(add(10), [100, 200]);
+        let witness_bad_contract = || {
+            let helper = add_of_formals(vec![at_most(2, 100)]);
+            module_of(helper, [101, 201])
+        };
+        let trivial_closure = || {
+            let mut m = lower(vec![machine(Vec::new(), vec![returns(unsigned(0))])]).unwrap();
+            m.machines = IdTable::default();
+            m.machines.push(symbols::SymbolHandle::from_parts(99, 1));
+            m
+        };
+        let (contract_verdicts, _) = judged(
+            trivial_closure(),
+            vec![witness_ok(), witness_bad_contract()],
+        );
+        assert!(matches!(
+            contract_verdicts[1],
+            Ok(RouteVerdict::Accepted(_))
+        ));
+        assert!(
+            matches!(contract_verdicts[2], Ok(RouteVerdict::Rejected { .. })),
+            "negative contract twin must be refused: {:?}",
+            contract_verdicts[2]
+        );
+
+        // Negative twin 2: differs only in a data-domain store value violating the invariant.
+        let domain_witness = |stored_val: u128, sources: [u32; 3]| {
+            let consume = taking(3, place(1, data(SPAN)));
+            let helper = Shaped {
+                parameters: vec![u32_type().into()],
+                locals: vec![data(SPAN)],
+                result: u32_type().into(),
+                requires: Vec::new(),
+                statements: vec![
+                    bind(1, literal_of(SPAN, vec![unsigned(1), unsigned(9)])),
+                    store(1, &[1], unsigned(stored_val)),
+                    Statement::discard(consume),
+                    returns(unsigned(0)),
+                ],
+            };
+            let entry = Shaped {
+                parameters: Vec::new(),
+                locals: Vec::new(),
+                result: u32_type().into(),
+                requires: Vec::new(),
+                statements: vec![
+                    Statement::discard(call(2, vec![unsigned(1)])),
+                    returns(unsigned(0)),
+                ],
+            };
+            let mut m = elaborate_over(vec![entry, helper, taker(SPAN)], &constrained());
+            m.machines = IdTable::default();
+            for source in sources {
+                m.machines
+                    .push(symbols::SymbolHandle::from_parts(source, 1));
+            }
+            m
+        };
+        let (domain_verdicts, _) = judged(
+            trivial_closure(),
+            vec![
+                domain_witness(5, [110, 210, 310]),
+                domain_witness(0, [111, 211, 311]),
+            ],
+        );
+        assert!(matches!(domain_verdicts[1], Ok(RouteVerdict::Accepted(_))));
+        assert!(
+            matches!(domain_verdicts[2], Ok(RouteVerdict::Rejected { .. })),
+            "negative domain twin must be refused: {:?}",
+            domain_verdicts[2]
+        );
+
+        // Negative twin 3: differs only in the service reach ceiling (`published_service_ceiling`).
+        let mut witness_reach_ok = witness_ok();
+        let service = semantic_vocabulary::ServiceId::new(1).unwrap();
+        let mut identities = std::mem::take(&mut witness_reach_ok.module.identities).into_builder();
+        let service_name = identities.intern("clock");
+        witness_reach_ok.module.identities = identities.build();
+        witness_reach_ok
+            .module
+            .interfaces
+            .services
+            .push(terminal_psi::ServiceDeclaration {
+                id: service,
+                identity: service_name,
+                parents: Vec::new(),
+            });
+        witness_reach_ok.module.machines[0]
+            .contract
+            .declared_service_reach = Some(vec![service]);
+        witness_reach_ok.module.machines[0]
+            .contract
+            .published_service_ceiling = vec![service];
+        witness_reach_ok.module.machines[1]
+            .contract
+            .declared_service_reach = Some(vec![service]);
+        witness_reach_ok.module.machines[1]
+            .contract
+            .published_service_ceiling = vec![service];
+        witness_reach_ok
+            .module
+            .interfaces
+            .root_service_reach
+            .concrete = vec![service];
+        for envelope in witness_reach_ok
+            .module
+            .execution
+            .callables
+            .machine_envelopes
+            .iter_mut()
+            .flatten()
+        {
+            envelope.envelope.service_reach = vec![service];
+        }
+
+        let mut witness_reach_exceeded = witness_reach_ok.clone();
+        witness_reach_exceeded.machines = IdTable::default();
+        witness_reach_exceeded
+            .machines
+            .push(symbols::SymbolHandle::from_parts(121, 1));
+        witness_reach_exceeded
+            .machines
+            .push(symbols::SymbolHandle::from_parts(221, 1));
+        witness_reach_exceeded.module.machines[0]
+            .contract
+            .declared_service_reach = Some(Vec::new());
+        witness_reach_exceeded.module.machines[0]
+            .contract
+            .published_service_ceiling = Vec::new();
+        witness_reach_exceeded
+            .module
+            .interfaces
+            .root_service_reach
+            .concrete
+            .clear();
+        if let Some(Some(envelope)) = witness_reach_exceeded
+            .module
+            .execution
+            .callables
+            .machine_envelopes
+            .get_mut(0)
+        {
+            envelope.envelope.service_reach.clear();
+        }
+
+        let (reach_verdicts, _) = judged(
+            trivial_closure(),
+            vec![witness_reach_ok, witness_reach_exceeded],
+        );
+        assert!(matches!(reach_verdicts[1], Ok(RouteVerdict::Accepted(_))));
+        assert!(
+            matches!(reach_verdicts[2], Ok(RouteVerdict::Rejected { .. })),
+            "negative reach twin must be refused: {:?}",
+            reach_verdicts[2]
+        );
+    }
 }
 
 mod generic_bodies {
@@ -6721,9 +6943,7 @@ mod generic_bodies {
     //     { Selected::apply(start) + 1 }
     use super::*;
     use crate::ProofSearchActivity;
-    use crate::{
-        Carried, CarriedForm, Selection, discharge_carrying, reverify_specialization,
-    };
+    use crate::{Carried, CarriedForm, Selection, discharge_carrying, reverify_specialization};
 
     /// The result pseudo-value of a machine with one scalar formal.
     fn result_at_most(value: u128) -> Proposition {
@@ -6906,8 +7126,7 @@ mod generic_bodies {
                 prepared_refinement(selections, double(), lower(vec![witness(), double()]));
             let mut activity = crate::ProofSearchActivity::default();
             let before = activity.started();
-            let verdicts =
-                crate::verdict::judge_compilation_with_activity(prepared, &mut activity);
+            let verdicts = crate::verdict::judge_compilation_with_activity(prepared, &mut activity);
             assert_eq!(verdicts.len(), 3);
             assert!(
                 verdicts
@@ -6936,8 +7155,7 @@ mod generic_bodies {
             source_span: None,
             detail: "refinement unavailable".to_owned(),
         };
-        let verdicts =
-            crate::judge_compilation(prepared_refinement(2, double(), Err(refused)));
+        let verdicts = crate::judge_compilation(prepared_refinement(2, double(), Err(refused)));
         assert_eq!(verdicts.len(), 3);
         assert!(matches!(
             &verdicts[2],

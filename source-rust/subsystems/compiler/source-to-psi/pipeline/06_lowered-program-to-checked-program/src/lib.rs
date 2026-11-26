@@ -2,6 +2,10 @@
 
 // Crate-wide aliases for sibling stages and the shared test fixtures.
 #[cfg(test)]
+use prepared_typed_trees_to_lowered_program as lowering;
+#[cfg(test)]
+use source_admission::LoadedSource;
+#[cfg(test)]
 use source_declarations::declaration_selection;
 #[cfg(test)]
 use source_lexer as lexing;
@@ -16,11 +20,7 @@ use syntax_trees_to_symbol_resolved_trees::resolution;
 #[cfg(test)]
 use typed_trees::source_state;
 #[cfg(test)]
-use prepared_typed_trees_to_lowered_program as lowering;
-#[cfg(test)]
 use typed_trees_to_prepared_typed_trees as preparation;
-#[cfg(test)]
-use source_admission::LoadedSource;
 #[cfg(test)]
 #[path = "../../../../../../../tests/support/frontend_operations.rs"]
 mod frontend_fixture;
@@ -84,6 +84,7 @@ mod arrivals;
 mod branch_warnings;
 mod call_contracts;
 mod callable_arrivals;
+mod canonical_discharge;
 mod ceilings;
 mod crashes;
 mod describe;
@@ -146,8 +147,7 @@ pub use verdict::{
 };
 #[cfg(not(any(test, feature = "test-support")))]
 pub use verdict::{
-    AcceptedClosure, CheckedPublicationModule, CompilationRefusal, RouteVerdict,
-    UnprovedObligation,
+    AcceptedClosure, CheckedPublicationModule, CompilationRefusal, RouteVerdict, UnprovedObligation,
 };
 
 #[cfg(test)]
@@ -282,7 +282,10 @@ impl Discharged {
     pub const fn certificate(&self) -> Option<&Evidence> {
         match self {
             Self::Certificate(evidence) => Some(evidence),
-            Self::Identity(_) | Self::Law(_) | Self::ConservedContent(_) | Self::TargetCondition(_)
+            Self::Identity(_)
+            | Self::Law(_)
+            | Self::ConservedContent(_)
+            | Self::TargetCondition(_)
             | Self::PendingNormalGuarantee(_)
             | Self::EveryExit(_)
             | Self::Window(_)
@@ -349,7 +352,7 @@ pub struct MachineDischarge {
     pub conflicts: Vec<places::ConflictingLoan>,
     /// Prepared warning inputs are consumed only by accepted diagnostics.
     /// They never decide a mandatory obligation or storage/loan judgment.
-    branch_warnings: branch_warnings::Deferred,
+    pub(crate) branch_warnings: branch_warnings::Deferred,
 }
 
 /// An authored transition arm whose condition contradicts the facts in force
@@ -379,8 +382,8 @@ impl MachineDischarge {
 
 #[derive(Debug)]
 pub struct Discharge {
-    inferred_calls: entry_inputs::InferredCalls,
-    inferred_results: Vec<(MachineId, u32, terminal_psi::ContractClause)>,
+    pub(crate) inferred_calls: entry_inputs::InferredCalls,
+    pub(crate) inferred_results: Vec<(MachineId, u32, terminal_psi::ContractClause)>,
     pub machines: IdTable<MachineId, MachineDischarge>,
 }
 
@@ -491,8 +494,12 @@ pub(crate) struct ElaborationView<'a> {
     pub(crate) domains: &'a IdTable<StructuralTypeId, Vec<Proposition>>,
     pub(crate) sources: &'a IdTable<MachineId, terminal_check_tables::program::MachineSources>,
     pub(crate) requirements: &'a [MachineId],
+    pub(crate) applications: &'a [MachineId],
+    pub(crate) local_results: &'a [MachineId],
     pub(crate) machines: &'a IdTable<MachineId, symbols::SymbolHandle>,
     pub(crate) nominal_calls: &'a [terminal_psi::generic_calls::NominalCallArgument],
+    pub(crate) value_parameters: &'a IdTable<MachineId, usize>,
+    pub(crate) value_arguments: &'a IdTable<MachineId, Vec<semantic_vocabulary::ScalarTerm>>,
     pub(crate) domain_sources: &'a IdTable<
         semantic_vocabulary::DomainSemanticId,
         terminal_check_tables::program::DomainSource,
@@ -500,12 +507,12 @@ pub(crate) struct ElaborationView<'a> {
 }
 
 pub(crate) struct PreparedDischarge<'l> {
-    inhabitation: terminal_semantics::inhabitation::Inhabitation,
-    unreached: Unreached,
-    law_instances: Vec<MachineId>,
-    theorems: Vec<(MachineId, &'l laws::LawJudgment)>,
-    inferred_calls: entry_inputs::InferredCalls,
-    inferred_results: Vec<(MachineId, u32, terminal_psi::ContractClause)>,
+    pub(crate) inhabitation: terminal_semantics::inhabitation::Inhabitation,
+    pub(crate) unreached: Unreached,
+    pub(crate) law_instances: Vec<MachineId>,
+    pub(crate) theorems: Vec<(MachineId, &'l laws::LawJudgment)>,
+    pub(crate) inferred_calls: entry_inputs::InferredCalls,
+    pub(crate) inferred_results: Vec<(MachineId, u32, terminal_psi::ContractClause)>,
 }
 
 pub(crate) fn prepare_discharge<'l>(
@@ -602,8 +609,24 @@ pub(crate) fn prepare_discharge<'l>(
     let inhabitation = prepare_inhabitation(&elaboration.module, diagnostic)?;
     let mut unreached = Unreached::new(elaboration);
     scope.infer_results(&mut unreached, &inhabitation, activity)?;
+    let requires_before: Vec<usize> = scope
+        .source()
+        .module
+        .machines
+        .iter()
+        .map(|machine| machine.contract.requires.len())
+        .collect();
     scope.infer_inputs(&mut unreached, &inhabitation, activity)?;
-    scope.infer_results(&mut unreached, &inhabitation, activity)?;
+    let added_requires = scope
+        .source()
+        .module
+        .machines
+        .iter()
+        .zip(&requires_before)
+        .any(|(machine, before)| machine.contract.requires.len() > *before);
+    if added_requires {
+        scope.infer_results(&mut unreached, &inhabitation, activity)?;
+    }
     scope.infer_crash_routes(&mut unreached, &inhabitation, activity)?;
     scope.finalize_callable_refinements(activity)?;
     let mut law_instances = scope
@@ -686,53 +709,22 @@ pub(crate) fn finish_discharge<'m>(
     };
     let machines =
         machine_batch::check(&mut checking.machines, activity, |id, tables, activity| {
-            // A requirement has a contract and no body, so nothing about it is
-            // decided here. Its guarantees are each selected implementation's to
-            // prove; leaving them without a verdict would read as vacuously held.
             let inputs = inputs.for_machine(id)?;
-            if inputs.requirement {
-                return Ok(MachineDischarge {
-                    verdicts: tables.obligations.map(|obligation, _| {
-                        Err(refusal(
-                            RefusalReason::Unsupported,
-                            id,
-                            Construct::Obligation(obligation),
-                            "a requirement's guarantee is proved by each implementation, not here",
-                        ))
-                    }),
-                    uses: Vec::new(),
-                    windows: Vec::new(),
-                    weakened_joins: Vec::new(),
-                    conflicts: Vec::new(),
-                    branch_warnings: branch_warnings::Deferred::default(),
-                });
-            }
-            let lowered = terminal_machine(&module.machines, id, id)?;
-            let beyond = unreached.values(lowered, tables);
-            let donated = donors.and_then(|donors| {
-                donors.for_machine(*view.machines.get(id)?, lowered, tables)
-            });
-            let proved = &theorems[theorems.partition_point(|(machine, _)| *machine < id)
-                ..theorems.partition_point(|(machine, _)| *machine <= id)];
-            let borrow_ends = verified_borrow_ends.map(|ends| {
-                ends.binary_search_by_key(&id, |(machine, _)| *machine)
-                    .map_or(&[][..], |position| ends[position].1.as_slice())
-            });
-            machine(
+            check_single_machine(
+                &view,
                 formed,
                 &inhabitation,
-                view.domains,
-                id,
-                tables,
-                &beyond,
-                inputs.carried.map(|position| &carried[position]),
-                donated.as_ref(),
-                inputs.branches,
+                inputs,
+                &unreached,
+                carried,
+                verified_borrow_ends,
+                donors,
                 &law_instances,
-                proved,
+                &theorems,
                 &empty_contracts,
                 &summaries,
-                borrow_ends,
+                id,
+                tables,
                 activity,
             )
         })?;
@@ -741,6 +733,74 @@ pub(crate) fn finish_discharge<'m>(
         inferred_calls,
         inferred_results,
     })
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn check_single_machine<'m>(
+    view: &ElaborationView<'m>,
+    formed: formation::FormedModule<'_>,
+    inhabitation: &terminal_semantics::inhabitation::Inhabitation,
+    inputs: &machine_inputs::MachineInputs<'_>,
+    unreached: &Unreached,
+    carried: &[Carried<'_>],
+    verified_borrow_ends: Option<&VerifiedBorrowEnds>,
+    donors: Option<&reuse::Donors<'_>>,
+    law_instances: &[MachineId],
+    theorems: &[(MachineId, &laws::LawJudgment)],
+    empty_contracts: &terminal_semantics::inhabitation::TerminalContracts<'_>,
+    summaries: &ModuleReplays<'_>,
+    id: MachineId,
+    tables: &mut MachineTables,
+    activity: &mut ProofSearchActivity,
+) -> Checked<MachineDischarge> {
+    // A requirement has a contract and no body, so nothing about it is
+    // decided here. Its guarantees are each selected implementation's to
+    // prove; leaving them without a verdict would read as vacuously held.
+    if inputs.requirement {
+        return Ok(MachineDischarge {
+            verdicts: tables.obligations.map(|obligation, _| {
+                Err(refusal(
+                    RefusalReason::Unsupported,
+                    id,
+                    Construct::Obligation(obligation),
+                    "a requirement's guarantee is proved by each implementation, not here",
+                ))
+            }),
+            uses: Vec::new(),
+            windows: Vec::new(),
+            weakened_joins: Vec::new(),
+            conflicts: Vec::new(),
+            branch_warnings: branch_warnings::Deferred::default(),
+        });
+    }
+    let module = view.module;
+    let lowered = terminal_machine(&module.machines, id, id)?;
+    let beyond = unreached.values(lowered, tables);
+    let donated =
+        donors.and_then(|donors| donors.for_machine(*view.machines.get(id)?, lowered, tables));
+    let proved = &theorems[theorems.partition_point(|(machine, _)| *machine < id)
+        ..theorems.partition_point(|(machine, _)| *machine <= id)];
+    let borrow_ends = verified_borrow_ends.map(|ends| {
+        ends.binary_search_by_key(&id, |(machine, _)| *machine)
+            .map_or(&[][..], |position| ends[position].1.as_slice())
+    });
+    machine(
+        formed,
+        inhabitation,
+        view.domains,
+        id,
+        tables,
+        &beyond,
+        inputs.carried.map(|position| &carried[position]),
+        donated.as_ref(),
+        inputs.branches,
+        law_instances,
+        proved,
+        empty_contracts,
+        summaries,
+        borrow_ends,
+        activity,
+    )
 }
 
 pub(crate) fn publish_rankings(
@@ -777,8 +837,12 @@ pub(crate) fn discharge_inner(
             domains: &elaboration.domains,
             sources: &elaboration.sources,
             requirements: &elaboration.requirements,
+            applications: &elaboration.applications,
+            local_results: &elaboration.local_results,
             machines: &elaboration.machines,
             nominal_calls: &elaboration.nominal_calls,
+            value_parameters: &elaboration.value_parameters,
+            value_arguments: &elaboration.value_arguments,
             domain_sources: &elaboration.domain_sources,
         },
         &mut elaboration.tables,
@@ -864,7 +928,7 @@ fn refusal(
     }
 }
 
-fn terminal_machine(
+pub(crate) fn terminal_machine(
     machines: &[TerminalMachine],
     id: MachineId,
     from: MachineId,
@@ -1033,20 +1097,21 @@ fn check_prepared_machine(
         })?
         .into_iter()
         .peekable();
-    let mut target_ranges =
-        terminal_semantics::target_scalar_ranges(module, lowered, types)
-            .map_err(|detail| {
-                refusal(
-                    RefusalReason::ForeignIdentity,
-                    id,
-                    Construct::Machine,
-                    detail,
-                )
-            })?
-            .into_iter()
-            .peekable();
-    let content_returns = terminal_semantics::content_transformations::forwarding::checked_returns(module, lowered)
-        .map_err(|detail| refusal(RefusalReason::Unestablished, id, Construct::Machine, detail))?;
+    let mut target_ranges = terminal_semantics::target_scalar_ranges(module, lowered, types)
+        .map_err(|detail| {
+            refusal(
+                RefusalReason::ForeignIdentity,
+                id,
+                Construct::Machine,
+                detail,
+            )
+        })?
+        .into_iter()
+        .peekable();
+    let content_returns = terminal_semantics::content_transformations::forwarding::checked_returns(
+        module, lowered,
+    )
+    .map_err(|detail| refusal(RefusalReason::Unestablished, id, Construct::Machine, detail))?;
     for (index, (obligation, row)) in tables.obligations.iter().enumerate() {
         if decided[index].is_some() {
             continue;
@@ -1098,9 +1163,12 @@ fn check_prepared_machine(
             continue;
         }
         if let ObligationKind::NormalGuarantee { clause, .. } = row.kind
-            && let Ok(index_in_returns) = content_returns.binary_search_by_key(&(clause as usize), |&(ordinal, _)| ordinal)
+            && let Ok(index_in_returns) =
+                content_returns.binary_search_by_key(&(clause as usize), |&(ordinal, _)| ordinal)
         {
-            decided[index] = Some(Ok(Discharged::ConservedContent(content_returns[index_in_returns].1)));
+            decided[index] = Some(Ok(Discharged::ConservedContent(
+                content_returns[index_in_returns].1,
+            )));
             continue;
         }
         // A theorem over indexed data: the signature proved this clause.
@@ -1691,10 +1759,10 @@ fn fill_knowledge<'a>(
 pub(crate) struct ModuleReplays<'m> {
     /// For each machine check's own borrowed-storage graph, which includes
     /// the module's nominal calls.
-    borrowed_storage: terminal_semantics::descriptor_results::ModuleSummaries<'m>,
+    pub(crate) borrowed_storage: terminal_semantics::descriptor_results::ModuleSummaries<'m>,
     /// For the affine claim walk of each machine (`minted`), whose graph
     /// has no nominal calls.
-    affine: &'m terminal_semantics::plain_affine::AffineSummaries<'m>,
+    pub(crate) affine: &'m terminal_semantics::plain_affine::AffineSummaries<'m>,
 }
 
 /// What deciding one machine's obligations needs: value types, dominance,
@@ -1961,7 +2029,10 @@ fn published(
         let position = usize::try_from(obligation.get() - 1).unwrap_or(usize::MAX);
         match decided.get(position) {
             Some(Some(Ok(
-                Discharged::Certificate(_) | Discharged::Identity(_) | Discharged::Law(_) | Discharged::ConservedContent(_),
+                Discharged::Certificate(_)
+                | Discharged::Identity(_)
+                | Discharged::Law(_)
+                | Discharged::ConservedContent(_),
             ))) => exits.push(obligation),
             _ => return Err(unproved("a normal return does not establish this clause")),
         }
@@ -2217,9 +2288,9 @@ pub(crate) fn substitute_goal(
         // a declaration application. Use the same typed form as authored
         // clause applications, and keep the ordinary scalar route otherwise.
         Ok(Proposition::Equal(left, right))
-            if [&left, &right].into_iter().any(|term| matches!(
-                term, ScalarTerm::DeclarationApplication { .. }
-            )) =>
+            if [&left, &right]
+                .into_iter()
+                .any(|term| matches!(term, ScalarTerm::DeclarationApplication { .. })) =>
         {
             terminal_codec::contract_forms::equal(left, right)
                 .map_err(|_| Unbound::Unsupported("an erased equality has no canonical form"))
@@ -2324,9 +2395,7 @@ fn erased_actuals(
             ScalarTerm::Value { .. }
             | ScalarTerm::Integer { .. }
             | ScalarTerm::Boolean(_)
-            | ScalarTerm::DeclarationApplication { .. } => {
-                Ok((formal.id, term.clone()))
-            }
+            | ScalarTerm::DeclarationApplication { .. } => Ok((formal.id, term.clone())),
             _ => Err(refuse(
                 RefusalReason::Unsupported,
                 "erased actual outside values, literals, and declaration applications",
@@ -2674,19 +2743,17 @@ fn stated_goal<'a>(
             &module.proofs.scalar_block_invariants,
             references,
         ),
-        ObligationKind::CrashCoverage { site, cause } => {
-            crashes::coverage_goal(
-                module,
-                lowered,
-                (storage, references),
-                tables,
-                types,
-                id,
-                obligation,
-                site,
-                cause,
-            )
-        }
+        ObligationKind::CrashCoverage { site, cause } => crashes::coverage_goal(
+            module,
+            lowered,
+            (storage, references),
+            tables,
+            types,
+            id,
+            obligation,
+            site,
+            cause,
+        ),
         ObligationKind::RankComparison { component, edge } => rankings::goal(
             lowered,
             ranking_bindings,
