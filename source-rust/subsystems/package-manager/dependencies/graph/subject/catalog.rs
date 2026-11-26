@@ -12,26 +12,15 @@ use super::{
     CatalogObserver,
 };
 use super::{request_view::Request, usage::Budget};
+use crate::declarations::BuildDeclarationKind;
 use crate::declarations::dependencies::read::DependencyPurpose;
-use crate::declarations::{BuildDeclarationKind, PackageKey};
 use crate::resolution::graph::{ExactTargetPackageSourceClosure, ResolvedSourceIdentity};
 use std::iter::once;
 
 impl CanonicalCatalogDependency {
-    fn coordinate(
-        &self,
-    ) -> (
-        Option<&PackageKey>,
-        &source_acquisition::SourceLineage,
-        &source_acquisition::ImmutableSourceResolution,
-        Option<usize>,
-        DependencyPurpose,
-        usize,
-    ) {
+    fn coordinate(&self) -> (&CatalogObserver, Option<usize>, DependencyPurpose, usize) {
         (
-            self.observer.member().map(ResolvedSourceIdentity::key),
-            self.observer.lineage(),
-            self.observer.resolution(),
+            &self.observer,
             self.preparation.as_ref().map(|stage| stage.ordinal),
             self.purpose,
             self.ordinal,
@@ -54,22 +43,21 @@ pub(super) fn project(
                 lineage: custody.key().source_lineage().clone(),
                 resolution: custody.resolution().clone(),
             };
-            let observations = once((
-                root_observer,
-                crate::resolution::source::PackageSourceNavigation::Root,
-                evidence.root_inputs(),
-            ))
-            .chain(evidence.observations().iter().map(|member| {
-                (
-                    CatalogObserver::Member(ResolvedSourceIdentity::from_validated_parts(
-                        member.source.key().clone(),
-                        member.source.resolution().clone(),
-                    )),
-                    member.source.navigation().clone(),
-                    member.inputs.as_slice(),
-                )
-            }));
-            for (observer, navigation, inputs) in observations {
+            let observations = once((root_observer, evidence.root_inputs())).chain(
+                evidence.observations().iter().map(|member| {
+                    (
+                        CatalogObserver::Member {
+                            source: ResolvedSourceIdentity::from_validated_parts(
+                                member.source.key().clone(),
+                                member.source.resolution().clone(),
+                            ),
+                            navigation: member.source.navigation().clone(),
+                        },
+                        member.inputs.as_slice(),
+                    )
+                }),
+            );
+            for (observer, inputs) in observations {
                 for input in inputs {
                     let graph = &input.graph;
                     let provider = CanonicalSourceClosureSubject::from_resolved_without_catalog(
@@ -78,7 +66,6 @@ pub(super) fn project(
                     )?;
                     let dependency = CanonicalCatalogDependency {
                         observer: observer.clone(),
-                        navigation: navigation.clone(),
                         preparation: input.preparation.clone(),
                         purpose: input.purpose,
                         ordinal: input.ordinal,
@@ -155,7 +142,7 @@ pub(super) fn validate(
         previous = Some(dependency);
         if let Some(member) = dependency.observer.member() {
             validate_source_identity(member, limits.maximum_identity_bytes)?;
-            validate_package_navigation(member, &dependency.navigation)?;
+            validate_package_navigation(member, dependency.observer.navigation())?;
         } else {
             super::validation::validate_source_lineage(
                 dependency.observer.lineage(),
@@ -174,12 +161,10 @@ pub(super) fn validate(
                         },
                     )
                 });
-            if dependency.navigation != crate::resolution::source::PackageSourceNavigation::Root
-                || !matches!(
-                    dependency.observer.resolution(),
-                    source_acquisition::ImmutableSourceResolution::Git { .. }
-                )
-                || !anchored
+            if !matches!(
+                dependency.observer.resolution(),
+                source_acquisition::ImmutableSourceResolution::Git { .. }
+            ) || !anchored
             {
                 return Err(Error::new(
                     "catalog root has no selected member at its Git resolution",
@@ -245,7 +230,7 @@ pub(super) fn validate(
     sources.extend(subject.packages.iter().zip(&subject.package_navigations));
     for dependency in dependencies {
         if let Some(member) = dependency.observer.member() {
-            sources.push((member, &dependency.navigation));
+            sources.push((member, dependency.observer.navigation()));
         }
         sources.extend(
             dependency
@@ -312,8 +297,8 @@ mod tests {
         let root = source_graph("selected", "https://catalog.invalid/workspace.git");
         let provider = source_graph("helper", "https://catalog.invalid/helper.git");
         let dependency = CanonicalCatalogDependency {
-            observer: CatalogObserver::Member(
-                ResolvedSourceIdentity::new(
+            observer: CatalogObserver::Member {
+                source: ResolvedSourceIdentity::new(
                     PackageKey::new(
                         PackageName::parse("unselected").unwrap(),
                         root.root.selected.key().source_lineage().clone(),
@@ -321,10 +306,10 @@ mod tests {
                     root.root.selected.resolution().clone(),
                 )
                 .unwrap(),
-            ),
-            navigation: PackageSourceNavigation::Member(
-                source_acquisition::SourceRelativePath::parse("unselected").unwrap(),
-            ),
+                navigation: PackageSourceNavigation::Member(
+                    source_acquisition::SourceRelativePath::parse("unselected").unwrap(),
+                ),
+            },
             preparation: None,
             purpose: DependencyPurpose::Build,
             ordinal: 0,
@@ -515,7 +500,7 @@ mod tests {
         assert!(text.starts_with("omega-source-closure 8\n"));
         assert!(text.contains("authored-build 0\n"));
         assert!(text.ends_with("catalog-dependencies 0\nend\n"));
-        for retired in 1..7 {
+        for retired in 1..8 {
             let old = text.replacen(
                 "omega-source-closure 8",
                 &format!("omega-source-closure {retired}"),

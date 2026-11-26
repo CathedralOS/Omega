@@ -71,7 +71,6 @@ impl CanonicalSourceClosureSubject {
                 .zip(&other.catalog_dependencies)
                 .all(|(left, right)| {
                     left.observer == right.observer
-                        && left.navigation == right.navigation
                         && left.preparation == right.preparation
                         && left.purpose == right.purpose
                         && left.ordinal == right.ordinal
@@ -139,31 +138,41 @@ impl CanonicalSourceClosureSubject {
 }
 
 /// A workspace root computes the member roster before a package can be named.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum CatalogObserver {
     Workspace {
         lineage: SourceLineage,
         resolution: source_acquisition::ImmutableSourceResolution,
     },
-    Member(ResolvedSourceIdentity),
+    Member {
+        source: ResolvedSourceIdentity,
+        navigation: PackageSourceNavigation,
+    },
 }
 
 impl CatalogObserver {
+    pub(crate) fn navigation(&self) -> &PackageSourceNavigation {
+        match self {
+            Self::Workspace { .. } => &PackageSourceNavigation::Root,
+            Self::Member { navigation, .. } => navigation,
+        }
+    }
+
     pub(crate) fn member(&self) -> Option<&ResolvedSourceIdentity> {
         match self {
-            Self::Member(source) => Some(source),
+            Self::Member { source, .. } => Some(source),
             Self::Workspace { .. } => None,
         }
     }
     pub(crate) fn lineage(&self) -> &SourceLineage {
         match self {
-            Self::Member(source) => source.key().source_lineage(),
+            Self::Member { source, .. } => source.key().source_lineage(),
             Self::Workspace { lineage, .. } => lineage,
         }
     }
     pub(crate) fn resolution(&self) -> &source_acquisition::ImmutableSourceResolution {
         match self {
-            Self::Member(source) => source.resolution(),
+            Self::Member { source, .. } => source.resolution(),
             Self::Workspace { resolution, .. } => resolution,
         }
     }
@@ -173,7 +182,6 @@ impl CatalogObserver {
 pub(crate) struct CanonicalCatalogDependency {
     pub(crate) preparation: Option<crate::resolution::source::CatalogPreparation>,
     pub(crate) observer: CatalogObserver,
-    pub(crate) navigation: PackageSourceNavigation,
     pub(crate) purpose: DependencyPurpose,
     pub(crate) ordinal: usize,
     pub(crate) request: CanonicalDependencySourceRequest,

@@ -91,9 +91,10 @@ impl CanonicalSourceClosureSubject {
         for dependency in &self.catalog_dependencies {
             writer.row("catalog-dependency", &[])?;
             match &dependency.observer {
-                CatalogObserver::Member(source) => {
+                CatalogObserver::Member { source, navigation } => {
                     writer.row("observer member", &[])?;
                     write_source(writer, source)?;
+                    write_navigation(writer, navigation)?;
                 }
                 CatalogObserver::Workspace {
                     lineage,
@@ -104,7 +105,6 @@ impl CanonicalSourceClosureSubject {
                     write_resolution(writer, resolution)?;
                 }
             }
-            write_navigation(writer, &dependency.navigation)?;
             writer.number("preparing", usize::from(dependency.preparation.is_some()))?;
             if let Some(stage) = &dependency.preparation {
                 writer.number("stage", stage.ordinal)?;
@@ -212,14 +212,16 @@ impl CanonicalSourceClosureSubject {
             reader.expect("catalog-dependency")?;
             reader.expect("observer")?;
             let observer = match reader.atom()? {
-                "member" => CatalogObserver::Member(read_source(reader, limits)?),
+                "member" => CatalogObserver::Member {
+                    source: read_source(reader, limits)?,
+                    navigation: read_navigation(reader, limits)?,
+                },
                 "workspace" => CatalogObserver::Workspace {
                     lineage: read_lineage(reader, limits)?,
                     resolution: read_resolution(reader)?,
                 },
                 _ => return Err(Error::new("unknown catalog observer role")),
             };
-            let navigation = read_navigation(reader, limits)?;
             reader.expect("preparing")?;
             let preparation = if reader.number(1)? == 1 {
                 reader.expect("stage")?;
@@ -241,7 +243,6 @@ impl CanonicalSourceClosureSubject {
             let provider = Self::read_text(reader, limits, false)?;
             catalog_dependencies.push(super::super::CanonicalCatalogDependency {
                 observer,
-                navigation,
                 preparation,
                 purpose,
                 ordinal,

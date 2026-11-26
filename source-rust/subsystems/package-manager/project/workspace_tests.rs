@@ -426,6 +426,26 @@ fn check_root_catalog(directory: &Path, _: &Path) {
         initial,
         CanonicalSourceClosureSubject::recover_text(&text, Default::default()).unwrap()
     );
+    let source_acquisition::ImmutableSourceResolution::Git { commit, .. } =
+        input.observer.resolution()
+    else {
+        panic!("a Git workspace root must carry its repository revision")
+    };
+    let (prefix, observer_and_remainder) = text.split_once("observer workspace\n").unwrap();
+    let commit = commit.to_hex();
+    let replacement = if commit.starts_with('0') { "1" } else { "0" }.to_owned() + &commit[1..];
+    let forged = format!(
+        "{prefix}observer workspace\n{}",
+        observer_and_remainder.replacen(&commit, &replacement, 1)
+    );
+    let error =
+        CanonicalSourceClosureSubject::recover_text(&forged, Default::default()).unwrap_err();
+    assert!(
+        error
+            .to_string()
+            .contains("no selected member at its Git resolution"),
+        "{error}"
+    );
     let roster = directory.join("roster");
     git(
         &roster,

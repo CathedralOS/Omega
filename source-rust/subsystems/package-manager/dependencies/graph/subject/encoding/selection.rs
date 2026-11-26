@@ -82,9 +82,10 @@ fn encode_subject_to(
     encoder.count(catalog_dependencies.len())?;
     for dependency in catalog_dependencies {
         match &dependency.observer {
-            super::super::CatalogObserver::Member(source) => {
+            super::super::CatalogObserver::Member { source, navigation } => {
                 encoder.byte(0);
                 encode_source_identity(encoder, source, limits.maximum_identity_bytes)?;
+                encode_package_navigation(encoder, navigation, limits.maximum_request_bytes)?;
             }
             super::super::CatalogObserver::Workspace {
                 lineage,
@@ -95,11 +96,6 @@ fn encode_subject_to(
                 encode_resolution(encoder, resolution)?;
             }
         }
-        encode_package_navigation(
-            encoder,
-            &dependency.navigation,
-            limits.maximum_request_bytes,
-        )?;
         if let Some(stage) = &dependency.preparation {
             encoder.byte(1);
             encoder.count(stage.ordinal)?;
