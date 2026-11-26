@@ -8,8 +8,8 @@ use crate::constants::{
     COFF_HEADER_SIZE, DOS_HEADER_SIZE, FILE_ALIGNMENT, IMAGE_BASE, OPTIONAL_HEADER_SIZE,
     SECTION_ALIGNMENT, SECTION_HEADER_SIZE, TEXT_RVA,
 };
-use crate::layout::align_to;
 use diagnostics::Diagnostic;
+use image::align_to;
 use image::{FinalImage, FinalImageLayout};
 use relocations::{BaseRelocations, build_base_relocations};
 
