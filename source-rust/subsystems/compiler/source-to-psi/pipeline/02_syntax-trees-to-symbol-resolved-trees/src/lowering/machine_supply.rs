@@ -511,7 +511,11 @@ mod compiler_machine_tests {
         if path == "Atomic/atomic.omg" {
             request.top_level_bindings = crate::resolution::fixture_file_bindings(
                 &sources,
-                &[("toolchain/Atomic/atomic.omg", "toolchain/fence_ordering.omg", "fence_ordering")],
+                &[(
+                    "toolchain/Atomic/atomic.omg",
+                    "toolchain/fence_ordering.omg",
+                    "fence_ordering",
+                )],
             );
         }
         request.sources = Some(Arc::new(sources));
