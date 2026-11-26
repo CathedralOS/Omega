@@ -384,12 +384,12 @@ fn next_demand_batch_for_request(
                 completed_roots.push(machine.symbol);
             }
         }
+        require_imports(completed_roots)?;
     }
     let mut batch =
         frontier.demand_closure_batch(completed_roots, &provider_conformances, &subject_sources)?;
     if matches!(request, BodyDemandRequest::BuildDemand { .. }) {
         // One authored file may implement several stages, each with different imports.
-        require_imports(completed_roots)?;
         require_imports(&batch)?;
     } else {
         // Every batch pays for a whole-program `finish_resolution`, and the call
