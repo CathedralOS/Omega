@@ -1,116 +1,109 @@
+use filesystem.omg;
+use filesystem_host.omg as paths;
 use targets/windows_x86_64/filesystem/errors.omg as errors;
 use targets/windows_x86_64/filesystem/handles.omg as handles;
-use filesystem_host.omg as paths;
-use ErrorKind;
-use File;
-use IoResult;
-use OpenResult;
-use UnitResult;
-use WindowsFilesystemHost;
-use system;
+use windows_filesystem_host.omg as win_fs;
+use {omega}/language/core/filesystem_authority.omg as authority;
+use {omega}/language/core/numeric_conversion.omg as numeric;
+
 // Portable sequencing stays above the raw family. Successful acquisition owns
 // one close on every returning path; an earlier error wins over close failure.
 // Writes advance the original view and reject zero or oversized progress.
-use omega\language\core\FilesystemContentRead;
-use omega\language\core\FilesystemContentWrite;
-use omega\language\core\FilesystemMetadataMutation;
-use omega\language\core\FilesystemNamespaceMutation;
-use omega\language\core\narrow_i64_to_u64_exact;
 
-machine windows_filesystem_finish_unit(outcome: UnitResult, released: UnitResult) -> UnitResult {
+machine windows_filesystem_finish_unit(outcome: |filesystem|::UnitResult, released: |filesystem|::UnitResult) -> |filesystem|::UnitResult {
     transition outcome {
-        UnitResult::Error { kind } -> (UnitResult::Error { kind: kind }),
-        UnitResult::Ok -> (released)
+        |filesystem|::UnitResult::Error { kind } -> (|filesystem|::UnitResult::Error { kind: kind }),
+        |filesystem|::UnitResult::Ok -> (released)
     }
 }
 
-machine windows_filesystem_finish_read(outcome: IoResult, released: UnitResult) -> IoResult {
+machine windows_filesystem_finish_read(outcome: |filesystem|::IoResult, released: |filesystem|::UnitResult) -> |filesystem|::IoResult {
     transition outcome {
-        IoResult::Error { kind } -> (IoResult::Error { kind: kind }),
-        IoResult::Ok { count } -> release(count, released)
+        |filesystem|::IoResult::Error { kind } -> (|filesystem|::IoResult::Error { kind: kind }),
+        |filesystem|::IoResult::Ok { count } -> release(count, released)
     }
-    machine release(count: u64, released: UnitResult) -> IoResult {
+    machine release(count: u64, released: |filesystem|::UnitResult) -> |filesystem|::IoResult {
         transition released {
-            UnitResult::Error { kind } -> (IoResult::Error { kind: kind }),
-            UnitResult::Ok -> (IoResult::Ok { count: count })
+            |filesystem|::UnitResult::Error { kind } -> (|filesystem|::IoResult::Error { kind: kind }),
+            |filesystem|::UnitResult::Ok -> (|filesystem|::IoResult::Ok { count: count })
         }
     }
 }
 
-machine windows_filesystem_write_complete(file: File, bytes: @[u8]) -> UnitResult
-reaches FilesystemContentWrite
+machine windows_filesystem_write_complete(file: |filesystem|::File, bytes: @[u8]) -> |filesystem|::UnitResult
+reaches |authority|::FilesystemContentWrite
 {
     transition { _ -> block remaining(file, bytes, 0) }
-    machine remaining(file: File, bytes: @[u8], position: u64) -> UnitResult
+    machine remaining(file: |filesystem|::File, bytes: @[u8], position: u64) -> |filesystem|::UnitResult
     requires position <= bytes.length {
-        transition position < bytes.length { true -> block window(file, bytes, position), false -> UnitResult::Ok }
+        transition position < bytes.length { true -> block window(file, bytes, position), false -> |filesystem|::UnitResult::Ok }
     }
-    machine window(file: File, bytes: @[u8], position: u64) -> UnitResult
+    machine window(file: |filesystem|::File, bytes: @[u8], position: u64) -> |filesystem|::UnitResult
     requires position < bytes.length {
         transition bytes.length - position > 4294967295 {
             true -> block write(file, bytes, position, position + 4294967295),
             false -> block write(file, bytes, position, bytes.length)
         }
     }
-    machine write(file: File, bytes: @[u8], position: u64, end: u64) -> UnitResult
+    machine write(file: |filesystem|::File, bytes: @[u8], position: u64, end: u64) -> |filesystem|::UnitResult
     requires position < end && end <= bytes.length {
         let window: @[u8] = @bytes[position..end];
-        let count: i64 = block WindowsFilesystemHost::write_file(file.handle, window);
+        let count: i64 = block |win_fs|::WindowsFilesystemHost::write_file(file.handle, window);
         transition count > 0 {
             true -> block progressed(file, bytes, position, end, count),
             false -> stopped(count)
         }
     }
-    machine progressed(file: File, bytes: @[u8], position: u64, end: u64, count: i64) -> UnitResult
+    machine progressed(file: |filesystem|::File, bytes: @[u8], position: u64, end: u64, count: i64) -> |filesystem|::UnitResult
     requires position < end && end <= bytes.length && count > 0 {
-        let written: u64 = narrow_i64_to_u64_exact(count);
+        let written: u64 = |numeric|::narrow_i64_to_u64_exact(count);
         transition written <= end - position {
             true -> block remaining(file, bytes, position + written),
-            false -> (UnitResult::Error { kind: ErrorKind::Other })
+            false -> (|filesystem|::UnitResult::Error { kind: |filesystem|::ErrorKind::Other })
         }
     }
-    machine stopped(count: i64) -> UnitResult {
+    machine stopped(count: i64) -> |filesystem|::UnitResult {
         transition count == 0 {
-            true -> (UnitResult::Error { kind: ErrorKind::WriteZero }),
-            false -> (UnitResult::Error { kind: |errors|::windows_filesystem_status_error(count) })
+            true -> (|filesystem|::UnitResult::Error { kind: |filesystem|::ErrorKind::WriteZero }),
+            false -> (|filesystem|::UnitResult::Error { kind: |errors|::windows_filesystem_status_error(count) })
         }
     }
 }
 
-machine windows_filesystem_write_all(path: @[u8] in |paths|::Path, bytes: @[u8]) -> UnitResult
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+machine windows_filesystem_write_all(path: @[u8] in |paths|::Path, bytes: @[u8]) -> |filesystem|::UnitResult
+reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation
 {
-    let acquired: OpenResult = block |handles|::windows_filesystem_create(path);
+    let acquired: |filesystem|::OpenResult = block |handles|::windows_filesystem_create(path);
     transition acquired {
-        OpenResult::Error { kind } -> (UnitResult::Error { kind: kind }),
-        OpenResult::Ok { file } -> block write(file, bytes)
+        |filesystem|::OpenResult::Error { kind } -> (|filesystem|::UnitResult::Error { kind: kind }),
+        |filesystem|::OpenResult::Ok { file } -> block write(file, bytes)
     }
-    machine write(file: File, bytes: @[u8]) -> UnitResult {
-        let outcome: UnitResult = block windows_filesystem_write_complete(file, bytes);
-        let released: UnitResult = block |handles|::windows_filesystem_close(file);
+    machine write(file: |filesystem|::File, bytes: @[u8]) -> |filesystem|::UnitResult {
+        let outcome: |filesystem|::UnitResult = block windows_filesystem_write_complete(file, bytes);
+        let released: |filesystem|::UnitResult = block |handles|::windows_filesystem_close(file);
         windows_filesystem_finish_unit(outcome, released)
     }
 }
 
 // Match the portable bounded-read contract: a short read is a successful
 // initialized prefix, not a promise to fill the caller's entire buffer.
-machine windows_filesystem_read_all(path: @[u8] in |paths|::Path, buffer: @mutable [u8], count: u64) -> IoResult
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+machine windows_filesystem_read_all(path: @[u8] in |paths|::Path, buffer: @mutable [u8], count: u64) -> |filesystem|::IoResult
+reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation
 {
     transition count <= buffer.length {
         true -> block acquire(path, buffer, count),
-        false -> (IoResult::Error { kind: ErrorKind::InvalidInput })
+        false -> (|filesystem|::IoResult::Error { kind: |filesystem|::ErrorKind::InvalidInput })
     }
-    machine acquire(path: @[u8] in |paths|::Path, buffer: @mutable [u8], count: u64) -> IoResult {
-        let acquired: OpenResult = block |handles|::windows_filesystem_open(path);
+    machine acquire(path: @[u8] in |paths|::Path, buffer: @mutable [u8], count: u64) -> |filesystem|::IoResult {
+        let acquired: |filesystem|::OpenResult = block |handles|::windows_filesystem_open(path);
         transition acquired {
-            OpenResult::Error { kind } -> (IoResult::Error { kind: kind }),
-            OpenResult::Ok { file } -> block read(file, buffer, count)
+            |filesystem|::OpenResult::Error { kind } -> (|filesystem|::IoResult::Error { kind: kind }),
+            |filesystem|::OpenResult::Ok { file } -> block read(file, buffer, count)
         }
     }
-    machine read(file: File, buffer: @mutable [u8], count: u64) -> IoResult {
-        let outcome: IoResult = block |handles|::windows_filesystem_read(file, buffer, count);
-        let released: UnitResult = block |handles|::windows_filesystem_close(file);
+    machine read(file: |filesystem|::File, buffer: @mutable [u8], count: u64) -> |filesystem|::IoResult {
+        let outcome: |filesystem|::IoResult = block |handles|::windows_filesystem_read(file, buffer, count);
+        let released: |filesystem|::UnitResult = block |handles|::windows_filesystem_close(file);
         windows_filesystem_finish_read(outcome, released)
     }
 }

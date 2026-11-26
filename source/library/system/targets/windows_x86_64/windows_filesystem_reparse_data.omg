@@ -1,4 +1,6 @@
 use targets/windows_x86_64/windows_filesystem_reparse_native.omg as reparse_io;
+use {omega}/language/core/numeric_conversion.omg as numeric;
+
 // Decode the actual SubstituteName, never the optional display PrintName.
 // Native offsets/lengths are bytes relative to the kind-specific PathBuffer;
 // returned bytes and ReparseDataLength both bound every observed target unit.
@@ -7,14 +9,10 @@ use targets/windows_x86_64/windows_filesystem_reparse_native.omg as reparse_io;
 // plausible but unrelated path. Embedded NUL and malformed records refuse.
 // https://learn.microsoft.com/windows-hardware/drivers/ddi/ntifs/ns-ntifs-_reparse_data_buffer
 // https://learn.microsoft.com/openspecs/windows_protocols/ms-fscc/b41f1cbf-10df-4a47-98d4-1c52a833d913
-use omega\language\core\widen_u16_to_u32;
-use omega\language\core\widen_u16_to_u64;
-use omega\language\core\widen_u32_to_u64;
-use omega\language\core\narrow_u64_to_i64_exact;
 
 machine windows_reparse_target(data: @|reparse_io|::WindowsNativeReparseData, returned: u32, output: @mutable [u16; 8192]) -> i64 {
-    let extent: u64 = widen_u16_to_u64(data.data_length);
-    transition returned >= 8 && returned <= 16384 && extent + 8 <= widen_u32_to_u64(returned) {
+    let extent: u64 = |numeric|::widen_u16_to_u64(data.data_length);
+    transition returned >= 8 && returned <= 16384 && extent + 8 <= |numeric|::widen_u32_to_u64(returned) {
         true -> kind(data, extent, output),
         false -> (-31)
     }
@@ -35,7 +33,7 @@ machine windows_reparse_target(data: @|reparse_io|::WindowsNativeReparseData, re
         }
     }
     machine flags(data: @|reparse_io|::WindowsNativeReparseData, extent: u64, output: @mutable [u16; 8192]) -> i64 {
-        let flags: u32 = widen_u16_to_u32(data.rest[0]) | (widen_u16_to_u32(data.rest[1]) << 16);
+        let flags: u32 = |numeric|::widen_u16_to_u32(data.rest[0]) | (|numeric|::widen_u16_to_u32(data.rest[1]) << 16);
         transition flags <= 1 {
             true -> span(data, extent, 12, 2, flags == 1, output),
             false -> (-50)
@@ -43,8 +41,8 @@ machine windows_reparse_target(data: @|reparse_io|::WindowsNativeReparseData, re
     }
     machine span(data: @|reparse_io|::WindowsNativeReparseData, extent: u64, header: u64, base: u64, relative: bool, output: @mutable [u16; 8192]) -> i64
     requires base <= 2 {
-        let offset: u64 = widen_u16_to_u64(data.substitute_offset);
-        let length: u64 = widen_u16_to_u64(data.substitute_length);
+        let offset: u64 = |numeric|::widen_u16_to_u64(data.substitute_offset);
+        let length: u64 = |numeric|::widen_u16_to_u64(data.substitute_length);
         transition extent >= header && header <= 12 && offset % 2 == 0
             && length > 0 && length % 2 == 0 && offset + length <= extent - header {
             true -> units(data, base, offset, length, relative, output),
@@ -88,7 +86,7 @@ requires start <= 8184 && count > 0 && count < 8192 && count <= 8184 - start {
     machine complete(output: @mutable [u16; 8192], count: u64, relative: bool) -> i64
     requires count > 0 && count < 8192 {
         output[count] = 0;
-        transition relative { true -> (narrow_u64_to_i64_exact(count)), false -> absolute(output, count) }
+        transition relative { true -> (|numeric|::narrow_u64_to_i64_exact(count)), false -> absolute(output, count) }
     }
     machine absolute(output: @mutable [u16; 8192], count: u64) -> i64
     requires count > 0 && count < 8192 {
@@ -100,6 +98,6 @@ requires start <= 8184 && count > 0 && count < 8192 && count <= 8184 - start {
     machine translate(output: @mutable [u16; 8192], count: u64) -> i64
     requires count > 0 && count < 8192 {
         output[1] = 92;
-        narrow_u64_to_i64_exact(count)
+        |numeric|::narrow_u64_to_i64_exact(count)
     }
 }

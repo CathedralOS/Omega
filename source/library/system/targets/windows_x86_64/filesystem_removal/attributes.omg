@@ -1,28 +1,28 @@
-use targets/windows_x86_64/windows_filesystem_metadata.omg as classifier;
 use targets/windows_x86_64/filesystem_removal/completion.omg as removal_completion;
+use targets/windows_x86_64/windows_filesystem_metadata.omg as classifier;
 use targets/windows_x86_64/windows_filesystem_metadata_native.omg as metadata_io;
 use targets/windows_x86_64/windows_filesystem_native.omg as win_io;
-use targets\windows_x86_64\windows_classify_metadata_disk_file;
-use targets\windows_x86_64;
+use targets/windows_x86_64/windows_filesystem_private_handles.omg as private_handle;
+use {omega}/language/core/filesystem_authority.omg as authority;
+use {omega}/language/core/numeric_conversion.omg as numeric;
+
 // Inspect the exact private object, not a second pathname lookup or a copied
 // enumeration hint. No duplicate is needed: the traversal owns this handle
 // exclusively until the query and its call-scoped output loan have completed.
-use omega\language\core\FilesystemMetadataQuery;
-use omega\language\core\narrow_i64_to_u64_wrapping;
 
 data WindowsRemovalAttributes {
     case Error(code: u32);
     case Value(attributes: u32);
 }
 
-machine windows_removal_attributes(handle: i64 in WindowsPrivateNonalertFileOrAbsent) -> WindowsRemovalAttributes
-requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0
-reaches FilesystemMetadataQuery {
-    let file: i64 in WindowsDiskFileOrAbsent = block |classifier|::windows_classify_metadata_disk_file(
-        narrow_i64_to_u64_wrapping(handle as -WindowsPrivateNonalertFileOrAbsent));
-    transition (file as -WindowsDiskFileOrAbsent) != 0 { true -> block query(file), false -> failed() }
-    machine query(file: i64 in WindowsDiskFileOrAbsent) -> WindowsRemovalAttributes
-    requires (file as -WindowsDiskFileOrAbsent) != 0 {
+machine windows_removal_attributes(handle: i64 in |private_handle|::WindowsPrivateNonalertFileOrAbsent) -> WindowsRemovalAttributes
+requires (handle as - |private_handle|::WindowsPrivateNonalertFileOrAbsent) != 0
+reaches |authority|::FilesystemMetadataQuery {
+    let file: i64 in |metadata_io|::WindowsDiskFileOrAbsent = block |classifier|::windows_classify_metadata_disk_file(
+        |numeric|::narrow_i64_to_u64_wrapping(handle as - |private_handle|::WindowsPrivateNonalertFileOrAbsent));
+    transition (file as - |metadata_io|::WindowsDiskFileOrAbsent) != 0 { true -> block query(file), false -> failed() }
+    machine query(file: i64 in |metadata_io|::WindowsDiskFileOrAbsent) -> WindowsRemovalAttributes
+    requires (file as - |metadata_io|::WindowsDiskFileOrAbsent) != 0 {
         let mutable information: |metadata_io|::WindowsNativeFileAttributeTagInfo;
         let succeeded: i32 = block |metadata_io|::WindowsFilesystemMetadataIo::attribute_tag(file, 9, @mutable information, 8);
         transition succeeded != 0 {
