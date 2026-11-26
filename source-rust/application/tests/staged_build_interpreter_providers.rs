@@ -117,7 +117,10 @@ fn a_successor_with_an_unmapped_service_cannot_begin_execution() {
     let poison = r#"Build::build_entry(builder, "../successor-started.omg");"#;
     let (output, report) = run("linux_x86_64", None, poison);
     assert!(!output.status.success(), "{report}");
-    assert!(report.contains("no selected plan supplies"), "{report}");
+    assert!(
+        report.contains("before entry; no interpreter provider was supplied"),
+        "{report}"
+    );
     assert!(
         !report.contains("requires a canonical package-relative .omg filename"),
         "{report}"
