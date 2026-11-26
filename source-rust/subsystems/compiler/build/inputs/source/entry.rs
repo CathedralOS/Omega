@@ -104,7 +104,10 @@ impl<'a> CapturedBuildEntry<'a> {
             })?;
         let filename = path.strip_prefix(package_root).ok().and_then(Path::to_str);
         if !filename.is_some_and(|name| {
-            language_core::logical_filename::is_valid(&name.replace(std::path::MAIN_SEPARATOR, "/"))
+            build_declarations::BuildEntryPath::validate(
+                &name.replace(std::path::MAIN_SEPARATOR, "/"),
+            )
+            .is_ok()
         }) {
             return Err(vec![Diagnostic::error(format!(
                 "successor Build entry {} must name a canonical .omg file in its frozen source",
@@ -145,7 +148,7 @@ impl StageRoots {
                 path.display()
             ))]
         })?;
-        if successor && (path.as_os_str() != root.as_os_str() || !filesystem.is_file(&path)) {
+        if successor && (!same_file_spelling(&path, root) || !filesystem.is_file(&path)) {
             return Err(vec![Diagnostic::error(format!(
                 "successor Build entry {} must select a regular file directly",
                 root.display()
@@ -232,4 +235,19 @@ impl StageRoots {
             })
             .transpose()
     }
+}
+
+// Comparing Path components would silently discard "." and repeated separators.
+// Windows accepts both slash spellings of the same captured logical separator.
+fn same_file_spelling(left: &Path, right: &Path) -> bool {
+    let portable = |&byte: &u8| {
+        if byte == std::path::MAIN_SEPARATOR as u8 {
+            b'/'
+        } else {
+            byte
+        }
+    };
+    let left = left.as_os_str().as_encoded_bytes();
+    let right = right.as_os_str().as_encoded_bytes();
+    left.iter().map(portable).eq(right.iter().map(portable))
 }

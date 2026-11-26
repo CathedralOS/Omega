@@ -342,7 +342,7 @@ fn successor_selects_only_the_requested_build_from_its_frozen_package() {
     let stages = root.join("stages");
     std::fs::create_dir(&stages).unwrap();
     let initial = root.join("build.omg");
-    let next = stages.join("next.omg");
+    let next = stages.join("build.lock.omg");
     let main = root.join("main.omg");
     std::fs::write(&initial, "machine build() {}").unwrap();
     std::fs::write(root.join("helper.omg"), "public machine helper() {}").unwrap();
@@ -354,7 +354,7 @@ fn successor_selects_only_the_requested_build_from_its_frozen_package() {
     std::fs::write(&main, "machine main() {}").unwrap();
     std::fs::write(stages.join("main.omg"), "machine nested() {}").unwrap();
     #[cfg(unix)]
-    std::os::unix::fs::symlink("next.omg", stages.join("alias.omg")).unwrap();
+    std::os::unix::fs::symlink("build.lock.omg", stages.join("alias.omg")).unwrap();
     let capture = crate::capture_anonymous_compilation_source(&initial).unwrap();
     std::fs::remove_file(&next).unwrap();
     std::fs::write(stages.join("later.omg"), "machine build() {}").unwrap();
@@ -393,6 +393,8 @@ fn successor_selects_only_the_requested_build_from_its_frozen_package() {
         stages.clone(),
         stages.join("later.omg"),
         stages.join("../build.omg"),
+        root.join("./build.omg"),
+        root.join("build.omg/"),
         stages.join("alias.omg"),
     ] {
         assert!(
