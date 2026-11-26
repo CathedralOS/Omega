@@ -2191,7 +2191,6 @@ pub(crate) mod established_view_input {
             let mut required = A::SharedBorrow;
             let mut initial = None;
             let mut expected_type = None;
-            let mut copied_whole = false;
             for remaining in (0..budget).rev() {
                 if let Some((_, result)) = super::descriptor_result(function, place)
                     .or_else(|| super::descriptor_home(function, place))
@@ -2202,7 +2201,6 @@ pub(crate) mod established_view_input {
                         result.multiplicity,
                     )?;
                     return (supplies(access, required)
-                        && (!copied_whole || access == A::SharedBorrow)
                         && expected_type.is_none_or(|identity| {
                             same_descriptor_presentation(function, result.structural_type, identity)
                         }))
@@ -2256,7 +2254,6 @@ pub(crate) mod established_view_input {
                                     row.id == parameter.structural_type
                                         && row.shape.is_borrowed_byte_carrier()
                                 })))
-                        || (copied_whole && access != A::SharedBorrow)
                         || !supplies(access, required)
                     {
                         return None;
@@ -2318,7 +2315,7 @@ pub(crate) mod established_view_input {
                     result.structural_type,
                     result.multiplicity,
                 )?;
-                if !supplies(access, required) || (copied_whole && access != A::SharedBorrow) {
+                if !supplies(access, required) {
                     return None;
                 }
                 initial.get_or_insert(access);
@@ -2347,7 +2344,6 @@ pub(crate) mod established_view_input {
                             }
                             required = A::SharedBorrow;
                             expected_type = Some(structural_type);
-                            copied_whole = true;
                             place = *source;
                         } else {
                             copied::shared_projection(function, row)?;
@@ -6474,6 +6470,7 @@ pub(crate) mod storage_origin_input {
                 binding: NormalizedForeignCallBinding {
                     boundary_entry_plan: plan,
                     mechanism: NormalizedForeignCallMechanism::BuildImport {
+                        stack: target_vocabulary::NativeBindingStack::Hosted,
                         locator,
                         receipt: execution.receipt(),
                         requirement_identity: "Origin::cell".into(),

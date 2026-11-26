@@ -1,0 +1,32 @@
+// A machine holding `@mutable [u8]` lends it to a reader taking `@[u8]`, then
+// writes through it again.
+data Buf { bytes: [u8; 8]; }
+
+machine at(view: @[u8], i: u64) -> u8 {
+    transition i < view.length {
+        true -> (view[i]),
+        false -> 0
+    }
+}
+
+machine fill(view: @mutable [u8]) -> u32 {
+    let before: u8 = at(@view, 3);
+    transition 3 < view.length {
+        true -> write(view, before),
+        false -> 0
+    }
+
+    machine write(view: @mutable [u8], before: u8) -> u32 requires 3 < view.length {
+        view[3] = 7;
+        let after: u8 = at(@view, 3);
+        (before as u32) + (after as u32)
+    }
+}
+
+machine main() crashes Trap {
+    let mutable b: Buf = Buf { bytes: [0, 1, 2, 3, 4, 5, 6, 8] };
+    let total: u32 = fill(@mutable b.bytes[..]);
+    transition total == 10 { true -> done(), _ -> fail() }
+}
+machine done() {}
+machine fail() crashes Trap { crash Trap; }
