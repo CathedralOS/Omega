@@ -32,16 +32,11 @@ files, including an absent old lock. Recovery finishes writing those bytes.
 An unrelated edit to either project file stops recovery and preserves the
 journal.
 
-Version 2 also records the command and the digest of its exact review proposal.
+The journal records the command and the digest of its exact review proposal.
 Recovery verifies that proposal, writes the pair, removes the completed
 proposal and then removes the journal. When `--resume` opens that journal, it
-reports the finished publication.
-
-Older journals contain only the two project files. To identify their proposal,
-recovery checks the old Build and lock digests, the reviewed Build bytes, the
-target list and the full source graph in the reviewed lock. When these agree,
-it records the proposal's digest before completing the write. A separate
-proposal stays in place when those records do not identify it.
+reports the finished publication. An unrecognized journal format stops
+recovery before either project file is written.
 
 Atomic stages stay under `build/package-manager`, not in source input.
 Replacement keeps permissions, including the executable bit in source
