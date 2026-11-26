@@ -33,7 +33,7 @@ suspends
     suspend Build::prepare_dependency(builder, kit_registered);
 {after}
     machine carried(builder: @mutable Build) {{
-        Build::bind(builder, {target}\\ProgramEntry, main);
+        Build::bind(builder, {target}::ProgramEntry, main);
     }}
     machine wrong(builder: @mutable Build) {{
         Build::application(builder, \"second_role\");
@@ -162,7 +162,7 @@ fn an_anonymous_build_selects_its_own_constant() {
 machine build(builder: @mutable Build) {{
     Build::application(builder, "constant_custody");
     builder.tests.disabled = CHOSEN;
-    Build::bind(builder, {}\ProgramEntry, main);
+    Build::bind(builder, {}::ProgramEntry, main);
 }}"#,
         target.target_name(),
     );
@@ -349,7 +349,7 @@ machine build(builder: @mutable Build) suspends {{
     transition {call} == expected {{ true -> bind(builder), _ -> wrong(builder) }}
     machine announce(builder: @mutable Build) {{ set_role(builder); }}
     machine set_role(builder: @mutable Build) {{ Build::application(builder, "staged"); }}
-    machine bind(builder: @mutable Build) {{ Build::bind(builder, {target}\ProgramEntry, main); }}
+    machine bind(builder: @mutable Build) {{ Build::bind(builder, {target}::ProgramEntry, main); }}
     machine wrong(builder: @mutable Build) {{ Build::application(builder, "wrong"); }}
     {nested}
 }}
@@ -482,7 +482,7 @@ machine build(builder: @mutable Build) suspends {{
     let seven: i32 = |counts|::value();
     require_related(amount, expected, larger, flag, second, enabled);
     suspend Build::prepare_dependency(builder, registered);
-    Build::bind(builder, {target}\ProgramEntry, main);
+    Build::bind(builder, {target}::ProgramEntry, main);
 }}
 machine choose_amount(flag: bool) -> i32 ensures result >= 7 && result <= 9 {{
     match flag {{ true -> 9, _ -> 7 }}
@@ -611,7 +611,7 @@ machine build(builder: @mutable Build) suspends {
         true -> done(builder),
         _ -> wrong(builder)
     }
-    machine done(builder: @mutable Build) { Build::bind(builder, HOST\ProgramEntry, main); }
+    machine done(builder: @mutable Build) { Build::bind(builder, HOST::ProgramEntry, main); }
     machine wrong(builder: @mutable Build) { Build::application(builder, "wrong_byte"); }
 }
 "#.replace("HOST", target.target_name());
@@ -632,8 +632,8 @@ machine build(builder: @mutable Build) suspends {
 fn a_field_borrow_survives_preparing_a_product_dependency() {
     let target = target::TargetProfile::host_if_supported().expect("hosted test target");
     let source = include_str!("fixtures/build/run/borrowed_field_after_mount/build.omg").replace(
-        "linux_x86_64\\ProgramEntry",
-        &format!("{}\\ProgramEntry", target.target_name()),
+        "linux_x86_64::ProgramEntry",
+        &format!("{}::ProgramEntry", target.target_name()),
     );
     let (ran, report) = check_project(
         "borrowed-field",
@@ -668,8 +668,8 @@ fn a_suspending_helper_returns_its_local_value_after_preparation() {
     let original = include_str!("fixtures/build/run/borrowed_field_after_mount/build.omg")
         .replace("\r\n", "\n")
         .replace(
-            "linux_x86_64\\ProgramEntry",
-            &format!("{}\\ProgramEntry", target.target_name()),
+            "linux_x86_64::ProgramEntry",
+            &format!("{}::ProgramEntry", target.target_name()),
         );
     let wait = "suspend Build::prepare_dependency(builder, registration);";
     let mut build = original.replace(
@@ -719,7 +719,7 @@ machine build(builder: @mutable Build) suspends {
         true -> finish(builder),
         _ -> wrong(builder)
     }
-    machine finish(builder: @mutable Build) { Build::bind(builder, HOST\ProgramEntry, main); }
+    machine finish(builder: @mutable Build) { Build::bind(builder, HOST::ProgramEntry, main); }
     machine wrong(builder: @mutable Build) { Build::application(builder, "wrong_dependency_value"); }
 }
 machine ready(builder: @mutable Build, item: DependencyRegistration) -> bool suspends {
@@ -757,8 +757,8 @@ machine ready(builder: @mutable Build, item: DependencyRegistration) -> bool sus
 fn a_helper_prepares_a_package_with_the_callers_borrow_still_live() {
     let target = target::TargetProfile::host_if_supported().expect("hosted test target");
     let original = include_str!("fixtures/build/run/borrowed_field_after_mount/build.omg").replace(
-        "linux_x86_64\\ProgramEntry",
-        &format!("{}\\ProgramEntry", target.target_name()),
+        "linux_x86_64::ProgramEntry",
+        &format!("{}::ProgramEntry", target.target_name()),
     );
     let wait = "suspend Build::prepare_dependency(builder, registration);";
     for (name, inside) in [("helper-wait", false), ("helper-calls-local", true)] {
@@ -816,7 +816,7 @@ machine build(builder: @mutable Build) suspends {
     suspend Build::prepare_dependency(builder, registered);
     let score: i32 = |support|::score();
     transition score == 7 { true -> finish(builder), _ -> wrong(builder) }
-    machine finish(builder: @mutable Build) { Build::bind(builder, HOST\ProgramEntry, main); }
+    machine finish(builder: @mutable Build) { Build::bind(builder, HOST::ProgramEntry, main); }
     machine wrong(builder: @mutable Build) { Build::application(builder, "duplicate"); }
 }"#.replace("HOST", target.target_name());
     let run = |program: &str| {
@@ -905,7 +905,7 @@ machine build(builder: @mutable Build) suspends {
         let actual: i32 = |beta|::value();
         transition actual == 13 { true -> done(builder), _ -> wrong(builder) }
     }
-    machine done(builder: @mutable Build) { Build::bind(builder, HOST\ProgramEntry, main); }
+    machine done(builder: @mutable Build) { Build::bind(builder, HOST::ProgramEntry, main); }
     machine wrong(builder: @mutable Build) { Build::application(builder, "duplicate"); }
 }"#.replace("HOST", target.target_name());
     for (flag, unused_error) in [("true", false), ("false", false), ("true", true)] {
@@ -959,7 +959,7 @@ machine build(builder: @mutable Build) suspends {
     let value: i32 = |counts|::value();
     require_step(start, after);
     require_small(measured);
-    Build::bind(builder, HOST\ProgramEntry, main);
+    Build::bind(builder, HOST::ProgramEntry, main);
 }
 machine pick(flag: bool) -> i32 ensures result >= 7 && result <= 9 { match flag { true -> 7, _ -> 9 } }
 machine increment(value: i32) -> i32 requires value <= 9 ensures result == value + 1 { value + 1 }
@@ -1018,7 +1018,7 @@ machine build(builder: @mutable Build) suspends {
         let value: i32 = |counts|::value();
         transition value == 7 { true -> finish(builder), _ -> wrong(builder) }
     }
-    machine finish(builder: @mutable Build) { Build::bind(builder, HOST\ProgramEntry, main); }
+    machine finish(builder: @mutable Build) { Build::bind(builder, HOST::ProgramEntry, main); }
     machine wrong(builder: @mutable Build) { Build::application(builder, "duplicate_role"); }
 }"#.replace("HOST", target.target_name());
     for (flag, value) in [("true", 7), ("false", 8)] {
@@ -1164,8 +1164,8 @@ fn an_open_reader_and_writer_keep_their_cursor_and_staged_bytes_across_preparati
 fn an_issued_output_keeps_its_borrowed_path_and_obligation_across_preparation() {
     let target = target::TargetProfile::host_if_supported().expect("hosted test target");
     let build = include_str!("fixtures/build/run/required_output_after_mount/build.omg").replace(
-        "linux_x86_64\\ProgramEntry",
-        &format!("{}\\ProgramEntry", target.target_name()),
+        "linux_x86_64::ProgramEntry",
+        &format!("{}::ProgramEntry", target.target_name()),
     );
     let (ran, report) = check_project(
         "issued-output-after-wait",
@@ -1262,7 +1262,7 @@ machine build(builder: @mutable Build) suspends {{
     transition seven == 7 && builder.tests.disabled {{
         true -> carried(builder), _ -> wrong(builder)
     }}
-    machine carried(builder: @mutable Build) {{ Build::bind(builder, {target}\ProgramEntry, main); }}
+    machine carried(builder: @mutable Build) {{ Build::bind(builder, {target}::ProgramEntry, main); }}
     machine wrong(builder: @mutable Build) {{ Build::application(builder, "second"); }}
 }}
 "#
@@ -1484,7 +1484,7 @@ machine wrong() crashes Trap { crash Trap; }
     Build::application(builder, "prepared_product");
     let registered: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "vendor" }));
     suspend Build::prepare_dependency(builder, registered);
-    Build::bind(builder, HOST_TARGET\ProgramEntry, main);
+    Build::bind(builder, HOST_TARGET::ProgramEntry, main);
 }
 "#.replace("HOST_TARGET", host.target_name());
     let invoke = |contents: &str| {
@@ -1539,7 +1539,7 @@ machine wrong() crashes Trap { crash Trap; }
 
 #[test]
 fn an_unused_unbound_import_is_refused_at_the_authored_name() {
-    let build = "use {absent}/helper.omg as missing;\nmachine build(builder: @mutable Build) { Build::application(builder, \"never_used\"); Build::bind(builder, linux_x86_64\\ProgramEntry, main); }\n";
+    let build = "use {absent}/helper.omg as missing;\nmachine build(builder: @mutable Build) { Build::application(builder, \"never_used\"); Build::bind(builder, linux_x86_64::ProgramEntry, main); }\n";
     let (compiled, report) = check_project(
         "unused-deferred",
         build,
@@ -1568,7 +1568,7 @@ machine build(builder: @mutable Build) suspends {
     let registered: DependencyRegistration = Build::dependency(builder, request);
     suspend Build::prepare_dependency(builder, registered);
     let value: i32 = |chosen|::v();
-    Build::bind(builder, HOST\ProgramEntry, main);
+    Build::bind(builder, HOST::ProgramEntry, main);
 }"#.replace("HOST", host.target_name());
     let call = |name, source: &str| {
         check_project_with_support(
@@ -1631,7 +1631,7 @@ machine build(builder: @mutable Build) suspends {
     Build::application(builder, "product_file");
     let registered: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "vendor" }));
     suspend Build::prepare_dependency(builder, registered);
-    Build::bind(builder, HOST\ProgramEntry, |selected|::start);
+    Build::bind(builder, HOST::ProgramEntry, |selected|::start);
 }"#.replace("HOST", host.target_name());
     let invoke = |source: &str, args: &[&str]| {
         std::fs::write(root.join("build.omg"), source).unwrap();
@@ -1684,7 +1684,7 @@ machine build(builder: @mutable Build) suspends {
     dependency\with_alias(@mutable source, "kit");
     let registered: DependencyRegistration = Build::dependency(builder, source);
     suspend Build::prepare_dependency(builder, registered);
-    Build::bind(builder, HOST\ProgramEntry, |entry|::start);
+    Build::bind(builder, HOST::ProgramEntry, |entry|::start);
 }"#.replace("HOST", target);
     let publish = r#"Build::include_source(builder, "generated/start.omg", "use main.omg as seed; public machine start() crashes Trap { transition |seed|::v() == 7 { true -> done(), _ -> bad() } machine done() {} machine bad() { crash Trap; } }");"#;
     let run =

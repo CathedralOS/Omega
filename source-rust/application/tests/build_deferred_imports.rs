@@ -21,7 +21,7 @@ fn check(name: &str, imports: &str, body: &str, product: &str) -> (bool, String)
         format!(
             "{imports}machine build(builder: @mutable Build) {{
     Build::application(builder, \"deferred\");
-    Build::bind(builder, linux_x86_64\\ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
     let mutable lib_request: DependencyDescription = dependency\\from_source(Source::Path {{ location: \"dep\" }});
     dependency\\with_alias(@mutable lib_request, \"lib\");
     let lib_registered: DependencyRegistration = Build::dependency(builder, lib_request);

@@ -36,8 +36,8 @@ machine build(builder: @mutable Build) {
     Build::application(builder, "number_application");
     let dependency: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "../supplier" }));
     Build::select_provider::<numbers\Reading, numbers\ConstantReading>(builder, independent_mode());
-    Build::bind(builder, linux_x86_64\ProgramEntry, main);
-    Build::bind(builder, windows_arm64\ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, windows_arm64::ProgramEntry, main);
 }
 machine independent_mode() -> CompositionMode { CompositionMode::Independent }
 "#).unwrap();
@@ -261,7 +261,7 @@ fn nested_sources(root: &Path, mode: &str) {
     Build::application(builder, "reader");
     let number: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path {{ location: "../supplier" }}));
     Build::select_provider::<numbers\Reading, numbers\Sensor>(builder, linux_x86_64, CompositionMode::{mode});
-    Build::bind(builder, linux_x86_64\ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
 }}"#
     );
     let sources = [

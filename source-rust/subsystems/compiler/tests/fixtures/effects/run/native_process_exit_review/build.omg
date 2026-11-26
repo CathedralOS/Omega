@@ -16,8 +16,8 @@ machine build(builder: @mutable Build) {
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "ExitProcess"
         } });
-    Build::bind(builder, linux_x86_64\ProgramEntry, main);
-    Build::bind(builder, linux_arm64\ProgramEntry, main);
-    Build::bind(builder, macos_arm64\ProgramEntry, main);
-    Build::bind(builder, windows_x86_64\ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
 }

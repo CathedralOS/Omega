@@ -3,9 +3,9 @@ use {omega}/build/dependency.omg;
 machine build(builder: @mutable Build) {
     Build::application(builder, "build_target_provider_match_join");
     let reading_provider_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../../../support/fact_dependencies/reading_provider" }));
-    Build::bind(builder, windows_x86_64\ProgramEntry, first_entry);
-    Build::bind(builder, macos_x86_64\ProgramEntry, first_entry);
-    Build::bind(builder, linux_x86_64\ProgramEntry, first_entry);
-    Build::bind(builder, macos_arm64\ProgramEntry, second_entry);
-    Build::bind(builder, linux_arm64\ProgramEntry, second_entry);
+    Build::bind(builder, windows_x86_64::ProgramEntry, first_entry);
+    Build::bind(builder, macos_x86_64::ProgramEntry, first_entry);
+    Build::bind(builder, linux_x86_64::ProgramEntry, first_entry);
+    Build::bind(builder, macos_arm64::ProgramEntry, second_entry);
+    Build::bind(builder, linux_arm64::ProgramEntry, second_entry);
 }

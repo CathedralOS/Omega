@@ -18,7 +18,7 @@ machine build(builder: @mutable Build) {
         _ -> bad(builder)
     }
     machine good(builder: @mutable Build) {
-        Build::bind(builder, linux_x86_64\ProgramEntry, main);
+        Build::bind(builder, linux_x86_64::ProgramEntry, main);
     }
     machine bad(builder: @mutable Build) {
         _ = BuildProduct::entry(@builder.product, "wrong_const_dependency", "linux_x86_64::ProgramEntry");

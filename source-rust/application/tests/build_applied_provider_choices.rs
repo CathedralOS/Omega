@@ -80,7 +80,7 @@ fn check_package(name: &str, build: &str, files: &[(&str, &str)], main: &str) ->
         "machine build(builder: @mutable Build) {
     Build::application(builder, \"reader\");
     let registration: DependencyRegistration = Build::dependency(builder, dependency\\from_source(Source::Path { location: \"../reading\" }));
-    Build::bind(builder, linux_x86_64\\ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
 }
 ",
     )

@@ -9,10 +9,10 @@ machine build(builder: @mutable Build) {
     let mutable runtime_generator_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "generator" });
     |dependency|::with_alias(@mutable runtime_generator_dependency, "runtime_generator");
     let runtime_generator_registration: DependencyRegistration = Build::dependency(builder, runtime_generator_dependency);
-    Build::bind(builder, windows_x86_64\ProgramEntry, main);
-    Build::bind(builder, linux_x86_64\ProgramEntry, main);
-    Build::bind(builder, macos_arm64\ProgramEntry, main);
-    Build::bind(builder, linux_arm64\ProgramEntry, main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
 
     let companion: RequiredOutput = BuildOutput::require(@mutable builder.output, "companion.txt");
     let source: RequiredOutput = BuildOutput::require(@mutable builder.output, "generated.omg");

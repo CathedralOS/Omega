@@ -25,7 +25,7 @@ const APP_BUILD: &str = "machine build(builder: @mutable Build) {
     let mutable vendor_dependency: DependencyDescription = dependency\\from_source(Source::Path { location: \"vendor\" });
     dependency\\with_alias(@mutable vendor_dependency, \"vendor\");
     let vendor_registration: DependencyRegistration = Build::dependency(builder, vendor_dependency);
-    Build::bind(builder, linux_x86_64\\ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
 }
 ";
 const APP_MAIN: &str = "use vendor;

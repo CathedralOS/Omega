@@ -137,7 +137,7 @@ machine build(builder: @mutable Build) suspends {
     machine unused(builder: @mutable Build) suspends {
         suspend Build::await_provider::<|image|::ProgramImage, |backing|::TestImage>(builder);
     }
-    machine finish(builder: @mutable Build) { Build::bind(builder, linux_x86_64\ProgramEntry, main); }
+    machine finish(builder: @mutable Build) { Build::bind(builder, linux_x86_64::ProgramEntry, main); }
 }
 "#;
     check(source).unwrap();

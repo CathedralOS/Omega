@@ -33,7 +33,7 @@ fn check(name: &str, body: &str) -> (bool, String) {
         format!(
             "machine build(builder: @mutable Build) {{
     Build::application(builder, \"promised\");
-    Build::bind(builder, linux_x86_64\\ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
 {body}}}
 machine settle(builder: @mutable Build, settled: OutputCompletion) {{
     transition settled {{

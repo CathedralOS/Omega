@@ -114,8 +114,8 @@ machine firmware(image: Extent in Granted, initial_storage: Extent in Granted)
     Build::select_provider::<Clock, FixedClock>(builder, mode);
     Build::select_provider::<Sensor, FirmwareSensor>(builder, uefi_x86_64);
     Build::select_provider::<Clock, FixedClock>(builder, interpreter);
-    Build::bind(builder, uefi_x86_64\ProgramEntry, firmware);
-    Build::bind(builder, linux_x86_64\ProgramEntry, hosted);
+    Build::bind(builder, uefi_x86_64::ProgramEntry, firmware);
+    Build::bind(builder, linux_x86_64::ProgramEntry, hosted);
 }
 machine fused_mode() -> CompositionMode { CompositionMode::Fused }"#,
     )
@@ -159,10 +159,8 @@ fn one_portable_program_carries_the_four_selected_entry_contracts() {
         false,
     )
     .unwrap();
-    let root = temp.path();
-    for name in ["build.omg", "main.omg"] {
-        std::fs::copy(fixture.join(name), root.join(name)).unwrap();
-    }
+    let root = temp.path().canonicalize().unwrap();
+    std::fs::copy(fixture.join("build.omg"), root.join("build.omg")).unwrap();
     // The application owns an unrelated source at the exact relative path of
     // the Linux contract. It remains an ordinary declaration of this package.
     let linux = TargetProfile::LinuxX64
@@ -172,13 +170,24 @@ fn one_portable_program_carries_the_four_selected_entry_contracts() {
     let relative = linux.package_relative_source();
     let other = root.join(relative);
     std::fs::create_dir_all(other.parent().unwrap()).unwrap();
-    std::fs::write(other, "public data UnrelatedEntry {}").unwrap();
+    std::fs::write(&other, "public data UnrelatedEntry {}").unwrap();
+    let program = std::fs::read_to_string(fixture.join("main.omg")).unwrap();
+    std::fs::write(
+        root.join("main.omg"),
+        format!("use {relative} as application_entry;\n{program}"),
+    )
+    .unwrap();
     let (returned, inputs) = run_project_build_with_sources(
-        &root.join("main.omg"),
+        &root.join("build.omg"),
         &targets,
         &["main.omg", "build.omg", relative],
     );
     let project = returned.open_product(Some(&inputs)).unwrap();
+    assert!(project.source().parsed.files.selected_files().any(|file| {
+        file.path == other
+            && file.package_identity == Some(inputs.root())
+            && file.dependency_scope == source_provenance::DependencyScope::Product
+    }));
     let firmware = TargetProfile::UefiX64
         .program_entry_slot()
         .physical_contract_package
@@ -269,8 +278,8 @@ fn private_entry_requires_the_target_of_its_parent() {
         project.path().join("build.omg"),
         r#"machine build(builder: @mutable Build) {
         Build::application(builder, "entry_target");
-        Build::bind(builder, linux_x86_64\ProgramEntry, main);
-        Build::bind(builder, linux_arm64\ProgramEntry, main);
+        Build::bind(builder, linux_x86_64::ProgramEntry, main);
+        Build::bind(builder, linux_arm64::ProgramEntry, main);
     }"#,
     )
     .unwrap();
@@ -773,7 +782,7 @@ fn root_and_private_callable_enforce_the_selected_process_exit() {
         workspace.path().join("build.omg"),
         r#"machine build(builder: @mutable Build) {
     Build::application(builder, "exit_scope");
-    Build::bind(builder, linux_x86_64\ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
 }"#,
     )
     .unwrap();
@@ -975,7 +984,7 @@ fn fresh_review_records_the_build_that_declared_the_package() {
     let root = temp.path();
     std::fs::write(
         root.join("build.omg"),
-        r#"machine build(builder: @mutable Build) { Build::application(builder, "review_example"); Build::bind(builder, linux_x86_64\ProgramEntry, main); }"#,
+        r#"machine build(builder: @mutable Build) { Build::application(builder, "review_example"); Build::bind(builder, linux_x86_64::ProgramEntry, main); }"#,
     )
     .unwrap();
     std::fs::write(root.join("main.omg"), "machine main() {}").unwrap();

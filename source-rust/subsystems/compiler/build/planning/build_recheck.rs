@@ -586,7 +586,7 @@ machine build(builder: @mutable Build) {
 use main.omg as app;
 machine build(builder: @mutable Build) {
     |helper|::configure(builder);
-    Build::bind(builder, linux_x86_64\ProgramEntry, |app|::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
 }
 "#,
         )
@@ -672,7 +672,7 @@ machine build(builder: @mutable Build) {
     }
     machine named(builder: @mutable Build) {
         Build::application(builder, "const_app");
-        Build::bind(builder, linux_x86_64\ProgramEntry, |app|::main);
+        Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
     }
     machine wrong(builder: @mutable Build) {
         Build::application(builder, "other_app");

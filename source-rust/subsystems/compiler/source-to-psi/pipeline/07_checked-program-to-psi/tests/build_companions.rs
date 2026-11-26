@@ -333,7 +333,7 @@ fn published_boundary_calls(program: &ProducedTerminalProgram) -> Vec<BuildCallS
 const ONE_BINDING: &str = r#"
 machine build(builder: @mutable Build) {
     BuildRequestOperations::artifact_only(builder);
-    Build::bind(builder, linux_x86_64\ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
 }
 "#;
 
@@ -392,8 +392,8 @@ fn each_binding_of_one_machine_keeps_its_own_entry() {
     let program = produced(
         r#"
 machine build(builder: @mutable Build) {
-    Build::bind(builder, linux_x86_64\ProgramEntry, first);
-    Build::bind(builder, windows_x86_64\ProgramEntry, second);
+    Build::bind(builder, linux_x86_64::ProgramEntry, first);
+    Build::bind(builder, windows_x86_64::ProgramEntry, second);
 }
 "#,
     )
@@ -452,10 +452,10 @@ machine build(builder: @mutable Build) {
     second(builder);
 }
 machine first(builder: @mutable Build) {
-    Build::bind(builder, linux_x86_64\ProgramEntry, one);
+    Build::bind(builder, linux_x86_64::ProgramEntry, one);
 }
 machine second(builder: @mutable Build) {
-    Build::bind(builder, windows_x86_64\ProgramEntry, two);
+    Build::bind(builder, windows_x86_64::ProgramEntry, two);
 }
 "#;
 

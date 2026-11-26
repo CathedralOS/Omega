@@ -40,8 +40,10 @@ fn collection_catalog_keeps_its_build_product_and_query_source_cohorts() {
     };
     let mut catalogue = source_compiler::representations::source_inputs::SourceCatalogue::default();
     let mut timings = CompileTimings::default();
+    // This case opens an authored Build with no retained entry bindings.
+    // Selecting main.omg here would request the implicit executable instead.
     let checkpoint = ImmutableSourceParseCheckpoint::prepare_from_sources(
-        &root,
+        &root.with_file_name("build.omg"),
         None,
         None,
         &mut timings,
@@ -224,7 +226,7 @@ fn the_build_assembly_reports_only_the_imports_needed_to_execute_it() {
 use {product}/main.omg as entry;
 machine build(builder: @mutable Build) {
     let n: i32 = |score|::read();
-    Build::bind(builder, linux_x86_64\ProgramEntry, |entry|::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |entry|::main);
 }
 "#,
     )
@@ -269,7 +271,7 @@ machine build(builder: @mutable Build) suspends {
         let value: i32 = |scores|::value();
     }
     machine done(builder: @mutable Build) {
-        Build::bind(builder, linux_x86_64\ProgramEntry, main);
+        Build::bind(builder, linux_x86_64::ProgramEntry, main);
     }
 }
 "#;
@@ -278,7 +280,7 @@ use {omega}/build/dependency.omg as dependencies;
 machine build(builder: @mutable Build) {
     let kit: DependencyDescription = |dependencies|::from_source(Source::Path { location: "lib" });
     _ = Build::dependency(builder, kit);
-    Build::bind(builder, linux_x86_64\ProgramEntry, |scores|::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |scores|::main);
 }
 "#;
     let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(

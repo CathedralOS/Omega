@@ -42,7 +42,7 @@ fn check(name: &str, after: &str, dep: &str) -> (bool, String) {
 suspends
 {{
     Build::application(builder, \"prepares\");
-    Build::bind(builder, linux_x86_64\\ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
     let mutable request: DependencyDescription = dependency\\from_source(Source::Path {{ location: \"dep\" }});
     dependency\\with_alias(@mutable request, \"kit\");
     let registered: DependencyRegistration = Build::dependency(builder, request);

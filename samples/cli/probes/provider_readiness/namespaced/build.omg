@@ -14,10 +14,10 @@ requires addr::Bound == 18446744073709551616 {
         _ -> wrong_backing(builder)
     }
     machine finish(builder: @mutable Build) {
-        Build::bind(builder, windows_x86_64\ProgramEntry, main);
-        Build::bind(builder, linux_x86_64\ProgramEntry, main);
-        Build::bind(builder, macos_arm64\ProgramEntry, main);
-        Build::bind(builder, linux_arm64\ProgramEntry, main);
+        Build::bind(builder, windows_x86_64::ProgramEntry, main);
+        Build::bind(builder, linux_x86_64::ProgramEntry, main);
+        Build::bind(builder, macos_arm64::ProgramEntry, main);
+        Build::bind(builder, linux_arm64::ProgramEntry, main);
     }
     machine wrong_backing(builder: @mutable Build) {
         Build::application(builder, "wrong_backing");
