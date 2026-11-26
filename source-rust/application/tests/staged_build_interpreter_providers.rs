@@ -118,7 +118,7 @@ fn a_successor_with_an_unmapped_service_cannot_begin_execution() {
     let (output, report) = run("linux_x86_64", None, poison);
     assert!(!output.status.success(), "{report}");
     assert!(
-        report.contains("before entry; no interpreter provider was supplied"),
+        report.contains("before entry; no interpreter provider or host binding was supplied"),
         "{report}"
     );
     assert!(
