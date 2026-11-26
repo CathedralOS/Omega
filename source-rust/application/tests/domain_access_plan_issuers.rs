@@ -9,9 +9,9 @@ mod support;
 
 use std::process::{Command, Stdio};
 
-fn run_both(project: &std::path::Path, arguments: &[&str]) -> (bool, String) {
+fn invoke(route: &[&str], project: &std::path::Path, arguments: &[&str]) -> (bool, String) {
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["run", "--both"])
+        .args(route)
         .args(arguments)
         .current_dir(project)
         .stdin(Stdio::null())
@@ -27,20 +27,22 @@ fn run_both(project: &std::path::Path, arguments: &[&str]) -> (bool, String) {
 
 #[test]
 fn the_machine_a_domain_plan_lists_may_issue_it() {
-    let (succeeded, report) = run_both(
-        &support::repository_root()
-            .join("source-rust/application/tests/fixtures/domains/run/access_plan_issuer"),
-        &["main.omg"],
-    );
-    assert!(succeeded, "{report}");
-    for receipt in ["native exit 0", "interp exit: 0"] {
+    for (engine, receipt) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+        let (succeeded, report) = invoke(
+            &["run", "--engine", engine],
+            &support::repository_root()
+                .join("source-rust/application/tests/fixtures/domains/run/access_plan_issuer"),
+            &["main.omg"],
+        );
+        assert!(succeeded, "{report}");
         assert!(report.lines().any(|line| line == receipt), "{report}");
     }
 }
 
 #[test]
 fn a_machine_the_domain_plan_does_not_list_is_refused() {
-    let (succeeded, report) = run_both(
+    let (succeeded, report) = invoke(
+        &["--check"],
         &support::repository_root()
             .join("source-rust/application/tests/fixtures/domains/fail/access_plan_other_issuer"),
         &["main.omg"],
@@ -66,9 +68,9 @@ fn an_unrestricted_policy_checks_its_predicates_on_an_unissued_value() {
         "build.omg",
     ];
     std::fs::write(project.path().join("main.omg"), source).unwrap();
-    let (succeeded, report) = run_both(project.path(), &arguments);
-    assert!(succeeded, "{report}");
-    for receipt in ["native exit 0", "interp exit: 0"] {
+    for (engine, receipt) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+        let (succeeded, report) = invoke(&["run", "--engine", engine], project.path(), &arguments);
+        assert!(succeeded, "{report}");
         assert!(report.lines().any(|line| line == receipt), "{report}");
     }
 
@@ -76,7 +78,7 @@ fn an_unrestricted_policy_checks_its_predicates_on_an_unissued_value() {
     assert_eq!(source.matches(unrestricted).count(), 1);
     let denied = source.replace(unrestricted, "|layout|::Issuance::Only { routes: [] }");
     std::fs::write(project.path().join("main.omg"), denied).unwrap();
-    let (succeeded, report) = run_both(project.path(), &arguments);
+    let (succeeded, report) = invoke(&["--check"], project.path(), &arguments);
     assert!(!succeeded, "{report}");
     assert!(
         report.contains("requires retained authorized provenance"),
@@ -134,24 +136,24 @@ machine main() crashes Trap {
     ] {
         let program = source.replace("|reflection|::callable(stamp)", route);
         std::fs::write(project.path().join("main.omg"), &program).unwrap();
-        let (succeeded, report) = run_both(
-            project.path(),
-            &[
-                "--build-input",
-                "main.omg",
-                "--build-input",
-                "build.omg",
-                "build.omg",
-            ],
-        );
-        assert_eq!(succeeded, allowed, "{report}");
-        if allowed {
-            assert!(
-                report.contains("native exit 0") && report.contains("interp exit: 0"),
-                "{report}"
+        for (engine, receipt) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+            let (succeeded, report) = invoke(
+                &["run", "--engine", engine],
+                project.path(),
+                &[
+                    "--build-input",
+                    "main.omg",
+                    "--build-input",
+                    "build.omg",
+                    "build.omg",
+                ],
             );
-        } else {
-            assert_denied_cast(&report, &program, "i64::Stamped");
+            assert_eq!(succeeded, allowed, "{report}");
+            if allowed {
+                assert!(report.lines().any(|line| line == receipt), "{report}");
+            } else {
+                assert_denied_cast(&report, &program, "i64::Stamped");
+            }
         }
     }
 }
@@ -236,13 +238,18 @@ public StampedProbe satisfies Probe {
     for (plan, runs) in [(issued.to_owned(), true), (read_restricted, false)] {
         let program = source.replace("PLAN", &plan);
         std::fs::write(kit.join("main").join("stamps.omg"), &program).unwrap();
-        let (succeeded, report) = run_both(project.path(), &["build.omg"]);
-        assert_eq!(succeeded, runs, "{report}");
         if runs {
-            for receipt in ["native exit 0", "interp exit: 0"] {
-                assert!(report.lines().any(|line| line == receipt), "{report}");
+            for (engine, receipt) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+                let (succeeded, report) =
+                    invoke(&["run", "--engine", engine], project.path(), &["build.omg"]);
+                assert!(
+                    succeeded && report.lines().any(|line| line == receipt),
+                    "{report}"
+                );
             }
         } else {
+            let (succeeded, report) = invoke(&["--check"], project.path(), &["build.omg"]);
+            assert!(!succeeded, "{report}");
             // The checker names the member whose body holds the removal.
             let (prefix, _) = program.split_once("probe() -> i64 {").unwrap();
             let line = prefix.lines().count();

@@ -1,7 +1,7 @@
 /*
 
 End-to-end CLI check that a provider a Build selects runs on both engines
-(`omega run --both`).
+on each selected application engine.
 
 `Build::select_provider<Service, Native>(builder, target)` chooses which
 implementation answers a boundary requirement on one target
@@ -61,7 +61,7 @@ Native satisfies Service {{
     )
 }
 
-fn run_both(name: &str, product: &str, build: &str) -> (ExitStatus, String) {
+fn run_fixture(engine: &str, name: &str, product: &str, build: &str) -> (ExitStatus, String) {
     let root = std::env::temp_dir().join(format!(
         "omega-selected-provider-{name}-{}",
         std::process::id()
@@ -73,7 +73,8 @@ fn run_both(name: &str, product: &str, build: &str) -> (ExitStatus, String) {
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
         .args([
             "run",
-            "--both",
+            "--engine",
+            engine,
             "build.omg",
             "--build-input",
             "build.omg",
@@ -93,10 +94,16 @@ fn run_both(name: &str, product: &str, build: &str) -> (ExitStatus, String) {
     (output.status, report)
 }
 
-fn assert_agreed_exit_zero((status, report): (ExitStatus, String)) {
-    assert!(status.success(), "{report}");
-    assert!(report.contains("native exit 0"), "{report}");
-    assert!(report.contains("interp exit: 0"), "{report}");
+fn assert_normal_return(engine: &str, (status, report): (ExitStatus, String)) {
+    let expected = if engine == "native" {
+        "native exit 0"
+    } else {
+        "Psi exit 0"
+    };
+    assert!(
+        status.success() && report.lines().any(|line| line == expected),
+        "{report}"
+    );
 }
 
 #[test]
@@ -127,19 +134,29 @@ machine entry() {}
     Build::bind(builder, {target}::ProgramEntry, entry);
 }}"#
     );
-    assert_agreed_exit_zero(run_both("uncalled_requirement", program, &build));
+    for engine in ["native", "psi"] {
+        assert_normal_return(
+            engine,
+            run_fixture(engine, "uncalled_requirement", program, &build),
+        );
 
-    let wrong = build.replace("Copy<Tag, Word, u32>", "Copy<Word, Tag, u32>");
-    let (status, report) = run_both("wrong_uncalled_requirement", program, &wrong);
-    assert!(
-        !status.success() && report.contains("does not satisfy"),
-        "{report}"
-    );
+        let wrong = build.replace("Copy<Tag, Word, u32>", "Copy<Word, Tag, u32>");
+        let (status, report) = run_fixture(engine, "wrong_uncalled_requirement", program, &wrong);
+        assert!(
+            !status.success() && report.contains("does not satisfy"),
+            "{report}"
+        );
+    }
 }
 
 #[test]
 fn a_selected_referenced_provider_runs_on_both_engines() {
-    assert_agreed_exit_zero(run_both("referenced", &referenced("value + 1"), BUILD));
+    for engine in ["native", "psi"] {
+        assert_normal_return(
+            engine,
+            run_fixture(engine, "referenced", &referenced("value + 1"), BUILD),
+        );
+    }
 }
 
 #[test]
@@ -150,16 +167,22 @@ fn a_selected_inline_provider_runs_on_both_engines() {
 }}
 {ENTRY}"
     );
-    assert_agreed_exit_zero(run_both("inline", &inline, BUILD));
+    for engine in ["native", "psi"] {
+        assert_normal_return(engine, run_fixture(engine, "inline", &inline, BUILD));
+    }
 }
 
 #[test]
 fn a_selected_provider_with_another_answer_traps_at_the_entry_check() {
-    let (status, report) = run_both("wrong-answer", &referenced("value"), BUILD);
-    assert!(!status.success(), "{report}");
-    assert!(!report.contains("no product route yet"), "{report}");
-    assert!(report.contains("interp crash: Trap"), "{report}");
-    assert!(!report.contains("native exit 0"), "{report}");
+    for engine in ["native", "psi"] {
+        let (status, report) = run_fixture(engine, "wrong-answer", &referenced("value"), BUILD);
+        assert!(!status.success(), "{report}");
+        assert!(!report.contains("no product route yet"), "{report}");
+        if engine == "psi" {
+            assert!(report.contains("Psi crash: Trap"), "{report}");
+        }
+        assert!(!report.contains("native exit 0"), "{report}");
+    }
 }
 
 #[test]
@@ -168,7 +191,12 @@ fn a_checked_provider_calls_each_callback_with_its_original_arguments() {
         support::repository_root().join("samples/cli/facts/dynamic_trait_dispatch/target_body");
     let program = std::fs::read_to_string(sample.join("main.omg")).unwrap();
     let build = std::fs::read_to_string(sample.join("build.omg")).unwrap();
-    assert_agreed_exit_zero(run_both("callback-arguments", &program, &build));
+    for engine in ["native", "psi"] {
+        assert_normal_return(
+            engine,
+            run_fixture(engine, "callback-arguments", &program, &build),
+        );
+    }
 }
 
 #[test]
@@ -201,21 +229,25 @@ machine entry() crashes Trap {
     Build::bind(builder, {target}::ProgramEntry, entry);
 }}"#
     );
-    assert_agreed_exit_zero(run_both("qualified", program, &build));
+    for engine in ["native", "psi"] {
+        assert_normal_return(engine, run_fixture(engine, "qualified", program, &build));
 
-    let wrong_provider = build.replace("Tag::Right>, Second", "Tag::Right>, First");
-    let (status, report) = run_both("wrong_qualified_provider", program, &wrong_provider);
-    assert!(
-        !status.success() && report.contains("does not satisfy"),
-        "{report}"
-    );
+        let wrong_provider = build.replace("Tag::Right>, Second", "Tag::Right>, First");
+        let (status, report) =
+            run_fixture(engine, "wrong_qualified_provider", program, &wrong_provider);
+        assert!(
+            !status.success() && report.contains("does not satisfy"),
+            "{report}"
+        );
 
-    let wrong_carrier = build.replace("Tag in Tag::Right", "Other in Tag::Right");
-    let (status, report) = run_both("wrong_qualified_carrier", program, &wrong_carrier);
-    assert!(
-        !status.success() && report.contains("does not qualify"),
-        "{report}"
-    );
+        let wrong_carrier = build.replace("Tag in Tag::Right", "Other in Tag::Right");
+        let (status, report) =
+            run_fixture(engine, "wrong_qualified_carrier", program, &wrong_carrier);
+        assert!(
+            !status.success() && report.contains("does not qualify"),
+            "{report}"
+        );
+    }
 }
 
 #[test]
@@ -249,10 +281,15 @@ machine build(builder: @mutable Build) {{
     Build::bind(builder, {target}::ProgramEntry, |app|::entry);
 }}"#
     );
-    assert_agreed_exit_zero(run_both("aliased_slots", program, &build));
-    let erased = build.replace("|app|::WordPacket", "|app|::CopyPacket<|app|::Ticket>");
-    let (status, report) = run_both("invalid_alias_actual", program, &erased);
-    assert!(!status.success() && report.contains("copy"), "{report}");
+    for engine in ["native", "psi"] {
+        assert_normal_return(
+            engine,
+            run_fixture(engine, "aliased_slots", program, &build),
+        );
+        let erased = build.replace("|app|::WordPacket", "|app|::CopyPacket<|app|::Ticket>");
+        let (status, report) = run_fixture(engine, "invalid_alias_actual", program, &erased);
+        assert!(!status.success() && report.contains("copy"), "{report}");
+    }
 }
 
 #[test]
@@ -282,14 +319,16 @@ machine choose<T>(builder: @mutable Build) {{
     Build::select_provider::<|app|::Reading<T>, |app|::Words>(builder, {target});
 }}"#
     );
-    assert_agreed_exit_zero(run_both("helper_alias", product, &build));
+    for engine in ["native", "psi"] {
+        assert_normal_return(engine, run_fixture(engine, "helper_alias", product, &build));
 
-    let invalid = build.replace("Word<u64>", "Word<Ticket>");
-    let (status, report) = run_both("helper_alias_bound", product, &invalid);
-    assert!(
-        !status.success() && report.contains("requires `[copy]`"),
-        "{report}"
-    );
+        let invalid = build.replace("Word<u64>", "Word<Ticket>");
+        let (status, report) = run_fixture(engine, "helper_alias_bound", product, &invalid);
+        assert!(
+            !status.success() && report.contains("requires `[copy]`"),
+            "{report}"
+        );
+    }
 }
 
 #[test]
@@ -323,38 +362,39 @@ public WordLayout satisfies |layout|::FixedLayout<Word> {
 machine storage_probe() {}
 "#;
     let target = host.target_name();
-    for (name, placement, value, storage, reason) in [
-        (
-            "plain_resident_storage",
-            "WordPlacement",
-            "Word",
-            "Word",
-            "`|app|::Word` is an ordinary value type",
-        ),
-        (
-            "wrong_resident_schema",
-            "OtherPlacement",
-            "Other",
-            "WordStorage",
-            "storage represents `Word`, but the operation requires `|app|::Other`",
-        ),
-        (
-            "unqualified_resident_index",
-            "Word",
-            "Word",
-            "WordStorage",
-            "must name a domain-qualified type",
-        ),
-        (
-            "wrong_resident_index_carrier",
-            "OtherPlacement",
-            "Word",
-            "WordStorage",
-            "does not qualify the supplied value type",
-        ),
-    ] {
-        let build = format!(
-            r#"use main.omg as app;
+    for engine in ["native", "psi"] {
+        for (name, placement, value, storage, reason) in [
+            (
+                "plain_resident_storage",
+                "WordPlacement",
+                "Word",
+                "Word",
+                "`|app|::Word` is an ordinary value type",
+            ),
+            (
+                "wrong_resident_schema",
+                "OtherPlacement",
+                "Other",
+                "WordStorage",
+                "storage represents `Word`, but the operation requires `|app|::Other`",
+            ),
+            (
+                "unqualified_resident_index",
+                "Word",
+                "Word",
+                "WordStorage",
+                "must name a domain-qualified type",
+            ),
+            (
+                "wrong_resident_index_carrier",
+                "OtherPlacement",
+                "Word",
+                "WordStorage",
+                "does not qualify the supplied value type",
+            ),
+        ] {
+            let build = format!(
+                r#"use main.omg as app;
 use {{omega}}/language/core/layout.omg as layout;
 machine build(builder: @mutable Build) {{
     Build::application(builder, "storage_probe");
@@ -362,9 +402,10 @@ machine build(builder: @mutable Build) {{
     Build::select_provider::<|layout|::AccessLifecycle<|app|::{placement}, |app|::{value}>, |layout|::NativeAccess<|app|::{placement}, |app|::{value}, |app|::{storage}, |app|::TestMemory>>(builder, {target});
     Build::bind(builder, {target}::ProgramEntry, |app|::storage_probe);
 }}"#
-        );
-        let (status, report) = run_both(name, program, &build);
-        assert!(!status.success() && report.contains(reason), "{report}");
+            );
+            let (status, report) = run_fixture(engine, name, program, &build);
+            assert!(!status.success() && report.contains(reason), "{report}");
+        }
     }
 }
 
@@ -396,10 +437,12 @@ machine build(builder: @mutable Build) {{
     Build::bind(builder, {target}::ProgramEntry, |app|::storage_probe);
 }}"#
     );
-    let (status, report) = run_both("matching_resident_index", &program, &build);
-    if status.success() {
-        assert_agreed_exit_zero((status, report));
-    } else {
-        assert!(report.contains("resident placement needs evaluated layout, access policy, live content and the selected resource profile for this grant"), "{report}");
+    for engine in ["native", "psi"] {
+        let (status, report) = run_fixture(engine, "matching_resident_index", &program, &build);
+        if status.success() {
+            assert_normal_return(engine, (status, report));
+        } else {
+            assert!(report.contains("resident placement needs evaluated layout, access policy, live content and the selected resource profile for this grant"), "{report}");
+        }
     }
 }
