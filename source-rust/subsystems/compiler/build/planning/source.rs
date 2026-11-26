@@ -215,12 +215,15 @@ pub fn prepare(
             }
             execution.prepared_unsafe_atoms = successor.enabled_unsafe_atoms;
             execution.interpreter_providers = successor.providers;
-            if successor.preparations.supplied_package {
-                execution.snapshot = Some(package_compilation::BuildSnapshotRequest::new(package_compilation::BuildSnapshotCapture::PackageInventory));
-            }
             successor_source = successor.capture;
             successor_owner = successor.source_owner;
             preparations = successor.preparations;
+            // Only the read-only package selection crosses this handoff. The
+            // successor has its own staging, runtime directory grants and obligations.
+            execution.snapshot = preparations
+                .package_capture
+                .take()
+                .map(package_compilation::BuildSnapshotRequest::new);
             entry = CapturedBuildEntry::Successor {
                 path: request.root,
                 source_owner: successor_owner.as_ref(),
@@ -232,6 +235,10 @@ pub fn prepare(
     };
     let supplied_libraries: Arc<[_]> = supplied_libraries.into();
     let mut execution = execution.resolve_compilation_defaults(inputs, capture.is_some());
+    preparations.package_capture = execution
+        .snapshot
+        .as_ref()
+        .map(|request| request.capture().clone());
     let profile = execution.profile.ok_or_else(|| {
         vec![Diagnostic::error(
             "Build execution requires an explicit profile on an uncatalogued host",
