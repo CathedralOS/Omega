@@ -347,7 +347,7 @@ fn only_executed_core_unsafe_opt_ins_admit_the_returned_product() {
     let cases = [
         (read.to_owned(), None),
         (
-            format!("if false {{ {read} }}"),
+            format!("let selected: u32 = match false {{ true -> {{ {read} 1u32 }}, false -> 0u32 }};"),
             Some("did not enable Unsafe + RawMemoryRead"),
         ),
         (
