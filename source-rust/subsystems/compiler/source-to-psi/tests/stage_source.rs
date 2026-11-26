@@ -198,6 +198,41 @@ fn a_recursive_view_must_reborrow_its_last_live_carrier() {
 }
 
 #[test]
+fn a_nested_machine_inherits_its_enclosing_nominal_callback_contract() {
+    let package = PackageKeyIdentity::from_digest([0x79; 32]).unwrap();
+    let client = r#"
+        public trait Step<Element> {
+            machine apply(item: @mutable Element) terminates;
+        }
+        public machine visit<Element, const Run: Step<Element>::apply>(items: @mutable [Element]) {
+            transition items.length > 0 { true -> done(), _ -> done() }
+            machine done() {}
+        }
+        machine reset(item: @mutable i32) satisfies Step<i32>::apply {}
+        machine main() {
+            let mutable items: [i32; 1] = [1];
+            visit::<i32, reset>(@mutable items[..])
+        }"#;
+    let (files, root) = captured(package, client);
+    compile(product(files, root, package, &[]).unwrap(), None)
+        .expect("the nested state captures the original Element and Run declarations");
+
+    let mismatch = client.replace(
+        "reset(item: @mutable i32) satisfies Step<i32>",
+        "reset(item: @mutable u64) satisfies Step<u64>",
+    );
+    let (files, root) = captured(package, &mismatch);
+    let errors = compile(product(files, root, package, &[]).unwrap(), None)
+        .expect_err("a different Step application cannot supply the callback");
+    assert!(
+        errors.iter().any(|error| error
+            .message
+            .contains("must satisfy the exact requirement of `Run`")),
+        "{errors:?}"
+    );
+}
+
+#[test]
 fn a_nested_generic_callback_can_update_a_plain_record() {
     let package = PackageKeyIdentity::from_digest([0x76; 32]).unwrap();
     let source = r#"

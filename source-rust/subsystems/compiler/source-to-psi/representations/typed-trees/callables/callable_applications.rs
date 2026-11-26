@@ -9403,38 +9403,62 @@ impl TypedTrees {
         &mut self,
         first_parameter: usize,
     ) -> Result<(), &'static str> {
-        let pending = self
-            .data_type_parameters
-            .iter_from(first_parameter)
-            .filter_map(|(handle, parameter)| match &parameter.kind {
-                data::TypeParameterKind::Machine {
-                    contract:
-                        data::MachineParameterContract::Nominal {
-                            receiving_trait,
-                            receiving_arguments,
-                            requirement,
-                            instantiated: None,
-                            ..
-                        },
-                } => Some((
-                    handle,
-                    *receiving_trait,
-                    *requirement,
-                    receiving_arguments.clone(),
-                    parameter.symbol,
-                )),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        for (handle, selected_trait, requirement, arguments, parameter) in pending {
-            let lexical_owner = self.declaration_scope_parent(parameter);
-            let contract = CallableApplication {
-                region_scope: lexical_owner,
-                ..CallableApplication::default()
+        use data::{MachineParameterContract::Nominal, TypeParameterKind::Machine};
+
+        // A lexical declaration can carry its enclosing machine's exact binder.
+        // The receiver arguments and the supplying binder determine the applied
+        // signature. Every occurrence of that application must share its rows.
+        let mut applications = std::collections::BTreeMap::new();
+        for (handle, parameter) in self.data_type_parameters.iter_from(first_parameter) {
+            let Machine {
+                contract:
+                    Nominal {
+                        receiving_trait,
+                        requirement,
+                        receiving_arguments,
+                        instantiated: None,
+                        ..
+                    },
+            } = &parameter.kind
+            else {
+                continue;
+            };
+            let key = (
+                parameter.symbol,
+                *receiving_trait,
+                *requirement,
+                receiving_arguments.clone(),
+            );
+            let (_, occurrences) = applications.entry(key).or_insert_with(|| {
+                // A later source cohort can capture a previously prepared binder.
+                let earlier = self.with_type_parameter_declarations(parameter.symbol, |rows| {
+                    rows.iter().copied().find(|&row| {
+                        matches!(&self.data_type_parameters.get(row).kind, Machine {
+                            contract: Nominal {
+                                receiving_trait: receiver, requirement: member, receiving_arguments: arguments,
+                                instantiated: Some(_), ..
+                            },
+                        } if receiver == receiving_trait && member == requirement && arguments == receiving_arguments)
+                    })
+                });
+                (earlier, Vec::new())
+            });
+            occurrences.push(handle);
+        }
+        for ((binder, receiver, member, arguments), (prior, handles)) in applications {
+            let kind = if let Some(row) = prior {
+                self.data_type_parameters.get(row).kind.clone()
+            } else {
+                let contract = CallableApplication {
+                    region_scope: self.declaration_scope_parent(binder),
+                    ..CallableApplication::default()
+                }
+                .nominal_contract(self, receiver, member, arguments)?;
+                Machine { contract }
+            };
+            for handle in handles {
+                self.data_type_parameters.get_mut(handle).kind = kind.clone();
             }
-            .nominal_contract(self, selected_trait, requirement, arguments)?;
-            self.data_type_parameters.get_mut(handle).kind =
-                data::TypeParameterKind::Machine { contract };
         }
         Ok(())
     }
