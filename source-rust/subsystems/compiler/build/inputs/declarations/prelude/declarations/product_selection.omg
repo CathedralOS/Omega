@@ -31,8 +31,8 @@ public boundary trait BuildProductOperations {
 public boundary trait BuildBindingOperations {
     machine enable_unsafe(activation: u64) reaches none crashes none;
     machine describe_service(activation: u64) -> BoundaryServiceReference reaches none crashes none;
-    machine describe_parameter() -> omega\language\core\reflect\ParameterInfo reaches none crashes none;
-    machine describe_field() -> omega\language\core\reflect\FieldInfo reaches none crashes none;
+    machine describe_parameter() -> |reflect|::ParameterInfo reaches none crashes none;
+    machine describe_field() -> |reflect|::FieldInfo reaches none crashes none;
     machine prepare(builder: @BuildPlan) -> u64 reaches none crashes none;
     machine prepare_tests(tests: @BuildTests) -> u64 reaches none crashes none;
     machine await_provider(activation: u64) reaches none crashes none suspends;
