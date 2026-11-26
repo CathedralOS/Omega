@@ -9,7 +9,7 @@ use machine_code::{
     UnitParameterRecord,
 };
 use selected_instructions::{SelectedFunction, SelectedMemoryAccessRole};
-use semantic_vocabulary::{MachineId, PlaceId, ScalarType};
+use semantic_vocabulary::{MachineId, PlaceId};
 use target_vocabulary::CallSiteOwner;
 
 struct PlanningSource<'a> {
@@ -561,6 +561,7 @@ fn indirect_pointer_supports_copy(pointer: &IndirectPointerLocation) -> bool {
 #[cfg(test)]
 mod incoming_tests {
     use super::*;
+    use semantic_vocabulary::ScalarType;
     use calling_conventions::{MachineRegister, ValueShape};
     use terminal_psi::StructuralAccess;
 
