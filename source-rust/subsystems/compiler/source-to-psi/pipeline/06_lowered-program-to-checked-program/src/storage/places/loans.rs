@@ -2787,7 +2787,15 @@ impl<'a> Storage<'a> {
     ) -> Checked<bool> {
         let borrowed_arrival = self.is_borrowed_arrival(name.root, concerns)?;
         if !borrowed_arrival {
-            return Ok(self.incoming(name.root).is_some());
+            let Some(parameter) = terminal_semantics::arrival_parameter(self.lowered, name.root)
+                .filter(|parameter| parameter.access != StructuralAccess::Owned)
+            else {
+                return Ok(false);
+            };
+            // A direct view lends payload storage. Its descriptor belongs
+            // to this activation even when the payload belongs to a caller.
+            return Ok(!name.path.is_empty()
+                || !terminal_semantics::borrowed_view_payload_parameter(parameter, self.types.iter()));
         }
         let selected = super::Lineage {
             root: name.root,
