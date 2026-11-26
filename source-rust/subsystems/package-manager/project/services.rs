@@ -4,7 +4,7 @@ use crate::PackageCommandError;
 use crate::resolution::source::{AcquiredBuildSource, AcquiredSourceSelection};
 use build_declarations::{BuildRequest, DependencyPurpose};
 use build_execution::host::bindings::BuildProductQuery;
-use build_execution::host::requests::BuildDependencyPreparation;
+use build_execution::host::requests::{BuildDependencyPreparation, IssuedBuildRequest};
 use build_execution::{CompileFailure, TerminalBuildActivation};
 use diagnostics::Diagnostic;
 use package_compilation::source_imports::ProductQueryDependency;
@@ -49,19 +49,28 @@ fn aliases(
 impl SourceServices<'_, '_, '_> {
     /// The selected Build runs once. Its settled source and deferred Product are available
     /// both to this activation's suspension and to the subsequent final graph join.
-    fn dependency(
+    pub(super) fn dependency(
         &mut self,
-        activation: &TerminalBuildActivation,
+        issued: &[IssuedBuildRequest],
         purpose: DependencyPurpose,
         ordinal: usize,
     ) -> Result<usize, CompileFailure> {
         if let Some(request) = self.requests.get(&(purpose, ordinal)) {
             return Ok(request.settled);
         }
+        let frozen = issued.iter().filter(|issued| matches!(issued.request(), BuildRequest::Dependency {purpose: registered, ..} if *registered == purpose)).nth(ordinal)
+            .and_then(IssuedBuildRequest::forwarded)
+            .map(|binding| self.host.frozen_library(binding.library()).map(|index| self.host.settled[index].source.clone())).transpose()?;
         let selected = self
             .host
             .acquisitions
-            .acquire_issued(self.acquired, activation.requests(), purpose, ordinal)
+            .acquire_requests_or_reuse(
+                self.acquired,
+                issued.iter().map(IssuedBuildRequest::request),
+                purpose,
+                ordinal,
+                frozen,
+            )
             .map_err(refused)?;
         let child = match selected {
             AcquiredSourceSelection::Source(child) => child,
@@ -82,7 +91,17 @@ impl SourceServices<'_, '_, '_> {
 }
 
 impl SourceHost<'_, '_> {
-    fn library_input(
+    pub(super) fn frozen_library(
+        &self,
+        library: &package_compilation::source_imports::SuppliedBuildLibrary,
+    ) -> Result<usize, CompileFailure> {
+        self.settled.iter().position(|settled|
+            settled.build.evaluated().base_source_consumption_commitment == library.dependency().child_build_source
+            && library.matches_settled_source(settled.build.inputs())
+        ).ok_or_else(|| refused("incoming package binding has no matching settled Build and frozen dependency closure"))
+    }
+
+    pub(super) fn library_input(
         &self,
         settled: &SettledSource,
         purpose: DependencyPurpose,
@@ -166,8 +185,7 @@ impl SourceHost<'_, '_> {
     }
 
     fn settle_dependency(&mut self, child: &AcquiredBuildSource) -> Result<usize, CompileFailure> {
-        self
-            .acquisitions
+        self.acquisitions
             .admit_build_descent(&self.active, child)
             .map_err(refused)?;
         if let Some(i) = self
@@ -185,8 +203,7 @@ impl SourceHost<'_, '_> {
         declared.require_dependency().map_err(refused)?;
         let resolved = self.join(child.clone(), stage).map_err(failure)?;
         let settled = resolved.root.settle_dependency(resolved.inputs)?;
-        self
-            .session
+        self.session
             .record_source_completion(settled.evaluated().source_completion_accounting.clone());
         let i = self.settled.len();
         self.settled.push(SettledSource {
@@ -215,7 +232,11 @@ impl PlanningServices for SourceServices<'_, '_, '_> {
         activation: &TerminalBuildActivation,
         request: &BuildDependencyPreparation,
     ) -> Result<ProductQueryDependency, CompileFailure> {
-        let i = self.dependency(activation, request.purpose, request.request_ordinal)?;
+        let i = self.dependency(
+            activation.requests(),
+            request.purpose,
+            request.request_ordinal,
+        )?;
         let settled = &self.host.settled[i];
         let alias = aliases(activation, request.purpose)
             .nth(request.request_ordinal)
@@ -234,7 +255,7 @@ impl PlanningServices for SourceServices<'_, '_, '_> {
         aliases(activation, purpose)
             .enumerate()
             .map(|(ordinal, alias)| {
-                let i = self.dependency(activation, purpose, ordinal)?;
+                let i = self.dependency(activation.requests(), purpose, ordinal)?;
                 let settled = &self.host.settled[i];
                 Ok(ProductQueryDependency {
                     alias: alias

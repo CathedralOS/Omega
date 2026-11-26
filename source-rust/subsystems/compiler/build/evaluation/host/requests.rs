@@ -15,10 +15,14 @@ normal-return settlement charges result custody and publishes the log bytes.
 */
 
 use build_declarations::{
-    BuildDependencySource, BuildRequest, DependencyPurpose, ProjectName, WorkspaceMemberPath,
+    BuildDependencySource, BuildEntryPath, BuildRequest, DependencyPurpose, ProjectName,
+    WorkspaceMemberPath,
 };
 use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
+mod input_bindings;
 mod output;
+pub use input_bindings::FrozenBuildBinding;
+use input_bindings::InputBindings;
 pub(crate) use output::BuildRequestOutput;
 use source_compiler::publication::{
     TerminalBuildRequestCall, TerminalBuildRequestOperation as Operation, TerminalBuildRequests,
@@ -34,16 +38,22 @@ const REGISTRATIONS_POISONED: &str = "Build registration lock was poisoned";
 
 pub struct IssuedBuildRequest {
     request: BuildRequest,
+    forwarded: Option<FrozenBuildBinding>,
     _storage: Option<EvaluationStorageLease>,
 }
 
 impl IssuedBuildRequest {
+    pub fn forwarded(&self) -> Option<&FrozenBuildBinding> {
+        self.forwarded.as_ref()
+    }
+
     pub fn request(&self) -> &BuildRequest {
         &self.request
     }
 }
 
 pub struct TerminalBuildRequestHost {
+    inputs: InputBindings,
     artifact: terminal_codec::TerminalExecutionIdentity,
     calls: Arc<[TerminalBuildRequestCall]>,
     original: TerminalStructuralValue,
@@ -96,6 +106,7 @@ impl TerminalBuildRequestHost {
         requests: &TerminalBuildRequests,
         original: TerminalStructuralValue,
         account: Option<&EvaluationInvocationAccount>,
+        libraries: Arc<[package_compilation::source_imports::SuppliedBuildLibrary]>,
     ) -> Result<Arc<Self>, String> {
         let calls = requests
             .calls_for(artifact)
@@ -108,6 +119,7 @@ impl TerminalBuildRequestHost {
         Ok(Arc::new(Self {
             artifact: artifact.custody_identity(),
             calls: Arc::clone(calls),
+            inputs: InputBindings::new(libraries),
             original,
             account: account.cloned(),
             requests: Mutex::new(Vec::new()),
@@ -380,7 +392,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
         // request returns nothing.
         let registers = matches!(
             call.action,
-            Operation::PathDependency | Operation::GitDependency
+            Operation::PathDependency | Operation::GitDependency | Operation::InputBinding | Operation::AddBinding
         );
         if structural_arguments.first() != Some(&self.host.original)
             || byte_sequence_arguments.first() != Some(&None)
@@ -432,7 +444,11 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
         };
         let (scalar_count, structural_count) = match call.action {
             Operation::ArtifactOnly => (0, 1),
-            Operation::Package | Operation::Application | Operation::Member => (0, 2),
+            Operation::Package
+            | Operation::Application
+            | Operation::Member
+            | Operation::BuildEntry => (0, 2),
+            Operation::InputBinding | Operation::AddBinding => (0, 2),
             Operation::PathDependency => (2, 3),
             Operation::GitDependency => (3, 5),
             Operation::ConfigureTestFixture
@@ -448,6 +464,28 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                 "Build request argument roster differs from its protocol",
             ));
         }
+        if call.action == Operation::InputBinding {
+            let terminal_psi::BoundaryMachineResult::Structural(binding) = result else {
+                return Err(refuse("Build input binding requires its opaque result"));
+            };
+            return self
+                .host
+                .inputs
+                .select(
+                    text(1)?,
+                    binding.structural_type,
+                    self.host.account.as_ref(),
+                )
+                .map(TerminalEffectResult::Structural);
+        }
+        let forwarded = if call.action == Operation::AddBinding {
+            if byte_sequence_arguments[1].is_some() {
+                return Err(refuse("dependency::add requires a PackageBinding"));
+            }
+            Some(self.host.inputs.require(&structural_arguments[1])?)
+        } else {
+            None
+        };
         let flag = |position: usize| -> Result<bool, TerminalEffectRejection> {
             match arguments.get(position) {
                 Some(TerminalScalarValue::Boolean(value)) => Ok(*value),
@@ -456,6 +494,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
         };
         match call.action {
             Operation::Package | Operation::Application => name(text(1)?)?,
+            Operation::BuildEntry => BuildEntryPath::validate(text(1)?).map_err(refuse)?,
             Operation::Member if !WorkspaceMemberPath::is_valid(text(1)?) => {
                 return Err(refuse("Build workspace member path is not canonical"));
             }
@@ -526,7 +565,17 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                 WorkspaceMemberPath::parse(copy(text(1)?)?)
                     .map_err(|error| TerminalEffectRejection::new(error.to_string()))?,
             ),
+            Operation::BuildEntry => {
+                BuildRequest::BuildEntry(BuildEntryPath::parse(copy(text(1)?)?).map_err(refuse)?)
+            }
             Operation::ArtifactOnly => BuildRequest::ArtifactOnly,
+            Operation::InputBinding => return Err(refuse("Build input binding already returned")),
+            Operation::AddBinding => {
+                let Some(BuildRequest::Dependency {alias, source, ..}) = forwarded.as_ref().map(|binding|binding.library().request()) else {
+                    return Err(refuse("Build input binding lost its frozen dependency"));
+                };
+                BuildRequest::Dependency {purpose: DependencyPurpose::Product, alias: alias.clone(), source: source.clone()}
+            }
             Operation::PathDependency | Operation::GitDependency => BuildRequest::Dependency {
                 purpose: if flag(0)? {
                     DependencyPurpose::Build
@@ -570,6 +619,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
         };
         requests.push(IssuedBuildRequest {
             request,
+            forwarded,
             _storage: storage,
         });
         let Some((purpose, structural_type)) = registered else {

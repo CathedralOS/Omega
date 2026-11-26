@@ -9,8 +9,8 @@ pub mod observations;
 mod product;
 #[path = "planning/registered_tests.rs"]
 mod registered_tests;
-pub use registered_tests::{RegisteredTestPlan, TestExecution};
 pub use product::ProductStage;
+pub use registered_tests::{RegisteredTestPlan, TestExecution};
 #[path = "planning/package_review/mod.rs"]
 mod package_review;
 pub use package_review::CheckedPackagePolicy;
@@ -133,9 +133,76 @@ pub struct ReturnedPlanningStage {
     evaluation: PreparedBuildEvaluation,
     source: source::PlanningSource,
     returned: ReturnedBuild,
+    preparations: BuildPreparations,
+}
+
+/// The stages of one package that returned another Build entry. Their chosen files
+/// and observations stay with the eventual Product, separate from its own settings.
+#[derive(Default)]
+struct BuildPreparations {
+    stages: Vec<(build_declarations::BuildEntryPath, EvaluatedBuild)>,
+    files: Vec<std::path::PathBuf>,
+    entries: Vec<(
+        std::path::PathBuf,
+        Vec<package_compilation::source_imports::SuppliedBuildLibrary>,
+    )>,
+}
+
+/// Only the Build that returned this entry can issue its source view and incoming bindings.
+pub struct PreparedSuccessor {
+    capture: package_compilation::CapturedLocalSource,
+    path: std::path::PathBuf,
+    libraries: Vec<package_compilation::source_imports::SuppliedBuildLibrary>,
+    preparations: BuildPreparations,
+}
+
+impl PreparedSuccessor {
+    pub fn path(&self) -> &std::path::Path {
+        &self.path
+    }
 }
 
 impl ReturnedPlanningStage {
+    pub fn finish_successor(
+        self,
+        capture: &package_compilation::CapturedLocalSource,
+        libraries: Vec<package_compilation::source_imports::SuppliedBuildLibrary>,
+    ) -> Result<PreparedSuccessor, CompileFailure> {
+        self.returned
+            .require_source_acquisition(capture)
+            .map_err(refusal)?;
+        let entry = self
+            .returned
+            .successor_entry()
+            .cloned()
+            .ok_or_else(|| refusal("only a preparing Build can supply a successor".into()))?;
+        let path = capture.canonical_live_root().join(entry.as_str());
+        let mut preparations = self.preparations;
+        if preparations
+            .entries
+            .iter()
+            .any(|(file, inputs)| file == &path && inputs == &libraries)
+        {
+            return Err(refusal(format!(
+                "Build successor repeats the same inputs for {}",
+                path.display()
+            )));
+        }
+        let evaluated = self
+            .evaluation
+            .complete_successor(self.returned, &libraries)?;
+        self.source
+            .retain_build_files(capture.canonical_live_root(), &mut preparations.files);
+        preparations.stages.push((entry, evaluated));
+        preparations.entries.push((path.clone(), libraries.clone()));
+        Ok(PreparedSuccessor {
+            capture: capture.clone(),
+            path,
+            preparations,
+            libraries,
+        })
+    }
+
     pub fn source_completion_accounting(
         &self,
     ) -> &source_compiler::compile_time_invocations::SourceCompletionAccounting {
@@ -200,7 +267,10 @@ impl ReturnedPlanningStage {
         let evaluated = self
             .evaluation
             .complete_with_sources(self.returned, inputs)?;
-        Ok((self.source, evaluated))
+        Ok((
+            self.source,
+            retain_preparations(self.preparations, evaluated),
+        ))
     }
 
     /// Retain this dependency's deferred Product after the one Build invocation returns.
@@ -215,7 +285,7 @@ impl ReturnedPlanningStage {
             .evaluation
             .complete_with_sources(self.returned, Some(&inputs))?;
         Ok(SettledDependency {
-            evaluated,
+            evaluated: retain_preparations(self.preparations, evaluated),
             source: self.source,
             inputs,
         })
@@ -230,8 +300,28 @@ impl ReturnedPlanningStage {
         self,
         inputs: Option<&PackageCompilationInputs>,
     ) -> Result<EvaluatedBuild, CompileFailure> {
-        self.evaluation.complete_with_sources(self.returned, inputs)
+        let evaluated = self
+            .evaluation
+            .complete_with_sources(self.returned, inputs)?;
+        Ok(retain_preparations(self.preparations, evaluated))
     }
+}
+
+fn retain_preparations(
+    preparations: BuildPreparations,
+    mut product: EvaluatedBuild,
+) -> EvaluatedBuild {
+    for (entry, preparation) in preparations.stages {
+        product
+            .preparations
+            .push((entry, preparation.configuration));
+        for request in preparation.restricted_build_requests {
+            if !product.restricted_build_requests.contains(&request) {
+                product.restricted_build_requests.push(request);
+            }
+        }
+    }
+    product
 }
 
 pub fn interpret(
@@ -239,6 +329,7 @@ pub fn interpret(
     services: &mut impl PlanningServices,
 ) -> Result<ReturnedPlanningStage, CompileFailure> {
     let PreparedPlanningStage {
+        preparations,
         mut evaluation,
         mut source,
     } = stage;
@@ -264,6 +355,7 @@ pub fn interpret(
     })?;
     evaluation.record_return(&returned)?;
     Ok(ReturnedPlanningStage {
+        preparations,
         evaluation,
         returned,
         source,
@@ -277,10 +369,12 @@ fn run(
     context: &mut Option<BuildDiagnosticContext>,
 ) -> Result<(), CompileFailure> {
     loop {
-        match activation.advance_diagnostic(1024).map_err(|mut diagnostic| {
-            diagnostic.message = format!("Build activation failed: {}", diagnostic.message);
-            vec![*diagnostic]
-        })? {
+        match activation
+            .advance_diagnostic(1024)
+            .map_err(|mut diagnostic| {
+                diagnostic.message = format!("Build activation failed: {}", diagnostic.message);
+                vec![*diagnostic]
+            })? {
             TerminalBuildStep::Returned => return Ok(()),
             TerminalBuildStep::NeedsWork => continue,
             TerminalBuildStep::Query(query) => {

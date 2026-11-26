@@ -143,12 +143,29 @@ impl SuppliedBuildLibrary {
         &self.dependency
     }
 
+    /// Check the source occurrence behind this library, independently of the host
+    /// profile selected for its code or any eventual Product deployment.
+    pub fn matches_settled_source(&self, inputs: &PackageCompilationInputs) -> bool {
+        let frozen = &self.dependency.inputs;
+        frozen.root() == inputs.root()
+            && frozen.dependency_closure() == inputs.dependency_closure()
+            && frozen.require_same_shared_product_sources(inputs).is_ok()
+    }
+
     /// An identical package key can select different captured bytes on two invocations.
     pub fn validate_join(&self, joined: &PackageCompilationInputs) -> Result<(), String> {
+        self.validate_join_for(joined, DependencyPurpose::Build)
+    }
+
+    pub fn validate_join_for(
+        &self,
+        joined: &PackageCompilationInputs,
+        purpose: DependencyPurpose,
+    ) -> Result<(), String> {
         let library = &self.dependency.inputs;
         if joined.dependency_target_for_purpose(
             joined.root(),
-            DependencyPurpose::Build,
+            purpose,
             &self.dependency.alias,
         ) != Some(library.root())
             || joined.dependency_closure_for(library.root()) != library.dependency_closure()

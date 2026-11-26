@@ -330,3 +330,86 @@ machine build(builder: @mutable Build) {
         }
     }
 }
+
+#[test]
+fn successor_selects_only_the_requested_build_from_its_frozen_package() {
+    let directory = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "build-successor-source",
+        false,
+    )
+    .unwrap();
+    let root = directory.path().canonicalize().unwrap().join("source");
+    let stages = root.join("stages");
+    std::fs::create_dir_all(&stages).unwrap();
+    let initial = root.join("prepare.omg");
+    let ordinary = stages.join("build.omg");
+    std::fs::write(&ordinary, "machine ordinary() {}").unwrap();
+    let next = stages.join("build.lock.omg");
+    let main = root.join("main.omg");
+    std::fs::write(&initial, "machine build() {}").unwrap();
+    std::fs::write(root.join("helper.omg"), "public machine helper() {}").unwrap();
+    std::fs::write(
+        &next,
+        "use helper.omg; machine build() { |helper|::helper(); }",
+    )
+    .unwrap();
+    std::fs::write(&main, "machine main() {}").unwrap();
+    std::fs::write(stages.join("main.omg"), "machine nested() {}").unwrap();
+    #[cfg(unix)]
+    std::os::unix::fs::symlink("build.lock.omg", stages.join("alias.omg")).unwrap();
+    let capture = crate::capture_anonymous_compilation_source(&initial).unwrap();
+    std::fs::remove_file(&next).unwrap();
+    std::fs::write(stages.join("later.omg"), "machine build() {}").unwrap();
+    #[cfg(unix)]
+    {
+        let moved = directory.path().join("moved");
+        std::fs::rename(&root, &moved).unwrap();
+        std::os::unix::fs::symlink(moved, &root).unwrap();
+    }
+    let predecessors = [initial.clone()];
+    let prepare = |path: &Path, capture: Option<&crate::CapturedLocalSource>| {
+        ImmutableSourceParseCheckpoint::prepare(
+            super::CapturedBuildEntry::Successor {
+                path,
+                previous_build_files: &predecessors,
+            },
+            None,
+            capture,
+            &mut CompileTimings::default(),
+            &mut Default::default(),
+        )
+    };
+    let checkpoint = prepare(&next, Some(&capture)).unwrap();
+    assert_eq!(
+        checkpoint.product_roots.as_deref().unwrap(),
+        std::slice::from_ref(&main)
+    );
+    let storage = &checkpoint.source_storage;
+    assert!(
+        storage
+            .sources
+            .selected_files()
+            .any(|file| file.path == root.join("helper.omg"))
+    );
+    let subject = storage.product_subject_sources().unwrap();
+    assert!(!subject.contains(&initial));
+    assert!(!subject.contains(&next));
+    assert!(subject.contains(&main));
+    assert!(subject.contains(&ordinary));
+    assert!(prepare(&next, None).is_err());
+    for invalid in [
+        main,
+        stages.clone(),
+        stages.join("later.omg"),
+        stages.join("../build.omg"),
+        root.join("./prepare.omg"),
+        root.join("prepare.omg/"),
+        stages.join("alias.omg"),
+    ] {
+        assert!(
+            prepare(&invalid, Some(&capture)).is_err(),
+            "{}",
+            invalid.display()
+        );
+    }
+}

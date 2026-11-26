@@ -280,6 +280,7 @@ dependencies = [
  "optimization-selections",
  "record-storage",
  "semantic-vocabulary",
+ "source-selection",
  "source-syntax",
  "syntax-trees",
 ]
@@ -350,6 +351,7 @@ dependencies = [
  "terminal-codec",
  "terminal-interpreter",
  "terminal-psi",
+ "terminal-semantics",
  "terminal-work",
  "tokens",
 ]

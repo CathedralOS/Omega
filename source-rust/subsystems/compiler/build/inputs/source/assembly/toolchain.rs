@@ -80,7 +80,10 @@ pub(super) fn append_build_prelude(
     build_source: Option<BuildSourceSelection>,
     timings: &mut CompileTimings,
     catalogue: &mut source_compiler::representations::source_inputs::SourceCatalogue,
-) -> Result<Vec<source_compiler::representations::source_symbols::SourceScopedTopLevelBinding>, Vec<Diagnostic>> {
+) -> Result<
+    Vec<source_compiler::representations::source_symbols::SourceScopedTopLevelBinding>,
+    Vec<Diagnostic>,
+> {
     let Some(prelude) = crate::source::source_imports::prepare_build_prelude(
         storage,
         build_source.map(BuildSourceSelection::source_id),
@@ -157,6 +160,28 @@ pub(super) fn append_build_prelude(
                     0,
                 ),
             );
+        }
+    }
+    for (_, file) in storage.source_roots.iter() {
+        for import in &file.build_imports {
+            let source_compiler::SourceImportTarget::File { root, path, alias } = &import.target
+            else {
+                continue;
+            };
+            if !import.only_product_operands
+                && let Some(namespace) =
+                    build_declarations::build_file_namespace(root.as_deref(), path)
+            {
+                let (_, source_id) = namespaces
+                    .iter()
+                    .find(|(name, _)| *name == namespace)
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "Build library import lost its compiler-owned source",
+                        )]
+                    })?;
+                bindings.push(source_compiler::representations::source_symbols::SourceScopedTopLevelBinding::file_import(file.source_id, *source_id, alias.as_str()));
+            }
         }
     }
     Ok(bindings)

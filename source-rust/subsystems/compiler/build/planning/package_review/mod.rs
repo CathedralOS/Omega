@@ -55,6 +55,11 @@ impl crate::ProductStage<'_> {
         accounting: &mut source_compiler::compile_time_invocations::SourceCompletionAccounting,
     ) -> Result<CheckedPackagePolicy, Vec<Diagnostic>> {
         let product = self.product;
+        if !product.evaluated().preparations.is_empty() {
+            return Err(vec![Diagnostic::error(
+                "a version 4 package review cannot record multiple Build entries for one package",
+            )]);
+        }
         let inputs = product.package_inputs().ok_or_else(|| {
             vec![Diagnostic::error(
                 "package review requires the acquired package graph",
@@ -90,7 +95,14 @@ impl crate::ProductStage<'_> {
             input.sources().exact_toolchain_sources(),
             source_provenance::DependencyScope::Product,
         )?;
-        let policy = policy::project(&services, &input, &selected, profile, package, component_assumptions)?;
+        let policy = policy::project(
+            &services,
+            &input,
+            &selected,
+            profile,
+            package,
+            component_assumptions,
+        )?;
         let (semantic_binding_candidates, target_entry_candidate) =
             semantic_bindings::candidates(&services, &input, &selected, &policy, profile, package)?;
         let selected_build_machine_identity = evaluation

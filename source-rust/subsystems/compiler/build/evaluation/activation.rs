@@ -25,7 +25,7 @@ than a callback loop:
 4. On normal return (`complete`), we extract the plain settings from borrowed
    entry `0` (`build_settings::extract`), close the interpreter instance before
    draining host selections and logs, validate the authored project role
-   (`project::declaration`), and return `ReturnedBuild` with its complete
+   (`project::destination`), and return `ReturnedBuild` with its complete
    request and demanded-source ledgers attached for coordinator source-join
    settlement.
 */
@@ -39,8 +39,8 @@ pub use source_join::BuildDependencySelection;
 pub use source_result::BuildSourceResult;
 
 use evaluation_accounting::EvaluationInvocationAccount;
+use evaluation_work::EvaluationWorkMeter;
 use normalized_build_settings::EvaluatedBuildSettings;
-use source_compiler::representations::declaration_selection::ProductEntryBinding;
 use source_compiler::publication::ProducedTerminalProgram;
 use source_compiler::representations::declaration_selection::ExecutedBuildSelection;
 use source_compiler::representations::declaration_selection::ExecutedEnumExclusion;
@@ -48,12 +48,12 @@ use source_compiler::representations::declaration_selection::ExecutedNativeBindi
 use source_compiler::representations::declaration_selection::ExecutedProductSelection;
 use source_compiler::representations::declaration_selection::NativeBindingFormation;
 use source_compiler::representations::declaration_selection::ProductDeclarationRequest;
+use source_compiler::representations::declaration_selection::ProductEntryBinding;
 use std::sync::Arc;
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalExecutionStatus, TerminalInstance, TerminalInstantiation,
     TerminalProgram, TerminalProjectedHostAtom, TerminalStructuralInputs, TerminalStructuralValue,
 };
-use evaluation_work::EvaluationWorkMeter;
 
 use crate::host::bindings::TerminalBuildBindingHost;
 use crate::host::requests::{IssuedBuildRequest, TerminalBuildRequestHost};
@@ -88,7 +88,7 @@ pub struct ReturnedBuild {
     account: EvaluationInvocationAccount,
     original_sources: Option<Arc<OriginalBuildSources>>,
     pub(crate) identity: terminal_codec::TerminalExecutionIdentity,
-    pub(crate) declaration: Option<build_declarations::BuildDeclaration>,
+    destination: Option<project::Destination>,
     pub(crate) source_join: Option<Arc<package_compilation::PackageCompilationSourceInputs>>,
     pub(crate) requests: Vec<IssuedBuildRequest>,
     pub(crate) demanded_sources: Vec<BuildDependencySelection>,
@@ -124,7 +124,16 @@ impl ReturnedBuild {
     }
 
     pub fn declaration(&self) -> Option<&build_declarations::BuildDeclaration> {
-        self.declaration.as_ref()
+        self.destination
+            .as_ref()
+            .and_then(project::Destination::project)
+    }
+
+    pub fn successor_entry(&self) -> Option<&build_declarations::BuildEntryPath> {
+        match self.destination.as_ref()? {
+            project::Destination::Successor(path) => Some(path),
+            project::Destination::Project(_) => None,
+        }
     }
 
     pub fn requests(&self) -> &[IssuedBuildRequest] {
@@ -151,7 +160,8 @@ impl OriginalOutput {
         let home = crate::host::requests::build_facet(artifact, original, "output")?;
         let declaration = artifact
             .module()
-            .types.structural_types
+            .types
+            .structural_types
             .iter()
             .find(|declaration| declaration.id == home.structural_type)
             .ok_or("Build output facet lost its declaration")?;
@@ -264,6 +274,7 @@ impl TerminalBuildHost {
             produced.build_requests(),
             original.clone(),
             Some(account),
+            original_sources.as_ref().map(|sources| Arc::clone(&sources.libraries)).unwrap_or_default(),
         )?;
         let bindings = TerminalBuildBindingHost::new(
             artifact,
@@ -423,7 +434,8 @@ impl TerminalBuildHost {
             }
             let declaration = artifact
                 .module()
-                .interfaces.boundary_machines
+                .interfaces
+                .boundary_machines
                 .iter()
                 .find(|declaration| declaration.id == boundary)
                 .ok_or("Build import has no Terminal declaration")?;
@@ -435,7 +447,8 @@ impl TerminalBuildHost {
                     instance.bind_import(boundary, self.bindings.adapter(declaration.into()))
                 } else {
                     instance.bind_import(boundary, self.requests.adapter(declaration.into()))
-                }.map_err(describe)?;
+                }
+                .map_err(describe)?;
             } else if binding_calls
                 .iter()
                 .any(|call| call.site.boundary == boundary)
@@ -486,7 +499,8 @@ pub struct TerminalBuildActivation {
 }
 
 /// The single reason the interpreter returned control to the planner.
-pub enum TerminalBuildStep {    Returned,
+pub enum TerminalBuildStep {
+    Returned,
     NeedsWork,
     Provide,
     Prepare(crate::host::requests::BuildDependencyPreparation),
@@ -554,7 +568,13 @@ impl TerminalBuildActivation {
     /// This validates the current ledger; it does not complete the Build or
     /// promise that a later request will preserve the same declaration.
     pub fn project_declaration(&self) -> Result<build_declarations::BuildDeclaration, String> {
-        project::declaration(&self.requests).map_err(|reason| format!("Product declaration query requires an already-issued named package or application: {reason}"))
+        let current = project::destination(&self.requests).map_err(|reason| format!(
+            "Product declaration query requires an already-issued named package or application: {reason}"
+        ))?;
+        current
+            .project()
+            .cloned()
+            .ok_or_else(|| "successor Build has no named product declaration".into())
     }
 
     pub fn requests(&self) -> &[IssuedBuildRequest] {
@@ -667,7 +687,9 @@ impl TerminalBuildActivation {
         }
 
         match self.state {
-            ActivationState::Returned => return Err(refusal("Build activation has already returned")),
+            ActivationState::Returned => {
+                return Err(refusal("Build activation has already returned"));
+            }
             ActivationState::Refused => return Err(refusal("Build activation has already failed")),
             ActivationState::Running => {}
         }
@@ -682,7 +704,9 @@ impl TerminalBuildActivation {
         self.requests
             .extend(self.host.requests.drain_requests().map_err(refusal)?);
         let step = match status {
-            TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit) => TerminalBuildStep::Returned,
+            TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit) => {
+                TerminalBuildStep::Returned
+            }
             TerminalExecutionStatus::SponsorExhausted(_) => TerminalBuildStep::NeedsWork,
             TerminalExecutionStatus::AwaitingEffect(_) => match (
                 self.host.bindings.awaiting_provider().map_err(refusal)?,
@@ -691,14 +715,22 @@ impl TerminalBuildActivation {
                 (Some(_), None) => TerminalBuildStep::Provide,
                 (None, Some(dependency)) => TerminalBuildStep::Prepare(dependency),
                 (None, None) => {
-                    return Err(refusal("Build paused without an admitted provider or dependency demand"));
+                    return Err(refusal(
+                        "Build paused without an admitted provider or dependency demand",
+                    ));
                 }
                 (Some(_), Some(_)) => {
-                    return Err(refusal("one Build effect requested both a provider and a dependency"));
+                    return Err(refusal(
+                        "one Build effect requested both a provider and a dependency",
+                    ));
                 }
             },
             TerminalExecutionStatus::HostComputationPending(_) => {
-                let query = self.host.bindings.awaiting_query().map_err(refusal)?
+                let query = self
+                    .host
+                    .bindings
+                    .awaiting_query()
+                    .map_err(refusal)?
                     .ok_or_else(|| refusal("Build paused without an admitted Product query"))?;
                 TerminalBuildStep::Query(query)
             }
@@ -764,13 +796,13 @@ impl TerminalBuildActivation {
             build_settings::extract(&self.instance, &self.host.machine)?;
         self.instance.close().map_err(describe)?;
         drop(self.instance);
-        let declaration = if self.host.default_source {
+        let destination = if self.host.default_source {
             if !self.requests.is_empty() {
                 return Err("default Build unexpectedly issued project requests".into());
             }
             None
         } else {
-            Some(project::declaration(&self.requests)?)
+            Some(project::destination(&self.requests)?)
         };
         let mut root_bindings = Vec::new();
         let mut product_selections = Vec::new();
@@ -793,7 +825,7 @@ impl TerminalBuildActivation {
             account: self.host.account.clone(),
             original_sources: self.host.original_sources.clone(),
             identity: self.host.produced.view().custody_identity(),
-            declaration,
+            destination,
             source_join: self.host.default_sources.clone(),
             requests: self.requests,
             demanded_sources: self.demanded_sources,

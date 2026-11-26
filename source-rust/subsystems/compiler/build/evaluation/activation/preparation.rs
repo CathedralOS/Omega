@@ -134,7 +134,9 @@ impl PreparedBuildExecution {
         completed: crate::ReturnedBuild,
     ) -> Result<ComputedBuildConfig, Vec<Diagnostic>> {
         self.validate_return(&completed)?;
-        let declaration = &completed.declaration;
+        if completed.successor_entry().is_some() {
+            return Err(self.refuse("an interpreted successor must run before opening a Product"));
+        }
         if completed.source_join.is_none()
             && completed
                 .requests
@@ -145,7 +147,38 @@ impl PreparedBuildExecution {
                 "dependency requests require coordinator settlement before Product compilation",
             ));
         }
-        let artifact_only = matches!(declaration, Some(build_declarations::BuildDeclaration::Application(application)) if application.artifact_only);
+        self.freeze(completed)
+    }
+
+    pub(crate) fn complete_successor(
+        self,
+        completed: ReturnedBuild,
+        libraries: &[package_compilation::source_imports::SuppliedBuildLibrary],
+    ) -> Result<ComputedBuildConfig, Vec<Diagnostic>> {
+        self.validate_return(&completed)?;
+        if completed.successor_entry().is_none() {
+            return Err(self.refuse("only a Build that selected a successor can prepare its entry"));
+        }
+        completed
+            .validate_successor_libraries(libraries)
+            .map_err(|reason| self.refuse(&reason))?;
+        if !completed.root_bindings.is_empty()
+            || !completed.product_selections.is_empty()
+            || !completed.native_bindings.is_empty()
+            || !completed.exclusions.is_empty()
+            || completed.settings != Default::default()
+            || completed.optimization_report != Default::default()
+        {
+            return Err(self.refuse(
+                "this interpreted successor has an unsupported executable selection or setting",
+            ));
+        }
+        self.freeze(completed)
+    }
+
+    fn freeze(self, completed: ReturnedBuild) -> Result<ComputedBuildConfig, Vec<Diagnostic>> {
+        let declaration = completed.declaration().cloned();
+        let artifact_only = matches!(&declaration, Some(build_declarations::BuildDeclaration::Application(application)) if application.artifact_only);
         // Artifact-only mode builds no product, so an entry, provider or
         // native binding would have nothing to apply to. The spec
         // (scoped_execution.md, "Staged products and failure") requires a
@@ -218,7 +251,7 @@ impl PreparedBuildExecution {
             native_binding_requests: completed.native_bindings,
             native_formations: completed.native_formations,
             behavior_exclusion_requests: completed.exclusions,
-            project_declaration: completed.declaration,
+            project_declaration: declaration,
             optimization_report_request: completed.optimization_report,
             evaluation_usage: Some(usage),
             observation_summary: Some(observation_summary),

@@ -171,7 +171,7 @@ mod tests {
         let mut catalogue =
             source_compiler::representations::source_inputs::SourceCatalogue::default();
         let checkpoint = crate::source_assembly::ImmutableSourceParseCheckpoint::prepare(
-            &root.join("build.omg"),
+            crate::source_assembly::CapturedBuildEntry::Initial(&root.join("build.omg")),
             None,
             None,
             &mut timings,

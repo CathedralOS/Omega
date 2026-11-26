@@ -6,3 +6,11 @@ public machine with_alias<'storage>(description: @mutable DependencyDescription<
     description.explicit_alias = true;
     description.alias = alias;
 }
+
+public machine input(builder: @Build, alias: @[u8]) -> PackageBinding reaches BuildRequestOperations {
+    BuildRequestOperations::input_binding(builder, alias)
+}
+
+public machine add(builder: @Build, binding: PackageBinding) -> DependencyRegistration reaches BuildRequestOperations {
+    BuildRequestOperations::add_binding(builder, binding)
+}

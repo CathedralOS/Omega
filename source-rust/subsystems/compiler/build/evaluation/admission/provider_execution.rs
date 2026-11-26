@@ -12,6 +12,7 @@ pub(crate) struct BuildProviderPlans {
     selected: selected_provider_plans::SelectedProviderPlanFacts,
     packages: Option<package_compilation::PackageCompilationInputs>,
     supplied_scope: Option<declaration_scope::PackageDeclarationScope>,
+    supplied_edges: Vec<(semantic_vocabulary::PackageKeyIdentity, String)>,
 }
 
 pub(crate) struct BuildProviderInstallation {
@@ -26,6 +27,13 @@ impl BuildProviderPlans {
     ) -> Self {
         Self {
             packages: packages.cloned(),
+            supplied_edges: libraries
+                .iter()
+                .map(|library| {
+                    let dependency = library.dependency();
+                    (dependency.inputs.root(), dependency.alias.clone())
+                })
+                .collect(),
             supplied_scope:
                 package_compilation::source_imports::SuppliedBuildLibrary::declaration_scope(
                     libraries, None,
@@ -63,6 +71,7 @@ impl BuildProviderPlans {
         let entry = module
             .entry
             .ok_or_else(|| failure("Build declaration admission has no entry"))?;
+        super::library_reach::check(module, entry, &checked, &self.supplied_edges)?;
         let authority = self.selection_scope(build_declarations::DependencyPurpose::Build);
         let pending = evaluation_admission::admit_declaration_selections(
             artifact,
@@ -116,11 +125,13 @@ impl BuildProviderPlans {
             .imports
             .iter()
             .map(|slot| {
-                let boundary =
-                    terminal_psi::find_boundary_machine(&module.interfaces.boundary_machines, *slot)
-                        .ok_or_else(|| {
-                            failure(format!("Build import {slot:?} has no boundary declaration"))
-                        })?;
+                let boundary = terminal_psi::find_boundary_machine(
+                    &module.interfaces.boundary_machines,
+                    *slot,
+                )
+                .ok_or_else(|| {
+                    failure(format!("Build import {slot:?} has no boundary declaration"))
+                })?;
                 module
                     .identities
                     .text(boundary.identity)
@@ -144,13 +155,13 @@ impl BuildProviderPlans {
                 .plans()
                 .iter()
                 .zip(&unreviewed)
-                .map(
-                    |(declaration, executions)| numeric_intrinsic_admission::CompilerIntrinsicPlanProvenance {
+                .map(|(declaration, executions)| {
+                    numeric_intrinsic_admission::CompilerIntrinsicPlanProvenance {
                         plan: declaration,
                         semantic_schema: &declaration.schema,
                         row_executions: executions,
-                    },
-                ),
+                    }
+                }),
             &demanded,
         )?;
         Ok(BuildProviderInstallation {
