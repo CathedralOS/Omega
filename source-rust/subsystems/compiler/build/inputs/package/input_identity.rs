@@ -48,7 +48,6 @@ impl PackageCompilationInputs {
             digest.raw(&target.digest());
         }
         digest.byte(self.compilation_purpose().canonical_tag());
-        digest.byte(u8::from(self.semantic_role_discovery()));
         for bundle in self.dependency_build_handoffs() {
             hash_generated_bundle(&mut digest, bundle);
         }

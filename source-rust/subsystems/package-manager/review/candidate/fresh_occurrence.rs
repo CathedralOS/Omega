@@ -2,7 +2,7 @@
 use super::{
     AssembledOccurrence, CompileResolvedPackageReviewsError, CompilerIssuedPackageReview,
     CompletedOccurrence, OccurrenceFacts, PackageCompilationInputs, PackageReviewOccurrence,
-    PackageReviewRound, TargetEntryDiscovery,
+    PackageReviewRound,
 };
 
 impl PackageReviewRound<'_> {
@@ -62,19 +62,6 @@ impl PackageReviewRound<'_> {
             return Err(invalid());
         }
         let semantic_bindings = checked.sources.accepted_semantic_bindings().to_vec();
-        let mut candidates = checked.semantic_binding_candidates;
-        if self.discovery == TargetEntryDiscovery::Dependencies {
-            for (purpose, candidate) in &self.target_entry_candidates {
-                if *purpose == occurrence.purpose
-                    && semantic_bindings.contains(candidate.binding())
-                    && !candidates
-                        .iter()
-                        .any(|previous| previous.binding() == candidate.binding())
-                {
-                    candidates.push(candidate.clone());
-                }
-            }
-        }
         let encoding = |error| {
             CompileResolvedPackageReviewsError::new(
                 crate::review::CompileResolvedPackageReviewCause::Encoding {
@@ -89,7 +76,6 @@ impl PackageReviewRound<'_> {
         let facts = OccurrenceFacts {
             consumed_units: subject.consumed_units().to_vec(),
             component_description: checked.component_description,
-            target_entry_candidate: checked.target_entry_candidate,
         };
         let review = CompilerIssuedPackageReview {
             key: key.clone(),
@@ -100,7 +86,7 @@ impl PackageReviewRound<'_> {
             build_observation_summary: build.observation_summary.clone(),
             restricted_build_requests: evaluated.restricted_build_requests.clone(),
             semantic_bindings,
-            semantic_binding_candidates: candidates,
+            semantic_binding_candidates: checked.semantic_binding_candidates,
             build_handoff,
             policy: checked.policy,
             policy_rows: policy.rows,

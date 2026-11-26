@@ -14,7 +14,6 @@ use std::sync::Arc;
 
 struct PublishedApplicationInputs<'a, Publisher> {
     execution: &'a PublishedSelection<Publisher, SelectedExecution>,
-    bindings: &'a [provider_acceptance::AcceptedSemanticBinding],
     package_permissions: Option<&'a declaration_scope::ProductDeclarationScope>,
     application: target::NativeApplicationMetadata,
     optimizations: &'a optimization_core::OptimizationSelections,
@@ -43,13 +42,7 @@ fn prepare_published_application<Publisher>(
     let requester = publication
         .entry_schema_custody(selection.schema_declaration())
         .map_err(refuse)?;
-    let binding = selection.binding_role().and_then(|role| {
-        inputs
-            .bindings
-            .iter()
-            .find(|binding| binding.role() == role)
-    });
-    let entry = selection.settle_calling_plans(requester, binding, inputs.package_permissions)?;
+    let entry = selection.settle_calling_plans(requester, inputs.package_permissions)?;
     let calls = crate::execution::selected_boundary_implementations(module, realization)?
         .into_iter()
         .map(|body| (body.boundary, body.machine));
@@ -324,7 +317,6 @@ pub fn bind_published_application<Publisher>(
         ));
     };
     let package_permissions = origins.inputs().package_permissions.clone();
-    let entry_bindings = Arc::clone(&origins.inputs().semantic_bindings);
     let mut execution = select_published_providers(admitted, components)?;
     let artifact = Arc::clone(execution.published_authorization().shared_artifact());
     execution
@@ -332,7 +324,6 @@ pub fn bind_published_application<Publisher>(
         .map_err(refuse)?;
     prepare_published_application(PublishedApplicationInputs {
         execution: &execution,
-        bindings: &entry_bindings,
         package_permissions: package_permissions.as_ref(),
         application: settings.application,
         optimizations: settings.optimizations,

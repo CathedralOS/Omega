@@ -1,13 +1,11 @@
-//! Nominate a target entry from its exact checked declaration and source.
+//! Derive host service roles from the checked Product and its selected providers.
 
 use super::input::PolicySource;
 use diagnostics::Diagnostic;
-use provider_acceptance::{AcceptedSemanticBinding, accepted_service_schema_digest};
+use provider_acceptance::AcceptedSemanticBinding;
 use provider_plans::ServiceSchema;
 use review_evidence::record::SemanticBindingReviewCandidate;
-use semantic_vocabulary::PackageKeyIdentity;
 use source_compiler::representations::source_state::trait_definition::TraitDefinition;
-use std::path::Path;
 
 use super::declarations::unavailable;
 use provider_acceptance::AcceptedSemanticBindingRole as Role;
@@ -82,8 +80,7 @@ pub(super) fn checked_service(
     } else {
         declaration
     };
-    if accepted_service_schema_digest(binding.role(), &schema) != binding.normalized_schema_digest()
-    {
+    if schema.identity_digest() != binding.normalized_schema_digest() {
         return Err(unavailable("a mismatched semantic role schema digest"));
     }
     Ok((slot.symbol, schema))
@@ -175,13 +172,9 @@ fn host_services(
                 .slot_schema(slot.symbol)
                 .ok_or_else(|| unavailable("the consumer's referenced service schema"))?,
         );
-        let binding = AcceptedSemanticBinding::new_service(
-            role,
-            owner,
-            path,
-            accepted_service_schema_digest(role, &schema),
-        )
-        .map_err(unavailable)?;
+        let binding =
+            AcceptedSemanticBinding::new_service(role, owner, path, schema.identity_digest())
+                .map_err(unavailable)?;
         let (_, schema) = checked_service(input, selected, &binding)?;
         rows.push(SemanticBindingReviewCandidate::new(binding, schema));
     }
@@ -194,16 +187,7 @@ pub(super) fn candidates(
     selected: &compiler::SelectedProviderResult,
     policy: &PackagePolicyBaseline,
     target: target::TargetProfile,
-    owner: PackageKeyIdentity,
-) -> Result<
-    (
-        Vec<SemanticBindingReviewCandidate>,
-        Option<SemanticBindingReviewCandidate>,
-    ),
-    Vec<Diagnostic>,
-> {
-    let source = input.typed();
-    let accepted = input.accepted();
+) -> Result<Vec<SemanticBindingReviewCandidate>, Vec<Diagnostic>> {
     let mut rows = host_services(source_services, input, selected, policy, target)?;
     rows.extend(super::hosted_services::nominations(input, selected)?);
     // Consent can constrain an active role. Only a new nomination produces
@@ -223,58 +207,5 @@ pub(super) fn candidates(
         }
     }
     rows.sort_by_key(|row| row.binding().role());
-    let slot = target.program_entry_slot();
-    let (Some(contract), Some(schema_name)) =
-        (slot.physical_contract_package, slot.boundary_schema)
-    else {
-        return Ok((rows, None));
-    };
-    let role = provider_acceptance::program_entry_semantic_binding_role(contract);
-    let mut definitions = product_boundaries(input).filter_map(|d| {
-        if d.name.as_str() != schema_name
-            || source.symbols.symbol_package_identity(d.symbol) != Some(owner)
-        {
-            return None;
-        }
-        let file = source
-            .symbols
-            .symbol_provenance_source_span(d.symbol)
-            .and_then(|s| source.symbols.source_file(s))?;
-        (file.package_identity == Some(owner)
-            && file.path.strip_prefix(&file.package_root).ok()
-                == Some(Path::new(contract.package_relative_source())))
-        .then_some((d, file))
-    });
-    let Some((decl, file)) = definitions.next() else {
-        return Ok((rows, None));
-    };
-    if definitions.next().is_some() {
-        return Err(vec![Diagnostic::error("ambiguous target-entry nomination")]);
-    }
-    let consumed = source_admission::source_identity::consumed_source_unit(file, false)
-        .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    if !input
-        .sources()
-        .package_subject()
-        .is_some_and(|subject| subject.consumed_units().binary_search(&consumed).is_ok())
-    {
-        return Err(vec![Diagnostic::error(
-            "target-entry nomination has no corresponding consumed source",
-        )]);
-    }
-    let schema =
-        ServiceSchema::from_declaration(accepted.slot_schema(decl.symbol).ok_or_else(|| {
-            vec![Diagnostic::error(
-                "target-entry declaration lacks the checked service schema",
-            )]
-        })?);
-    let binding = AcceptedSemanticBinding::new_service(
-        role,
-        owner,
-        source.symbols.display_path(decl.symbol, "::"),
-        accepted_service_schema_digest(role, &schema),
-    )
-    .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    let entry = SemanticBindingReviewCandidate::new(binding, schema);
-    Ok((rows, Some(entry)))
+    Ok(rows)
 }

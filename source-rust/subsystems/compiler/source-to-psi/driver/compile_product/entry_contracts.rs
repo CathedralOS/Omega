@@ -1,9 +1,7 @@
 //! Select the exact contract source that discovery chose for a target entry.
 //! This nominates source to check; package policy still admits its schema.
 
-use crate::compile_product::source_targets::{
-    SourceEntryContractOwner as EntryContractSource, SourceTarget,
-};
+use crate::compile_product::source_targets::SourceTarget;
 use crate::source_state::trait_definition::{AppliedTraitScope, TraitApplicationEnvironment};
 use crate::source_state::{FrozenTypedTrees, ProductSourceIdentity};
 use diagnostics::Diagnostic;
@@ -12,7 +10,6 @@ use std::sync::Arc;
 #[derive(Debug, Clone)]
 pub struct SelectedProgramEntryContractSource {
     owner: ProductSourceIdentity,
-    source: source_text::SourceId,
     application: TraitApplicationEnvironment,
 }
 
@@ -24,9 +21,6 @@ impl SelectedProgramEntryContractSource {
             ));
         }
         Ok(())
-    }
-    pub const fn source(&self) -> source_text::SourceId {
-        self.source
     }
     pub fn application(&self) -> &TraitApplicationEnvironment {
         &self.application
@@ -47,33 +41,11 @@ pub fn select_program_entry_contract(
     let default_schema = profile
         .boundary_schema
         .ok_or_else(|| refuse("selected target entry has no boundary schema".into()))?;
-    let selection = contract.owner;
-    if selection == EntryContractSource::Unavailable {
-        return Err(refuse(
-            "target entry contract has no unambiguous admitted source owner".into(),
-        ));
-    }
-    let binding = contract.accepted_declaration.as_deref();
     let sources = typed
         .symbols
         .source_map()
         .ok_or_else(|| refuse("entry contract selection has no source inventory".into()))?;
-    let mut matches = sources.selected_files().filter(|file| {
-        file.dependency_scope == source_provenance::DependencyScope::Product
-            && file.path.strip_prefix(&file.package_root).ok()
-                == Some(std::path::Path::new(contract.relative_source))
-            && match selection {
-                EntryContractSource::Bundled => {
-                    file.origin == source_admission::SourceOrigin::ToolchainContract
-                        && file.package_identity.is_none()
-                }
-                EntryContractSource::Package(owner) => {
-                    file.origin == source_admission::SourceOrigin::User
-                        && file.package_identity == Some(owner)
-                }
-                EntryContractSource::Unavailable => false,
-            }
-    });
+    let mut matches = sources.selected_files().filter(|file| contract.owns(file));
     let (Some(file), None) = (matches.next(), matches.next()) else {
         return Err(refuse(format!(
             "target `{}` entry contract does not have one exact selected source occurrence",
@@ -90,17 +62,13 @@ pub fn select_program_entry_contract(
             return false;
         }
         let path = typed.trait_declaration_path(declaration);
-        if let Some(binding) = binding {
-            path == binding
-        } else {
-            let parent = typed.symbols.get(declaration.symbol).parent;
-            path == default_schema
-                && parent.is_valid()
-                && matches!(
-                    typed.symbols.get(parent).kind,
-                    symbols::SymbolKind::Root | symbols::SymbolKind::Module
-                )
-        }
+        let parent = typed.symbols.get(declaration.symbol).parent;
+        path == default_schema
+            && parent.is_valid()
+            && matches!(
+                typed.symbols.get(parent).kind,
+                symbols::SymbolKind::Root | symbols::SymbolKind::Module
+            )
     });
     let (Some(schema), None) = (declarations.next(), declarations.next()) else {
         return Err(refuse(
@@ -111,7 +79,6 @@ pub fn select_program_entry_contract(
     let environment = application.environment();
     Ok(SelectedProgramEntryContractSource {
         owner: ProductSourceIdentity::new(typed),
-        source: file.source_id,
         application: environment,
     })
 }
@@ -139,12 +106,6 @@ pub fn selected_program_entry_boundary(
     let schema = profile
         .boundary_schema
         .ok_or_else(|| failure("selected target has no calling boundary schema"))?;
-    let selected_owner = contract.owner;
-    if selected_owner == EntryContractSource::Unavailable {
-        return Err(failure(
-            "selected target entry contract has no unambiguous accepted supplier",
-        ));
-    }
     let mut matching = Vec::new();
     for declaration in catalog.declared_traits() {
         let ProviderSchemaDeclaration::BoundaryTrait(symbol) = declaration.schema else {
@@ -159,31 +120,18 @@ pub fn selected_program_entry_boundary(
         if typed.trait_declaration_path(definition) != schema {
             continue;
         }
-        let owns = match selected_owner {
-            EntryContractSource::Package(package) => {
-                declaration.package == Some(package)
-                    && typed
-                        .symbols
-                        .symbol_provenance_source_span(symbol)
-                        .and_then(|span| typed.symbols.source_file(span))
-                        .is_some_and(|file| {
-                            file.path.strip_prefix(&file.package_root).ok()
-                                == Some(std::path::Path::new(contract.relative_source))
-                        })
-            }
-            EntryContractSource::Bundled => typed
-                .symbols
-                .symbol_provenance_source_span(symbol)
-                .and_then(|span| typed.symbols.source_file(span))
-                .is_some_and(|file| {
-                    file.origin == source_admission::SourceOrigin::ToolchainContract
-                        && file.path.ends_with(contract.relative_source)
-                        && exact_sources
+        let owns = typed
+            .symbols
+            .symbol_provenance_source_span(symbol)
+            .and_then(|span| typed.symbols.source_file(span))
+            .is_some_and(|file| {
+                contract.owns(file)
+                    && declaration.package == file.package_identity
+                    && (file.package_identity.is_some()
+                        || exact_sources
                             .iter()
-                            .any(|(source, _)| *source == file.source_id)
-                }),
-            EntryContractSource::Unavailable => false,
-        };
+                            .any(|(source, _)| *source == file.source_id))
+            });
         if !owns {
             continue;
         }

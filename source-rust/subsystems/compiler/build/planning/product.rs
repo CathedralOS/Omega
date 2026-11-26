@@ -85,7 +85,7 @@ impl PlannedProduct {
             product: self,
             entries,
             rollback: None,
-            targets: package_compilation::source_imports::source_targets(packages),
+            targets: package_compilation::source_imports::source_targets(packages)?,
             deployments: deployments
                 .iter()
                 .map(|target| target.target_name())
