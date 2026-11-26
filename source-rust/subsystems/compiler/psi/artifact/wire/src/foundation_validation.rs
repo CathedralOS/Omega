@@ -9609,7 +9609,7 @@ pub(crate) mod structural_type_foundations {
                                 "structural field references an unknown structural type",
                             );
                         }
-                        StructuralFieldType::Erased { type_identity }
+                        StructuralFieldType::Erased { type_identity, .. }
                             if type_identity.is_absent() =>
                         {
                             return malformed(
@@ -9675,7 +9675,7 @@ pub(crate) mod structural_type_foundations {
                                     "structural case payload references an unknown structural type",
                                 );
                             }
-                            StructuralFieldType::Erased { type_identity }
+                            StructuralFieldType::Erased { type_identity, .. }
                                 if !field.relevance.is_erased() || type_identity.is_absent() =>
                             {
                                 return malformed(
@@ -9728,7 +9728,7 @@ pub(crate) mod structural_type_foundations {
                                 "mixed structural field references an unknown structural type",
                             );
                         }
-                        StructuralFieldType::Erased { type_identity }
+                        StructuralFieldType::Erased { type_identity, .. }
                             if !field.relevance.is_erased() || type_identity.is_absent() =>
                         {
                             return malformed(

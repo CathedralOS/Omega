@@ -364,6 +364,7 @@ fn records_with_reference_view_atomic_or_erased_fields_refuse_at_the_unproved_fi
             "atomic" => StructuralFieldType::Atomic(i32_scalar),
             "erased" => StructuralFieldType::Erased {
                 type_identity: erased_ty_identity,
+                scalar: None,
             },
             _ => unreachable!(),
         };

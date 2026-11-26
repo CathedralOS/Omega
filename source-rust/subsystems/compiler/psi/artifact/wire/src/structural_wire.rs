@@ -138,9 +138,20 @@ pub(crate) mod structural_field_wire {
                 writer.u8(2);
                 writer.id(*structural_type);
             }
-            StructuralFieldType::Erased { type_identity } => {
+            StructuralFieldType::Erased {
+                type_identity,
+                scalar: None,
+            } => {
                 writer.u8(3);
                 writer.u32(type_identity.0);
+            }
+            StructuralFieldType::Erased {
+                type_identity,
+                scalar: Some(scalar),
+            } => {
+                writer.u8(11);
+                writer.u32(type_identity.0);
+                encode_scalar_type(writer, *scalar)?;
             }
         }
         Ok(())
@@ -195,6 +206,11 @@ pub(crate) mod structural_field_wire {
             2 => StructuralFieldType::Structural(reader.id("StructuralTypeId")?),
             3 => StructuralFieldType::Erased {
                 type_identity: TerminalIdentityIndex(reader.u32()?),
+                scalar: None,
+            },
+            11 => StructuralFieldType::Erased {
+                type_identity: TerminalIdentityIndex(reader.u32()?),
+                scalar: Some(decode_scalar_type(reader)?),
             },
             4 => StructuralFieldType::IeeeFloat(decode_ieee_float_format(reader)?),
             5 => StructuralFieldType::ByteSequence(decode_byte_sequence_carrier(reader)?),

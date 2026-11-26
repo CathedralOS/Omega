@@ -393,9 +393,15 @@ impl CheckedPrefix<'_> {
                 true
             }
             (
-                StructuralFieldType::Erased { type_identity: a },
-                StructuralFieldType::Erased { type_identity: b },
-            ) => self.identity(*a, *b),
+                StructuralFieldType::Erased {
+                    type_identity: a,
+                    scalar: sa,
+                },
+                StructuralFieldType::Erased {
+                    type_identity: b,
+                    scalar: sb,
+                },
+            ) => sa == sb && self.identity(*a, *b),
             (a, b) => a == b,
         }
     }

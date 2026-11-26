@@ -61,6 +61,8 @@ pub(super) enum Stored {
     Vacated,
     /// Exactly this scalar value.
     Value(ValueId),
+    /// An erased scalar field term recorded in `MachineTables::erased_field_terms`.
+    ErasedScalar(usize),
     /// What this other place held just before the store, leaf for leaf.
     Moved(Lineage),
     /// A sum established whole as this case. Its payload operands are
@@ -87,7 +89,8 @@ impl Stored {
         match self {
             Self::Vacated => Content::Vacated,
             Self::Value(value) => Content::Value(*value),
-            Self::Moved(_)
+            Self::ErasedScalar(_)
+            | Self::Moved(_)
             | Self::Case(_)
             | Self::Zeroed
             | Self::Established
@@ -217,12 +220,15 @@ impl<'a> Storage<'a> {
     pub(super) fn stores(
         &self,
         references: &mut super::DescriptorAnalysis<'a>,
+        tables: &MachineTables,
         value_types: &IdTable<ValueId, ScalarType>,
     ) -> Checked<Vec<Logged>> {
         let mut log = Vec::new();
         for block in &self.lowered.blocks {
             for (position, operation) in block.operations.iter().enumerate() {
-                for (lineage, stored) in self.stored_by(references, operation, value_types)? {
+                for (lineage, stored) in
+                    self.stored_by(references, tables, operation, value_types)?
+                {
                     log.push(Logged {
                         destination: lineage.clone(),
                         backing: Backing::direct(lineage),
@@ -241,6 +247,7 @@ impl<'a> Storage<'a> {
     fn stored_by(
         &self,
         references: &mut super::DescriptorAnalysis<'a>,
+        tables: &MachineTables,
         operation: &Operation,
         value_types: &IdTable<ValueId, ScalarType>,
     ) -> Checked<Vec<(Lineage, Stored)>> {
@@ -392,6 +399,14 @@ impl<'a> Storage<'a> {
                         operand(&field.value)?,
                     ));
                 }
+                for (index, erased) in tables.erased_field_terms.iter().enumerate() {
+                    if erased.operation == operation.id {
+                        rows.push((
+                            beneath(&root, &[Segment::Field(erased.field)])?,
+                            Stored::ErasedScalar(index),
+                        ));
+                    }
+                }
             }
             OperationKind::EstablishScalarCase {
                 result_case,
@@ -406,6 +421,17 @@ impl<'a> Storage<'a> {
                         )?,
                         Stored::Value(field.value),
                     ));
+                }
+                for (index, erased) in tables.erased_field_terms.iter().enumerate() {
+                    if erased.operation == operation.id {
+                        rows.push((
+                            beneath(
+                                &root,
+                                &[Segment::Case(*result_case), Segment::Field(erased.field)],
+                            )?,
+                            Stored::ErasedScalar(index),
+                        ));
+                    }
                 }
                 rows.insert(0, (root, Stored::Case(*result_case)));
             }
@@ -422,6 +448,17 @@ impl<'a> Storage<'a> {
                         )?,
                         operand(&field.value)?,
                     ));
+                }
+                for (index, erased) in tables.erased_field_terms.iter().enumerate() {
+                    if erased.operation == operation.id {
+                        rows.push((
+                            beneath(
+                                &root,
+                                &[Segment::Case(*result_case), Segment::Field(erased.field)],
+                            )?,
+                            Stored::ErasedScalar(index),
+                        ));
+                    }
                 }
                 rows.insert(0, (root, Stored::Case(*result_case)));
             }
@@ -766,6 +803,9 @@ impl<'a> Storage<'a> {
         }
         let mut matched = vec![0; stated.len()];
         for store in &self.log {
+            if matches!(store.stored, Stored::ErasedScalar(_)) {
+                continue;
+            }
             let concerns = Construct::Operation(store.operation);
             let slot = index(store.operation.get());
             let row = stated

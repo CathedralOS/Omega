@@ -1895,16 +1895,38 @@ impl Program<'_> {
         };
         let mut path = base;
         let data = self.data_type(id, record.record())?;
-        let value_type = match self.member_of(id, record, symbol)? {
-            Member::Field(field) => {
-                path.push(CanonicalStructuralPathSegment::Field(data.fields()[field].id).into());
-                data.fields()[field].value_type
+        let value_type = if let Some(position) = self.erased_member(id, record.record(), symbol)? {
+            let erased = data.erased.get(position).ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Typing("erased field position"),
+                )
+            })?;
+            if erased.evidence || erased.value_type.scalar().is_none() {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Expression("read of an erased field of data"),
+                ));
             }
-            Member::Payload { case, field } => {
-                let owner = &data.cases()[case];
-                path.push(CanonicalStructuralPathSegment::Case(owner.id).into());
-                path.push(CanonicalStructuralPathSegment::Field(owner.fields[field].id).into());
-                owner.fields[field].value_type
+            if let Some(case) = erased.case {
+                path.push(CanonicalStructuralPathSegment::Case(data.cases()[case].id).into());
+            }
+            path.push(CanonicalStructuralPathSegment::Field(erased.id).into());
+            erased.value_type
+        } else {
+            match self.member_of(id, record, symbol)? {
+                Member::Field(field) => {
+                    path.push(CanonicalStructuralPathSegment::Field(data.fields()[field].id).into());
+                    data.fields()[field].value_type
+                }
+                Member::Payload { case, field } => {
+                    let owner = &data.cases()[case];
+                    path.push(CanonicalStructuralPathSegment::Case(owner.id).into());
+                    path.push(CanonicalStructuralPathSegment::Field(owner.fields[field].id).into());
+                    owner.fields[field].value_type
+                }
             }
         };
         Ok(Some((root, path, value_type)))

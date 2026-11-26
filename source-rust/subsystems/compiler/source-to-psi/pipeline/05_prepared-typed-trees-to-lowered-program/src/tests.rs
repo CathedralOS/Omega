@@ -2553,7 +2553,7 @@ fn member(base: Expression, field: usize, result: ValueType) -> Expression {
 }
 
 fn literal(fields: Vec<(usize, Expression)>, result: ValueType) -> Expression {
-    of_type(ExpressionKind::Record { fields }, result)
+    of_type(ExpressionKind::Record { fields, erased: Vec::new() }, result)
 }
 
 fn bind(slot: usize, value: Expression) -> Statement {
@@ -3624,7 +3624,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
 }
 
 fn case_of(case: usize, fields: Vec<(usize, Expression)>) -> Expression {
-    of_type(ExpressionKind::Case { case, fields }, shape())
+    of_type(ExpressionKind::Case { case, fields, erased: Vec::new() }, shape())
 }
 
 fn payload(base: Expression, case: usize, field: usize, result: ValueType) -> Expression {

@@ -337,6 +337,7 @@ fn inline_carrier_rejects_wrong_scalar_atomic_and_erased_fields() {
         StructuralFieldType::Structural(declarations[1].id),
         StructuralFieldType::Erased {
             type_identity: TerminalIdentityIndex(4),
+            scalar: None,
         },
     ] {
         let StructuralTypeShape::Record { fields, .. } = &mut declarations[0].shape else {

@@ -1368,6 +1368,7 @@ pub enum ExpressionKind {
     /// appears exactly once.
     Record {
         fields: Vec<(usize, Expression)>,
+        erased: Vec<(StructuralFieldId, Expression)>,
     },
     /// `base.field`: the field at this position of the record `base` names.
     /// `wiki/spec/language/expressions.md`: "Dot access remains data-field
@@ -1385,6 +1386,7 @@ pub enum ExpressionKind {
     Case {
         case: usize,
         fields: Vec<(usize, Expression)>,
+        erased: Vec<(StructuralFieldId, Expression)>,
     },
     /// The payload field at position `field` of case `case` of the sum
     /// `base` names. It is storage that exists only while that case is
