@@ -1,0 +1,6 @@
+use {omega}/build/workspace.omg;
+
+machine build(plan: @mutable BuildPlan) {
+    let members: WorkspaceMembers = |workspace|::with_member(plan, WorkspaceMembers {}, "nested");
+    plan.product = BuildProduct::Workspace { members: members };
+}

@@ -3,8 +3,8 @@
 // and then retires its obligation with a sticky failure. Whichever name
 // the diagnostic prints pins the attribution identity the evaluator uses.
 
-machine build(builder: @mutable Build) {
-    Build::package(builder, "declared_else");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: "declared_else" };
     let obligation: RequiredOutput = BuildOutput::require(@mutable builder.output, "ghost.txt");
     BuildOutput::fail(@mutable builder.output, obligation, "declared-name probe");
 }

@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "suspend_axis");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "suspend_axis" };
     Build::select_provider::<Scheduler, InlineScheduler>(builder, linux_arm64);
     Build::select_provider::<Scheduler, InlineScheduler>(builder, linux_x86_64);
     Build::select_provider::<Scheduler, InlineScheduler>(builder, macos_arm64);

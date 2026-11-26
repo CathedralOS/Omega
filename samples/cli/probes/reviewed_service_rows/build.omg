@@ -1,7 +1,7 @@
 use {omega}/build/dependency.omg;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "reviewed_service_rows");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "reviewed_service_rows" };
     let mutable reviewed_service_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "../reviewed_service_rows_support" });
     |dependency|::with_alias(@mutable reviewed_service_dependency, "reviewed_service");
     let reviewed_service_registration: DependencyRegistration = Build::dependency(builder, reviewed_service_dependency);

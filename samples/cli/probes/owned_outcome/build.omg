@@ -1,7 +1,7 @@
 use {omega}/build/dependency.omg;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "owned_outcome");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "owned_outcome" };
     let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../../../../source/library/system" }));
     Build::accept_boundary::<Issuer>(builder);
     Build::select_provider::<Issuer, Provider>(builder, linux_arm64);

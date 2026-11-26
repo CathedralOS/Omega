@@ -1,6 +1,6 @@
 use {omega}/build/dependency.omg;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "invalid_dep_no_build");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "invalid_dep_no_build" };
     let dep_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "dep" }));
 }

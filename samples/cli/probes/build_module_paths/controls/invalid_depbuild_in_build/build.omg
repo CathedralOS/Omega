@@ -1,7 +1,7 @@
 use {omega}/build/dependency.omg;
 use kit\build;
-machine build(builder: @mutable Build) {
-    Build::application(builder, "invalid_depbuild_in_build");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "invalid_depbuild_in_build" };
     let mutable kit_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "dep" });
     |dependency|::with_alias(@mutable kit_dependency, "kit");
     let kit_registration: DependencyRegistration = Build::build_dependency(builder, kit_dependency);

@@ -1,9 +1,9 @@
 use {omega}/build/dependency.omg;
 use omega\language\core\ProgramImage;
 
-machine build(builder: @mutable Build) suspends
+machine build(builder: @mutable BuildPlan) suspends
 requires addr::Bound == 18446744073709551616 {
-    Build::application(builder, "provider_readiness_namespaced");
+    builder.product = BuildProduct::Application { name: "provider_readiness_namespaced" };
     let mutable chosen_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "backing" });
     |dependency|::with_alias(@mutable chosen_dependency, "chosen");
     let chosen_registration: DependencyRegistration = Build::build_dependency(builder, chosen_dependency);
@@ -13,13 +13,13 @@ requires addr::Bound == 18446744073709551616 {
         true -> finish(builder),
         _ -> wrong_backing(builder)
     }
-    machine finish(builder: @mutable Build) {
+    machine finish(builder: @mutable BuildPlan) {
         Build::bind(builder, windows_x86_64::ProgramEntry, main);
         Build::bind(builder, linux_x86_64::ProgramEntry, main);
         Build::bind(builder, macos_arm64::ProgramEntry, main);
         Build::bind(builder, linux_arm64::ProgramEntry, main);
     }
-    machine wrong_backing(builder: @mutable Build) {
-        Build::application(builder, "wrong_backing");
+    machine wrong_backing(builder: @mutable BuildPlan) {
+        builder.product = BuildProduct::Unselected;
     }
 }

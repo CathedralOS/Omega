@@ -1,0 +1,6 @@
+use {omega}/build/workspace.omg;
+
+machine build(builder: @mutable BuildPlan) {
+    let members: WorkspaceMembers = |workspace|::with_member(builder, WorkspaceMembers {}, "inner");
+    builder.product = BuildProduct::Workspace { members: members };
+}

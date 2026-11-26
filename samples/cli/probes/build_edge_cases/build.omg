@@ -1,8 +1,8 @@
 // Builder configuration fields are writable on a `package` kind too
 // — application-scoped selections compose inertly when the declared
 // kind is a library package.
-machine build(builder: @mutable Build) {
-    Build::package(builder, "edge_case_kernel");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: "edge_case_kernel" };
     builder.subsystem = Subsystem::Gui;
     builder.identifier = "com.example.edge";
 }

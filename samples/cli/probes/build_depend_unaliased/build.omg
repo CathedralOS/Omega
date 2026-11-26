@@ -6,10 +6,10 @@
 use {omega}/build/dependency.omg;
 use custody_kernel;
 
-machine build(builder: @mutable Build)
+machine build(builder: @mutable BuildPlan)
 suspends
 {
-    Build::application(builder, "build_depend_unaliased");
+    builder.product = BuildProduct::Application { name: "build_depend_unaliased" };
     let dependency_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "dependency" }));
     let dependency_registration_2: DependencyRegistration = Build::build_dependency(builder, |dependency|::from_source(Source::Path { location: "dependency" }));
     suspend Build::prepare_dependency(builder, dependency_registration_2);

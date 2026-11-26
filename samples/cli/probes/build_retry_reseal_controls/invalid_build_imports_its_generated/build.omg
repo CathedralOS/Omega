@@ -1,7 +1,7 @@
 use generated.omg;
 
-machine build(builder: @mutable Build) {
+machine build(builder: @mutable BuildPlan) {
     let value: u8 = |generated|::value();
-    Build::application(builder, "future_input");
+    builder.product = BuildProduct::Application { name: "future_input" };
     Build::include_source(builder, "generated.omg", "public machine value() -> u8 { 7 }");
 }

@@ -1,8 +1,8 @@
 use {omega}/build/dependency.omg;
 use main.omg as consumer;
 
-machine build(builder: @mutable Build) suspends {
-    Build::application(builder, "build_retry_reseal");
+machine build(builder: @mutable BuildPlan) suspends {
+    builder.product = BuildProduct::Application { name: "build_retry_reseal" };
     let mutable kit_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "dependency" });
     |dependency|::with_alias(@mutable kit_dependency, "kit");
     let kit_registration: DependencyRegistration = Build::dependency(builder, kit_dependency);

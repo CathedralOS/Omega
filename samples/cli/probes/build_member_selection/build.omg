@@ -4,8 +4,8 @@
 
 use {omega}/build/dependency.omg;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "build_member_selection");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "build_member_selection" };
     let mutable one_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "dep_one" });
     |dependency|::with_alias(@mutable one_dependency, "one");
     let one_registration: DependencyRegistration = Build::dependency(builder, one_dependency);

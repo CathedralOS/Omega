@@ -11,10 +11,10 @@
 use {omega}/build/dependency.omg;
 use {kit}/generated.omg as kit;
 
-machine build(builder: @mutable Build)
+machine build(builder: @mutable BuildPlan)
 suspends
 {
-    Build::application(builder, "build_package_custody");
+    builder.product = BuildProduct::Application { name: "build_package_custody" };
     let mutable kit_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "dependency" });
     |dependency|::with_alias(@mutable kit_dependency, "kit");
     let kit_registration: DependencyRegistration = Build::build_dependency(builder, kit_dependency);
@@ -29,7 +29,7 @@ suspends
     }
     machine done() {
     }
-    machine wrong(builder: @mutable Build) {
+    machine wrong(builder: @mutable BuildPlan) {
         let check: RequiredOutput = BuildOutput::require(@mutable builder.output, "generated-value.txt");
         BuildOutput::fail(@mutable builder.output, check, "generated value must return 7");
     }
