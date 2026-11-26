@@ -1,4 +1,3 @@
-use pipeline/syntax_trees_to_symbol_resolved_trees/type_names.omg;
 use pipeline/syntax_trees_to_symbol_resolved_trees/resolution_state.omg;
 use pipeline/syntax_trees_to_symbol_resolved_trees/declarations.omg;
 
@@ -15,27 +14,12 @@ public data ImportTarget [copy] {
     selector_count: u64 in Trapping;
 }
 
-// Check the aliases independently of which files this stage needs. A missing
-// target rejects only a selection through that alias.
+// The parser has checked the aliases in each file. Resolve only files
+// selected by this stage.
 public machine check_imports(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees)
 crashes Trap
 {
-    transition { _ -> next(resolver, sources, syntax, 0 as +Trapping) }
-    machine next(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
-        transition index < syntax.use_count {
-            true -> check(resolver, sources, syntax, index),
-            false -> selectors(resolver, sources, syntax, 0 as +Trapping)
-        }
-    }
-    machine check(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
-        let item: |syntax_trees|::UseItem = |syntax_trees|::syntax_trees_use_item(syntax, index);
-        let alias: |source|::SourceSpan = item.alias.source_span;
-        let builtin: bool = |type_names|::builtin_type_spelling(sources, alias);
-        transition {
-            builtin -> reject(resolver, alias, |symbol_resolved_trees|::ResolveDiagnosticCode::ShadowsBuiltin),
-            _ -> next(resolver, sources, syntax, index + 1)
-        }
-    }
+    transition { _ -> selectors(resolver, sources, syntax, 0 as +Trapping) }
     machine selectors(resolver: @mutable |resolution_state|::Resolver, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.file_selector_count && index < 65536 {
             true -> selection(resolver, sources, syntax, index),

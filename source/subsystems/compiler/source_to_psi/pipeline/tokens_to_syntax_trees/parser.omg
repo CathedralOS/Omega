@@ -808,9 +808,11 @@ crashes Trap
         let token: |tokens|::Token = input.tokens[parser.use_alias_token];
         let end: u64 in Trapping = token.decoded_start + token.decoded_length;
         let first: u64 in Trapping = parser.first_unit_use;
-        transition end <= 131072 && token.decoded_start <= end {
-            true -> previous(parser, input, item_end, token.decoded_start, end, first),
-            false -> bad_alias(parser, input)
+        let builtin: bool = reserved_file_alias(input, token);
+        transition {
+            builtin -> alias_rejection(parser, |syntax_trees|::ParseDiagnosticCode::BuiltinFileAlias),
+            end <= 131072 && token.decoded_start <= end -> previous(parser, input, item_end, token.decoded_start, end, first),
+            _ -> bad_alias(parser, input)
         }
     }
     machine previous(parser: @mutable Parser, input: @|tokens|::TokenStream, item_end: u64 in Trapping, start: u64 in Trapping, end: u64 in Trapping, index: u64 in Trapping) {
@@ -825,13 +827,13 @@ crashes Trap
         let prior: |tokens|::Token = input.tokens[parser.alias_tokens[index as -Trapping]];
         let equal: bool = |input|::decoded_spells(input, prior.decoded_start, prior.decoded_length, @input.decoded[start as -Trapping..end as -Trapping]);
         transition equal {
-            true -> duplicate(parser),
+            true -> alias_rejection(parser, |syntax_trees|::ParseDiagnosticCode::DuplicateFileAlias),
             false -> previous(parser, input, item_end, start, end, index + 1)
         }
     }
-    machine duplicate(parser: @mutable Parser) {
+    machine alias_rejection(parser: @mutable Parser, code: |syntax_trees|::ParseDiagnosticCode) {
         let span: |source|::SourceSpan = parser.use_alias.source_span;
-        |syntax_trees|::syntax_trees_reject(@mutable parser.output, |syntax_trees|::ParseDiagnosticCode::DuplicateFileAlias, span.source, span.span.start, span.span.end);
+        |syntax_trees|::syntax_trees_reject(@mutable parser.output, code, span.source, span.span.start, span.span.end);
     }
 
     machine bad_alias(parser: @mutable Parser, input: @|tokens|::TokenStream) {
@@ -979,5 +981,57 @@ machine file_component_token(kind: |tokens|::TokenKind) -> bool {
         |tokens|::TokenKind::Integer { .. } -> true,
         |tokens|::TokenKind::Punctuation { punctuation: |tokens|::PunctuationKind::Minus, .. } -> true,
         _ -> false
+    }
+}
+
+
+// File aliases reserve the installed builtin spellings, including the entire
+// i/u decimal width family. The token's decoded bytes are available at parse time.
+machine reserved_file_alias(input: @|tokens|::TokenStream, token: |tokens|::Token) -> bool
+crashes Trap
+{
+    let start: u64 in Trapping = token.decoded_start;
+    let end: u64 in Trapping = start + token.decoded_length;
+    transition start < end && end <= 131072 {
+        true -> spelling(input, start, end),
+        false -> false
+    }
+    machine spelling(input: @|tokens|::TokenStream, start: u64 in Trapping, end: u64 in Trapping) -> bool
+    requires start < 131072
+    {
+        let first: u8 = input.decoded[start as -Trapping];
+        transition first == 105 || first == 117 {
+            true -> digits(input, start + 1, end),
+            false -> named(input, start, end - start)
+        }
+    }
+    machine digits(input: @|tokens|::TokenStream, index: u64 in Trapping, end: u64 in Trapping) -> bool {
+        transition index < end && index < 131072 {
+            true -> digit(input, index, end),
+            false -> true
+        }
+    }
+    machine digit(input: @|tokens|::TokenStream, index: u64 in Trapping, end: u64 in Trapping) -> bool
+    requires index < 131072
+    {
+        let byte: u8 = input.decoded[index as -Trapping];
+        transition byte >= 48 && byte <= 57 {
+            true -> digits(input, index + 1, end),
+            false -> false
+        }
+    }
+    machine named(input: @|tokens|::TokenStream, start: u64 in Trapping, length: u64 in Trapping) -> bool {
+        |input|::decoded_spells(input, start, length, "bool")
+            || |input|::decoded_spells(input, start, length, "address")
+            || |input|::decoded_spells(input, start, length, "f32")
+            || |input|::decoded_spells(input, start, length, "f64")
+            || |input|::decoded_spells(input, start, length, "Slice")
+            || |input|::decoded_spells(input, start, length, "SyscallResult")
+            || |input|::decoded_spells(input, start, length, "Terminal")
+            || |input|::decoded_spells(input, start, length, "UInt")
+            || |input|::decoded_spells(input, start, length, "Int")
+            || |input|::decoded_spells(input, start, length, "AtomicBool")
+            || |input|::decoded_spells(input, start, length, "AtomicU32")
+            || |input|::decoded_spells(input, start, length, "AtomicU64")
     }
 }

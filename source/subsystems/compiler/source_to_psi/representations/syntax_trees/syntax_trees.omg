@@ -980,6 +980,7 @@ public data ParseDiagnosticCode [copy] {
     case ExpectedFileAlias;
     case FileSelectorCapacityExceeded;
     case DuplicateFileAlias;
+    case BuiltinFileAlias;
 }
 
 public data ParseDiagnostic [copy] {
