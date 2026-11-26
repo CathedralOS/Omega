@@ -63,7 +63,7 @@ pub mod constraints {
                 !call.callbacks.iter().any(|callback| {
                     usize::try_from(callback.application.native_ordinal)
                         .ok()
-                        .map(|ordinal| ordinal + call.binding.dispatch_operand_count())
+                        .map(|ordinal| call.binding.operand_for_native_ordinal(ordinal))
                         == Some(*position)
                         && matches!(callback.destination, NativePlace::Parameter(_))
                 })

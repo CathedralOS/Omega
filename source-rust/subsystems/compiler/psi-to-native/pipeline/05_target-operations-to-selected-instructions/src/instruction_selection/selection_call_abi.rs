@@ -973,7 +973,8 @@ pub(crate) mod normalized_foreign {
                 )
             })
             .map(|callback| {
-                callback.application.native_ordinal as usize + call.binding.dispatch_operand_count()
+                call.binding
+                    .operand_for_native_ordinal(callback.application.native_ordinal as usize)
             })
             .collect();
         ordinals.sort_unstable();
@@ -1154,7 +1155,7 @@ pub(crate) mod normalized_foreign {
                 callback.destination,
                 calling_conventions::NativePlace::Parameter(_)
             ) {
-                private_ordinals.push(ordinal + call.binding.dispatch_operand_count());
+                private_ordinals.push(call.binding.operand_for_native_ordinal(ordinal));
             }
         }
         if operands.len()
@@ -1541,10 +1542,7 @@ pub(crate) mod normalized_foreign {
             *parameters.get_mut(position).ok_or_else(|| invalid!())? = shape;
         }
         let signature = CallSignature {
-            parameters: parameters
-                .into_iter()
-                .skip(call.binding.dispatch_operand_count())
-                .collect(),
+            parameters: call.binding.passed_operands(parameters).collect(),
             result: result_shape,
         };
         let validated = match call.callbacks.first() {

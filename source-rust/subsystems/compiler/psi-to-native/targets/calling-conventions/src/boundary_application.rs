@@ -123,6 +123,15 @@ impl<'geometry> NativeCallProjection<'geometry> {
             .filter(|parameter| !self.is_dispatch_only(parameter))
     }
 
+    /// The complete operand roster includes private callbacks and the table
+    /// itself even when the native callee does not receive that table.
+    pub fn operand_for_formal(&self, formal: u32) -> Result<u32, String> {
+        self.parameters.iter().find_map(|parameter| {
+            matches!(parameter.origin, BoundaryNativeParameterOrigin::SemanticFormal { formal_ordinal } if formal_ordinal == formal)
+                .then_some(parameter.native_ordinal)
+        }).ok_or_else(|| "table lookup names a formal outside the calling telescope".to_owned())
+    }
+
     pub fn parameter_ordinal(&self, public_ordinal: u32) -> Result<Option<usize>, String> {
         let ordinal =
             usize::try_from(public_ordinal).map_err(|_| "native ordinal exceeds usize")?;
@@ -171,6 +180,8 @@ mod projection_tests {
     fn dispatch_omits_the_selected_formal_and_keeps_callback_order() {
         let parameters = parameters();
         let projection = NativeCallProjection::new(&parameters, 3, Some(1)).unwrap();
+        assert_eq!(projection.operand_for_formal(1).unwrap(), 2);
+        assert!(projection.operand_for_formal(3).is_err());
         assert_eq!(
             projection
                 .parameters()

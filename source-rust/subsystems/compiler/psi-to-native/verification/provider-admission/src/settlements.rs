@@ -465,6 +465,10 @@ fn rejoin_normalized_foreign_call(
                 mechanism: target_operations::NormalizedForeignCallMechanism::Table {
                     target: profile,
                     byte_offset,
+                    table_operand: application
+                        .call_projection()
+                        .and_then(|projection| projection.operand_for_formal(0))
+                        .map_err(|error| vec![Diagnostic::error(error)])?,
                     dispatch_only,
                     same_stack_contribution: same_stack.clone(),
                 },

@@ -15972,6 +15972,7 @@ mod normalized_foreign_call {
                                 target::TargetProfile::LinuxX64
                             },
                             byte_offset,
+                            table_operand: 0,
                             dispatch_only: false,
                             same_stack_contribution,
                         };
@@ -16043,6 +16044,7 @@ mod normalized_foreign_call {
                                 target::TargetProfile::LinuxX64
                             },
                             byte_offset: 16,
+                            table_operand: wire_count as u32,
                             dispatch_only: true,
                             same_stack_contribution,
                         };
@@ -16073,8 +16075,8 @@ mod normalized_foreign_call {
                     assert_eq!(
                         selected_instructions::calls::constraints::foreign_argument_registers(
                             &record.call
-                        )[0],
-                        (0, calling_conventions::MachineRegister::X86R11)
+                        )[wire_count],
+                        (wire_count, calling_conventions::MachineRegister::X86R11)
                     );
                     for position in 0..encoded.bytes.len() {
                         let mut corrupted = encoded.bytes.clone();

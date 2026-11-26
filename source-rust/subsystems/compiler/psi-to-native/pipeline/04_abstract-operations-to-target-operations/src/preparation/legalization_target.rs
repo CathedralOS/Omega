@@ -3405,20 +3405,28 @@ pub(crate) mod normalized_foreign {
             &binding.boundary_entry_plan,
         )?;
         let operands = binding.operand_placements();
-        let mut private_ordinals = Vec::new();
+        let mut private_arguments = Vec::new();
         for callback in &callbacks {
             if matches!(
                 callback.destination,
                 calling_conventions::NativePlace::Parameter(_)
             ) {
-                private_ordinals.push(
-                    usize::try_from(callback.application.native_ordinal)
-                        .map_err(|cause| LegalizationError::custody_with_cause(cause))?
-                        + binding.dispatch_operand_count(),
-                );
+                let ordinal = usize::try_from(callback.application.native_ordinal)
+                    .map_err(LegalizationError::custody_with_cause)?;
+                private_arguments.push((
+                    binding.operand_for_native_ordinal(ordinal),
+                    callback.application.shape,
+                ));
             }
         }
-        private_ordinals.sort_unstable();
+        private_arguments.sort_unstable_by_key(|(position, _)| *position);
+        let private_ordinals = private_arguments
+            .iter()
+            .map(|(position, _)| *position)
+            .collect::<Vec<_>>();
+        let positions = operands
+            .semantic_positions(&private_ordinals)
+            .ok_or_else(LegalizationError::custody)?;
         let structural = expected_structural
             .iter()
             .zip(&declaration.structural_parameters)
@@ -3426,11 +3434,9 @@ pub(crate) mod normalized_foreign {
             .zip(declaration.parameter_positions(terminal_psi::BoundaryParameterKind::Structural))
             .map(
                 |((index, (semantic, declaration_parameter)), semantic_position)| {
-                    let native_position = semantic_position
-                        + private_ordinals
-                            .iter()
-                            .filter(|ordinal| **ordinal <= semantic_position)
-                            .count();
+                    let native_position = *positions
+                        .get(semantic_position)
+                        .ok_or_else(LegalizationError::custody)?;
                     structural_argument_at(
                         semantic,
                         index,
@@ -3469,20 +3475,11 @@ pub(crate) mod normalized_foreign {
                 .ok_or(LegalizationError::custody())
             })
             .collect::<Result<Vec<_>, _>>()?;
-        for (callback, ordinal) in callbacks
-            .iter()
-            .filter(|callback| {
-                matches!(
-                    callback.destination,
-                    calling_conventions::NativePlace::Parameter(_)
-                )
-            })
-            .zip(&private_ordinals)
-        {
-            if *ordinal > parameters.len() {
+        for (position, shape) in private_arguments {
+            if position > parameters.len() {
                 return Err(LegalizationError::custody());
             }
-            parameters.insert(*ordinal, callback.application.shape);
+            parameters.insert(position, shape);
         }
         if callbacks
             .iter()
@@ -3491,10 +3488,7 @@ pub(crate) mod normalized_foreign {
             return Err(LegalizationError::custody());
         }
         let signature = CallSignature {
-            parameters: parameters
-                .into_iter()
-                .skip(binding.dispatch_operand_count())
-                .collect(),
+            parameters: binding.passed_operands(parameters).collect(),
             result: result_shape,
         };
         let validated = match callbacks.first() {
@@ -3534,11 +3528,9 @@ pub(crate) mod normalized_foreign {
                     ) else {
                         return true;
                     };
-                    let native_position = index
-                        + private_ordinals
-                            .iter()
-                            .filter(|ordinal| **ordinal <= index)
-                            .count();
+                    let Some(&native_position) = positions.get(index) else {
+                        return true;
+                    };
                     usize::try_from(argument.parameter_index).ok() != Some(native_position)
                         || operands.get(native_position) != Some(&argument.placement)
                         || argument.placement.shape != *shape
