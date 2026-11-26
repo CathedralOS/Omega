@@ -1,4 +1,4 @@
-//! Project a local workspace member from the catalog's captured source inventory.
+//! Derive a package acquisition and its content identity from a frozen directory.
 use super::resolution_observations::CapturedLocalSource;
 use crate::SourceResolveError;
 use crate::limits::CANONICAL_DIRECTORY_MODE;
@@ -42,26 +42,28 @@ impl CapturedLocalSource {
         {
             return Err(SourceResolveError::NotDirectory { path: root });
         }
-        let mut entries = Vec::new();
-        for (path, node) in self.tree.entries() {
-            let Ok(path) = path.strip_prefix(member) else {
-                continue;
-            };
-            let Some(name) = path.components().next() else {
-                continue;
-            };
-            if !excluded_from_capture(
+        let entries = self.tree.entries().filter_map(|(path, node)| {
+            let path = path.strip_prefix(member).ok()?;
+            let name = path.components().next()?;
+            (!excluded_from_capture(
                 SourceTreePolicy::LocalPackage,
                 Path::new(""),
                 name.as_os_str(),
-            ) {
-                entries.push((
-                    canonical_relative_path_bytes(path),
-                    path.to_owned(),
-                    node.clone(),
-                ));
-            }
-        }
+            ))
+            .then(|| (path.to_owned(), node.clone()))
+        });
+        Self::from_frozen_entries(root, entries)
+    }
+
+    /// Acquire exactly the supplied nodes. The root is a logical source coordinate.
+    pub fn from_frozen_entries(
+        root: std::path::PathBuf,
+        nodes: impl IntoIterator<Item = (std::path::PathBuf, CapturedSourceNode)>,
+    ) -> Result<Self, SourceResolveError> {
+        let mut entries: Vec<_> = nodes
+            .into_iter()
+            .map(|(path, node)| (canonical_relative_path_bytes(&path), path, node))
+            .collect();
         entries.sort_unstable_by(|a, b| a.0.cmp(&b.0));
         let mut identity = SourceIdentityHasher::new(entries.len());
         let mut file_count = 0;

@@ -25,6 +25,7 @@ pub(crate) struct PackageSourceCustody {
     materialization: PackageSourceMaterialization,
     pub(crate) snapshot_root: PathBuf,
     captured_source: Option<Arc<source_capture::CapturedSourceTree>>,
+    preparing_source: Option<package_compilation::CapturedLocalSource>,
     pub(crate) build_entries: package_compilation::PackageBuildEntries,
     navigation: PackageSourceNavigation,
     selection_evidence: PackageSourceSelectionEvidence,
@@ -40,6 +41,7 @@ impl PartialEq for PackageSourceCustody {
             && self.materialization == other.materialization
             && self.snapshot_root == other.snapshot_root
             && self.captured_source == other.captured_source
+            && self.preparing_source == other.preparing_source
             && self.build_entries == other.build_entries
             && self.navigation == other.navigation
             && self.selection_evidence == other.selection_evidence
@@ -72,6 +74,7 @@ impl PackageSourceCustody {
             materialization,
             snapshot_root,
             captured_source: None,
+            preparing_source: None,
             build_entries: Default::default(),
             navigation,
             selection_evidence,
@@ -86,6 +89,41 @@ impl PackageSourceCustody {
     ) -> Self {
         self.captured_source = Some(tree);
         self
+    }
+
+    pub(super) fn with_preparing_source(
+        mut self,
+        source: Option<package_compilation::CapturedLocalSource>,
+    ) -> Self {
+        self.preparing_source = source;
+        self
+    }
+
+    pub(super) fn matches_requested_content(
+        &self,
+        source: &package_compilation::CapturedLocalSource,
+    ) -> bool {
+        match &self.preparing_source {
+            Some(original) => original == source,
+            None => {
+                self.materialization()
+                    == &PackageSourceMaterialization::from_local(source.normalized())
+            }
+        }
+    }
+
+    /// Authenticate the original acquisition even when the compiler consumes a generated directory.
+    pub(super) fn matches_acquisition(
+        &self,
+        source: &package_compilation::CapturedLocalSource,
+    ) -> bool {
+        match &self.preparing_source {
+            Some(original) => original == source,
+            None => {
+                self.snapshot_root() == source.canonical_live_root()
+                    && self.captured_source().map(Arc::as_ref) == Some(source.tree().as_ref())
+            }
+        }
     }
 
     pub fn captured_source(&self) -> Option<&Arc<source_capture::CapturedSourceTree>> {

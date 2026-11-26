@@ -138,6 +138,7 @@ struct PreparedRequest {
 }
 
 struct ExecutedBuild {
+    receiving: AcquiredBuildSource,
     preparations: Vec<(
         build_declarations::BuildEntryPath,
         Vec<successor_inputs::PreparedInput>,
@@ -212,14 +213,13 @@ impl ExecutedBuild {
 
     fn observe(
         &mut self,
-        source: &AcquiredBuildSource,
         settled: &[SettledSource],
     ) -> Result<WorkspaceMemberObservation, PackageCommandError> {
         let inputs = self.catalog_inputs(settled)?;
         let declaration = self.stage.observe_source_declaration()?;
         let result = self.stage.source_result()?;
         Ok(WorkspaceMemberObservation::new(
-            source,
+            &self.receiving,
             declaration,
             &result,
             inputs,
@@ -278,7 +278,7 @@ impl SourceHost<'_, '_> {
         snapshot: Option<BuildSnapshotRequest>,
     ) -> Result<ResolvedProject, PackageCommandError> {
         let root = self.execute(entry, &acquired, snapshot, None, &[])?;
-        self.join(acquired, root.stage)
+        self.join(root.receiving, root.stage)
     }
 
     fn join(
@@ -396,9 +396,9 @@ impl SourceHost<'_, '_> {
                             break next;
                         }
                         let acquired = acquired.clone();
-                        let stage = self
-                            .member_or_execute(&acquired, purpose, &backing.programs)?
-                            .stage;
+                        let executed = self.member_or_execute(&acquired, purpose, &backing.programs)?;
+                        let acquired = executed.receiving;
+                        let stage = executed.stage;
                         let required_programs = stage.used_programs();
                         let declaration = acquired.declare_build(stage.returned())?;
                         let (_, next) = dependency.complete_declared(&declaration)?;
@@ -455,7 +455,7 @@ impl SourceHost<'_, '_> {
         let mut observations = Vec::new();
         for source in members.sources() {
             let mut member = self.member_or_execute(source, DependencyPurpose::Build, &[])?;
-            observations.push(member.observe(source, &self.settled)?);
+            observations.push(member.observe(&self.settled)?);
             self.observed.push((source.clone(), member));
         }
         Ok(self
@@ -791,11 +791,11 @@ fn open_products_with(
             ProjectInput::WithBuildLibraries { libraries, .. } => libraries,
             _ => &[],
         };
-        let returned = open_timings
-            .record_result(OPEN_EXECUTE_BUILD, || {
-                host.execute(&entry, &acquired, snapshot, None, libraries)
-            })?
-            .stage;
+        let executed = open_timings.record_result(OPEN_EXECUTE_BUILD, || {
+            host.execute(&entry, &acquired, snapshot, None, libraries)
+        })?;
+        let acquired = executed.receiving;
+        let returned = executed.stage;
         let name = match returned.returned().declaration() {
             Some(build_declarations::BuildDeclaration::Workspace(_)) => match purpose {
                 OpenPurpose::Check => {

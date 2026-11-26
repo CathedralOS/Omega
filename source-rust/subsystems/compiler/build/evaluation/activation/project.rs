@@ -64,40 +64,7 @@ pub(super) fn destination(
             if !matches!(root, TerminalObservationRoot::ReturnedArgument(0)) {
                 return Err("a workspace has no named Product declaration".into());
             }
-            let terminal_psi::StructuralFieldType::Structural(product) = field.field_type else {
-                return Err("BuildPlan.product has no structural carrier".into());
-            };
-            let product = program
-                .structural_type(product)
-                .ok_or("BuildProduct has no structural declaration")?;
-            let case = product
-                .shape
-                .cases()
-                .iter()
-                .find(|case| {
-                    program.module().identities.text(case.identity) == Some(variant.as_str())
-                })
-                .ok_or("selected Workspace has no active case declaration")?;
-            let [members] = case.fields.as_slice() else {
-                return Err("Workspace must contain exactly one member catalog".into());
-            };
-            if program.module().identities.text(members.identity) != Some("members") {
-                return Err("Workspace requires its members field".into());
-            }
-            use terminal_psi::StructuralPathSegment as Path;
-            let marker = instance
-                .borrowed_entry_host_atom(
-                    0,
-                    &[
-                        Path::Field(field.identity),
-                        Path::Case(case.id),
-                        Path::Field(members.identity),
-                    ],
-                )
-                .map_err(|reason| {
-                    format!("cannot read the returned workspace catalog: {reason:?}")
-                })?
-                .ok_or("Build workspace requires at least one member")?;
+            let marker = returned_case_handle(instance, field, &variant, "members")?;
             let members = host.workspace_members(&marker)?;
             Destination::Project(BuildDeclaration::Workspace(WorkspaceDeclaration {
                 members,
@@ -118,6 +85,79 @@ pub(super) fn destination(
         }
     }
     Ok(Some(product))
+}
+
+/// Read the selected opaque handle only after normal return. Its issuing host authenticates it.
+fn returned_case_handle(
+    instance: &TerminalInstance<'_, '_>,
+    field: &terminal_psi::StructuralFieldDeclaration,
+    variant: &str,
+    member: &str,
+) -> Result<terminal_interpreter::TerminalStructuralValue, String> {
+    let program = instance.program();
+    let terminal_psi::StructuralFieldType::Structural(product) = field.field_type else {
+        return Err("returned selection has no structural carrier".into());
+    };
+    let product = program
+        .structural_type(product)
+        .ok_or("returned selection has no structural declaration")?;
+    let case = product
+        .shape
+        .cases()
+        .iter()
+        .find(|case| program.module().identities.text(case.identity) == Some(variant))
+        .ok_or("returned selection has no active case declaration")?;
+    let [members] = case.fields.as_slice() else {
+        return Err("returned selection must contain exactly one handle".into());
+    };
+    if program.module().identities.text(members.identity) != Some(member) {
+        return Err(format!("returned selection requires its {member} field"));
+    }
+    use terminal_psi::StructuralPathSegment as Path;
+    instance
+        .borrowed_entry_host_atom(
+            0,
+            &[
+                Path::Field(field.identity),
+                Path::Case(case.id),
+                Path::Field(members.identity),
+            ],
+        )
+        .map_err(|reason| format!("cannot read returned {member} handle: {reason:?}"))?
+        .ok_or_else(|| format!("returned {member} requires an issued handle"))
+}
+
+pub(super) fn successor_directory(
+    instance: &TerminalInstance<'_, '_>,
+    machine: &SelectedBuildMachine,
+    host: &crate::host::filesystem::TerminalBuildFilesystemHost,
+) -> Result<Option<package_compilation::build_execution::SuccessorDirectory>, String> {
+    let program = instance.program();
+    let receiver = machine.receiver_for(program.module())?;
+    let plan = program
+        .structural_type(receiver.structural_type)
+        .ok_or("BuildPlan has no declaration")?;
+    let field = plan
+        .shape
+        .fields()
+        .find(|field| program.module().identities.text(field.identity) == Some("package_root"))
+        .ok_or("BuildPlan has no package_root field")?;
+    let selected = build_value_projection::field_value(
+        instance,
+        TerminalObservationRoot::ReturnedArgument(0),
+        field,
+    )?;
+    let BuildTimeValue::Case { variant, .. } = selected else {
+        return Err("BuildPlan.package_root requires a BuildPackageRoot".into());
+    };
+    match variant.rsplit("::").next() {
+        Some("Current") => Ok(None),
+        Some("Directory") => {
+            let handle = returned_case_handle(instance, field, &variant, "path")?;
+            host.successor_directory(&handle).map(Some)
+        }
+        _ => Err(format!("unknown Build package root {variant}")),
+    }
 }
 
 fn field_value(

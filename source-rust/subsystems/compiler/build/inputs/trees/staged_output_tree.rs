@@ -288,6 +288,24 @@ impl BuildStagedOutputTree {
         })
     }
 
+    /// Share immutable rows with an acquisition that consumes this directory.
+    pub fn into_source_entries(
+        self,
+    ) -> impl Iterator<Item = (Vec<u8>, crate::CapturedSourceEntry)> {
+        self.entries.into_iter().map(|entry| {
+            let kind = match entry.kind {
+                RetainedStagedOutputEntryKind::Directory => crate::CapturedSourceEntry::Directory,
+                RetainedStagedOutputEntryKind::File { bytes, executable } => {
+                    crate::CapturedSourceEntry::file(bytes, executable)
+                }
+                RetainedStagedOutputEntryKind::Symlink { target } => {
+                    crate::CapturedSourceEntry::symlink(target)
+                }
+            };
+            (entry.relative_path, kind)
+        })
+    }
+
     pub fn sealed_entry(&self, relative_path: &[u8]) -> Option<BuildStagedOutputEntry<'_>> {
         self.entries()
             .find(|entry| entry.relative_path == relative_path)

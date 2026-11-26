@@ -532,3 +532,85 @@ machine build(plan: @mutable BuildPlan) blocks {
     );
     assert!(!root.join("generated.omg").exists());
 }
+
+#[test]
+fn a_returned_directory_supplies_the_successor_entry_import_and_runtime_file() {
+    let sandbox = TemporaryDirectory::create("generated-successor-package", false).unwrap();
+    let root = sandbox.path();
+    let library = std::env::var_os("OMEGA_LIBRARY_ROOT")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| support::repository_root().join("source/library"));
+    prepare_stock_filesystem(root, &library.join("system"));
+
+    let entry = r#"use policy.omg;
+machine build(plan: @mutable BuildPlan) {
+    let asset: BuildPath = BuildSource::resolve(@plan.source, "settings.dat");
+    let file: i32 = BuildSource::open(@plan.source, asset, 0);
+    let mutable bytes: [u8; 1] = [0u8];
+    let count: i64 = BuildSource::read(@plan.source, file, @mutable bytes[..], 1u64);
+    _ = BuildSource::close(@plan.source, file);
+    transition count == 1i64 && |policy|::valid(bytes[0]) {
+        true -> { plan.product = BuildProduct::Package { name: "generated_board" }; },
+        false -> { plan.product = BuildProduct::InterpretedBuild { entry: "wrong-settings.omg" }; }
+    }
+}"#;
+    let generator = r#"use {system}/filesystem.omg as files;
+use {system}/filesystem_host.omg as paths;
+machine build(plan: @mutable BuildPlan) blocks {
+    _ = block |files|::Filesystem::write_all("next.omg" as + |paths|::Path,
+        "machine build(plan: @mutable BuildPlan) { plan.product = BuildProduct::InterpretedBuild { entry: \"final.omg\" }; }");
+    _ = block |files|::Filesystem::write_all("final.omg" as + |paths|::Path, "ENTRY");
+    _ = block |files|::Filesystem::write_all("policy.omg" as + |paths|::Path,
+        "public machine valid(value: u8) -> bool { value == 82u8 }");
+    _ = block |files|::Filesystem::write_all("settings.dat" as + |paths|::Path, "R");
+    SELECT
+    plan.product = BuildProduct::InterpretedBuild { entry: "next.omg" };
+}"#
+    .replace("ENTRY", &entry.escape_default().to_string());
+    fs::write(
+        root.join("parent_only.omg"),
+        "public machine valid(value: u8) -> bool { false }",
+    )
+    .unwrap();
+    let run = |generator: &str, select: &str| {
+        fs::write(
+            root.join("configure.omg"),
+            generator.replace("SELECT", select),
+        )
+        .unwrap();
+        let result = Command::new(env!("CARGO_BIN_EXE_omega"))
+            .env("OMEGA_LIBRARY_ROOT", &library)
+            .current_dir(root)
+            .args(["build", "build.omg"])
+            .output()
+            .unwrap();
+        (
+            result.status.success(),
+            format!(
+                "{}{}",
+                String::from_utf8_lossy(&result.stdout),
+                String::from_utf8_lossy(&result.stderr)
+            ),
+        )
+    };
+    let select = r#"let generated: BuildPath = BuildOutput::resolve(@plan.output, "");
+    plan.package_root = BuildPackageRoot::Directory { path: generated };"#;
+    let (ok, report) = run(&generator, select);
+    assert!(ok, "{report}");
+    for name in ["next.omg", "final.omg", "policy.omg", "settings.dat"] {
+        assert!(!root.join(name).exists(), "{name} escaped private staging");
+    }
+
+    let (ok, report) = run(&generator, "");
+    assert!(!ok && report.contains("next.omg"), "{report}");
+    let (ok, report) = run(
+        &generator.replace("use policy.omg;", "use parent_only.omg as policy;"),
+        select,
+    );
+    assert!(!ok && report.contains("parent_only.omg"), "{report}");
+    let (ok, report) = run(
+        &generator,
+        "plan.package_root = BuildPackageRoot::Directory { path: BuildPath {} };",
+    );
+    assert!(!ok && report.contains("issued"), "{report}");
+}

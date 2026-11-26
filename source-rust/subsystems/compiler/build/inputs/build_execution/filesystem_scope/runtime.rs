@@ -126,6 +126,37 @@ impl BuildFilesystemRuntime {
         Ok(())
     }
 
+    /// An empty path denotes the root directory; ordinary file operations retain their own checks.
+    pub fn resolve_view(
+        &self,
+        root: FilesystemGrantRootIdentity,
+        relative: &[u8],
+    ) -> Result<(), String> {
+        if !relative.is_empty() {
+            return self.resolve(root, relative);
+        }
+        if root != BUILD_OUTPUT_ROOT_IDENTITY && root != BUILD_SOURCE_ROOT_IDENTITY {
+            self.snapshot(root)?;
+        }
+        Ok(())
+    }
+
+    pub fn successor_directory(
+        &self,
+        root: FilesystemGrantRootIdentity,
+        relative: &[u8],
+    ) -> Result<super::successor_directory::SuccessorDirectory, String> {
+        self.resolve_view(root, relative)?;
+        Ok(super::successor_directory::SuccessorDirectory {
+            relative: relative.into(),
+            captured: if root == BUILD_OUTPUT_ROOT_IDENTITY {
+                None
+            } else {
+                Some(self.snapshot(root)?.clone())
+            },
+        })
+    }
+
     fn snapshot(
         &self,
         root: FilesystemGrantRootIdentity,

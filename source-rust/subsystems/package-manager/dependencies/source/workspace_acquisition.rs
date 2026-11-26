@@ -195,6 +195,7 @@ impl AcquiredWorkspaceBuild {
             members.push((
                 path.clone(),
                 AcquiredBuildSource {
+                    successor_capture: None,
                     capture,
                     lineage: self.root.lineage.clone(),
                     limits: self.root.limits,
@@ -266,6 +267,7 @@ impl BuildSourceAcquisitions<'_> {
             .capture_inventory(self.storage)
             .map_err(|error| error.to_string())?;
         let root = self.retain_source(AcquiredBuildSource {
+            successor_capture: None,
             capture,
             lineage: request.acquisition().lineage().clone(),
             limits,

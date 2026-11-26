@@ -25,6 +25,7 @@ Provenance:
 mod bound_directory;
 pub mod preparation;
 pub mod runtime;
+pub(super) mod successor_directory;
 
 use super::observations::{
     BuildActivation, BuildCapturedSourceInventory, BuildNamedInputInventory,

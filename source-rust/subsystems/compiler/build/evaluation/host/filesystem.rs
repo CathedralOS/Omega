@@ -154,6 +154,25 @@ impl TerminalBuildFilesystemHost {
         operation(&mut activation.runtime)
     }
 
+    pub(crate) fn successor_directory(
+        &self,
+        value: &TerminalStructuralValue,
+    ) -> Result<package_compilation::build_execution::SuccessorDirectory, String> {
+        let shared = self
+            .activation
+            .lock()
+            .map_err(|_| "Build filesystem activation lock was poisoned")?;
+        let activation = shared
+            .as_ref()
+            .ok_or("no filesystem view was issued by this Build")?;
+        let MarkerKind::Path(root, relative) = &marker(&activation.markers, value)?.kind else {
+            return Err(
+                "successor package_root requires a directory path issued by this Build".into(),
+            );
+        };
+        activation.runtime.successor_directory(*root, relative)
+    }
+
     pub(crate) fn adapter(
         self: &Arc<Self>,
         signature: TerminalImportSignature,
@@ -325,7 +344,7 @@ impl FilesystemAdapter {
                     BUILD_OUTPUT_ROOT_IDENTITY
                 };
                 let path = bytes(1)?;
-                runtime.resolve(root, path)?;
+                runtime.resolve_view(root, path)?;
                 mint(markers, &self.host.account, result, path.len(), || {
                     let mut retained = Vec::new();
                     retained

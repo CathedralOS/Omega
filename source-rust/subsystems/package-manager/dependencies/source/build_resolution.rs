@@ -115,10 +115,7 @@ impl PendingBuildSource {
             .cloned()
         {
             if custody.resolution() != &acquired.resolution
-                || custody.materialization()
-                    != &super::PackageSourceMaterialization::from_local(
-                        acquired.capture.normalized(),
-                    )
+                || !custody.matches_requested_content(&acquired.capture)
             {
                 return Err(self
                     .request
@@ -178,9 +175,7 @@ impl AcquiredBuildDependency {
         if custody.key().source_lineage() != &self.acquired.lineage
             || custody.navigation() != &self.acquired.navigation
             || custody.resolution() != &self.acquired.resolution
-            || custody.captured_source().map(std::sync::Arc::as_ref)
-                != Some(self.acquired.capture.tree().as_ref())
-            || custody.snapshot_root() != self.acquired.capture.canonical_live_root()
+            || !custody.matches_acquisition(&self.acquired.capture)
         {
             return Err(self
                 .pending
