@@ -125,6 +125,11 @@ Either way, `|tables|::generate_tables(builder)` is an ordinary call. The
 compiler resolves the import before the Build starts. The invoker supplies
 the root's external libraries, and the parent supplies each child's. Product
 source sees the libraries selected for the product.
+
+A shared file can declare `use tables.omg;` before that file exists. If only
+the successor calls `|tables|::generate_tables`, the first stage can write
+`tables.omg` for it. If no compiled stage uses the import, the build reports
+one unused-import warning at the end.
 [Checked Build stages](../spec/build/scoped_execution.md#checked-build-stages)
 
 A build helper runs on the machine doing the build, whatever the target is,

@@ -37,9 +37,9 @@ and rooted `{geometry}/x.omg` address distinct sources. The toolchain supplies
 `{omega}/language/core/` in both checked build and product contexts.
 
 Match the slash-separated logical filename exactly. Components may contain a
-hyphen. Empty components, `.`, `..`, absolute host paths, directories and
-missing files reject. The filename includes its final literal `.omg`; there
-is no basename search or implied index file. A stem that is not a legal
+hyphen. Empty components, `.`, `..`, absolute host paths and directory spellings
+reject. The filename includes its final literal `.omg`. There is no basename
+search or implied index file. A stem that is not a legal
 namespace identifier requires an explicit legal alias, for example
 `use math/asdf-whatever.omg as whatever;`. Never normalize a hyphen to an
 underscore when binding an alias. Duplicate aliases in one file reject at
@@ -57,10 +57,16 @@ Existing compound tokens retain their lexical meaning. Write
 Similarly, `offset + |limits|::BASE` keeps plus separate from `+|`.
 
 Each import selects a file without executing code or acquiring dependencies.
-The compiler resolves Build imports against the bindings its caller supplied
-before the entry runs, including imports used only in conditional code.
-Unused valid imports retain ordinary warning behavior. Product imports resolve
-in the Product compilation against its frozen inputs.
+Each stage resolves the aliases it needs for checking against its own
+frozen files and package bindings. A required target that is missing or
+names a directory rejects that stage. A well-formed import may remain
+unresolved in stages that do not use it. Syntax and duplicate-alias checks
+still apply in every parsed file.
+
+At the end of the build, warn once for each import declaration unused by
+every stage compiled in that invocation, even if its target is missing.
+Count a use by a successor compiling the same declaration. Reporting the
+warning requires no final lookup of the unused target.
 [Checked Build stages](../build/scoped_execution.md#checked-build-stages)
 
 Dependency authority is context-specific. Build entry/local-helper imports use

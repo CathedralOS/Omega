@@ -9,7 +9,7 @@ explicit opt-in. It is not the hermetic evaluator used for constants and proofs.
 
 1. The invoker supplies the root Build's source, package bindings and execution
    backing. Package management resolves and reviews the Build libraries. The
-   compiler resolves imports and checks the Build program. Admission checks
+   compiler resolves the imports it needs to check this Build. Admission checks
    its executable closure, selected services and restricted requests before
    the interpreter runs its first statement.
 2. Interpret the Build once. Each executed product-library registration fixes
