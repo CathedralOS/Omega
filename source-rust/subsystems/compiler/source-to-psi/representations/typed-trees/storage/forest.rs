@@ -40,7 +40,6 @@ impl TypedTrees {
         }
         clone_storage!(
             excluded_authored_selection_occurrences,
-            parked_build_locals,
             roots,
             tables,
             service_reaches,
@@ -138,7 +137,6 @@ impl TypedTrees {
     ) -> Self {
         Self {
             identity: ProgramIdentity::default(),
-            parked_build_locals: Vec::new(),
             excluded_authored_selection_occurrences: AuthoredSelectionExclusions::default(),
             roots,
             tables,

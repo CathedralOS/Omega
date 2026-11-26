@@ -80,40 +80,68 @@ proved on every arrival (`ArrivalInvariant`) and known from the head's entry
 on (`arrivals`). Kinds outside those five are refused as `Unsupported`.
 */
 
-mod arrivals;
-mod branch_warnings;
-mod call_contracts;
-mod callable_arrivals;
-mod ceilings;
-mod crashes;
-mod describe;
-mod entry_inputs;
-mod equality;
-mod external_providers;
-mod formation;
-mod generic_storage;
-mod graph;
-mod joins;
-mod known;
-mod laws;
-mod machine_batch;
-mod machine_inputs;
-mod membership_tests;
-mod minted;
-mod nominal_calls;
-mod operational;
-mod owned_cleanup;
-mod places;
-mod prove;
+// Read the stage from verdict; publication only receives accepted results.
 mod publication;
-mod rankings;
-mod refinement;
-mod result_summaries;
-mod reuse;
-mod static_contracts;
-mod static_reach;
-mod theorems;
 mod verdict;
+
+mod calls {
+    pub(crate) mod call_contracts;
+    pub(crate) mod callable_arrivals;
+    pub(crate) mod entry_inputs;
+    pub(crate) mod external_providers;
+    pub(crate) mod nominal_calls;
+    pub(crate) mod refinement;
+    pub(crate) mod result_summaries;
+    pub(crate) mod static_contracts;
+}
+mod effects {
+    pub(crate) mod ceilings;
+    pub(crate) mod crashes;
+    pub(crate) mod operational;
+    pub(crate) mod static_reach;
+}
+mod control_flow {
+    pub(crate) mod arrivals;
+    pub(crate) mod graph;
+    pub(crate) mod joins;
+    pub(crate) mod rankings;
+}
+mod proofs {
+    pub(crate) mod equality;
+    pub(crate) mod known;
+    pub(crate) mod laws;
+    pub(crate) mod membership_tests;
+    pub(crate) mod prove;
+    pub(crate) mod reuse;
+    pub(crate) mod theorems;
+}
+mod storage {
+    pub(crate) mod generic_storage;
+    pub(crate) mod owned_cleanup;
+    pub(crate) mod places;
+}
+mod obligations {
+    pub(crate) mod formation;
+    pub(crate) mod machine_batch;
+    pub(crate) mod machine_inputs;
+    pub(crate) mod minted;
+}
+mod reports {
+    pub(crate) mod branch_warnings;
+    pub(crate) mod describe;
+}
+
+use calls::{
+    call_contracts, callable_arrivals, entry_inputs, external_providers, nominal_calls, refinement,
+    result_summaries, static_contracts,
+};
+use control_flow::{arrivals, graph, joins, rankings};
+use effects::{ceilings, crashes, operational, static_reach};
+use obligations::{formation, machine_batch, machine_inputs, minted};
+use proofs::{equality, known, laws, membership_tests, prove, reuse, theorems};
+use reports::{branch_warnings, describe};
+use storage::{generic_storage, owned_cleanup, places};
+
 pub use publication::{AcceptedAdvisories, CheckedPublication, judge_publication};
 
 #[cfg(any(test, feature = "test-support"))]

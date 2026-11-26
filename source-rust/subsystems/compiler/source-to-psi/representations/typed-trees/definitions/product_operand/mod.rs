@@ -107,38 +107,51 @@ impl<'program> ProductDeclarationLookup<'program> {
         occurrence: source_text::SourceSpan,
         kind: ProductOperandKind,
     ) -> Option<SymbolHandle> {
-        let index = &self.declarations;
+        self.declarations
+            .resolve(&self.program.symbols, path, occurrence, kind)
+    }
+}
+
+impl ProductDeclarationIndex {
+    pub(crate) fn resolve(
+        &self,
+        symbols: &crate::source_symbols::SymbolTable,
+        path: &str,
+        occurrence: source_text::SourceSpan,
+        kind: ProductOperandKind,
+    ) -> Option<SymbolHandle> {
         let token_bound_machines = if matches!(
             kind,
             ProductOperandKind::BoundarySubject | ProductOperandKind::RootGrantSubject
         ) {
-            index.token_bound_machines.as_slice()
+            self.token_bound_machines.as_slice()
         } else {
             &[]
         };
         self.resolve_candidates(
+            symbols,
             path,
             occurrence,
-            &index.roles[product_role_position(kind)?],
+            &self.roles[product_role_position(kind)?],
             token_bound_machines,
         )
     }
 
     fn resolve_candidates(
         &self,
+        symbols: &crate::source_symbols::SymbolTable,
         path: &str,
         occurrence: source_text::SourceSpan,
         rows: &[ProductDeclarationName],
         token_bound_machines: &[SymbolHandle],
     ) -> Option<SymbolHandle> {
-        let program = self.program;
-        let occurrence = program.symbols.rejoin_product_occurrence(occurrence);
+        let occurrence = symbols.rejoin_product_occurrence(occurrence);
         // The final name narrows the candidates. The symbol table checks the
         // complete path, source file and visibility at the authored occurrence.
         let name = product_member_name(path);
         let first = rows.partition_point(|row| row.name.as_ref() < name);
         let last = rows.partition_point(|row| row.name.as_ref() <= name);
-        program.symbols.find_build_subject_declaration_from_source(
+        symbols.find_build_subject_declaration_from_source(
             path,
             occurrence,
             rows[first..last]
@@ -514,67 +527,111 @@ pub struct ProductRequestAuthors<'program> {
     authors: Vec<(source_text::SourceSpan, SymbolHandle)>,
 }
 
-/// Borrows the source that authored a batch while applications are formed
-/// in the consuming program. Retained applications carry anchors instead.
-pub struct ProductSourceLookups<'program> {
-    pub declarations: ProductDeclarationLookup<'program>,
-    pub authors: ProductRequestAuthors<'program>,
+/// Extracted declaration and author lookups for forming applications in a
+/// mutable consuming program without cloning `TypedTrees`.
+pub struct ProductSourceLookups {
+    declarations: ProductDeclarationIndex,
+    authors: Vec<(source_text::SourceSpan, SymbolHandle)>,
     types: Vec<ProductDeclarationName>,
 }
 
-impl<'program> ProductSourceLookups<'program> {
-    pub fn new(program: &'program TypedTrees) -> Self {
+impl ProductSourceLookups {
+    pub fn new(program: &TypedTrees) -> Self {
         Self {
-            declarations: ProductDeclarationLookup::new(
-                program,
-                &[
-                    ProductOperandKind::BoundarySubject,
-                    ProductOperandKind::RootGrantSubject,
-                    ProductOperandKind::Provider,
-                    ProductOperandKind::Requirement,
-                    ProductOperandKind::TestRequirement,
-                    ProductOperandKind::Domain,
-                ],
-            ),
+            declarations: program.build_product_declaration_index(&[
+                ProductOperandKind::BoundarySubject,
+                ProductOperandKind::RootGrantSubject,
+                ProductOperandKind::Provider,
+                ProductOperandKind::Requirement,
+                ProductOperandKind::TestRequirement,
+                ProductOperandKind::Domain,
+            ]),
             types: program.product_declaration_names(
-                program.data_definitions().iter().map(|row| (row.symbol, row.is_public))
-                    .chain(program.type_aliases().iter().map(|row| (row.symbol, row.is_public))),
+                program
+                    .data_definitions()
+                    .iter()
+                    .map(|row| (row.symbol, row.is_public))
+                    .chain(
+                        program
+                            .type_aliases()
+                            .iter()
+                            .map(|row| (row.symbol, row.is_public)),
+                    ),
             ),
-            authors: ProductRequestAuthors::new(program),
+            authors: collect_request_authors(program),
         }
+    }
+
+    pub fn resolve_declaration(
+        &self,
+        symbols: &crate::source_symbols::SymbolTable,
+        path: &str,
+        occurrence: source_text::SourceSpan,
+        kind: ProductOperandKind,
+    ) -> Option<SymbolHandle> {
+        self.declarations.resolve(symbols, path, occurrence, kind)
+    }
+
+    pub fn resolve_type(
+        &self,
+        symbols: &crate::source_symbols::SymbolTable,
+        path: &str,
+        occurrence: source_text::SourceSpan,
+    ) -> Option<SymbolHandle> {
+        self.declarations
+            .resolve_candidates(symbols, path, occurrence, &self.types, &[])
+    }
+
+    pub fn resolve_author(
+        &self,
+        symbols: &crate::source_symbols::SymbolTable,
+        author: source_text::SourceSpan,
+    ) -> Result<SymbolHandle, String> {
+        resolve_request_author(symbols, &self.authors, author)
+    }
+}
+
+fn collect_request_authors(program: &TypedTrees) -> Vec<(source_text::SourceSpan, SymbolHandle)> {
+    let mut authors = program
+        .machines()
+        .iter()
+        .filter_map(|machine| {
+            program
+                .symbols
+                .symbol_source_span(machine.symbol)
+                .map(|span| (span, machine.symbol))
+        })
+        .collect::<Vec<_>>();
+    authors.sort_by_key(|(span, _)| source_span_key(*span));
+    authors
+}
+
+fn resolve_request_author(
+    symbols: &crate::source_symbols::SymbolTable,
+    authors: &[(source_text::SourceSpan, SymbolHandle)],
+    author: source_text::SourceSpan,
+) -> Result<SymbolHandle, String> {
+    let author = symbols.rejoin_product_occurrence(author);
+    let key = source_span_key(author);
+    let first = authors.partition_point(|(span, _)| source_span_key(*span) < key);
+    let last = authors.partition_point(|(span, _)| source_span_key(*span) <= key);
+    match &authors[first..last] {
+        [(_, symbol)] => Ok(*symbol),
+        [] => Err("executed Build request has no authored selecting machine".into()),
+        _ => Err("executed Build request has ambiguous authored machine custody".into()),
     }
 }
 
 impl<'program> ProductRequestAuthors<'program> {
     pub fn new(program: &'program TypedTrees) -> Self {
-        let mut authors = program
-            .machines()
-            .iter()
-            .filter_map(|machine| {
-                program
-                    .symbols
-                    .symbol_source_span(machine.symbol)
-                    .map(|span| (span, machine.symbol))
-            })
-            .collect::<Vec<_>>();
-        authors.sort_by_key(|(span, _)| source_span_key(*span));
-        Self { program, authors }
+        Self {
+            program,
+            authors: collect_request_authors(program),
+        }
     }
 
     pub fn resolve(&self, author: source_text::SourceSpan) -> Result<SymbolHandle, String> {
-        let author = self.program.symbols.rejoin_product_occurrence(author);
-        let key = source_span_key(author);
-        let first = self
-            .authors
-            .partition_point(|(span, _)| source_span_key(*span) < key);
-        let last = self
-            .authors
-            .partition_point(|(span, _)| source_span_key(*span) <= key);
-        match &self.authors[first..last] {
-            [(_, symbol)] => Ok(*symbol),
-            [] => Err("executed Build request has no authored selecting machine".into()),
-            _ => Err("executed Build request has ambiguous authored machine custody".into()),
-        }
+        resolve_request_author(&self.program.symbols, &self.authors, author)
     }
 }
 

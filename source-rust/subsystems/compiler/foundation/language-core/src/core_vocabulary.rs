@@ -39,6 +39,7 @@ pub enum CoreVocabulary {
     FloatBinary64,
     OpaqueRepresentation,
     PrivateCallbackSlot,
+    AccessCustody,
     FixedLayoutPlan,
     /// The `MachineControl` service in core `assembly.omg`.
     MachineControlService,
@@ -348,6 +349,12 @@ const ROWS: &[CoreVocabularyRow] = &[
         "PrivateCallbackSlot",
         BundledFile::CoreLayout,
         CoreVocabulary::PrivateCallbackSlot,
+    ),
+    row(
+        "layout.omg",
+        "AccessCustody",
+        BundledFile::CoreLayout,
+        CoreVocabulary::AccessCustody,
     ),
     row(
         "layout.omg",

@@ -9,6 +9,7 @@ A release or bootstrap input set can omit the Rust compiler when its dependency 
 | Start here | Responsibility |
 | --- | --- |
 | [Application](application/src/main.rs) | Parse an `omega` invocation and dispatch the command. |
+| [Source operations](subsystems/source/lib.rs) | Check the syntax of an authored file and locate source errors. |
 | [Project build](subsystems/compiler/build/README.md) | Interpret a Build plan, supply its inputs and request the next compilation or final artifact. |
 | [Compiler](subsystems/compiler/compiler.rs) | Select the requested product. Source can produce portable Psi. Source or an authorized saved Psi artifact can request runtime admission or a native image. |
 | [Source to Psi](subsystems/compiler/source-to-psi/README.md) | Run the numbered source stages from lexing to checked Psi publication. |

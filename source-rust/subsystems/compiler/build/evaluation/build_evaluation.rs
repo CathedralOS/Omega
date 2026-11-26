@@ -213,12 +213,6 @@ pub fn prepare_build_evaluation(
     let typed = interval.program.as_ref();
     let checks_whole_subject_first =
         execution.checks_whole_subject_first(package_inputs, anonymous_source.is_some());
-    if typed.roots.partial_build_entry.is_some() {
-        return Err(vec![Diagnostic::error(
-            "Build evaluation requires a complete checked program",
-        )]
-        .into());
-    }
     let BuildExecutionInputs {
         interpreter_providers,
         profile: execution_profile,
@@ -265,12 +259,6 @@ pub fn prepare_build_evaluation(
     // returns.
     let check_only = match (check_only_subject, anonymous_source) {
         (Some(subject), Some(capture)) if checks_whole_subject_first => {
-            if subject.program.roots.partial_build_entry.is_some() {
-                return Err(vec![Diagnostic::error(
-                    "Build subject validation requires a complete checked program",
-                )]
-                .into());
-            }
             Some((subject.program.as_ref(), capture))
         }
         _ => None,

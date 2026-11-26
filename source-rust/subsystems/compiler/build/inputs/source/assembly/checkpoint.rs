@@ -268,10 +268,10 @@ impl ImmutableSourceParseCheckpoint {
             .sources
             .retain_product_dependency_scope(inputs.dependencies());
         let parsed = parse_admitted(storage, loaded.into_iter().collect(), timings)?;
-        let (discovered, mut requests) = discover_package_imports(
+        let (discovered, _) = discover_package_imports(
             &parsed,
             inputs,
-            PackageImportPhase::TargetIndependent,
+            PackageImportPhase::ExactTarget(None),
             storage,
         )?;
         storage.attach_parsed(parsed);
@@ -280,14 +280,14 @@ impl ImmutableSourceParseCheckpoint {
             imports.mark_loaded(&file.path, file.dependency_scope);
         }
         imports.enqueue(discovered)?;
-        requests.extend(load_imports(
+        load_imports(
             storage,
             &mut imports,
             Some(inputs),
-            PackageImportPhase::TargetIndependent,
+            PackageImportPhase::ExactTarget(None),
             timings,
             catalogue,
-        )?);
+        )?;
         self.build_source = selected_build
             .map(|(choice, file)| {
                 storage
@@ -301,7 +301,7 @@ impl ImmutableSourceParseCheckpoint {
                     })
             })
             .transpose()?;
-        self.package_imports = requests.into();
+        self.package_imports = Arc::from([]);
         Ok(())
     }
 

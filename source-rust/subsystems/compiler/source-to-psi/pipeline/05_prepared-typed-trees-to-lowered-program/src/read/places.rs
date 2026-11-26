@@ -1543,10 +1543,10 @@ impl Program<'_> {
             .erased_member(id, record.record(), member.selection.field_symbol())?
             .is_some()
         {
-            return Err(refuse(
+            return Err(crate::reject(
                 id,
-                Construct::Machine,
-                Unserved::Expression("runtime use of an erased binding"),
+                source,
+                "runtime use of an erased binding",
             ));
         }
         let regions = base
@@ -1712,6 +1712,7 @@ impl Program<'_> {
         let mut seen = vec![false; declared.len()];
         let mut erased_seen = vec![false; erased.len()];
         let mut fields = Vec::with_capacity(declared.len());
+        let mut erased_terms = Vec::with_capacity(erased.len());
         for field in authored {
             if !field.field_symbol.is_valid() {
                 return Err(spelling("record literal field without a symbol"));
@@ -1719,7 +1720,7 @@ impl Program<'_> {
             // contracts.md, "Explicit erased bindings": "Construction
             // supplies the erased term". The literal's term for an erased
             // field is read as an erased local's initializer is, and is no
-            // operand: the record has no storage for it.
+            // runtime operand: the record has no storage for it.
             if let Some(position) = self.erased_member(id, record, field.field_symbol)? {
                 let slot = erased
                     .iter()
@@ -1728,7 +1729,11 @@ impl Program<'_> {
                 if std::mem::replace(&mut erased_seen[slot], true) {
                     return Err(typing("record literal names a field twice"));
                 }
-                self.erased_field_term(id, slots, record, position, field.value)?;
+                if let Some(erased_term) =
+                    self.erased_field_term(id, slots, record, position, field.value)?
+                {
+                    erased_terms.push(erased_term);
+                }
                 continue;
             }
             let position = match case {
@@ -1788,8 +1793,15 @@ impl Program<'_> {
         Ok(Expression {
             call_context: None,
             kind: match case {
-                None => ExpressionKind::Record { fields },
-                Some(case) => ExpressionKind::Case { case, fields },
+                None => ExpressionKind::Record {
+                    fields,
+                    erased: erased_terms,
+                },
+                Some(case) => ExpressionKind::Case {
+                    case,
+                    fields,
+                    erased: erased_terms,
+                },
             },
             result: Some(result),
             source,
@@ -1799,9 +1811,8 @@ impl Program<'_> {
     /// The term a literal supplies for the erased field at `position` of
     /// `record`, read by the erased-term reader of an erased local's
     /// initializer: a literal, a binding or a denotational call, whose
-    /// formation that reader checks. It is not kept. Terminal Psi holds no
-    /// value for an erased field, and every read of one, at runtime or in a
-    /// clause, is refused (`member_of`), so nothing can observe it. Evidence
+    /// formation that reader checks. Scalar erased fields keep their term for
+    /// clause checking while still contributing no runtime storage. Evidence
     /// is not read here: the mathematical signature checks that a literal
     /// supplies evidence at the field's index (`families::evidence_uses`).
     fn erased_field_term(
@@ -1811,7 +1822,7 @@ impl Program<'_> {
         record: StructuralTypeId,
         position: usize,
         value: crate::source_state::expression::ExpressionHandle,
-    ) -> Checked<()> {
+    ) -> Checked<Option<(StructuralFieldId, Expression)>> {
         let erased = self
             .data_type(id, record)?
             .erased
@@ -1824,8 +1835,9 @@ impl Program<'_> {
                 )
             })?;
         if erased.evidence {
-            return Ok(());
+            return Ok(None);
         }
+        let field_id = erased.id;
         let value_type = erased.value_type;
         let term = self.erased_term(id, slots, value, value_type.scalar())?;
         if term.result != Some(value_type) {
@@ -1835,7 +1847,7 @@ impl Program<'_> {
                 Unserved::Typing("record literal field type"),
             ));
         }
-        Ok(())
+        Ok(Some((field_id, term)))
     }
 
     /// Construct zero using the existing initialization logic, then check each
@@ -1882,8 +1894,15 @@ impl Program<'_> {
                             ));
                         }
                         match case {
-                            None => ExpressionKind::Record { fields },
-                            Some(case) => ExpressionKind::Case { case, fields },
+                            None => ExpressionKind::Record {
+                                fields,
+                                erased: Vec::new(),
+                            },
+                            Some(case) => ExpressionKind::Case {
+                                case,
+                                fields,
+                                erased: Vec::new(),
+                            },
                         }
                     }
                     None => {

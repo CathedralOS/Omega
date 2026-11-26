@@ -1722,29 +1722,116 @@ pub(crate) fn judge_compilation_with_activity(
     activity: &mut crate::ProofSearchActivity,
 ) -> Vec<Result<RouteVerdict, CompilationRefusal>> {
     use terminal_check_tables::compilation::TerminalCompilation;
-    let mut prepared = match input {
+    let prepared = match input {
         TerminalCompilation::FormationFailures(formations) => {
-            return vec![Ok(RouteVerdict::Rejected {
-                formations,
-                violations: Vec::new(),
-                unproved: Vec::new(),
-                unestablished: Vec::new(),
-                conflicts: Vec::new(),
-                exceeded: Vec::new(),
-            })];
+            return vec![Ok(reject_formations(formations))];
         }
         TerminalCompilation::FormationDefect(defect) => {
             return vec![Err(CompilationRefusal::Binding(defect))];
         }
         TerminalCompilation::Prepared(prepared) => prepared,
     };
-    match crate::callable_arrivals::check(prepared.arrivals, activity) {
-        Ok(unproved) if unproved.is_empty() => {}
+    if let Some(verdict) = check_compilation_arrivals(prepared.arrivals, activity) {
+        return vec![verdict];
+    }
+
+    // Judge the compilation-wide laws before checking machines that cite them.
+    let mathematics = prepared.mathematics;
+    let signature = (!mathematics.is_empty()).then(|| crate::laws::judge(mathematics));
+    let laws = signature
+        .as_ref()
+        .map_or(&[][..], |judged| judged.theorems.as_slice());
+    let mut further = Vec::new();
+    let (forms, examined_witnesses) = examine_forms_and_witnesses(
+        prepared.forms,
+        prepared.witnesses,
+        laws,
+        activity,
+        &mut further,
+    );
+
+    // The application can reuse the checked forms and witnesses above.
+    let closure_verdict = match prepared.closure {
+        Ok(closure) => {
+            let witnesses = witnesses(
+                &closure,
+                &forms,
+                &prepared.specializations,
+                &prepared.selection_witnesses,
+                &examined_witnesses,
+            );
+            let carried = carried(&closure, &forms, &witnesses, &prepared.specializations);
+            let donors =
+                crate::reuse::Donors::new(examined_witnesses.iter().filter_map(|examined| {
+                    examined
+                        .as_ref()
+                        .ok()
+                        .map(|examined| (&examined.elaboration, &examined.discharged))
+                }));
+            match examine(
+                Ok(closure),
+                &carried,
+                Some(&donors),
+                laws,
+                activity,
+                &mut further,
+            ) {
+                Ok(examined) => conclude(examined, AppliedContracts::Undecided, true, &mut further),
+                Err(decided) => decided,
+            }
+        }
+        Err(refused) => {
+            judge_owing_with_activity(Err(refused), AppliedContracts::Undecided, activity)
+        }
+    };
+    let mut verdicts = Vec::with_capacity(1 + forms.len() + examined_witnesses.len());
+    verdicts.push(closure_verdict.map_err(CompilationRefusal::Elaboration));
+    append_form_and_witness_verdicts(forms, examined_witnesses, &mut verdicts, &mut further);
+    // Report additional lowering refusals in the order lowering found them.
+    // Classify each the same way as the closure's own refusal.
+    verdicts.extend(
+        prepared
+            .further
+            .into_iter()
+            .map(|refused| judge(Err(refused)).map_err(CompilationRefusal::Elaboration)),
+    );
+    // Report remaining unsupported constructs found during judgment next.
+    verdicts.extend(
+        further
+            .into_iter()
+            .map(|refused| Ok(RouteVerdict::FallBack(refused))),
+    );
+    if let Some(signature) = signature {
+        verdicts.push(Ok(match signature.verdict {
+            Ok(judged) => RouteVerdict::Laws(Box::new(judged)),
+            Err(unproved) => RouteVerdict::UnprovedLaws(unproved),
+        }));
+    }
+    verdicts
+}
+
+fn reject_formations(
+    formations: Vec<terminal_check_tables::compilation::CallableFormationFailure>,
+) -> RouteVerdict {
+    RouteVerdict::Rejected {
+        formations,
+        violations: Vec::new(),
+        unproved: Vec::new(),
+        unestablished: Vec::new(),
+        conflicts: Vec::new(),
+        exceeded: Vec::new(),
+    }
+}
+
+/// Returns a terminal verdict only when a callable arrival does not check.
+fn check_compilation_arrivals(
+    arrivals: Vec<Checked<terminal_check_tables::compilation::CallableArrivalWitness>>,
+    activity: &mut crate::ProofSearchActivity,
+) -> Option<Result<RouteVerdict, CompilationRefusal>> {
+    match crate::callable_arrivals::check(arrivals, activity) {
+        Ok(unproved) if unproved.is_empty() => None,
         Ok(unproved) => {
-            let verdict = if unproved
-                .iter()
-                .all(|failure| failure.cause.is_incomplete())
-            {
+            let verdict = if unproved.iter().all(|failure| failure.cause.is_incomplete()) {
                 RouteVerdict::Incomplete(unproved)
             } else {
                 RouteVerdict::Rejected {
@@ -1756,26 +1843,24 @@ pub(crate) fn judge_compilation_with_activity(
                     exceeded: Vec::new(),
                 }
             };
-            return vec![Ok(verdict)];
+            Some(Ok(verdict))
         }
-        Err(refused) => {
-            return vec![
-                judge_owing_with_activity(Err(refused), AppliedContracts::Undecided, activity)
-                    .map_err(CompilationRefusal::Elaboration),
-            ];
-        }
+        Err(refused) => Some(
+            judge_owing_with_activity(Err(refused), AppliedContracts::Undecided, activity)
+                .map_err(CompilationRefusal::Elaboration),
+        ),
     }
-    let mathematics = std::mem::take(&mut prepared.mathematics);
-    // The signature is one judgment for the whole compilation, independent
-    // of every closure below: no machine's obligations are among its inputs.
-    // It goes first because a theorem over indexed data has its guarantees
-    // proved there, and a machine that cites the theorem imports them
-    // (`Discharged::Law`).
-    let signature = (!mathematics.is_empty()).then(|| crate::laws::judge(mathematics));
-    let laws = signature
-        .as_ref()
-        .map_or(&[][..], |judged| judged.theorems.as_slice());
-    let mut further = Vec::new();
+}
+
+/// Forms and witnesses can share the laws. Check witnesses in two waves so a
+/// later copy of a helper can reuse proofs from the first wave.
+fn examine_forms_and_witnesses(
+    forms: Vec<terminal_check_tables::compilation::GenericForms>,
+    witnesses: Vec<Checked<Elaboration>>,
+    laws: &[crate::laws::LawJudgment],
+    activity: &mut crate::ProofSearchActivity,
+    further: &mut Vec<Refusal>,
+) -> (Vec<GenericForm>, Vec<WitnessExamination>) {
     // A selection borrows the same discharge that later decides its witness's
     // verdict. Several selections may name one witness; none owns a second
     // copy to prove independently.
@@ -1787,8 +1872,7 @@ pub(crate) fn judge_compilation_with_activity(
     // wave from the witnesses' machines; the second wave borrows from it, and
     // the closure then borrows from every witness. Which copy donates is
     // fixed by witness order, never by which worker finished first.
-    let held: Vec<Vec<symbols::SymbolHandle>> = prepared
-        .witnesses
+    let held: Vec<Vec<symbols::SymbolHandle>> = witnesses
         .iter()
         .map(|witness| match witness {
             Ok(elaboration) => elaboration
@@ -1800,8 +1884,7 @@ pub(crate) fn judge_compilation_with_activity(
         })
         .collect();
     let first_wave = crate::reuse::first_wave(&held);
-    let (first, second): (Vec<_>, Vec<_>) = prepared
-        .witnesses
+    let (first, second): (Vec<_>, Vec<_>) = witnesses
         .into_iter()
         .enumerate()
         .partition(|(witness, _)| first_wave[*witness]);
@@ -1809,8 +1892,8 @@ pub(crate) fn judge_compilation_with_activity(
     // only immutable `laws`, so they run concurrently when workers are
     // available and merge their refusals and activity in deterministic order.
     let (forms, first) =
-        if worker_budget::current_workers() == 1 || prepared.forms.is_empty() || first.is_empty() {
-            let forms = examine_generic_forms(prepared.forms, laws, activity, &mut further);
+        if worker_budget::current_workers() == 1 || forms.is_empty() || first.is_empty() {
+            let forms = examine_generic_forms(forms, laws, activity, further);
             let first = examine_witnesses(first, None, laws, activity);
             (forms, first)
         } else {
@@ -1818,14 +1901,7 @@ pub(crate) fn judge_compilation_with_activity(
             let mut forms_activity = crate::ProofSearchActivity::default();
             let mut first_activity = crate::ProofSearchActivity::default();
             let (forms, first) = rayon::join(
-                || {
-                    examine_generic_forms(
-                        prepared.forms,
-                        laws,
-                        &mut forms_activity,
-                        &mut forms_further,
-                    )
-                },
+                || examine_generic_forms(forms, laws, &mut forms_activity, &mut forms_further),
                 || examine_witnesses(first, None, laws, &mut first_activity),
             );
             further.extend(forms_further);
@@ -1850,35 +1926,17 @@ pub(crate) fn judge_compilation_with_activity(
         further.extend(local_further);
         examined_witnesses.push(examined);
     }
-    let closure_verdict = match prepared.closure {
-        Ok(closure) => {
-            let witnesses = witnesses(
-                &closure,
-                &forms,
-                &prepared.specializations,
-                &prepared.selection_witnesses,
-                &examined_witnesses,
-            );
-            let carried = carried(&closure, &forms, &witnesses, &prepared.specializations);
-            let donors = crate::reuse::Donors::new(examined_witnesses.iter().filter_map(
-                |examined| {
-                    examined
-                        .as_ref()
-                        .ok()
-                        .map(|examined| (&examined.elaboration, &examined.discharged))
-                },
-            ));
-            match examine(Ok(closure), &carried, Some(&donors), laws, activity, &mut further) {
-                Ok(examined) => conclude(examined, AppliedContracts::Undecided, true, &mut further),
-                Err(decided) => decided,
-            }
-        }
-        Err(refused) => {
-            judge_owing_with_activity(Err(refused), AppliedContracts::Undecided, activity)
-        }
-    };
-    let mut verdicts = Vec::with_capacity(1 + forms.len() + examined_witnesses.len());
-    verdicts.push(closure_verdict.map_err(CompilationRefusal::Elaboration));
+    (forms, examined_witnesses)
+}
+
+/// Conclude in parallel when possible, but append forms before witnesses and
+/// keep each group's order for both verdicts and its secondary refusals.
+fn append_form_and_witness_verdicts(
+    forms: Vec<GenericForm>,
+    examined_witnesses: Vec<WitnessExamination>,
+    verdicts: &mut Vec<Result<RouteVerdict, CompilationRefusal>>,
+    further: &mut Vec<Refusal>,
+) {
     let conclude_form = |form: GenericForm| {
         let mut local_further = Vec::new();
         let verdict = match form {
@@ -1893,12 +1951,15 @@ pub(crate) fn judge_compilation_with_activity(
         .map_err(CompilationRefusal::Elaboration);
         (verdict, local_further)
     };
-    let conclude_witness = |witness: Result<Examined, Checked<RouteVerdict>>| {
+    let conclude_witness = |witness: WitnessExamination| {
         let mut local_further = Vec::new();
         let verdict = match witness {
-            Ok(examined) => {
-                conclude(examined, AppliedContracts::Undecided, false, &mut local_further)
-            }
+            Ok(examined) => conclude(
+                examined,
+                AppliedContracts::Undecided,
+                false,
+                &mut local_further,
+            ),
             Err(decided) => decided,
         }
         .map_err(CompilationRefusal::Elaboration);
@@ -1932,42 +1993,17 @@ pub(crate) fn judge_compilation_with_activity(
                 },
             )
         };
-    for (verdict, local_further) in form_verdicts {
+    for (verdict, local_further) in form_verdicts.into_iter().chain(witness_verdicts) {
         further.extend(local_further);
         verdicts.push(verdict);
     }
-    for (verdict, local_further) in witness_verdicts {
-        further.extend(local_further);
-        verdicts.push(verdict);
-    }
-    // The closure's further refusals come last, in the order reading met
-    // them. Each is judged as the closure's own refusal is, so an
-    // unsupported construct falls back and a rejection rejects.
-    verdicts.extend(
-        prepared
-            .further
-            .into_iter()
-            .map(|refused| judge(Err(refused)).map_err(CompilationRefusal::Elaboration)),
-    );
-    // And every machine judging refused as not supported after the first of
-    // its part.
-    verdicts.extend(
-        further
-            .into_iter()
-            .map(|refused| Ok(RouteVerdict::FallBack(refused))),
-    );
-    if let Some(signature) = signature {
-        verdicts.push(Ok(match signature.verdict {
-            Ok(judged) => RouteVerdict::Laws(Box::new(judged)),
-            Err(unproved) => RouteVerdict::UnprovedLaws(unproved),
-        }));
-    }
-    verdicts
 }
+
+type WitnessExamination = Result<Examined, Checked<RouteVerdict>>;
 
 /// One examined witness, by its position among the compilation's witnesses,
 /// with the refusals its examination put beside its verdict.
-type ExaminedWitness = (usize, Result<Examined, Checked<RouteVerdict>>, Vec<Refusal>);
+type ExaminedWitness = (usize, WitnessExamination, Vec<Refusal>);
 
 /// Examines `witnesses`, each with its position, on the workers when there
 /// are several; each may borrow proofs from `donors`. The result is in the
@@ -2071,7 +2107,7 @@ fn witnesses<'a>(
     forms: &[GenericForm],
     specializations: &arena::IdTable<MachineId, Option<symbols::SymbolHandle>>,
     selections: &[(usize, usize)],
-    examined: &'a [Result<Examined, Checked<RouteVerdict>>],
+    examined: &'a [WitnessExamination],
 ) -> Vec<Witnessed<'a>> {
     let mut witnessed = Vec::with_capacity(selections.len());
     for &(selection, witness) in selections {

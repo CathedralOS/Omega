@@ -248,6 +248,7 @@ impl PreparedBuildMachineProgram {
                     supplies,
                 },
                 self.publication,
+                Default::default(),
             )
             .map_err(|failure| failure.diagnostics)?
             .accepted;

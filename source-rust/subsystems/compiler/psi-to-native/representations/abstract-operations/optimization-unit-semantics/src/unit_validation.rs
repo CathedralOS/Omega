@@ -17937,7 +17937,7 @@ pub(crate) mod structural_catalog {
                     (terminal_psi::StructuralFieldType::PredicateByteSequence { .. }, _) => {
                         return Err(invalid_erased());
                     }
-                    (terminal_psi::StructuralFieldType::Erased { type_identity }, _)
+                    (terminal_psi::StructuralFieldType::Erased { type_identity, .. }, _)
                         if *type_identity == terminal_psi::TerminalIdentityIndex::ABSENT =>
                     {
                         return Err(invalid_erased());

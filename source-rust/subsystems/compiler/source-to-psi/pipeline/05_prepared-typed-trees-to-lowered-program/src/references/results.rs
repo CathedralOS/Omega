@@ -54,6 +54,7 @@ fn graph_unavailable(module: &TerminalModule, error: DescriptorGraphError) -> Re
 pub(crate) fn publish(
     elaboration: &mut crate::Elaboration,
     selections: &[crate::Selected],
+    parallel: bool,
 ) -> Checked<()> {
     let published = (|| {
         publish_results(
@@ -61,9 +62,26 @@ pub(crate) fn publish(
             selections,
             &elaboration.nominal_calls,
         )?;
-        publish_retained_call_loans(elaboration)?;
-        let successor_loans = publish_successor_loans(elaboration)?;
-        publish_parents(elaboration, &successor_loans)
+        let module = &elaboration.module;
+        let summaries = module_summaries(module);
+        publish_retained_call_loans(
+            module,
+            &mut elaboration.tables,
+            &mut elaboration.sources,
+            &summaries,
+            parallel,
+        )?;
+        let successor_loans =
+            publish_successor_loans(module, &mut elaboration.tables, &mut elaboration.sources)?;
+        publish_parents(
+            module,
+            &mut elaboration.tables,
+            &elaboration.sources,
+            &elaboration.names,
+            &summaries,
+            &successor_loans,
+            parallel,
+        )
     })();
     published.map_err(|mut refusal| {
         if refusal.source_span.is_none()
@@ -143,10 +161,15 @@ pub(crate) fn publish_requirements(
 /// result's lifetime (lifetimes.md, "Returned views"). Mint that row here,
 /// once results are published, so the checker can reconstruct the same
 /// region from `reference_call_lifetimes` and claim it.
-fn publish_retained_call_loans(elaboration: &mut crate::Elaboration) -> Checked<()> {
+fn publish_retained_call_loans(
+    module: &TerminalModule,
+    tables: &mut terminal_check_tables::CheckTables,
+    sources: &mut arena::IdTable<MachineId, terminal_check_tables::program::MachineSources>,
+    summaries: &ModuleSummaries<'_>,
+    parallel: bool,
+) -> Checked<()> {
     use terminal_check_tables::ProgramPoint;
-    use terminal_check_tables::obligations::{ObligationKind, ObligationRow};
-    let module = &elaboration.module;
+    use terminal_check_tables::obligations::{Lender, ObligationKind, ObligationRow};
     let contains_borrowed = |ty| {
         terminal_psi::structural_type_has_borrowed_storage_by(|id| module.structural_type(id), ty)
     };
@@ -191,122 +214,168 @@ fn publish_retained_call_loans(elaboration: &mut crate::Elaboration) -> Checked<
     });
     let graph = terminal_borrowed_storage_graph_from(module, bodies.map(|machine| machine.id), &[])
         .map_err(|error| graph_unavailable(module, error))?;
-    let summaries = module_summaries(module);
-    let mut analysis = shared_analysis(module, &graph, &summaries);
-    for machine in &module.machines {
-        if callers.binary_search(&machine.id).is_err() {
-            continue;
-        }
-        let unavailable = |reason| refuse(machine.id, Construct::Machine, Unserved::Call(reason));
-        let flow = analysis
-            .flow_arc(machine.id)
-            .map_err(|error| graph_unavailable(module, error))?;
-        let predecessors = terminal_semantics::descriptor_lifetimes::FlowPredecessors::new(&flow);
-        let cutoff = terminal_semantics::reference_ends::dead_tail_cutoff(
-            module,
-            machine,
-            &flow,
-            &predecessors,
-        );
-        let loan_index = {
-            let tables = elaboration
-                .tables
-                .machines
+    struct RetainedLoanInsert {
+        captured_arg: terminal_psi::StructuralArgument,
+        access: language_core::ReferenceAccess,
+        lender: Lender,
+        origin: terminal_check_tables::program::SourceOrigin,
+        point: ProgramPoint,
+    }
+    let tables_ref = &tables.machines;
+    let sources_ref = &*sources;
+    let solve_caller =
+        |machine: &terminal_psi::TerminalMachine| -> Checked<(MachineId, Vec<RetainedLoanInsert>)> {
+            let unavailable =
+                |reason| refuse(machine.id, Construct::Machine, Unserved::Call(reason));
+            let mut analysis = shared_analysis(module, &graph, summaries);
+            let flow = analysis
+                .flow_arc(machine.id)
+                .map_err(|error| graph_unavailable(module, error))?;
+            let predecessors =
+                terminal_semantics::descriptor_lifetimes::FlowPredecessors::new(&flow);
+            let cutoff = terminal_semantics::reference_ends::dead_tail_cutoff(
+                module,
+                machine,
+                &flow,
+                &predecessors,
+            );
+            let tables = tables_ref
                 .get(machine.id)
                 .ok_or_else(|| unavailable("retained call loan lost its machine tables"))?;
-            MachineLoanIndex::build(tables).map_err(unavailable)?
-        };
-        let tables = elaboration
-            .tables
-            .machines
-            .get_mut(machine.id)
-            .ok_or_else(|| unavailable("retained call loan lost its machine tables"))?;
-        let sources = elaboration
-            .sources
-            .get_mut(machine.id)
-            .ok_or_else(|| unavailable("retained call loan lost its source coordinates"))?;
-        for block in &machine.blocks {
-            let mut before = ProgramPoint::BlockEntry(block.id);
-            for (position, operation) in block.operations.iter().enumerate() {
-                let point = before;
-                before = ProgramPoint::AfterOperation(operation.id);
-                if !returns_borrowed(operation) {
-                    continue;
-                }
-                let pos_u32 = u32::try_from(position)
-                    .map_err(|_| unavailable("retained call loan position overflows"))?;
-                let retained = terminal_semantics::reference_call_lifetimes_indexed(
-                    module,
-                    machine,
-                    operation,
-                    &mut analysis,
-                    terminal_semantics::CallLifetimeIndex {
-                        predecessors: &predecessors,
-                        cutoff: Some(&cutoff),
-                        at: (block.id, pos_u32),
-                        include_surviving: false,
-                    },
-                )
-                .map_err(|error| graph_unavailable(module, error))?;
-                let arguments = operation.kind.structural_arguments();
-                for retained in retained {
-                    let argument = arguments
-                        .get(retained.position)
-                        .ok_or_else(|| unavailable("retained call loan has no actual argument"))?;
-                    if retained.path == argument.path {
+            let loan_index = MachineLoanIndex::build(tables).map_err(unavailable)?;
+            let sources = sources_ref
+                .get(machine.id)
+                .ok_or_else(|| unavailable("retained call loan lost its source coordinates"))?;
+            let mut inserts = Vec::new();
+            for block in &machine.blocks {
+                let mut before = ProgramPoint::BlockEntry(block.id);
+                for (position, operation) in block.operations.iter().enumerate() {
+                    let point = before;
+                    before = ProgramPoint::AfterOperation(operation.id);
+                    if !returns_borrowed(operation) {
                         continue;
                     }
-                    let access = reference_access(argument.access)
-                        .ok_or_else(|| unavailable("retained call loan has no borrowed input"))?;
-                    // The argument's own row supplies the lender and source
-                    // coordinates; the narrower row is formed by the same call.
-                    let argument_loan = retained_loan_row_indexed(
+                    let pos_u32 = u32::try_from(position)
+                        .map_err(|_| unavailable("retained call loan position overflows"))?;
+                    let retained = terminal_semantics::reference_call_lifetimes_indexed(
                         module,
                         machine,
-                        &loan_index,
-                        point,
-                        argument,
-                        access,
-                        &[],
-                    )
-                    .map_err(unavailable)?
-                    .ok_or_else(|| {
-                        unavailable("retained call loan has no argument occurrence row")
-                    })?;
-                    let Some(ObligationKind::Loan { lender, .. }) =
-                        tables.obligations.get(argument_loan).map(|row| row.kind)
-                    else {
-                        return Err(unavailable("retained call loan lost its argument row"));
-                    };
-                    let origin = sources
-                        .obligations
-                        .get(argument_loan)
-                        .copied()
-                        .ok_or_else(|| unavailable("retained call loan has no source origin"))?;
-                    let captured = capture_argument(
-                        machine,
-                        &module.types.structural_types,
-                        tables,
-                        &terminal_psi::StructuralArgument {
-                            place: argument.place,
-                            path: retained.path,
-                            access: argument.access,
+                        operation,
+                        &mut analysis,
+                        terminal_semantics::CallLifetimeIndex {
+                            predecessors: &predecessors,
+                            cutoff: Some(&cutoff),
+                            at: (block.id, pos_u32),
+                            include_surviving: false,
                         },
-                    )?;
-                    let obligation = tables.obligations.push(ObligationRow {
-                        kind: ObligationKind::Loan {
-                            captured,
+                    )
+                    .map_err(|error| graph_unavailable(module, error))?;
+                    let arguments = operation.kind.structural_arguments();
+                    for retained in retained {
+                        let argument = arguments.get(retained.position).ok_or_else(|| {
+                            unavailable("retained call loan has no actual argument")
+                        })?;
+                        if retained.path == argument.path {
+                            continue;
+                        }
+                        let access = reference_access(argument.access).ok_or_else(|| {
+                            unavailable("retained call loan has no borrowed input")
+                        })?;
+                        // The argument's own row supplies the lender and source
+                        // coordinates; the narrower row is formed by the same call.
+                        let argument_loan = retained_loan_row_indexed(
+                            module,
+                            machine,
+                            &loan_index,
+                            point,
+                            argument,
+                            access,
+                            &[],
+                        )
+                        .map_err(unavailable)?
+                        .ok_or_else(|| {
+                            unavailable("retained call loan has no argument occurrence row")
+                        })?;
+                        let Some(ObligationKind::Loan { lender, .. }) =
+                            tables.obligations.get(argument_loan).map(|row| row.kind)
+                        else {
+                            return Err(unavailable("retained call loan lost its argument row"));
+                        };
+                        let origin =
+                            sources
+                                .obligations
+                                .get(argument_loan)
+                                .copied()
+                                .ok_or_else(|| {
+                                    unavailable("retained call loan has no source origin")
+                                })?;
+                        inserts.push(RetainedLoanInsert {
+                            captured_arg: terminal_psi::StructuralArgument {
+                                place: argument.place,
+                                path: retained.path,
+                                access: argument.access,
+                            },
                             access,
                             lender,
-                        },
-                        created_at: point,
-                    });
-                    if sources.obligations.push(origin) != obligation {
-                        return Err(unavailable(
-                            "retained call loan and source coordinates differ",
-                        ));
+                            origin,
+                            point,
+                        });
                     }
                 }
+            }
+            Ok((machine.id, inserts))
+        };
+    let caller_machines: Vec<_> = module
+        .machines
+        .iter()
+        .filter(|machine| callers.binary_search(&machine.id).is_ok())
+        .collect();
+    let per_caller: Vec<Checked<(MachineId, Vec<RetainedLoanInsert>)>> =
+        if parallel && caller_machines.len() >= 2 {
+            use rayon::prelude::*;
+            caller_machines
+                .into_par_iter()
+                .with_max_len(1)
+                .map(solve_caller)
+                .collect()
+        } else {
+            caller_machines.into_iter().map(solve_caller).collect()
+        };
+    for result in per_caller {
+        let (machine_id, inserts) = result?;
+        if inserts.is_empty() {
+            continue;
+        }
+        let unavailable = |reason| refuse(machine_id, Construct::Machine, Unserved::Call(reason));
+        let machine = module
+            .machine(machine_id)
+            .ok_or_else(|| unavailable("retained call loan lost its machine"))?;
+        let machine_tables = tables
+            .machines
+            .get_mut(machine_id)
+            .ok_or_else(|| unavailable("retained call loan lost its machine tables"))?;
+        let machine_sources = sources
+            .get_mut(machine_id)
+            .ok_or_else(|| unavailable("retained call loan lost its source coordinates"))?;
+        for insert in inserts {
+            let captured = capture_argument(
+                machine,
+                &module.types.structural_types,
+                machine_tables,
+                &insert.captured_arg,
+            )?;
+            let obligation = machine_tables.obligations.push(ObligationRow {
+                kind: ObligationKind::Loan {
+                    captured,
+                    access: insert.access,
+                    lender: insert.lender,
+                },
+                created_at: insert.point,
+            });
+            if machine_sources.obligations.push(insert.origin) != obligation {
+                return Err(unavailable(
+                    "retained call loan and source coordinates differ",
+                ));
             }
         }
     }
@@ -324,20 +393,22 @@ struct SuccessorLoan {
     parameter: semantic_vocabulary::PlaceId,
 }
 
-fn publish_successor_loans(elaboration: &mut crate::Elaboration) -> Checked<Vec<SuccessorLoan>> {
+fn publish_successor_loans(
+    module: &TerminalModule,
+    check_tables: &mut terminal_check_tables::CheckTables,
+    all_sources: &mut arena::IdTable<MachineId, terminal_check_tables::program::MachineSources>,
+) -> Checked<Vec<SuccessorLoan>> {
     use terminal_check_tables::ProgramPoint;
     use terminal_check_tables::obligations::{Lender, ObligationKind, ObligationRow};
     use terminal_psi::StructuralAccess;
     let mut published = Vec::new();
-    for machine in &elaboration.module.machines {
+    for machine in &module.machines {
         let unavailable = |reason| refuse(machine.id, Construct::Machine, Unserved::Call(reason));
-        let tables = elaboration
-            .tables
+        let tables = check_tables
             .machines
             .get_mut(machine.id)
             .ok_or_else(|| unavailable("successor loan publication lost its machine tables"))?;
-        let sources = elaboration
-            .sources
+        let sources = all_sources
             .get_mut(machine.id)
             .ok_or_else(|| unavailable("successor loan publication lost its source coordinates"))?;
         for block in &machine.blocks {
@@ -363,7 +434,7 @@ fn publish_successor_loans(elaboration: &mut crate::Elaboration) -> Checked<Vec<
                     };
                     let authority = terminal_semantics::structural_projection_authority(
                         machine,
-                        &elaboration.module.types.structural_types,
+                        &module.types.structural_types,
                         argument,
                     )
                     .ok_or_else(|| unavailable("successor loan has no actual source authority"))?;
@@ -378,7 +449,7 @@ fn publish_successor_loans(elaboration: &mut crate::Elaboration) -> Checked<Vec<
                         })?;
                     if authority == parameter.access
                         && terminal_semantics::projection_stays_in_inline_storage(
-                            elaboration.module.types.structural_types.iter(),
+                            module.types.structural_types.iter(),
                             root,
                             &argument.path,
                         )
@@ -392,7 +463,7 @@ fn publish_successor_loans(elaboration: &mut crate::Elaboration) -> Checked<Vec<
                     };
                     let captured = capture_argument(
                         machine,
-                        &elaboration.module.types.structural_types,
+                        &module.types.structural_types,
                         tables,
                         argument,
                     )?;
@@ -660,19 +731,23 @@ impl MachineLoanIndex {
 /// available. These rows describe actual source occurrences; 06 reconstructs
 /// them before deciding any loan and grants no authority from this publication.
 fn publish_parents(
-    elaboration: &mut crate::Elaboration,
+    module: &TerminalModule,
+    check_tables: &mut terminal_check_tables::CheckTables,
+    sources_ref: &arena::IdTable<MachineId, terminal_check_tables::program::MachineSources>,
+    names_ref: &arena::IdTable<MachineId, crate::MachineNames>,
+    summaries: &ModuleSummaries<'_>,
     successor_loans: &[SuccessorLoan],
+    parallel: bool,
 ) -> Checked<()> {
     use terminal_check_tables::ProgramPoint;
     use terminal_check_tables::obligations::{Lender, ObligationKind};
     use terminal_semantics::descriptor_lifetimes::{
         DescriptorLocation, FlowPredecessors, descriptor_location_lifetime_indexed,
     };
-    let module = &elaboration.module;
     let unavailable = |machine, reason| refuse(machine, Construct::Machine, Unserved::Call(reason));
     let mut queries = Vec::new();
     for machine in &module.machines {
-        let tables = elaboration.tables.machines.get(machine.id).ok_or_else(|| {
+        let tables = check_tables.machines.get(machine.id).ok_or_else(|| {
             unavailable(
                 machine.id,
                 "reference parent publication lost its machine tables",
@@ -873,9 +948,6 @@ fn publish_parents(
     let roots = queries.iter().map(|(machine, _, _, _)| machine.id);
     let graph = terminal_borrowed_storage_graph_from(module, roots, &[])
         .map_err(|error| graph_unavailable(module, error))?;
-    let summaries = module_summaries(module);
-    let sources_ref = &elaboration.sources;
-    let names_ref = &elaboration.names;
     let solve_machine = |query: (
         &terminal_psi::TerminalMachine,
         MachineLoanIndex,
@@ -889,7 +961,7 @@ fn publish_parents(
         // Calls share one immutable graph and the module's callee summaries.
         // Saved storage states are needed only while finding the parents of
         // this machine's loans.
-        let mut analysis = shared_analysis(module, &graph, &summaries);
+        let mut analysis = shared_analysis(module, &graph, summaries);
         let flow = analysis
             .flow_arc(machine.id)
             .map_err(|error| graph_unavailable(module, error))?;
@@ -1172,24 +1244,22 @@ fn publish_parents(
         }
         Ok(local_updates)
     };
-    let per_machine: Vec<Checked<Vec<_>>> =
-        if worker_budget::current_workers() == 1 || queries.len() < 2 {
-            queries.into_iter().map(solve_machine).collect()
-        } else {
-            use rayon::prelude::*;
-            queries
-                .into_par_iter()
-                .with_max_len(1)
-                .map(solve_machine)
-                .collect()
-        };
+    let per_machine: Vec<Checked<Vec<_>>> = if !parallel || queries.len() < 2 {
+        queries.into_iter().map(solve_machine).collect()
+    } else {
+        use rayon::prelude::*;
+        queries
+            .into_par_iter()
+            .with_max_len(1)
+            .map(solve_machine)
+            .collect()
+    };
     let mut updates = Vec::new();
     for machine_updates in per_machine {
         updates.extend(machine_updates?);
     }
     for (machine, child, lender) in updates {
-        let row = elaboration
-            .tables
+        let row = check_tables
             .machines
             .get_mut(machine)
             .and_then(|tables| tables.obligations.get_mut(child))

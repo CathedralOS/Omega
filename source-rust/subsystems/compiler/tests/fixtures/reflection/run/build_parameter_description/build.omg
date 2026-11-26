@@ -1,18 +1,19 @@
 use {omega}/build/dependency.omg;
 use omega\language\core\reflect;
-use omega\language\core\reflect\ParameterInfo;
-use omega\language\core\reflect\FieldInfo;
+use {omega}/language/core/external_binding.omg as native;
 machine build(builder: @mutable Build) {
     Build::application(builder, "build_parameter_description");
     let mutable description: DependencyDescription = |dependency|::from_source(Source::Path { location: "library" });
     |dependency|::with_alias(@mutable description, "api");
     let registration: DependencyRegistration = Build::dependency(builder, description);
-    let parameter: ParameterInfo = reflect\parameter(api\Query::invoke::table);
-    let field: FieldInfo = reflect\field(api\Table::invoke);
-    transition parameter.declaration_position == 1u64 && field.declaration_position == 1u64
-        && field.name == "invoke" && parameter.parameter_identity != ""
-        && parameter.requirement_application != "" && field.owner_application != ""
-        && parameter.source_revision != "" && field.source_revision != "" {
+    let binding: |native|::FunctionFieldBinding = |native|::FunctionFieldBinding {
+        table: reflect\parameter(api\Query::invoke::table),
+        field: reflect\field(api\Table::invoke),
+    };
+    transition binding.table.declaration_position == 1u64 && binding.field.declaration_position == 1u64
+        && binding.field.name == "invoke" && binding.table.parameter_identity != ""
+        && binding.table.requirement_application != "" && binding.field.owner_application != ""
+        && binding.table.source_revision != "" && binding.field.source_revision != "" {
         true -> accept(builder),
         false -> reject()
     }

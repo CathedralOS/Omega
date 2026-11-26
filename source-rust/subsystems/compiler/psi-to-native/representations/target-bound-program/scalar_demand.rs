@@ -69,7 +69,18 @@ mod storage {
     use super::ScalarDemand;
     use semantic_vocabulary::ScalarApplicationId;
     use std::collections::{BTreeMap, BTreeSet};
-    use terminal_psi::TerminalModule;
+    use terminal_psi::{StructuralAccess, StructuralTypeShape, TerminalModule};
+
+    fn transports_borrow_without_inline_storage(
+        shape: &StructuralTypeShape,
+        access: StructuralAccess,
+    ) -> bool {
+        use calling_conventions::terminal_layout::{
+            borrowed_slice_element, opaque_borrow_transport,
+        };
+        opaque_borrow_transport(shape, access).is_some()
+            || borrowed_slice_element(shape, access).is_some()
+    }
 
     impl ScalarDemand<'_> {
         pub(super) fn storage_extent_demand(
@@ -90,11 +101,7 @@ mod storage {
             // descriptor. Neither requires inline storage for the formal.
             let parameter_storage = |formal: &terminal_psi::StructuralParameterDeclaration| {
                 let fixed_transport = declarations.get(&formal.structural_type).is_some_and(|ty| {
-                    calling_conventions::terminal_layout::borrowed_slice_element(
-                        &ty.shape,
-                        formal.access,
-                    )
-                    .is_some()
+                    transports_borrow_without_inline_storage(&ty.shape, formal.access)
                 });
                 (!fixed_transport).then_some(formal.structural_type)
             };
@@ -211,6 +218,33 @@ mod storage {
             .required_scalar_extents(roots)
             .map(|applications| applications.into_iter().collect())
             .map_err(|error| format!("native storage extent demand: {error:?}"))
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use semantic_vocabulary::StructuralTypeId;
+
+        #[test]
+        fn opaque_and_slice_borrows_leave_pointee_storage_out_of_formal_demand() {
+            let slice = StructuralTypeShape::ElementView {
+                element: StructuralTypeId::new(1).unwrap(),
+                access: None,
+            };
+            for shape in [StructuralTypeShape::Opaque, slice] {
+                for access in [
+                    StructuralAccess::SharedBorrow,
+                    StructuralAccess::MutableBorrow,
+                    StructuralAccess::WriteOnlyBorrow,
+                ] {
+                    assert!(transports_borrow_without_inline_storage(&shape, access));
+                }
+                assert!(!transports_borrow_without_inline_storage(
+                    &shape,
+                    StructuralAccess::Owned
+                ));
+            }
         }
     }
 }

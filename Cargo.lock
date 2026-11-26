@@ -1881,6 +1881,7 @@ dependencies = [
  "mimalloc",
  "native-provider-sponsor",
  "normalized-build-settings",
+ "omega-source",
  "optimization-requests",
  "package-compilation",
  "package-manager",
@@ -1913,6 +1914,13 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+]
+
+[[package]]
+name = "omega-source"
+version = "0.1.0"
+dependencies = [
+ "source-syntax",
 ]
 
 [[package]]

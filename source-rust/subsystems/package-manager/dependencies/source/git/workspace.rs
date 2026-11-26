@@ -237,6 +237,7 @@ impl GitWorkspaceSelectionPlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct GitWorkspaceSelectionEvidence {
     plan: GitWorkspaceSelectionPlan,
+    root_inputs: Vec<crate::resolution::source::CatalogInput>,
     executed: (
         build_execution::SourceBuildDeclaration,
         Vec<crate::resolution::source::WorkspaceMemberObservation>,
@@ -247,6 +248,7 @@ impl GitWorkspaceSelectionEvidence {
     pub(crate) fn from_executed(
         selected: &ProjectName,
         root: build_execution::SourceBuildDeclaration,
+        root_inputs: Vec<crate::resolution::source::CatalogInput>,
         members: Vec<crate::resolution::source::WorkspaceMemberObservation>,
     ) -> Result<Self, String> {
         let declarations = members
@@ -256,12 +258,17 @@ impl GitWorkspaceSelectionEvidence {
         let plan = executed_selection_plan(selected, &root, &declarations)?;
         Ok(Self {
             plan,
+            root_inputs,
             executed: (root, members),
         })
     }
 
     pub const fn plan(&self) -> &GitWorkspaceSelectionPlan {
         &self.plan
+    }
+
+    pub(crate) fn root_inputs(&self) -> &[crate::resolution::source::CatalogInput] {
+        &self.root_inputs
     }
 
     pub(crate) fn observations(&self) -> &[crate::resolution::source::WorkspaceMemberObservation] {

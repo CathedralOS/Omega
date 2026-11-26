@@ -70,7 +70,7 @@ fn projects_package_application_and_workspace_declarations() {
 }
 
 #[test]
-fn the_build_entry_has_exactly_one_canonical_builder_parameter() {
+fn the_build_entry_has_exactly_one_mutable_build_parameter() {
     for source in [
         "machine build() {}",
         "machine build(builder: @mutable Build, filesystem: @mutable Filesystem) {}",
@@ -78,7 +78,6 @@ fn the_build_entry_has_exactly_one_canonical_builder_parameter() {
         "machine build(builder: @Build) {}",
         "machine build(builder: @write Build) {}",
         "machine build(builder: @mutable Builder) {}",
-        "machine build(build: @mutable Build) {}",
         "machine build(filesystem: @mutable Filesystem, builder: @mutable Build) {}",
     ] {
         assert_eq!(

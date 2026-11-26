@@ -20,7 +20,6 @@ pub(crate) use role::{
 };
 
 pub(crate) const BUILD_MACHINE_NAME: &str = "build";
-pub(crate) const BUILDER_PARAMETER_NAME: &str = "builder";
 pub(crate) const PACKAGE_MACHINE_NAME: &str = "package";
 pub(crate) const APPLICATION_MACHINE_NAME: &str = "application";
 pub(crate) const MEMBER_MACHINE_NAME: &str = "member";

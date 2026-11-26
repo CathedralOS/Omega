@@ -25,6 +25,9 @@ impl PackagePolicyOccurrence {
         review: &crate::review::CompilerIssuedPackageReview,
         compiler_identity: [u8; 32],
     ) -> Result<Self, PackageLockError> {
+        if !review.preparations().is_empty() {
+            return Err(PackageLockError::MultipleBuildEntries);
+        }
         let context = review.checked_context();
         let mut compilation = super::AcceptedPackageCompilation::new(
             compiler_identity,

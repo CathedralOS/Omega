@@ -60,16 +60,52 @@ impl SettledSource {
     }
 
     /// Freeze and judge one exact invocation, retaining the costs of any failed judgment.
-    pub(crate) fn judge(
+    pub(super) fn judge(
         self,
         compilation: TerminalSourceCompilation<'_>,
         publication: terminal_codec::TerminalPublication,
+        providers: prepare_typed_source::InvocationProviders<'_>,
     ) -> Result<JudgedSource, prepare_typed_source::SourcePreparationFailure> {
         let FrozenSource {
             program,
             accounting,
         } = self.freeze()?;
-        match judge_terminal_source(program, compilation, publication) {
+        let judgment = (|| {
+            let frozen = std::sync::Arc::clone(program.trees());
+            let choices = if providers.overrides.is_empty() && providers.defaults.is_empty() {
+                None
+            } else {
+                Some(crate::compile_product::provider_choices::prepare_in_scope(
+                    &frozen,
+                    &[
+                        semantic_vocabulary::source_selections::ProductTarget::Interpreter
+                            .canonical_name(),
+                    ],
+                    providers.overrides,
+                    providers.defaults,
+                    &[],
+                    compilation.purpose,
+                )?)
+            };
+            let compilation =
+                choices
+                    .as_ref()
+                    .map_or(compilation, |choices| TerminalSourceCompilation {
+                        selected: &choices.declaration_roots,
+                        calling: Some(production::TerminalCallingPolicySelections {
+                            source: &frozen,
+                            applications: &choices.calling_applications,
+                            entries: &[],
+                        }),
+                        providers: Some(production::TerminalProviderSelections {
+                            source: &frozen,
+                            choices: &choices.selections,
+                        }),
+                        ..compilation
+                    });
+            judge_terminal_source(program, compilation, publication)
+        })();
+        match judgment {
             Ok(accepted) => Ok(JudgedSource {
                 accepted,
                 accounting,

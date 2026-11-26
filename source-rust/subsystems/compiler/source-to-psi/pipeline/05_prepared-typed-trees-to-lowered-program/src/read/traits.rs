@@ -811,6 +811,14 @@ impl<'program> Program<'program> {
                 services::unavailable(context, "implementation has no exact schema declaration")
             })?;
         if typed.core_vocabulary(schema.symbol)
+            == Some(language_core::core_vocabulary::CoreVocabulary::AccessCustody)
+        {
+            return Err(services::unavailable(
+                context,
+                "AccessCustody conformance agreement is not checked yet",
+            ));
+        }
+        if typed.core_vocabulary(schema.symbol)
             == Some(language_core::core_vocabulary::CoreVocabulary::PrivateCallbackSlot)
         {
             // The slot has no callable rows. Its contract is the closed

@@ -1,0 +1,1516 @@
+/*
+The discharge decides the rows it is given, so a certificate for every row
+says nothing about a row that is missing, names the wrong subject or sits at
+the wrong point. This module closes that: before anything is decided it
+recomputes, from the lowered form alone, what each machine owes and where,
+and refuses tables that differ. The lowered form already carries every
+identity needed, so nothing is taken from elaboration's word:
+
+- An operation Terminal semantics gives a safety goal names its obligation
+  (`ProofBearingScalarLeafSemantics::obligation`).
+- A call names one obligation per `requires` clause of its callee
+  (`requirement_obligations`), and the callee's contract says how many there
+  are.
+- An `ensures` clause names its published identity (`ContractClause`), and
+  every normal return owes one guarantee per clause
+  (control_flow.md: "All normal returns, including returns after a cycle,
+  must establish the published guarantees.").
+- A crashing terminator owes coverage for its cause, and a no-normal call or
+  a call that may return and crash owes it per cause among its
+  continuations (calls_and_outcomes.md, "Crash"). An edge that passes scalar
+  or structural arguments owes its destination's predicate (control_flow.md: "one
+  obligation for every actual incoming edge").
+
+Each of those rows must have exactly the kind the lowered form owes and be
+created at the point of what owes it: before the operation, or on the return
+edge. The point decides which knowledge reaches the proof
+(fact_validity.md: "A premise must dominate its use and remain valid on every
+path to it."), so a row moved past a guard or past its own call would be
+proved from facts that do not hold where the obligation sits. A row of these
+kinds that nothing in the lowered form owes is refused too: it could only
+stand in for one that is owed.
+
+Two tables feed the proofs beside the obligation rows, and are checked the
+same way. The invocation table says which callee and which actuals a call
+requirement or a callee guarantee is stated over; the edge table says where
+each edge goes, which is what dominance is computed from. Both are restated
+by the lowered form's own call operations and terminators.
+
+`DataDomain` rows are counted by `Storage::owed_are_minted`, which needs the
+place walk to know which clauses a write owes; their point is checked here.
+The clauses they are goals of come from a table beside the module
+(`Elaboration::domains`); `domains_are_declared` refuses that table unless it
+is the `requires` each type declaration of the module states.
+
+A disagreement is a defect of the route, not of the program, so it is a
+`ForeignIdentity` refusal: `judge` returns it as `Err` and nothing is
+accepted on it.
+*/
+
+use arena::IdTable;
+use semantic_vocabulary::{
+    BlockId, CrashCause, EdgeId, InvocationSite, MachineId, ObligationId, Proposition, ScalarType,
+    StructuralTypeId, ValueId,
+};
+use terminal_check_tables::edges::{Actual, Destination};
+use terminal_check_tables::obligations::{CrashSite, ObligationKind};
+use terminal_check_tables::values::ValueOrigin;
+use terminal_check_tables::{
+    Checked, Construct, InvocationId, MachineTables, ProgramPoint, Refusal, RefusalReason,
+};
+use terminal_psi::{
+    BoundaryParameterKind, CrashRouteBucket, OperationKind, StructuralTypeDeclaration,
+    TerminalMachine, TerminalMachineResult, Terminator, ValueDeclaration,
+};
+
+use crate::{call_contracts, refusal, semantics_refusal};
+
+fn index(raw: u64) -> usize {
+    usize::try_from(raw - 1).unwrap_or(usize::MAX)
+}
+
+/// Inspect only the selected type family. Parameter extents nested below
+/// literal dimensions or reference fields still belong to the call equation.
+fn contains_parameter_extent(
+    module: &terminal_psi::TerminalModule,
+    root: StructuralTypeId,
+) -> bool {
+    use terminal_psi::StructuralTypeShape as Shape;
+    let mut pending = vec![root];
+    let mut visited = Vec::new();
+    while let Some(id) = pending.pop() {
+        match visited.binary_search(&id) {
+            Ok(_) => continue,
+            Err(position) => visited.insert(position, id),
+        }
+        let Some(declaration) = module.structural_type(id) else {
+            // An authenticated abstract referent exposes no storage shape or
+            // extent. A missing declaration without that authority refuses.
+            if module
+                .types
+                .structural_referents
+                .iter()
+                .any(|referent| referent.id == id && referent.abstract_opaque)
+            {
+                continue;
+            }
+            return true;
+        };
+        pending.extend(declaration.quotient_carrier);
+        if let Some(restriction) = &declaration.scalar_restriction {
+            pending.extend(restriction.as_structural());
+        }
+        match &declaration.shape {
+            Shape::FixedArray {
+                length: terminal_psi::ArrayExtent::Parameter { .. },
+                ..
+            } => return true,
+            Shape::FixedArray { element, .. } | Shape::ElementView { element, .. } => {
+                pending.push(*element)
+            }
+            Shape::Reference { referent, .. } => pending.push(*referent),
+            shape => {
+                for (_, field) in shape.fields_with_case() {
+                    pending.extend(field.inline_carrier);
+                    pending.extend(field.field_type.as_structural());
+                }
+            }
+        }
+    }
+    false
+}
+
+/// Checks this question family's complete subjects before input or result
+/// inference can use the module. A question carries no positivity fact: its
+/// goal still goes through the ordinary prover and proof kernel.
+pub(crate) fn width_questions_are_minted(
+    elaboration: &terminal_check_tables::program::Elaboration,
+) -> Checked<()> {
+    let extents = terminal_check_tables::obligations::array_extent_parameters(&elaboration.module)
+        .map_err(|(machine, detail)| {
+            refusal(
+                RefusalReason::ForeignIdentity,
+                machine,
+                Construct::Machine,
+                detail,
+            )
+        })?;
+    for (owner, values) in extents {
+        let lowered = elaboration.module.machine(owner).ok_or_else(|| {
+            refusal(
+                RefusalReason::ForeignIdentity,
+                owner,
+                Construct::Machine,
+                "array extent owner is absent",
+            )
+        })?;
+        let count = elaboration
+            .value_parameters
+            .get(owner)
+            .copied()
+            .unwrap_or(0);
+        let start = lowered.parameters.len().checked_sub(count).ok_or_else(|| {
+            refusal(
+                RefusalReason::ForeignIdentity,
+                owner,
+                Construct::Machine,
+                "array extent static input count exceeds the declaration",
+            )
+        })?;
+        if values.iter().any(|value| {
+            !lowered
+                .parameters
+                .iter()
+                .enumerate()
+                .any(|(position, formal)| position >= start && formal.id == *value)
+        }) {
+            return Err(refusal(
+                RefusalReason::ForeignIdentity,
+                owner,
+                Construct::Machine,
+                "array extent is not an actual proof-static input",
+            ));
+        }
+    }
+    // A dependent structural input is checked under the scalar actuals at
+    // this exact call. Local type IDs alone cannot establish that equation.
+    for caller in &elaboration.module.machines {
+        for operation in caller.operations() {
+            let Some(call) = operation.declared_invocation() else {
+                continue;
+            };
+            let semantic_vocabulary::TargetMachineCallable::Machine(callee) = call.callee else {
+                continue;
+            };
+            let Some(callee) = elaboration.module.machine(callee) else {
+                continue;
+            };
+            for (ordinal, (actual, formal)) in call
+                .structural_arguments
+                .iter()
+                .zip(&callee.structural_parameters)
+                .enumerate()
+            {
+                if elaboration
+                    .nominal_calls
+                    .binary_search_by_key(&(caller.id, operation.id, ordinal as u32), |row| {
+                        (row.caller, row.operation, row.argument)
+                    })
+                    .is_ok()
+                {
+                    continue;
+                }
+                if !contains_parameter_extent(&elaboration.module, formal.structural_type) {
+                    continue;
+                }
+                let selected = caller.structural_place_type(actual.place).and_then(|root| {
+                    terminal_semantics::runtime_structural_path_tip(
+                        elaboration.module.types.structural_types.iter(),
+                        root,
+                        &actual.path,
+                    )
+                });
+                if !selected.is_some_and(|selected| {
+                    terminal_semantics::calls::const_array_argument_matches(
+                        &elaboration.module,
+                        caller,
+                        callee,
+                        call.arguments,
+                        selected.id,
+                        formal.structural_type,
+                    )
+                }) {
+                    return Err(refusal(
+                        RefusalReason::ForeignIdentity,
+                        caller.id,
+                        Construct::Operation(operation.id),
+                        "array call input does not correspond under its actual const inputs",
+                    ));
+                }
+            }
+        }
+    }
+    let inventory = terminal_check_tables::obligations::integer_width_parameters(
+        &elaboration.module,
+    )
+    .map_err(|(machine, detail)| {
+        refusal(
+            RefusalReason::ForeignIdentity,
+            machine,
+            Construct::Machine,
+            detail,
+        )
+    })?;
+    if inventory.len() != elaboration.module.machines.len() {
+        let machine = elaboration
+            .module
+            .machines
+            .first()
+            .map(|machine| machine.id)
+            .or_else(|| inventory.first().map(|(machine, _)| *machine))
+            .unwrap_or_else(|| MachineId::new(1).expect("one is a machine identity"));
+        return Err(refusal(
+            RefusalReason::ForeignIdentity,
+            machine,
+            Construct::Machine,
+            "width subjects do not cover the module's actual machine roster",
+        ));
+    }
+    let u64_type = ScalarType::Integer(
+        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+            .expect("u64 is a supported carrier"),
+    );
+    for (lowered, (machine, mut parameters)) in elaboration.module.machines.iter().zip(inventory) {
+        if lowered.id != machine {
+            return Err(refusal(
+                RefusalReason::ForeignIdentity,
+                machine,
+                Construct::Machine,
+                "width subjects do not follow the module's actual machine roster",
+            ));
+        }
+        let foreign =
+            |concerns, detail| refusal(RefusalReason::ForeignIdentity, machine, concerns, detail);
+        let tables =
+            elaboration.tables.machines.get(machine).ok_or_else(|| {
+                foreign(Construct::Machine, "width subjects have no machine tables")
+            })?;
+        let mut questions = tables
+            .obligations
+            .iter()
+            .filter_map(|(obligation, row)| {
+                let ObligationKind::IntegerWidthPositive { parameter } = row.kind else {
+                    return None;
+                };
+                Some((parameter, obligation, row.created_at))
+            })
+            .collect::<Vec<_>>();
+        questions.sort_unstable_by_key(|(parameter, _, _)| *parameter);
+        parameters.sort_unstable();
+        if questions.len() != parameters.len() {
+            return Err(foreign(
+                Construct::Machine,
+                "integer width questions do not match the exact used width parameters",
+            ));
+        }
+        let formals = if questions.is_empty() {
+            Vec::new()
+        } else {
+            scalar_formals_with_origins(machine, lowered, tables)?
+        };
+        for (parameter, (question_parameter, obligation, point)) in
+            parameters.into_iter().zip(questions)
+        {
+            let concerns = Construct::Obligation(obligation);
+            if question_parameter != parameter || point != ProgramPoint::BlockEntry(lowered.entry) {
+                return Err(foreign(
+                    concerns,
+                    "an integer width question has a foreign subject or entry point",
+                ));
+            }
+            let count = elaboration
+                .value_parameters
+                .get(machine)
+                .copied()
+                .unwrap_or(0);
+            let Some(start) = lowered.parameters.len().checked_sub(count) else {
+                return Err(foreign(
+                    concerns,
+                    "static value parameter count exceeds the actual scalar inputs",
+                ));
+            };
+            let mut inputs = lowered
+                .parameters
+                .iter()
+                .enumerate()
+                .filter(|(_, input)| input.id == parameter);
+            let (Some((position, input)), None) = (inputs.next(), inputs.next()) else {
+                return Err(foreign(
+                    concerns,
+                    "a width does not name one actual machine input",
+                ));
+            };
+            let row = tables.values.get(parameter).ok_or_else(|| {
+                foreign(
+                    Construct::Value(parameter),
+                    "a width parameter has no value row",
+                )
+            })?;
+            if position < start
+                || input.scalar_type != u64_type
+                || row.scalar_type != u64_type
+                || row.rigid.is_some()
+                || !matches!(formals.iter().find(|(formal, _)| formal.id == parameter),
+                    Some((_, origin)) if *origin == row.origin)
+            {
+                return Err(foreign(
+                    concerns,
+                    "a width parameter is not an actual proof-static u64 input",
+                ));
+            }
+        }
+    }
+    let mut owners = elaboration
+        .module
+        .machines
+        .iter()
+        .map(|machine| machine.id)
+        .collect::<Vec<_>>();
+    owners.sort_unstable();
+    // No body outside the actual module may smuggle a question into tables.
+    // This visits only machines with this question family, without allocating
+    // a table up to the largest raw machine identity.
+    for (machine, tables) in elaboration.tables.machines.iter() {
+        if tables
+            .obligations
+            .iter()
+            .any(|(_, row)| matches!(row.kind, ObligationKind::IntegerWidthPositive { .. }))
+            && owners.binary_search(&machine).is_err()
+        {
+            return Err(refusal(
+                RefusalReason::ForeignIdentity,
+                machine,
+                Construct::Machine,
+                "an integer width question belongs to no actual module machine",
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Where each edge of a terminator goes, as the edge table must state it.
+fn successors(terminator: &Terminator) -> Vec<(EdgeId, Destination)> {
+    match terminator {
+        Terminator::PendingNormalCompletion { .. } => Vec::new(),
+        Terminator::Jump { edge, target, .. } => vec![(*edge, Destination::Block(*target))],
+        Terminator::Conditional {
+            when_true,
+            when_false,
+            ..
+        } => vec![
+            (when_true.edge, Destination::Block(when_true.target)),
+            (when_false.edge, Destination::Block(when_false.target)),
+        ],
+        Terminator::StructuralCase { cases, .. } => cases
+            .iter()
+            .map(|case| (case.edge, Destination::Block(case.target)))
+            .collect(),
+        Terminator::Return { edge, .. }
+        | Terminator::ReturnUnit { edge, .. }
+        | Terminator::ReturnStructural { edge, .. } => vec![(*edge, Destination::Return)],
+        Terminator::InvokeNoNormal { edge, .. }
+        | Terminator::ExternalCompletion { edge, .. }
+        | Terminator::EliminateEmpty { edge, .. }
+        | Terminator::Crash { edge, .. } => vec![(*edge, Destination::NoNormal)],
+    }
+}
+
+struct Minted<'a> {
+    machine: MachineId,
+    module: &'a terminal_psi::TerminalModule,
+    lowered: &'a TerminalMachine,
+    cleanup_catalog: crate::owned_cleanup::Catalog<'a>,
+    claims: terminal_semantics::plain_affine::ClaimsPlan,
+    tables: &'a MachineTables,
+    /// Whether the lowered form has claimed each obligation row, by position.
+    obligations: Vec<bool>,
+    /// The exact invocation row and claim state, sorted by source site once.
+    invocations: Vec<(InvocationSite, InvocationId, bool)>,
+}
+
+impl Minted<'_> {
+    /// A row the lowered form owes but does not name: found by its exact
+    /// kind, and claimed at `point`. A second row of the same kind stays
+    /// unclaimed and is refused with the rows nothing owes.
+    fn owed(
+        &mut self,
+        kind: ObligationKind,
+        point: ProgramPoint,
+        concerns: Construct,
+    ) -> Checked<()> {
+        let (obligation, _) = self
+            .tables
+            .obligations
+            .iter()
+            .find(|(_, row)| row.kind == kind)
+            .ok_or_else(|| self.foreign(concerns, "a site owes an obligation with no row"))?;
+        self.claim(obligation, kind, point)
+    }
+
+    /// The root a place lies beneath, by its parent links.
+    fn root_of(
+        &self,
+        place: terminal_check_tables::ExactPlaceId,
+    ) -> Option<semantic_vocabulary::PlaceId> {
+        let mut at = place;
+        // A parent is minted before its projections, so the chain is no
+        // longer than the table.
+        for _ in 0..=self.tables.places.len() {
+            match self.tables.places.get(at)?.origin {
+                terminal_check_tables::bindings::PlaceOrigin::Root(root) => return Some(root),
+                terminal_check_tables::bindings::PlaceOrigin::Projection { parent, .. } => {
+                    at = parent;
+                }
+            }
+        }
+        None
+    }
+
+    fn foreign(&self, concerns: Construct, detail: &str) -> Refusal {
+        refusal(
+            RefusalReason::ForeignIdentity,
+            self.machine,
+            concerns,
+            detail,
+        )
+    }
+
+    /// The row `obligation` must be exactly `kind`, created at `point`, and
+    /// owed by nothing else.
+    fn claim(
+        &mut self,
+        obligation: ObligationId,
+        kind: ObligationKind,
+        point: ProgramPoint,
+    ) -> Checked<()> {
+        let concerns = Construct::Obligation(obligation);
+        let row = self.tables.obligations.get(obligation).ok_or_else(|| {
+            self.foreign(concerns, "the lowered form owes an obligation with no row")
+        })?;
+        if row.kind != kind {
+            return Err(self.foreign(
+                concerns,
+                "an obligation row is not what the lowered form owes under its identity",
+            ));
+        }
+        if row.created_at != point {
+            return Err(self.foreign(
+                concerns,
+                "an obligation is not created at the point of what owes it",
+            ));
+        }
+        let machine = self.machine;
+        let claimed = self
+            .obligations
+            .get_mut(index(obligation.get()))
+            .ok_or_else(|| {
+                refusal(
+                    RefusalReason::ForeignIdentity,
+                    machine,
+                    concerns,
+                    "the lowered form owes an obligation with no row",
+                )
+            })?;
+        if std::mem::replace(claimed, true) {
+            return Err(self.foreign(concerns, "two constructs owe one obligation row"));
+        }
+        Ok(())
+    }
+
+    /// One call of the lowered form: its invocation row restates the callee
+    /// and the actuals, and it owes one `CallRequirement` per `requires`
+    /// clause of the callee, in clause order, at `before`.
+    fn call(
+        &mut self,
+        site: InvocationSite,
+        inputs: call_contracts::Inputs<'_>,
+        before: ProgramPoint,
+        concerns: Construct,
+    ) -> Checked<Vec<CrashRouteBucket>> {
+        let position = self
+            .invocations
+            .binary_search_by_key(&site, |(site, _, _)| *site)
+            .map_err(|_| {
+                self.foreign(concerns, "a call does not have exactly one invocation row")
+            })?;
+        let (_, invocation, claimed) = self.invocations[position];
+        if claimed {
+            return Err(self.foreign(concerns, "two constructs claim the same invocation row"));
+        }
+        let row = terminal_check_tables::row(
+            &self.tables.invocations,
+            invocation,
+            self.machine,
+            Construct::Invocation(invocation),
+        )?;
+        let concerns = Construct::Invocation(invocation);
+        if row.callee != inputs.callee || row.required_contract != inputs.required_contract {
+            return Err(self.foreign(concerns, "an invocation row names another callee"));
+        }
+        // The scalar lane and the record lane, each in argument order.
+        let mut scalars = inputs.arguments.iter();
+        let mut records = inputs.structural_arguments.iter();
+        for actual in &row.actuals {
+            let restated = match actual {
+                Actual::Value(value) => scalars.next() == Some(value),
+                // An owned record argument is a root, passed whole. A loan
+                // passes a place beneath a root; its full path is checked
+                // against the place where loans are judged (`places::loans`).
+                Actual::Place(place) => records.next().is_some_and(|argument| {
+                    if argument.access == terminal_psi::StructuralAccess::Owned {
+                        if matches!(site, InvocationSite::Cleanup { .. }) {
+                            crate::owned_cleanup::exact_place(
+                                self.module,
+                                self.lowered,
+                                self.tables,
+                                argument,
+                            )
+                            .ok()
+                            .as_ref()
+                                == Some(place)
+                        } else {
+                            argument.path.is_empty()
+                                && self.tables.roots.get(argument.place) == Some(place)
+                        }
+                    } else {
+                        self.root_of(*place) == Some(argument.place)
+                    }
+                }),
+            };
+            if !restated {
+                return Err(self.foreign(
+                    concerns,
+                    "an invocation row's actuals are not the call's arguments",
+                ));
+            }
+        }
+        if scalars.next().is_some() || records.next().is_some() {
+            return Err(self.foreign(
+                concerns,
+                "an invocation row's actuals are not the call's arguments",
+            ));
+        }
+        let call =
+            call_contracts::invocation(self.module, self.lowered, self.tables, invocation, row)?;
+        // The receiving walk reconstructs live identities at the exact call
+        // cut. A declaration's original root is not its current storage after
+        // construction, extraction, stores or an owned block arrival.
+        if let Some(frontier) = self.claims.call_frontier(site) {
+            let held = frontier
+                .iter()
+                .map(|claim| (claim.identity, claim.place, claim.path.as_slice()));
+            let boundary = matches!(
+                inputs.callee,
+                terminal_check_tables::edges::Callee::Declared(
+                    semantic_vocabulary::TargetMachineCallable::Boundary(_)
+                )
+            );
+            let matched = if boundary {
+                if !inputs.claim_transfers.is_empty() {
+                    return Err(
+                        self.foreign(concerns, "a boundary call carries internal claim transfers")
+                    );
+                }
+                terminal_semantics::owned_structure::validate_claim_transfers(
+                    inputs.structural_arguments,
+                    held,
+                    inputs.completion_receipts.iter().map(|receipt| {
+                        (
+                            receipt.claim,
+                            receipt.argument_index,
+                            receipt.path.as_slice(),
+                        )
+                    }),
+                )
+            } else {
+                if !inputs.completion_receipts.is_empty() {
+                    return Err(self.foreign(
+                        concerns,
+                        "an internal call carries boundary completion receipts",
+                    ));
+                }
+                terminal_semantics::owned_structure::validate_claim_transfers(
+                    inputs.structural_arguments,
+                    held,
+                    inputs.claim_transfers.iter().map(|transfer| {
+                        (
+                            transfer.claim,
+                            transfer.argument_index,
+                            transfer.path.as_slice(),
+                        )
+                    }),
+                )
+            };
+            matched.map_err(|detail| self.foreign(concerns, detail))?;
+        } else if !self.claims.call_is_unreachable(site) {
+            return Err(self.foreign(concerns, "a call has no reconstructed claim frontier"));
+        }
+        crate::erased_actuals(&call.contract, inputs, self.machine, invocation)?;
+        if inputs.arguments.len() != call.contract.scalar_parameters.len()
+            || inputs.structural_arguments.len() != call.contract.structural_parameters.len()
+            || row.actuals.len() != call.contract.parameter_order.len()
+        {
+            return Err(self.foreign(
+                concerns,
+                "call arguments do not cover the complete public signature",
+            ));
+        }
+        for (actual, kind) in row.actuals.iter().zip(call.contract.parameter_order) {
+            if !matches!(
+                (actual, kind),
+                (Actual::Value(_), BoundaryParameterKind::Scalar)
+                    | (Actual::Place(_), BoundaryParameterKind::Structural)
+            ) {
+                return Err(self.foreign(
+                    concerns,
+                    "invocation actual order differs from its public signature",
+                ));
+            }
+        }
+        for (position, actual) in inputs.arguments.iter().enumerate() {
+            if self
+                .tables
+                .values
+                .get(*actual)
+                .map(|value| value.scalar_type)
+                != call.contract.scalar_parameters.scalar_type(position)
+            {
+                return Err(self.foreign(
+                    concerns,
+                    "call argument type differs from its public formal",
+                ));
+            }
+        }
+        for (actual, formal) in inputs
+            .structural_arguments
+            .iter()
+            .zip(call.contract.structural_parameters)
+        {
+            if actual.access != formal.access {
+                return Err(self.foreign(
+                    concerns,
+                    "call structural access differs from its public formal",
+                ));
+            }
+        }
+        let places = terminal_codec::contract_forms::call_storage(
+            &self.module.types.structural_types,
+            |place| self.lowered.structural_place_type(place),
+            |value| self.tables.values.get(value).map(|row| row.scalar_type),
+            inputs.structural_arguments,
+        );
+        let crash_routes = terminal_codec::contract_forms::substituted_routes(
+            call.contract.crash_routes,
+            inputs.arguments,
+            &places,
+        )
+        .map_err(|detail| self.foreign(concerns, &detail))?;
+        if let Some(retained) = inputs.crash_continuations
+            && retained != crash_routes.as_slice()
+        {
+            return Err(self.foreign(
+                concerns,
+                "call crash continuations differ from its public contract",
+            ));
+        }
+        // Bodyless declarations keep their routes on the public header.
+        // The same substituted routes still owe coverage at this occurrence.
+        let clauses = call.contract.requires.len();
+        if inputs.requirements.len() != clauses || row.requirements != inputs.requirements {
+            return Err(self.foreign(
+                concerns,
+                "a call does not owe one requirement per requires clause of its callee",
+            ));
+        }
+        for (clause, obligation) in inputs.requirements.iter().enumerate() {
+            let clause = crate::position(clause, self.machine)?;
+            self.claim(
+                *obligation,
+                ObligationKind::CallRequirement { invocation, clause },
+                before,
+            )?;
+        }
+        self.invocations[position].2 = true;
+        Ok(crash_routes)
+    }
+}
+
+/// Refuses `tables` unless its obligation rows, invocation rows and edge
+/// rows are the ones `lowered` itself owes and states.
+pub(crate) fn follow_the_lowered_form(
+    id: MachineId,
+    module: &terminal_psi::TerminalModule,
+    lowered: &TerminalMachine,
+    tables: &MachineTables,
+    types: &IdTable<ValueId, ScalarType>,
+    inhabitation: &terminal_semantics::inhabitation::Inhabitation,
+    affine: Option<&terminal_semantics::plain_affine::AffineSummaries<'_>>,
+) -> Checked<()> {
+    values_are_declared(id, lowered, tables)?;
+    let returned =
+        terminal_semantics::normal_completion::ReturnSources::new(lowered).map_err(|detail| {
+            refusal(
+                RefusalReason::ForeignIdentity,
+                id,
+                Construct::Machine,
+                detail,
+            )
+        })?;
+    let mut invocations = tables
+        .invocations
+        .iter()
+        .map(|(invocation, row)| (row.site, invocation, false))
+        .collect::<Vec<_>>();
+    invocations.sort_unstable_by_key(|(site, _, _)| *site);
+    if let Some(repeated) = invocations.windows(2).find(|rows| rows[0].0 == rows[1].0) {
+        return Err(refusal(
+            RefusalReason::ForeignIdentity,
+            id,
+            Construct::Invocation(repeated[1].1),
+            "a call does not have exactly one invocation row",
+        ));
+    }
+    let mut minted = Minted {
+        machine: id,
+        module,
+        lowered,
+        cleanup_catalog: crate::owned_cleanup::Catalog::new(module).map_err(|detail| {
+            refusal(
+                RefusalReason::ForeignIdentity,
+                id,
+                Construct::Machine,
+                detail,
+            )
+        })?,
+        claims: terminal_semantics::plain_affine::MachineAffine::new(module, id, affine)
+            .and_then(|walks| walks.verify_claims())
+            .map_err(|error| {
+                use terminal_semantics::plain_affine::{Error, Site};
+                let concerns = match error.site() {
+                    Some(Site::Operation(operation)) => Construct::Operation(operation),
+                    Some(Site::Edge(edge)) => Construct::Edge(edge),
+                    None => Construct::Machine,
+                };
+                let (reason, detail) = match error {
+                    Error::Unavailable(unavailable) => {
+                        (RefusalReason::Unestablished, unavailable.message())
+                    }
+                    Error::Unconsumed { at_join, .. } => {
+                        (RefusalReason::Violation, Error::unconsumed_message(at_join))
+                    }
+                    Error::Unsupported { detail, .. } => (RefusalReason::Unsupported, detail),
+                    Error::Malformed { detail, .. } => (RefusalReason::ForeignIdentity, detail),
+                };
+                refusal(reason, id, concerns, detail)
+            })?,
+        tables,
+        obligations: vec![false; tables.obligations.len()],
+        invocations,
+    };
+
+    // Each logical use owns every premise exactly once, before its successor.
+    for application in module
+        .proofs
+        .theorem_applications
+        .iter()
+        .filter(|row| row.machine == id)
+    {
+        let contract = terminal_semantics::theorems::application(module, lowered, application)
+            .map_err(|reason| minted.foreign(Construct::Edge(application.edge), reason))?;
+        if application.requirements.len() != contract.requires.len() {
+            return Err(minted.foreign(
+                Construct::Edge(application.edge),
+                "logical use lost a premise obligation",
+            ));
+        }
+        for (clause, obligation) in application.requirements.iter().enumerate() {
+            minted.claim(
+                *obligation,
+                ObligationKind::TheoremRequirement {
+                    edge: application.edge,
+                    clause: u32::try_from(clause).map_err(|_| {
+                        minted.foreign(
+                            Construct::Edge(application.edge),
+                            "logical premise position overflow",
+                        )
+                    })?,
+                },
+                ProgramPoint::Edge(application.edge),
+            )?;
+        }
+    }
+
+    // The whole-module prepass already reconstructed this family's exact
+    // subjects and static-binder custody before inference. Claim those rows
+    // here so the ordinary per-machine site walk cannot move their point.
+    for (obligation, row) in tables.obligations.iter() {
+        if matches!(row.kind, ObligationKind::IntegerWidthPositive { .. }) {
+            minted.claim(
+                obligation,
+                row.kind,
+                ProgramPoint::BlockEntry(lowered.entry),
+            )?;
+        }
+    }
+
+    // Every edge of a terminator has its own row, which goes where the
+    // terminator does. A row no terminator owns is left alone: it can only
+    // add a way into its destination, which takes dominance away and adds a
+    // path to every backward walk, so nothing is proved or established on
+    // its account.
+    let mut edges = vec![false; tables.edges.len()];
+    for block in &lowered.blocks {
+        let empty_return = returned
+            .is_uninhabited_return(&block.terminator, inhabitation)
+            .map_err(|detail| minted.foreign(Construct::Block(block.id), detail))?;
+        for (edge, destination) in successors(&block.terminator) {
+            let destination = if empty_return {
+                Destination::NoNormal
+            } else {
+                destination
+            };
+            let concerns = Construct::Edge(edge);
+            let row = tables
+                .edges
+                .get(edge)
+                .ok_or_else(|| minted.foreign(concerns, "a terminator's edge has no row"))?;
+            if row.source != block.id || row.destination != destination {
+                return Err(minted.foreign(
+                    concerns,
+                    "an edge row does not go where its terminator does",
+                ));
+            }
+            if std::mem::replace(&mut edges[index(edge.get())], true) {
+                return Err(minted.foreign(concerns, "two terminators own one edge"));
+            }
+        }
+    }
+
+    for (clause, ensures) in lowered.contract.ensures.iter().enumerate() {
+        minted.claim(
+            ensures.obligation,
+            ObligationKind::PublishedGuarantee {
+                clause: crate::position(clause, id)?,
+            },
+            ProgramPoint::BlockEntry(lowered.entry),
+        )?;
+    }
+    // The point before each operation, by `OperationId - 1`.
+    let mut before_operation: Vec<Option<ProgramPoint>> = Vec::new();
+    for block in &lowered.blocks {
+        let mut before = ProgramPoint::BlockEntry(block.id);
+        for operation in &block.operations {
+            let slot = index(operation.id.get());
+            if before_operation.len() <= slot {
+                before_operation.resize(slot + 1, None);
+            }
+            before_operation[slot] = Some(before);
+            if let OperationKind::SelectMachine { descriptor } = operation.kind {
+                let descriptor = module
+                    .execution
+                    .callables
+                    .descriptor(descriptor)
+                    .ok_or_else(|| {
+                        minted.foreign(
+                            Construct::Operation(operation.id),
+                            "machine construction names no descriptor",
+                        )
+                    })?;
+                if operation
+                    .result
+                    .as_scalar()
+                    .map(|result| result.scalar_type)
+                    != Some(ScalarType::Callable(descriptor.contract))
+                {
+                    return Err(minted.foreign(
+                        Construct::Operation(operation.id),
+                        "machine construction changes its retained callable type",
+                    ));
+                }
+                if module
+                    .execution
+                    .callables
+                    .contract(descriptor.contract)
+                    .is_none()
+                    || module.machine(descriptor.machine).is_none()
+                {
+                    return Err(minted.foreign(
+                        Construct::Operation(operation.id),
+                        "machine construction lost its contract or selected code",
+                    ));
+                }
+            }
+            if let Some(semantics) =
+                terminal_semantics::proof_bearing_scalar_leaf_semantics(operation, types)
+                    .map_err(semantics_refusal(id, operation.id))?
+            {
+                minted.claim(
+                    semantics.obligation(),
+                    ObligationKind::OperationSafety {
+                        site: terminal_check_tables::obligations::ExecutionSite::Operation(
+                            operation.id,
+                        ),
+                    },
+                    before,
+                )?;
+            }
+            for projection in operation.kind.structural_projections() {
+                for segment in projection.path {
+                    if let terminal_psi::StructuralPathSegment::RuntimeIndex {
+                        obligation, ..
+                    } = segment
+                    {
+                        minted.claim(
+                            *obligation,
+                            ObligationKind::OperationSafety {
+                                site: terminal_check_tables::obligations::ExecutionSite::Operation(
+                                    operation.id,
+                                ),
+                            },
+                            before,
+                        )?;
+                    }
+                }
+            }
+            // A byte read owes its index bound, as an indexed projection
+            // does (byte_views.md, `ByteSequenceRead`).
+            if let terminal_psi::OperationKind::ByteSequenceRead { obligation, .. }
+            | terminal_psi::OperationKind::StructuralByteSequenceFieldRead {
+                obligation, ..
+            }
+            | terminal_psi::OperationKind::ByteSequenceWrite { obligation, .. }
+            | terminal_psi::OperationKind::ElementViewRead { obligation, .. }
+            | terminal_psi::OperationKind::ByteSequenceSubslice { obligation, .. }
+            | terminal_psi::OperationKind::ElementViewSubslice { obligation, .. }
+            | terminal_psi::OperationKind::EstablishElementView {
+                region: terminal_psi::ElementViewRegion::WholeRepresentation { obligation, .. },
+                ..
+            } = &operation.kind
+            {
+                minted.claim(
+                    *obligation,
+                    ObligationKind::OperationSafety {
+                        site: terminal_check_tables::obligations::ExecutionSite::Operation(
+                            operation.id,
+                        ),
+                    },
+                    before,
+                )?;
+            }
+            // A trapping primitive owes its own Trap coverage independently
+            // of the same operation's call-contract processing.
+            if matches!(operation.kind, OperationKind::TrappingInteger { .. }) {
+                minted.owed(
+                    ObligationKind::CrashCoverage {
+                        site: CrashSite::Operation(operation.id),
+                        cause: CrashCause::Trap,
+                    },
+                    before,
+                    Construct::Operation(operation.id),
+                )?;
+            }
+            let site = InvocationSite::Operation(operation.id);
+            if let Some(inputs) = call_contracts::inputs_at(lowered, site)? {
+                let routes =
+                    minted.call(site, inputs, before, Construct::Operation(operation.id))?;
+                for bucket in routes {
+                    minted.owed(
+                        ObligationKind::CrashCoverage {
+                            site: CrashSite::Operation(operation.id),
+                            cause: bucket.cause,
+                        },
+                        before,
+                        Construct::Operation(operation.id),
+                    )?;
+                }
+            }
+            before = ProgramPoint::AfterOperation(operation.id);
+        }
+        for projection in block.terminator.storage_uses() {
+            for segment in projection.path {
+                if let terminal_psi::StructuralPathSegment::RuntimeIndex { obligation, .. } =
+                    segment
+                {
+                    minted.claim(
+                        *obligation,
+                        ObligationKind::OperationSafety {
+                            site: terminal_check_tables::obligations::ExecutionSite::Block(
+                                block.id,
+                            ),
+                        },
+                        before,
+                    )?;
+                }
+            }
+        }
+        if let Some(site) = call_contracts::terminator_site(&block.terminator)
+            && let Some(inputs) = call_contracts::inputs_at(lowered, site)?
+        {
+            let routes = minted.call(site, inputs, before, Construct::Block(block.id))?;
+            for bucket in routes {
+                minted.owed(
+                    ObligationKind::CrashCoverage {
+                        site: CrashSite::Block(block.id),
+                        cause: bucket.cause,
+                    },
+                    before,
+                    Construct::Block(block.id),
+                )?;
+            }
+        }
+        for (edge, actions) in block.terminator.cleanup_rosters() {
+            for (ordinal, action) in actions.iter().enumerate() {
+                if let terminal_psi::TerminalAffineCleanupAction::InvokeOwned(cleanup) = action {
+                    let action_ordinal = crate::position(ordinal, id)?;
+                    let target = minted
+                        .cleanup_catalog
+                        .target(cleanup)
+                        .map_err(|detail| minted.foreign(Construct::Edge(edge), detail))?;
+                    if !target.erased_scalar_formals.is_empty()
+                        || !target.erased_proof_formals.is_empty()
+                    {
+                        return Err(minted.foreign(
+                            Construct::Edge(edge),
+                            "owned cleanup has no explicit erased argument correspondence",
+                        ));
+                    }
+                    minted.call(
+                        InvocationSite::Cleanup {
+                            edge,
+                            action_ordinal,
+                        },
+                        call_contracts::Inputs::declared(crate::owned_cleanup::inputs(cleanup)),
+                        ProgramPoint::BeforeCleanup {
+                            edge,
+                            action_ordinal,
+                        },
+                        Construct::Edge(edge),
+                    )?;
+                }
+            }
+        }
+        // A crashing terminator owes coverage at the point before it: its one
+        // cause, or each cause among a no-normal call's continuations.
+        let site = CrashSite::Block(block.id);
+        let concerns = Construct::Block(block.id);
+        if let Terminator::Crash { cause, .. } = &block.terminator {
+            let kind = ObligationKind::CrashCoverage {
+                site,
+                cause: *cause,
+            };
+            minted.owed(kind, before, concerns)?;
+        }
+        // Every argument-passing edge owes its destination's predicate at
+        // the edge, where the proof can see the selected incoming values.
+        for (edge, _) in block.terminator.successors_with_runtime_arguments() {
+            let kind = ObligationKind::ArrivalInvariant { edge };
+            minted.owed(kind, ProgramPoint::Edge(edge), concerns)?;
+        }
+        if let Terminator::Return { edge, .. }
+        | Terminator::ReturnUnit { edge, .. }
+        | Terminator::ReturnStructural { edge, .. } = &block.terminator
+            && !returned
+                .is_uninhabited_return(&block.terminator, inhabitation)
+                .map_err(|detail| minted.foreign(Construct::Block(block.id), detail))?
+        {
+            minted.returns(lowered, block.id, *edge)?;
+        }
+    }
+
+    // A ranked cycle owes its shared well-foundedness question and one
+    // comparison on each of its edges (control_flow.md: "a shared
+    // well-foundedness question and comparison obligations for every
+    // internal edge").
+    for (kind, point, concerns) in crate::rankings::owed(lowered) {
+        minted.owed(kind, point, concerns)?;
+    }
+
+    for (obligation, row) in tables.obligations.iter() {
+        let concerns = Construct::Obligation(obligation);
+        match row.kind {
+            ObligationKind::DataDomain { operation, .. } => {
+                let before = before_operation
+                    .get(index(operation.get()))
+                    .copied()
+                    .flatten()
+                    .ok_or_else(|| {
+                        minted.foreign(concerns, "a data requires obligation names no operation")
+                    })?;
+                if row.created_at != before {
+                    return Err(minted.foreign(
+                        concerns,
+                        "an obligation is not created at the point of what owes it",
+                    ));
+                }
+            }
+            ObligationKind::OperationSafety { .. }
+            | ObligationKind::TheoremRequirement { .. }
+            | ObligationKind::CallRequirement { .. }
+            | ObligationKind::NormalGuarantee { .. }
+            | ObligationKind::PublishedGuarantee { .. }
+            | ObligationKind::ArrivalInvariant { .. }
+            | ObligationKind::CrashCoverage { .. }
+            | ObligationKind::IntegerWidthPositive { .. }
+            | ObligationKind::WellFoundedness { .. }
+            | ObligationKind::RankComparison { .. } => {
+                if !minted.obligations[index(obligation.get())] {
+                    return Err(minted.foreign(
+                        concerns,
+                        "an obligation row that nothing in the lowered form owes",
+                    ));
+                }
+            }
+            // The source test is itself a question over the completed operand.
+            // Its row introduces no premise; the nominal judgment checks its
+            // exact place or SSA value at the recorded execution point.
+            ObligationKind::ExecutableMembership { .. } => {}
+            // Kinds the route does not serve are refused where they are
+            // decided (`goal`).
+            ObligationKind::Claim { .. }
+            | ObligationKind::Loan { .. }
+            | ObligationKind::RestorationWindow { .. }
+            | ObligationKind::DomainDebt { .. }
+            | ObligationKind::EstablishmentDebt { .. } => {}
+        }
+    }
+    // An invocation row is where a callee's `ensures` becomes knowledge
+    // after a call, so one that restates no call would be a premise nothing
+    // established.
+    if let Some((_, invocation, _)) = minted
+        .invocations
+        .iter()
+        .filter(|(_, _, claimed)| !claimed)
+        .min_by_key(|(_, invocation, _)| *invocation)
+    {
+        let concerns = Construct::Invocation(*invocation);
+        return Err(minted.foreign(
+            concerns,
+            "an invocation row restates no call of this machine",
+        ));
+    }
+    Ok(())
+}
+
+/// A suspended invocation can retain only executable scalars already available
+/// at the selected call. The value table has already been matched to the
+/// module's actual declarations by `values_are_declared`.
+pub(crate) fn check_pending_operands(
+    lowered: &TerminalMachine,
+    tables: &MachineTables,
+    graph: &crate::graph::Graph,
+) -> Checked<()> {
+    for block in &lowered.blocks {
+        let Terminator::PendingNormalCompletion { call, scalars, .. } = &block.terminator else {
+            continue;
+        };
+        if !block.operations.last().is_some_and(|op| {
+            op.id == *call && op.suspension_crossing.is_some() && op.declared_invocation().is_some()
+        }) {
+            return Err(refusal(
+                RefusalReason::ForeignIdentity,
+                lowered.id,
+                Construct::Block(block.id),
+                "an unfinished normal result must follow its own suspending call",
+            ));
+        }
+        for &scalar in scalars {
+            let available = match tables.values.get(scalar).map(|row| row.origin) {
+                Some(ValueOrigin::MachineParameter { .. }) => {
+                    lowered.parameters.iter().any(|formal| formal.id == scalar)
+                }
+                Some(ValueOrigin::BlockParameter { block, .. }) => graph.dominates(
+                    ProgramPoint::BlockEntry(block),
+                    ProgramPoint::AfterOperation(*call),
+                )?,
+                Some(ValueOrigin::Operation(operation)) => graph.dominates(
+                    ProgramPoint::AfterOperation(operation),
+                    ProgramPoint::AfterOperation(*call),
+                )?,
+                _ => false,
+            };
+            if !available {
+                return Err(refusal(
+                    RefusalReason::ForeignIdentity,
+                    lowered.id,
+                    Construct::Value(scalar),
+                    "a pending result refers to a scalar unavailable at its checked call",
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Refuses a value table that is not the values the lowered form declares:
+/// each formal, the scalar result, each block parameter and each scalar
+/// operation result, under its own identity, with its declared type and the
+/// origin of what declares it.
+///
+/// The shared logical positions of scalar formals include structural and
+/// erased predecessors; widths and ordinary value validation use this owner.
+fn scalar_formals_with_origins(
+    id: MachineId,
+    lowered: &TerminalMachine,
+    tables: &MachineTables,
+) -> Checked<Vec<(ValueDeclaration, ValueOrigin)>> {
+    let foreign = |value: ValueId, detail: &str| {
+        refusal(
+            RefusalReason::ForeignIdentity,
+            id,
+            Construct::Value(value),
+            detail,
+        )
+    };
+    let mut formals =
+        Vec::with_capacity(lowered.parameters.len() + lowered.erased_scalar_formals.len());
+    // A formal's position is its place among all the formals, erased ones
+    // included. An erased scalar formal has no runtime lane, so the lowered
+    // form does not say where among the formals it was written; its row
+    // does. Those positions are accepted only when they strictly increase in
+    // the contract's order and lie among the formals, and the runtime
+    // formals then take the remaining positions in their own order.
+    let erased = &lowered.contract.erased_scalar_formals;
+    let total = lowered.parameter_order.len() + erased.len();
+    let mut erased_positions = Vec::with_capacity(erased.len());
+    for formal in erased {
+        let position = match tables.values.get(formal.id).map(|row| row.origin) {
+            Some(ValueOrigin::MachineParameter { position }) => position,
+            _ => return Err(foreign(formal.id, "an erased formal's row is not a formal")),
+        };
+        let increasing = erased_positions.last().is_none_or(|last| *last < position);
+        if !increasing || usize::try_from(position).map_or(true, |position| position >= total) {
+            return Err(foreign(
+                formal.id,
+                "an erased formal's position is out of order or past the formals",
+            ));
+        }
+        erased_positions.push(position);
+        formals.push((*formal, ValueOrigin::MachineParameter { position }));
+    }
+    let mut runtime_positions = (0..total)
+        .map(|position| crate::position(position, id))
+        .collect::<Checked<Vec<u32>>>()?
+        .into_iter()
+        .filter(|position| erased_positions.binary_search(position).is_err());
+    let mut scalars = lowered.parameters.iter();
+    for kind in &lowered.parameter_order {
+        let Some(position) = runtime_positions.next() else {
+            break;
+        };
+        if !matches!(kind, BoundaryParameterKind::Scalar) {
+            continue;
+        }
+        let Some(formal) = scalars.next() else {
+            break;
+        };
+        formals.push((*formal, ValueOrigin::MachineParameter { position }));
+    }
+    if let Some(formal) = scalars.next() {
+        return Err(foreign(
+            formal.id,
+            "a scalar formal has no position among the formals",
+        ));
+    }
+    Ok(formals)
+}
+
+/// The type of a value is what Terminal semantics states an operation's goal
+/// over and what the kernel bounds the value by, and its origin is what the
+/// payload judgment reads to learn which test a condition is the result of.
+/// The one kind of row the lowered form does not declare is the content a
+/// formal's leaf held at entry, which no operation produces; `places` checks
+/// those against the formal's type. A declared value restated as one would
+/// make a read of that leaf equal to it.
+fn values_are_declared(
+    id: MachineId,
+    lowered: &TerminalMachine,
+    tables: &MachineTables,
+) -> Checked<()> {
+    let foreign = |value: ValueId, detail: &str| {
+        refusal(
+            RefusalReason::ForeignIdentity,
+            id,
+            Construct::Value(value),
+            detail,
+        )
+    };
+    let mut declared: Vec<Option<(ScalarType, ValueOrigin)>> = vec![None; tables.values.len()];
+    let mut declare = |value: ValueDeclaration, origin: ValueOrigin| -> Checked<()> {
+        let slot = declared
+            .get_mut(index(value.id.get()))
+            .ok_or_else(|| foreign(value.id, "the lowered form declares a value with no row"))?;
+        if slot.replace((value.scalar_type, origin)).is_some() {
+            return Err(foreign(
+                value.id,
+                "the lowered form declares one value twice",
+            ));
+        }
+        Ok(())
+    };
+    for (formal, origin) in scalar_formals_with_origins(id, lowered, tables)? {
+        declare(formal, origin)?;
+    }
+    if let TerminalMachineResult::Scalar(result) = &lowered.result {
+        declare(*result, ValueOrigin::MachineResult)?;
+    }
+    for block in &lowered.blocks {
+        for (position, parameter) in block.parameters.iter().enumerate() {
+            declare(
+                *parameter,
+                ValueOrigin::BlockParameter {
+                    block: block.id,
+                    position: crate::position(position, id)?,
+                },
+            )?;
+        }
+        for operation in &block.operations {
+            if let Some(result) = operation.result.as_scalar() {
+                declare(result, ValueOrigin::Operation(operation.id))?;
+            }
+        }
+    }
+    for ((value, row), declared) in tables.values.iter().zip(&declared) {
+        match declared {
+            Some((scalar_type, origin)) => {
+                if row.scalar_type != *scalar_type || row.origin != *origin {
+                    return Err(foreign(
+                        value,
+                        "a value row is not the value the lowered form declares under its identity",
+                    ));
+                }
+            }
+            None => {
+                if !row.origin.is_storage_observation() {
+                    return Err(foreign(
+                        value,
+                        "a value row that nothing in the lowered form declares",
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+impl Minted<'_> {
+    /// One normal return owes one `NormalGuarantee` per `ensures` clause, on
+    /// its edge. The lowered form does not name these rows, so each is found
+    /// by its kind; a second row of the same kind stays unclaimed and is
+    /// refused with the rows nothing owes.
+    fn returns(&mut self, lowered: &TerminalMachine, block: BlockId, exit: EdgeId) -> Checked<()> {
+        for (clause, ensures) in lowered.contract.ensures.iter().enumerate() {
+            let kind = ObligationKind::NormalGuarantee {
+                exit,
+                clause: crate::position(clause, self.machine)?,
+                published: ensures.obligation,
+            };
+            let (obligation, _) = self
+                .tables
+                .obligations
+                .iter()
+                .find(|(_, row)| row.kind == kind)
+                .ok_or_else(|| {
+                    self.foreign(
+                        Construct::Block(block),
+                        "a normal return owes a guarantee with no row",
+                    )
+                })?;
+            self.claim(obligation, kind, ProgramPoint::Edge(exit))?;
+        }
+        Ok(())
+    }
+}
+
+/// Refuses a table of data `requires` clauses that is not the one the
+/// module's type declarations state. The clauses are the goals of every
+/// `DataDomain` obligation and the premises a read of established storage
+/// learns from its type, so a clause weakened, strengthened, dropped, added
+/// or moved to another type in the table would change what is proved for
+/// every construction, store and read of that type without touching the
+/// lowered form. The declaration is what the module carries into its
+/// encoding and identity; the table must restate it exactly, in authored
+/// order, since a `DataDomain` obligation names its clause by position.
+///
+/// A type the table has no row for is one whose declaration states none: a
+/// scalar local's primitive home, declared after the data types.
+pub(crate) fn domains_are_declared(
+    id: MachineId,
+    declarations: &[StructuralTypeDeclaration],
+    domains: &IdTable<StructuralTypeId, Vec<Proposition>>,
+) -> Checked<()> {
+    let foreign = |detail: &str| {
+        refusal(
+            RefusalReason::ForeignIdentity,
+            id,
+            Construct::Machine,
+            detail,
+        )
+    };
+    for (structural_type, _) in domains.iter() {
+        if !declarations
+            .iter()
+            .any(|declaration| declaration.id == structural_type)
+        {
+            return Err(foreign("a row of requires clauses names no declared type"));
+        }
+    }
+    for declaration in declarations {
+        let restated = domains.get(declaration.id).map_or(&[][..], Vec::as_slice);
+        if restated != declaration.requires.as_slice() {
+            return Err(foreign(
+                "a data type's requires clauses are not the ones its declaration states",
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod opaque_extent_tests {
+    use super::*;
+
+    #[test]
+    fn only_an_explicit_abstract_referent_excludes_unknown_storage_from_extent_search() {
+        let mut module = terminal_psi::TerminalModule::declarations();
+        let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+        let identity = identities.intern("opaque extent search");
+        module.identities = identities.build();
+        let id = StructuralTypeId::new(1).unwrap();
+        assert!(
+            contains_parameter_extent(&module, id),
+            "a missing declaration cannot bypass the dependent-call check"
+        );
+        module
+            .types
+            .structural_referents
+            .push(terminal_psi::StructuralReferentIdentity {
+                id,
+                identity,
+                foreign_descriptor: true,
+                abstract_opaque: false,
+            });
+        assert!(
+            contains_parameter_extent(&module, id),
+            "a referent row alone grants no opacity authority"
+        );
+        module.types.structural_referents[0].abstract_opaque = true;
+        assert!(!contains_parameter_extent(&module, id));
+        module
+            .types
+            .structural_types
+            .push(terminal_psi::StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
+                quotient_carrier: None,
+                id,
+                identity,
+                owns_linear_claim: false,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                no_code_affine_cleanup: false,
+                descriptor_cleanup: false,
+                nominal_cleanup: None,
+                shape: terminal_psi::StructuralTypeShape::FixedArray {
+                    element: StructuralTypeId::new(2).unwrap(),
+                    length: terminal_psi::ArrayExtent::Parameter {
+                        owner: MachineId::new(1).unwrap(),
+                        value: ValueId::new(1).unwrap(),
+                    },
+                },
+                scalar_restriction: None,
+                requires: Vec::new(),
+            });
+        assert!(
+            contains_parameter_extent(&module, id),
+            "an opaque marker cannot hide a concrete parameter extent"
+        );
+    }
+}

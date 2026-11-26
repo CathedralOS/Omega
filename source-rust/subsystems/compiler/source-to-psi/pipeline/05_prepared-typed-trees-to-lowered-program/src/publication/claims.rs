@@ -525,7 +525,11 @@ fn preparation_error(
     }
 }
 
-pub(crate) fn publish(diagnostic: MachineId, module: &mut TerminalModule) -> Checked<()> {
+pub(crate) fn publish(
+    diagnostic: MachineId,
+    module: &mut TerminalModule,
+    parallel: bool,
+) -> Checked<()> {
     // Complete every public header before deriving call rows. The body and a
     // selected requirement can expose different contracts; neither borrows the
     // other's private promises. Boundary custody is separately authenticated.
@@ -573,8 +577,9 @@ pub(crate) fn publish(diagnostic: MachineId, module: &mut TerminalModule) -> Che
             terminal_semantics::plain_affine::Error,
         >,
     }
-    crate::lower::machine_order::plan_then_apply(
+    crate::lower::machine_order::plan_then_apply_with(
         module,
+        parallel,
         |module, summaries, machine| {
             let reads = machine_ordinals
                 .as_deref()

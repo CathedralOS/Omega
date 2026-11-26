@@ -95,6 +95,7 @@ pub(super) struct DependencyRow {
 
 pub(super) fn discover_build_layout(
     parsed: &source_syntax::ParsedText<'_>,
+    receiver: &str,
 ) -> Option<Option<BuildLayout>> {
     let source_syntax::ParsedText { tokens, syntax } = parsed;
     let source = tokens.source_text();
@@ -118,7 +119,7 @@ pub(super) fn discover_build_layout(
         .checked_sub(1)
         .and_then(|position| semantic.get(position))
         .is_some_and(|index| tokens.spelling(&tokens[*index]) == "machine");
-    let expected_after = ["(", "builder", ":", "@", "mutable", "Build", ")", "{"];
+    let expected_after = ["(", receiver, ":", "@", "mutable", "Build", ")", "{"];
     if !expected_before
         || expected_after.iter().enumerate().any(|(offset, expected)| {
             semantic
@@ -353,7 +354,7 @@ machine build(builder: @mutable Build) {
     _ = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "(" }));
 }
 "#;
-        let layout = discover_build_layout(&source_syntax::parse_text(source).unwrap())
+        let layout = discover_build_layout(&source_syntax::parse_text(source).unwrap(), "builder")
             .unwrap()
             .unwrap();
         assert_eq!(layout.body_close_start, source.rfind('}').unwrap());

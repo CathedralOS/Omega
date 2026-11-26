@@ -213,7 +213,7 @@ fn expression(machine: MachineId, value: &Expression) -> Checked<()> {
             expression(machine, base)?;
             expression(machine, index)?;
         }
-        ExpressionKind::Record { fields } | ExpressionKind::Case { fields, .. } => {
+        ExpressionKind::Record { fields, .. } | ExpressionKind::Case { fields, .. } => {
             for (_, field) in fields {
                 expression(machine, field)?;
             }

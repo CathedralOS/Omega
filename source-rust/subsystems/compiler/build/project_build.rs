@@ -13,7 +13,7 @@ pub use product::ProductStage;
 pub use registered_tests::{RegisteredTestPlan, TestExecution};
 #[path = "planning/package_review/mod.rs"]
 mod package_review;
-pub use package_review::CheckedPackagePolicy;
+pub use package_review::{CheckedPackagePolicy, ReviewedPreparation};
 #[path = "planning/source.rs"]
 mod source;
 pub use source::{
@@ -167,17 +167,11 @@ impl PreparedSuccessor {
 impl ReturnedPlanningStage {
     pub fn finish_successor(
         self,
-        capture: &package_compilation::CapturedLocalSource,
         libraries: Vec<package_compilation::source_imports::SuppliedBuildLibrary>,
     ) -> Result<PreparedSuccessor, CompileFailure> {
-        self.returned
-            .require_source_acquisition(capture)
-            .map_err(refusal)?;
-        let entry = self
-            .returned
-            .successor_entry()
-            .cloned()
-            .ok_or_else(|| refusal("only a preparing Build can supply a successor".into()))?;
+        let (entry, capture) = self.returned.successor_source().map_err(refusal)?;
+        let entry = entry.clone();
+        let capture = capture.clone();
         let path = capture.canonical_live_root().join(entry.as_str());
         let mut preparations = self.preparations;
         let evaluated = self
@@ -200,7 +194,7 @@ impl ReturnedPlanningStage {
             .push((path.clone(), libraries.clone(), providers.clone()));
         Ok(PreparedSuccessor {
             providers,
-            capture: capture.clone(),
+            capture,
             path,
             preparations,
             libraries,

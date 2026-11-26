@@ -1,0 +1,12 @@
+[package]
+name = "omega-source"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+publish = false
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+source-syntax = { path = "../compiler/source-to-psi/source-syntax" }

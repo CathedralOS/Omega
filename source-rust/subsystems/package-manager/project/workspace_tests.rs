@@ -33,21 +33,25 @@ fn git(directory: &Path, args: &[&str]) {
     );
 }
 
-fn check_catalog(directory: &Path, fixture: &Path) {
-    use artifacts::compile_timings::counters::source_build_execution_count;
+fn resolve_catalog(
+    directory: &Path,
+    host: TargetProfile,
+) -> Result<super::ResolvedPackageProject, crate::PackageCommandError> {
     let library = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../source/library");
     package_compilation::toolchain_library::configure(&library).unwrap();
+    let preparation =
+        begin_local_project_preparation(&directory.join("client/build.omg"), &[host], false)?;
+    let root = preparation.acquire_root()?;
+    let mut acquisitions = preparation.source_acquisitions()?;
+    let mut session = PackageBuildSession::create(&directory.join("out"))?;
+    let result = super::resolve_build_sources(&mut session, root, &mut acquisitions, None);
+    session.dispose(result)
+}
+
+fn check_catalog(directory: &Path, fixture: &Path) {
+    use artifacts::compile_timings::counters::source_build_execution_count;
     let host = TargetProfile::host_if_supported().unwrap();
-    let resolve = || {
-        let preparation =
-            begin_local_project_preparation(&directory.join("client/build.omg"), &[host], false)
-                .unwrap();
-        let root = preparation.acquire_root().unwrap();
-        let mut acquisitions = preparation.source_acquisitions().unwrap();
-        let mut session = PackageBuildSession::create(&directory.join("out")).unwrap();
-        let result = super::resolve_build_sources(&mut session, root, &mut acquisitions, None);
-        session.dispose(result)
-    };
+    let resolve = || resolve_catalog(directory, host);
     let before = source_build_execution_count();
     let graph = resolve().unwrap().sources;
     let review = CanonicalSourceClosureSubject::from_resolved(
@@ -83,7 +87,7 @@ fn check_catalog(directory: &Path, fixture: &Path) {
     let recovered = CanonicalSourceClosureSubject::recover_text(&text, Default::default()).unwrap();
     assert_eq!(review, recovered);
     assert_eq!(
-        dependency.observer.key().name().as_str(),
+        dependency.observer.member().unwrap().key().name().as_str(),
         "workspace_unselected"
     );
     assert_eq!(
@@ -286,22 +290,26 @@ machine build(builder: @mutable Build) {
 
 #[test]
 fn catalog_review_keeps_the_provider_used_to_name_a_workspace_member() {
+    isolated_catalog(write_catalog, check_catalog);
+}
+
+fn isolated_catalog(prepare: fn(&Path, &Path), check: fn(&Path, &Path)) {
     use std::process::Command;
     let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../compiler/tests/fixtures/packages/executed-workspace");
     const DIRECTORY: &str = "OMEGA_PROJECT_TEST_DIRECTORY";
     if let Some(directory) = std::env::var_os(DIRECTORY) {
-        check_catalog(Path::new(&directory), &fixture);
+        check(Path::new(&directory), &fixture);
         return;
     }
     let temp = TemporaryDirectory::create("project-workspace", false).unwrap();
-    write_catalog(temp.path(), &fixture);
+    prepare(temp.path(), &fixture);
     // Isolate Git objects and the process-wide execution counter. Each invocation
     // owns its temporary remote, including the branch it advances during review.
     let result = Command::new(std::env::current_exe().unwrap())
         .args([
             "--exact",
-            "project::workspace_tests::catalog_review_keeps_the_provider_used_to_name_a_workspace_member",
+            std::thread::current().name().unwrap(),
             "--nocapture",
         ])
         .env(DIRECTORY, temp.path())
@@ -313,6 +321,7 @@ fn catalog_review_keeps_the_provider_used_to_name_a_workspace_member() {
             git@omega-fixture.invalid) repo=workspace ;;
             git@helper-fixture.invalid) repo=catalog-helper ;;
             git@candidate-fixture.invalid) repo=candidate ;;
+            git@roster-fixture.invalid) repo=roster ;;
             *) exit 1 ;;
         esac
         exec git upload-pack "$OMEGA_PROJECT_TEST_DIRECTORY/$repo"' ssh"#,
@@ -324,5 +333,156 @@ fn catalog_review_keeps_the_provider_used_to_name_a_workspace_member() {
         "{}{}",
         String::from_utf8_lossy(&result.stdout),
         String::from_utf8_lossy(&result.stderr)
+    );
+}
+
+#[test]
+fn catalog_review_keeps_the_git_input_that_computes_workspace_membership() {
+    isolated_catalog(write_root_catalog, check_root_catalog);
+}
+
+fn write_root_catalog(directory: &Path, fixture: &Path) {
+    write_catalog(directory, fixture);
+    let root = directory.join("workspace");
+    fs::write(root.join("build.omg"), r#"use {omega}/build/dependency.omg;
+machine build(builder: @mutable Build) {
+    let roster: DependencyDescription = |dependency|::from_source(Source::Git {
+        repository: "ssh://git@roster-fixture.invalid/roster.git", revision: "main", selection: PackageSelection::Root
+    });
+    _ = |dependency|::add(builder, roster);
+    Build::build_entry(builder, "members.omg");
+}"#).unwrap();
+    fs::write(
+        root.join("members.omg"),
+        r#"use {roster}/main.omg;
+machine build(builder: @mutable Build) {
+    transition |main|::include_member() {
+        true -> selected(builder),
+        _ -> other(builder)
+    }
+    machine selected(builder: @mutable Build) { Build::member(builder, "member"); }
+    machine other(builder: @mutable Build) { Build::member(builder, "other"); }
+}"#,
+    )
+    .unwrap();
+    write_package(
+        &root.join("other"),
+        r#"machine build(builder: @mutable Build) { Build::package(builder, "other"); }"#,
+    );
+    git(&root, &["add", "."]);
+    git(
+        &root,
+        &[
+            "commit",
+            "--quiet",
+            "-m",
+            "Compute the workspace member path in the successor",
+        ],
+    );
+    let roster = directory.join("roster");
+    write_package(
+        &roster,
+        r#"machine build(builder: @mutable Build) { Build::package(builder, "roster"); }"#,
+    );
+    fs::write(
+        roster.join("main.omg"),
+        "public machine include_member() -> bool { true }",
+    )
+    .unwrap();
+    git(&roster, &["init", "--quiet", "-b", "main"]);
+    git(&roster, &["add", "."]);
+    git(
+        &roster,
+        &["commit", "--quiet", "-m", "Include the selected member"],
+    );
+}
+
+fn check_root_catalog(directory: &Path, _: &Path) {
+    let host = TargetProfile::host_if_supported().unwrap();
+    let review = || {
+        let project = resolve_catalog(directory, host).unwrap();
+        CanonicalSourceClosureSubject::from_resolved(
+            &project.sources.closure.for_exact_target(host),
+            Default::default(),
+        )
+        .unwrap()
+    };
+    let initial = review();
+    let [input] = initial.catalog_dependencies() else {
+        panic!("the workspace's preparing input must appear in its catalog review");
+    };
+    assert_eq!(
+        input.provider.root().selected().key().name().as_str(),
+        "roster"
+    );
+    assert!(input.observer.member().is_none());
+    let preparation = input.preparation.as_ref().unwrap();
+    assert_eq!(
+        (preparation.ordinal, preparation.successor.as_str()),
+        (0, "members.omg")
+    );
+    let text = initial.canonical_text(Default::default()).unwrap();
+    assert_eq!(
+        initial,
+        CanonicalSourceClosureSubject::recover_text(&text, Default::default()).unwrap()
+    );
+    let source_acquisition::ImmutableSourceResolution::Git { commit, .. } =
+        input.observer.resolution()
+    else {
+        panic!("a Git workspace root must carry its repository revision")
+    };
+    let (prefix, observer_and_remainder) = text.split_once("observer workspace\n").unwrap();
+    let commit = commit.to_hex();
+    let replacement = if commit.starts_with('0') { "1" } else { "0" }.to_owned() + &commit[1..];
+    let forged = format!(
+        "{prefix}observer workspace\n{}",
+        observer_and_remainder.replacen(&commit, &replacement, 1)
+    );
+    let error =
+        CanonicalSourceClosureSubject::recover_text(&forged, Default::default()).unwrap_err();
+    assert!(
+        error
+            .to_string()
+            .contains("no selected member at its Git resolution"),
+        "{error}"
+    );
+    let roster = directory.join("roster");
+    git(
+        &roster,
+        &[
+            "commit",
+            "--quiet",
+            "--allow-empty",
+            "-m",
+            "Same roster result from a new commit",
+        ],
+    );
+    let revised = review();
+    assert_eq!(initial.packages(), revised.packages());
+    assert_eq!(initial.dependency_requests(), revised.dependency_requests());
+    assert_ne!(initial.fingerprint(), revised.fingerprint());
+    assert!(!initial.same_source_graph(&revised));
+    fs::write(
+        roster.join("main.omg"),
+        "public machine include_member() -> bool { false }",
+    )
+    .unwrap();
+    git(
+        &roster,
+        &[
+            "commit",
+            "--quiet",
+            "-am",
+            "Choose the other workspace member",
+        ],
+    );
+    let Err(error) = resolve_catalog(directory, host) else {
+        panic!("the selected package left the workspace")
+    };
+    assert!(
+        error
+            .to_string()
+            .contains("workspace has no declared package `workspace_selected`"),
+        "{error}"
     );
 }

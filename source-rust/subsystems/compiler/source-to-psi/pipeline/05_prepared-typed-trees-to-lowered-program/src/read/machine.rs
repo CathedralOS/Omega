@@ -5006,7 +5006,7 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
             spans(base, binder, out);
             spans(index, binder, out);
         }
-        ExpressionKind::Record { fields } | ExpressionKind::Case { fields, .. } => {
+        ExpressionKind::Record { fields, .. } | ExpressionKind::Case { fields, .. } => {
             for (_, field) in fields {
                 spans(field, binder, out);
             }

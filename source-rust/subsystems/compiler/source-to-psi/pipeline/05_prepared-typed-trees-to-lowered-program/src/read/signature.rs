@@ -3283,7 +3283,7 @@ impl<'p> Converter<'p, '_> {
                 let value = self.expression(id, base, scope)?.term;
                 Ok(plain(self.component(id, entry, value, *field)?.0))
             }
-            ExpressionKind::Record { fields } => {
+            ExpressionKind::Record { fields, .. } => {
                 let mut operands = vec![None; fields.len()];
                 for (position, operand) in fields {
                     let term = self.expression(id, operand, scope)?.term;
@@ -3308,7 +3308,7 @@ impl<'p> Converter<'p, '_> {
                 }
                 Ok(plain(term))
             }
-            ExpressionKind::Case { case, fields } => {
+            ExpressionKind::Case { case, fields, .. } => {
                 let Some(ValueType::Record(record, ..)) = expression.result else {
                     return Err(unserved(id, "mathematical constructor lost its data"));
                 };
@@ -4457,7 +4457,7 @@ impl<'p> Converter<'p, '_> {
             ExpressionKind::Field { base, .. } if nested || returns => {
                 self.cite_within(law, machine, base, scope, script, true)
             }
-            ExpressionKind::Record { fields } if nested || returns => {
+            ExpressionKind::Record { fields, .. } if nested || returns => {
                 for (_, operand) in fields {
                     self.cite_within(law, machine, operand, scope, script, true)?;
                 }

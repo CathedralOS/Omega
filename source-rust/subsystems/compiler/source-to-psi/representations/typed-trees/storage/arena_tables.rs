@@ -78,12 +78,6 @@ impl TypedTreeTables {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]
 pub struct TypedTreeRoots {
-    /// Stored by older compilers when the Build entry was only partly checked.
-    #[doc(hidden)]
-    pub partial_build_entry: Option<source_text::SourceSpan>,
-    /// Retained to recognize that older snapshot format.
-    #[doc(hidden)]
-    pub partial_build_can_return: bool,
     pub retained_product_applications: HandleSpan<Handle<ProductOperandApplication>>,
     pub const_declarations: HandleSpan<crate::source_state::constant::ConstDeclaration>,
     pub data_definitions: HandleSpan<data::DataDefinition>,
@@ -109,8 +103,6 @@ impl TypedTreeRoots {
         traits: HandleSpan<trait_definition::TraitDefinition>,
     ) -> Self {
         Self {
-            partial_build_entry: None,
-            partial_build_can_return: false,
             retained_product_applications: HandleSpan::default(),
             const_declarations: HandleSpan::default(),
             data_definitions,

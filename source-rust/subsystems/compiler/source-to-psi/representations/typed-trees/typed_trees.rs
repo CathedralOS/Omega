@@ -16,13 +16,13 @@ use source_symbol_table::{source_inputs, source_symbols, source_tables};
 use symbols::SymbolHandle;
 
 #[derive(Debug, Default, PartialEq, Eq, record_storage::Record)]
-#[record(write_scope = crate::source_state::type_identity::write_under_own_numbering)]
+#[record(
+    format = b"OmegaTypedTrees1",
+    write_scope = crate::source_state::type_identity::write_under_own_numbering
+)]
 pub struct TypedTrees {
     pub identity: ProgramIdentity,
     pub excluded_authored_selection_occurrences: AuthoredSelectionExclusions,
-    /// Retained for decoding snapshots written before Build imports were fixed.
-    #[doc(hidden)]
-    pub parked_build_locals: Vec<ParkedBuildLocals>,
     pub roots: TypedTreeRoots,
     pub tables: TypedTreeTables,
     pub symbols: SymbolTable,
@@ -72,29 +72,6 @@ pub struct TypedTrees {
     pub callable_identities:
         OwnedInterner<crate::source_state::type_identity::CallableIdentityTable>,
     pub type_identities: crate::source_state::type_identity::TypeIdentityTable,
-}
-
-/// The stored layout of an older, incomplete Build frontend.
-#[doc(hidden)]
-#[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
-pub struct ParkedBuildLocals {
-    pub entry: source_text::SourceSpan,
-    /// An implicit entry is the first state of this exact machine.
-    pub state: Option<source_text::SourceSpan>,
-    /// The authored call whose checked activation must resume before this suffix can return.
-    pub pending_completion_at: source_text::SourceSpan,
-    pub declarations: Vec<source_text::Span>,
-    /// Whole-package machine bodies that need the unavailable scope of this suffix.
-    pub deferred_subjects: Vec<source_text::SourceSpan>,
-}
-
-impl TypedTrees {
-    /// Older compilers could save only a prefix under the complete source's identity.
-    pub fn is_legacy_build_prefix(&self) -> bool {
-        self.roots.partial_build_entry.is_some()
-            || self.roots.partial_build_can_return
-            || !self.parked_build_locals.is_empty()
-    }
 }
 
 #[macro_use]

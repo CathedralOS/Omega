@@ -7,9 +7,19 @@ use crate::declaration_selection::ExecutedProductSelection;
 use crate::declaration_selection::ProductDeclarationRequest;
 use crate::driver::judge_lowered_source::{FrozenSource, JudgedSource, SettledSource};
 use crate::source_state::opaque_representations::OpaqueRepresentationSelection;
+use checked_program_to_psi::provider_choice_inputs::ProviderSelection;
 use diagnostics::Diagnostic;
 use std::sync::Arc;
-use typed_trees_to_prepared_typed_trees::{EntryApplication, SelectedDeclaration, SelectedProvider};
+use typed_trees_to_prepared_typed_trees::{
+    EntryApplication, SelectedDeclaration, SelectedProvider,
+};
+
+/// Authored overrides and package defaults for a single interpreted invocation.
+#[derive(Clone, Copy, Default)]
+pub(super) struct InvocationProviders<'a> {
+    pub(super) overrides: &'a [ProviderSelection],
+    pub(super) defaults: &'a [ProviderSelection],
+}
 
 #[derive(Default)]
 pub struct SourceAdmission<'request> {
@@ -63,26 +73,26 @@ pub use source_completion_accounting::SourcePreparationFailure;
 impl<'request> SourcePreparationRequest<'request> {
     /// Complete preparation and let the lowered-form checker judge this exact
     /// request. Build execution receives the accepted program and actual costs.
-    pub fn judge(
+    pub(super) fn judge(
         self,
         publication: terminal_codec::TerminalPublication,
+        providers: InvocationProviders<'_>,
     ) -> Result<JudgedSource, SourcePreparationFailure> {
         let compilation = self.compilation;
-        self.settle()?.judge(compilation, publication)
+        self.settle(providers)?
+            .judge(compilation, publication, providers)
     }
 
     pub(crate) fn prepare(self) -> Result<FrozenSource, SourcePreparationFailure> {
-        self.settle()?.freeze()
+        self.settle(Default::default())?.freeze()
     }
 
-    pub(super) fn settle(self) -> Result<SettledSource, SourcePreparationFailure> {
+    fn settle(
+        self,
+        providers: InvocationProviders<'_>,
+    ) -> Result<SettledSource, SourcePreparationFailure> {
         let mut accounting = self.accounting;
         let result = (|| -> Result<_, Vec<Diagnostic>> {
-            if self.program.is_legacy_build_prefix() {
-                return Err(vec![Diagnostic::error(
-                    "this older Build snapshot contains only part of its source; check the complete source again",
-                )]);
-            }
             // Opaque property receipts came from the deleted checker. Supplying one
             // cannot stand in for evidence from the new route.
             if !self.admission.external_roots.is_empty() || self.admission.declarations.is_some() {
@@ -131,6 +141,8 @@ impl<'request> SourcePreparationRequest<'request> {
                     .layout_scopes
                     .iter()
                     .flat_map(|scope| scope.provider_declarations.iter())
+                    .chain(providers.overrides)
+                    .chain(providers.defaults)
                     .map(|selection| {
                         let provider = &selection.provider_type;
                         SelectedDeclaration::Provider(SelectedProvider {

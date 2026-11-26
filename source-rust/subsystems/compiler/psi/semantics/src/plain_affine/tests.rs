@@ -1973,6 +1973,7 @@ fn scoped_cleanup_does_not_inspect_an_unrequested_erased_field() {
         relevance: BindingRelevance::Erased,
         field_type: StructuralFieldType::Erased {
             type_identity: Identity(60),
+            scalar: None,
         },
         storage: None,
         inline_carrier: None,

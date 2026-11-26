@@ -11,6 +11,7 @@ path = "src/main.rs"
 test = true
 
 [dependencies]
+omega-source = { path = "../subsystems/source" }
 retained-image-runtime = { path = "../subsystems/interpreter/host/retained-image" }
 build-declarations = { path = "../subsystems/compiler/build/inputs/declarations" }
 build-execution = { path = "../subsystems/compiler/build/evaluation" }

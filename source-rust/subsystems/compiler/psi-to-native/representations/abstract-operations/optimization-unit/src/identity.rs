@@ -2538,7 +2538,7 @@ pub(crate) mod structural_encoding {
                 bytes.u8(4);
                 bytes.id(*value);
             }
-            StructuralFieldType::Erased { type_identity } => {
+            StructuralFieldType::Erased { type_identity, .. } => {
                 bytes.u8(5);
                 bytes.u32(type_identity.0);
             }

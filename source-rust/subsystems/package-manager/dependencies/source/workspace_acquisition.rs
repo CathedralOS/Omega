@@ -50,36 +50,15 @@ impl WorkspaceMemberObservation {
         acquired: &AcquiredBuildSource,
         declaration: SourceBuildDeclaration,
         result: &build_execution::BuildSourceResult<'_>,
-        dependencies: Vec<Arc<super::ResolvedBuildSources>>,
-        mut inputs: Vec<CatalogInput>,
+        inputs: Vec<CatalogInput>,
     ) -> Result<Self, String> {
-        if Some(declaration.declaration()) != result.declaration()
-            || result.demanded_sources().len() != dependencies.len()
-            || result
-                .demanded_sources()
-                .iter()
-                .zip(&dependencies)
-                .any(|(selected, graph)| selected.package != graph.root())
-        {
-            return Err("workspace observation lost a demanded dependency source graph".into());
+        if Some(declaration.declaration()) != result.declaration() {
+            return Err("workspace observation belongs to another returned declaration".into());
         }
         if acquired.source_capture() != declaration.source_capture() {
             return Err("workspace observation belongs to another source capture".into());
         }
         let source = acquired.declare_source_result(result)?.custody;
-        for (demand, graph) in result.demanded_sources().iter().zip(dependencies) {
-            let request = source
-                .dependency_requests(demand.purpose)
-                .get(demand.request_ordinal)
-                .ok_or("catalog provider has no issued request")?;
-            inputs.push(CatalogInput {
-                preparation: None,
-                purpose: demand.purpose,
-                ordinal: demand.request_ordinal,
-                request: request.clone(),
-                graph,
-            });
-        }
         Ok(Self {
             declaration,
             source,
@@ -102,6 +81,7 @@ pub struct AcquiredWorkspaceMembers {
     source: Arc<GitWorkspaceCatalog>,
     request: GitPackageSourceRequest,
     root: SourceBuildDeclaration,
+    root_inputs: Vec<CatalogInput>,
     members: Vec<(WorkspaceMemberPath, AcquiredBuildSource)>,
 }
 
@@ -110,6 +90,7 @@ pub(super) struct ExecutedWorkspace {
     resolution: ImmutableSourceResolution,
     acquisition: source_acquisition::GitSourceRequest,
     root: SourceBuildDeclaration,
+    root_inputs: Vec<CatalogInput>,
     members: Vec<(
         WorkspaceMemberPath,
         AcquiredBuildSource,
@@ -135,6 +116,7 @@ impl AcquiredWorkspaceBuild {
         self,
         storage: &source_acquisition::SourceResolver,
         root: SourceBuildDeclaration,
+        root_inputs: Vec<CatalogInput>,
     ) -> Result<AcquiredWorkspaceMembers, String> {
         if !root.is_settled() || root.source_capture() != self.root.source_capture() {
             return Err("workspace catalog return does not match its acquired source".into());
@@ -227,6 +209,7 @@ impl AcquiredWorkspaceBuild {
             source: catalog,
             request: self.request,
             root,
+            root_inputs,
             members,
         })
     }
@@ -302,12 +285,13 @@ impl BuildSourceAcquisitions<'_> {
         }))
     }
 
-    pub fn workspace_members(
+    pub(crate) fn workspace_members(
         &mut self,
         workspace: AcquiredWorkspaceBuild,
         root: SourceBuildDeclaration,
+        root_inputs: Vec<CatalogInput>,
     ) -> Result<AcquiredWorkspaceMembers, String> {
-        let mut members = workspace.members(self.storage, root)?;
+        let mut members = workspace.members(self.storage, root, root_inputs)?;
         for (_, source) in &mut members.members {
             *source = self.retain_source(source.clone())?;
         }
@@ -344,6 +328,7 @@ impl BuildSourceAcquisitions<'_> {
         let workspace = ExecutedWorkspace {
             source: acquired.source,
             root: acquired.root,
+            root_inputs: acquired.root_inputs,
             resolution,
             acquisition: acquired.request.acquisition().clone(),
             members: acquired
@@ -416,6 +401,7 @@ impl ExecutedWorkspace {
         let evidence = super::GitWorkspaceSelectionEvidence::from_executed(
             &selected,
             self.root.clone(),
+            self.root_inputs.clone(),
             self.members
                 .iter()
                 .map(|(_, _, declaration)| declaration.clone())

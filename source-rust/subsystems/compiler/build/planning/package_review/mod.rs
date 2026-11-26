@@ -9,6 +9,7 @@ mod input;
 mod native_bindings;
 mod numeric;
 mod policy;
+mod preparations;
 mod provider_grants;
 mod provider_rows;
 mod providers;
@@ -17,6 +18,8 @@ mod services;
 mod telescope;
 mod terminal_permissions;
 mod traits;
+
+pub use preparations::ReviewedPreparation;
 
 use diagnostics::Diagnostic;
 use package_compilation::{
@@ -31,6 +34,7 @@ pub struct CheckedPackagePolicy {
     pub source_completion_accounting:
         source_compiler::compile_time_invocations::SourceCompletionAccounting,
     pub selected_build_machine_identity: String,
+    pub preparations: Vec<ReviewedPreparation>,
     pub policy: PackagePolicyBaseline,
     pub semantic_binding_candidates: Vec<SemanticBindingReviewCandidate>,
     pub component_description: Option<IndependentComponentDescription>,
@@ -54,11 +58,6 @@ impl crate::ProductStage<'_> {
         accounting: &mut source_compiler::compile_time_invocations::SourceCompletionAccounting,
     ) -> Result<CheckedPackagePolicy, Vec<Diagnostic>> {
         let product = self.product;
-        if !product.evaluated().preparations.is_empty() {
-            return Err(vec![Diagnostic::error(
-                "a version 4 package review cannot record multiple Build entries for one package",
-            )]);
-        }
         let inputs = product.package_inputs().ok_or_else(|| {
             vec![Diagnostic::error(
                 "package review requires the acquired package graph",
@@ -113,6 +112,7 @@ impl crate::ProductStage<'_> {
                 )]
             })?;
         Ok(CheckedPackagePolicy {
+            preparations: product.reviewed_preparations()?,
             sources,
             policy,
             source_completion_accounting: std::mem::take(accounting),

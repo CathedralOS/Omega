@@ -4,8 +4,8 @@ Entry point for the `omega` binary.
 
 We read the command line, run the selected command on a dedicated compiler
 worker thread, and map any usage or thread-start failure to its process exit
-code. Each command surface lives in `commands::{compile, run, inspect, packages}`;
-no compilation or package semantics live in this file.
+code. The source subsystem handles authored-file operations. The other command
+adapters live in `commands::{compile, run, inspect, packages}`.
 
 Before we touch `std::env::args_os()`, we check whether this process was
 spawned as a native-provider helper (`run_native_provider_worker_if_requested`).
@@ -51,15 +51,22 @@ fn main() -> ExitCode {
     let (invocation, output) = match arguments::parse(std::env::args_os().skip(1)) {
         Ok(parsed) => parsed,
         Err(error) => {
-            eprintln!("{error}");
-            return ExitCode::from(arguments::USAGE_ERROR_EXIT);
+            eprintln!("{}", error.message);
+            return ExitCode::from(error.exit);
         }
     };
     run_with_large_stack(invocation, output)
 }
 
-fn run_with_large_stack(invocation: Invocation, output: diagnostic_output::DiagnosticOutput) -> ExitCode {
-    let budget = match worker_budget::ExecutionBudget::for_host() {
+fn run_with_large_stack(
+    invocation: Invocation,
+    output: diagnostic_output::DiagnosticOutput,
+) -> ExitCode {
+    let workers = match invocation {
+        Invocation::ParseSource(_) => worker_budget::ExecutionBudget::with_workers(1),
+        _ => worker_budget::ExecutionBudget::for_host(),
+    };
+    let budget = match workers {
         Ok(budget) => budget,
         Err(error) => {
             eprintln!("failed to start compiler workers: {error}");
@@ -68,6 +75,12 @@ fn run_with_large_stack(invocation: Invocation, output: diagnostic_output::Diagn
     };
     budget.run(move || match invocation {
         Invocation::Compile(request) => commands::compile::run(request, output),
+        Invocation::ParseSource(path) => {
+            if let Err(error) = omega_source::parse_file(&path) {
+                eprintln!("{error}");
+                std::process::exit(1);
+            }
+        }
         Invocation::Run(request) => commands::run::run(request),
         Invocation::InspectTerminal(request) => commands::inspect::run(request, output),
         Invocation::Package {

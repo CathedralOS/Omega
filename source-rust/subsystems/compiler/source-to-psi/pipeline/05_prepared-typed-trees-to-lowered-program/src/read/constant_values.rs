@@ -393,7 +393,9 @@ impl Program<'_> {
             }
             (
                 DecodedCanonicalConstValue::Record { type_name, fields },
-                ExpressionKind::Record { fields: operands },
+                ExpressionKind::Record {
+                    fields: operands, ..
+                },
             ) => self.constant_aggregate_agrees(
                 id,
                 materialized.result,
@@ -412,6 +414,7 @@ impl Program<'_> {
                 ExpressionKind::Case {
                     case,
                     fields: operands,
+                    ..
                 },
             ) => self.constant_aggregate_agrees(
                 id,

@@ -27,19 +27,14 @@ pub(crate) fn capture_package_native_bindings(
     package: semantic_vocabulary::PackageKeyIdentity,
     formations: &[crate::declaration_selection::NativeBindingFormation],
     executed: &[ExecutedNativeBinding],
-) -> Result<(Vec<CapturedNativeDeclaration>, Vec<CapturedNativeIntent>), Vec<Diagnostic>>
-{
+) -> Result<(Vec<CapturedNativeDeclaration>, Vec<CapturedNativeIntent>), Vec<Diagnostic>> {
     if formations.is_empty() && executed.is_empty() {
         return Ok((Vec::new(), Vec::new()));
     }
-    let source = typed.clone();
-    let lookups = crate::source_state::product_operand::ProductSourceLookups::new(
-        &source,
-    );
+    let lookups = crate::source_state::product_operand::ProductSourceLookups::new(typed);
     for formation in formations {
         let author = lookups
-            .authors
-            .resolve(formation.author)
+            .resolve_author(&typed.symbols, formation.author)
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
         let [operand] = formation.request.operands.as_ref() else {
             return Err(vec![Diagnostic::error(
@@ -124,10 +119,7 @@ pub(super) fn admit_product_policy(
         .filter(|(request, _)| request.operation == BuildOperation::NativeBinding)
         .peekable();
     if native_formations.peek().is_some() {
-        let source = typed.clone();
-        let lookups = crate::source_state::product_operand::ProductSourceLookups::new(
-            &source,
-        );
+        let lookups = crate::source_state::product_operand::ProductSourceLookups::new(typed);
         for (request, author) in native_formations {
             let [operand] = request.operands.as_ref() else {
                 return Err(vec![Diagnostic::error(
