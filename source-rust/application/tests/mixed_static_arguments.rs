@@ -1,55 +1,24 @@
 //! Generic wrappers retain type, const and selected machine arguments.
 
+#[path = "support/build_fixture.rs"]
+mod build_fixture;
 mod support;
 
-use platform_custody::temporary_directory::TemporaryDirectory;
-use std::process::{Command, Output, Stdio};
-
-fn invoke(tier: &str, sample: &str) -> (Output, String) {
-    let fixture = support::repository_root()
+fn fixture_path(tier: &str, sample: &str) -> std::path::PathBuf {
+    support::repository_root()
         .join("source-rust/application/tests/fixtures/calls")
         .join(tier)
-        .join(sample);
-    let scratch = TemporaryDirectory::create("mixed-static-arguments", false).unwrap();
-    for name in ["main.omg", "build.omg"] {
-        std::fs::copy(fixture.join(name), scratch.path().join(name)).unwrap();
-    }
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args([
-            "run",
-            "--both",
-            "--build-input",
-            "build.omg",
-            "--build-input",
-            "main.omg",
-            "build.omg",
-        ])
-        .current_dir(scratch.path())
-        .stdin(Stdio::null())
-        .output()
-        .expect("the compiler runs with the fixture's explicit inputs");
-    let report = format!(
-        "{}{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    eprintln!("{report}");
-    (output, report)
+        .join(sample)
 }
 
 #[test]
 fn mixed_static_arguments_run_in_both_engines() {
-    let (output, report) = invoke("run", "mixed_static_arguments");
-    assert!(output.status.success(), "{report}");
-    assert!(output.stdout.is_empty(), "{report}");
-    for receipt in ["native exit 0", "interp exit: 0"] {
-        assert!(report.lines().any(|line| line == receipt), "{report}");
-    }
+    build_fixture::assert_silent_return(&fixture_path("run", "mixed_static_arguments"));
 }
 
 #[test]
 fn a_const_argument_still_owes_its_declared_requirement() {
-    let (output, report) = invoke("fail", "mixed_static_arguments");
+    let (output, report) = build_fixture::check(&fixture_path("fail", "mixed_static_arguments"));
     assert!(!output.status.success(), "{report}");
     assert!(
         report.contains("cannot prove requires contract for call keep from forward")
@@ -60,25 +29,18 @@ fn a_const_argument_still_owes_its_declared_requirement() {
 
 #[test]
 fn nominal_callback_parameters_keep_their_distinct_selections() {
-    let (output, report) = invoke("run", "nominal_static_arguments");
-    assert!(output.status.success(), "{report}");
-    for receipt in ["native exit 0", "interp exit: 0"] {
-        assert!(report.lines().any(|line| line == receipt), "{report}");
-    }
+    build_fixture::assert_silent_return(&fixture_path("run", "nominal_static_arguments"));
 }
 
 #[test]
 fn a_generic_trait_callback_is_judged_at_the_call_type_arguments() {
-    let (output, report) = invoke("run", "generic_nominal_static_arguments");
-    assert!(output.status.success(), "{report}");
-    for receipt in ["native exit 0", "interp exit: 0"] {
-        assert!(report.lines().any(|line| line == receipt), "{report}");
-    }
+    build_fixture::assert_silent_return(&fixture_path("run", "generic_nominal_static_arguments"));
 }
 
 #[test]
 fn a_callback_for_another_trait_argument_is_refused() {
-    let (output, report) = invoke("fail", "generic_nominal_static_arguments");
+    let (output, report) =
+        build_fixture::check(&fixture_path("fail", "generic_nominal_static_arguments"));
     assert!(!output.status.success(), "{report}");
     assert!(
         report.contains("callback `left_step` must satisfy the exact requirement of `Step`"),
@@ -88,7 +50,7 @@ fn a_callback_for_another_trait_argument_is_refused() {
 
 #[test]
 fn a_matching_signature_does_not_bind_a_callback_to_the_requirement() {
-    let (output, report) = invoke("fail", "nominal_static_arguments");
+    let (output, report) = build_fixture::check(&fixture_path("fail", "nominal_static_arguments"));
     assert!(!output.status.success(), "{report}");
     assert!(
         report.contains("callback `same_shape` must satisfy the exact requirement of `Right`"),
