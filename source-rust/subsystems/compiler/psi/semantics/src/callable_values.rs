@@ -494,7 +494,7 @@ impl CallableValueProgram<'_> {
         Ok(CallableActualValue::Value(query))
     }
 
-    fn structural_actual_matches(
+    pub(crate) fn structural_actual_matches(
         &self,
         actual: (StructuralTypeId, StructuralAccess),
         formal: (StructuralTypeId, StructuralAccess),
