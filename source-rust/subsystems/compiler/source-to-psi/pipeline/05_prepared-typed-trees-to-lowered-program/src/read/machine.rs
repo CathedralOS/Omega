@@ -2662,6 +2662,7 @@ impl<'t> Program<'t> {
                 crate::source_state::data::TypeParameterKind::Type
                     | crate::source_state::data::TypeParameterKind::Const { .. }
                     | crate::source_state::data::TypeParameterKind::Value { .. }
+                    | crate::source_state::data::TypeParameterKind::Proposition { .. }
             ) || parameter.bounds != crate::source_state::data::DataProperties::default()
         }) {
             return Err(unserved("applied trait parameter eligibility"));
@@ -4126,31 +4127,39 @@ impl<'t> Program<'t> {
                     }
                 }
                 SignatureContractKind::Ensures => {
-                    for fact in facts {
-                        if let Some(equation) = self.content_equation(id, &exit, fact)? {
-                            content_ensures.push(equation);
-                            continue;
-                        }
-                        if let crate::source_state::domain::ProofFact::Membership(membership) = fact
-                        {
-                            let (membership, clause) =
-                                self.runtime_membership(id, &exit, membership)?;
-                            if let Some(membership) = membership {
-                                membership_ensures.push(membership);
+                    let saved_requires =
+                        std::mem::replace(&mut self.enclosing_requires, requires.clone());
+                    let read_ensures = (|| -> Checked<()> {
+                        for fact in facts {
+                            if let Some(equation) = self.content_equation(id, &exit, fact)? {
+                                content_ensures.push(equation);
+                                continue;
                             }
-                            if let Some((clause, text)) = clause {
+                            if let crate::source_state::domain::ProofFact::Membership(membership) =
+                                fact
+                            {
+                                let (membership, clause) =
+                                    self.runtime_membership(id, &exit, membership)?;
+                                if let Some(membership) = membership {
+                                    membership_ensures.push(membership);
+                                }
+                                if let Some((clause, text)) = clause {
+                                    ensures.push(clause);
+                                    ensures_text.push(text);
+                                }
+                                continue;
+                            }
+                            if let Some((clause, text)) =
+                                self.contract_clause(id, &exit, fact, false)?
+                            {
                                 ensures.push(clause);
                                 ensures_text.push(text);
                             }
-                            continue;
                         }
-                        if let Some((clause, text)) =
-                            self.contract_clause(id, &exit, fact, false)?
-                        {
-                            ensures.push(clause);
-                            ensures_text.push(text);
-                        }
-                    }
+                        Ok(())
+                    })();
+                    self.enclosing_requires = saved_requires;
+                    read_ensures?;
                 }
                 SignatureContractKind::EnsuresForResultCase { .. } => {
                     return Err(refuse(
@@ -4273,12 +4282,7 @@ impl<'t> Program<'t> {
             }
         };
         let authored = requires.clone();
-        let repeated = if bound.is_empty() {
-            Repeated::Refuse
-        } else {
-            Repeated::Merge
-        };
-        let requires = canonical::clauses(requires, repeated, id)?;
+        let requires = canonical::clauses(requires, Repeated::Merge, id)?;
         // Each clause's text follows it into canonical order. A repeated
         // clause was refused above, so each canonical clause is exactly one
         // authored clause.

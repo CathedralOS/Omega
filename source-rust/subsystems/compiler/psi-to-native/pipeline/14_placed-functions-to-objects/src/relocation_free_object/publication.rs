@@ -1,10 +1,9 @@
 /*
 We define the object-container publication manifest
-(`FunctionFragmentObjectContainerManifest`), its summary statistics
-(`FunctionFragmentObjectContainerStatistics`), and the canonical content its
-identity covers. These records capture object-format publication claims and
-record counts without granting source admission or executable publication
-authority.
+(`FunctionFragmentObjectContainerManifest`) and its summary statistics
+(`FunctionFragmentObjectContainerStatistics`). These records capture
+object-format publication claims and record counts without granting source
+admission or executable publication authority.
 */
 
 use crate::{

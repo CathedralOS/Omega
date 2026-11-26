@@ -70,36 +70,19 @@ pub struct Extent {
 }
 
 impl Extent {
-    pub const fn base(&self) -> u64 {
-        self.base
-    }
-
-    pub const fn length(&self) -> u64 {
-        self.length
-    }
+    get_fields!(copy &self;
+        base: u64,
+        length: u64,
+        address_space: AddressSpaceId,
+        provenance: ExtentProvenanceId,
+        era: MappingEraId,
+        origin: ExtentRootOrigin,
+        sharing: ExtentSharingMode,
+    );
+    get_fields!(ref &self; rights: ExtentRights);
 
     pub const fn end(&self) -> u64 {
         self.base + self.length
-    }
-
-    pub const fn address_space(&self) -> AddressSpaceId {
-        self.address_space
-    }
-
-    pub const fn rights(&self) -> &ExtentRights {
-        &self.rights
-    }
-
-    pub const fn provenance(&self) -> ExtentProvenanceId {
-        self.provenance
-    }
-
-    pub const fn era(&self) -> MappingEraId {
-        self.era
-    }
-
-    pub const fn origin(&self) -> ExtentRootOrigin {
-        self.origin
     }
 
     pub const fn provider_issuance(&self) -> Option<ExtentProviderIssuance> {
@@ -112,10 +95,6 @@ impl Extent {
 
     pub const fn lineage_root(&self) -> ExtentLineageId {
         self.lineage.root
-    }
-
-    pub const fn sharing(&self) -> ExtentSharingMode {
-        self.sharing
     }
 
     pub fn split_at(self, lower_length: u64) -> Result<(Self, Self), SplitError> {
@@ -142,32 +121,22 @@ impl Extent {
         upper_path.push(SplitBranch::Upper);
 
         let lower = Self {
-            base: self.base,
             length: lower_length,
-            address_space: self.address_space,
             rights: self.rights.clone(),
-            provenance: self.provenance,
-            era: self.era,
-            origin: self.origin,
             lineage: Lineage {
                 root: self.lineage.root,
                 path: lower_path,
             },
-            sharing: self.sharing,
+            ..self
         };
         let upper = Self {
             base: upper_base,
             length: upper_length,
-            address_space: self.address_space,
-            rights: self.rights,
-            provenance: self.provenance,
-            era: self.era,
-            origin: self.origin,
             lineage: Lineage {
                 root: self.lineage.root,
                 path: upper_path,
             },
-            sharing: self.sharing,
+            ..self
         };
         (lower, upper)
     }
@@ -251,18 +220,12 @@ impl Extent {
         let mut parent_path = lower.lineage.path;
         parent_path.pop();
         Ok(Self {
-            base: lower.base,
             length: lower.length + upper.length,
-            address_space: lower.address_space,
-            rights: lower.rights,
-            provenance: lower.provenance,
-            era: lower.era,
-            origin: lower.origin,
             lineage: Lineage {
                 root: lower.lineage.root,
                 path: parent_path,
             },
-            sharing: lower.sharing,
+            ..lower
         })
     }
 
@@ -296,9 +259,7 @@ impl OwnedExtentPartition {
         self.before.as_ref()
     }
 
-    pub const fn selected(&self) -> &Extent {
-        &self.selected
-    }
+    get_fields!(ref &self; selected: Extent);
 
     pub const fn after(&self) -> Option<&Extent> {
         self.after.as_ref()
@@ -384,67 +345,22 @@ fn validate_merge(first: &Extent, second: &Extent) -> Result<(), ExtentDiagnosti
     Ok(())
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub struct SplitError {
-    extent: Extent,
-    diagnostic: ExtentDiagnostic,
-}
+conserved_error!(
+    #[derive(Debug, PartialEq, Eq)]
+    pub struct SplitError { extent: Extent } => into_extent
+);
 
-#[derive(Debug, PartialEq, Eq)]
-pub struct OwnedPartitionError {
-    extent: Extent,
-    diagnostic: ExtentDiagnostic,
-}
+conserved_error!(
+    #[derive(Debug, PartialEq, Eq)]
+    pub struct OwnedPartitionError { extent: Extent } => into_extent
+);
 
-impl OwnedPartitionError {
-    pub const fn diagnostic(&self) -> &ExtentDiagnostic {
-        &self.diagnostic
-    }
+conserved_error!(
+    #[derive(Debug, PartialEq, Eq)]
+    pub struct AttenuationError { extent: Extent } => into_extent
+);
 
-    pub fn into_extent(self) -> Extent {
-        self.extent
-    }
-}
-
-impl SplitError {
-    pub const fn diagnostic(&self) -> &ExtentDiagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_extent(self) -> Extent {
-        self.extent
-    }
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct AttenuationError {
-    extent: Extent,
-    diagnostic: ExtentDiagnostic,
-}
-
-impl AttenuationError {
-    pub const fn diagnostic(&self) -> &ExtentDiagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_extent(self) -> Extent {
-        self.extent
-    }
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct MergeError {
-    first: Extent,
-    second: Extent,
-    diagnostic: ExtentDiagnostic,
-}
-
-impl MergeError {
-    pub const fn diagnostic(&self) -> &ExtentDiagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_extents(self) -> (Extent, Extent) {
-        (self.first, self.second)
-    }
-}
+conserved_error!(
+    #[derive(Debug, PartialEq, Eq)]
+    pub struct MergeError { first: Extent, second: Extent } => into_extents
+);

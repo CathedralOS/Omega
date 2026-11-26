@@ -28,7 +28,6 @@ use terminal_check_tables::{Checked, Construct};
 
 use super::Program;
 use super::authority::Access;
-use super::clause_calls::callee_scope;
 use super::contracts::{ClauseScope, ResultTerm, formal_place, static_read_path};
 use super::types::{OPEN_CARRIER_FAMILY, TypeTruth};
 use crate::body::{Qualification, ValueType};
@@ -1933,7 +1932,28 @@ impl Program<'_> {
         let unfolded = self.unfold(id, scope, call)?;
         let (term, used) =
             self.within_unfolding(id, unfolded.machine, unfolded.bound.len(), |program| {
-                let callee = callee_scope(&unfolded.bound, unfolded.machine);
+                let callee = ClauseScope {
+                    slots: &unfolded.callee_slots,
+                    values: &[],
+                    bound: &unfolded.bound,
+                    owner: unfolded.machine,
+                    result: ResultTerm::Absent("result in a called machine's body"),
+                    subject: None,
+                    formal_fields: unfolded.formal_fields,
+                    logical: None,
+                };
+                for &req_expr in &unfolded.requires {
+                    let req_prop = program.clause(id, &callee, req_expr)?;
+                    if !program.enclosing_requires.contains(&req_prop) {
+                        return Err(refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Contract(
+                                "called machine in a clause has an unproved precondition",
+                            ),
+                        ));
+                    }
+                }
                 match usage {
                     ClauseUse::Operand(..)
                     | ClauseUse::ProofRelevantType

@@ -1,21 +1,15 @@
-//! The memory part of a selected instruction's encoded effects has one wire
-//! definition for catalog identities and saved pre-allocation plans.
+//! The memory part of a selected instruction's encoded effects.
 use super::catalog::MachineIdentityBytes;
-use super::program::encoding::{Cursor, PreAllocationMachineEffectDecodeError as DecodeError};
 use crate::AtomicForm;
 use register_model::RegisterViewId;
 
 trait Field: Sized {
     fn encode(self, bytes: &mut (impl MachineIdentityBytes + ?Sized));
-    fn decode(cursor: &mut Cursor<'_>) -> Result<Self, DecodeError>;
 }
 
 impl Field for u16 {
     fn encode(self, bytes: &mut (impl MachineIdentityBytes + ?Sized)) {
         bytes.identity_bytes(&self.to_le_bytes());
-    }
-    fn decode(cursor: &mut Cursor<'_>) -> Result<Self, DecodeError> {
-        cursor.u16()
     }
 }
 
@@ -23,17 +17,11 @@ impl Field for u32 {
     fn encode(self, bytes: &mut (impl MachineIdentityBytes + ?Sized)) {
         bytes.identity_bytes(&self.to_le_bytes());
     }
-    fn decode(cursor: &mut Cursor<'_>) -> Result<Self, DecodeError> {
-        cursor.u32()
-    }
 }
 
 impl Field for RegisterViewId {
     fn encode(self, bytes: &mut (impl MachineIdentityBytes + ?Sized)) {
         self.0.encode(bytes);
-    }
-    fn decode(cursor: &mut Cursor<'_>) -> Result<Self, DecodeError> {
-        cursor.u16().map(Self)
     }
 }
 
@@ -41,13 +29,9 @@ impl Field for AtomicForm {
     fn encode(self, bytes: &mut (impl MachineIdentityBytes + ?Sized)) {
         bytes.identity_bytes(&[self.ordinal()]);
     }
-    fn decode(cursor: &mut Cursor<'_>) -> Result<Self, DecodeError> {
-        Self::from_ordinal(cursor.byte()?).ok_or(DecodeError::InvalidField)
-    }
 }
 
-// Explicit Rust discriminants make a duplicate wire tag a compilation error.
-// A row's fields appear in exactly the order in which both codecs visit them.
+// Explicit Rust discriminants make a duplicate tag a compilation error.
 macro_rules! memory_effects {
     ($($tag:literal => $effect:ident $( { $($field:ident: $ty:ty),+ $(,)? } )?),+ $(,)?) => {
         #[repr(u8)]
@@ -64,13 +48,6 @@ macro_rules! memory_effects {
                         $($( $field.encode(bytes); )+)?
                     },)+
                 }
-            }
-
-            pub(super) fn decode(cursor: &mut Cursor<'_>) -> Result<Self, DecodeError> {
-                Ok(match cursor.byte()? {
-                    $($tag => Self::$effect $( { $($field: <$ty as Field>::decode(cursor)?),+ } )?,)+
-                    _ => return Err(DecodeError::InvalidField),
-                })
             }
         }
     };

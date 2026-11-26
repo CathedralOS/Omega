@@ -109,7 +109,7 @@ fn extent_scaled_ceilings_grow_once_per_started_reference_extent() {
 }
 
 #[test]
-fn rule_contract_round_trip_binds_every_axis() {
+fn rule_contract_encoding_has_fixed_length() {
     let contract = OptimizationRuleContract::new(
         OptimizationRuleIdentity::from_canonical_bytes(b"cfg/fold-branch/v1"),
         OptimizationPassIdentity::from_canonical_bytes(b"cfg-cleanup/v1"),
@@ -124,12 +124,4 @@ fn rule_contract_round_trip_binds_every_axis() {
     .unwrap();
     let encoded = contract.encode();
     assert_eq!(encoded.len(), 97);
-    assert_eq!(OptimizationRuleContract::decode(&encoded), Ok(contract));
-
-    let mut unknown_analysis = encoded;
-    unknown_analysis[87] |= 0x80;
-    assert!(matches!(
-        OptimizationRuleContract::decode(&unknown_analysis),
-        Err(CoreContractDecodeError::UnknownAnalysisBits(_))
-    ));
 }

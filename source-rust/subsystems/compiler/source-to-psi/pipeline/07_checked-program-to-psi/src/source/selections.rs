@@ -214,30 +214,19 @@ mod tests {
             None,
             semantic_vocabulary::PackageKeyIdentity::from_digest([7; 32]),
         ] {
-            let mut sources = crate::source_inputs::SourceMap::default();
-            let id = sources
-                .add_checked_instance(
-                    "/overloads/main.omg".into(),
-                    text,
-                    "/overloads".into(),
-                    package,
-                    if package.is_some() {
-                        source_admission::SourceOrigin::User
-                    } else {
-                        source_admission::SourceOrigin::Toolchain
-                    },
-                    source_admission::SourceResolutionStratum::Base,
-                    source_provenance::DependencyScope::Product,
-                )
-                .source_id;
-            let tokens = crate::frontend_fixture::Lexer::new(text)
-                .tokenize()
-                .unwrap();
-            let syntax = crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
-            let mut request = crate::resolution::ResolutionRequest::new(syntax);
-            request.sources = Some(Arc::new(sources));
-            let resolved = crate::resolution::resolve(request).unwrap();
-            let typed = crate::typing::lower_symbol_resolved_trees(&resolved).unwrap();
+            let file = crate::FixtureFile {
+                path: "/overloads/main.omg",
+                text,
+                root: "/overloads",
+                package,
+                origin: if package.is_some() {
+                    source_admission::SourceOrigin::User
+                } else {
+                    source_admission::SourceOrigin::Toolchain
+                },
+                scope: source_provenance::DependencyScope::Product,
+            };
+            let (typed, _) = crate::fixture_trees(&[file], |_| Vec::new());
             let identities = typed
                 .machines()
                 .iter()
@@ -250,21 +239,11 @@ mod tests {
                 .collect::<Vec<_>>();
             assert_eq!(identities.len(), 2);
             assert_ne!(identities[0], identities[1]);
-            let entry = typed.realized_machine_named("main").unwrap().symbol;
-            let frozen = crate::preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
-            let accepted = crate::judge_fixture(
-                frozen,
-                crate::TerminalSourceCompilation {
-                    declaration_metadata: &[],
-                    entries: &[entry],
-                    subjects: &[None],
-                    purpose: source_provenance::DependencyScope::Product,
-                    selected: &[],
-                    calling: None,
-                    providers: None,
-                    bindings: &[],
-                    supplies: &[],
-                },
+            let accepted = crate::judge_entry(
+                crate::preparation::prepare_typed_trees(typed, &[], &[]).unwrap(),
+                "main",
+                &[None],
+                source_provenance::DependencyScope::Product,
                 terminal_codec::TerminalPublication::Invocation,
             )
             .unwrap();
@@ -329,42 +308,21 @@ mod tests {
         }
 
         let text = "const CHOSEN: bool = false; machine helper(value: bool) { } machine build() { helper(CHOSEN); }";
-        let mut sources = crate::source_inputs::SourceMap::default();
-        let id = sources
-            .add_checked_instance(
-                "/captured/build.omg".into(),
-                text,
-                "/captured".into(),
-                None,
-                source_admission::SourceOrigin::User,
-                source_admission::SourceResolutionStratum::Base,
-                source_provenance::DependencyScope::Build,
-            )
-            .source_id;
-        let sources = Arc::new(sources);
-        let tokens = crate::frontend_fixture::Lexer::new(text)
-            .tokenize()
-            .unwrap();
-        let syntax = crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
-        let mut request = crate::resolution::ResolutionRequest::new(syntax);
-        request.sources = Some(Arc::clone(&sources));
-        let resolved = crate::resolution::resolve(request).unwrap();
-        let typed = crate::typing::lower_symbol_resolved_trees(&resolved).unwrap();
-        let entry = typed.realized_machine_named("build").unwrap().symbol;
-        let frozen = crate::preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
-        let accepted = crate::judge_fixture(
-            frozen,
-            crate::TerminalSourceCompilation {
-                declaration_metadata: &[],
-                entries: &[entry],
-                subjects: &[None],
-                purpose: source_provenance::DependencyScope::Build,
-                selected: &[],
-                calling: None,
-                providers: None,
-                bindings: &[],
-                supplies: &[],
-            },
+        let file = crate::FixtureFile {
+            path: "/captured/build.omg",
+            text,
+            root: "/captured",
+            package: None,
+            origin: source_admission::SourceOrigin::User,
+            scope: source_provenance::DependencyScope::Build,
+        };
+        let (typed, _) = crate::fixture_trees(&[file], |_| Vec::new());
+        let sources = typed.symbols.source_map().unwrap();
+        let accepted = crate::judge_entry(
+            crate::preparation::prepare_typed_trees(typed, &[], &[]).unwrap(),
+            "build",
+            &[None],
+            source_provenance::DependencyScope::Build,
             terminal_codec::TerminalPublication::Invocation,
         )
         .unwrap();

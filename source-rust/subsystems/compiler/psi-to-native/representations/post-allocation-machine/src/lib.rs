@@ -10,26 +10,13 @@ instruction to its unique applicable `MachineAlternative` and materialize
 explicit physical register-unit footprints (`storage_units`, `read_units`,
 `write_units`, `implicit_unit_uses`, `implicit_unit_defs`, and `implicit_unit_clobbers`).
 We store that post-allocation machine program, its domain-separated content
-identity (`omega.terminal-postallocation-machine.v27`), its descriptive target
-cost model (`TargetCostModel`), and its self-authenticating wire framing
-(`OMGPMX\0\0` v28).
-*/
-
-/*
-Every `PostAllocationMachinePlan` binds the exact upstream identities (`selected`,
-`effects`, `ranges`, `legality`, `homes`, `post_allocation_manifest`, `target`,
-and register/effect catalogs) that produced its physical instructions so
-downstream machine-code emission and artifact replay can verify end-to-end
-provenance without re-running register allocation. This representation owns data
-and canonical serialization; independent post-allocation validators check that a
-decoded plan implements its upstream selected instructions, live ranges, and
-register homes before machine encoding.
+identity (`omega.terminal-postallocation-machine.v27`), and its descriptive
+target cost model (`TargetCostModel`).
 */
 
 pub(crate) use ::wire::codec_bytes;
 pub(crate) use ::wire::digest_encoder;
 
-pub mod codec;
 pub mod control_flow;
 pub mod costs;
 pub mod evidence;
@@ -40,7 +27,6 @@ pub mod program;
 pub mod program_validation;
 pub use program::{PhysicalFunction, PostAllocationMachineProgram};
 
-pub(crate) use codec::PostAllocationMachineDecodeError;
 pub use control_flow::{PostAllocationMachineBlock, PostAllocationMachineFunction};
 pub use costs::{TargetCostModelIdentity, target_cost_model};
 pub use evidence::{PostAllocationMachineOptimizationCustody, PostAllocationMachinePhaseReceipt};
@@ -98,14 +84,6 @@ impl PostAllocationMachinePlan {
         self.functions
             .iter()
             .flat_map(|function| function.instructions())
-    }
-
-    pub fn encode(&self) -> Vec<u8> {
-        codec::encode_terminal_post_allocation_machine_plan(self)
-    }
-
-    pub fn decode(encoded: &[u8]) -> Result<Self, crate::PostAllocationMachineDecodeError> {
-        codec::decode_terminal_post_allocation_machine_plan(encoded)
     }
 }
 

@@ -22,7 +22,6 @@ use crate::frame_application::{
     FunctionFragmentFrameApplicationError, StagedFunctionFragmentFrameApplication,
     validate_function_fragment_frame_application,
 };
-pub use machine_code::FunctionFragmentTextSectionManifestDecodeError;
 use machine_code::code_layout::{NativeCodeLayout, NativeCodeLayoutError};
 use machine_code::{
     FunctionFragment, FunctionFragmentControlProvenance, FunctionFragmentEmissionManifest,
