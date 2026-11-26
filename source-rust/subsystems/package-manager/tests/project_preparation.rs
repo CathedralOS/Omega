@@ -344,3 +344,56 @@ machine build(builder: @mutable Build) {{
         assert!(!products.settle_rechecks(target).unwrap().is_enabled());
     });
 }
+
+#[test]
+fn supplied_build_library_reach_depends_on_its_invoked_exports() {
+    configure();
+    let temp = TemporaryDirectory::create("library-reach", false).unwrap();
+    let client = temp.path().join("client");
+    write_package(
+        &client.join("helper"),
+        r#"machine build(builder: @mutable Build) { Build::package(builder, "helper"); }"#,
+        r#"public boundary trait AuditEffect {}
+public machine charged() reaches AuditEffect {}
+public machine free() {}"#,
+    );
+    let libraries = [BuildLibraryRequest {
+        alias: ProjectName::parse("checking").unwrap(),
+        source: BuildDependencySource::Path("helper".into()),
+    }];
+    for export in ["free", "charged"] {
+        write_package(
+            &client,
+            &format!(
+                r#"use {{checking}}/main.omg as helper;
+machine build(builder: @mutable Build) {{
+    |helper|::{export}();
+    Build::package(builder, "client");
+}}"#
+            ),
+            "public machine main() {}",
+        );
+        let result = open_products(
+            ProjectInput::WithBuildLibraries {
+                file: &client.join("build.omg"),
+                libraries: &libraries,
+            },
+            &[TargetProfile::host_if_supported().unwrap()],
+            true,
+            false,
+            &temp.path().join("out"),
+            None,
+        );
+        if export == "free" {
+            result.unwrap();
+        } else {
+            let Err(error) = result else {
+                panic!("the reachable charged export exceeded its empty ceiling")
+            };
+            let message = error.to_string();
+            for expected in ["checking", "charged", "AuditEffect"] {
+                assert!(message.contains(expected), "{message}");
+            }
+        }
+    }
+}

@@ -351,6 +351,7 @@ dependencies = [
  "terminal-codec",
  "terminal-interpreter",
  "terminal-psi",
+ "terminal-semantics",
  "terminal-work",
  "tokens",
 ]
