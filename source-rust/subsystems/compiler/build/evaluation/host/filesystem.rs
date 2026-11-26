@@ -14,7 +14,7 @@ through suspension without holding the host's obligation table or filesystem
 lock.
 */
 
-mod read_all;
+mod file_result;
 
 use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
 use filesystem_authority::FilesystemGrantRootIdentity;
@@ -61,7 +61,8 @@ pub(crate) struct TerminalBuildFilesystemHost {
     artifact: terminal_codec::TerminalExecutionIdentity,
     calls: Arc<[TerminalBuildFilesystemCall]>,
     facets: Option<FilesystemFacets>,
-    read_result: Option<read_all::ReadResult>,
+    read_result: Option<file_result::FileResult>,
+    write_result: Option<file_result::FileResult>,
     account: EvaluationInvocationAccount,
     machine_name: String,
     activation: Mutex<Option<FilesystemActivation>>,
@@ -83,23 +84,31 @@ impl TerminalBuildFilesystemHost {
             .build_filesystem()
             .calls_for(artifact)
             .ok_or("Build filesystem calls lost their invocation custody")?;
-        let read_result = calls
-            .iter()
-            .find(|call| call.action == Operation::ReadAll && imports.contains(&call.site.boundary))
-            .map(|call| {
-                let boundary = artifact
-                    .module()
-                    .boundary_machine(call.site.boundary)
+        let result_for = |action| {
+            calls
+                .iter()
+                .find(|call| call.action == action && imports.contains(&call.site.boundary))
+                .map(|call| {
+                    let boundary = artifact.module().boundary_machine(call.site.boundary)
                     .ok_or("missing installed filesystem boundary")?;
-                let terminal_psi::BoundaryMachineResult::Structural(result) = &boundary.result
-                else {
-                    return Err("filesystem read lost its IoResult".into());
-                };
-                read_all::ReadResult::admit(artifact.module(), result.structural_type)
-            })
-            .transpose()?;
-        let needs_facets = calls.iter().any(|call| call.action != Operation::ReadAll);
-        let activation = if needs_facets || read_result.is_some() || program_files {
+                    let terminal_psi::BoundaryMachineResult::Structural(result) = &boundary.result
+                    else {
+                        return Err("filesystem operation lost its declared result".into());
+                    };
+                    file_result::FileResult::admit(
+                        artifact.module(),
+                        result.structural_type,
+                        action == Operation::ReadAll,
+                    )
+                })
+                .transpose()
+        };
+        let read_result = result_for(Operation::ReadAll)?;
+        let write_result = result_for(Operation::WriteAll)?;
+        let needs_facets = calls
+            .iter()
+            .any(|call| !matches!(call.action, Operation::ReadAll | Operation::WriteAll));
+        let activation = if needs_facets || read_result.is_some() || write_result.is_some() || program_files {
             Some(FilesystemActivation {
                 runtime: scope.begin_filesystem_runtime(account.clone())?,
                 markers: Vec::new(),
@@ -109,6 +118,7 @@ impl TerminalBuildFilesystemHost {
         };
         Ok(Arc::new(Self {
             read_result,
+            write_result,
             artifact: artifact.custody_identity(),
             calls: Arc::clone(calls),
             facets: if !needs_facets {
@@ -345,6 +355,12 @@ impl FilesystemAdapter {
                 }
                 integer_result(i64::from(runtime.open(root, relative, descriptor()?)?), 32)
             }
+            Operation::WriteAll => {
+                let written = runtime.write_private_file(bytes(0)?, bytes(1)?)?;
+                self.host.write_result.as_ref()
+                    .ok_or("missing admitted UnitResult")?
+                    .finish(written.map(|()| None))
+            }
             Operation::ReadAll => {
                 let [buffer] = buffers else {
                     return Err("read_all requires one mutable byte view".into());
@@ -353,7 +369,9 @@ impl FilesystemAdapter {
                     return Err("read_all buffer has the wrong argument position".into());
                 }
                 let read = runtime.read_file(bytes(0)?, buffer.bytes_mut(), unsigned(integer(0)?)?)?;
-                self.host.read_result.as_ref().ok_or("missing admitted IoResult")?.finish(read)
+                self.host.read_result.as_ref()
+                    .ok_or("missing admitted IoResult")?
+                    .finish(read.map(Some))
             }
             Operation::Read => {
                 let root = self.host.source_root(markers, structural(0)?)?;

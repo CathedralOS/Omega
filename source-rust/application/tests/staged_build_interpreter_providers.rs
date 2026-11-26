@@ -376,22 +376,6 @@ machine build(plan: @mutable BuildPlan) blocks {
         .map(std::path::PathBuf::from)
         .unwrap_or_else(|| support::repository_root().join("source/library"));
     let system = library.join("system");
-    let prepare = |library: &std::path::Path| {
-        let source = r#"use {omega}/build/dependency.omg;
-use {omega}/language/core/filesystem_authority.omg as authority;
-machine build(plan: @mutable BuildPlan) {
-    let allowed: [BoundaryServiceReference; 4] = [
-        Build::service::<|authority|::FilesystemContentRead>(plan),
-        Build::service::<|authority|::FilesystemContentWrite>(plan),
-        Build::service::<|authority|::FilesystemMetadataMutation>(plan),
-        Build::service::<|authority|::FilesystemNamespaceMutation>(plan)
-    ];
-    let system: DependencyDescription = |dependency|::from_source(Source::Path { location: "SYSTEM_PATH" });
-    _ = |dependency|::add(plan, system, @allowed[..]);
-    plan.product = BuildProduct::InterpretedBuild { entry: "configure.omg" };
-}"#.replace("SYSTEM_PATH", &library.to_string_lossy().replace('\\', "/"));
-        fs::write(board.join("build.omg"), source).unwrap();
-    };
     let check = || {
         let output = Command::new(env!("CARGO_BIN_EXE_omega"))
             .env("OMEGA_LIBRARY_ROOT", &library)
@@ -416,7 +400,7 @@ machine build(plan: @mutable BuildPlan) {
     };
     fs::write(app.join("board.cfg"), b"P").unwrap();
     fs::write(board.join("board.cfg"), b"R").unwrap();
-    prepare(&system);
+    prepare_stock_filesystem(&board, &system);
     let (status, report) = check();
     assert!(status.success(), "{report}");
 
@@ -437,11 +421,114 @@ machine build(plan: @mutable BuildPlan) {
     }"#,
     )
     .unwrap();
-    prepare(&copy);
+    prepare_stock_filesystem(&board, &copy);
     let (status, report) = check();
     assert!(!status.success(), "{report}");
     assert!(
         report.contains("no interpreter provider or host binding was supplied"),
         "{report}"
     );
+}
+
+fn prepare_stock_filesystem(board: &std::path::Path, library: &std::path::Path) {
+    let source = r#"use {omega}/build/dependency.omg;
+use {omega}/language/core/filesystem_authority.omg as authority;
+machine build(plan: @mutable BuildPlan) {
+    let allowed: [BoundaryServiceReference; 4] = [
+        Build::service::<|authority|::FilesystemContentRead>(plan),
+        Build::service::<|authority|::FilesystemContentWrite>(plan),
+        Build::service::<|authority|::FilesystemMetadataMutation>(plan),
+        Build::service::<|authority|::FilesystemNamespaceMutation>(plan)
+    ];
+    let system: DependencyDescription = |dependency|::from_source(Source::Path { location: "SYSTEM_PATH" });
+    _ = |dependency|::add(plan, system, @allowed[..]);
+    plan.product = BuildProduct::InterpretedBuild { entry: "configure.omg" };
+}"#.replace("SYSTEM_PATH", &library.to_string_lossy().replace('\\', "/"));
+    fs::write(board.join("build.omg"), source).unwrap();
+}
+
+#[test]
+fn a_generator_writes_an_ordinary_file_in_its_own_private_staging() {
+    let sandbox = TemporaryDirectory::create("generator-filesystem", false).unwrap();
+    let root = sandbox.path();
+    let library = std::env::var_os("OMEGA_LIBRARY_ROOT")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| support::repository_root().join("source/library"));
+    prepare_stock_filesystem(root, &library.join("system"));
+    fs::write(root.join("configure.omg"), r#"use {system}/filesystem.omg as files;
+use {system}/filesystem_host.omg as paths;
+machine build(plan: @mutable BuildPlan) blocks {
+    let written: |files|::UnitResult = block |files|::Filesystem::write_all(
+        "generated.omg" as + |paths|::Path, "public machine answer() -> u32 { 17u32 }");
+    let protected: |files|::UnitResult = block |files|::Filesystem::write_all(
+        "configure.omg" as + |paths|::Path, "replaced");
+    let mutable first: [u8; 1] = [0u8];
+    let loaded: |files|::IoResult = block |files|::Filesystem::read_all(
+        "generated.omg" as + |paths|::Path, @mutable first[..], 1u64);
+    transition written {
+        |files|::UnitResult::Ok -> check_protection(plan, protected, loaded, first[0]),
+        |files|::UnitResult::Error { kind } -> failed(plan)
+    }
+    machine check_protection(plan: @mutable BuildPlan, protected: |files|::UnitResult, loaded: |files|::IoResult, first: u8) {
+        transition protected {
+            |files|::UnitResult::Error { kind } -> check_error(plan, kind, loaded, first),
+            |files|::UnitResult::Ok -> failed(plan)
+        }
+    }
+    machine check_error(plan: @mutable BuildPlan, kind: |files|::ErrorKind, loaded: |files|::IoResult, first: u8) {
+        transition kind {
+            |files|::ErrorKind::PermissionDenied -> check_read(plan, loaded, first),
+            _ -> failed(plan)
+        }
+    }
+    machine check_read(plan: @mutable BuildPlan, loaded: |files|::IoResult, first: u8) {
+        transition loaded {
+            |files|::IoResult::Ok { count } -> check_byte(plan, count, first),
+            |files|::IoResult::Error { kind } -> failed(plan)
+        }
+    }
+    machine check_byte(plan: @mutable BuildPlan, count: u64, first: u8) {
+        transition count == 1u64 && first == 112u8 {
+            true -> publish(plan),
+            false -> failed(plan)
+        }
+    }
+    machine publish(plan: @mutable BuildPlan) {
+        let need: RequiredOutput = BuildOutput::require(@mutable plan.output, "generated.omg");
+        let generated: BuildPath = BuildOutput::resolve(@plan.output, "generated.omg");
+        let completed: OutputCompletion = BuildOutput::complete(@mutable plan.output, need, generated);
+        transition completed {
+            OutputCompletion::Sealed { receipt } -> done(plan),
+            OutputCompletion::Retry { obligation, file } -> refuse(plan, obligation)
+        }
+    }
+    machine done(plan: @mutable BuildPlan) { plan.product = BuildProduct::Package { name: "generator" }; }
+    machine refuse(plan: @mutable BuildPlan, need: RequiredOutput) {
+        BuildOutput::fail(@mutable plan.output, need, "generated file was not sealed");
+    }
+    machine failed(plan: @mutable BuildPlan) {
+        plan.product = BuildProduct::InterpretedBuild { entry: "generator-write-failed.omg" };
+    }
+}"#).unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
+        .env("OMEGA_LIBRARY_ROOT", library)
+        .current_dir(root)
+        .args(["build", "build.omg"])
+        .output()
+        .unwrap();
+    let report = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(output.status.success(), "{report}");
+    let published = report
+        .lines()
+        .find_map(|line| line.strip_prefix("published completed build outputs to "))
+        .unwrap_or_else(|| panic!("missing generator output: {report}"));
+    assert_eq!(
+        fs::read(std::path::Path::new(published).join("files/generated.omg")).unwrap(),
+        b"public machine answer() -> u32 { 17u32 }"
+    );
+    assert!(!root.join("generated.omg").exists());
 }

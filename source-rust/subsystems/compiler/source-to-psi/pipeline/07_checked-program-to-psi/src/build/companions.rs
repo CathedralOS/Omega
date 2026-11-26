@@ -82,16 +82,18 @@ pub(crate) fn produce(
             };
             let protocol =
                 |name| owner.is_boundary && is_build_protocol(&source.symbols, owner.symbol, name);
-            let stream = if owner.is_boundary {
-                sandbox_stream_operation(source, owner.symbol, requirement.name.as_str())
+            let (stream, file_operation) = if owner.is_boundary {
+                let operation = requirement.name.as_str();
+                (
+                    sandbox_stream_operation(source, owner.symbol, operation),
+                    installed_filesystem_operation(source, owner.symbol, operation),
+                )
             } else {
-                None
+                (None, None)
             };
             let launcher = is_installed_launcher(source, owner.symbol, requirement.name.as_str());
-            let reads_file = owner.is_boundary
-                && is_installed_filesystem_read(source, owner.symbol, requirement.name.as_str());
             if stream.is_none()
-                && !reads_file
+                && file_operation.is_none()
                 && !launcher
                 && ![
                     SELECTION_PROTOCOL,
@@ -122,10 +124,10 @@ pub(crate) fn produce(
                     site: call.site,
                     action,
                 });
-            } else if reads_file {
+            } else if let Some(action) = file_operation {
                 companions.filesystem.push(TerminalBuildFilesystemCall {
                     site: call.site,
-                    action: TerminalBuildFilesystemOperation::ReadAll,
+                    action,
                 });
             } else if launcher
                 || (protocol("BuildRequestOperations") && call.name == "forward_program")
@@ -333,20 +335,26 @@ fn sandbox_stream_operation(
         .then_some(Action::SandboxWrite)
 }
 
-/// The invocation may supply the installed system's public read operation.
+/// The invocation may supply the installed system's public filesystem operations.
 /// Establish its root from an already admitted core file in this compilation.
-fn is_installed_filesystem_read(source: &TypedTrees, owner: SymbolHandle, operation: &str) -> bool {
-    if source.symbols.name(owner) != "Filesystem" || operation != "read_all" {
-        return false;
+fn installed_filesystem_operation(
+    source: &TypedTrees,
+    owner: SymbolHandle,
+    operation: &str,
+) -> Option<TerminalBuildFilesystemOperation> {
+    if source.symbols.name(owner) != "Filesystem" {
+        return None;
     }
-    let Some(file) = source
+    let action = match operation {
+        "read_all" => TerminalBuildFilesystemOperation::ReadAll,
+        "write_all" => TerminalBuildFilesystemOperation::WriteAll,
+        _ => return None,
+    };
+    let file = source
         .symbols
         .symbol_source_span(owner)
-        .and_then(|span| source.symbols.source_file(span))
-    else {
-        return false;
-    };
-    file.origin == source_admission::SourceOrigin::User
+        .and_then(|span| source.symbols.source_file(span))?;
+    (file.origin == source_admission::SourceOrigin::User
         && file.package_identity.is_some()
         && file.path.strip_prefix(&file.package_root).ok()
             == Some(std::path::Path::new("filesystem.omg"))
@@ -362,7 +370,7 @@ fn is_installed_filesystem_read(source: &TypedTrees, owner: SymbolHandle, operat
                     .package_root
                     .parent()
                     .is_some_and(|root| root.join("system") == file.package_root)
-        })
+        })).then_some(action)
 }
 
 /// Only the checked machine in the installed Build library may ask the host

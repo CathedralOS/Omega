@@ -2,7 +2,7 @@
 We own the host and captured filesystem authority granted to an admitted `build.omg` machine (`BuildMachineFilesystemScope`).
 
 Every build activation operates under explicit grant roots:
-1. `BUILD_SOURCE_ROOT_IDENTITY` (`1`) is the read-only `Source` root, backed either by an immutable compiler-captured `CapturedBuildSourceInput` or by an explicitly admitted `LiveBuildSource` directory capability.
+1. `BUILD_SOURCE_ROOT_IDENTITY` (`1`) is the read-only `Source` root, backed either by an immutable compiler-captured `CapturedBuildSourceInput` or by an explicitly admitted `BoundDirectory` directory capability.
 2. `BUILD_OUTPUT_ROOT_IDENTITY` (`2`) is the append-and-seal `Output` staging directory (`build_dir`), governed by a `FilesystemSponsor`.
 3. `NamedBuildInput` slots (`3..`) bind additional read-only `CapturedBuildSourceInput` snapshots under `$OmegaBuildInputSlots`.
 */
@@ -17,12 +17,12 @@ When the selected build machine cannot reach the filesystem at all, the `Output`
 
 /*
 Provenance:
-- Capability-bound live source directory (`LiveBuildSource`): `build_execution/filesystem_scope/live_source.rs`.
+- Capability-bound reads from admitted directories: `build_execution/filesystem_scope/bound_directory.rs`.
 - Request-to-scope preparation and private sponsor provisioning: `build_execution/filesystem_scope/preparation.rs`.
 - Terminal Psi runtime filesystem host (`BuildFilesystemRuntime`): `build_execution/filesystem_scope/runtime.rs`.
 */
 
-mod live_source;
+mod bound_directory;
 pub mod preparation;
 pub mod runtime;
 
@@ -86,8 +86,8 @@ pub const BUILD_OUTPUT_ROOT_IDENTITY: FilesystemGrantRootIdentity =
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildMachineFilesystemScope {
-    source_root: PathBuf,                              // Physical source root path.
-    live_source: Option<live_source::LiveBuildSource>, // Capability-bound live source directory when uncaptured.
+    source_root: PathBuf, // Physical source root path.
+    live_source: Option<bound_directory::BoundDirectory>, // Capability-bound live source directory when uncaptured.
     canonical_source_metadata: Option<filesystem_authority::CanonicalFilesystemMetadataIndex>, // Validated canonical Source metadata index.
     canonical_source_metadata_required: bool, // Whether package/anonymous custody requires canonical metadata.
     build_dir: PathBuf,                       // Physical Output staging root path.
@@ -165,7 +165,7 @@ impl BuildMachineFilesystemScope {
         self.ensure_canonical_source_metadata()?;
         if self.captured_source_input.is_none() && self.live_source.is_none() {
             self.live_source = Some(
-                live_source::LiveBuildSource::bind(&self.source_root).map_err(|error| {
+                bound_directory::BoundDirectory::bind(&self.source_root).map_err(|error| {
                     vec![Diagnostic::error(format!(
                         "could not bind admitted live Build Source: {error}"
                     ))]
@@ -410,11 +410,7 @@ impl BuildMachineFilesystemScope {
         if read.is_empty() && write.is_empty() {
             return Ok(());
         }
-        if !self
-            .sponsor
-            .as_ref()
-            .is_some_and(|s| s.owns_private_staging_root(&self.build_dir))
-        {
+        if !self.has_private_staging() {
             return Err("program file grants require private activation staging".into());
         }
         for path in read {
@@ -431,6 +427,12 @@ impl BuildMachineFilesystemScope {
             }
         }
         Ok(())
+    }
+
+    pub fn has_private_staging(&self) -> bool {
+        self.sponsor
+            .as_ref()
+            .is_some_and(|s| s.owns_private_staging_root(&self.build_dir))
     }
 
     pub fn has_captured_files(&self) -> bool {

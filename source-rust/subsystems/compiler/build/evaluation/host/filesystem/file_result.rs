@@ -1,4 +1,4 @@
-//! Reconstruct the installed Filesystem::read_all result from its checked sum declarations.
+//! Reconstruct the installed Filesystem operation result from its checked sum declarations.
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment as Path, IntegerSign, IntegerType, IntegerValue,
     StructuralCaseId, StructuralFieldId, StructuralTypeId,
@@ -12,17 +12,21 @@ use terminal_psi::{
     StructuralCaseDeclaration, StructuralFieldType, StructuralTypeShape, TerminalModule,
 };
 
-pub(super) struct ReadResult {
+pub(super) struct FileResult {
     result: StructuralTypeId,
     ok: StructuralCaseId,
-    count: StructuralFieldId,
+    count: Option<StructuralFieldId>,
     error: StructuralCaseId,
     kind: StructuralFieldId,
     errors: Vec<(ErrorKind, StructuralCaseId)>,
 }
 
-impl ReadResult {
-    pub(super) fn admit(module: &TerminalModule, result: StructuralTypeId) -> Result<Self, String> {
+impl FileResult {
+    pub(super) fn admit(
+        module: &TerminalModule,
+        result: StructuralTypeId,
+        counted: bool,
+    ) -> Result<Self, String> {
         let case = |ty, name: &str| -> Result<&StructuralCaseDeclaration, String> {
             let row = module
                 .types
@@ -40,14 +44,20 @@ impl ReadResult {
         };
         let ok = case(result, "Ok")?;
         let error = case(result, "Error")?;
-        let ([count], [kind]) = (ok.fields.as_slice(), error.fields.as_slice()) else {
-            return Err("filesystem result must carry its count or error kind".into());
+        let count = match (ok.fields.as_slice(), counted) {
+            ([count], true) => Some(count.id),
+            ([], false) => None,
+            _ => return Err("filesystem result has the wrong success payload".into()),
+        };
+        let [kind] = error.fields.as_slice() else {
+            return Err("filesystem result must carry an error kind".into());
         };
         let StructuralFieldType::Structural(kind_type) = kind.field_type else {
             return Err("filesystem error lost its ErrorKind".into());
         };
         let errors = [
             (ErrorKind::NotFound, "NotFound"),
+            (ErrorKind::AlreadyExists, "AlreadyExists"),
             (ErrorKind::InvalidInput, "InvalidInput"),
             (ErrorKind::IsADirectory, "IsADirectory"),
             (ErrorKind::PermissionDenied, "PermissionDenied"),
@@ -58,7 +68,7 @@ impl ReadResult {
         Ok(Self {
             result,
             ok: ok.id,
-            count: count.id,
+            count,
             error: error.id,
             kind: kind.id,
             errors,
@@ -67,14 +77,17 @@ impl ReadResult {
 
     pub(super) fn finish(
         &self,
-        result: Result<u64, ErrorKind>,
+        result: Result<Option<u64>, ErrorKind>,
     ) -> Result<TerminalEffectResult, String> {
-        let value = match result {
-            Ok(count) => TerminalAggregateValue::from_scalars(
+        let value = match (result, self.count) {
+            (Ok(None), None) => {
+                TerminalAggregateValue::from_scalars(self.result, Some(self.ok), Vec::new())
+            }
+            (Ok(Some(count)), Some(field)) => TerminalAggregateValue::from_scalars(
                 self.result,
                 Some(self.ok),
                 vec![(
-                    vec![Path::Field(self.count)],
+                    vec![Path::Field(field)],
                     TerminalScalarValue::Integer {
                         scalar_type: IntegerType::new(IntegerSign::Unsigned, 64)
                             .map_err(|e| format!("{e:?}"))?,
@@ -82,12 +95,15 @@ impl ReadResult {
                     },
                 )],
             ),
-            Err(error) => {
+            (Ok(_), _) => {
+                return Err("filesystem success payload disagrees with its declaration".into());
+            }
+            (Err(error), _) => {
                 let (_, kind) = self
                     .errors
                     .iter()
                     .find(|(kind, _)| *kind == error)
-                    .ok_or_else(|| format!("unknown snapshot read error {error:?}"))?;
+                    .ok_or_else(|| format!("unknown filesystem error {error:?}"))?;
                 TerminalAggregateValue {
                     structural_type: self.result,
                     result_case: Some(self.error),
