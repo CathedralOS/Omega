@@ -154,6 +154,50 @@ fn a_mutably_borrowed_generic_value_can_cross_an_unchanged_call() {
 }
 
 #[test]
+fn a_recursive_view_must_reborrow_its_last_live_carrier() {
+    let package = PackageKeyIdentity::from_digest([0x78; 32]).unwrap();
+    let narrowing = r#"
+        public machine fill(items: @mutable [i32])
+        terminates by items -> Slice::Length {
+            transition items.length > 0 {
+                true -> head(items),
+                _ -> done()
+            }
+            machine head(items: @mutable [i32]) requires items.length > 0 {
+                items[0] = 42;
+                fill(@mutable items[1..])
+            }
+            machine done() {}
+        }"#;
+    let (files, root) = captured(package, narrowing);
+    let artifact = compile(product(files, root, package, &[]).unwrap(), None).unwrap();
+    let bytes = artifact.to_bytes();
+    let reopened = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes).unwrap();
+    assert_eq!(reopened.to_bytes(), bytes);
+
+    let independent = r#"
+        public machine walk(source: @mutable [i32], prior: @mutable [i32]) {
+            transition source.length > 0 && prior.length > 0 {
+                true -> step(source, prior),
+                _ -> done()
+            }
+            machine step(source: @mutable [i32], prior: @mutable [i32])
+            requires source.length > 0 && prior.length > 0 {
+                let next: @mutable [i32] = @mutable source[..];
+                prior[0] = 7;
+                walk(source, next)
+            }
+            machine done() {}
+        }"#;
+    let (files, root) = captured(package, independent);
+    let errors = compile(product(files, root, package, &[]).unwrap(), None).unwrap_err();
+    assert!(
+        errors.iter().any(|error| error.message.contains("reference formation overlaps another activation")),
+        "{errors:?}"
+    );
+}
+
+#[test]
 fn a_nested_generic_callback_can_update_a_plain_record() {
     let package = PackageKeyIdentity::from_digest([0x76; 32]).unwrap();
     let source = r#"

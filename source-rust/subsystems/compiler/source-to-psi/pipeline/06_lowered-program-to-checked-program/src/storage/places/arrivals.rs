@@ -88,9 +88,11 @@ impl Storage<'_> {
                     ));
                 }
                 let source = self.argument(argument, Construct::Edge(edge))?;
-                if !matches!(
-                    self.shape(&source, Construct::Edge(edge))?,
-                    Shape::Typed(actual) if actual == parameter.structural_type
+                if !terminal_semantics::successor_argument_carrier_matches(
+                    self.types,
+                    self.root_type(argument.place, Construct::Edge(edge))?,
+                    argument,
+                    parameter,
                 ) {
                     return Err(self.foreign(
                         Construct::Edge(edge),

@@ -925,9 +925,9 @@ impl<'a> DefaultRequirements<'a> {
                     } else {
                         descriptor.path.to_vec()
                     };
-                    for (root, mut selected) in
-                        self.backings(module, descriptor.root, &selected, true, before, references)?
-                    {
+                    for (root, mut selected) in self.backings(
+                        module, descriptor.root, &selected, true, path, before, references,
+                    )? {
                         selected.extend_from_slice(path);
                         selected.pop(); // Only the containing owner carries the default.
                         visit(Changed::Containing {
@@ -947,7 +947,7 @@ impl<'a> DefaultRequirements<'a> {
                     | OperationKind::AtomicAccess { .. }
             );
             for (owner, mut selected) in
-                self.backings(module, root, &path, payload, before, references)?
+                self.backings(module, root, &path, payload, &[], before, references)?
             {
                 if replaces_whole {
                     visit(Changed::Replaced {
@@ -979,6 +979,7 @@ impl<'a> DefaultRequirements<'a> {
                 argument.place,
                 &argument.path,
                 true,
+                &[],
                 before,
                 references,
             )? {
@@ -1038,6 +1039,7 @@ impl<'a> DefaultRequirements<'a> {
         root: PlaceId,
         path: &[StructuralPathSegment],
         payload: bool,
+        element_path: &[StructuralPathSegment],
         before: crate::descriptor_lifetimes::DescriptorPosition,
         references: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
     ) -> Judged<Vec<(PlaceId, Vec<StructuralPathSegment>)>> {
@@ -1129,39 +1131,88 @@ impl<'a> DefaultRequirements<'a> {
         let captured = references
             .captured_storage_family(self.machine.id, before, &location)
             .map_err(|detail| self.error(detail))?;
-        captured
-            .into_iter()
-            .map(|origin| {
-                let DescriptorCallOrigin::Argument { source, projection } = origin else {
-                    return Err(self.error("default restoration has no exact captured lender"));
-                };
-                let (root, mut selected) = if let Some(path) = projection.captured_storage_path() {
-                    (source, path)
-                } else {
-                    let unique = references
-                        .location(self.machine.id, before, &location)
-                        .ok_or_else(|| {
-                            self.error("default restoration has no unique incoming lender")
-                        })?;
-                    let ty = self
-                        .declared
-                        .row(unique.root)
-                        .map(|row| row.1)
-                        .ok_or_else(|| {
-                            self.error("default restoration lost its incoming carrier")
-                        })?;
-                    let path =
-                        crate::descriptor_lifetimes::descriptor_path(self.types, ty, &unique.path)
-                            .ok_or_else(|| {
-                                self.error("default restoration lost its incoming storage path")
-                            })?;
-                    (unique.root, path)
-                };
-                selected.extend_from_slice(suffix);
-                self.carrier(root, &selected)?;
-                Ok((root, selected))
-            })
-            .collect()
+        let mut backings = Vec::new();
+        for origin in captured {
+            let DescriptorCallOrigin::Argument { source, projection } = origin else {
+                return Err(self.error("default restoration has no exact captured lender"));
+            };
+            let (root, mut selected) = if let Some(path) = projection.captured_storage_path() {
+                (source, path)
+            } else {
+                if self.has_no_window_defaults(source, &projection, suffix, element_path)? {
+                    continue;
+                }
+                let unique = references
+                    .location(self.machine.id, before, &location)
+                    .ok_or_else(|| self.error("default restoration has no unique incoming lender"))?;
+                let ty = self
+                    .declared
+                    .row(unique.root)
+                    .map(|row| row.1)
+                    .ok_or_else(|| self.error("default restoration lost its incoming carrier"))?;
+                let path = crate::descriptor_lifetimes::descriptor_path(self.types, ty, &unique.path)
+                    .ok_or_else(|| self.error("default restoration lost its incoming storage path"))?;
+                (unique.root, path)
+            };
+            selected.extend_from_slice(suffix);
+            self.carrier(root, &selected)?;
+            backings.push((root, selected));
+        }
+        Ok(backings)
+    }
+
+    /// A window can lose its exact offset while retaining all its types.
+    /// Discharge an empty restoration inventory without inventing an address.
+    /// A possible type clause or lender membership still needs its true place.
+    fn has_no_window_defaults(
+        &self,
+        source: PlaceId,
+        projection: &crate::borrowed_storage::Projection,
+        suffix: &[StructuralPathSegment],
+        element_path: &[StructuralPathSegment],
+    ) -> Judged<bool> {
+        let Some((_, root_type, memberships)) = self.declared.row(source) else {
+            return Ok(false);
+        };
+        if !memberships.is_empty()
+            || suffix.contains(&StructuralPathSegment::Referent)
+            || element_path.contains(&StructuralPathSegment::Referent)
+        {
+            return Ok(false);
+        }
+        let Some(mut path) = projection.captured_window_carrier_path() else {
+            return Ok(false);
+        };
+        path.extend_from_slice(suffix);
+        path.extend_from_slice(element_path);
+        for step in &mut path {
+            if matches!(
+                step,
+                StructuralPathSegment::RuntimeIndex { .. } | StructuralPathSegment::FixedIndex(_)
+            ) {
+                *step = StructuralPathSegment::AllElements;
+            }
+        }
+        for length in 0..=path.len() {
+            let prefix = &path[..length];
+            if matches!(prefix.last(), Some(StructuralPathSegment::Case(_))) {
+                continue;
+            }
+            let Some(carrier) =
+                crate::qualification_path_carrier(self.types.iter(), *root_type, prefix)
+            else {
+                return Ok(false);
+            };
+            if self.type_has_defaults(carrier)? {
+                return Ok(false);
+            }
+            if let StructuralTypeShape::ElementView { element, .. } = self.declaration(carrier)?.shape
+                && self.type_has_defaults(element)?
+            {
+                return Ok(false);
+            }
+        }
+        Ok(true)
     }
 
     fn declared_operation(&self, operation: &Operation) -> Judged<Vec<DefaultRequirement>> {
