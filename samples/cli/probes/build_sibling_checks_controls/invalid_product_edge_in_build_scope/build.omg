@@ -1,0 +1,13 @@
+// `prod` is a Product scope edge: the request grants no Build scope row for
+// it. Importing the alias into this build activation asks for an
+// unrequested purpose row and must be rejected.
+
+use {omega}/build/dependency.omg;
+use {prod}/main.omg as prod;
+
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "invalid_product_edge_in_build_scope" };
+    let mutable prod_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "../../build_sibling_checks/sibling_a" });
+    |dependency|::with_alias(@mutable prod_dependency, "prod");
+    _ = |dependency|::add(builder, prod_dependency);
+}

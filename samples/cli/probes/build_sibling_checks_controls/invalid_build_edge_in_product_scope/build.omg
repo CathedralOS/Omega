@@ -1,0 +1,8 @@
+use {omega}/build/dependency.omg;
+
+machine build(plan: @mutable BuildPlan) {
+    let mutable kit: DependencyDescription = |dependency|::from_source(Source::Path { location: "../../build_sibling_checks/sibling_a" });
+    |dependency|::with_alias(@mutable kit, "kit");
+    _ = |dependency|::add(plan, kit);
+    plan.product = BuildProduct::InterpretedBuild { entry: "configure.omg" };
+}

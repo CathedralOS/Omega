@@ -1,0 +1,1 @@
+dependency `kit` is unavailable in the product scope

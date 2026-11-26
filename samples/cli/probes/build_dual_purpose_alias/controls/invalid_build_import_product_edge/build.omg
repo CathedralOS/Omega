@@ -1,9 +1,0 @@
-use {omega}/build/dependency.omg;
-use {kit}/main.omg as kit;
-
-machine build(builder: @mutable BuildPlan) {
-    builder.product = BuildProduct::Application { name: "invalid_build_import_product_edge" };
-    let mutable kit_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "../../dependency" });
-    |dependency|::with_alias(@mutable kit_dependency, "kit");
-    let kit_registration: DependencyRegistration = Build::dependency(builder, kit_dependency);
-}

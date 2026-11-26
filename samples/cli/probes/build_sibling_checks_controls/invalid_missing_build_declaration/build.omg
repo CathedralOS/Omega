@@ -1,0 +1,11 @@
+// The dependency location holds product source but no build declaration at
+// all, so the package row is malformed rather than merely unresolvable.
+
+use {omega}/build/dependency.omg;
+
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "invalid_missing_build_declaration" };
+    let mutable dep_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "no_build" });
+    |dependency|::with_alias(@mutable dep_dependency, "dep");
+    _ = |dependency|::add(builder, dep_dependency);
+}

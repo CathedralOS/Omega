@@ -1,0 +1,1 @@
+no direct product dependency named `custody_kernel` supplies `generated.omg`
