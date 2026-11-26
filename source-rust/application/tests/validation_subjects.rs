@@ -329,17 +329,17 @@ fn validate_distinguishes_identical_aliases_in_build_and_product_scope() {
     .unwrap();
     let prepare = r#"use {omega}/build/dependency.omg;
 machine build(builder: @mutable Build) {
-    let mutable tool = |dependency|::from_source(Source::Path { location: "../build_tools" });
+    let mutable tool: DependencyDescription = |dependency|::from_source(Source::Path { location: "../build_tools" });
     |dependency|::with_alias(@mutable tool, "vendor");
-    let registered = |dependency|::add(builder, tool);
+    let registered: DependencyRegistration = |dependency|::add(builder, tool);
     Build::build_entry(builder, "configure.omg");
 }"#;
     let configure = r#"use {omega}/build/dependency.omg;
 machine build(builder: @mutable Build) {
     Build::package(builder, "consumer");
-    let mutable vendor = |dependency|::from_source(Source::Path { location: "../vendor" });
+    let mutable vendor: DependencyDescription = |dependency|::from_source(Source::Path { location: "../vendor" });
     |dependency|::with_alias(@mutable vendor, "vendor");
-    let registered = |dependency|::add(builder, vendor);
+    let registered: DependencyRegistration = |dependency|::add(builder, vendor);
     Build::validate(builder, @registered);
 }"#;
     std::fs::write(root.join("configure.omg"), configure).unwrap();
