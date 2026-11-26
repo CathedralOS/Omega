@@ -1050,12 +1050,24 @@ impl Program<'_> {
                         "sequence storage disagrees with its declared type or access",
                     ));
                 }
-                let expected = self.typed.type_identity_text(
-                    view.slice
-                        .element
-                        .scope
-                        .type_identity(self.typed, element_storage),
-                );
+                // A stored view names its borrow's region in the supplying
+                // machine. Use the same source query that chose that carrier.
+                let element_application = crate::source_state::SourceTypeApplication {
+                    reference: element_storage,
+                    ..view.slice.element
+                };
+                let expected = match super::source_views::source_view(
+                    self.typed,
+                    element_application.clone(),
+                    source.region_owner,
+                    machine,
+                )? {
+                    Some(element) => Some(match element.kind {
+                        super::source_views::SourceViewKind::Bytes(view) => view.identity,
+                        super::source_views::SourceViewKind::Elements(view) => view.identity,
+                    }),
+                    None => self.typed.type_identity_text(element_application.type_identity(self.typed)),
+                };
                 let expected = expected.map(|identity| {
                     super::places::storage_identity_for_inputs(
                         identity,
