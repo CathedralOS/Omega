@@ -119,13 +119,13 @@ impl<'scope> CapturedBuildObservations<'scope> {
                 "build-time evaluation of `{machine_name}` observed filesystem host state without admitted filesystem reach"
             ))]);
         }
-        scope.verify_required_outputs(staged_output_tree.as_ref(), machine_name)?;
         let required_output_settlements = output_custody::settle_build_output_obligations(
             &self.output_obligations,
             &self.output_receipts,
             staged_output_tree.as_ref(),
             machine_name,
         )?;
+        scope.verify_required_outputs(&required_output_settlements, machine_name)?;
         let product_source_tree = match scope.product_source_directory.as_deref() {
             Some(directory) => {
                 let staging = staged_output_tree.as_ref().ok_or_else(|| {
