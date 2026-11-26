@@ -86,16 +86,12 @@ pub(crate) fn produce(
             } else {
                 None
             };
-            if stream.is_none()
-                && ![
-                    SELECTION_PROTOCOL,
-                    "BuildRequestOperations",
-                    "BuildFilesystemOperations",
-                    "BuildProductOperations",
-                ]
-                .into_iter()
-                .any(protocol)
-            {
+            if stream.is_none() && ![
+                SELECTION_PROTOCOL,
+                "BuildRequestOperations",
+                "BuildFilesystemOperations",
+                "BuildProductOperations",
+            ].into_iter().any(protocol) {
                 continue;
             }
             let InvocationSite::Operation(operation) = invocation.site else {
@@ -112,10 +108,7 @@ pub(crate) fn produce(
                 name: requirement.name.as_str(),
             };
             if let Some(action) = stream {
-                companions.requests.push(TerminalBuildRequestCall {
-                    site: call.site,
-                    action,
-                });
+                companions.requests.push(TerminalBuildRequestCall { site: call.site, action });
             } else if protocol(SELECTION_PROTOCOL) {
                 designated += 1;
                 let designated = designated_selection(correspondence, &call)?;

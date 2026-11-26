@@ -39,7 +39,9 @@ pub fn settle_rejoined_build_slice(
     }
     // A subject checked under a provisional owner still owes the check under
     // its real owner, even when it read no constants.
-    if constants.read.is_empty() && subject_validation != BuildSubjectValidation::NeedsOwnerCheck {
+    if constants.read.is_empty()
+        && subject_validation != BuildSubjectValidation::NeedsOwnerCheck
+    {
         return Ok(Default::default());
     }
     let refusals = constants.read.iter().filter(|read| read.declaration.is_none() || read.value.is_none()).map(|read| {
@@ -394,29 +396,24 @@ mod tests {
 
     fn prepare(
         typed: source_compiler::representations::source_state::TypedTrees,
-    ) -> Result<
-        source_compiler::test_support::FrozenSource,
-        source_compiler::SourcePreparationFailure,
-    > {
+    ) -> Result<source_compiler::test_support::FrozenSource, source_compiler::SourcePreparationFailure> {
         let entry = typed.realized_machine_named("build").unwrap().symbol;
-        source_compiler::test_support::prepare_source_for_test(
-            source_compiler::test_support::SourcePreparationRequest {
-                program: typed,
-                accounting: Default::default(),
-                admission: Default::default(),
-                compilation: source_compiler::test_support::TerminalSourceCompilation {
-                    declaration_metadata: &[],
-                    entries: &[entry],
-                    subjects: &[],
-                    purpose: source_provenance::DependencyScope::Build,
-                    selected: &[],
-                    bindings: &[],
-                    calling: None,
-                    providers: None,
-                    supplies: &[],
-                },
+        source_compiler::test_support::prepare_source_for_test(source_compiler::test_support::SourcePreparationRequest {
+            program: typed,
+            accounting: Default::default(),
+            admission: Default::default(),
+            compilation: source_compiler::test_support::TerminalSourceCompilation {
+                declaration_metadata: &[],
+                entries: &[entry],
+                subjects: &[],
+                purpose: source_provenance::DependencyScope::Build,
+                selected: &[],
+                bindings: &[],
+                calling: None,
+                providers: None,
+                supplies: &[],
             },
-        )
+        })
     }
 
     #[test]
@@ -542,10 +539,10 @@ mod tests {
 
     #[test]
     fn later_refusal_and_pending_consent_retain_the_actual_earlier_work() {
-        use build_evaluation_result::CompileFailure;
         use package_compilation::build_execution::{
             RestrictedBuildBounds, RestrictedBuildOperation, RestrictedBuildRequest,
         };
+        use build_evaluation_result::CompileFailure;
         let prepared = prepare(source(
             "const VALUE:u64=answer(); machine answer()->u64 {4u64} machine build()->u64 {VALUE}",
         ))
