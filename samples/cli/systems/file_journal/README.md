@@ -20,7 +20,7 @@ the file, then removes the file and directory. It exits with the number of
 completed steps on failure. The sample owns that fixed directory and removes
 its known files at startup. Run one engine at a time.
 
-On Linux x86-64 the published native executable completed all seven steps.
+On Linux x86-64 native and Psi both returned 7. Psi charged 18,517 work units.
 A syscall trace confirmed the exact bytes on read and write and the final
 directory removal. A pre-existing nonempty directory containing an unrelated
 file made the application exit 0 and preserved that file.
