@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "structural_issuer_forwarding_call_result");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "structural_issuer_forwarding_call_result" };
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, macos_arm64::ProgramEntry, main);

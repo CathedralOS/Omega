@@ -1,6 +1,9 @@
-// An executed Build package name survives ordinary value transport, so the product imports that exact package and historical review reuses its recorded description at the verified source pin.
-const PACKAGE_NAME: [u8; 10] = [119, 121, 95, 108, 105, 98, 114, 97, 114, 121];
-machine build(builder: @mutable Build) {
-    let name: [u8; 10] = PACKAGE_NAME;
-    Build::package(builder, @name[..]);
+// The constant selects which caller-backed name survives the Build.
+const NAME_PREFIX: u8 = 119u8;
+machine select_name<'storage>(prefix: u8, package: @'storage [u8], other: @'storage [u8]) -> @'storage [u8] {
+    match prefix { 109u8 -> package, _ -> other }
+}
+machine build(plan: @mutable BuildPlan) {
+    let name: @[u8] = select_name(NAME_PREFIX, "my_library", "wy_library");
+    plan.product = BuildProduct::Package { name: name };
 }

@@ -1,7 +1,7 @@
 use {omega}/build/dependency.omg;
 
-machine build(builder: @mutable Build) {
-    Build::package(builder, "omega_compiler");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: "omega_compiler" };
     let psi: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {
         location: "../source_to_psi"
     }));

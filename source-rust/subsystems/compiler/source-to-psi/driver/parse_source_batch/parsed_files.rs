@@ -324,7 +324,7 @@ impl ParsedSourceBatch {
                                     .build_machines
                                     .push(machine.name.source_span().span)
                             }
-                            Item::Data(data) if data.name.as_str(syntax) == "Build" => {
+                            Item::Data(data) if data.name.as_str(syntax) == "BuildPlan" => {
                                 root_items.build_data = true
                             }
                             _ => {}

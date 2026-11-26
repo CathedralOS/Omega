@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "checked_asm_fence_contracts_target_body");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "checked_asm_fence_contracts_target_body" };
     Build::select_provider::<SelectedOrdered, X86Ordered>(builder, linux_x86_64);
     Build::select_provider::<SelectedOrdered, X86Ordered>(builder, windows_x86_64);
     Build::select_provider::<SelectedOrdered, ArmOrdered>(builder, linux_arm64);

@@ -7,8 +7,8 @@ machine path(value: @OrdinaryPath, visits: @mutable Visits) -> u64 {
 
 machine build(builder: @mutable Build) {
     Build::application(builder, "product_description_paths_exit");
-    let schema: ProductTypeSchema = BuildProduct::schema(@builder.product, "payload::Packet");
-    let provider: ProductProviderRef = BuildProduct::provider(@builder.product, "payload::Provider");
+    let schema: ProductTypeSchema = BuildDeclarations::schema(@builder.declarations, "payload::Packet");
+    let provider: ProductProviderRef = BuildDeclarations::provider(@builder.declarations, "payload::Provider");
     let ordinary: OrdinaryPath = OrdinaryPath {};
     let mutable visits: Visits = Visits { value: 0 as +Wrapping };
     let schema_path: @[u8] = ProductTypeSchema::path(@schema);
@@ -30,6 +30,6 @@ machine choose(builder: @mutable Build, correct: bool) {
     }
     machine bad(builder: @mutable Build) {
         // Fail during Build, before root-binding discovery can produce a product.
-        _ = BuildProduct::entry(@builder.product, "incorrect_description_path", "macos_arm64::ProgramEntry");
+        _ = BuildDeclarations::entry(@builder.declarations, "incorrect_description_path", "macos_arm64::ProgramEntry");
     }
 }

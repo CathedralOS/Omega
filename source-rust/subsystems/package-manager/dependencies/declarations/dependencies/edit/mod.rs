@@ -115,7 +115,7 @@ impl fmt::Display for BuildDependencyManualReason {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(match self {
             Self::NonCanonicalBuildSignature => {
-                "the build entry is not the canonical `machine build(builder: @mutable Build)` form"
+                "dependency editing requires one mutable BuildPlan parameter on the free build machine"
             }
             Self::NonCanonicalBuildBodyLayout => {
                 "the build entry closing brace has a noncanonical inline layout"

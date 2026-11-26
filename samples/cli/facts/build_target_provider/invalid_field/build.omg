@@ -1,7 +1,7 @@
 use {omega}/build/dependency.omg;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "build_target_provider_field_invalid");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "build_target_provider_field_invalid" };
     let reading_provider_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../../../support/fact_dependencies/reading_provider_weak_contract" }));
     Build::bind(builder, windows_x86_64::ProgramEntry, first_entry);
     Build::bind(builder, macos_x86_64::ProgramEntry, first_entry);

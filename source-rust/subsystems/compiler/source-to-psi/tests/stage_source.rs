@@ -70,37 +70,6 @@ fn product<'a>(
 }
 
 #[test]
-fn an_entryless_checked_product_publishes_reopenable_psi() {
-    let package = PackageKeyIdentity::from_digest([0x61; 32]).unwrap();
-    let (files, root) = captured(
-        package,
-        "const VALUE: u32 = value();
-        machine value() -> u32 crashes none { 17 }
-        machine main() -> u32 crashes none { VALUE }",
-    );
-    let program = compile(product(files, root, package, &[]).unwrap(), None).unwrap();
-    let bytes = program.to_bytes();
-    let reopened = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes).unwrap();
-    assert_eq!(reopened.to_bytes(), bytes);
-}
-
-#[test]
-fn a_static_callback_requirement_reads_the_type_supplied_by_its_generic_machine() {
-    let package = PackageKeyIdentity::from_digest([0x75; 32]).unwrap();
-    let source = "data Item { value: i32; }
-        trait Modify<T> { machine apply(value: @mutable T) terminates; }
-        machine mark(value: @mutable Item) satisfies Modify<Item>::apply { value.value = 42; }
-        machine modify<T, const F: Modify<T>::apply>(value: @mutable T) terminates { F(value); }
-        public machine run() -> i32 {
-            let mutable item: Item = Item { value: 1 };
-            modify::<Item, mark>(@mutable item);
-            item.value
-        }";
-    let (files, root) = captured(package, source);
-    compile(product(files, root, package, &[]).unwrap(), None).unwrap();
-}
-
-#[test]
 fn importing_a_constrained_trait_only_needs_the_clients_dependency_edge() {
     let client = PackageKeyIdentity::from_digest([0x66; 32]).unwrap();
     let library = PackageKeyIdentity::from_digest([0x67; 32]).unwrap();
@@ -149,6 +118,67 @@ fn importing_a_constrained_trait_only_needs_the_clients_dependency_edge() {
             );
         }
     }
+}
+
+#[test]
+fn an_entryless_checked_product_publishes_reopenable_psi() {
+    let package = PackageKeyIdentity::from_digest([0x61; 32]).unwrap();
+    let (files, root) = captured(
+        package,
+        "const VALUE: u32 = value();
+        machine value() -> u32 crashes none { 17 }
+        machine main() -> u32 crashes none { VALUE }",
+    );
+    let program = compile(product(files, root, package, &[]).unwrap(), None).unwrap();
+    let bytes = program.to_bytes();
+    let reopened = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes).unwrap();
+    assert_eq!(reopened.to_bytes(), bytes);
+}
+
+#[test]
+fn a_static_callback_requirement_reads_the_type_supplied_by_its_generic_machine() {
+    let package = PackageKeyIdentity::from_digest([0x75; 32]).unwrap();
+    let source = "data Item { value: i32; }
+        trait Modify<T> { machine apply(value: @mutable T) terminates; }
+        machine mark(value: @mutable Item) satisfies Modify<Item>::apply { value.value = 42; }
+        machine modify<T, const F: Modify<T>::apply>(value: @mutable T) terminates { F(value); }
+        public machine run() -> i32 {
+            let mutable item: Item = Item { value: 1 };
+            modify::<Item, mark>(@mutable item);
+            item.value
+        }";
+    let (files, root) = captured(package, source);
+    compile(product(files, root, package, &[]).unwrap(), None).unwrap();
+}
+
+#[test]
+fn a_nested_machine_uses_the_applied_callback_from_its_lexical_scope() {
+    let package = PackageKeyIdentity::from_digest([0x73; 32]).unwrap();
+    let source = r#"
+        data Item { value: i32; }
+        data OtherItem { value: i32; }
+        trait Get<T> { machine receive(value: i32) -> i32 terminates; }
+        machine get(value: i32) -> i32 satisfies Get<Item>::receive { value }
+        machine read<T, const F: Get<T>::receive>(value: i32) -> i32 terminates {
+            child(value)
+            machine child(value: i32) -> i32 { F(value) }
+        }
+        public machine run() -> i32 {
+            let item: Item = Item { value: 42 };
+            read::<Item, get>(item.value)
+        }"#;
+    let (files, root) = captured(package, source);
+    compile(product(files, root, package, &[]).unwrap(), None).unwrap();
+
+    let different_application = source.replace("satisfies Get<Item>", "satisfies Get<OtherItem>");
+    let (files, root) = captured(package, &different_application);
+    let errors = compile(product(files, root, package, &[]).unwrap(), None).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message.contains("must satisfy the exact requirement")),
+        "{errors:?}"
+    );
 }
 
 #[test]

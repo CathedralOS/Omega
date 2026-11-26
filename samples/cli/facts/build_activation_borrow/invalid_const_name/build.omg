@@ -9,8 +9,8 @@ machine bind_configuration(configuration: @mutable Configuration) {
     Build::bind(configuration.builder, windows_x86_64::ProgramEntry, main);
 }
 const CONSOLE_SUBSYSTEM: u16 = 3;
-machine build(builder: @mutable Build) {
-    Build::application(builder, "build_activation_borrow_const_name");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "build_activation_borrow_const_name" };
     let mutable configuration: Configuration = wrap(builder);
     configuration.builder.subsystem = Subsystem::Unspecified { value: CONSOLE_SUBSYSTEM };
     bind_configuration(@mutable configuration);

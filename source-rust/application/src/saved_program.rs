@@ -7,7 +7,6 @@ use compiler::{
     TargetProviderInstallation,
 };
 use diagnostics::Diagnostic;
-use normalized_build_settings::EvaluatedBuildSettings;
 use package_manager::operations::ReviewedHostPackages;
 use product_publication::output_directory;
 use psi_authorization::AuthorizedTerminalArtifact;
@@ -103,7 +102,6 @@ pub(crate) fn publish(
             output_directory::acquire(&path, root)
         })
         .collect();
-    let settings = EvaluatedBuildSettings::default();
     let mut paths = Vec::with_capacity(profiles.len());
     for (&profile, directory) in profiles.iter().zip(&directories) {
         let directory = directory
@@ -113,7 +111,6 @@ pub(crate) fn publish(
             program.clone(),
             profile,
             packages.as_ref(),
-            &settings,
             &[],
             ExecutionProduct::Native,
         )?;
@@ -139,7 +136,6 @@ pub(crate) fn prepare(
     program: AuthorizedTerminalArtifact,
     profile: TargetProfile,
     packages: Option<&ReviewedHostPackages>,
-    settings: &EvaluatedBuildSettings,
     entry_memory: &[psi_entry_memory::PrivateEntryRamInitialization],
     requested: ExecutionProduct,
 ) -> Result<product_publication::CompletedProduct, SavedProgramError> {
@@ -147,19 +143,10 @@ pub(crate) fn prepare(
         profile,
         installation: installation(&program, profile, packages)?,
         requested_boundaries: Vec::new(),
-        application: target::NativeApplicationMetadata {
-            intent: settings.application_intent,
-            identifier: settings.application_identifier.clone(),
-            subsystem: settings.subsystem,
-            elf_interpreter: settings.elf_interpreters.effective(profile),
-            name: None,
-        },
-        optimizations: &settings.optimizations,
+        application: profile.standalone_application_metadata(),
+        optimizations: &Default::default(),
         behavior_exclusions: &[],
-        x86_scalar_fma_provider: settings
-            .x86_deployment_claim
-            .admit_for(Some(profile))
-            .map_err(|reason| vec![Diagnostic::error(reason)])?,
+        x86_scalar_fma_provider: None,
     };
     let program = Program::Psi { program, target };
     let request = match requested {

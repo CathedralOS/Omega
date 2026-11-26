@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "signed_division_remainder_match_join");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "signed_division_remainder_match_join" };
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);
     Build::bind(builder, macos_arm64::ProgramEntry, main);

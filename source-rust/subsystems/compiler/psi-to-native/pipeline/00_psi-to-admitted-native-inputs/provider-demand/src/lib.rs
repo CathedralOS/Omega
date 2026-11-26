@@ -3,8 +3,8 @@
 
 use diagnostics::Diagnostic;
 use host_provider_inputs::ProviderExecutionOrigins;
-use source_provider_publication::SourceProviderDemand;
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
+use source_provider_publication::SourceProviderDemand;
 use std::sync::Arc;
 use terminal_semantics::{
     callable_values::CallableBoundaryImplementation, logical_providers::ClosedLogicalProviders,
@@ -144,13 +144,55 @@ impl IssuedProviderDemand<()> {
         })?;
         let module = artifact.semantic_module();
         let name = profile.target_name();
-        let entry = module.program_entry_contract(name).map_err(refuse)?.entry;
+        let contract = module.program_entry_contract(name).map_err(refuse)?;
+        if let Some(arrival) = profile.program_entry_slot().physical_arrival_requirement {
+            let schema = module
+                .service_schema(contract.schema_declaration, contract.schema_application)
+                .map_err(refuse)?;
+            let method = schema.surface.entry_requirement(arrival).map_err(refuse)?;
+            let requirement = schema.surface.identity_text(method.requirement_identity);
+            // The environment calls a selected physical entry before the program's
+            // semantic root. Its provider is an independent invocation root.
+            for choice in module
+                .interfaces
+                .provider_selections
+                .iter()
+                .filter(|choice| choice.target == name)
+            {
+                let chosen = &module
+                    .service_schema(choice.schema_declaration, choice.schema_application)
+                    .map_err(refuse)?
+                    .surface;
+                if chosen
+                    .methods
+                    .iter()
+                    .any(|method| chosen.identity_text(method.requirement_identity) == requirement)
+                {
+                    requested_boundaries.extend(
+                        module
+                            .interfaces
+                            .provider_candidates
+                            .iter()
+                            .filter_map(|candidate| {
+                                (candidate.provider_identity == choice.provider_identity
+                                    && candidate.provider_declaration.identity()
+                                        == choice.provider_declaration
+                                    && module
+                                        .identities
+                                        .text(candidate.source_requirement_identity)
+                                        == Some(requirement))
+                                .then_some(candidate.boundary)
+                            }),
+                    );
+                }
+            }
+        }
         requested_boundaries.sort_unstable();
         requested_boundaries.dedup();
         let (logical, bodies) = psi_provider_selections::logical_reach::close_providers(
             module,
             name,
-            Some(entry),
+            Some(contract.entry),
             &requested_boundaries,
         )?
         .into_parts();
