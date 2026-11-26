@@ -34,6 +34,7 @@ pub(super) struct FilesystemContext {
     /// Whether the host namespace is delegated at all.
     supplied: bool,
     standard_streams_only: bool,
+    mapped: bool,
     /// Whether that namespace is rooted at a directory. The Linux kernel
     /// adapter resolves `AT_FDCWD` against its own root descriptor; calls the
     /// native sponsor makes (libc, Windows) resolve against the sponsor's
@@ -193,6 +194,7 @@ impl FilesystemContext {
             delegation,
             TerminalFilesystemDelegation::StandardStreamsOnly
         );
+        let mapped = matches!(delegation, TerminalFilesystemDelegation::Mapped(_));
         let mut private = None;
         let (supplied, rooted, linux) = match delegation {
             TerminalFilesystemDelegation::Unprovided
@@ -215,6 +217,9 @@ impl FilesystemContext {
                 }));
                 (true, false, Default::default())
             }
+            TerminalFilesystemDelegation::Mapped(mappings) => {
+                (true, false, native_provider_runtime::LinuxFilesystem::mapped(mappings).map_err(|error| TerminalRuntimeError::MissingProvision { capability: "live filesystem directory mappings", reason: error.to_string() })?)
+            }
             TerminalFilesystemDelegation::HostNamespace => (true, false, Default::default()),
             TerminalFilesystemDelegation::HostDirectory(root) => {
                 match native_provider_runtime::LinuxFilesystem::rooted(&root) {
@@ -226,6 +231,7 @@ impl FilesystemContext {
         Ok(Self {
             supplied,
             standard_streams_only,
+            mapped,
             rooted,
             windows: Rc::new(RefCell::new(windows::Handles::default())),
             descriptors: Rc::new(RefCell::new(BTreeMap::new())),
@@ -275,7 +281,7 @@ impl FilesystemContext {
     ) -> Result<Option<FilesystemCall>, TerminalRuntimeError> {
         // A private namespace answers only kernel calls; no libc or Windows
         // filesystem import may reach the host in its place.
-        if self.private.is_some() {
+        if self.private.is_some() || self.mapped {
             return Ok(None);
         }
         if let Some(call) = windows::admit(self, program, declaration, binding, layouts)? {

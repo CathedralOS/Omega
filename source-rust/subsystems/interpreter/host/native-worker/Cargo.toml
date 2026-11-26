@@ -5,12 +5,16 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+platform-custody = { path = "../../../../foundation/filesystem" }
 wire = { path = "../../../../foundation/wire" }
 bounded-process = { path = "../../../../foundation/bounded-process" }
 target = { path = "../../../compiler/psi-to-native/targets/target" }
 calling-conventions = { path = "../../../compiler/psi-to-native/targets/calling-conventions" }
 runtime-abi = { path = "../../../compiler/psi-to-native/targets/runtime-abi" }
 sha2 = "0.10.9"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+rustix-linux-procfs = "0.1.1"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2.186"

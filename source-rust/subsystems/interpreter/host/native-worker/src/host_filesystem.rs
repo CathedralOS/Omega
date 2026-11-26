@@ -27,7 +27,10 @@ tombstone so neither retries nor `OwnedFd` destructors can close a subsequently
 reused OS descriptor number.
 */
 
+use platform_custody::directory_mappings::DirectoryMappings;
 use std::{ffi::CStr, io};
+#[cfg(target_os = "linux")]
+mod mapped;
 
 /// The kernel's "relative to the working directory" directory operand.
 pub const LINUX_AT_FDCWD: i32 = -100;
@@ -68,6 +71,8 @@ pub struct LinuxFilesystem {
     #[cfg(target_os = "linux")]
     root: Option<std::os::fd::OwnedFd>,
     #[cfg(target_os = "linux")]
+    mapped: Option<mapped::Filesystem>,
+    #[cfg(target_os = "linux")]
     descriptors: std::collections::BTreeMap<i32, Option<std::os::fd::OwnedFd>>,
 }
 
@@ -77,6 +82,8 @@ impl Default for LinuxFilesystem {
             modeled_standard: [true; 3],
             #[cfg(target_os = "linux")]
             root: None,
+            #[cfg(target_os = "linux")]
+            mapped: None,
             #[cfg(target_os = "linux")]
             descriptors: std::collections::BTreeMap::new(),
         }
@@ -92,6 +99,21 @@ impl LinuxFilesystem {
             .and_then(|index| self.modeled_standard.get(index))
             .copied()
             .unwrap_or(false)
+    }
+
+    pub fn mapped(mappings: DirectoryMappings) -> io::Result<Self> {
+        #[cfg(target_os = "linux")]
+        {
+            Ok(Self {
+                mapped: Some(mapped::Filesystem::new(mappings)?),
+                ..Self::default()
+            })
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            let _ = mappings;
+            Err(unsupported())
+        }
     }
 
     /// A namespace whose `AT_FDCWD` is `root` instead of the process directory.
@@ -125,6 +147,27 @@ impl LinuxFilesystem {
     ) -> io::Result<i64> {
         #[cfg(target_os = "linux")]
         {
+            if let Some(mut mapped) = self.mapped.take() {
+                let status = mapped.call(self, number, operands);
+                self.mapped = Some(mapped);
+                return status;
+            }
+            self.raw_call(number, operands, result)
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            let _ = (number, operands, result);
+            Err(unsupported())
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    fn raw_call(
+        &mut self,
+        number: i64,
+        operands: &mut [KernelOperand<'_>],
+        result: KernelResult,
+    ) -> io::Result<i64> {
             use std::os::fd::FromRawFd;
             let mut arguments: Vec<libc::c_long> = Vec::with_capacity(6);
             for operand in operands.iter_mut() {
@@ -176,21 +219,16 @@ impl LinuxFilesystem {
             let native = i32::try_from(status)
                 .map_err(|_| io::Error::other("kernel descriptor exceeds its native carrier"))?;
             let native = unsafe { std::os::fd::OwnedFd::from_raw_fd(native) };
-            let guest = (0..=i32::MAX)
-                .find(|guest| {
-                    !self.models_standard(*guest) && !self.descriptors.contains_key(guest)
-                })
-                .ok_or_else(|| {
-                    io::Error::other("guest filesystem descriptor namespace exhausted")
-                })?;
-            self.descriptors.insert(guest, Some(native));
-            Ok(i64::from(guest))
-        }
-        #[cfg(not(target_os = "linux"))]
-        {
-            let _ = (number, operands, result);
-            Err(unsupported())
-        }
+        self.issue(native)
+    }
+
+    #[cfg(target_os = "linux")]
+    fn issue(&mut self, native: std::os::fd::OwnedFd) -> io::Result<i64> {
+        let guest = (0..=i32::MAX)
+            .find(|guest| !self.models_standard(*guest) && !self.descriptors.contains_key(guest))
+            .ok_or_else(|| io::Error::other("guest filesystem descriptor namespace exhausted"))?;
+        self.descriptors.insert(guest, Some(native));
+        Ok(i64::from(guest))
     }
 
     pub fn read(&self, descriptor: i32, bytes: &mut [u8]) -> io::Result<i64> {
@@ -231,6 +269,9 @@ impl LinuxFilesystem {
                 // Closing a modeled stream retires it; the host never owned it.
                 self.modeled_standard[descriptor as usize] = false;
                 return Ok(0);
+            }
+            if let Some(mapped) = &mut self.mapped {
+                mapped.forget(descriptor);
             }
             self.descriptor(descriptor)?;
             let native = match self.descriptors.remove(&descriptor) {

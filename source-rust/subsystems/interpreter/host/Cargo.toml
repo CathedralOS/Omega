@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+platform-custody = { path = "../../../foundation/filesystem" }
 psi-publication-records = { path = "../../compiler/psi/artifact/publication" }
 interpreter-numeric-imports = { path = "../numeric-imports" }
 target-provider-admission = { path = "../../compiler/psi-to-native/verification/target-providers" }
@@ -33,4 +34,3 @@ service-surface = { path = "../../compiler/psi/interfaces/service-surface" }
 native-provider-sponsor = { path = "native-sponsor", features = ["test-support"] }
 application-identity = { path = "../../compiler/psi/identities/applications" }
 language-core = { path = "../../compiler/foundation/language-core" }
-platform-custody = { path = "../../../foundation/filesystem" }

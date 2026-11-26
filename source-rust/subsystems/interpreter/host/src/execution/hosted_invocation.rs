@@ -16,6 +16,25 @@ pub(super) fn execute_installed(
 ) -> Result<TerminalRuntimeObservation, TerminalRuntimeError> {
     let program = host.program().clone();
     let request = host.into_request();
+    if matches!(
+        request.filesystem,
+        super::TerminalFilesystemDelegation::Mapped(_)
+    ) {
+        let matched_linux = target::TargetProfile::host_if_supported().is_some_and(|host| {
+            matches!(
+                host,
+                target::TargetProfile::LinuxX64 | target::TargetProfile::LinuxArm64
+            ) && request.target == Some(host.target_name())
+        });
+        if !matched_linux
+            || request.native_provider.is_some()
+            || request.native_services != super::TerminalNativeServiceDelegation::Unprovided
+        {
+            return Err(TerminalRuntimeError::InvalidProvision(
+                "live directory mappings require a matching Linux interpreter without an unrestricted native sponsor",
+            ));
+        }
+    }
     let component_products = request
         .provisions
         .map(|provisions| provisions.root_components())
