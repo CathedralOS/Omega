@@ -14,7 +14,7 @@ const { loadExtension } = require('./fake-vscode');
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'omega-definition-'));
 const files = {
-  'source/library/core/extent.omg': 'public data Extent { base: addr; length: u64; }\npublic domain Extent::Granted;\n',
+  'source/library/core/extent.omg': 'public data Extent { base: address; length: u64; }\npublic domain Extent::Granted;\n',
   'source/library/core/integer.omg': 'public machine max<T>() -> T;\n',
   'source/library/system/console.omg': 'public boundary trait Console {\n    machine write_line(text: @[u8]);\n}\n',
   'app/build.omg': 'machine build(builder: @mutable Build) {\n    dependency(Source::Path { location: "../dep" });\n}\n',

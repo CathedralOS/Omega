@@ -12,8 +12,8 @@ public boundary trait Selected {
 public SelectedBody satisfies Selected {
     machine perform(token: Token) -> u64 reaches Lending Reading Observation suspends crashes Trap {
         let mutable value: Word = Word { before: 11, count: 0, after: 29 };
-    let original: addr = address_of(@value);
-    let member: addr = address_of(@value.count);
+    let original: address = address_of(@value);
+    let member: address = address_of(@value.count);
     let reported: u64 = suspend Lending::write(@mutable value, @token, original, member);
     let reused: u64 = suspend Reading::read(@value, @value, @token, @token, original, member);
     Observation::seen(@token);

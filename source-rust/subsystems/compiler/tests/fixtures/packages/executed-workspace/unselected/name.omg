@@ -2,8 +2,8 @@ use {omega}/build/dependency.omg;
 use {omega}/language/core/program_image.omg as image;
 
 machine build(builder: @mutable BuildPlan)
-requires addr::Bound == 18446744073709551616 {
-    let observed: addr = |image|::ProgramImage::retained_suffix_start();
+requires address::Bound == 18446744073709551616 {
+    let observed: address = |image|::ProgramImage::retained_suffix_start();
     transition observed == 64 {
         true -> declare_member(builder),
         _ -> wrong_helper(builder)

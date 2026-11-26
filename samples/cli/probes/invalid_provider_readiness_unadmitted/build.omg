@@ -7,5 +7,5 @@ machine build(builder: @mutable BuildPlan) suspends {
     |dependency|::with_alias(@mutable backing_dependency, "backing");
     let backing_registration: DependencyRegistration = Build::build_dependency(builder, backing_dependency);
     suspend Build::await_provider::<|image|::ProgramImage, backing\Selected>(builder);
-    let observed: addr = |image|::ProgramImage::retained_suffix_start();
+    let observed: address = |image|::ProgramImage::retained_suffix_start();
 }

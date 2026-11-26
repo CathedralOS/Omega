@@ -738,7 +738,7 @@ mod address_context_tests {
         };
         let address = typed.type_reference_table.insert(TypeReferenceNode::Named {
             symbol: address_symbol,
-            name: "addr".into(),
+            name: "address".into(),
         });
         let count_symbol = typed
             .symbols
@@ -1022,7 +1022,7 @@ mod address_context_tests {
         let mut typed = typed;
         let reference = typed.type_reference_table.insert(TypeReferenceNode::Named {
             symbol: address_symbol,
-            name: "addr".into(),
+            name: "address".into(),
         });
         // Distinct 32-bit fixture facts make accidental use of the ordinary
         // 64-bit carrier observable. They provide no native target authority.

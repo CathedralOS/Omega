@@ -154,7 +154,7 @@ fn scalar(
                     || !matches!(integer.bits(), Some(8 | 16 | 32 | 64)))
             {
                 return Err(
-                    "content projection embedding needs a u8/u16/u32/u64/addr field".into(),
+                    "content projection embedding needs a u8/u16/u32/u64/address field".into(),
                 );
             }
             IntegerMathTerm::embed(scope.field(Version::Current, subject, &path, ty)?)

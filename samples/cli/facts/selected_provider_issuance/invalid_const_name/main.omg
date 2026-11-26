@@ -8,14 +8,14 @@ use omega\language\core\CountedQuantity;
 const ALLOCATION_COUNT: u64 = 1;
 const ALLOCATION_WIDTH: u64 = 1;
 public data ByteUnit {}
-public data Buffer [linear] { pointer: addr; }
+public data Buffer [linear] { pointer: address; }
 public domain Buffer::Owned
 established by InitialSupply::acquire, Writer::complete;
 public machine Owned::content(buffer: @Buffer) -> CountedQuantity<ByteUnit>
 satisfies Content<Buffer, CountedQuantity<ByteUnit>>::project {
     CountedQuantity { magnitude: Nat::Succ { prev: Nat::Zero } }
 }
-public data PendingWrite [linear] { pointer: addr; }
+public data PendingWrite [linear] { pointer: address; }
 public domain PendingWrite::Retained established by Writer::submit;
 public machine Retained::content(pending: @PendingWrite) -> CountedQuantity<ByteUnit>
 satisfies Content<PendingWrite, CountedQuantity<ByteUnit>>::project {
@@ -44,15 +44,15 @@ public boundary trait Writer {
 // This is the actual native supply/custody leaf. The raw allocation result
 // has no Owned qualification; a null result never becomes a normal grant.
 public boundary trait NativeBytes {
-    machine allocate(count: u64, width: u64) -> addr reaches none crashes none;
+    machine allocate(count: u64, width: u64) -> address reaches none crashes none;
     machine release(buffer: Buffer in Buffer::Owned) reaches none crashes none;
 }
 InitialSupplyProvider satisfies InitialSupply {
     machine acquire() -> Buffer reaches NativeBytes crashes Trap
     ensures result.pointer != 0 {
-        let pointer: addr = NativeBytes::allocate(ALLOCATION_COUNT, ALLOCATION_WIDTH);
+        let pointer: address = NativeBytes::allocate(ALLOCATION_COUNT, ALLOCATION_WIDTH);
         transition pointer != 0 { true -> supplied(pointer), _ -> failed() }
-        machine supplied(pointer: addr) -> Buffer reaches none
+        machine supplied(pointer: address) -> Buffer reaches none
         requires pointer != 0 ensures result.pointer == pointer {
             Buffer { pointer: pointer }
         }
@@ -88,7 +88,7 @@ ensures result in Buffer::Owned, result.pointer == buffer.pointer {
 data Main {}
 machine Main::main(context: @mutable Main) reaches InitialSupply + Writer + NativeBytes crashes Trap {
     let buffer: Buffer in Buffer::Owned = InitialSupplyProvider::acquire();
-    let original_pointer: addr = buffer.pointer;
+    let original_pointer: address = buffer.pointer;
     let restored: Buffer in Buffer::Owned = round_trip(buffer);
     let same_backing: bool = restored.pointer == original_pointer;
     NativeBytes::release(restored);

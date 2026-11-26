@@ -10839,7 +10839,7 @@ pub(crate) mod value_foundations {
             || !address(&regions[0])
             || !matches!(regions[1].field_type, StructuralFieldType::Scalar(semantic_vocabulary::ScalarType::Integer(ty)) if !ty.is_address() && ty.sign() == semantic_vocabulary::IntegerSign::Unsigned && ty.bits() == Some(64))
         {
-            return malformed("native code layout region needs base addr and length u64");
+            return malformed("native code layout region needs base address and length u64");
         }
         Ok(())
     }

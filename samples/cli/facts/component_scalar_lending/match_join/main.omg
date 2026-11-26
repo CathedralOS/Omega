@@ -10,8 +10,8 @@ machine choose(token: @Token, first_selected: bool) -> u64 reaches Lending Readi
     let mutable first: Word = Word { before: 11, count: 0, after: 29 };
     let mutable second: Word = Word { before: 11, count: 1, after: 29 };
     let selected: @mutable Word = match first_selected { true -> @mutable first, _ -> @mutable second };
-    let original: addr = address_of(selected);
-    let member: addr = address_of(@selected.count);
+    let original: address = address_of(selected);
+    let member: address = address_of(@selected.count);
     let reported: u64 = suspend Lending::write(selected, token, original, member);
     let reused: u64 = suspend Reading::read(@selected, @selected, token, token, original, member);
     Observation::seen(token);

@@ -21,7 +21,7 @@ use calling.omg as abi;
 // data, or lend them for as long as the backing stays live and readable.
 // ProgramStorageEntry in source/library/core/extent.omg currently receives
 // grants for the image and initial storage. Neither grant identifies the
-// argv table or its strings. Putting an addr and a length in a record
+// argv table or its strings. Putting an address and a length in a record
 // describes a range and leaves the same access obligations to prove.
 
 machine hosted_entry_integer_shape(shape: @|abi|::ValueShape, bytes: u64) -> bool {

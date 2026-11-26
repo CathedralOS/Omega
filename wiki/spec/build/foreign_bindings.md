@@ -155,7 +155,7 @@ resolution retains exact declaration, application and signature/schema identity
 without importing or executing product code in the Build activation. The formal
 must belong to the bound requirement application. It may occur anywhere in the
 signature; its position is never inferred from its type or from a first-parameter
-convention. The field must be a live, non-atomic `addr` field of the exact table
+convention. The field must be a live, non-atomic `address` field of the exact table
 application borrowed by that formal. Layout validation derives its offset.
 Wrong owners, applications, revisions, field kinds and inaccessible selectors
 reject, including in declared bindings that are not reached by an entry.
@@ -183,7 +183,7 @@ the same admitted contract. Dispatch is an actual read: its access, lifetime and
 memory-observation obligations survive even when the formal is dispatch-only;
 it cannot be discarded as an unused argument.
 
-Reading an `addr` proves neither a callable signature nor permission to invoke
+Reading an `address` proves neither a callable signature nor permission to invoke
 it. The existing admitted boundary and entry/handoff contracts must justify the
 table's provenance, field-to-signature correspondence, foreign behavior and
 applicable authority/protocol lifetime. Constructing a matching record or a

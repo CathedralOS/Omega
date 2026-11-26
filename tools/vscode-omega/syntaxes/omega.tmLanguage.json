@@ -192,9 +192,9 @@
           "match": "\\b(?:true|false)\\b"
         },
         {
-          "comment": "Builtin type names: bool, addr, f32, f64 and the open-ended integer family i/u followed by digits. Bare i/u are left uncolored because value bindings commonly use those spellings.",
+          "comment": "Builtin type names: bool, address, f32, f64 and the open-ended integer family i/u followed by digits. Bare i/u are left uncolored because value bindings commonly use those spellings.",
           "name": "entity.name.type.primitive.omega",
-          "match": "\\b(?:bool|addr|f32|f64|[ui][0-9]+)\\b"
+          "match": "\\b(?:bool|address|f32|f64|[ui][0-9]+)\\b"
         },
         {
           "name": "variable.language.self.omega",

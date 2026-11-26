@@ -106,7 +106,7 @@ impl ProgramEntryExtentValueLayout {
             || self.fields[1].shape != scalar
         {
             return Err(
-                "selected source Extent must be the exact {base: addr@0, length: u64@8} x86-64 record"
+                "selected source Extent must be the exact {base: address@0, length: u64@8} x86-64 record"
                     .into(),
             );
         }

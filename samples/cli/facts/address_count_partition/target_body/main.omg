@@ -4,7 +4,7 @@
 use omega\language\core\Content;
 use omega\language\core\IntervalSet;
 use omega\language\core\Nat;
-data Region [linear] dropped by drop_region { base: addr; length: u64; }
+data Region [linear] dropped by drop_region { base: address; length: u64; }
 machine drop_region(region: @mutable Region) {}
 domain Region::Owned;
 machine Owned::content(region: @Region) -> IntervalSet<Nat>
@@ -36,7 +36,7 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 }
 
 boundary trait SelectedSplit {
-    machine split(whole: Region in Owned, length: u64, ceiling: addr) -> Pieces
+    machine split(whole: Region in Owned, length: u64, ceiling: address) -> Pieces
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires length <= whole.length && embed(whole.base) + embed(whole.length) <= embed(ceiling) ensures core\Identity::<IntervalSet<Nat>>(
             Owned::content(old(@whole)),
             separate( Owned::content(@result.right), Owned::content(@result.left))
@@ -44,7 +44,7 @@ boundary trait SelectedSplit {
 }
 
 X86Split satisfies SelectedSplit {
-    machine split(whole: Region in Owned, length: u64, ceiling: addr) -> Pieces
+    machine split(whole: Region in Owned, length: u64, ceiling: address) -> Pieces
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires length <= whole.length && embed(whole.base) + embed(whole.length) <= embed(ceiling) ensures core\Identity::<IntervalSet<Nat>>(
             Owned::content(old(@whole)),
             separate( Owned::content(@result.right), Owned::content(@result.left))
@@ -59,7 +59,7 @@ X86Split satisfies SelectedSplit {
 }
 
 ArmSplit satisfies SelectedSplit {
-    machine split(whole: Region in Owned, length: u64, ceiling: addr) -> Pieces
+    machine split(whole: Region in Owned, length: u64, ceiling: address) -> Pieces
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires length <= whole.length && embed(whole.base) + embed(whole.length) <= embed(ceiling) ensures core\Identity::<IntervalSet<Nat>>(
             Owned::content(old(@whole)),
             separate( Owned::content(@result.right), Owned::content(@result.left))

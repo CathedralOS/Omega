@@ -218,7 +218,7 @@ machine build(plan: @mutable BuildPlan) {
                 ("build.omg", &caller),
                 ("main.omg", "use {api}/main.omg as table; public data Header { value: |table|::Table; }"),
                 ("library/build.omg", &library),
-                ("library/main.omg", "public data Table { invoke: addr; }"),
+                ("library/main.omg", "public data Table { invoke: address; }"),
             ],
             &["--check"],
         );

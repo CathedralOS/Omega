@@ -7,8 +7,8 @@ continues to check uses of the returned reference.
 
 | Operation (with `unsafe` as the import alias) | Returns | Specific reach |
 | --- | --- | --- |
-| `\|unsafe\|::borrow_at::<T>(address: addr)` | `@T` | `RawMemoryRead` |
-| `\|unsafe\|::borrow_mutable_at::<T>(address: addr)` | `@mutable T` | `RawMemoryRead + RawMemoryWrite` |
+| `\|unsafe\|::borrow_at::<T>(address: address)` | `@T` | `RawMemoryRead` |
+| `\|unsafe\|::borrow_mutable_at::<T>(address: address)` | `@mutable T` | `RawMemoryRead + RawMemoryWrite` |
 | `\|unsafe\|::upgrade_mutability::<T>(value: @T)` | `@mutable T` | `BorrowMutabilityUpgrade` |
 
 Each listed atom has the memberless boundary parent `Unsafe`. A mutable
@@ -25,7 +25,7 @@ referent under the ordinary mutable-borrow rules.
 ```omega
 use {omega}/language/core/unsafe.omg as unsafe;
 
-machine clear_byte(address: addr) {
+machine clear_byte(address: address) {
     let byte: @mutable u8 = |unsafe|::borrow_mutable_at::<u8>(address);
     $byte = 0;
 }
@@ -33,7 +33,7 @@ machine clear_byte(address: addr) {
 
 A machine may return the reference directly. Both address operations follow
 the existing [caller-chosen result lifetime](../language/lifetimes.md#caller-chosen-result-lifetimes)
-rule because `addr` carries no loan. The caller vouches
+rule because `address` carries no loan. The caller vouches
 that the addressed range has the size and alignment required by `T`, contains
 a valid `T`, and remains live and readable for the *entire* lifetime promised
 to users of the result. A shared borrow requires compatible access throughout.

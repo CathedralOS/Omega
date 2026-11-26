@@ -311,7 +311,7 @@ impl TerminalBuildHost {
         // `requires` clauses before it runs anything. It hands the entry a
         // Build it promises nothing about, so the only clauses it can owe
         // are ones true of the evaluator itself, such as its address width
-        // (`requires addr::Bound == 18446744073709551616`).
+        // (`requires address::Bound == 18446744073709551616`).
         match entry.unconditional_precondition()? {
             Some(true) => {}
             Some(false) => {

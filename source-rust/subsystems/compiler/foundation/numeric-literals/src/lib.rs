@@ -30,7 +30,7 @@ impl LandedIntegerType {
     pub const U64: Self = Self::Fixed(FixedInteger::U64);
 
     pub fn from_name(name: &str) -> Option<Self> {
-        if name == "addr" {
+        if name == "address" {
             return Some(Self::Addr);
         }
         FixedInteger::from_decimal_spelling(name).map(Self::Fixed)
@@ -72,7 +72,7 @@ impl std::fmt::Display for LandedIntegerType {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Fixed(carrier) => carrier.fmt(formatter),
-            Self::Addr => formatter.write_str("addr"),
+            Self::Addr => formatter.write_str("address"),
         }
     }
 }
@@ -921,10 +921,10 @@ mod tests {
             };
             assert_eq!(carrier.bounds(), Some(expected));
         }
-        assert_eq!(LandedIntegerType::Addr.name(), "addr");
+        assert_eq!(LandedIntegerType::Addr.name(), "address");
         assert!(!LandedIntegerType::Addr.is_signed());
         for spelling in [
-            "bool", "f32", "f64", "address", "usize", "U8", "u0", "i08", "u", "",
+            "bool", "f32", "f64", "addr", "usize", "U8", "u0", "i08", "u", "",
         ] {
             assert_eq!(LandedIntegerType::from_name(spelling), None);
         }

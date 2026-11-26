@@ -724,7 +724,7 @@ pub(crate) mod errors {
         }
     }
 
-    /// A host-returned `addr` is opaque: only storing, copying, comparing
+    /// A host-returned `address` is opaque: only storing, copying, comparing
     /// with another host address or null, and passing it back to a native
     /// import are defined (terminal-psi/boundary_calls.md#host-result-validation).
     pub(crate) fn undetermined_nan_bits() -> TerminalInterpretError {

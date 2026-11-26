@@ -3,7 +3,7 @@
 Status: exploratory draft, not an accepted design or implementation task.
 It answers one bullet of the
 [comparison checklist](matching_logic.md#possible-bounded-comparison): encode
-`Nat`, `Int`, `addr`, slices, and a user sum into the one-sorted finitary basic
+`Nat`, `Int`, `address`, slices, and a user sum into the one-sorted finitary basic
 matching logic Chen and Rosu prove complete for, and record what the encoding
 moves rather than what it discharges. No checker, translation, or axiom set in
 this note is admitted authority; every encoding clause is an axiom admission
@@ -29,7 +29,7 @@ junk (below) cannot satisfy them by accident.
 | --- | --- | --- |
 | `Nat` | `Nat(x)` | Totality of constructors; closure of `+`, `*` over members |
 | `Int` | `Int(x)`, disjoint from `Nat(x)` | Signed range per width; no overlap with `Nat` — `Int` is not `Nat`'s nonneg half |
-| `addr` | `Addr(x)` | Interpreted under the selected target's address model; membership grants no storage or access authority |
+| `address` | `Addr(x)` | Interpreted under the selected target's address model; membership grants no storage or access authority |
 | `u64 in Small` for a predicate domain requiring `self <= 3` | `Nat(x) ∧ 0 ≤ x ∧ x ≤ 3` | Carrier membership and the declared bound predicate; revision at each predicate change |
 | `@[T]` slices | `∃b l. x = ⟨b, l⟩ ∧ Addr(b) ∧ Nat(l) ∧ ∀i < l. T(b + i)` | Bounded quantifier over the pointee region; pair constructor must be injective |
 | user sum (`enum`) | `Sum(x) ⟺ ⋁_k (Tag_k(x) ∧ Payload_k(x))` | Pairwise tag disjointness, exhaustiveness, payload membership per arm |

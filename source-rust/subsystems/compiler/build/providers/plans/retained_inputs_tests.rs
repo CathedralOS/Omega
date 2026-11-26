@@ -62,7 +62,7 @@ fn table_field_correspondence_is_committed_and_received_in_full() {
         table_application: "closed-table<word>".into(),
         field_declaration: "exact-package::table::invoke".into(),
     };
-    for storage in [Ok(storage), Err("field is not addr".into())] {
+    for storage in [Ok(storage), Err("field is not address".into())] {
         let mut plan = selected_plan();
         plan.rows[0].binding = ProviderBinding::TableFunction {
             table: "Table".into(),

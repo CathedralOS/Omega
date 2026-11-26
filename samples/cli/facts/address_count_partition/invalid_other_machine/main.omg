@@ -4,7 +4,7 @@
 use omega\language\core\Content;
 use omega\language\core\IntervalSet;
 use omega\language\core\Nat;
-data Region [linear] dropped by drop_region { base: addr; length: u64; }
+data Region [linear] dropped by drop_region { base: address; length: u64; }
 machine drop_region(region: @mutable Region) {}
 domain Region::Owned;
 machine Owned::content(region: @Region) -> IntervalSet<Nat>
@@ -14,12 +14,12 @@ satisfies Content<Region, IntervalSet<Nat>>::project {
         end: (embed(region.base) + embed(region.length)) as Nat
     }
 }
-machine boundary(base: addr, count: u64, ceiling: addr) -> addr
+machine boundary(base: address, count: u64, ceiling: address) -> address
 requires embed(base) + embed(count) <= embed(ceiling)
 ensures embed(result) == embed(base) + embed(count)
 { base + count }
 data Pieces { left: Region in Owned; right: Region in Owned; }
-machine split(whole: Region in Owned, length: u64, ceiling: addr) -> Pieces
+machine split(whole: Region in Owned, length: u64, ceiling: address) -> Pieces
 requires embed(whole.base) + embed(whole.length) <= embed(ceiling)
 ensures core\Identity::<IntervalSet<Nat>>(
     Owned::content(old(@whole)),

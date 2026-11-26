@@ -87,8 +87,8 @@ requires packet.length >= 16
     align_of(packet) >= 16          // alignment of this actual location
 }
 
-let code_address: addr = address_of::<identity<u32>>();
-let storage_address: addr = address_of(@value);
+let code_address: address = address_of::<identity<u32>>();
+let storage_address: address = address_of(@value);
 ```
 
 An address is a number. Holding one grants no right to read or write it.
