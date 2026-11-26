@@ -44,8 +44,6 @@ psi-authorization = { path = "../subsystems/compiler/psi/artifact/authorization"
 
 [dev-dependencies]
 runtime-abi = { path = "../subsystems/compiler/psi-to-native/targets/runtime-abi" }
-
-[target.'cfg(windows)'.dev-dependencies]
 sha2 = "0.10.9"
 
 [target.'cfg(unix)'.dependencies]

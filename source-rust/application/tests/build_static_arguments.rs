@@ -19,7 +19,8 @@ types has no single value and stays refused, never accepted.
 
 */
 
-use std::process::Command;
+#[path = "support/project.rs"]
+mod project;
 
 const PRODUCT: &str = "boundary trait Service { machine value() -> u64 reaches none crashes none; }
 Provider satisfies Service { machine value() -> u64 { 7 } }
@@ -37,35 +38,18 @@ requires Tag == 17u64
 /// Checks a staged project whose Build runs `body` after naming the
 /// application, for the one target the Build binds an entry on.
 fn check(name: &str, body: &str) -> (bool, String) {
-    let root = std::env::temp_dir().join(format!(
-        "omega-build-static-arguments-{}-{name}",
-        std::process::id()
-    ));
-    let _ = std::fs::remove_dir_all(&root);
-    std::fs::create_dir_all(&root).expect("staging directory");
-    std::fs::write(root.join("main.omg"), PRODUCT).expect("staged program");
-    std::fs::write(
-        root.join("build.omg"),
-        format!(
-            "use main.omg as app;
+    let build = format!(
+        "use main.omg as app;
 machine build(builder: @mutable Build) {{
     Build::application(builder, \"configured\");
     Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
 {body}}}
 {HELPER}"
-        ),
-    )
-    .expect("staged Build");
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["--check", "main.omg", "--target", "linux_x86_64"])
-        .current_dir(&root)
-        .stdin(std::process::Stdio::null())
-        .output()
-        .expect("omega runs");
-    let _ = std::fs::remove_dir_all(&root);
-    (
-        output.status.success(),
-        String::from_utf8_lossy(&output.stderr).into_owned(),
+    );
+    project::check(
+        name,
+        &[("main.omg", PRODUCT), ("build.omg", &build)],
+        &["--check", "main.omg", "--target", "linux_x86_64"],
     )
 }
 

@@ -1,5 +1,7 @@
 //! A successful check of an application covers the obligations of its selected entry.
 
+#[path = "support/project.rs"]
+mod project;
 mod support;
 
 use std::path::Path;
@@ -16,18 +18,14 @@ fn check(entry: impl AsRef<Path>, target: &str) -> Output {
 
 #[test]
 fn a_data_predicate_keeps_its_own_carrier_beside_the_target_contract() {
-    let scratch = platform_custody::temporary_directory::TemporaryDirectory::create(
+    let scratch = project::stage(
         "predicate-carrier",
-        false,
-    )
-    .unwrap();
-    let entry = scratch.path().join("main.omg");
-    std::fs::write(
-        &entry,
-        "data NativePlace requires true { local: u64; }\npublic machine main() {}",
-    )
-    .unwrap();
-    let output = check(entry, "linux_x86_64");
+        &[(
+            "main.omg",
+            "data NativePlace requires true { local: u64; }\npublic machine main() {}",
+        )],
+    );
+    let output = check(scratch.path().join("main.omg"), "linux_x86_64");
     assert!(
         output.status.success(),
         "{}",
@@ -54,19 +52,17 @@ fn a_layout_dependent_subtraction_must_fit_its_carrier() {
 
 #[test]
 fn an_executable_application_requires_a_bound_entry() {
-    let directory = platform_custody::temporary_directory::TemporaryDirectory::create(
+    let directory = project::stage(
         "check-unbound-entry",
-        false,
-    )
-    .unwrap();
-    std::fs::write(directory.path().join("main.omg"), "machine main() {}").unwrap();
-    let build = directory.path().join("build.omg");
-    std::fs::write(
-        &build,
-        r#"machine build(builder: @mutable Build) { Build::application(builder, "unbound"); }"#,
-    )
-    .unwrap();
-    let output = check(build, "linux_x86_64");
+        &[
+            ("main.omg", "machine main() {}"),
+            (
+                "build.omg",
+                r#"machine build(builder: @mutable Build) { Build::application(builder, "unbound"); }"#,
+            ),
+        ],
+    );
+    let output = check(directory.path().join("build.omg"), "linux_x86_64");
     assert_eq!(output.status.code(), Some(1), "{output:?}");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(

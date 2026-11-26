@@ -6,18 +6,13 @@
 //! the constant in both engines; one whose plan names an issuer is refused
 //! at the constant, while the same `make()` called directly still runs.
 
-#[path = "support/build_fixture.rs"]
-mod build_fixture;
 #[path = "support/program.rs"]
 mod program;
 mod support;
 
-
-
-
 #[test]
 fn a_constant_keeps_a_domain_anyone_may_issue_on_each_element() {
-    build_fixture::assert_silent_return(
+    program::assert_fixture_silent_return(
         &support::repository_root()
             .join("source-rust/application/tests/fixtures/domains/run/constant_qualified_elements"),
     );
@@ -25,7 +20,7 @@ fn a_constant_keeps_a_domain_anyone_may_issue_on_each_element() {
 
 #[test]
 fn a_constant_cannot_reissue_a_domain_its_plan_restricts() {
-    let (output, report) = build_fixture::check(
+    let (output, report) = program::check_fixture(
         &support::repository_root()
             .join("source-rust/application/tests/fixtures/domains/fail/constant_issued_elements"),
     );
@@ -53,5 +48,8 @@ fn a_meter_result_cannot_initialize_seconds() {
         &["--check"],
     );
     assert!(!output.status.success(), "{report}");
-    assert!(report.contains("Units::METER)") && report.contains("Units::SECOND)"), "{report}");
+    assert!(
+        report.contains("Units::METER)") && report.contains("Units::SECOND)"),
+        "{report}"
+    );
 }

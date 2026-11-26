@@ -4,10 +4,11 @@
 //! the binder the library publishes; a callback that adds a precondition on
 //! its inputs is refused even when every generated call would meet it.
 
+#[path = "support/project.rs"]
+mod project;
 mod support;
 
 use std::path::Path;
-use std::process::{Command, Stdio};
 
 fn fixture(name: &str) -> std::path::PathBuf {
     support::repository_root().join(name)
@@ -19,13 +20,7 @@ fn invoke(route: &[&str], name: &str) -> (bool, String) {
 }
 
 fn run_project(route: &[&str], project: &Path) -> (Option<i32>, String) {
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(route)
-        .arg("build.omg")
-        .current_dir(project)
-        .stdin(Stdio::null())
-        .output()
-        .expect("omega runs on the hosted target");
+    let output = project::omega(project, &[route, &["build.omg"][..]].concat());
     let report = format!(
         "{}{}",
         String::from_utf8_lossy(&output.stdout),
