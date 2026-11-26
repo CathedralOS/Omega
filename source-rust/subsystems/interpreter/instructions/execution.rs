@@ -1137,37 +1137,10 @@ pub(crate) mod capabilities {
             boundary: BoundaryMachineId,
         ) -> terminal_psi::BoundaryMachineDeclaration {
             terminal_psi::BoundaryMachineDeclaration {
-                numeric_intrinsic: None,
-                membership_ensures: Vec::new(),
-                normal_qualifications: Vec::new(),
-                scalar_domain_requirements: Vec::new(),
-                declaration: None,
-                role: terminal_psi::BoundaryDeclarationRole::Callable,
                 id: boundary,
-                kind: semantic_vocabulary::BoundaryRequirementKind::Machine,
-                completion: BoundaryCompletion::NormalReturn,
-                unconditional_termination: false,
                 identity: intern_identity(catalogs, "graph boundary"),
                 owner: NominalDeclarationIdentity::new(intern_identity(catalogs, "graph schema")),
-                attachment: None,
-                parameter_order: Vec::new(),
-                scalar_parameters: Vec::new(),
-                crash_routes: Vec::new(),
-                structural_parameters: Vec::new(),
-                result: terminal_psi::BoundaryMachineResult::Unit,
-                requires: Vec::new(),
-                scalar_requires: Vec::new(),
-                scalar_ensures: Vec::new(),
-                program_local_root_introductions: Vec::new(),
-                content_guarantees: Vec::new(),
-                result_reference_regions: Vec::new(),
-                result_lifetimes: None,
-                reference_outputs: Vec::new(),
-                fixed_service_reach: Vec::new(),
-                service_reach_is_installation_bound: false,
-                owning_service: None,
-                published_synchronous_entries: Vec::new(),
-                published_service_ceiling: Vec::new(),
+                ..crate::boundary::effects::boundary_predicates::tests::idle_boundary()
             }
         }
 
