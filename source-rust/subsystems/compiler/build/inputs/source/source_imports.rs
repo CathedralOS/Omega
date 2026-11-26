@@ -63,17 +63,13 @@ use std::path::{Path, PathBuf};
 
 pub(crate) fn discover_imports(
     parsed: &ParsedSourceBatch,
-    root_path: &Path,
-    contracts: &ToolchainContractCustody,
-    filesystem: &source_capture::SourceFileSystem,
-    retained: &mut Vec<ResolvedSourceImport>,
-    discovery: &mut impl LogicalSourceDiscovery,
+    storage: &mut SourceStorage,
 ) -> Result<Vec<(PathBuf, DependencyScope)>, Vec<Diagnostic>> {
-    let default_root = if filesystem.is_dir(root_path) {
-        root_path
-    } else {
-        root_path.parent().unwrap_or_else(|| Path::new("."))
-    };
+    let default_root = storage.default_package_root.as_path();
+    let contracts = &storage.toolchain_contract_custody;
+    let filesystem = &storage.filesystem;
+    let discovery = &mut storage.package_roots;
+    let retained = &mut storage.resolved_imports;
     let core = bundled_core_root()?;
     let mut imports = Vec::new();
     for unit in parsed.sources.span_or_empty(parsed.batch) {

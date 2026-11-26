@@ -21,13 +21,15 @@ use std::path::{Path, PathBuf};
 
 #[derive(Clone, Default, record_storage::Record)]
 pub(crate) struct SourceStorage {
+    // Already checked by predecessor Builds. An explicit Product import can still select them.
+    pub(crate) previous_build_files: std::sync::Arc<[PathBuf]>,
     pub(crate) entry: Option<crate::source::entry::NamedSource>,
     pub filesystem: source_capture::SourceFileSystem, // Captured virtual source filesystem.
     pub source_roots: Arena<SourceRoots>,             // Per-source parsed root `ItemHandle` lists.
     pub sources: SourceMap,                           // Active `SourceMap` selection cohort.
     pub syntax_trees: SourceSyntax,                   // Parsed syntax forest for the active cohort.
     pub resolved_imports: Vec<super::ResolvedSourceImport>, // Discovered imports resolved to paths.
-    default_package_root: PathBuf, // Root directory of the primary package or standalone project.
+    pub(super) default_package_root: PathBuf, // Root directory of the primary package or standalone project.
     default_package_identity: Option<PackageKeyIdentity>, // Bound `PackageKeyIdentity` (`None` while an anonymous Build is unbound).
     anonymous_capture: Option<std::sync::Arc<source_capture::CapturedSourceTree>>, // Original root capture retained through named and completed source joins.
     pub(crate) unbound_acquisition: Option<crate::CapturedLocalSource>,
@@ -174,6 +176,7 @@ impl SourceStorage {
             .selected_files()
             .filter(|file| file.dependency_scope == source_provenance::DependencyScope::Build)
             .map(|file| file.path.as_path())
+            .chain(self.previous_build_files.iter().map(PathBuf::as_path))
             .collect::<std::collections::HashSet<_>>();
         let mut paths = self
             .package_roots

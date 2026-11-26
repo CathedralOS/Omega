@@ -9,12 +9,11 @@ use artifacts::compile_timings::CompileTimings;
 use diagnostics::Diagnostic;
 use source_admission::SourceResolutionStratum;
 use source_compiler::SourceInput;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 pub(super) fn load_imports(
     source_storage: &mut SourceStorage,
     imports: &mut ImportQueue,
-    root_path: &Path,
     package_inputs: Option<&PackageCompilationInputs>,
     phase: PackageImportPhase,
     timings: &mut CompileTimings,
@@ -24,7 +23,6 @@ pub(super) fn load_imports(
         source_storage,
         imports,
         SourceRouting::Compilation {
-            root_path,
             package_inputs,
             phase,
         },
@@ -35,7 +33,6 @@ pub(super) fn load_imports(
 
 pub(super) enum SourceRouting<'inputs> {
     Compilation {
-        root_path: &'inputs Path,
         package_inputs: Option<&'inputs PackageCompilationInputs>,
         phase: PackageImportPhase,
     },
@@ -122,17 +119,9 @@ impl SourceRouting<'_> {
                 Ok(discovered)
             }
             SourceRouting::Compilation {
-                root_path,
                 package_inputs: None,
                 ..
-            } => discover_imports(
-                parsed,
-                root_path,
-                &source_storage.toolchain_contract_custody,
-                &source_storage.filesystem,
-                &mut source_storage.resolved_imports,
-                &mut source_storage.package_roots,
-            ),
+            } => discover_imports(parsed, source_storage),
             SourceRouting::Query(inputs) => inputs.discover(parsed, source_storage),
         }
     }

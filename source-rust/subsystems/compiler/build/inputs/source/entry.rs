@@ -1,9 +1,9 @@
-//! Select the first Build from the captured source the caller named.
+//! Select a Build and its Product roots from the current frozen source.
 
 use super::source_imports::SourceStorage;
 use diagnostics::Diagnostic;
 use source_admission::LoadedSource;
-use source_compiler::{RetainedSourceParse, SourceInput, CompileTimings};
+use source_compiler::{CompileTimings, RetainedSourceParse, SourceInput};
 use source_provenance::DependencyScope;
 use source_text::SourceId;
 use std::path::{Path, PathBuf};
@@ -62,16 +62,74 @@ impl NamedSource {
     }
 }
 
-/// Source roots for the first Build and the Product it can open.
+/// The command operand can name a directory or a Product source. A returned
+/// Build entry selects one particular file in the already acquired source.
+#[derive(Clone, Copy)]
+pub enum CapturedBuildEntry<'a> {
+    Initial(&'a Path),
+    Successor {
+        path: &'a Path,
+        previous_build_files: &'a [PathBuf],
+    },
+}
+
+impl<'a> CapturedBuildEntry<'a> {
+    pub(crate) fn path(self) -> &'a Path {
+        match self {
+            Self::Initial(path) | Self::Successor { path, .. } => path,
+        }
+    }
+
+    pub(crate) fn check_capture(
+        self,
+        package_inputs: Option<&crate::PackageCompilationInputs>,
+        source_capture: Option<&crate::CapturedLocalSource>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Self::Successor { path, .. } = self else {
+            return Ok(());
+        };
+        let package_root = source_capture
+            .map(|capture| capture.canonical_live_root())
+            .or_else(|| {
+                let inputs = package_inputs?;
+                let root = inputs.package_root(inputs.root())?;
+                (inputs.source_filesystem().has_captured_namespace(root)
+                    && inputs.package_for_source(path) == Some(inputs.root()))
+                .then_some(root)
+            })
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "a successor Build entry requires its issuing stage's frozen source",
+                )]
+            })?;
+        let filename = path.strip_prefix(package_root).ok().and_then(Path::to_str);
+        if !filename.is_some_and(|name| {
+            language_core::logical_filename::is_valid(&name.replace(std::path::MAIN_SEPARATOR, "/"))
+        }) {
+            return Err(vec![Diagnostic::error(format!(
+                "successor Build entry {} must name a canonical .omg file in its frozen source",
+                path.display()
+            ))]);
+        }
+        Ok(())
+    }
+}
+
+/// Source roots for this Build and the Product it can open.
 pub(crate) struct StageRoots {
     pub build: Option<(PathBuf, source_text::Span)>,
     pub product: Vec<PathBuf>,
 }
 
 impl StageRoots {
-    pub fn prepare(root: &Path, storage: &mut SourceStorage) -> Result<Self, Vec<Diagnostic>> {
+    pub fn prepare(
+        entry: CapturedBuildEntry<'_>,
+        storage: &mut SourceStorage,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let root = entry.path();
+        let successor = matches!(entry, CapturedBuildEntry::Successor { .. });
         let filesystem = &storage.filesystem;
-        let path = if filesystem.is_dir(root) {
+        let path = if !successor && filesystem.is_dir(root) {
             let build = root.join("build.omg");
             if filesystem.is_file(&build) {
                 build
@@ -87,6 +145,12 @@ impl StageRoots {
                 path.display()
             ))]
         })?;
+        if successor && (path.as_os_str() != root.as_os_str() || !filesystem.is_file(&path)) {
+            return Err(vec![Diagnostic::error(format!(
+                "successor Build entry {} must select a regular file directly",
+                root.display()
+            ))]);
+        }
         let source = filesystem.read_to_string(&path).map_err(|error| {
             vec![Diagnostic::error(format!(
                 "cannot read selected source {}: {error}",
@@ -115,11 +179,21 @@ impl StageRoots {
             }
             first
         };
+        if successor && build_name.is_none() {
+            return Err(vec![Diagnostic::error(format!(
+                "successor Build entry {} declares no free build machine",
+                path.display()
+            ))]);
+        }
         let has_main = syntax.free_machines("main").next().is_some();
         let product = if build_name.is_none() || has_main {
             vec![path.clone()]
         } else {
-            let main = path.with_file_name("main.omg");
+            let main = if successor {
+                storage.default_package_root().join("main.omg")
+            } else {
+                path.with_file_name("main.omg")
+            };
             (main != path && filesystem.is_file(&main))
                 .then_some(main)
                 .into_iter()

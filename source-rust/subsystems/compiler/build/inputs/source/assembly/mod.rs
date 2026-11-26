@@ -9,6 +9,7 @@ mod scoped_sources;
 mod tests;
 mod toolchain;
 
+pub use crate::source::entry::CapturedBuildEntry;
 pub use build_entry::BuildSourceSelection;
 
 use crate::PackageCompilationInputs;
@@ -258,7 +259,6 @@ impl ImmutableSourceParseCheckpoint {
                 load_imports(
                     &mut source_storage,
                     &mut imports,
-                    &self.root_path,
                     package_inputs,
                     $phase,
                     timings,
@@ -357,14 +357,7 @@ impl ImmutableSourceParseCheckpoint {
                 )?
                 .0
             }
-            None => discover_imports(
-                &parsed,
-                &self.root_path,
-                &source_storage.toolchain_contract_custody,
-                &source_storage.filesystem,
-                &mut source_storage.resolved_imports,
-                &mut source_storage.package_roots,
-            )?,
+            None => discover_imports(&parsed, &mut source_storage)?,
         };
         source_storage.attach_parsed(parsed);
         imports.enqueue(discovered)?;
@@ -405,7 +398,6 @@ impl ImmutableSourceParseCheckpoint {
             &mut source_storage,
             &mut imports,
             SourceRouting::Compilation {
-                root_path: &self.root_path,
                 package_inputs,
                 phase: PackageImportPhase::ExactTarget(None),
             },

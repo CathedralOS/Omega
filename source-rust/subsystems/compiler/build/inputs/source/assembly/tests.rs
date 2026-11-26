@@ -330,3 +330,75 @@ machine build(builder: @mutable Build) {
         }
     }
 }
+
+#[test]
+fn successor_selects_only_the_requested_build_from_its_frozen_package() {
+    let directory = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "build-successor-source",
+        false,
+    )
+    .unwrap();
+    let root = directory.path().canonicalize().unwrap();
+    let stages = root.join("stages");
+    std::fs::create_dir(&stages).unwrap();
+    let initial = root.join("build.omg");
+    let next = stages.join("next.omg");
+    let main = root.join("main.omg");
+    std::fs::write(&initial, "machine build() {}").unwrap();
+    std::fs::write(root.join("helper.omg"), "public machine helper() {}").unwrap();
+    std::fs::write(
+        &next,
+        "use helper.omg; machine build() { |helper|::helper(); }",
+    )
+    .unwrap();
+    std::fs::write(&main, "machine main() {}").unwrap();
+    std::fs::write(stages.join("main.omg"), "machine nested() {}").unwrap();
+    #[cfg(unix)]
+    std::os::unix::fs::symlink("next.omg", stages.join("alias.omg")).unwrap();
+    let capture = crate::capture_anonymous_compilation_source(&initial).unwrap();
+    std::fs::remove_file(&next).unwrap();
+    std::fs::write(stages.join("later.omg"), "machine build() {}").unwrap();
+    let predecessors = [initial.clone()];
+    let prepare = |path: &Path, capture: Option<&crate::CapturedLocalSource>| {
+        ImmutableSourceParseCheckpoint::prepare(
+            super::CapturedBuildEntry::Successor {
+                path,
+                previous_build_files: &predecessors,
+            },
+            None,
+            capture,
+            &mut CompileTimings::default(),
+            &mut Default::default(),
+        )
+    };
+    let checkpoint = prepare(&next, Some(&capture)).unwrap();
+    assert_eq!(
+        checkpoint.product_roots.as_deref().unwrap(),
+        std::slice::from_ref(&main)
+    );
+    let mut storage = (*checkpoint.source_storage).clone();
+    assert!(
+        storage
+            .sources
+            .selected_files()
+            .any(|file| file.path == root.join("helper.omg"))
+    );
+    let subject = storage.product_subject_sources().unwrap();
+    assert!(!subject.contains(&initial));
+    assert!(!subject.contains(&next));
+    assert!(subject.contains(&main));
+    assert!(prepare(&next, None).is_err());
+    for invalid in [
+        main,
+        stages.clone(),
+        stages.join("later.omg"),
+        stages.join("../build.omg"),
+        stages.join("alias.omg"),
+    ] {
+        assert!(
+            prepare(&invalid, Some(&capture)).is_err(),
+            "{}",
+            invalid.display()
+        );
+    }
+}
