@@ -237,6 +237,9 @@ fn compile_targets(
     };
     let mut failures = Vec::new();
     for (root, plans) in subjects {
+        if arguments.check_only {
+            writeln!(report, "validation subject: {}", root.display()).unwrap();
+        }
         let arguments = CompileArguments {
             root_path: root,
             ..arguments.clone()

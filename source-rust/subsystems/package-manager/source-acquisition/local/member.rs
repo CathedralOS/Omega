@@ -27,7 +27,10 @@ impl CapturedLocalSource {
         if !covers_member
             || super::operations::selection_identity(selection) != self.selection_identity
         {
-            return Err(SourceResolveError::Io {path: root, message:"checking a workspace member requires its complete directory in the catalog's captured inventory".into()});
+            return Err(SourceResolveError::Io {
+                path: root,
+                message: "checking a workspace member requires its complete directory in the catalog's captured inventory".into(),
+            });
         }
         if member.as_os_str().is_empty()
             || !self.tree.is_dir(member)
@@ -108,6 +111,28 @@ mod tests {
     use crate::local::operations::capture_local_source_input;
     use std::fs;
     use std::path::Path;
+
+    #[cfg(unix)]
+    #[test]
+    fn a_link_between_members_cannot_escape_the_projected_package() {
+        let root = crate::test_support::temp_root("workspace-link-between-members");
+        fs::create_dir_all(root.join("first")).unwrap();
+        fs::create_dir_all(root.join("second")).unwrap();
+        fs::write(root.join("second/source.omg"), "private sibling").unwrap();
+        std::os::unix::fs::symlink("../second/source.omg", root.join("first/escaped.omg")).unwrap();
+        let catalog = capture_local_source_input(&root, LocalSourceLimits::default()).unwrap();
+        let result = catalog.workspace_member(
+            Path::new("first"),
+            &source_selection::SourceCaptureRequest::entire_tree(),
+        );
+        fs::remove_dir_all(&root).unwrap();
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("escapes captured root")
+        );
+    }
 
     #[test]
     fn frozen_member_retains_ordinary_identity_and_its_original_bytes() {
