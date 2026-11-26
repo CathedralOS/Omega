@@ -16,12 +16,13 @@ anywhere in the file fails with that operation's `Unsupported*Shape` error.
 use super::BuildDeclarationError;
 use super::direct_build_call::{DirectBuildCallError, direct_build_call_operands};
 use super::{
-    APPLICATION_MACHINE_NAME, ARTIFACT_ONLY_MACHINE_NAME, BUILD_MACHINE_NAME,
-    MEMBER_MACHINE_NAME, PACKAGE_MACHINE_NAME,
+    APPLICATION_MACHINE_NAME, ARTIFACT_ONLY_MACHINE_NAME, BUILD_MACHINE_NAME, MEMBER_MACHINE_NAME,
+    PACKAGE_MACHINE_NAME,
 };
 use build_declarations::{
-    ApplicationDeclaration, BUILD_TYPE_NAME, BuildDeclaration, BuildDeclarationKind, DependencyOperation,
-    PackageDeclaration, ProjectName, WorkspaceDeclaration, WorkspaceMemberPath,
+    ApplicationDeclaration, BUILD_TYPE_NAME, BuildDeclaration, BuildDeclarationKind,
+    DependencyOperation, PackageDeclaration, ProjectName, WorkspaceDeclaration,
+    WorkspaceMemberPath,
 };
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -41,7 +42,11 @@ impl BuildEntrySyntaxProjection {
     }
 
     pub(crate) fn receiver_name<'s>(&self, syntax: &'s SyntaxTrees) -> &'s str {
-        syntax.items.state_parameter(self.builder_parameter).name.as_str(syntax)
+        syntax
+            .items
+            .state_parameter(self.builder_parameter)
+            .name
+            .as_str(syntax)
     }
 
     #[cfg(test)]

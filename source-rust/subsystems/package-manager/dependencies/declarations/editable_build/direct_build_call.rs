@@ -9,8 +9,7 @@ use syntax_trees::expression::TableCallExpression;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum DirectBuildCallError {
-    WrongReceiver,  // Owner was not static `Build`, or first operand was not the entry receiver.
+pub(crate) enum DirectBuildCallError {    WrongReceiver, // Owner was not static `Build`, or first operand was not the entry receiver.
     WrongArguments, // Call carried generic, evidence, or operational modifiers, or omitted the receiver.
 }
 
