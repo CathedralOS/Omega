@@ -226,11 +226,33 @@ pub struct SourceImport {
 }
 
 impl SourceImport {
-    pub fn used_in(&self, scope: source_provenance::DependencyScope) -> bool {
+    /// A symbolic operand of core field/parameter reflection may be a Product
+    /// query. Only an ordinary Build reference makes a host binding mandatory.
+    pub fn requires_build_binding(&self) -> bool {
         matches!(&self.target, SourceImportTarget::Namespace(_))
-            || self.qualifiers.iter().any(|usage| {
-                scope == source_provenance::DependencyScope::Product || !usage.product_operand
-            })
+            || self
+                .qualifiers
+                .iter()
+                .any(|usage| usage.role == syntax_trees::item::FileQualifierRole::Code)
+    }
+
+    pub fn used_in(&self, scope: source_provenance::DependencyScope) -> bool {
+        use syntax_trees::item::FileQualifierRole;
+        match (&self.target, scope) {
+            (SourceImportTarget::Namespace(_), _) => true,
+            (SourceImportTarget::File { .. }, source_provenance::DependencyScope::Product) => {
+                !self.qualifiers.is_empty()
+            }
+            (SourceImportTarget::File { root, .. }, source_provenance::DependencyScope::Build) => {
+                self.qualifiers.iter().any(|usage| match usage.role {
+                    FileQualifierRole::Code => true,
+                    FileQualifierRole::Product => false,
+                    // A supplied Build package can own an ordinarily reflected declaration.
+                    // A Product description alone does not import a local file into Build.
+                    FileQualifierRole::Description => root.is_some(),
+                })
+            }
+        }
     }
 }
 

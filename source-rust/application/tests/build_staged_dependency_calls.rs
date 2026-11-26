@@ -1605,6 +1605,41 @@ machine build(builder: @mutable BuildPlan) suspends {
 }
 
 #[test]
+fn reflection_can_describe_a_product_file_without_a_host_import() {
+    let build = r#"use {kit}/main.omg as api;
+use {omega}/language/core/reflect/reflect.omg as describe;
+use {omega}/build/dependency.omg;
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: "query" };
+    let mutable request: DependencyDescription = |dependency|::from_source(Source::Path { location: "dep" });
+    |dependency|::with_alias(@mutable request, "kit");
+    _ = Build::dependency(builder, request);
+    let field: |describe|::FieldInfo = |describe|::field(|api|::Number::value);
+    transition field.name == "value" && field.declaration_position == 0u64 {
+        true -> done(), false -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}"#;
+    let args = [
+        "--check",
+        "--build-input",
+        "build.omg",
+        "--build-input",
+        "main.omg",
+        "build.omg",
+    ];
+    let (ok, report) = check_project("described-product-file", build, 7, "", &args);
+    assert!(ok, "{report}");
+    let host = build.replace("    let field:", "    _ = |api|::v();\n    let field:");
+    let (ok, report) = check_project("described-file-is-not-host-code", &host, 7, "", &args);
+    assert!(
+        !ok && report.contains("Build import `{kit}/main.omg as api` has no supplied source"),
+        "{report}"
+    );
+}
+
+#[test]
 fn an_unused_unbound_import_warns_once_at_the_authored_name() {
     let build = "use {absent}/helper.omg as missing;\nuse later.omg;\nuse main.omg as present;\nuse main.omg as entry;\nmachine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Application { name: \"never_used\" }; Build::bind(builder, linux_x86_64::ProgramEntry, |entry|::main); }\n";
     let project = platform_custody::temporary_directory::TemporaryDirectory::create("unused-file-import", false).unwrap();

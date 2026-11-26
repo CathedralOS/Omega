@@ -39,6 +39,15 @@ impl FileImportAdvisories {
         }
     }
 
+    /// A successfully evaluated Product locator uses the alias in its issuer's file.
+    pub fn use_queried_file(&mut self, issuer: &source_admission::SourceFile, name: &str) {
+        for ((path, _, source), (alias, used)) in &mut self.0 {
+            if path == &issuer.path && alias == name && source == &issuer.source {
+                *used = true;
+            }
+        }
+    }
+
     pub fn extend(&mut self, other: &Self) {
         for (key, (alias, used)) in &other.0 {
             self.0

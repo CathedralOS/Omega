@@ -130,7 +130,25 @@ pub enum UseItem {    Namespace {
 )]
 pub struct FileQualifier {
     pub offset: usize,
-    pub product_operand: bool,
+    pub role: FileQualifierRole,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    syntax_trees_derive::SyntaxRelocate,
+    record_storage::Record,
+)]
+pub enum FileQualifierRole {
+    Code,
+    Product,
+    /// Ordinary Build reflection when the declaration is supplied to the Build.
+    /// Otherwise the genuine core operation may select a Product declaration.
+    Description,
 }
 
 impl Default for UseItem {

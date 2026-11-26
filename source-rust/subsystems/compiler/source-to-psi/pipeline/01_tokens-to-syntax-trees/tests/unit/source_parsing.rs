@@ -340,7 +340,10 @@ machine build(builder: @mutable Build) {
                 alias, qualifiers, ..
             }) => Some((
                 alias.as_str(&trees),
-                !qualifiers.is_empty() && qualifiers.iter().all(|usage| usage.product_operand),
+                !qualifiers.is_empty()
+                    && qualifiers
+                        .iter()
+                        .all(|usage| usage.role == syntax_trees::item::FileQualifierRole::Product),
             )),
             _ => None,
         })
@@ -354,6 +357,33 @@ machine build(builder: @mutable Build) {
             ("provider", true),
             ("local", false),
         ]
+    );
+}
+
+#[test]
+fn a_description_uses_the_file_selected_by_the_query_alias() {
+    use syntax_trees::item::{FileQualifierRole::*, UseItem};
+    let text = "use {omega}/language/core/reflect/reflect.omg as describe;
+        use fake.omg as reflect;
+        use {package}/types.omg as types;
+        machine run() {
+            _ = |describe|::field(|types|::Table::item);
+            _ = |describe|::parameter(|types|::Reader::run::size);
+            _ = |reflect|::field(|types|::Table::item);
+            _ = |describe|::field(|types|::compute());
+        }";
+    let mut trees = SyntaxTrees::new(SourceId(1));
+    let tokens = Lexer::new(text).tokenize().unwrap();
+    let roots = parse(&mut trees, SourceId(1), &tokens).unwrap();
+    let Item::Use(UseItem::File { qualifiers, .. }) = trees.root_item(roots.items[2]) else {
+        panic!("expected the types file import");
+    };
+    assert_eq!(
+        qualifiers
+            .iter()
+            .map(|usage| usage.role)
+            .collect::<Vec<_>>(),
+        [Description, Description, Code, Code]
     );
 }
 
@@ -472,9 +502,12 @@ fn root_operand_file_roles_follow_the_declared_build_record() {
         );
         let parsed = crate::tests::parse_source(&text);
         let import = parsed.root_items().find_map(|item| match item {
-            Item::Use(UseItem::File { qualifiers, .. }) => {
-                Some(!qualifiers.is_empty() && qualifiers.iter().all(|usage| usage.product_operand))
-            }
+            Item::Use(UseItem::File { qualifiers, .. }) => Some(
+                !qualifiers.is_empty()
+                    && qualifiers
+                        .iter()
+                        .all(|usage| usage.role == syntax_trees::item::FileQualifierRole::Product),
+            ),
             _ => None,
         });
         assert_eq!(import, Some(product_only), "{text}");
