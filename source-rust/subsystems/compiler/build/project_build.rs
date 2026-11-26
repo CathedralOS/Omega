@@ -163,6 +163,7 @@ pub struct ReturnedPlanningStage {
 /// and observations stay with the eventual Product, separate from its own settings.
 #[derive(Default)]
 struct BuildPreparations {
+    demanded_programs: Vec<package_compilation::DelegatedProgram>,
     stages: Vec<(build_declarations::BuildEntryPath, EvaluatedBuild)>,
     files: Vec<std::path::PathBuf>,
     entries: Vec<(
@@ -198,6 +199,9 @@ impl ReturnedPlanningStage {
         let capture = capture.clone();
         let path = capture.canonical_live_root().join(entry.as_str());
         let mut preparations = self.preparations;
+        preparations
+            .demanded_programs
+            .extend(self.evaluation.demanded_programs().cloned());
         let evaluated = self
             .evaluation
             .complete_successor(self.returned, &libraries)?;
@@ -231,6 +235,16 @@ impl ReturnedPlanningStage {
         &self,
     ) -> &source_compiler::compile_time_invocations::SourceCompletionAccounting {
         self.evaluation.source_completion_accounting()
+    }
+
+    /// The exact executable grants consumed by this Build, including preparations.
+    pub fn used_programs(&self) -> Vec<package_compilation::DelegatedProgram> {
+        self.preparations
+            .demanded_programs
+            .iter()
+            .chain(self.evaluation.demanded_programs())
+            .cloned()
+            .collect()
     }
 
     pub fn returned(&self) -> &ReturnedBuild {

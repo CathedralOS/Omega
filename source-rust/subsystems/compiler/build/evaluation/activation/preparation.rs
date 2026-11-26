@@ -23,7 +23,7 @@ use evaluation_contracts::BuildEvaluationSponsorLimits;
 use std::sync::Arc;
 
 pub struct PreparedBuildExecution {
-    programs: Arc<crate::host::programs::ProgramInstallation>,
+    pub(crate) programs: Arc<crate::host::programs::ProgramInstallation>,
     original_sources: Option<Arc<super::OriginalBuildSources>>,
     execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose,
     produced: Arc<source_compiler::publication::ProducedTerminalProgram>,

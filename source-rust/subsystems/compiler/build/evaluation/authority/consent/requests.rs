@@ -3,10 +3,21 @@
 use build_output::BuildCapturedSourceInventory;
 use evaluation_contracts::BuildEvaluationSponsorLimits;
 
+/// The source occurrence identified by the host asking for a package decision.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RestrictedBuildSubject {
+    Root,
+    Dependency {
+        digest: [u8; 32],
+        description: String,
+    },
+}
+
 /// The checked executable and selected entry that would perform a restricted
 /// operation during this review. Portable policy records the operation itself.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RestrictedBuildSite {
+    pub subject: Option<RestrictedBuildSubject>,
     pub program: [u8; 32],
     pub entry: String,
 }

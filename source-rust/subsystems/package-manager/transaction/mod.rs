@@ -244,27 +244,29 @@ impl PackageCommandTransaction {
         } else {
             GitExactRevisionAcquisition::AllowFetch
         };
-        Ok(PackageCommandAdmission::Review(Box::new(PackageCommandPreparation {
-            identity: Arc::new(CommandReviewIdentity),
-            transaction,
-            files,
-            pending_file,
-            storage,
-            acquisition,
-            before_lock,
-            accepted,
-            replacement,
-            stage,
-            targets,
-            build_snapshot,
-            resume,
-            kind,
-            before_build,
-            build_inputs,
-            recovered,
-            updates,
-            offline,
-        })))
+        Ok(PackageCommandAdmission::Review(Box::new(
+            PackageCommandPreparation {
+                identity: Arc::new(CommandReviewIdentity),
+                transaction,
+                files,
+                pending_file,
+                storage,
+                acquisition,
+                before_lock,
+                accepted,
+                replacement,
+                stage,
+                targets,
+                build_snapshot,
+                resume,
+                kind,
+                before_build,
+                build_inputs,
+                recovered,
+                updates,
+                offline,
+            },
+        )))
     }
 }
 
@@ -409,14 +411,14 @@ impl<'workspace, 'storage> PackageCommandPreparation<'workspace, 'storage> {
             }
             Err(error) => error,
         };
-        let PackageCommandCause::RootBuildPreparation(CompileFailure::BuildConsentRequired {
-            site,
-            requests,
-            ..
-        }) = &error.cause
+        let Some(CompileFailure::BuildConsentRequired { site, requests, .. }) =
+            error.compilation_failure()
         else {
             return Err(error);
         };
+        if site.subject.is_none() {
+            return Err(error);
+        }
         self.stage.verify_live_source_unchanged().map_err(failure)?;
         let original = rows.len();
         rows.extend(phase.findings(site, requests)?);
@@ -709,7 +711,10 @@ impl PreparedPackageCommand<'_, '_> {
             .ok_or_else(|| failure("reviewed package proposal disappeared before publication"))?;
         let published = publish_reviewed_package_change(
             transaction,
-            ReviewedProposal { kind, digest: digest(proposal.bytes()) },
+            ReviewedProposal {
+                kind,
+                digest: digest(proposal.bytes()),
+            },
             &replacement,
             &stage,
             &paired,
@@ -848,7 +853,6 @@ enum PackageCommandCause {
     Review(Box<CompileResolvedPackageReviewsError>),
     Change(Box<crate::review::PackageChangeError>),
     Compilation(CompileFailure),
-    RootBuildPreparation(CompileFailure),
     Preparation(Box<crate::dependencies::PrepareLocalProjectError>),
 }
 
@@ -865,25 +869,9 @@ impl PackageCommandError {
         self
     }
 
-    pub(crate) fn for_build_preparation(failure: CompileFailure, root: bool) -> Self {
-        if root && matches!(failure, CompileFailure::BuildConsentRequired { .. }) {
-            let accounting = failure
-                .source_completion_accounting()
-                .cloned()
-                .unwrap_or_default();
-            Self {
-                cause: PackageCommandCause::RootBuildPreparation(failure),
-                accounting,
-            }
-        } else {
-            Self::from(failure)
-        }
-    }
-
     pub fn compilation_failure(&self) -> Option<&CompileFailure> {
         match &self.cause {
-            PackageCommandCause::Compilation(failure)
-            | PackageCommandCause::RootBuildPreparation(failure) => Some(failure),
+            PackageCommandCause::Compilation(failure) => Some(failure),
             _ => None,
         }
     }
@@ -977,8 +965,7 @@ impl PackageCommandError {
             PackageCommandCause::Review(error) => error.fmt_with_diagnostics(formatter, render),
             PackageCommandCause::Change(error) => error.fmt_with_diagnostics(formatter, render),
             PackageCommandCause::Preparation(error) => fmt::Display::fmt(error, formatter),
-            PackageCommandCause::Compilation(failure)
-            | PackageCommandCause::RootBuildPreparation(failure) => {
+            PackageCommandCause::Compilation(failure) => {
                 render(formatter, &failure.clone().into_diagnostics())
             }
         }

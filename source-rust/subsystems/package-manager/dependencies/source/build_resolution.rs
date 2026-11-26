@@ -16,9 +16,9 @@ use std::sync::Arc;
 #[derive(Clone)]
 pub struct DeclaredBuildSource {
     pub(super) custody: PackageSourceCustody,
-    pub(super) frozen: std::collections::BTreeMap<
+    pub(super) backings: std::collections::BTreeMap<
         (build_declarations::DependencyPurpose, usize),
-        build_execution::host::requests::FrozenBuildBinding,
+        build_execution::DependencyBacking,
     >,
     pub(super) root_request: PackageRootSourceRequest,
 }
@@ -84,7 +84,7 @@ pub struct PendingBuildSource {
 
 pub enum BuildSourceAcquisition {
     Execute(AcquiredBuildDependency),
-    Reused(ExecutedSourceResolution),
+    Reused(AcquiredBuildSource, ExecutedSourceResolution),
     Workspace {
         pending: PendingBuildSource,
         workspace: super::AcquiredWorkspaceBuild,
@@ -96,11 +96,15 @@ impl PendingBuildSource {
         self.request.requester().key().identity()
     }
 
-    pub(crate) fn frozen_binding<'a>(
+    pub(crate) fn purpose(&self) -> build_declarations::DependencyPurpose {
+        self.request.purpose()
+    }
+
+    pub(crate) fn backing<'a>(
         &self,
         from: &'a DeclaredBuildSource,
-    ) -> Option<&'a build_execution::host::requests::FrozenBuildBinding> {
-        from.frozen
+    ) -> Option<&'a build_execution::DependencyBacking> {
+        from.backings
             .get(&(self.request.purpose(), self.request.dependency_index()))
     }
 
@@ -126,6 +130,7 @@ impl PendingBuildSource {
                 .complete::<String>(custody)
                 .map_err(|error| error.to_string())?;
             return Ok(BuildSourceAcquisition::Reused(
+                acquired,
                 ExecutedSourceResolution::from_step(next),
             ));
         }

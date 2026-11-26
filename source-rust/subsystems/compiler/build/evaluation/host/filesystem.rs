@@ -105,6 +105,10 @@ impl TerminalBuildFilesystemHost {
         }))
     }
 
+    pub(super) fn program_file_account(&self) -> &EvaluationInvocationAccount {
+        &self.account
+    }
+
     pub(super) fn with_program_files<T>(
         &self,
         operation: impl FnOnce(&mut BuildFilesystemRuntime) -> Result<T, String>,
@@ -251,10 +255,7 @@ impl FilesystemAdapter {
         let activation = guard
             .as_mut()
             .ok_or("Build filesystem activation is absent or already settled")?;
-        let FilesystemActivation {
-            runtime,
-            markers,
-        } = activation;
+        let FilesystemActivation { runtime, markers } = activation;
         let facets = self
             .host
             .facets

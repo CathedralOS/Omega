@@ -485,7 +485,20 @@ fn package_key(output: &mut Output, prefix: &str, key: &PackageKey) -> fmt::Resu
         key.name().as_str(),
         Hex(&key.identity().digest())
     )?;
-    match key.source_lineage() {
+    source_lineage(output, key.source_lineage())
+}
+
+pub(crate) fn render_build_lineage(
+    lineage: &SourceLineage,
+    maximum_bytes: usize,
+) -> Result<String, PackagePolicyReviewError> {
+    let mut output = Output::new(maximum_bytes);
+    let result = source_lineage(&mut output, lineage);
+    Ok(output.finish(result)?.text)
+}
+
+fn source_lineage(output: &mut Output, lineage: &SourceLineage) -> fmt::Result {
+    match lineage {
         SourceLineage::GitHub(source) => writeln!(
             output,
             "github {:?} {:?}",
