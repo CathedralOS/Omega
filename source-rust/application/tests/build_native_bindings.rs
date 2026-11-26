@@ -14,9 +14,8 @@ The control binds two requirements and must compile. Changing just one
 binding either selects a different target successfully or produces the
 expected diagnostic at its source location.
 
-The last test is the dependency case, on a kept program: its dependency is
-the standard library, whose Build binds dozens of requirements and hands
-them to the program that uses it.
+The system package binds the native requirements used by a console program.
+The dependency coverage checks that program on Linux and emits it for Windows.
 
 */
 
@@ -78,15 +77,6 @@ machine build(builder: @mutable Build) {{
     let _ = std::fs::remove_dir_all(&root);
     result
 }
-
-/// What the admission of a Build's native bindings says when it refuses.
-const ADMISSION_REFUSALS: [&str; 5] = [
-    "native binding admission",
-    "native binding must name",
-    "conflicting native bindings",
-    "Product operand preparation",
-    "does not name one visible declaration",
-];
 
 #[test]
 fn a_binding_of_each_requirement_is_admitted() {
@@ -244,25 +234,12 @@ fn a_dependency_binding_the_program_reaches_is_judged() {
     assert!(stderr.contains(DEFAULT_BODY_REFUSAL), "{stderr}");
 }
 
-/// A program that depends on the standard library receives the bindings and
-/// provider choices its Build made. Nothing about them stops the program.
+/// The system package supplies the target's providers and native bindings.
 #[test]
-fn a_program_receives_the_bindings_of_the_standard_library() {
+fn a_program_receives_the_system_packages_native_bindings() {
     let directory = support::repository_root()
         .join("tests/fixtures/providers/run/default_console_provider_reached");
-    let stderr = omega_check(&directory, "linux_x86_64").err().unwrap_or_default();
-    for refusal in ADMISSION_REFUSALS
-        .into_iter()
-        .chain(["provider selection", "captured native"])
-    {
-        assert!(!stderr.contains(refusal), "{stderr}");
-    }
-    // Its Build stage is over: what remains is said of a package's own
-    // checking, not of source discovery.
-    assert!(
-        !stderr.contains("project source discovery failed"),
-        "{stderr}"
-    );
+    omega_check(&directory, "linux_x86_64").expect("the console program must compile");
 }
 
 /// The same Console program cross-compiles for Windows ARM64: system selects its
