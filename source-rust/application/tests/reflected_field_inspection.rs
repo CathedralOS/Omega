@@ -13,14 +13,15 @@ fn fixture(name: &str) -> std::path::PathBuf {
     support::repository_root().join(name)
 }
 
-fn run_both(name: &str) -> (bool, String) {
-    let (status, report) = run_project(&fixture(name));
+fn invoke(route: &[&str], name: &str) -> (bool, String) {
+    let (status, report) = run_project(route, &fixture(name));
     (status == Some(0), report)
 }
 
-fn run_project(project: &Path) -> (Option<i32>, String) {
+fn run_project(route: &[&str], project: &Path) -> (Option<i32>, String) {
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["run", "--both", "build.omg"])
+        .args(route)
+        .arg("build.omg")
         .current_dir(project)
         .stdin(Stdio::null())
         .output()
@@ -42,9 +43,9 @@ fn runtime_visitors_preserve_field_order_and_mutate_the_actual_fields() {
             .join("samples/cli/facts")
             .join(fact)
             .join("local");
-        let (status, report) = run_project(&project);
-        assert_eq!(status, Some(0), "{fact}: {report}");
-        for receipt in ["native exit 0", "interp exit: 0"] {
+        for (engine, receipt) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+            let (status, report) = run_project(&["run", "--engine", engine], &project);
+            assert_eq!(status, Some(0), "{fact}: {report}");
             assert!(
                 report.lines().any(|line| line == receipt),
                 "{fact}: {report}"
@@ -60,7 +61,7 @@ fn runtime_visitors_reject_callbacks_that_exclude_an_actual_field_type() {
             .join("samples/cli/facts")
             .join(fact)
             .join("invalid_local");
-        let (status, report) = run_project(&project);
+        let (status, report) = run_project(&["--check"], &project);
         assert_ne!(status, Some(0), "{fact}: {report}");
         assert!(
             report.contains("the type arguments of this application do not meet its requirement"),
@@ -71,9 +72,12 @@ fn runtime_visitors_reject_callbacks_that_exclude_an_actual_field_type() {
 
 #[test]
 fn inspecting_a_record_calls_the_callback_once_per_field_in_both_engines() {
-    let (success, report) = run_both("source-rust/application/tests/fixtures/reflection/run/inspect_record_fields");
-    assert!(success, "{report}");
-    for receipt in ["native exit 0", "interp exit: 0"] {
+    for (engine, receipt) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+        let (success, report) = invoke(
+            &["run", "--engine", engine],
+            "source-rust/application/tests/fixtures/reflection/run/inspect_record_fields",
+        );
+        assert!(success, "{report}");
         assert!(report.lines().any(|line| line == receipt), "{report}");
     }
 }
@@ -82,7 +86,7 @@ fn inspecting_a_record_calls_the_callback_once_per_field_in_both_engines() {
 fn a_callback_with_a_precondition_the_binder_does_not_publish_is_refused() {
     let name = "source-rust/application/tests/fixtures/reflection/fail/inspect_record_fields_input_precondition";
     let expected = std::fs::read_to_string(fixture(name).join("expected.txt")).unwrap();
-    let (success, report) = run_both(name);
+    let (success, report) = invoke(&["--check"], name);
     assert!(!success, "{report}");
     assert!(report.contains(expected.trim()), "{report}");
     assert!(report.contains("main.omg:21:5"), "{report}");
@@ -90,9 +94,12 @@ fn a_callback_with_a_precondition_the_binder_does_not_publish_is_refused() {
 
 #[test]
 fn a_parameter_description_retains_a_non_first_formal_in_both_engines() {
-    let (success, report) = run_both("tests/fixtures/reflection/run/parameter_description");
-    assert!(success, "{report}");
-    for receipt in ["native exit 0", "interp exit: 0"] {
+    for (engine, receipt) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+        let (success, report) = invoke(
+            &["run", "--engine", engine],
+            "tests/fixtures/reflection/run/parameter_description",
+        );
+        assert!(success, "{report}");
         assert!(report.lines().any(|line| line == receipt), "{report}");
     }
 }
@@ -101,16 +108,19 @@ fn a_parameter_description_retains_a_non_first_formal_in_both_engines() {
 fn an_address_field_cannot_substitute_for_a_parameter_declaration() {
     let name = "tests/fixtures/reflection/fail/parameter_description_wrong_kind";
     let expected = std::fs::read_to_string(fixture(name).join("expected.txt")).unwrap();
-    let (success, report) = run_both(name);
+    let (success, report) = invoke(&["--check"], name);
     assert!(!success, "{report}");
     assert!(report.contains(expected.trim()), "{report}");
 }
 
 #[test]
 fn runtime_visitors_preserve_the_contexts_borrowed_storage() {
-    let (success, report) = run_both("source-rust/application/tests/fixtures/reflection/run/borrowed_context");
-    assert!(success, "{report}");
-    for receipt in ["native exit 0", "interp exit: 0"] {
+    for (engine, receipt) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+        let (success, report) = invoke(
+            &["run", "--engine", engine],
+            "source-rust/application/tests/fixtures/reflection/run/borrowed_context",
+        );
+        assert!(success, "{report}");
         assert!(report.lines().any(|line| line == receipt), "{report}");
     }
 }
@@ -118,13 +128,14 @@ fn runtime_visitors_preserve_the_contexts_borrowed_storage() {
 #[test]
 fn the_wire_program_round_trips_thirteen_bytes_and_every_field() {
     let project = support::repository_root().join("samples/cli/systems/wire_protocol");
-    let (status, report) = run_project(&project);
-    assert_eq!(status, Some(70), "{report}");
-    for receipt in [
-        "native exit 70",
-        "interp exit: 70",
-        "PASS: 13 bytes round-tripped with every field intact (exit 70)",
-    ] {
-        assert!(report.lines().any(|line| line == receipt), "{report}");
+    for (engine, expected) in [("native", "native exit 70"), ("psi", "Psi exit 70")] {
+        let (status, report) = run_project(&["run", "--engine", engine], &project);
+        assert_eq!(status, Some(70), "{report}");
+        for receipt in [
+            expected,
+            "PASS: 13 bytes round-tripped with every field intact (exit 70)",
+        ] {
+            assert!(report.lines().any(|line| line == receipt), "{report}");
+        }
     }
 }

@@ -1,27 +1,9 @@
-use omega\language\core\Extent;
-use omega\language\core\Extent::Granted;
-use omega\language\core\Extent::Vacant;
-use omega\language\core\VacantExtentParts;
-use omega\language\core\split_vacant_extent;
-use omega\language\core\merge_vacant_extents;
-use omega\language\core\Schema;
-use omega\language\core\FieldPlan;
-use omega\language\core\FieldEntry;
-use omega\language\core\LayoutPlan;
-use omega\language\core\Exposure;
-use omega\language\core\FieldAccess;
-use omega\language\core\AccessPlan;
-use omega\language\core\AccessPolicy;
-use omega\language\core\Issuance;
-use omega\language\core\FixedLayout;
-use omega\language\core\LayoutStorage;
-use omega\language\core\LayoutTarget;
-use omega\language\core\reflect\TypeSchema;
-use omega\language\core\reflect\field;
-use omega\language\core\access;
-use omega\language\core\AccessOutcome;
-use omega\language\core\read;
-use omega\language\core\write;
+use main.omg as backing;
+use {omega}/language/core/extent.omg as range;
+use {omega}/language/core/access/access.omg;
+use {omega}/language/core/layout.omg;
+use {omega}/language/core/reflect/reflect.omg as reflection;
+
 // Runtime-sized u32 vector over caller-supplied, qualified backing.
 // The owner supplies storage; growth returns the old extent for release by
 // that same allocator. No capacity ladder, ambient allocator or hidden free.
@@ -37,52 +19,52 @@ use omega\language\core\write;
 public data VecCell { value: u32; }
 // The cell's representation remains four bytes at alignment four. Access
 // requests keep that independent selection rather than embedding it in a policy.
-public data VecCellStorage = LayoutStorage<VecCell, VecCellLayout>;
+public data VecCellStorage = |layout|::LayoutStorage<VecCell, VecCellLayout>;
 public domain VecCellStorage::Controlled
     access VecCellPolicy;
-public VecCellLayout satisfies FixedLayout<VecCell> {
-    public machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches none crashes none terminates {
-        let mutable entries: [FieldEntry; 64];
-        entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
-        LayoutPlan { entries: entries, entry_count: 1, size_fixed: 4, size_is_dynamic: false, align: 4 }
+public VecCellLayout satisfies |layout|::FixedLayout<VecCell> {
+    public machine plan(schema: |layout|::Schema, target: |layout|::LayoutTarget) -> |layout|::LayoutPlan reaches none crashes none terminates {
+        let mutable entries: [|layout|::FieldEntry; 64];
+        entries[0] = |layout|::FieldEntry { key: schema.fields[0].key, representation: |layout|::FieldPlan::At { offset: 0 } };
+        |layout|::LayoutPlan { entries: entries, entry_count: 1, size_fixed: 4, size_is_dynamic: false, align: 4 }
     }
 }
 
-public VecCellPolicy satisfies AccessPolicy {
-    machine plan(schema: TypeSchema) -> AccessPlan reaches none crashes none terminates {
-        let mutable plan: AccessPlan = access\new_plan(@schema, Issuance::Unrestricted);
-        access\observe(@mutable plan, field(VecCell::value),
-            FieldAccess::Stable { read: true, take: false, write: true, swap: false, exposure: Exposure::Exported });
+public VecCellPolicy satisfies |layout|::AccessPolicy {
+    machine plan(schema: |reflection|::TypeSchema) -> |layout|::AccessPlan reaches none crashes none terminates {
+        let mutable plan: |layout|::AccessPlan = |access|::new_plan(@schema, |layout|::Issuance::Unrestricted);
+        |access|::observe(@mutable plan, |reflection|::field(VecCell::value),
+            |layout|::FieldAccess::Stable { read: true, take: false, write: true, swap: false, exposure: |layout|::Exposure::Exported });
         plan
     }
 }
 
-data Observed { storage: Extent in Granted & Vacant; value: u32; }
+data Observed { storage: |backing|::VacantStorage; value: u32; }
 
-machine store_cell<Role>(storage: @mutable Extent in Granted & Vacant, value: u32)
+machine store_cell<Role>(storage: @mutable |backing|::VacantStorage, value: u32)
 crashes Trap
 {
-    transition access\view_extent_mut::<VecCellStorage in VecCellStorage::Controlled, Role>(storage as @mutable Extent in Granted) {
-        AccessOutcome::Ready { view } -> change(view, value),
-        AccessOutcome::Rejected { returned, reason } -> bad()
+    transition |access|::view_extent_mut::<VecCellStorage in VecCellStorage::Controlled, Role>(storage as @mutable |range|::Extent in |range|::Extent::Granted) {
+        |layout|::AccessOutcome::Ready { view } -> change(view, value),
+        |layout|::AccessOutcome::Rejected { returned, reason } -> bad()
     }
     machine change(view: @mutable VecCellStorage in VecCellStorage::Controlled, value: u32) {
-        write(@mutable view.value, value);
+        |layout|::write(@mutable view.value, value);
     }
     machine bad() { crash Trap; }
 }
 
-machine store<Role>(storage: Extent in Granted & Vacant, offset: u64, value: u32) -> Extent in Granted & Vacant
+machine store<Role>(storage: |backing|::VacantStorage, offset: u64, value: u32) -> |backing|::VacantStorage
 requires storage.length >= 4, offset <= storage.length - 4
 ensures result.base == storage.base, result.length == storage.length
 crashes Trap
 {
-    let prefix: VacantExtentParts = split_vacant_extent(storage, offset);
-    let element: VacantExtentParts = split_vacant_extent(prefix.rest, 4);
-    let mutable cell: Extent in Granted & Vacant = element.taken;
+    let prefix: |range|::VacantExtentParts = |range|::split_vacant_extent(storage, offset);
+    let element: |range|::VacantExtentParts = |range|::split_vacant_extent(prefix.rest, 4);
+    let mutable cell: |backing|::VacantStorage = element.taken;
     store_cell::<Role>(@mutable cell, value);
-    let suffix: Extent in Granted & Vacant = merge_vacant_extents(cell, element.rest);
-    let whole: Extent in Granted & Vacant = merge_vacant_extents(prefix.taken, suffix);
+    let suffix: |backing|::VacantStorage = |range|::merge_vacant_extents(cell, element.rest);
+    let whole: |backing|::VacantStorage = |range|::merge_vacant_extents(prefix.taken, suffix);
     whole
 }
 
@@ -91,18 +73,18 @@ public data Vec
 requires self.length <= self.capacity, self.capacity <= 4611686018427387903,
     self.storage.length == self.capacity * 4
 {
-    storage: Extent in Granted & Vacant;
+    storage: |backing|::VacantStorage;
     length: u64;
     capacity: u64;
 }
 
-public machine Vec::open(storage: Extent in Granted & Vacant, capacity: u64) -> Vec
+public machine open(storage: |backing|::VacantStorage, capacity: u64) -> Vec
 requires capacity <= 4611686018427387903, storage.length == capacity * 4
 ensures result.length == 0, result.capacity == capacity,
     result.storage.base == storage.base, result.storage.length == storage.length
 { Vec { storage: storage, length: 0, capacity: capacity } }
 
-public machine Vec::push<Role>(vec: Vec, value: u32) -> Vec
+public machine push<Role>(vec: Vec, value: u32) -> Vec
 requires vec.length < vec.capacity
 ensures result.length == vec.length + 1, result.capacity == vec.capacity,
     result.storage.base == vec.storage.base, result.storage.length == vec.storage.length
@@ -110,35 +92,35 @@ crashes Trap
 {
     let length: u64 = vec.length;
     let capacity: u64 = vec.capacity;
-    let storage: Extent in Granted & Vacant = vec.storage;
-    let changed: Extent in Granted & Vacant = store::<Role>(storage, length * 4, value);
+    let storage: |backing|::VacantStorage = vec.storage;
+    let changed: |backing|::VacantStorage = store::<Role>(storage, length * 4, value);
     Vec { storage: changed, length: length + 1, capacity: capacity }
 }
 
-machine inspect_cell<Role>(storage: @Extent in Granted & Vacant) -> u32 crashes Trap {
-    transition access\view_extent::<VecCellStorage in VecCellStorage::Controlled, Role>(storage as @Extent in Granted) {
-        AccessOutcome::Ready { view } -> read(@view.value),
-        AccessOutcome::Rejected { returned, reason } -> bad()
+machine inspect_cell<Role>(storage: @|backing|::VacantStorage) -> u32 crashes Trap {
+    transition |access|::view_extent::<VecCellStorage in VecCellStorage::Controlled, Role>(storage as @|range|::Extent in |range|::Extent::Granted) {
+        |layout|::AccessOutcome::Ready { view } -> |layout|::read(@view.value),
+        |layout|::AccessOutcome::Rejected { returned, reason } -> bad()
     }
     machine bad() -> u32 { crash Trap; }
 }
 
-machine inspect<Role>(storage: Extent in Granted & Vacant, offset: u64) -> Observed
+machine inspect<Role>(storage: |backing|::VacantStorage, offset: u64) -> Observed
 requires storage.length >= 4, offset <= storage.length - 4
 ensures result.storage.base == storage.base, result.storage.length == storage.length
 crashes Trap
 {
-    let prefix: VacantExtentParts = split_vacant_extent(storage, offset);
-    let element: VacantExtentParts = split_vacant_extent(prefix.rest, 4);
-    let cell: Extent in Granted & Vacant = element.taken;
+    let prefix: |range|::VacantExtentParts = |range|::split_vacant_extent(storage, offset);
+    let element: |range|::VacantExtentParts = |range|::split_vacant_extent(prefix.rest, 4);
+    let cell: |backing|::VacantStorage = element.taken;
     let value: u32 = inspect_cell::<Role>(@cell);
-    let suffix: Extent in Granted & Vacant = merge_vacant_extents(cell, element.rest);
-    let whole: Extent in Granted & Vacant = merge_vacant_extents(prefix.taken, suffix);
+    let suffix: |backing|::VacantStorage = |range|::merge_vacant_extents(cell, element.rest);
+    let whole: |backing|::VacantStorage = |range|::merge_vacant_extents(prefix.taken, suffix);
     Observed { storage: whole, value: value }
 }
 
 public data Read { vec: Vec; value: u32; }
-public machine Vec::get<Role>(vec: Vec, index: u64) -> Read
+public machine get<Role>(vec: Vec, index: u64) -> Read
 requires index < vec.length
 ensures result.vec.length == vec.length, result.vec.capacity == vec.capacity,
     result.vec.storage.base == vec.storage.base, result.vec.storage.length == vec.storage.length
@@ -146,17 +128,17 @@ crashes Trap
 {
     let length: u64 = vec.length;
     let capacity: u64 = vec.capacity;
-    let storage: Extent in Granted & Vacant = vec.storage;
+    let storage: |backing|::VacantStorage = vec.storage;
     let observed: Observed = inspect::<Role>(storage, index * 4);
     Read { vec: Vec { storage: observed.storage, length: length, capacity: capacity }, value: observed.value }
 }
 
 data Copied {
-    original: Extent in Granted & Vacant;
-    replacement: Extent in Granted & Vacant;
+    original: |backing|::VacantStorage;
+    replacement: |backing|::VacantStorage;
 }
 
-machine copy_prefix<Role>(original: Extent in Granted & Vacant, replacement: Extent in Granted & Vacant,
+machine copy_prefix<Role>(original: |backing|::VacantStorage, replacement: |backing|::VacantStorage,
     count: u64, remaining: u64) -> Copied
 requires count <= 4611686018427387903, remaining <= count,
     original.length >= count * 4, replacement.length >= count * 4
@@ -169,7 +151,7 @@ crashes Trap
         true -> step::<Role>(original, replacement, count, remaining),
         false -> Copied { original: original, replacement: replacement }
     }
-    machine step<Role>(original: Extent in Granted & Vacant, replacement: Extent in Granted & Vacant,
+    machine step<Role>(original: |backing|::VacantStorage, replacement: |backing|::VacantStorage,
         count: u64, remaining: u64) -> Copied
     requires remaining > 0, count <= 4611686018427387903, remaining <= count,
         original.length >= count * 4, replacement.length >= count * 4
@@ -178,15 +160,15 @@ crashes Trap
     {
         let offset: u64 = (count - remaining) * 4;
         let observed: Observed = inspect::<Role>(original, offset);
-        let changed: Extent in Granted & Vacant = store::<Role>(replacement, offset, observed.value);
+        let changed: |backing|::VacantStorage = store::<Role>(replacement, offset, observed.value);
         transition { _ -> copy_prefix::<Role>(observed.storage, changed, count, remaining - 1) }
     }
 }
 
-public data Growth { vec: Vec; retired_storage: Extent in Granted & Vacant; }
-machine verify_vector(storage: @Extent in Granted & Vacant, length: u64, capacity: u64)
+public data Growth { vec: Vec; retired_storage: |backing|::VacantStorage; }
+machine verify_vector(storage: @|backing|::VacantStorage, length: u64, capacity: u64)
 requires length <= capacity, capacity <= 4611686018427387903, storage.length == capacity * 4 {}
-public machine Vec::grow<Role>(vec: Vec, replacement: Extent in Granted & Vacant, capacity: u64)
+public machine grow<Role>(vec: Vec, replacement: |backing|::VacantStorage, capacity: u64)
     -> Growth
 requires capacity <= 4611686018427387903, capacity >= vec.length,
     replacement.length == capacity * 4
@@ -196,13 +178,13 @@ ensures result.vec.length == vec.length, result.vec.capacity == capacity,
 crashes Trap
 {
     let length: u64 = vec.length;
-    let original: Extent in Granted & Vacant = vec.storage;
+    let original: |backing|::VacantStorage = vec.storage;
     let copied: Copied = copy_prefix::<Role>(original, replacement, length, length);
     verify_vector(@copied.replacement, length, capacity);
     let grown: Vec = Vec { storage: copied.replacement, length: length, capacity: capacity };
     Growth { vec: grown, retired_storage: copied.original }
 }
 
-public machine Vec::close(vec: Vec) -> Extent in Granted & Vacant
+public machine close(vec: Vec) -> |backing|::VacantStorage
 ensures result.base == vec.storage.base, result.length == vec.storage.length
 { vec.storage }

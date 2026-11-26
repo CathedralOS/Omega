@@ -7,7 +7,8 @@ remainder and increment safe without wrapping arithmetic.
 From the repository root:
 
 ```sh
-mbx run -p omega -- run --both samples/cli/arithmetic/smallest_prime_factor/main.omg
+mbx run -p omega -- run --engine native samples/cli/arithmetic/smallest_prime_factor/main.omg
+mbx run -p omega -- run --engine psi samples/cli/arithmetic/smallest_prime_factor/main.omg
 ```
 
 Use Cargo if `mbx` is unavailable. Complete any requested local package review

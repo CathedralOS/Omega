@@ -54,7 +54,7 @@ use {system}/console.omg;
 machine build(build: @mutable Build) {
     let system: DependencyDescription =
         |dependency|::from_source(Source::Path { location: "vendor/system" });
-    let allowed: [BoundaryServiceRef; 1] = [
+    let allowed: [BoundaryServiceReference; 1] = [
         Build::service::<|process|::StandardOutput>(build)
     ];
     _ = |dependency|::add(build, system, @allowed[..]);
@@ -80,7 +80,7 @@ machine build(build: @mutable Build) {
     |generated|::announce("configuring editor");
     Build::application(build, "editor");
     let system: PackageBinding = |dependency|::input(build, "system");
-    let allowed: [BoundaryServiceRef; 1] = [
+    let allowed: [BoundaryServiceReference; 1] = [
         Build::service::<|process|::StandardOutput>(build)
     ];
     _ = |dependency|::add(build, system, @allowed[..]);

@@ -141,7 +141,7 @@ requested package review first and then invoke the ordinary compiler commands vi
 
 ```text
 mbx run -p omega -- packages update --project samples/cli/basics/cli_mvp
-mbx run -p omega -- run --project samples/cli/basics/cli_mvp --both
+mbx run -p omega -- run --engine native samples/cli/basics/cli_mvp/build.omg
 ```
 
 `mbx` is required for repository Rust builds and runs (never use raw `cargo` fallbacks).

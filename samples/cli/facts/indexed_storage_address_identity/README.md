@@ -32,7 +32,8 @@ Every positive place and the root `main.omg` probe binds `ProgramEntry` for
 
 ```sh
 omega --check samples/cli/facts/indexed_storage_address_identity/<place>/main.omg
-omega run --both samples/cli/facts/indexed_storage_address_identity/<place>/main.omg
+omega run --engine native samples/cli/facts/indexed_storage_address_identity/<place>/main.omg
+omega run --engine psi samples/cli/facts/indexed_storage_address_identity/<place>/main.omg
 ```
 
 `omega run --both` reports the native exit and the Terminal Psi exit;

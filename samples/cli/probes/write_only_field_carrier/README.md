@@ -8,5 +8,6 @@ no observation of the old referent.
 After ordinary package review, run:
 
 ```sh
-omega run --both samples/cli/collections/write_only_field_carrier/main.omg
+omega run --engine native samples/cli/collections/write_only_field_carrier/main.omg
+omega run --engine psi samples/cli/collections/write_only_field_carrier/main.omg
 ```

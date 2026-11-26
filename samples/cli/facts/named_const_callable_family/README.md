@@ -45,8 +45,10 @@ A callback generic over a type (`accepts<'borrow, Kind>`) failed the same way wi
 Every positive binds `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) in its `build.omg` and declares `Expected exit: 0`. `omega run --both` reports Terminal Psi interpreter and native execution agreement:
 
 ```sh
-omega run --both samples/cli/facts/named_const_callable_family/<place>/main.omg < /dev/null
-omega run --both samples/cli/facts/named_const_callable_family/<place>/invalid/main.omg < /dev/null
+omega run --engine native samples/cli/facts/named_const_callable_family/<place>/main.omg < /dev/null
+omega run --engine psi samples/cli/facts/named_const_callable_family/<place>/main.omg < /dev/null
+omega run --engine native samples/cli/facts/named_const_callable_family/<place>/invalid/main.omg < /dev/null
+omega run --engine psi samples/cli/facts/named_const_callable_family/<place>/invalid/main.omg < /dev/null
 ```
 
 Measured on Windows x86-64 (32 logical CPUs) with the optimized producer built from `949694bc033` plus this change (`omega --build-profile` reports `opt_level: 1`):

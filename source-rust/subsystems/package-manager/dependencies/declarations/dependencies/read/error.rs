@@ -1,17 +1,16 @@
 // Error diagnostics for conservative `build.omg` dependency row projection.
 
-use crate::declarations::BuildDeclarationError;
 use std::fmt;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum DependencyProjectionError {
+pub enum DependencyProjectionError {
     Lex { message: String },
     Parse { message: String },
-    BuildDeclaration(Box<BuildDeclarationError>),
     AuthoredToolchainVocabulary { name: String },
     ScopedBuildMachine { scope: String },
     DuplicateBuildMachines { count: usize },
     InvalidBuildMachine,
+    MissingBuildMachine,
     MissingBuildEntry,
     InvalidBuildParameter,
     UnsupportedDependencyShape,
@@ -40,9 +39,7 @@ impl fmt::Display for DependencyProjectionError {
         match self {
             Self::Lex { message } => write!(formatter, "cannot lex package build: {message}"),
             Self::Parse { message } => write!(formatter, "cannot parse package build: {message}"),
-            Self::BuildDeclaration(error) => {
-                write!(formatter, "cannot project dependencies without a valid project role: {error}")
-            }
+            Self::MissingBuildMachine => formatter.write_str("no free Build entry to edit"),
             Self::AuthoredToolchainVocabulary { name } => write!(
                 formatter,
                 "package build must not declare toolchain dependency vocabulary `{name}`"
@@ -59,8 +56,10 @@ impl fmt::Display for DependencyProjectionError {
             Self::MissingBuildEntry => {
                 formatter.write_str("package build machine has no callable entry")
             }
-            Self::InvalidBuildParameter => formatter.write_str(
-                "package build machine requires one parameter of type `@mutable Build`",
+            Self::InvalidBuildParameter => write!(
+                formatter,
+                "package build machine requires one parameter of type `@mutable {}`",
+                build_declarations::BUILD_TYPE_NAME
             ),
             Self::UnsupportedDependencyShape => formatter.write_str(
                 "automatic dependency editing requires unconditional direct `_ = Build::dependency(builder, |dependency|::from_source(Source::...));` registrations, or a `let mutable name: DependencyDescription = |dependency|::from_source(Source::...);` local directly followed by `|dependency|::with_alias(@mutable name, \"alias\");` and `_ = Build::dependency(builder, name);`, in the root build entry; dependency helpers, conditional registrations, state transitions, and reused descriptions are not editable dependency declaration forms",

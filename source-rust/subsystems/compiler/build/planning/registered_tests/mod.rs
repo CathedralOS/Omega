@@ -1,9 +1,6 @@
 //! Execute each Build-registered test as a separately published Product.
-#[path = "registered_tests/native.rs"]
 mod native;
-#[path = "registered_tests/plan.rs"]
 mod plan;
-#[path = "registered_tests/result.rs"]
 mod result;
 use self::result::{EngineError, NativeTermination, Observed, PsiTermination, Run, assess};
 use super::ProductStage;
@@ -127,23 +124,23 @@ fn run_test(
             .psi_artifact()
             .semantic_module()
             .can_end_the_process();
-        execute_native(report, can_exit, inputs, expected)
+        execute_native(report, can_exit, inputs, expected, profile)
     });
     assess(interpreted, native, execution, expected)
 }
 
 /// The private descriptor table starts with pipes only, including EOF when the
 /// Build supplies no input bytes. Each invocation starts its own read cursor.
-fn standard_input(inputs: &TestInvocationInputs) -> Option<&[u8]> {
+fn standard_input(inputs: &TestInvocationInputs, target: TargetProfile) -> Option<&[u8]> {
     inputs
         .stdin
         .as_deref()
-        .or_else(|| inputs.private_filesystem.then_some(&[]))
+        .or_else(|| matches!(target, TargetProfile::LinuxX64 | TargetProfile::LinuxArm64).then_some(&[]))
 }
 
 fn interpret(
     report: &CompletedProduct,
-    target: TargetProfile,
+    profile: TargetProfile,
     inputs: &TestInvocationInputs,
     expected: &TestExpectations,
 ) -> Run<PsiTermination> {
@@ -157,7 +154,7 @@ fn interpret(
         ));
     };
     let limits = crate::NativeEntryLimits::INSTALLED;
-    let target = target.target_name();
+    let target = profile.target_name();
     let x86_flags = match terminal_runtime::capture_host_x86_flags(target) {
         Ok(flags) => flags,
         Err(error) => return Err(EngineError::Unavailable(error.to_string())),
@@ -192,7 +189,7 @@ fn interpret(
                 stderr_bytes: limits.capture.stderr_bytes,
                 combined_bytes: usize::try_from(limits.combined_output_bytes).unwrap_or(usize::MAX),
             }),
-            standard_input: standard_input(inputs).map(|bytes| {
+            standard_input: standard_input(inputs, profile).map(|bytes| {
                 Box::new(std::io::Cursor::new(bytes)) as Box<dyn std::io::Read + Send>
             }),
             clock: None,
@@ -243,6 +240,7 @@ fn execute_native(
     can_exit: bool,
     inputs: &TestInvocationInputs,
     expected: &TestExpectations,
+    target: TargetProfile,
 ) -> Run<NativeTermination> {
     let directory =
         platform_custody::temporary_directory::TemporaryDirectory::create("test", false).map_err(
@@ -277,7 +275,7 @@ fn execute_native(
                 },
             )
         }),
-        standard_input(inputs),
+        standard_input(inputs, target),
     )?;
     Ok(Observed {
         files: expected.files.keys().cloned().zip(files).collect(),

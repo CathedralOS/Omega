@@ -108,7 +108,7 @@ machine build(build: @mutable Build) {
     Build::enable_unsafe::<ForeignCodeExecution>(build);
     let updater: DependencyDescription =
         |dependency|::from_source(Source::Path { location: "updater" });
-    let allowed: [BoundaryServiceRef; 2] = [
+    let allowed: [BoundaryServiceReference; 2] = [
         Build::service::<NativeImageLoad>(build),
         Build::service::<ForeignCodeExecution>(build)
     ];

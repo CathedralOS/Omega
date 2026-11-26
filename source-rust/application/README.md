@@ -18,7 +18,7 @@ For source inputs, the CLI asks the package manager to prepare the project and r
 | Operation | Request and result |
 | --- | --- |
 | [Compile](src/commands/compile.rs) | Product and targets to diagnostics, ordered reports and published files |
-| [Run](src/execution/mod.rs) | Execution options to process status, output and requested interpreter comparison |
+| [Run](src/execution/mod.rs) | Execution options to the selected engine’s termination and output |
 | [Inspect](src/inspection/mod.rs) | Source and machine, or a saved artifact, to a Psi inspection report |
 | [Package operations](src/commands/packages.rs) | Package selection and policy decisions to package-manager operations |
 
@@ -26,25 +26,24 @@ A grant in the root's `build.omg` accepts that claim or provider plan; a
 dependency's claims are accepted through `omega.lock`. There is no second
 admissions file.
 
-`run_project` creates a temporary directory per invocation. It deletes
-disposable output on success and failure, and keeps requested output, including
-from an interpreter disagreement. A native run with
-only `--target` compiles without running the image. The Psi engine keeps the
-target but runs through its admitted host adapters. Host
-execution returns raw stdout/stderr bytes and process status. `--both` agrees
-only when both runs finish the same way and write the same stdout and stderr
-bytes. A mismatch names the stream and its first differing line, and exits 201.
-A Psi run that exhausts its work budget declines the comparison.
+An application run selects native or Psi execution. Native is the default.
+With an explicit `--target`, the native engine emits the target image. The Psi
+engine executes with the selected target's admitted host adapters. A run uses
+a fresh temporary directory. `--keep` retains its artifacts.
 
-A single run also compares the observed bytes of any requested entry RAM.
+`omega build --compare-tests build.omg` executes each enabled, registered test
+on both engines. The installed adapter supplies arguments and may check
+returned fields in ordinary Omega. Each invocation receives its own configured
+stdin and private filesystem. Build checks termination, stdout, stderr and
+declared file outcomes. Matching traps or matching incorrect output fail the
+test. A project with no selected tests reports zero comparisons.
+[Build test comparison](../../wiki/spec/build/testing.md#comparing-native-and-psi-tests)
 
-`omega build --compare-tests build.omg` runs each enabled, registered test
-on native and Psi. The build reports whether each invocation returned and
-whether the two executions agreed on termination, stdout and stderr. Two
-matching traps still fail the test. A project with no selected tests reports
-zero comparisons. The current runner accepts parameterless tests with no
-configured services. The remaining work includes declared file and field
-observations. [Build test comparison](../../wiki/spec/build/testing.md#comparing-native-and-psi-tests)
+For repository samples with application entry points, run
+`mbx xtask sample-gate --filter samples/cli/basics/cli_mvp`. To inspect an
+individual program, run each engine with the same input and a fresh observation
+directory. Each writes `termination.tsv`, the guest stdout and stderr bytes,
+and any requested private entry RAM.
 
 Each registered test receives 4 MiB for stdout, 4 MiB for stderr and 8 MiB
 in total per engine. Native runs have 60 seconds for execution and cleanup.
@@ -57,25 +56,15 @@ different visible byte proves disagreement. A matching byte leaves the exact
 exit comparison unavailable. A zero status can also come from a normal return
 when the test has both paths.
 
-Comparisons accept `--both --psi-work-budget <positive-u64>`. Each interpreter
-invocation, including each input case and stdin replay, gets the full budget
-(default 10,000,000 logical work units). The flag needs
-`--both` without `--target`, or `--engine psi`. Running out declines the
-comparison and stops a Psi-only run with status 200. Native execution has
-no work counter. Kept single-run artifacts and case outputs include
-`psi.work.tsv` (case-prefixed in batch mode), recording the budget, units
-charged and schedule identity.
+`run --engine psi --psi-work-budget <positive-u64>` supplies the full budget
+to each invocation (default 10,000,000 logical work units). Exhaustion exits
+200. Kept Psi artifacts and case outputs include `psi.work.tsv` (case-prefixed
+in batch mode), recording the budget, units charged and schedule identity.
 
-`run --keep` keeps the published native image, its exact `program.oterm`,
-`native.identity.txt`, and requested comparison streams. It does not
-write a text dump of the native object's internal evidence graph.
+Native `run --keep` retains the published image, its exact `program.oterm` and
+`native.identity.txt`. Host runs inherit the caller's stdin. Provide each engine
+the same finite file when inspecting a program that consumes input.
 
-An ordinary host run passes the caller's stdin through without first reading to
-EOF. When a program compared with `--both` imports standard input, the command
-reads stdin to EOF so the interpreter and native program replay the same bytes;
-a program without a stdin import never reads it. Compare
-stdin-reading programs through a finite pipe or file, and end interactive
-input with EOF. The saved input is deleted even with `--keep`.
 `--inputs <dir> --outputs <dir>` runs many cases against one compilation.
 Every `*.stdin` file in the directory, in name order (or each repeated
 `--input <file>`, in the given order and named by file stem), is fed to the
@@ -87,27 +76,17 @@ batch creates a fresh output directory, writes the guest bytes to `<case>.stdout
 incomplete, unavailable or failed execution makes the batch exit 200. Case
 names must be distinct file stems and fit one TSV field.
 
-With native execution or the legacy comparison, each case writes `<case>.stdout` and `<case>.stderr`, plus
-`<case>.terminal.stdout` and `<case>.terminal.stderr` when interpreted, and
-`results.tsv` lists each case's native status, comparison verdict and
-interpreter status. The command exits 201 when any case diverges or fails to
-interpret, 204 if any comparison was declined and none failed, and 0 otherwise.
-The programs' own statuses are in `results.tsv`. Validations that compiled once per
-input, or linked their own capture program, use this.
-A native target-only build does not read stdin. The command holds stdout/stderr until
-native execution ends, then forwards the original bytes without UTF-8 decoding,
-before its own diagnostics on stderr. If writing or flushing a stream fails, the
-command reports an error (status 200), not a successful program result.
+A native batch writes each case's raw `<case>.stdout` and `<case>.stderr`
+and records its process status in `results.tsv`. A successful capture of all
+cases exits zero. A native target-only build leaves stdin untouched. The
+command forwards buffered guest bytes before its diagnostics.
 
-A comparison runs the shared [hosted Terminal runtime](../subsystems/interpreter/host/README.md)
-on the exact artifact the native build produced, with its retained entry and
-provider provisions, before publication moves that payload. It never interprets
-an older program, recompiles or reruns Build. The runtime gives the
+Psi executes the selected program through the shared [hosted Terminal
+runtime](../subsystems/interpreter/host/README.md). The runtime gives the
 program an isolated hosted root and buffered output. The standalone CLI
 hands ProcessExit to that fresh private domain; an embedding request hands
-over no exit by default. Entry Binding fields, reach and selected
-providers grant no authority. The core ties each handover to the actual
-instance and exact requirement, never the CLI host or another instance. Selected byte input reads the captured finite replay stream.
+over no exit by default. The core ties each handover to the actual instance
+and exact requirement.
 
 Time: exact Darwin clock imports and Linux clock and wait syscalls share one
 modeled clock private to the invocation, started from a snapshot of host time;
@@ -127,11 +106,8 @@ status. A large transfer is limited to the selected kernel page size, not an
 impossible full-count write.
 
 Descriptor-backed or unbounded waits, CPU clocks and other missing imports
-decline without a tree fallback. For termination, a typed `Trap` must match
-the executing host's architectural trap presentation.
-Other unmapped crashes and running out of the sponsor's work budget decline
-explicitly. A Windows exception status can share its bits with an authored exit
-code, so matching presentation does not prove the same cause.
+can prevent execution. The Psi run reports the unavailable capability or
+incomplete result.
 
 The library is synchronous and has the compiler's stack requirements. The CLI
 sets up its compiler worker stack; embedding callers must provide the same
@@ -154,10 +130,8 @@ The CLI package is **`omega`** (binary `omega`); there is no `omega-cli`.
 
 The [standalone engine contract](../../wiki/spec/build/embedding.md#standalone-execution-selection)
 chooses the engine with `run --engine native|psi`, defaulting to native.
-A Psi-only run uses the same admitted runtime as a comparison, without emitting
-or launching a native image. `--both` is a separate comparison request and
-cannot be combined with `--engine`. Target and provider choice are
-independent; a missing interpreter adapter never falls back to native.
+A Psi-only run uses the admitted runtime. Target and provider choice are
+independent. A missing interpreter adapter refuses execution.
 `UNIVERSAL-INTERPRETER-CLOSURE` in
 [TASKS.md](../../../TASKS.md#universal-interpreter-cutover) tracks the remaining
 implementation.
@@ -184,7 +158,8 @@ omega [--check] [--offline] [--timings]
       [--report-file <path>]
       [--build-input <path>]... [--optional-build-input <path>]...
       [--build-dir <dir>] [--target <name>]... [--disable-optimization <ExactName>]... <root.omg>
-omega run [--engine <native|psi> | --both] [--psi-work-budget <positive-u64>] [--keep] [--entry-ram <position>=<hex-bytes>]... [--target <name>] [(--inputs <dir> | --input <file>...) --outputs <dir>] <root.omg>
+omega build [--compare-tests] <root.omg>
+omega run [--engine <native|psi>] [--psi-work-budget <positive-u64>] [--keep] [--entry-ram <position>=<hex-bytes>]... [--target <name>] [(--inputs <dir> | --input <file>...) --outputs <dir>] <root.omg>
 omega psi inspect --machine <qualified> [--target <name>] <root.omg>
 omega source parse [--] <file>
 omega source rewrite <ExactRule>... [--check] <root.omg>
@@ -224,15 +199,8 @@ halt value: 0 when the requested product is complete, 1 for a rejection, and 2
 a proof-search limit, with no verdict on the source. With several targets it
 exits 2 only when every refused target is incomplete; any rejection exits 1.
 Argument errors exit 64 (`EX_USAGE`) before compilation starts. `omega run`
-has its own statuses: the program's exit status; 200 when compilation or launch
-fails; 202 when compilation stopped at a named private provision
-(`Incomplete`); and 201 when the `--both` interpreter run disagrees on its exit,
-crash or stdout/stderr bytes, or hits a runtime or artifact defect; and 204 when `--both` could not compare the two
-runs. That covers a Psi run that ran out of work, waited on the host, returned
-no process result or hit an unsupported construct, and a Psi exit status
-outside 0..=255 that a Unix host shows only as its low byte. Such a run reports
-`DECLINED`; it never reports agreement or reuses the native status. Case runs
-exit 201 if any case diverged, else 204 if any case was declined.
+returns the program's exit status on completion, 200 on compile or launch
+failure, and 202 when compilation stops at a named private provision.
 
 `--engine psi` exits with the interpreted program's own status; 203 when the
 program crashes (the cause is reported, since a process cannot present the

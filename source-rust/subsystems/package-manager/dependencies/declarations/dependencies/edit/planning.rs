@@ -260,6 +260,26 @@ machine build(builder: @mutable Build) {
     }
 
     #[test]
+    fn dependency_edits_preserve_the_helper_which_selects_the_product() {
+        let source = "machine build(plan: @mutable Build) {\n    choose(plan);\n}\n";
+        let helper = "machine choose(plan: @mutable Build) { Build::package(plan, \"kit\"); }\n";
+        let proposed = path(Some("tools"), "../tools");
+        let edit = plan_dependency_addition_from_source(
+            PathBuf::from("build.omg"),
+            format!("{source}{helper}"),
+            &proposed,
+        )
+        .unwrap();
+        let updated = replaced(edit);
+        assert!(updated.contains("    choose(plan);"));
+        assert!(updated.ends_with(helper));
+        assert_eq!(
+            extract_scoped_from_source(&updated).unwrap(),
+            [(DependencyPurpose::Product, proposed)]
+        );
+    }
+
+    #[test]
     fn add_and_replace_use_the_parameter_bound_by_the_entry() {
         let initial =
             "machine build(plan: @mutable Build) {\n    Build::package(plan, \"client\");\n}\n";

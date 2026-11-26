@@ -477,7 +477,7 @@ fn dependency_input_forwards_the_frozen_alias_to_the_product() {
         r#"use {omega}/build/dependency.omg as dep;
 machine build(builder: @mutable Build) {
     let input: PackageBinding = |dep|::input(builder, "layout");
-    let empty: [BoundaryServiceRef; 0] = [];
+    let empty: [BoundaryServiceReference; 0] = [];
     let registration: DependencyRegistration = |dep|::add(builder, input, @empty[..]);
     Build::package(builder, "client");
 }"#,
@@ -534,7 +534,7 @@ fn package_bindings_and_service_references_require_values_issued_by_the_build() 
         ),
         (
             r#"let dependency: DependencyDescription = |dep|::from_source(Source::Path { location: "unread" });
-              let forged: [BoundaryServiceRef; 1] = [BoundaryServiceRef {}];
+              let forged: [BoundaryServiceReference; 1] = [BoundaryServiceReference {}];
               _ = |dep|::add(builder, dependency, @forged[..]);"#,
             "requires a service reference this Build issued",
         ),
@@ -586,9 +586,9 @@ public machine free() {}"#,
 use {policy}/main.omg as policy;
 machine build(builder: @mutable Build) {
     Build::package(builder, "client");
-    let app: BoundaryServiceRef = Build::service::<|policy|::Sensor<17u32>>(builder);
+    let app: BoundaryServiceReference = Build::service::<|policy|::Sensor<17u32>>(builder);
     let description: DependencyDescription = |dep|::from_source(Source::Path { location: "library" });
-    let services: [BoundaryServiceRef; 2] = [app, app];
+    let services: [BoundaryServiceReference; 2] = [app, app];
     _ = |dep|::add(builder, description, @services[..]);
 }"#,
         "public machine free() {}",
@@ -636,9 +636,9 @@ public machine free() {}",
 use {helper}/main.omg as helper;
 machine build(builder: @mutable Build) {
     Build::package(builder, "client");
-    let app: BoundaryServiceRef = Build::service::<|helper|::MotorControl>(builder);
+    let app: BoundaryServiceReference = Build::service::<|helper|::MotorControl>(builder);
     let binding: PackageBinding = |dep|::input(builder,"helper");
-    let services: [BoundaryServiceRef; 1] = [app];
+    let services: [BoundaryServiceReference; 1] = [app];
     _ = |dep|::add(builder,binding,@services[..]);
 }"#,
         "public machine free() {}",
@@ -696,7 +696,7 @@ public machine free() {}"#,
         let registration = match allowed_channel {
             None => "_ = |dep|::add(builder, dependency);".to_owned(),
             Some(channel) => format!(
-                "let allowed: [BoundaryServiceRef; 1] = [Build::service::<|policy|::Sensor<{channel}u32>>(builder)];
+                "let allowed: [BoundaryServiceReference; 1] = [Build::service::<|policy|::Sensor<{channel}u32>>(builder)];
     _ = |dep|::add(builder, dependency, @allowed[..]);"
             ),
         };
@@ -775,7 +775,7 @@ machine build(builder: @mutable Build) {{
     _ = |dep|::add(builder, limited);
     let mutable enabled: DependencyDescription = |dep|::from_source(Source::Path {{ location: "library" }});
     |dep|::with_alias(@mutable enabled, "wide");
-    let allowed: [BoundaryServiceRef; 1] = [Build::service::<|policy|::Meter>(builder)];
+    let allowed: [BoundaryServiceReference; 1] = [Build::service::<|policy|::Meter>(builder)];
     _ = |dep|::add(builder, enabled, @allowed[..]);
     Build::bind(builder, {}\{}, |app|::entry);
 }}"#,

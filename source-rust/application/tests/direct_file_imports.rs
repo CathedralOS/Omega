@@ -49,27 +49,27 @@ fn run_example(source: &str) {
     let fixture = support::repository_root().join("samples/cli/probes/direct_file_imports");
     let scratch = TemporaryDirectory::create("direct-file-imports", false).unwrap();
     std::fs::create_dir(scratch.path().join("m")).unwrap();
-    let mut command = Command::new(env!("CARGO_BIN_EXE_omega"));
-    command.args(["run", "--both"]);
-    std::fs::write(scratch.path().join("main.omg"), source).unwrap();
-    command.args(["--build-input", "main.omg"]);
-    for file in ["build.omg", "m/b.omg", "m/value-cell.omg"] {
-        std::fs::copy(fixture.join(file), scratch.path().join(file)).unwrap();
-        command.args(["--build-input", file]);
-    }
-    let output = command
-        .arg("main.omg")
-        .current_dir(scratch.path())
-        .stdin(Stdio::null())
-        .output()
-        .unwrap();
-    let report = format!(
-        "{}{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert!(output.status.success(), "{report}");
-    for receipt in ["native exit 0", "interp exit: 0"] {
+    for (engine, receipt) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_omega"));
+        command.args(["run", "--engine", engine]);
+        std::fs::write(scratch.path().join("main.omg"), source).unwrap();
+        command.args(["--build-input", "main.omg"]);
+        for file in ["build.omg", "m/b.omg", "m/value-cell.omg"] {
+            std::fs::copy(fixture.join(file), scratch.path().join(file)).unwrap();
+            command.args(["--build-input", file]);
+        }
+        let output = command
+            .arg("main.omg")
+            .current_dir(scratch.path())
+            .stdin(Stdio::null())
+            .output()
+            .unwrap();
+        let report = format!(
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(output.status.success(), "{report}");
         assert!(report.lines().any(|line| line == receipt), "{report}");
     }
 }

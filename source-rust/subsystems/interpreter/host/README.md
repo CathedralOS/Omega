@@ -6,7 +6,7 @@ an explicit host request. It admits the requested target and bindings, sets up
 private entry storage, installs host adapters and runs it on the Psi
 interpreter. Replenishing work resumes the same instance.
 
-The portable `execute` and `execute_sliced` entries run without a native image. The [retained-image host](retained-image/execution.rs) also accepts the completed image for programs that observe linked code layout. It checks the supplied image against the target and the canonical Psi manifest before reading the root machine descriptors. The CLI’s `--both` mode and Build’s registered tests use this entry. Both surface inspection failures as execution errors.
+The portable `execute` and `execute_sliced` entries run without a native image. The [retained-image host](retained-image/execution.rs) also accepts the completed image for programs that observe linked code layout. It checks the supplied image against the target and the canonical Psi manifest before reading the root machine descriptors. Build’s registered test runner uses this entry for comparisons and reports inspection failures as execution errors.
 
 [Clock bindings](clock/bindings.rs) and [filesystem bindings](filesystem/bindings.rs)
 admit the calls this host can service. The [native worker](native-worker/src/lib.rs)

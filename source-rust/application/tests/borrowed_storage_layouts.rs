@@ -87,12 +87,18 @@ machine main() crashes Trap {
     let psi = compile(&project, Product::Runtime);
     let native = compile(&project, Product::Native);
 
-    let execution = std::process::Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["run", "--both", "build.omg"])
-        .current_dir(&project)
-        .env("OMEGA_LIBRARY_ROOT", &library)
-        .output()
-        .expect("run the selected provider on both engines");
+    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+        let execution = std::process::Command::new(env!("CARGO_BIN_EXE_omega"))
+            .args(["run", "--engine", engine, "build.omg"])
+            .current_dir(&project)
+            .env("OMEGA_LIBRARY_ROOT", &library)
+            .output()
+            .expect("run the selected provider on both engines");
+
+        let report = String::from_utf8_lossy(&execution.stderr);
+        assert!(execution.status.success(), "{report}");
+        assert!(report.lines().any(|line| line == expected), "{report}");
+    }
 
     let unbound = build
         .lines()
@@ -102,17 +108,6 @@ machine main() crashes Trap {
     std::fs::write(project.join("build.omg"), unbound).expect("staged missing provider");
     let refused = compile(&project, Product::Runtime);
     std::fs::remove_dir_all(&project).expect("clean staged project");
-
-    let report = String::from_utf8_lossy(&execution.stderr);
-    assert!(execution.status.success(), "{report}");
-    assert!(
-        report.lines().any(|line| line == "native exit 0"),
-        "{report}"
-    );
-    assert!(
-        report.lines().any(|line| line == "interp exit: 0"),
-        "{report}"
-    );
 
     let psi = psi.expect("admit the checked provider and its runtime geometry");
     let native = native.expect("realize the same admitted provider");

@@ -13,7 +13,8 @@ numbers, invalid flags, out-of-range counts/times and input over 4096 bytes exit
 ```sh
 omega packages update --project samples/cli/independent/censored_survival_analysis --target linux_x86_64
 omega --check --target linux_x86_64 samples/cli/independent/censored_survival_analysis/main.omg
-omega run --both samples/cli/independent/censored_survival_analysis/main.omg < samples/cli/independent/censored_survival_analysis/data/tied/input.txt
+omega run --engine native samples/cli/scientific/censored_survival_analysis/main.omg < samples/cli/scientific/censored_survival_analysis/data/tied/input.txt
+omega run --engine psi samples/cli/scientific/censored_survival_analysis/main.omg < samples/cli/scientific/censored_survival_analysis/data/tied/input.txt
 ```
 
 Read pending package decisions and resume the normal review. Source-risk

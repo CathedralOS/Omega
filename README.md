@@ -283,7 +283,7 @@ machine save_game(
 blocks
 reaches FilesystemContentWrite
 {
-    block FilesystemService::write(save_file, bytes)
+    block Filesystem::write(save_file, bytes)
 }
 ```
 

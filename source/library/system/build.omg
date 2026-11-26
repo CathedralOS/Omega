@@ -138,14 +138,14 @@ machine build(builder: @mutable Build) {
 
 // Each target's filesystem implementations are ordinary named maps; these rows
 // say which one backs each requirement on which target. The portable
-// `FilesystemService` sits on the POSIX or Windows raw service, and each
+// `Filesystem` sits on the POSIX or Windows raw service, and each
 // POSIX target supplies its own kernel adapters and record layouts.
 machine configure_filesystem_providers(builder: @mutable Build) {
-    Build::select_provider::<|filesystem|::FilesystemService, |posix_filesystem_adapter|::FilesystemPosixProvider>(builder, linux_x86_64);
-    Build::select_provider::<|filesystem|::FilesystemService, |posix_filesystem_adapter|::FilesystemPosixProvider>(builder, linux_arm64);
-    Build::select_provider::<|filesystem|::FilesystemService, |posix_filesystem_adapter|::FilesystemPosixProvider>(builder, macos_arm64);
-    Build::select_provider::<|filesystem|::FilesystemService, |windows_filesystem_provider|::FilesystemWindowsProvider>(builder, windows_x86_64);
-    Build::select_provider::<|filesystem|::FilesystemService, |windows_filesystem_provider|::FilesystemWindowsProvider>(builder, windows_arm64);
+    Build::select_provider::<|filesystem|::Filesystem, |posix_filesystem_adapter|::FilesystemPosixProvider>(builder, linux_x86_64);
+    Build::select_provider::<|filesystem|::Filesystem, |posix_filesystem_adapter|::FilesystemPosixProvider>(builder, linux_arm64);
+    Build::select_provider::<|filesystem|::Filesystem, |posix_filesystem_adapter|::FilesystemPosixProvider>(builder, macos_arm64);
+    Build::select_provider::<|filesystem|::Filesystem, |windows_filesystem_provider|::FilesystemWindowsProvider>(builder, windows_x86_64);
+    Build::select_provider::<|filesystem|::Filesystem, |windows_filesystem_provider|::FilesystemWindowsProvider>(builder, windows_arm64);
     Build::select_provider::<|posix_filesystem_host|::PosixFilesystemHost, |linux_x86_64_posix_filesystem|::LinuxX8664PosixFilesystem>(builder, linux_x86_64);
     Build::select_provider::<|posix_filesystem_host|::PosixFilesystemHost, |linux_arm64_posix_filesystem|::LinuxArm64PosixFilesystem>(builder, linux_arm64);
     Build::select_provider::<|posix_filesystem_host|::PosixFilesystemHost, |macos_arm64_posix_filesystem|::MacosArm64PosixFilesystem>(builder, macos_arm64);

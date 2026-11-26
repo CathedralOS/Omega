@@ -54,7 +54,7 @@ impl BuildRecheck {
     pub(super) fn owed_by(product: &PlannedProduct) -> Option<(Self, Arc<()>)> {
         let evaluated = &product.evaluated;
         let constants = &evaluated.constants;
-        if evaluated.subject_validation != BuildSubjectValidation::CheckedUnderProvisionalOwner
+        if evaluated.subject_validation != BuildSubjectValidation::NeedsOwnerCheck
             && constants.read.is_empty()
             && !constants.folded_under_providers
         {
@@ -278,8 +278,7 @@ impl PlannedProduct {
         self.timings.extend(&checked.timings);
         let spent = checked.result?;
         self.evaluated.source_completion_accounting.append(spent);
-        if self.evaluated.subject_validation == BuildSubjectValidation::CheckedUnderProvisionalOwner
-        {
+        if self.evaluated.subject_validation == BuildSubjectValidation::NeedsOwnerCheck {
             self.evaluated.subject_validation = BuildSubjectValidation::Checked;
         }
         Ok(self)
@@ -609,7 +608,7 @@ machine build(builder: @mutable Build) {
         let product = open_unchecked_project(&entry, false);
         assert_eq!(
             product.evaluated.subject_validation,
-            build_execution::BuildSubjectValidation::CheckedUnderProvisionalOwner
+            build_execution::BuildSubjectValidation::NeedsOwnerCheck
         );
         assert!(
             product
@@ -650,7 +649,7 @@ machine build(builder: @mutable Build) {
         .unwrap();
         let mut invalid_product = open_unchecked_project(&entry, true);
         invalid_product.evaluated.subject_validation =
-            build_execution::BuildSubjectValidation::CheckedUnderProvisionalOwner;
+            build_execution::BuildSubjectValidation::NeedsOwnerCheck;
         let (recheck, _) =
             super::BuildRecheck::owed_by(&invalid_product).expect("provisional owner owes recheck");
         let failure = recheck

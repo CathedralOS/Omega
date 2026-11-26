@@ -22,7 +22,8 @@ then resume the transaction:
 
 ```sh
 mbx run -p omega -- packages update --resume --project samples/cli/simulation/calendar
-mbx run -p omega -- run --both samples/cli/simulation/calendar/main.omg
+mbx run -p omega -- run --engine native samples/cli/simulation/calendar/main.omg
+mbx run -p omega -- run --engine psi samples/cli/simulation/calendar/main.omg
 ```
 
 Use Cargo if `mbx` is unavailable. Enter closes the native program.

@@ -1,4 +1,4 @@
-//! A single target-bound Psi product is instantiated independently for each input.
+//! Batch execution compiles one product, then runs each input independently.
 mod support;
 
 use platform_custody::temporary_directory::TemporaryDirectory;
@@ -11,7 +11,7 @@ use std::{
 fn batch(project: &Path, options: &[&str], directory: &Path) -> Output {
     Command::new(env!("CARGO_BIN_EXE_omega"))
         .current_dir(project)
-        .args(["run", "--engine", "psi", "--target", "linux_x86_64"])
+        .arg("run")
         .args(options)
         .arg("--outputs")
         .arg(directory)
@@ -44,7 +44,18 @@ fn project() -> TemporaryDirectory {
 fn directory_cases_keep_finite_binary_streams_and_guest_termination_in_name_order() {
     let scratch = project();
     let directory = scratch.path().join("observations");
-    let execution = batch(scratch.path(), &["--inputs", "inputs"], &directory);
+    let execution = batch(
+        scratch.path(),
+        &[
+            "--engine",
+            "psi",
+            "--target",
+            "linux_x86_64",
+            "--inputs",
+            "inputs",
+        ],
+        &directory,
+    );
     assert!(
         execution.status.success(),
         "{}",
@@ -91,6 +102,10 @@ fn explicit_cases_record_each_exhausted_allowance_in_argument_order() {
     let execution = batch(
         scratch.path(),
         &[
+            "--engine",
+            "psi",
+            "--target",
+            "linux_x86_64",
             "--psi-work-budget",
             "1",
             "--input",
@@ -115,6 +130,47 @@ fn explicit_cases_record_each_exhausted_allowance_in_argument_order() {
             fs::read_to_string(directory.join(format!("{name}.psi.work.tsv")))
                 .unwrap()
                 .starts_with("work_budget\t1\n")
+        );
+    }
+}
+
+#[cfg(all(
+    target_os = "linux",
+    any(target_arch = "x86_64", target_arch = "aarch64")
+))]
+#[test]
+fn native_batch_reports_each_status_and_keeps_the_binary_streams_separate() {
+    let scratch = project();
+    let directory = scratch.path().join("observations");
+    let execution = batch(
+        scratch.path(),
+        &[
+            "--engine",
+            "native",
+            "--input",
+            "inputs/z.stdin",
+            "--input",
+            "inputs/a.stdin",
+        ],
+        &directory,
+    );
+    assert!(
+        execution.status.success(),
+        "{}",
+        String::from_utf8_lossy(&execution.stderr)
+    );
+    assert_eq!(
+        fs::read_to_string(directory.join("results.tsv")).unwrap(),
+        "case\tnative\nz\t0\na\t0\n",
+    );
+    for (name, bytes) in [("z", &b"Z\0"[..]), ("a", b"\xffB")] {
+        assert_eq!(
+            fs::read(directory.join(format!("{name}.stdout"))).unwrap(),
+            bytes
+        );
+        assert_eq!(
+            fs::read(directory.join(format!("{name}.stderr"))).unwrap(),
+            b"!"
         );
     }
 }

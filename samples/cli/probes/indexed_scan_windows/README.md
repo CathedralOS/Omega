@@ -9,7 +9,8 @@ retain its contents.
 After ordinary package review:
 
 ```sh
-omega run --both samples/cli/collections/indexed_scan_windows/main.omg
+omega run --engine native samples/cli/collections/indexed_scan_windows/main.omg
+omega run --engine psi samples/cli/collections/indexed_scan_windows/main.omg
 ```
 
 The program requires native and Terminal exit 0. The companion corpus fixtures

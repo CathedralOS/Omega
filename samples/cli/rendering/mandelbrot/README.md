@@ -6,7 +6,8 @@ up to 28 binary64 escape-time steps and selects from ` .:-=+*#`.
 After completing the sample's package review, run from the repository root:
 
 ```sh
-omega run --both samples/cli/rendering/mandelbrot/main.omg
+omega run --engine native samples/cli/rendering/mandelbrot/main.omg
+omega run --engine psi samples/cli/rendering/mandelbrot/main.omg
 ```
 
 Press Enter at the final prompt. A POSIX shell can redirect stdin from

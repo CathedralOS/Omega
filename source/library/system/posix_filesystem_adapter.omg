@@ -27,7 +27,7 @@ machine posix_metadata_kind(mode: u32) -> |filesystem|::FileKind {
     }
 }
 
-FilesystemPosixProvider satisfies |filesystem|::FilesystemService {
+FilesystemPosixProvider satisfies |filesystem|::Filesystem {
     machine create(path: @[u8] in |paths|::Path) -> |filesystem|::OpenResult
     reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation
     {

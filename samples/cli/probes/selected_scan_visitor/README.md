@@ -9,7 +9,8 @@ From the repository root, with the development compiler on `PATH`:
 
 ```sh
 omega packages update --project samples/cli/collections/selected_scan_visitor --target macos_arm64 --offline --dangerously-accept-all
-omega run --both samples/cli/collections/selected_scan_visitor/main.omg
+omega run --engine native samples/cli/collections/selected_scan_visitor/main.omg
+omega run --engine psi samples/cli/collections/selected_scan_visitor/main.omg
 ```
 
 The original compiler failure treated the stored element descriptor as inline

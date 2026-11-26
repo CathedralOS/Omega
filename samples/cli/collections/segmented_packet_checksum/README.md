@@ -12,7 +12,8 @@ unchanged. Arithmetic is explicitly modulo 2^32, not cryptographic integrity.
 Run from the repository root:
 
 ```sh
-omega run --both samples/cli/collections/segmented_packet_checksum/main.omg
+omega run --engine native samples/cli/collections/segmented_packet_checksum/main.omg
+omega run --engine psi samples/cli/collections/segmented_packet_checksum/main.omg
 ```
 
 The complete sample exits 0 natively and in Terminal execution. It exercises

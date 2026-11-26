@@ -59,8 +59,8 @@ machine main() crashes Trap {
         report
     };
     let run = || {
-        let report = omega(&["run", "--both", "build.omg"]);
-        for expected in ["native exit 0", "interp exit: 0"] {
+        for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+            let report = omega(&["run", "--engine", engine, "build.omg"]);
             assert!(report.lines().any(|line| line == expected), "{report}");
         }
     };

@@ -238,6 +238,8 @@ impl<Output: ServiceContractSink> ContractEncoder<'_, Output> {
         }
         self.bool(method.may_suspend);
         self.bool(method.may_block);
+        self.output
+            .service_contract_bytes(&method.admitted_same_stack_bytes.to_le_bytes());
         self.bool(method.terminates_guarantee);
 
         let mut premises = method.termination_premises.iter().collect::<Vec<_>>();

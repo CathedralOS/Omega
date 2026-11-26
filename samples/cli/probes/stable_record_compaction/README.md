@@ -10,7 +10,8 @@ with another predicate, including all-retained and none-retained cases.
 Run from the repository root:
 
 ```sh
-omega run --both samples/cli/collections/stable_record_compaction/main.omg
+omega run --engine native samples/cli/collections/stable_record_compaction/main.omg
+omega run --engine psi samples/cli/collections/stable_record_compaction/main.omg
 ```
 
 Expected exit: 0. Each field and count is checked; a mismatch traps.

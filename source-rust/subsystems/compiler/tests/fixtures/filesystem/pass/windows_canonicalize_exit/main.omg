@@ -14,7 +14,7 @@ use system;
 use system\ErrorKind;
 use system\UnitResult;
 
-use system\FilesystemService;
+use system\Filesystem;
 
 // Separate entry for the host-call-count regression: failed acquisition must
 // observe its error without querying or closing the invalid handle.
@@ -25,7 +25,7 @@ data FailedOpen {
 
 machine failed_open_result(failed_open: @mutable FailedOpen) -> i32
 reaches FilesystemMetadataQuery blocks {
-    let outcome: UnitResult = block FilesystemService::canonicalize("omega_wcanon_missing.txt" as +Path, @mutable failed_open.buffer[..]);
+    let outcome: UnitResult = block Filesystem::canonicalize("omega_wcanon_missing.txt" as +Path, @mutable failed_open.buffer[..]);
     transition outcome {
         UnitResult::Error { kind } -> failed(kind),
         _ -> unexpected()
@@ -46,10 +46,10 @@ data Main {
 machine run(main: @mutable Main)
 reaches ProcessExit + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation
 blocks {
-    main.unit_result = block FilesystemService::write_all("omega_wcanon_probe.txt" as +Path, "canon");
+    main.unit_result = block Filesystem::write_all("omega_wcanon_probe.txt" as +Path, "canon");
     transition main.unit_result { UnitResult::Ok -> block resolve(main), _ -> bad(main, 71) }
     machine resolve(main: @mutable Main) {
-        main.unit_result = block FilesystemService::canonicalize("omega_wcanon_probe.txt" as +Path, @mutable main.canon[..]);
+        main.unit_result = block Filesystem::canonicalize("omega_wcanon_probe.txt" as +Path, @mutable main.canon[..]);
         transition main.unit_result { UnitResult::Ok -> block spelled(main), _ -> bad(main, 72) }
     }
     machine spelled(main: @mutable Main) {
@@ -58,18 +58,18 @@ blocks {
         transition canonical_prefix_is_valid(main.windows, main.canon[0]) { true -> block make_dir(main), _ -> bad(main, 73) }
     }
     machine make_dir(main: @mutable Main) {
-        main.unit_result = block FilesystemService::create_dir("omega_wcanon_dir" as +Path);
+        main.unit_result = block Filesystem::create_dir("omega_wcanon_dir" as +Path);
         transition main.unit_result { UnitResult::Ok -> block resolve_dir(main), _ -> bad(main, 76) }
     }
     machine resolve_dir(main: @mutable Main) {
-        main.unit_result = block FilesystemService::canonicalize("omega_wcanon_dir" as +Path, @mutable main.canon[..]);
+        main.unit_result = block Filesystem::canonicalize("omega_wcanon_dir" as +Path, @mutable main.canon[..]);
         transition main.unit_result { UnitResult::Ok -> block spelled_dir(main), _ -> bad(main, 77) }
     }
     machine spelled_dir(main: @mutable Main) {
         transition canonical_prefix_is_valid(main.windows, main.canon[0]) { true -> block missing(main), _ -> bad(main, 78) }
     }
     machine missing(main: @mutable Main) {
-        let outcome: UnitResult = block FilesystemService::canonicalize("omega_wcanon_missing.txt" as +Path, @mutable main.canon[..]);
+        let outcome: UnitResult = block Filesystem::canonicalize("omega_wcanon_missing.txt" as +Path, @mutable main.canon[..]);
         transition outcome { UnitResult::Error { kind } -> block kindcheck(main, kind), _ -> bad(main, 74) }
     }
     machine kindcheck(main: @mutable Main, kind: ErrorKind) {
@@ -77,11 +77,11 @@ blocks {
         transition kind { ErrorKind::NotFound -> block cleanup(main), _ -> bad(main, 75) }
     }
     machine cleanup(main: @mutable Main) {
-        main.unit_result = block FilesystemService::remove("omega_wcanon_probe.txt" as +Path);
+        main.unit_result = block Filesystem::remove("omega_wcanon_probe.txt" as +Path);
         transition { _ -> block cleanup_dir(main) }
     }
     machine cleanup_dir(main: @mutable Main) {
-        main.unit_result = block FilesystemService::remove_dir("omega_wcanon_dir" as +Path);
+        main.unit_result = block Filesystem::remove_dir("omega_wcanon_dir" as +Path);
         transition { _ -> good(main) }
     }
     machine good(main: @mutable Main) { ProcessExit::exit_process(70); }

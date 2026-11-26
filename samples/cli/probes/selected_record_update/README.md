@@ -7,7 +7,8 @@ Terminal exit: 0.
 
 ```sh
 omega packages update --project samples/cli/collections/selected_record_update --target macos_arm64 --offline --dangerously-accept-all
-omega run --both samples/cli/collections/selected_record_update/main.omg
+omega run --engine native samples/cli/collections/selected_record_update/main.omg
+omega run --engine psi samples/cli/collections/selected_record_update/main.omg
 ```
 
 The local slice deliberately retains its own descriptor before returning a

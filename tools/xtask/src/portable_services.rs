@@ -345,14 +345,14 @@ pub fn compare(rows: &[Row], baseline: &Baseline) -> Comparison {
 /// Reads `system` and returns every row, sorted.
 pub fn collect_rows(system_root: &Path) -> Result<Vec<Row>, String> {
     let build = read(&system_root.join("build.omg"))?;
-    let selections = provider_selections(&strip_comments(&build));
+    let selections = provider_selections(&strip_comments(&build))?;
     let mut families = Vec::with_capacity(HOSTED_TARGETS.len());
     for target in HOSTED_TARGETS {
         let mut family = Family::load(system_root, target)?;
         for (service, providers) in &selections {
-            if let Some(provider) = providers.get(target) {
+            if let Some((file, provider)) = providers.get(target) {
                 family
-                    .select(service, provider)
+                    .select(service, Path::new(file), provider)
                     .map_err(|why| format!("{target}: {why}"))?;
             }
         }
@@ -404,48 +404,34 @@ fn read(path: &Path) -> Result<String, String> {
     fs::read_to_string(path).map_err(|error| format!("cannot read {}: {error}", path.display()))
 }
 
-/// `use <file>.omg as <alias>;` lines, as alias -> package-relative file.
-fn file_aliases(build: &str) -> HashMap<&str, &str> {
-    build
+/// A local file import binds its explicit alias or the stem of the imported file.
+fn file_aliases(source: &str) -> HashMap<&str, &str> {
+    source
         .lines()
-        .filter_map(|line| line.trim().strip_prefix("use "))
-        .filter_map(|rest| rest.strip_suffix(';')?.split_once(" as "))
-        .map(|(file, alias)| (alias.trim(), file.trim()))
+        .filter_map(|line| {
+            let import = line.trim().strip_prefix("use ")?.strip_suffix(';')?;
+            let (file, alias) = match import.split_once(" as ") {
+                Some((file, alias)) => (file.trim(), alias.trim()),
+                None => (import, Path::new(import).file_stem()?.to_str()?),
+            };
+            Some((alias, file))
+        })
         .collect()
-}
-
-/// A provider as `dir\Name` relative to `system`. `|alias|::Name` names a
-/// declaration in the file the alias imports, so it takes that file's
-/// directory; a bare or backslash path is already relative.
-fn provider_path(name: &str, aliases: &HashMap<&str, &str>) -> String {
-    let Some((alias, declaration)) = name
-        .strip_prefix('|')
-        .and_then(|rest| rest.split_once("|::"))
-    else {
-        return name.to_string();
-    };
-    let directory = aliases
-        .get(alias)
-        .and_then(|file| file.rsplit_once('/'))
-        .map(|(directory, _)| directory.replace('/', "\\"));
-    match directory {
-        Some(directory) => format!("{directory}\\{declaration}"),
-        None => declaration.to_string(),
-    }
 }
 
 /// A service by its declared name, without the alias or path that reached it.
 fn service_name(name: &str) -> &str {
-    let name = name.rsplit("::").next().unwrap_or(name);
-    name.rsplit('\\').next().unwrap_or(name)
+    name.rsplit("::").next().unwrap_or(name)
 }
 
 /// `Build::select_provider::<Service, Provider>(builder, target)` rows, as
 /// service -> target -> provider.
-fn provider_selections(build: &str) -> BTreeMap<String, BTreeMap<String, String>> {
+type ProviderSelections = BTreeMap<String, BTreeMap<String, (String, String)>>;
+
+fn provider_selections(build: &str) -> Result<ProviderSelections, String> {
     const CALL: &str = "Build::select_provider::<";
     let aliases = file_aliases(build);
-    let mut out: BTreeMap<String, BTreeMap<String, String>> = BTreeMap::new();
+    let mut out = ProviderSelections::new();
     let mut rest = build;
     while let Some(start) = rest.find(CALL) {
         rest = &rest[start + CALL.len()..];
@@ -458,12 +444,22 @@ fn provider_selections(build: &str) -> BTreeMap<String, BTreeMap<String, String>
         let Some(end) = args.find(')') else { continue };
         let args: Vec<&str> = args[..end].split(',').map(str::trim).collect();
         if let ([service, provider], [_, target]) = (generics.as_slice(), args.as_slice()) {
+            let (file, name) = if let Some((alias, name)) =
+                provider.strip_prefix('|').and_then(|s| s.split_once("|::"))
+            {
+                let file = aliases
+                    .get(alias)
+                    .ok_or_else(|| format!("unknown provider file alias `{alias}`"))?;
+                (*file, name)
+            } else {
+                ("build.omg", *provider)
+            };
             out.entry(service_name(service).to_string())
                 .or_default()
-                .insert(target.to_string(), provider_path(provider, &aliases));
+                .insert(target.to_string(), (file.to_owned(), name.to_owned()));
         }
     }
-    out
+    Ok(out)
 }
 
 fn strip_comments(text: &str) -> String {
@@ -670,18 +666,21 @@ mod tests {
     use super::*;
 
     #[test]
-    fn aliased_selections_resolve_to_their_file_directory() {
-        let build = "use linux_arm64_clock.omg as linux_arm64_clock;\n\
+    fn provider_selections_resolve_default_and_explicit_file_aliases() {
+        let build = "use linux_arm64_clock.omg;\n\
             use targets/linux_arm64/clock_impl.omg as wait;\n\
             machine build(builder: @mutable Build) {\n\
             Build::select_provider::<|clock|::Clock, |linux_arm64_clock|::LinuxClock>(builder, linux_arm64);\n\
             Build::select_provider::<|clock|::Clock, |wait|::Nested>(builder, macos_arm64);\n\
             }\n";
-        let selections = provider_selections(build);
-        assert_eq!(selections["Clock"]["linux_arm64"], "LinuxClock");
+        let selections = provider_selections(build).unwrap();
+        assert_eq!(
+            selections["Clock"]["linux_arm64"],
+            ("linux_arm64_clock.omg".into(), "LinuxClock".into())
+        );
         assert_eq!(
             selections["Clock"]["macos_arm64"],
-            r"targets\linux_arm64\Nested"
+            ("targets/linux_arm64/clock_impl.omg".into(), "Nested".into())
         );
     }
 
@@ -793,8 +792,14 @@ mod tests {
     fn provider_selections_read_build_rows() {
         let build = "    Build::select_provider::<Clock, WinClock>(builder, windows_x86_64);\n\
                      Build::select_provider::<Clock, LinClock>(builder, linux_x86_64);\n";
-        let selections = provider_selections(build);
-        assert_eq!(selections["Clock"]["windows_x86_64"], "WinClock");
-        assert_eq!(selections["Clock"]["linux_x86_64"], "LinClock");
+        let selections = provider_selections(build).unwrap();
+        assert_eq!(
+            selections["Clock"]["windows_x86_64"],
+            ("build.omg".into(), "WinClock".into())
+        );
+        assert_eq!(
+            selections["Clock"]["linux_x86_64"],
+            ("build.omg".into(), "LinClock".into())
+        );
     }
 }

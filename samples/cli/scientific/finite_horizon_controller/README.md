@@ -54,7 +54,8 @@ omega packages update --project samples/cli/independent/finite_horizon_controlle
 omega packages update --resume --project samples/cli/independent/finite_horizon_controller
 omega --check samples/cli/independent/finite_horizon_controller/main.omg
 omega --check samples/cli/independent/finite_horizon_controller/invalid/main.omg
-omega run --both samples/cli/independent/finite_horizon_controller/main.omg < samples/cli/independent/finite_horizon_controller/data/0.stdin
+omega run --engine native samples/cli/scientific/finite_horizon_controller/main.omg < samples/cli/scientific/finite_horizon_controller/data/0.stdin
+omega run --engine psi samples/cli/scientific/finite_horizon_controller/main.omg < samples/cli/scientific/finite_horizon_controller/data/0.stdin
 ```
 
 Refresh the nested positive control first and the controller last: the nested

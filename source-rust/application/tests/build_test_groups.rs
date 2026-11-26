@@ -55,7 +55,7 @@ crashes Trap
     machine passed() { }
 }
 
-public boundary trait FilesystemService {
+public boundary trait Filesystem {
     machine sync() reaches none crashes none;
 }
 
@@ -193,7 +193,7 @@ fn the_build_refuses_malformed_group_requests_before_any_test_runs() {
         ),
         (
             "retired_service",
-            "    _ = builder.tests.group::<Tests::arithmetic>();\n    _ = builder.tests.service::<Tests::arithmetic, FilesystemService>();",
+            "    _ = builder.tests.group::<Tests::arithmetic>();\n    _ = builder.tests.service::<Tests::arithmetic, Filesystem>();",
             "this call has no visible declaration in its source scope",
         ),
     ] {

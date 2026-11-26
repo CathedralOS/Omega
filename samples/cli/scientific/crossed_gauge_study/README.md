@@ -45,7 +45,8 @@ omega packages update --project samples/cli/independent/crossed_gauge_study
 omega packages update --resume --project samples/cli/independent/crossed_gauge_study
 omega --check samples/cli/independent/crossed_gauge_study/main.omg
 omega samples/cli/independent/crossed_gauge_study/main.omg
-omega run --both samples/cli/independent/crossed_gauge_study/main.omg < samples/cli/independent/crossed_gauge_study/data/interaction.stdin
+omega run --engine native samples/cli/scientific/crossed_gauge_study/main.omg < samples/cli/scientific/crossed_gauge_study/data/interaction.stdin
+omega run --engine psi samples/cli/scientific/crossed_gauge_study/main.omg < samples/cli/scientific/crossed_gauge_study/data/interaction.stdin
 omega --check samples/cli/independent/crossed_gauge_study/controls/out_of_bounds/main.omg
 ```
 

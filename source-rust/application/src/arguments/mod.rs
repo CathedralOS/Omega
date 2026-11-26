@@ -21,7 +21,7 @@ returns `Result<Option<T>, String>`:
 
 A path read by `option_value` can start with a single dash. `take_value` and
 its UTF-8 adapter `take_text` reject any leading dash. All three reject a
-long option in the value position, so `--input --both` reports the missing path.
+long option in the value position, so `--input --keep` reports the missing path.
 
 */
 

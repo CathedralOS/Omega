@@ -5,7 +5,8 @@ area. The entry receives an explicit `main: @mutable Main` context and forwards
 it to each nested machine. From the repository root:
 
 ```text
-mbx run -p omega -- run --both samples/cli/rendering/bouncing_ball_2d/main.omg
+mbx run -p omega -- run --engine native samples/cli/rendering/bouncing_ball_2d/main.omg
+mbx run -p omega -- run --engine psi samples/cli/rendering/bouncing_ball_2d/main.omg
 ```
 
 Use Cargo if `mbx` is unavailable. Complete the ordinary

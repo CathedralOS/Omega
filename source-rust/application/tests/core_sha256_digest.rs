@@ -17,21 +17,21 @@ fn sha256_digests_up_to_capacity_and_refuses_longer_messages_in_both_engines() {
     for name in ["build.omg", "main.omg"] {
         std::fs::copy(project.join(name), scratch.path().join(name)).unwrap();
     }
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["run", "--both", "build.omg"])
-        .current_dir(scratch.path())
-        .env(
-            "OMEGA_LIBRARY_ROOT",
-            support::repository_root().join("source/library"),
-        )
-        .stdin(Stdio::null())
-        .output()
-        .expect("omega runs on the hosted target");
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    let report = format!("{stdout}{stderr}");
-    assert_eq!(output.status.code(), Some(0), "{report}");
-    for receipt in ["native exit 0", "interp exit: 0"] {
+    for (engine, receipt) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+        let output = Command::new(env!("CARGO_BIN_EXE_omega"))
+            .args(["run", "--engine", engine, "build.omg"])
+            .current_dir(scratch.path())
+            .env(
+                "OMEGA_LIBRARY_ROOT",
+                support::repository_root().join("source/library"),
+            )
+            .stdin(Stdio::null())
+            .output()
+            .expect("omega runs on the hosted target");
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let report = format!("{stdout}{stderr}");
+        assert_eq!(output.status.code(), Some(0), "{report}");
         assert!(report.lines().any(|line| line == receipt), "{report}");
     }
 }

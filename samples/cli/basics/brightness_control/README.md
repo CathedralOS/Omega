@@ -5,7 +5,8 @@ the resulting brightness, and reports it as the process exit. Its authored
 SetLevel command produces 65 and the two console lines in `main.omg`.
 
 ```sh
-omega run --both samples/cli/basics/brightness_control/main.omg
+omega run --engine native samples/cli/basics/brightness_control/main.omg
+omega run --engine psi samples/cli/basics/brightness_control/main.omg
 ```
 
 The public command uses ordinary package and entry review. No acceptance

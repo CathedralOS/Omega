@@ -1020,6 +1020,7 @@ pub mod projection {
                     synchronous_invocations: Vec::new(),
                     may_suspend: false,
                     may_block: false,
+                    admitted_same_stack_bytes: 0,
                     terminates_guarantee: false,
                     termination_premises: Vec::new(),
                 }],
@@ -1190,6 +1191,7 @@ pub mod projection {
                         })?,
                     may_suspend: requirement.suspends,
                     may_block: requirement.blocks,
+                    admitted_same_stack_bytes: requirement.admitted_same_stack_bytes,
                     terminates_guarantee: published_termination.promises_termination(),
                     termination_premises,
                 }],
@@ -1286,6 +1288,7 @@ pub mod projection {
                     .map_err(|reason| projection_failure(program, signature.symbol, reason))?,
                 may_suspend: signature.suspends,
                 may_block: signature.blocks,
+                admitted_same_stack_bytes: signature.admitted_same_stack_bytes,
                 terminates_guarantee: signature.termination_guarantee.promises_termination(),
                 termination_premises: service_progress_premises(program, signature, identities),
             });

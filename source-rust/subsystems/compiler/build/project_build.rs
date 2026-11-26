@@ -3,11 +3,11 @@
 #[path = "planning/native_entry.rs"]
 mod native_entry;
 pub use native_entry::NativeEntryLimits;
-#[path = "planning/observations/mod.rs"]
+#[path = "planning/observations.rs"]
 pub mod observations;
 #[path = "planning/product.rs"]
 mod product;
-#[path = "planning/registered_tests.rs"]
+#[path = "planning/registered_tests/mod.rs"]
 mod registered_tests;
 pub use product::ProductStage;
 pub use registered_tests::{RegisteredTestPlan, TestExecution};
@@ -58,6 +58,18 @@ pub trait PlanningServices {
         .into())
     }
 
+    /// Resolve the exact registration chosen for a full check after the Build returns.
+    fn validation_subject(
+        &mut self,
+        _issued: &[build_execution::host::requests::IssuedBuildRequest],
+        _purpose: build_declarations::DependencyPurpose,
+        _ordinal: usize,
+    ) -> Result<build_execution::DependencyValidationSubject, CompileFailure> {
+        Err(refusal(
+            "Build validation requires a registered dependency service".into(),
+        ))
+    }
+
     /// Return the named root acquired from this activation when a later stage needs it.
     fn declared_source(
         &mut self,
@@ -79,6 +91,14 @@ pub trait PlanningServices {
 
 impl PlanningServices for () {}
 
+/// A dependency usually contributes the declarations its caller reaches. A registration
+/// can instead make the entire package a subject, including its own Build helpers.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum DependencyCheck {
+    DemandedClosure,
+    FullPackage,
+}
+
 /// A named dependency's original Build has settled against this exact source graph.
 pub struct SettledDependency {
     evaluated: EvaluatedBuild,
@@ -99,10 +119,8 @@ impl SettledDependency {
         &self,
         inputs: PackageCompilationInputs,
     ) -> Result<PlannedProduct, CompileFailure> {
-        self.require_own_graph(&inputs)?;
-        self.source
-            .clone()
-            .open_product(self.evaluated.clone(), Some(&inputs))
+        self.open_pending(inputs, DependencyCheck::DemandedClosure)?
+            .settle()
     }
 
     /// Open the Product while this Build is checked again on the Product's
@@ -111,11 +129,16 @@ impl SettledDependency {
     pub fn open_pending(
         &self,
         inputs: PackageCompilationInputs,
+        scope: DependencyCheck,
     ) -> Result<PendingProduct, CompileFailure> {
         self.require_own_graph(&inputs)?;
-        self.source
-            .clone()
-            .open_pending(self.evaluated.clone(), Some(&inputs))
+        let mut evaluated = self.evaluated.clone();
+        if scope == DependencyCheck::FullPackage
+            && evaluated.subject_validation == build_execution::BuildSubjectValidation::EntryOnly
+        {
+            evaluated.subject_validation = build_execution::BuildSubjectValidation::NeedsOwnerCheck;
+        }
+        self.source.clone().open_pending(evaluated, Some(&inputs))
     }
 
     fn require_own_graph(&self, inputs: &PackageCompilationInputs) -> Result<(), CompileFailure> {
@@ -212,6 +235,15 @@ impl ReturnedPlanningStage {
 
     pub fn returned(&self) -> &ReturnedBuild {
         &self.returned
+    }
+
+    pub fn has_dependency_validation(&self) -> bool {
+        self.returned.has_dependency_validation()
+            || self
+                .preparations
+                .stages
+                .iter()
+                .any(|(_, build)| !build.dependency_validation.is_empty())
     }
 
     pub fn observe_source_declaration(&self) -> Result<SourceBuildDeclaration, CompileFailure> {
@@ -316,6 +348,11 @@ fn retain_preparations(
         product
             .preparations
             .push((entry, preparation.configuration));
+        for subject in preparation.dependency_validation {
+            if !product.dependency_validation.contains(&subject) {
+                product.dependency_validation.push(subject);
+            }
+        }
         for request in preparation.restricted_build_requests {
             if !product.restricted_build_requests.contains(&request) {
                 product.restricted_build_requests.push(request);
@@ -347,12 +384,15 @@ pub fn interpret(
             .map_err(refusal)
             .map_err(|failure| failure.with_source_completion_accounting(spent))
     })();
-    let returned = result.map_err(|failure| {
+    let mut returned = result.map_err(|failure| {
         let failure = match context {
             Some(context) => failure.in_build_context(context),
             None => failure,
         };
         failure.with_source_completion_accounting(evaluation.source_completion_accounting().clone())
+    })?;
+    returned.resolve_validation_requests(|issued, purpose, ordinal| {
+        services.validation_subject(issued, purpose, ordinal)
     })?;
     evaluation.record_return(&returned)?;
     Ok(ReturnedPlanningStage {

@@ -40,7 +40,8 @@ From the repository root, with a compiler built from this exact main base:
 omega packages update --project samples/cli/independent/transport_planner --target linux_x86_64
 # Read and accept the actual pending review, then omega packages update --resume.
 omega --check --target linux_x86_64 samples/cli/independent/transport_planner/main.omg
-omega run --both --keep samples/cli/independent/transport_planner/main.omg < samples/cli/independent/transport_planner/data/nontrivial.txt
+omega run --engine native --keep samples/cli/scientific/transport_planner/main.omg < samples/cli/scientific/transport_planner/data/nontrivial.txt
+omega run --engine psi --keep samples/cli/scientific/transport_planner/main.omg < samples/cli/scientific/transport_planner/data/nontrivial.txt
 omega --target linux_x86_64 samples/cli/independent/transport_planner/main.omg
 omega --check --target linux_x86_64 samples/cli/independent/transport_planner/intended_invalid/rejected.omg
 ```

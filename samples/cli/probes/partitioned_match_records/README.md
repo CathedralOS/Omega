@@ -9,7 +9,8 @@ Expected exit: 0 in native and Terminal execution.
 
 ```sh
 omega packages update --project samples/cli/collections/partitioned_match_records --target macos_arm64 --offline --dangerously-accept-all
-omega run --both samples/cli/collections/partitioned_match_records/main.omg
+omega run --engine native samples/cli/collections/partitioned_match_records/main.omg
+omega run --engine psi samples/cli/collections/partitioned_match_records/main.omg
 ```
 
 Both engines must follow each stored view to its original backing before

@@ -7,7 +7,7 @@ use {omega}/language/core/numeric_conversion.omg as numeric;
 // Darwin ABI facts for the shared POSIX portable service. Layout and flag
 // values follow the SDK's sys/stat.h, sys/fcntl.h and sys/dirent.h; the
 // complete raw provider supplies negative errno, never retained libc state.
-// Application data holds no carrier; callers invoke `FilesystemService` requirements directly.
+// Application data holds no carrier; callers invoke `Filesystem` requirements directly.
 
 // Borrow the complete aligned stat buffer, including the record's padding.
 // A borrowed byte element cannot supply the rest of that storage.

@@ -11,7 +11,8 @@ write capability, not an allocator implementation or complete Squalr port.
 
 ```sh
 omega packages update --project samples/cli/collections/partitioned_scan_output --target macos_arm64 --offline --dangerously-accept-all
-omega run --both samples/cli/collections/partitioned_scan_output/main.omg
+omega run --engine native samples/cli/collections/partitioned_scan_output/main.omg
+omega run --engine psi samples/cli/collections/partitioned_scan_output/main.omg
 ```
 
 The stored count's exact increment follows from

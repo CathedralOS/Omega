@@ -43,7 +43,8 @@ omega packages update --project samples/cli/independent/bounded_sequence_alignme
 omega packages update --resume --project samples/cli/independent/bounded_sequence_alignment
 omega --check samples/cli/independent/bounded_sequence_alignment/main.omg
 omega samples/cli/independent/bounded_sequence_alignment/main.omg
-omega run --both --keep samples/cli/independent/bounded_sequence_alignment/main.omg < samples/cli/independent/bounded_sequence_alignment/data/gap.stdin
+omega run --engine native --keep samples/cli/scientific/bounded_sequence_alignment/main.omg < samples/cli/scientific/bounded_sequence_alignment/data/gap.stdin
+omega run --engine psi --keep samples/cli/scientific/bounded_sequence_alignment/main.omg < samples/cli/scientific/bounded_sequence_alignment/data/gap.stdin
 omega --check samples/cli/independent/bounded_sequence_alignment/invalid/out_of_bounds.omg
 ```
 

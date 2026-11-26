@@ -31,17 +31,17 @@ reaches |process_exit|::ProcessExit
     + |authority|::FilesystemMetadataQuery
     + |authority|::FilesystemNamespaceMutation
 {
-    let stale: |filesystem|::UnitResult = block |filesystem|::FilesystemService::remove_dir_all("omega_fs_rules" as + |paths|::Path);
-    let made: |filesystem|::UnitResult = block |filesystem|::FilesystemService::create_dir_all("omega_fs_rules" as + |paths|::Path);
+    let stale: |filesystem|::UnitResult = block |filesystem|::Filesystem::remove_dir_all("omega_fs_rules" as + |paths|::Path);
+    let made: |filesystem|::UnitResult = block |filesystem|::Filesystem::create_dir_all("omega_fs_rules" as + |paths|::Path);
     transition made { |filesystem|::UnitResult::Ok -> block seed(context), _ -> done(1) }
 
     machine seed(context: @mutable Main) {
-        let written: |filesystem|::UnitResult = block |filesystem|::FilesystemService::write_all("omega_fs_rules/keep.txt" as + |paths|::Path, "hello");
+        let written: |filesystem|::UnitResult = block |filesystem|::Filesystem::write_all("omega_fs_rules/keep.txt" as + |paths|::Path, "hello");
         transition written { |filesystem|::UnitResult::Ok -> block read_only_truncate(context), _ -> done(2) }
     }
     machine read_only_truncate(context: @mutable Main) {
         let options: |filesystem|::OpenOptions = |filesystem|::OpenOptions { read: true, write: false, append: false, truncate: true, create: false, create_new: false };
-        let opened: |filesystem|::OpenResult = block |filesystem|::FilesystemService::open_with("omega_fs_rules/keep.txt" as + |paths|::Path, options);
+        let opened: |filesystem|::OpenResult = block |filesystem|::Filesystem::open_with("omega_fs_rules/keep.txt" as + |paths|::Path, options);
         transition opened {
             |filesystem|::OpenResult::Error { kind } -> block read_only_truncate_kind(context, kind),
             _ -> done(3)
@@ -52,7 +52,7 @@ reaches |process_exit|::ProcessExit
     }
     machine append_truncate(context: @mutable Main) {
         let options: |filesystem|::OpenOptions = |filesystem|::OpenOptions { read: false, write: false, append: true, truncate: true, create: false, create_new: false };
-        let opened: |filesystem|::OpenResult = block |filesystem|::FilesystemService::open_with("omega_fs_rules/keep.txt" as + |paths|::Path, options);
+        let opened: |filesystem|::OpenResult = block |filesystem|::Filesystem::open_with("omega_fs_rules/keep.txt" as + |paths|::Path, options);
         transition opened {
             |filesystem|::OpenResult::Error { kind } -> block append_truncate_kind(context, kind),
             _ -> done(4)
@@ -62,7 +62,7 @@ reaches |process_exit|::ProcessExit
         transition kind { |filesystem|::ErrorKind::InvalidInput -> block intact(context), _ -> done(4) }
     }
     machine intact(context: @mutable Main) {
-        let found: |filesystem|::MetadataResult = block |filesystem|::FilesystemService::metadata_path("omega_fs_rules/keep.txt" as + |paths|::Path);
+        let found: |filesystem|::MetadataResult = block |filesystem|::Filesystem::metadata_path("omega_fs_rules/keep.txt" as + |paths|::Path);
         transition found {
             |filesystem|::MetadataResult::Ok { meta } -> block intact_len(context, meta),
             _ -> done(5)
@@ -73,7 +73,7 @@ reaches |process_exit|::ProcessExit
     }
     machine oversized_read_all(context: @mutable Main) {
         let mutable buffer: [u8; 4];
-        let read: |filesystem|::IoResult = block |filesystem|::FilesystemService::read_all("omega_fs_rules/keep.txt" as + |paths|::Path, @mutable buffer[..], 8);
+        let read: |filesystem|::IoResult = block |filesystem|::Filesystem::read_all("omega_fs_rules/keep.txt" as + |paths|::Path, @mutable buffer[..], 8);
         transition read {
             |filesystem|::IoResult::Error { kind } -> block oversized_read_all_kind(context, kind),
             _ -> done(6)
@@ -84,7 +84,7 @@ reaches |process_exit|::ProcessExit
     }
     machine oversized_copy(context: @mutable Main) {
         let mutable buffer: [u8; 4];
-        let copied: |filesystem|::IoResult = block |filesystem|::FilesystemService::copy("omega_fs_rules/keep.txt" as + |paths|::Path, "omega_fs_rules/copy.txt" as + |paths|::Path, @mutable buffer[..], 8);
+        let copied: |filesystem|::IoResult = block |filesystem|::Filesystem::copy("omega_fs_rules/keep.txt" as + |paths|::Path, "omega_fs_rules/copy.txt" as + |paths|::Path, @mutable buffer[..], 8);
         transition copied {
             |filesystem|::IoResult::Error { kind } -> block oversized_copy_kind(context, kind),
             _ -> done(7)
@@ -94,7 +94,7 @@ reaches |process_exit|::ProcessExit
         transition kind { |filesystem|::ErrorKind::InvalidInput -> block oversized_read(context), _ -> done(7) }
     }
     machine oversized_read(context: @mutable Main) {
-        let opened: |filesystem|::OpenResult = block |filesystem|::FilesystemService::open("omega_fs_rules/keep.txt" as + |paths|::Path);
+        let opened: |filesystem|::OpenResult = block |filesystem|::Filesystem::open("omega_fs_rules/keep.txt" as + |paths|::Path);
         transition opened {
             |filesystem|::OpenResult::Ok { file } -> block oversized_read_file(context, file),
             _ -> done(8)
@@ -102,8 +102,8 @@ reaches |process_exit|::ProcessExit
     }
     machine oversized_read_file(context: @mutable Main, file: |filesystem|::File) {
         let mutable buffer: [u8; 4];
-        let read: |filesystem|::IoResult = block |filesystem|::FilesystemService::read(file, @mutable buffer[..], 8);
-        let closed: |filesystem|::UnitResult = block |filesystem|::FilesystemService::close(file);
+        let read: |filesystem|::IoResult = block |filesystem|::Filesystem::read(file, @mutable buffer[..], 8);
+        let closed: |filesystem|::UnitResult = block |filesystem|::Filesystem::close(file);
         transition read {
             |filesystem|::IoResult::Error { kind } -> block oversized_read_file_kind(context, kind),
             _ -> done(8)
@@ -113,9 +113,9 @@ reaches |process_exit|::ProcessExit
         transition kind { |filesystem|::ErrorKind::InvalidInput -> block default_permissions(context), _ -> done(8) }
     }
     machine default_permissions(context: @mutable Main) {
-        let narrowed: |filesystem|::UnitResult = block |filesystem|::FilesystemService::set_permissions("omega_fs_rules/keep.txt" as + |paths|::Path, |filesystem|::Permissions::Posix { mode: 365 });
-        let restored: |filesystem|::UnitResult = block |filesystem|::FilesystemService::set_permissions("omega_fs_rules/keep.txt" as + |paths|::Path, |filesystem|::Permissions::Default);
-        let found: |filesystem|::MetadataResult = block |filesystem|::FilesystemService::metadata_path("omega_fs_rules/keep.txt" as + |paths|::Path);
+        let narrowed: |filesystem|::UnitResult = block |filesystem|::Filesystem::set_permissions("omega_fs_rules/keep.txt" as + |paths|::Path, |filesystem|::Permissions::Posix { mode: 365 });
+        let restored: |filesystem|::UnitResult = block |filesystem|::Filesystem::set_permissions("omega_fs_rules/keep.txt" as + |paths|::Path, |filesystem|::Permissions::Default);
+        let found: |filesystem|::MetadataResult = block |filesystem|::Filesystem::metadata_path("omega_fs_rules/keep.txt" as + |paths|::Path);
         transition found {
             |filesystem|::MetadataResult::Ok { meta } -> block default_mode(context, meta),
             _ -> done(9)
@@ -131,20 +131,20 @@ reaches |process_exit|::ProcessExit
         transition mode == 511 { true -> block long_parents(context), _ -> done(9) }
     }
     machine long_parents(context: @mutable Main) {
-        let made: |filesystem|::UnitResult = block |filesystem|::FilesystemService::create_dir_all("omega_fs_rules/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc/leaf" as + |paths|::Path);
+        let made: |filesystem|::UnitResult = block |filesystem|::Filesystem::create_dir_all("omega_fs_rules/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc/leaf" as + |paths|::Path);
         transition made { |filesystem|::UnitResult::Ok -> block blocked_parent(context), _ -> done(10) }
     }
     machine blocked_parent(context: @mutable Main) {
-        let made: |filesystem|::UnitResult = block |filesystem|::FilesystemService::create_dir_all("omega_fs_rules/keep.txt/inner/leaf" as + |paths|::Path);
+        let made: |filesystem|::UnitResult = block |filesystem|::Filesystem::create_dir_all("omega_fs_rules/keep.txt/inner/leaf" as + |paths|::Path);
         transition made { |filesystem|::UnitResult::Ok -> done(11), _ -> block deep(context) }
     }
     machine deep(context: @mutable Main) {
-        let made: |filesystem|::UnitResult = block |filesystem|::FilesystemService::create_dir_all("omega_fs_rules/deep/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d" as + |paths|::Path);
+        let made: |filesystem|::UnitResult = block |filesystem|::Filesystem::create_dir_all("omega_fs_rules/deep/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d" as + |paths|::Path);
         transition made { |filesystem|::UnitResult::Ok -> block wide(context), _ -> done(12) }
     }
     machine wide(context: @mutable Main) {
-        let removed: |filesystem|::UnitResult = block |filesystem|::FilesystemService::remove_dir_all("omega_fs_rules_wide" as + |paths|::Path);
-        let present: bool = block |filesystem|::FilesystemService::exists("omega_fs_rules_wide" as + |paths|::Path);
+        let removed: |filesystem|::UnitResult = block |filesystem|::Filesystem::remove_dir_all("omega_fs_rules_wide" as + |paths|::Path);
+        let present: bool = block |filesystem|::Filesystem::exists("omega_fs_rules_wide" as + |paths|::Path);
         transition removed {
             |filesystem|::UnitResult::Ok -> block wide_gone(context, present),
             _ -> done(13)
@@ -154,8 +154,8 @@ reaches |process_exit|::ProcessExit
         transition present { true -> done(13), false -> block drain(context) }
     }
     machine drain(context: @mutable Main) {
-        let removed: |filesystem|::UnitResult = block |filesystem|::FilesystemService::remove_dir_all("omega_fs_rules" as + |paths|::Path);
-        let present: bool = block |filesystem|::FilesystemService::exists("omega_fs_rules" as + |paths|::Path);
+        let removed: |filesystem|::UnitResult = block |filesystem|::Filesystem::remove_dir_all("omega_fs_rules" as + |paths|::Path);
+        let present: bool = block |filesystem|::Filesystem::exists("omega_fs_rules" as + |paths|::Path);
         transition removed {
             |filesystem|::UnitResult::Ok -> drained(present),
             _ -> done(12)

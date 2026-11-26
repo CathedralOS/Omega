@@ -28,5 +28,6 @@ refusal now lands.
 After completing the sample's package review, run from the repository root:
 
 ```sh
-omega run --both samples/cli/text/huffman_codec/main.omg < /dev/null
+omega run --engine native samples/cli/text/huffman_codec/main.omg < /dev/null
+omega run --engine psi samples/cli/text/huffman_codec/main.omg < /dev/null
 ```

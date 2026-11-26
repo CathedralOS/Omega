@@ -55,12 +55,13 @@ all hosted targets have passed. The static/local version exits 16 in both
 native and checked interpretation on macOS ARM64:
 
 ```sh
-omega run --both samples/cli/basics/generic_counters/main.omg
+omega run --engine native samples/cli/basics/generic_counters/main.omg
+omega run --engine psi samples/cli/basics/generic_counters/main.omg
 ```
 
 Windows x86-64 is verified at `b80e3d12bdd` with an optimized dev compiler:
 after local package review, EOF and finite Enter each produce empty stdout,
-native exit 16 and Terminal exit 16. The CLI comparison checks exits.
+native exit 16 and Terminal exit 16. Compare each result with the expected exit of 16.
 On Linux x86-64, candidate 29 at `9da02bdb200017e97206ed4986b7c68dff221806`
 completes checking after repairing nested/root boundary classification. Project
 update stops with exit 3 at the generated package review; its pending decisions

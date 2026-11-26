@@ -3361,6 +3361,7 @@ pub mod inspection {
                 pub service_reach_is_installation_bound: bool,
                 pub suspends: bool,
                 pub blocks: bool,
+                pub admitted_same_stack_bytes: u64,
                 pub contracts: Vec<SignatureContractSnapshot>,
             }
 
@@ -3946,6 +3947,7 @@ pub mod inspection {
                         .service_reach_is_installation_bound,
                     suspends: signature.suspends,
                     blocks: signature.blocks,
+                        admitted_same_stack_bytes: signature.admitted_same_stack_bytes,
                     contracts: program
                         .state_signature_contracts(signature)
                         .iter()

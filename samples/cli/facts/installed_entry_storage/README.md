@@ -53,7 +53,8 @@ targets. `entry_ram.txt` explicitly requests initialization for source occurrenc
 execution. The portable test entrypoints consume those same files:
 
 ```sh
-omega run --both --keep --entry-ram 0=2900000003000000 main.omg
+omega run --engine native --keep --entry-ram 0=2900000003000000 main.omg
+omega run --engine psi --keep --entry-ram 0=2900000003000000 main.omg
 ```
 
 `entry_ram.txt` rows are `source-position=hex-bytes`, never addresses. The runtime

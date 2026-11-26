@@ -215,6 +215,7 @@ impl Program<'_> {
             blocks_keyword_source_spans: machine.blocks_keyword_source_spans.clone(),
             suspends: machine.suspends,
             blocks: machine.blocks,
+            admitted_same_stack_bytes: machine.admitted_same_stack_bytes,
             contracts: machine.contracts,
             termination_guarantee: machine
                 .termination_plan

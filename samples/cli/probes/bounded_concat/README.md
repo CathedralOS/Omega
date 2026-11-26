@@ -17,5 +17,6 @@ proves that its writes preserve the destination's ASCII requirement.
 Run both engines with:
 
 ```sh
-mbx run -p omega -- run --both samples/cli/probes/bounded_concat/main.omg < /dev/null
+mbx run -p omega -- run --engine native samples/cli/probes/bounded_concat/main.omg < /dev/null
+mbx run -p omega -- run --engine psi samples/cli/probes/bounded_concat/main.omg < /dev/null
 ```

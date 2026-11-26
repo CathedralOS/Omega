@@ -2,6 +2,8 @@
 //! Runtime fields, two simultaneously live results, record containment and a
 //! shorter live length exercise backing that moves with the aggregate.
 
+#[path = "support/declared_exit.rs"]
+mod declared_exit;
 mod support;
 
 use platform_custody::temporary_directory::TemporaryDirectory;
@@ -37,16 +39,7 @@ fn invoke(project: &Path, arguments: &[&str]) -> (Output, String) {
 
 fn assert_both(name: &str) {
     let project = fixture("run", name);
-    let expected = std::fs::read_to_string(project.join("expected_native_exit.txt")).unwrap();
-    let (output, report) = invoke(&project, &["run", "--both"]);
-    assert!(output.status.success(), "{report}");
-    let code = expected.trim();
-    for receipt in [
-        format!("native exit {code}"),
-        format!("interp exit: {code}"),
-    ] {
-        assert!(report.lines().any(|line| line == receipt), "{report}");
-    }
+    declared_exit::assert_declared_exit(&project, "main.omg");
 }
 
 #[test]

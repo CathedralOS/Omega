@@ -2,6 +2,8 @@
 //! Runtime results cover every value/count policy combination, while the twin
 //! changes only the Exact shift's qualified count from 31 to 32.
 
+#[path = "support/declared_exit.rs"]
+mod declared_exit;
 mod support;
 
 use platform_custody::temporary_directory::TemporaryDirectory;
@@ -37,16 +39,7 @@ fn invoke(tier: &str, arguments: &[&str]) -> (Output, String) {
 
 #[test]
 fn every_shift_policy_pair_and_total_bitwise_operation_runs_in_both_engines() {
-    let expected =
-        std::fs::read_to_string(fixture("run").join("expected_native_exit.txt")).unwrap();
-    let (output, report) = invoke("run", &["run", "--both"]);
-    assert!(output.status.success(), "{report}");
-    for receipt in [
-        format!("native exit {}", expected.trim()),
-        format!("interp exit: {}", expected.trim()),
-    ] {
-        assert!(report.lines().any(|line| line == receipt), "{report}");
-    }
+    declared_exit::assert_declared_exit(&fixture("run"), "main.omg");
 }
 
 #[test]

@@ -28,18 +28,18 @@ def main():
             shutil.copytree(PACKAGE / name, root / name)
         for name in ("build.omg", "main.omg"):
             shutil.copyfile(FIXTURE / name, root / name)
-        result = subprocess.run(
-            [cli, "run", "--both", "build.omg"],
-            cwd=root,
-            stdin=subprocess.DEVNULL,
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-        )
-        print(result.stdout, end="")
-        expected = {"native exit 0", "interp exit: 0"}
-        if result.returncode or not expected.issubset(result.stdout.splitlines()):
-            raise SystemExit(1)
+        for engine, expected in (("native", "native exit 0"), ("psi", "Psi exit 0")):
+            result = subprocess.run(
+                [cli, "run", "--engine", engine, "build.omg"],
+                cwd=root,
+                stdin=subprocess.DEVNULL,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+            )
+            print(result.stdout, end="")
+            if result.returncode or expected not in result.stdout.splitlines():
+                raise SystemExit(1)
 
 
 if __name__ == "__main__":
