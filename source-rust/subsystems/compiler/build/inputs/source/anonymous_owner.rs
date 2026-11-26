@@ -36,7 +36,7 @@ impl CompletedAnonymousSource {
         &self,
         capture: Option<&crate::CapturedLocalSource>,
     ) -> Result<(), Vec<diagnostics::Diagnostic>> {
-        if capture != Some(&self.acquisition) {
+        if !capture.is_some_and(|source| Arc::ptr_eq(source.tree(), self.acquisition.tree())) {
             return Err(vec![diagnostics::Diagnostic::error(
                 "anonymous Build product belongs to another captured source",
             )]);
@@ -353,8 +353,12 @@ mod tests {
         let a = close(&first);
         let b = close(&second);
         assert_eq!(a.owner(), b.owner());
-        a.require_capture(Some(&first)).unwrap();
+        a.require_capture(Some(&first.clone())).unwrap();
         assert!(a.require_capture(Some(&second)).is_err());
+        let reacquired =
+            crate::capture_anonymous_compilation_source(first.canonical_live_root()).unwrap();
+        assert_eq!(a.owner(), close(&reacquired).owner());
+        assert!(a.require_capture(Some(&reacquired)).is_err());
         assert!(a.require_capture(None).is_err());
     }
 
