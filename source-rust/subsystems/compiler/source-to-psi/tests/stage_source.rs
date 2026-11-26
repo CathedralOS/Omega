@@ -999,9 +999,16 @@ fn source_syntax_stores_only_the_complete_parse_and_files() {
     )
     .unwrap();
     assert_eq!(
-        bytes.strip_prefix(b"OmegaSourceSyntax1".as_slice()),
+        bytes.strip_prefix(b"OmegaSourceSyntax3".as_slice()),
         Some(body.as_slice())
     );
+    for tag in [b"OmegaSourceSyntax1", b"OmegaSourceSyntax2"] {
+        let mut former = tag.to_vec();
+        former.extend_from_slice(&body);
+        let error = record_storage::decode::<source_compiler::SourceSyntax>(&former, limits)
+            .unwrap_err();
+        assert_eq!(error.reason, "unsupported SourceSyntax record format");
+    }
     let reopened: source_compiler::SourceSyntax = record_storage::decode(&bytes, limits).unwrap();
     assert_eq!(syntax, reopened);
     for (entry, can_return) in [(None, false), (Some(entry), false), (None, true)] {

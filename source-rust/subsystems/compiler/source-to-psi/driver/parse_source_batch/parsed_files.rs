@@ -8,7 +8,7 @@ use std::{path::PathBuf, sync::Arc};
 use syntax_trees::{SyntaxTrees, item::Item};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, record_storage::Record)]
-#[record(format = b"OmegaSourceSyntax1")]
+#[record(format = b"OmegaSourceSyntax3")]
 pub struct SourceSyntax {
     pub(crate) trees: SyntaxTrees,
     files: Vec<ParsedFile>,
