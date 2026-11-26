@@ -775,3 +775,204 @@ fn authored_queries_describe_the_deferred_product_before_build_returns() {
         [TerminalBuildQueryOperation::Schema, TerminalBuildQueryOperation::Provider]
     );
 }
+
+#[test]
+fn sandbox_standard_output_requires_a_bounded_sink_and_preserves_exact_bytes() {
+    configure_library();
+    let directory = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "build-standard-output",
+        false,
+    )
+    .unwrap();
+    let entry = directory.path().join("build.omg");
+    std::fs::write(
+        &entry,
+        r#"use main.omg as product;
+use {omega}/language/core/sandbox/streams.omg as sandbox;
+machine build(builder: @mutable Build) {
+    Build::application(builder, "with_output");
+    Build::bind(builder, linux_x86_64::ProgramEntry, |product|::main);
+    |sandbox|::SandboxOutput::write("x");
+    let tail: [u8; 1] = [255u8];
+    |sandbox|::SandboxOutput::write(@tail[..]);
+}"#,
+    )
+    .unwrap();
+    std::fs::write(
+        directory.path().join("main.omg"),
+        r#"use {omega}/language/core/sandbox/streams.omg as sandbox;
+use {omega}/language/core/process_authority.omg as streams;
+public machine main() reaches |streams|::StandardOutput {
+    |sandbox|::SandboxOutput::write("outside the Build");
+}"#,
+    )
+    .unwrap();
+    let project =
+        begin_local_project_preparation(&entry, &[TargetProfile::LinuxX64], true).unwrap();
+    let acquired = project.acquire_root().unwrap();
+    let run = |limit| {
+        let prepared = prepare(
+            PlanningRequest {
+                root: &entry,
+                sources: PlanningSources::Captured(acquired.source_capture()),
+                execution: BuildExecutionInputs {
+                    diagnostic_output_bytes: limit,
+                    ..Default::default()
+                },
+                artifact_only: false,
+            },
+            Default::default(),
+            Default::default(),
+        )?;
+        interpret(prepared, &mut ())
+    };
+    let refused = run(None)
+        .err()
+        .expect("no sink supplied")
+        .into_diagnostics();
+    assert!(
+        refused.iter().any(|d| d.message.contains("before entry")
+            && d.message.contains("StandardOutput diagnostic sink")),
+        "{refused:?}"
+    );
+    let refused = run(Some(1))
+        .err()
+        .expect("second byte exceeds the activation limit")
+        .into_diagnostics();
+    assert!(
+        refused
+            .iter()
+            .any(|d| d.message.contains("diagnostic sink byte limit exceeded")),
+        "{refused:?}"
+    );
+    let mut stage = run(Some(2)).unwrap();
+    let declaration = acquired.declare_build(stage.returned()).unwrap();
+    let subject = declaration.identity();
+    let ExecutedSourceResolution::Complete(graph) = declaration.resolve().unwrap() else {
+        panic!("stock sandbox operations require no package registration")
+    };
+    let inputs = graph
+        .join_source_result(subject, &mut stage.source_result().unwrap())
+        .unwrap();
+    let product = stage.open_product(Some(&inputs)).unwrap();
+    assert_eq!(
+        product
+            .evaluated()
+            .configuration
+            .observation_summary
+            .as_ref()
+            .unwrap()
+            .build_log(),
+        b"x\xff"
+    );
+    let planned = product.product_stage(&[TargetProfile::LinuxX64]).unwrap();
+    let program = planned
+        .program(TargetProfile::LinuxX64, Vec::new())
+        .unwrap();
+    let rejected = compiler::compile(
+        compiler::CompileRequest::Native {
+            program,
+            entry_memory: &[],
+        },
+        Default::default(),
+    )
+    .err()
+    .expect("the Build's stream backing cannot supply its native Product")
+    .into_diagnostics();
+    assert!(
+        rejected
+            .iter()
+            .any(|d| d.message.contains("SandboxOutput") && d.message.contains("provider")),
+        "{rejected:?}"
+    );
+}
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[test]
+fn sandbox_standard_output_and_system_editor_guide() {
+    use std::os::unix::fs::PermissionsExt;
+
+    configure_library();
+    let target = TargetProfile::LinuxX64;
+    let root = fixture_repository::root();
+    let work = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "stock-successor-console",
+        false,
+    )
+    .unwrap();
+    let project = work.path().join("editor");
+    let vendor = project.join("vendor/system");
+    std::fs::create_dir_all(&vendor).unwrap();
+    let system = begin_local_project_preparation(
+        &root.join("source/library/system/build.omg"),
+        &[target],
+        true,
+    )
+    .unwrap()
+    .acquire_root()
+    .unwrap();
+    let captured = system.source_capture().tree();
+    for (path, _) in captured
+        .entries()
+        .filter(|(p, _)| p.extension().is_some_and(|e| e == "omg"))
+    {
+        let destination = vendor.join(path);
+        std::fs::create_dir_all(destination.parent().unwrap()).unwrap();
+        std::fs::write(
+            destination,
+            captured.read_to_string(path).unwrap().as_bytes(),
+        )
+        .unwrap();
+    }
+    let guide = std::fs::read_to_string(root.join("wiki/language_guide/packages.md")).unwrap();
+    for filename in ["build.omg", "build_0.omg", "generated.omg", "main.omg"] {
+        let opening = format!("```omega\n// {filename}");
+        let (_, example) = guide
+            .split_once(&opening)
+            .expect("the guide names its source file");
+        let (_, source) = example.split_once('\n').unwrap();
+        let (source, _) = source.split_once("\n```").unwrap();
+        std::fs::write(project.join(filename), source).unwrap();
+    }
+
+    let outputs = work.path().join("outputs");
+    std::fs::create_dir(&outputs).unwrap();
+    let product = package_manager::project::open_product(
+        &project.join("build.omg"),
+        target,
+        true,
+        &outputs,
+        None,
+    )
+    .expect("run the staged guide under the package driver");
+    assert_eq!(product.evaluated().preparations.len(), 1);
+    let summary = product
+        .evaluated()
+        .configuration
+        .observation_summary
+        .as_ref()
+        .unwrap();
+    assert_eq!(summary.build_log(), b"configuring editor\n");
+
+    let plan = product.product_stage(&[target]).unwrap();
+    let program = plan.program(target, Vec::new()).unwrap();
+    let compiler::Artifact::Native(output) = compiler::compile(
+        compiler::CompileRequest::Native {
+            program,
+            entry_memory: &[],
+        },
+        Default::default(),
+    )
+    .expect("compile the editor using the stock native provider")
+    .artifact
+    else {
+        panic!("expected a native application");
+    };
+    let file = work.path().join("editor.elf");
+    let artifact = output.retained_native_artifact().unwrap();
+    std::fs::write(&file, &artifact.image().output().bytes).unwrap();
+    std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o700)).unwrap();
+    let execution = std::process::Command::new(file).output().unwrap();
+    assert!(execution.status.success(), "{execution:?}");
+    assert_eq!(execution.stdout, b"editor started\n");
+}

@@ -293,6 +293,7 @@ impl TerminalBuildHost {
             artifact,
             produced.build_requests(),
             original.clone(),
+            providers.diagnostic_output_bytes,
             Some(account),
             original_sources.as_ref().map(|sources| Arc::clone(&sources.libraries)).unwrap_or_default(),
         )?;

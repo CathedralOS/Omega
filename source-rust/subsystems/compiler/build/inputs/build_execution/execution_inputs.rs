@@ -11,12 +11,16 @@ use target::TargetProfile;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildExecutionContract {
+    /// The caller may designate this activation's retained diagnostics as a bounded StandardOutput.
+    pub diagnostic_output_bytes: Option<u64>,
     pub profile: Option<TargetProfile>,
     pub snapshot: Option<BuildSnapshotRequest>,
 }
 
 #[derive(Default)]
 pub struct BuildExecutionInputs {
+    /// The caller may designate this activation's retained diagnostics as a bounded StandardOutput.
+    pub diagnostic_output_bytes: Option<u64>,
     pub interpreter_providers: crate::InterpretedProviderSelections,
     pub profile: Option<TargetProfile>, // Compilation requests default to the host, independently of Product target.
     pub directory: Option<PathBuf>, // Writable staging, separate from immutable source snapshots.
@@ -53,6 +57,7 @@ impl BuildExecutionInputs {
 
     pub fn contract(&self) -> BuildExecutionContract {
         BuildExecutionContract {
+            diagnostic_output_bytes: self.diagnostic_output_bytes,
             profile: self.profile,
             snapshot: self.snapshot.clone(),
         }

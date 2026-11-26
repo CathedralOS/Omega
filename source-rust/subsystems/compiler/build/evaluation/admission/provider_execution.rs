@@ -12,6 +12,7 @@ pub(crate) struct BuildProviderScope {
 }
 
 pub(crate) struct BuildProviderInstallation {
+    pub(crate) diagnostic_output_bytes: Option<u64>,
     pub(crate) supplies: terminal_interpreter::TerminalRuntimeSupplies,
     pub(crate) awaited: Vec<semantic_vocabulary::BoundaryMachineId>,
 }
@@ -64,6 +65,7 @@ impl BuildProviderScope {
     pub(crate) fn admit(
         &self,
         program: &source_compiler::publication::ProducedTerminalProgram,
+        diagnostic_output_bytes: Option<u64>,
     ) -> Result<BuildProviderInstallation, Vec<Diagnostic>> {
         let artifact = program.view();
         let module = artifact.module();
@@ -178,6 +180,20 @@ impl BuildProviderScope {
                     "Build selected provider execution closure: {reason:?}"
                 ))
             })?;
+        use source_compiler::publication::TerminalBuildRequestOperation as Action;
+        if diagnostic_output_bytes.is_none()
+            && let Some(call) = requests.iter().find(|row| {
+                row.action == Action::SandboxWrite && demand.imports.contains(&row.site.boundary)
+            })
+        {
+            let name = module
+                .boundary_machine(call.site.boundary)
+                .and_then(|decl| module.identities.text(decl.identity))
+                .unwrap_or("<unknown boundary>");
+            return Err(failure(format!(
+                "Build requires `{name}` before entry; the caller supplied no bounded StandardOutput diagnostic sink"
+            )));
+        }
         let missing = demand
             .missing_providers
             .iter()
@@ -195,7 +211,11 @@ impl BuildProviderScope {
         if !errors.is_empty() {
             return Err(errors);
         }
-        Ok(BuildProviderInstallation { supplies, awaited })
+        Ok(BuildProviderInstallation {
+            supplies,
+            awaited,
+            diagnostic_output_bytes,
+        })
     }
 }
 
