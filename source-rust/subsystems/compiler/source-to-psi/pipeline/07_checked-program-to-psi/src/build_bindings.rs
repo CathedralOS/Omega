@@ -383,6 +383,7 @@ pub(crate) mod build_requests {
         Package,
         Application,
         Member,
+        BuildEntry,
         ArtifactOnly,
         PathDependency,
         GitDependency,

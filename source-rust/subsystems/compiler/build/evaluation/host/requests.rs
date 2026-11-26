@@ -15,7 +15,8 @@ normal-return settlement charges result custody and publishes the log bytes.
 */
 
 use build_declarations::{
-    BuildDependencySource, BuildRequest, DependencyPurpose, ProjectName, WorkspaceMemberPath,
+    BuildDependencySource, BuildEntryPath, BuildRequest, DependencyPurpose, ProjectName,
+    WorkspaceMemberPath,
 };
 use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
 mod output;
@@ -432,7 +433,10 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
         };
         let (scalar_count, structural_count) = match call.action {
             Operation::ArtifactOnly => (0, 1),
-            Operation::Package | Operation::Application | Operation::Member => (0, 2),
+            Operation::Package
+            | Operation::Application
+            | Operation::Member
+            | Operation::BuildEntry => (0, 2),
             Operation::PathDependency => (2, 3),
             Operation::GitDependency => (3, 5),
             Operation::ConfigureTestFixture
@@ -456,6 +460,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
         };
         match call.action {
             Operation::Package | Operation::Application => name(text(1)?)?,
+            Operation::BuildEntry => BuildEntryPath::validate(text(1)?).map_err(refuse)?,
             Operation::Member if !WorkspaceMemberPath::is_valid(text(1)?) => {
                 return Err(refuse("Build workspace member path is not canonical"));
             }
@@ -526,6 +531,9 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                 WorkspaceMemberPath::parse(copy(text(1)?)?)
                     .map_err(|error| TerminalEffectRejection::new(error.to_string()))?,
             ),
+            Operation::BuildEntry => {
+                BuildRequest::BuildEntry(BuildEntryPath::parse(copy(text(1)?)?).map_err(refuse)?)
+            }
             Operation::ArtifactOnly => BuildRequest::ArtifactOnly,
             Operation::PathDependency | Operation::GitDependency => BuildRequest::Dependency {
                 purpose: if flag(0)? {

@@ -14,6 +14,6 @@ pub use build_declaration::{
     BuildDeclarationKind, PackageDeclaration, ProjectName, WorkspaceDeclaration,
     WorkspaceMemberPath,
 };
-pub use build_request::{BuildDependencySource, BuildRequest};
+pub use build_request::{BuildDependencySource, BuildEntryPath, BuildRequest};
 pub use dependencies::{DependencyOperation, DependencyPurpose};
 pub use prelude::{BuildPrelude, build_prelude};

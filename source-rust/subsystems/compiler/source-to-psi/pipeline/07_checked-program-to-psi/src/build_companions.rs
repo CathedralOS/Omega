@@ -522,6 +522,7 @@ fn request_operation(name: &str) -> Result<TerminalBuildRequestOperation, Diagno
         "package" => Request::Package,
         "application" => Request::Application,
         "member" => Request::Member,
+        "build_entry" => Request::BuildEntry,
         "artifact_only" => Request::ArtifactOnly,
         "register_path_dependency" => Request::PathDependency,
         "register_git_dependency" => Request::GitDependency,
