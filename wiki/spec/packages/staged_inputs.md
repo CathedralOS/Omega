@@ -50,7 +50,7 @@ machine build(build: @mutable Build) {
         "layout", "https://example.org/layout.git", "refs/heads/stable",
         "8e76d2a18f2ecb674b75670ab380aa1cf32f9d44"
     );
-    let service_free: [BoundaryServiceRef; 0] = [];
+    let service_free: [BoundaryServiceReference; 0] = [];
     _ = |dependency|::add(build, layout, @service_free[..]);
     Build::build_entry(build, "configure.omg");
 }
@@ -151,7 +151,7 @@ from `|dependency|::input`. A forwarded binding's ceiling must fit its incoming
 ceiling.
 
 ```omega
-let allowed: [BoundaryServiceRef; 1] = [Build::service::<Sensor<17u32>>(build)];
+let allowed: [BoundaryServiceReference; 1] = [Build::service::<Sensor<17u32>>(build)];
 _ = |dependency|::add(build, telemetry, @allowed[..]);
 ```
 

@@ -130,7 +130,7 @@ access. This contract introduces no debug/release mode or special CLI profile.
 The test harness uses [ordinary provider selection](provider_selection.md#declaration-and-choice)
 for the test root's exact boundary requirements. Each selection belongs to
 the registered group and target's test product. For a test that calls
-`FilesystemService`, the harness selects a conforming provider and supplies
+`Filesystem`, the harness selects a conforming provider and supplies
 the filesystem backing within its actual grant. Selection checks the provider's
 contract. The runner checks the resources delegated to the test separately.
 The application keeps its own provider selections.

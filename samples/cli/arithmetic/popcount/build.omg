@@ -7,7 +7,7 @@ use {omega}/language/core/process_exit.omg;
 
 machine build(builder: @mutable Build) {
     Build::application(builder, "popcount");
-    let allowed: [BoundaryServiceRef; 3] = [
+    let allowed: [BoundaryServiceReference; 3] = [
         Build::service::<|process_authority|::StandardInput>(builder),
         Build::service::<|process_authority|::StandardOutput>(builder),
         Build::service::<|process_exit|::ProcessExit>(builder)
