@@ -12,6 +12,7 @@ use super::Program;
 use crate::{Unserved, refuse};
 
 struct Origin {
+    owner: MachineId,
     declaration: TypeParameter,
     requirements: Vec<MachineId>,
 }
@@ -39,6 +40,37 @@ impl Program<'_> {
             })
     }
 
+    fn same_static_parameter(
+        &self,
+        origin: &Origin,
+        owner: MachineId,
+        declaration: &TypeParameter,
+    ) -> Checked<bool> {
+        let first = &origin.declaration;
+        if first == declaration {
+            return Ok(true);
+        }
+        if first.symbol != declaration.symbol
+            || first.name != declaration.name
+            || first.bounds != declaration.bounds
+        {
+            return Ok(false);
+        }
+        let source = |machine| {
+            self.symbols.get(machine).copied().ok_or_else(|| {
+                unavailable(machine, "static callback context lost its source machine")
+            })
+        };
+        self.typed
+            .copied_parameter_kinds_match(
+                &first.kind,
+                source(origin.owner)?,
+                &declaration.kind,
+                source(owner)?,
+            )
+            .map_err(|reason| unavailable(owner, reason))
+    }
+
     pub(crate) fn static_reach_contexts(
         &self,
         module: &mut terminal_psi::TerminalModule,
@@ -62,12 +94,13 @@ impl Program<'_> {
                 .is_none_or(|origin| origin.declaration.symbol != declaration.symbol)
             {
                 origins.push(Origin {
+                    owner,
                     declaration: declaration.clone(),
                     requirements: Vec::new(),
                 });
             }
             let origin = origins.last_mut().expect("the new origin exists");
-            if origin.declaration != declaration {
+            if !self.same_static_parameter(origin, owner, &declaration)? {
                 return Err(unavailable(
                     owner,
                     "static callback context changed its original declaration",
@@ -98,7 +131,7 @@ impl Program<'_> {
                     continue;
                 };
                 let origin = &origins[origin];
-                if declaration != &origin.declaration {
+                if !self.same_static_parameter(origin, owner, declaration)? {
                     return Err(unavailable(
                         owner,
                         "static callback context changed an inherited declaration",
