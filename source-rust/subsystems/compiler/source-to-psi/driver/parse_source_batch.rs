@@ -2,8 +2,8 @@
 //! files enter the same ordered batch before any pages are appended.
 
 mod batch;
-mod parsed_files;
 mod import_advisories;
+mod parsed_files;
 pub use import_advisories::FileImportAdvisories;
 pub use parsed_files::{
     ParsedSourceBatch, ParsedSourceSummary, RetainedSourceParse, SourceDeclarations, SourceImport,

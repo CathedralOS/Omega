@@ -14,32 +14,56 @@ impl FileImportAdvisories {
     pub fn observe(&mut self, stage: &ParsedStageSources, scope: DependencyScope) {
         let syntax = &stage.syntax.trees;
         for handle in syntax.root_item_handles() {
-            let Item::Use(UseItem::File { span, alias, qualifiers, .. }) = syntax.root_item(*handle) else { continue };
-            let Some(file) = stage.files.get(span.source_id) else { continue };
+            let Item::Use(UseItem::File {
+                span,
+                alias,
+                qualifiers,
+                ..
+            }) = syntax.root_item(*handle)
+            else {
+                continue;
+            };
+            let Some(file) = stage.files.get(span.source_id) else {
+                continue;
+            };
             if !stage.files.source_is_selected(span.source_id) || file.dependency_scope != scope {
                 continue;
             }
             let identity = (file.path.clone(), Arc::clone(&file.source), span.span.start);
-            let seen = qualifiers.iter().any(|usage| scope == DependencyScope::Product || !usage.product_operand);
-            self.0.entry(identity).or_insert_with(|| (alias.as_str(syntax).to_owned(), false)).1 |= seen;
+            let seen = qualifiers
+                .iter()
+                .any(|usage| scope == DependencyScope::Product || !usage.product_operand);
+            self.0
+                .entry(identity)
+                .or_insert_with(|| (alias.as_str(syntax).to_owned(), false))
+                .1 |= seen;
         }
     }
 
     pub fn extend(&mut self, other: &Self) {
         for (key, (alias, used)) in &other.0 {
-            self.0.entry(key.clone()).or_insert_with(|| (alias.clone(), false)).1 |= used;
+            self.0
+                .entry(key.clone())
+                .or_insert_with(|| (alias.clone(), false))
+                .1 |= used;
         }
     }
 
     pub fn warnings(&self) -> Vec<Diagnostic> {
-        self.0.iter().filter(|(_, (_, used))| !used).map(|((path, source, at), (alias, _))| {
-            let position = source_text::SourcePosition::of(source, *at);
-            let mut warning = Diagnostic::warning(format!("unused file import `{alias}`"));
-            warning.resolved_location = Some(ResolvedSourceLocation {
-                path: path.clone(), package: None,
-                line: position.line as u32, column: position.column as u32,
-            });
-            warning
-        }).collect()
+        self.0
+            .iter()
+            .filter(|(_, (_, used))| !used)
+            .map(|((path, source, at), (alias, _))| {
+                let position = source_text::SourcePosition::of(source, *at);
+                let mut warning = Diagnostic::warning(format!("unused file import `{alias}`"));
+                warning.resolved_location = Some(ResolvedSourceLocation {
+                    path: path.clone(),
+                    package: None,
+                    line: position.line as u32,
+                    column: position.column as u32,
+                });
+                warning
+            })
+            .collect()
     }
 }

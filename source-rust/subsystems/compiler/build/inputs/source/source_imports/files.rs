@@ -162,8 +162,7 @@ impl<'a> FileImport<'a> {
         mounted: Option<&PackageCompilationInputs>,
         filesystem: &SourceFileSystem,
     ) -> Result<FileSelection, Vec<Diagnostic>> {
-        if !self.import.used_in(self.source.scope)
-        {
+        if !self.import.used_in(self.source.scope) {
             return Ok(FileSelection::Unbound);
         }
         match self.root {
@@ -185,8 +184,7 @@ impl<'a> FileImport<'a> {
         contract_root: Option<&Path>,
         filesystem: &SourceFileSystem,
     ) -> Result<FileSelection, Vec<Diagnostic>> {
-        if !self.import.used_in(self.source.scope)
-        {
+        if !self.import.used_in(self.source.scope) {
             return Ok(FileSelection::Unbound);
         }
         if self.root == Some("omega") {

@@ -14,8 +14,8 @@ pub use driver::package_handoff::{
     InterpretedProviderSelections, PackageHandoffDeclarations, package_handoff_declarations,
 };
 pub use driver::parse_source_batch::{
-    FileImportAdvisories, ParsedSourceBatch, ParsedSourceSummary, RetainedSourceParse, SourceDeclarations, SourceImport,
-    SourceImportTarget, SourceInput, SourceItems, SourceSyntax,
+    FileImportAdvisories, ParsedSourceBatch, ParsedSourceSummary, RetainedSourceParse,
+    SourceDeclarations, SourceImport, SourceImportTarget, SourceInput, SourceItems, SourceSyntax,
 };
 pub use driver::stage_sources::ParsedStageSources;
 pub use driver::{compile_product, compile_time_invocations, registered_tests};

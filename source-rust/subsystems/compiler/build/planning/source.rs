@@ -572,7 +572,8 @@ impl PlanningSource {
                 )
             })?
             .1;
-        self.file_imports.observe(&source.parsed, source_provenance::DependencyScope::Product);
+        self.file_imports
+            .observe(&source.parsed, source_provenance::DependencyScope::Product);
         Ok(PlannedProduct {
             file_imports: self.file_imports,
             supplied_build_libraries: self.supplied_libraries,

@@ -159,7 +159,13 @@ impl<'source> FileQualifiers<'source> {
                     !named_record && !schema.as_deref().is_some_and(|name| traits.contains(name))
                 }
             };
-            aliases.entry(*alias).or_default().push(syntax_trees::item::FileQualifier { offset, product_operand: product });
+            aliases
+                .entry(*alias)
+                .or_default()
+                .push(syntax_trees::item::FileQualifier {
+                    offset,
+                    product_operand: product,
+                });
         }
         aliases
     }

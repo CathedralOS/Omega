@@ -227,9 +227,10 @@ pub struct SourceImport {
 
 impl SourceImport {
     pub fn used_in(&self, scope: source_provenance::DependencyScope) -> bool {
-        matches!(&self.target, SourceImportTarget::Namespace(_)) || self.qualifiers.iter().any(|usage| {
-            scope == source_provenance::DependencyScope::Product || !usage.product_operand
-        })
+        matches!(&self.target, SourceImportTarget::Namespace(_))
+            || self.qualifiers.iter().any(|usage| {
+                scope == source_provenance::DependencyScope::Product || !usage.product_operand
+            })
     }
 }
 
