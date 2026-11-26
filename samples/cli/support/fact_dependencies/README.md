@@ -12,6 +12,7 @@ negative twin's weaker published contract, is its own package.
 
 | Package | Used by | What distinguishes it |
 | --- | --- | --- |
+| `checked_dependency_reuse` | `checked_dependency_reuse` | three machine bodies supply a borrowed field, a counted value and an observation-free predicate across the package boundary |
 | `reading_provider` | the 9 places of `build_target_provider` | `Reading::total` publishes `ensures result >= 1000u64` |
 | `reading_provider_weak_contract` | its 9 `invalid_*` twins | the same package, except that the requirement publishes `>= 999u64`; the twin shows a caller cannot rely on the provider's stronger body |
 | `qualified_call_lib` | the 18 places of `dependency_type_qualified_call`, through the alias `lib` | a data type with a machine attached under its name |
