@@ -156,6 +156,33 @@ impl<'a> AuthorityGraph<'a> {
                         self.target_profile.target_name(),
                     ));
                 }
+                // Packed integer operations come only from x86-64 checked asm
+                // instructions, and only x86-64 selection realizes them.
+                if !RegisterTargetApplicability::X86_64
+                    .accepts_target_name(self.target_profile.target_name())
+                    && function.operations().any(|operation| {
+                        matches!(
+                            operation,
+                            AbstractOperation::PackedIntegerUnary { .. }
+                                | AbstractOperation::PackedIntegerBinary { .. }
+                        )
+                    })
+                {
+                    let declared = terminal_machine
+                        .declaration
+                        .as_ref()
+                        .and_then(|declaration| {
+                            self.input
+                                .module()
+                                .identities
+                                .text(declaration.machine.identity())
+                        })
+                        .map_or_else(|| format!("{machine:?}"), |name| format!("`{name}`"));
+                    return Err(format!(
+                        "reachable machine {declared} uses packed integer asm instructions, which only x86_64 implements; target `{}` has no packed integer instructions yet, so build for an x86_64 target",
+                        self.target_profile.target_name(),
+                    ));
+                }
                 for operation in function.operations() {
                     if self.installed_scopes.is_some()
                         && let AbstractOperation::BoundaryCall {
