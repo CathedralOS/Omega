@@ -187,6 +187,9 @@ pub(crate) mod domain_constraints {
                 base_type,
                 constraints,
             } => {
+                // A transparent alias can supply an inner qualification needed
+                // to select the written outer domain.
+                normalize_domain_constraints_for_type(source, program, base_type)?;
                 normalize_constraint_span(source, program, type_reference, base_type, constraints)?
             }
             _ => {}

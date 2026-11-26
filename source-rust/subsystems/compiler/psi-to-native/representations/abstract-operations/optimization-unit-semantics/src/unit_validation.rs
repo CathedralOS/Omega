@@ -8610,14 +8610,9 @@ pub(crate) mod function_structure {
                             )
                             .map_err(invalid)?;
                             if contract.carrier != result.structural_type
-                                || contract
-                                    .qualifications
-                                    .iter()
-                                    .any(|domain| !result.qualifications.contains(domain))
-                                || contract
-                                    .projected_qualifications
-                                    .iter()
-                                    .any(|row| !result.projected_qualifications.contains(row))
+                                || !signature
+                                    .payload_contract()
+                                    .move_preserves_qualifications(&source.path, result)
                             {
                                 return Err(invalid(
                                     "transfer loses the selected source memberships",

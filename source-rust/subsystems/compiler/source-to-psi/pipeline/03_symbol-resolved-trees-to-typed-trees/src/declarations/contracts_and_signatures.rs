@@ -140,7 +140,6 @@ pub(crate) mod contracts {
             symbols::SymbolHandle,
             String,
             Vec<typed::types::TypeReferenceHandle>,
-            semantic_vocabulary::SemanticDomainId,
         )> {
             use typed::types::{TypeConstraintNode, TypeReferenceNode};
             let mut domains = Vec::new();
@@ -160,7 +159,6 @@ pub(crate) mod contracts {
                                     domain.symbol,
                                     definition.name.as_str().to_owned(),
                                     domain.arguments.clone(),
-                                    domain.semantic_id,
                                 ));
                             }
                         }
@@ -184,7 +182,6 @@ pub(crate) mod contracts {
             symbols::SymbolHandle,
             String,
             Vec<typed::types::TypeReferenceHandle>,
-            semantic_vocabulary::SemanticDomainId,
         );
 
         pub(crate) fn lower_state_parameters_collecting_domain_constraints(
@@ -195,7 +192,7 @@ pub(crate) mod contracts {
             let mut domain_constrained_parameters: Vec<DomainConstrainedParameter> = Vec::new();
             for parameter in lowerer.source_trees.state_parameters(parameters) {
                 let parameter = lower_state_parameter(lowerer, parameter)?;
-                for (domain_symbol, domain_full_name, domain_arguments, semantic_domain) in
+                for (domain_symbol, domain_full_name, domain_arguments) in
                     domain_constraints(&lowerer.typed_trees, parameter.type_reference)
                 {
                     domain_constrained_parameters.push((
@@ -204,7 +201,6 @@ pub(crate) mod contracts {
                         domain_symbol,
                         domain_full_name,
                         domain_arguments,
-                        semantic_domain,
                     ));
                 }
                 push_parameter(&mut lowerer.typed_trees, parameter);
@@ -217,14 +213,8 @@ pub(crate) mod contracts {
             domain_constrained_parameters: Vec<DomainConstrainedParameter>,
             mut push_contract: impl FnMut(&mut typed::TypedTrees, typed::signature::SignatureContract),
         ) {
-            for (
-                param_symbol,
-                param_name,
-                domain_symbol,
-                domain_full_name,
-                domain_arguments,
-                semantic_domain,
-            ) in domain_constrained_parameters
+            for (param_symbol, param_name, domain_symbol, domain_full_name, domain_arguments) in
+                domain_constrained_parameters
             {
                 let contract = lowerer.typed_trees.parameter_domain_membership_contract(
                     param_symbol,
@@ -232,8 +222,7 @@ pub(crate) mod contracts {
                     domain_symbol,
                     &domain_full_name,
                     domain_arguments,
-                    semantic_domain,
-                );
+                    );
                 push_contract(&mut lowerer.typed_trees, contract);
             }
         }
