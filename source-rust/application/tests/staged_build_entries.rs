@@ -199,6 +199,13 @@ machine select_workspace(plan: @mutable BuildPlan) {
     );
     assert!(status.success(), "{report}");
 
+    let (status, report) = invoke(&[("build.omg", workspace)], &["build"]);
+    assert!(!status.success(), "{report}");
+    assert!(
+        report.contains("a workspace declaration does not name a Product source owner"),
+        "{report}"
+    );
+
     let duplicate = workspace.replace(
         "plan.product = BuildProduct::Workspace { members: second };",
         r#"let repeated: WorkspaceMembers = |workspace|::with_member(plan, second, "tools");

@@ -1,8 +1,8 @@
 use {omega}/build/dependency.omg;
 
 machine helper_value() -> i32 { 7 }
-machine build(builder: @mutable Build) suspends {
-    Build::application(builder, "promised");
+machine build(builder: @mutable BuildPlan) suspends {
+    builder.product = BuildProduct::Application { name: "promised" };
     let mutable request: DependencyDescription = |dependency|::from_source(Source::Path { location: "dep" });
     |dependency|::with_alias(@mutable request, "kit");
     let registration: DependencyRegistration = Build::dependency(builder, request);
@@ -21,16 +21,16 @@ machine build(builder: @mutable Build) suspends {
     transition passed {
         true -> good(builder), _ -> wrong(builder)
     }
-    machine good(builder: @mutable Build) { Build::bind(builder, linux_x86_64::ProgramEntry, main); }
-    machine wrong(builder: @mutable Build) { Build::application(builder, "second_role"); }
+    machine good(builder: @mutable BuildPlan) { Build::bind(builder, linux_x86_64::ProgramEntry, main); }
+    machine wrong(builder: @mutable BuildPlan) { builder.product = BuildProduct::Application { name: "second_role" }; }
 }
-machine settle(builder: @mutable Build, settled: OutputCompletion) {
+machine settle(builder: @mutable BuildPlan, settled: OutputCompletion) {
     transition settled {
         OutputCompletion::Sealed { receipt } -> done(),
         OutputCompletion::Retry { obligation, file } -> failed(builder, obligation)
     }
     machine done() {}
-    machine failed(builder: @mutable Build, obligation: RequiredOutput) {
+    machine failed(builder: @mutable BuildPlan, obligation: RequiredOutput) {
         BuildOutput::fail(@mutable builder.output, obligation, "output was not sealed");
     }
 }
