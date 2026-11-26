@@ -95,3 +95,28 @@ The OS handoff could retain its existing two-root contract. Another choice is
 to keep the two-root returning entry and specify how the adapter lends an
 actual service instance to calls made by that continuation, including nested
 or concurrent invocations. Which contract should returning applications use?
+
+<a id="review-unused-generic-native-binding"></a>
+### 2. What does package review approve for a generic native import before its first concrete call?
+
+The Windows filesystem provider binds one generic UTF-16 converter to
+`WideCharToMultiByte`. Its three callers supply different input and output
+array capacities. Removing the callers leaves an evaluated Build decision and
+a real DLL import, but no concrete capacities or calling plan. An offline
+Windows x86-64 review of just the shipped [declaration](source/library/system/targets/windows_x86_64/windows_filesystem_path_query_native.omg)
+and its [Build binding](source/library/system/build.omg) refused that package.
+The same review accepts an unused import with a concrete signature.
+
+[Generic provider selection](wiki/spec/build/provider_selection.md#generic-selected-requirements)
+lets callers choose the arguments. [Calling policy](wiki/spec/build/calling_plans.md#identity-and-selection)
+validates each concrete application. [Package review](wiki/spec/packages/review.md#distinct-evidence-roles)
+requires a trust row even for an unused binding, keyed to an exact application.
+Which decision can a reviewer make before that application exists?
+
+**Recommend recording the generic declaration, target, locator, calling policy
+and Build origin at package review.** Approving that declaration would disclose
+the family's foreign promise. The first use of a new argument tuple would
+require its own checked calling plan and review of the concrete supply before
+execution. Alternatively, require the package author to bind every admissible
+tuple explicitly, even when all tuples use the same foreign symbol. The
+Windows provider could do that for its three known buffer shapes.
