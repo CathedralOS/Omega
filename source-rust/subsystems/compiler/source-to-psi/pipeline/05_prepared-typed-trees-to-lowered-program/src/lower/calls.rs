@@ -1476,23 +1476,17 @@ mod tests {
             budget
                 .run(|| publish_write_frames(&mut module, &mut tables))
                 .unwrap();
-            let writes: Vec<Vec<WriteRow>> = tables
+            tables
                 .machines
                 .values()
-                .map(|m| m.writes.values().copied().collect())
-                .collect();
-            let place_writes: Vec<Vec<Vec<_>>> = tables
-                .machines
-                .values()
-                .map(|m| m.places.values().map(|p| p.writes.clone()).collect())
-                .collect();
-            (writes, place_writes)
+                .map(|machine| machine.writes.values().copied().collect::<Vec<WriteRow>>())
+                .collect::<Vec<_>>()
         };
 
         let sequential = run(1);
         let parallel = run(4);
         assert_eq!(sequential, parallel);
-        assert_eq!(sequential.0.len(), 4);
-        assert!(sequential.0.iter().all(|rows| rows.len() == 1));
+        assert_eq!(sequential.len(), 4);
+        assert!(sequential.iter().all(|rows| rows.len() == 1));
     }
 }
