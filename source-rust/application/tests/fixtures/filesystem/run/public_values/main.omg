@@ -1,100 +1,98 @@
 // Expected exit: 0
 // Portable read/write, positioned I/O, bounded copy and metadata round trips.
-use system\FilesystemService;
-use system;
-use system\File;
-use system\OpenResult;
-use system\IoResult;
-use system\UnitResult;
-use system\ErrorKind;
-use system\MetadataResult;
-use system\DirEntryResult;
-use system\DirEntry;
+use {omega}/language/core/filesystem_authority.omg as authority;
+use {system}/filesystem.omg;
+use {system}/filesystem_host.omg as paths;
 
-machine ok(result: UnitResult) -> bool {
-    transition result { UnitResult::Ok -> true, _ -> false }
+machine ok(result: |filesystem|::UnitResult) -> bool {
+    transition result { |filesystem|::UnitResult::Ok -> true, _ -> false }
 }
-machine count(result: IoResult, expected: u64) -> bool {
-    transition result { IoResult::Ok { count } -> (count == expected), _ -> false }
+machine count(result: |filesystem|::IoResult, expected: u64) -> bool {
+    transition result { |filesystem|::IoResult::Ok { count } -> (count == expected), _ -> false }
 }
-machine invalid(result: IoResult) -> bool {
-    transition result { IoResult::Error { kind } -> error(kind), _ -> false }
-    machine error(kind: ErrorKind) -> bool {
-        transition kind { ErrorKind::InvalidInput -> true, _ -> false }
+machine invalid(result: |filesystem|::IoResult) -> bool {
+    transition result { |filesystem|::IoResult::Error { kind } -> error(kind), _ -> false }
+    machine error(kind: |filesystem|::ErrorKind) -> bool {
+        transition kind { |filesystem|::ErrorKind::InvalidInput -> true, _ -> false }
     }
 }
 machine main()
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
+reaches |authority|::FilesystemContentRead
+    + |authority|::FilesystemContentWrite
+    + |authority|::FilesystemMetadataQuery
+    + |authority|::FilesystemMetadataMutation
+    + |authority|::FilesystemNamespaceMutation
+    + |authority|::DirectoryEnumeration
 blocks
 crashes Trap
 {
-    let old: UnitResult = block FilesystemService::remove("portable_source.tmp" as +Path);
-    let old_copy: UnitResult = block FilesystemService::remove("portable_copy.tmp" as +Path);
-    let opened: OpenResult = block FilesystemService::create_new("portable_source.tmp" as +Path);
-    transition opened { OpenResult::Ok { file } -> block write(file), _ -> bad() }
-    machine write(file: File) crashes Trap {
-        let written: IoResult = block FilesystemService::write(file, "ABC");
+    let old: |filesystem|::UnitResult = block |filesystem|::FilesystemService::remove("portable_source.tmp" as + |paths|::Path);
+    let old_copy: |filesystem|::UnitResult = block |filesystem|::FilesystemService::remove("portable_copy.tmp" as + |paths|::Path);
+    let opened: |filesystem|::OpenResult = block |filesystem|::FilesystemService::create_new("portable_source.tmp" as + |paths|::Path);
+    transition opened { |filesystem|::OpenResult::Ok { file } -> block write(file), _ -> bad() }
+    machine write(file: |filesystem|::File) crashes Trap {
+        let written: |filesystem|::IoResult = block |filesystem|::FilesystemService::write(file, "ABC");
         transition count(written, 3) { true -> block positioned(file), false -> bad() }
     }
-    machine positioned(file: File) crashes Trap {
-        let written: IoResult = block FilesystemService::write_at(file, "xy", 1);
+    machine positioned(file: |filesystem|::File) crashes Trap {
+        let written: |filesystem|::IoResult = block |filesystem|::FilesystemService::write_at(file, "xy", 1);
         transition count(written, 2) { true -> block read_positioned(file), false -> bad() }
     }
-    machine read_positioned(file: File) crashes Trap {
+    machine read_positioned(file: |filesystem|::File) crashes Trap {
         let mutable bytes: [u8; 5] = [91, 7, 8, 9, 92];
-        let read: IoResult = block FilesystemService::read_at(file, @mutable bytes[1..4], 3, 0);
+        let read: |filesystem|::IoResult = block |filesystem|::FilesystemService::read_at(file, @mutable bytes[1..4], 3, 0);
         transition count(read, 3) && bytes[0] == 91 && bytes[1] == 65
             && bytes[2] == 120 && bytes[3] == 121 && bytes[4] == 92 {
             true -> block invalid_read(file, @mutable bytes),
             false -> bad()
         }
     }
-    machine invalid_read(file: File, bytes: @mutable [u8; 5]) crashes Trap {
-        let refused: IoResult = block FilesystemService::read_at(file, @mutable bytes[1..4], 4, 0);
+    machine invalid_read(file: |filesystem|::File, bytes: @mutable [u8; 5]) crashes Trap {
+        let refused: |filesystem|::IoResult = block |filesystem|::FilesystemService::read_at(file, @mutable bytes[1..4], 4, 0);
         transition invalid(refused) && bytes[0] == 91 && bytes[1] == 65
             && bytes[2] == 120 && bytes[3] == 121 && bytes[4] == 92 {
             true -> block invalid_offset(file),
             false -> bad()
         }
     }
-    machine invalid_offset(file: File) crashes Trap {
-        let refused: IoResult = block FilesystemService::write_at(file, "!", -1);
+    machine invalid_offset(file: |filesystem|::File) crashes Trap {
+        let refused: |filesystem|::IoResult = block |filesystem|::FilesystemService::write_at(file, "!", -1);
         transition invalid(refused) { true -> block stamp(file), false -> bad() }
     }
-    machine stamp(file: File) crashes Trap {
-        let stamped: UnitResult = block FilesystemService::set_times(file, 1700000000, 1700000000);
+    machine stamp(file: |filesystem|::File) crashes Trap {
+        let stamped: |filesystem|::UnitResult = block |filesystem|::FilesystemService::set_times(file, 1700000000, 1700000000);
         transition ok(stamped) { true -> block close(file), false -> bad() }
     }
-    machine close(file: File) crashes Trap {
-        let closed: UnitResult = block FilesystemService::close(file);
+    machine close(file: |filesystem|::File) crashes Trap {
+        let closed: |filesystem|::UnitResult = block |filesystem|::FilesystemService::close(file);
         transition ok(closed) { true -> block reopen(), false -> bad() }
     }
     machine reopen() crashes Trap {
-        let opened: OpenResult = block FilesystemService::open("portable_source.tmp" as +Path);
-        transition opened { OpenResult::Ok { file } -> block read(file), _ -> bad() }
+        let opened: |filesystem|::OpenResult = block |filesystem|::FilesystemService::open("portable_source.tmp" as + |paths|::Path);
+        transition opened { |filesystem|::OpenResult::Ok { file } -> block read(file), _ -> bad() }
     }
-    machine read(file: File) crashes Trap {
+    machine read(file: |filesystem|::File) crashes Trap {
         let mutable bytes: [u8; 5] = [93, 7, 8, 9, 94];
-        let read: IoResult = block FilesystemService::read(file, @mutable bytes[1..4], 3);
+        let read: |filesystem|::IoResult = block |filesystem|::FilesystemService::read(file, @mutable bytes[1..4], 3);
         transition count(read, 3) && bytes[0] == 93 && bytes[1] == 65
             && bytes[2] == 120 && bytes[3] == 121 && bytes[4] == 94 {
             true -> block invalid_plain_read(file, @mutable bytes),
             false -> bad()
         }
     }
-    machine invalid_plain_read(file: File, bytes: @mutable [u8; 5]) crashes Trap {
-        let refused: IoResult = block FilesystemService::read(file, @mutable bytes[1..4], 4);
+    machine invalid_plain_read(file: |filesystem|::File, bytes: @mutable [u8; 5]) crashes Trap {
+        let refused: |filesystem|::IoResult = block |filesystem|::FilesystemService::read(file, @mutable bytes[1..4], 4);
         transition invalid(refused) && bytes[0] == 93 && bytes[4] == 94 {
             true -> block metadata(file),
             false -> bad()
         }
     }
-    machine metadata(file: File) crashes Trap {
-        let result: MetadataResult = block FilesystemService::metadata(file);
-        transition result { MetadataResult::Ok { meta } -> block inspected(file, meta.length, meta.modified_secs), _ -> bad() }
+    machine metadata(file: |filesystem|::File) crashes Trap {
+        let result: |filesystem|::MetadataResult = block |filesystem|::FilesystemService::metadata(file);
+        transition result { |filesystem|::MetadataResult::Ok { meta } -> block inspected(file, meta.length, meta.modified_secs), _ -> bad() }
     }
-    machine inspected(file: File, length: i64, modified: i64) crashes Trap {
-        let closed: UnitResult = block FilesystemService::close(file);
+    machine inspected(file: |filesystem|::File, length: i64, modified: i64) crashes Trap {
+        let closed: |filesystem|::UnitResult = block |filesystem|::FilesystemService::close(file);
         transition ok(closed) && length == 3 && modified >= 1699999998 && modified <= 1700000002 {
             true -> block copy(),
             false -> bad()
@@ -102,7 +100,7 @@ crashes Trap
     }
     machine copy() crashes Trap {
         let mutable bytes: [u8; 5] = [95, 7, 8, 9, 96];
-        let copied: IoResult = block FilesystemService::copy("portable_source.tmp" as +Path, "portable_copy.tmp" as +Path, @mutable bytes[1..4], 3);
+        let copied: |filesystem|::IoResult = block |filesystem|::FilesystemService::copy("portable_source.tmp" as + |paths|::Path, "portable_copy.tmp" as + |paths|::Path, @mutable bytes[1..4], 3);
         transition count(copied, 3) && bytes[0] == 95 && bytes[1] == 65
             && bytes[2] == 120 && bytes[3] == 121 && bytes[4] == 96 {
             true -> block copy_readback(),
@@ -111,36 +109,36 @@ crashes Trap
     }
     machine copy_readback() crashes Trap {
         let mutable bytes: [u8; 3];
-        let read: IoResult = block FilesystemService::read_all("portable_copy.tmp" as +Path, @mutable bytes[..], 3);
+        let read: |filesystem|::IoResult = block |filesystem|::FilesystemService::read_all("portable_copy.tmp" as + |paths|::Path, @mutable bytes[..], 3);
         transition count(read, 3) && bytes[0] == 65 && bytes[1] == 120 && bytes[2] == 121 {
             true -> block cleanup(),
             false -> bad()
         }
     }
     machine cleanup() crashes Trap {
-        let removed: UnitResult = block FilesystemService::remove("portable_copy.tmp" as +Path);
-        let removed_source: UnitResult = block FilesystemService::remove("portable_source.tmp" as +Path);
+        let removed: |filesystem|::UnitResult = block |filesystem|::FilesystemService::remove("portable_copy.tmp" as + |paths|::Path);
+        let removed_source: |filesystem|::UnitResult = block |filesystem|::FilesystemService::remove("portable_source.tmp" as + |paths|::Path);
         transition ok(removed) && ok(removed_source) { true -> block names(), false -> bad() }
     }
     // A private directory with one child needs no enumeration-order promise.
     // Its 255-byte name exercises the widened result and leaves its tail zero.
     machine names() crashes Trap {
-        let made: UnitResult = block FilesystemService::create_dir("portable_names.tmp" as +Path);
+        let made: |filesystem|::UnitResult = block |filesystem|::FilesystemService::create_dir("portable_names.tmp" as + |paths|::Path);
         transition ok(made) { true -> block name_file(), false -> bad() }
     }
     machine name_file() crashes Trap {
-        let opened: OpenResult = block FilesystemService::create_new("portable_names.tmp/ࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀ" as +Path);
-        transition opened { OpenResult::Ok { file } -> block name_close(file), _ -> bad() }
+        let opened: |filesystem|::OpenResult = block |filesystem|::FilesystemService::create_new("portable_names.tmp/ࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀ" as + |paths|::Path);
+        transition opened { |filesystem|::OpenResult::Ok { file } -> block name_close(file), _ -> bad() }
     }
-    machine name_close(file: File) crashes Trap {
-        let closed: UnitResult = block FilesystemService::close(file);
+    machine name_close(file: |filesystem|::File) crashes Trap {
+        let closed: |filesystem|::UnitResult = block |filesystem|::FilesystemService::close(file);
         transition ok(closed) { true -> block name_entry(), false -> bad() }
     }
     machine name_entry() crashes Trap {
-        let selected: DirEntryResult = block FilesystemService::read_dir_nth("portable_names.tmp" as +Path, 0);
-        transition selected { DirEntryResult::Ok { entry } -> block name_bytes(entry), _ -> bad() }
+        let selected: |filesystem|::DirEntryResult = block |filesystem|::FilesystemService::read_dir_nth("portable_names.tmp" as + |paths|::Path, 0);
+        transition selected { |filesystem|::DirEntryResult::Ok { entry } -> block name_bytes(entry), _ -> bad() }
     }
-    machine name_bytes(entry: DirEntry) crashes Trap {
+    machine name_bytes(entry: |filesystem|::DirEntry) crashes Trap {
         transition entry.name_len == 255 && entry.is_file && !entry.is_dir
             && entry.name[0] == 224 && entry.name[1] == 160 && entry.name[2] == 128
             && entry.name[252] == 224 && entry.name[253] == 160 && entry.name[254] == 128
@@ -150,12 +148,12 @@ crashes Trap
         }
     }
     machine name_end() crashes Trap {
-        let selected: DirEntryResult = block FilesystemService::read_dir_nth("portable_names.tmp" as +Path, 1);
-        transition selected { DirEntryResult::End -> block name_cleanup(), _ -> bad() }
+        let selected: |filesystem|::DirEntryResult = block |filesystem|::FilesystemService::read_dir_nth("portable_names.tmp" as + |paths|::Path, 1);
+        transition selected { |filesystem|::DirEntryResult::End -> block name_cleanup(), _ -> bad() }
     }
     machine name_cleanup() crashes Trap {
-        let removed: UnitResult = block FilesystemService::remove("portable_names.tmp/ࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀ" as +Path);
-        let directory: UnitResult = block FilesystemService::remove_dir("portable_names.tmp" as +Path);
+        let removed: |filesystem|::UnitResult = block |filesystem|::FilesystemService::remove("portable_names.tmp/ࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀࠀ" as + |paths|::Path);
+        let directory: |filesystem|::UnitResult = block |filesystem|::FilesystemService::remove_dir("portable_names.tmp" as + |paths|::Path);
         transition ok(removed) && ok(directory) { true -> done(), false -> bad() }
     }
     machine done() {}
