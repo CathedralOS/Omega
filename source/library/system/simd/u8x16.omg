@@ -1,4 +1,4 @@
-use simd.omg as simd;
+use simd/simd.omg as simd;
 use {omega}/language/core/packed_integer/packed_integer.omg as packed_integer;
 
 public machine load(source: @[u8; 16]) -> |simd|::Lanes<u8, 16> {

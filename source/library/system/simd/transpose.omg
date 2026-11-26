@@ -1,5 +1,5 @@
-use simd.omg as simd;
-use i16x8.omg as i16x8;
+use simd/simd.omg as simd;
+use simd/i16x8.omg as i16x8;
 use {omega}/language/core/packed_integer/packed_integer.omg as packed_integer;
 
 // The transpose reads four lanes per row. The upper four lanes of each

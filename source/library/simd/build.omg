@@ -1,3 +1,0 @@
-machine build(builder: @mutable BuildPlan) {
-    builder.product = BuildProduct::Package { name: "simd" };
-}
