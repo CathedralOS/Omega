@@ -1443,7 +1443,10 @@ mod tests {
             "omega -> 01_tokens-to-syntax-trees",
             "omega-source -> 01_tokens-to-syntax-trees",
         ] {
-            assert!(violations.iter().any(|error| error.contains(blocked)), "{blocked}");
+            assert!(
+                violations.iter().any(|error| error.contains(blocked)),
+                "{blocked}"
+            );
         }
         assert!(
             violations
