@@ -1,9 +1,9 @@
 // Expected exit: 0
-use selected;
-use shared;
+use {selected}/main.omg as selected;
+use {shared}/main.omg as shared;
 
 machine main() crashes Trap {
-    transition selected\answer() == 73u32 && shared\answer() == 73u32 {
+    transition |selected|::answer() == 73u32 && |shared|::answer() == 73u32 {
         true -> done(),
         false -> bad()
     }

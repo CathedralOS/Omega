@@ -1,3 +1,3 @@
-use attached_values;
+use attached_values/attached_values.omg;
 
-machine main() crashes Trap { attached_values\probe() }
+machine main() crashes Trap { |attached_values|::probe() }
