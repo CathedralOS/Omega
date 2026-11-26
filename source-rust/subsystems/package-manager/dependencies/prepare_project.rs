@@ -86,27 +86,6 @@ impl PreparedLocalProject {
         self.source_closure.graph().root().identity()
     }
 
-    pub fn package_at_local_root(
-        &self,
-        canonical_root: &Path,
-    ) -> Option<semantic_vocabulary::PackageKeyIdentity> {
-        self.source_closure
-            .graph()
-            .packages()
-            .iter()
-            .find_map(|package| {
-                let key = package.source().key();
-                match key.source_lineage() {
-                    source_acquisition::SourceLineage::ExternalLocal(local)
-                        if local.canonical_absolute_path() == canonical_root =>
-                    {
-                        Some(key.identity())
-                    }
-                    _ => None,
-                }
-            })
-    }
-
     /// Validate the reviewed section against this invocation's source closure and compiler.
     pub fn accepted_deployment(
         &self,

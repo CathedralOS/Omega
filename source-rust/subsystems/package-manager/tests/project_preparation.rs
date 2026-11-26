@@ -281,6 +281,7 @@ fn a_dependency_recheck_can_finish_after_the_consuming_product_opens() {
         &client,
         r#"use {omega}/build/dependency.omg;
 use main.omg as app;
+machine helper() -> u64 { 1 }
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "client" };
     _ = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "library" }));
@@ -377,6 +378,7 @@ fn root_recheck_finishes_after_its_own_product_opens(dependency: bool) {
         &client,
         &format!(
             r#"{import}use main.omg as app;
+machine helper() -> u64 {{ 1 }}
 machine build(builder: @mutable BuildPlan) {{
     builder.product = BuildProduct::Application {{ name: "client" }};
     {registration}
@@ -416,7 +418,7 @@ machine build(builder: @mutable BuildPlan) {{
         // The Product is released for checking before its own recheck settles.
         assert_eq!(
             validation(&products),
-            BuildSubjectValidation::CheckedUnderProvisionalOwner,
+            BuildSubjectValidation::NeedsOwnerCheck,
             "dependency: {dependency}"
         );
         let recheck = products.settle_rechecks(target).unwrap();

@@ -197,10 +197,10 @@ fn import_bounds_preserve_interleaved_root_ordinals_on_both_parser_routes() {
     let cases = [
         ("", 0..0, vec![]),
         ("data Only {}", 0..0, vec![]),
-        ("use alpha; data Tail {}", 0..1, vec![0]),
-        ("data Head {} use alpha;", 1..2, vec![1]),
+        ("use alpha.omg; data Tail {}", 0..1, vec![0]),
+        ("data Head {} use alpha.omg;", 1..2, vec![1]),
         (
-            "data Head {} use alpha; let pi(): core\\Real = term; data Middle {} use beta; data Tail {}",
+            "data Head {} use alpha.omg; let pi(): |alpha|::Real = term; data Middle {} use beta.omg; data Tail {}",
             1..4,
             vec![1, 3],
         ),
@@ -337,10 +337,14 @@ machine build(builder: @mutable Build) {
         .iter()
         .filter_map(|root| match trees.root_item(*root) {
             Item::Use(UseItem::File {
-                alias,
-                only_product_operands,
-                ..
-            }) => Some((alias.as_str(&trees), *only_product_operands)),
+                alias, qualifiers, ..
+            }) => Some((
+                alias.as_str(&trees),
+                !qualifiers.is_empty()
+                    && qualifiers
+                        .iter()
+                        .all(|usage| usage.role == syntax_trees::item::FileQualifierRole::Product),
+            )),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -353,6 +357,33 @@ machine build(builder: @mutable Build) {
             ("provider", true),
             ("local", false),
         ]
+    );
+}
+
+#[test]
+fn a_description_uses_the_file_selected_by_the_query_alias() {
+    use syntax_trees::item::{FileQualifierRole::*, UseItem};
+    let text = "use {omega}/language/core/reflect/reflect.omg as describe;
+        use fake.omg as reflect;
+        use {package}/types.omg as types;
+        machine run() {
+            _ = |describe|::field(|types|::Table::item);
+            _ = |describe|::parameter(|types|::Reader::run::size);
+            _ = |reflect|::field(|types|::Table::item);
+            _ = |describe|::field(|types|::compute());
+        }";
+    let mut trees = SyntaxTrees::new(SourceId(1));
+    let tokens = Lexer::new(text).tokenize().unwrap();
+    let roots = parse(&mut trees, SourceId(1), &tokens).unwrap();
+    let Item::Use(UseItem::File { qualifiers, .. }) = trees.root_item(roots.items[2]) else {
+        panic!("expected the types file import");
+    };
+    assert_eq!(
+        qualifiers
+            .iter()
+            .map(|usage| usage.role)
+            .collect::<Vec<_>>(),
+        [Description, Description, Code, Code]
     );
 }
 
@@ -425,6 +456,9 @@ fn invalid_file_paths_and_aliases_are_refused_at_the_import() {
         "use ./a.omg;",
         "use ../a.omg;",
         "use a/../b.omg;",
+        "use helpers;",
+        r"use net\wire\Packet;",
+        "use net::wire::Packet;",
         "use dir/a;",
         "use dir/a.txt;",
         "use {dep}//x.omg;",
@@ -432,6 +466,16 @@ fn invalid_file_paths_and_aliases_are_refused_at_the_import() {
         parse_error(text);
     }
 }
+#[test]
+fn a_backslash_cannot_select_an_imported_type_or_machine() {
+    for text in [
+        r"use net/wire.omg; data Record { field: wire\Packet; }",
+        r"use net/wire.omg; machine caller() { wire\send::<u8>(); }",
+    ] {
+        crate::tests::parse_error(text);
+    }
+}
+
 #[test]
 fn root_operand_file_roles_follow_the_declared_build_record() {
     use syntax_trees::item::UseItem;
@@ -458,10 +502,12 @@ fn root_operand_file_roles_follow_the_declared_build_record() {
         );
         let parsed = crate::tests::parse_source(&text);
         let import = parsed.root_items().find_map(|item| match item {
-            Item::Use(UseItem::File {
-                only_product_operands,
-                ..
-            }) => Some(*only_product_operands),
+            Item::Use(UseItem::File { qualifiers, .. }) => Some(
+                !qualifiers.is_empty()
+                    && qualifiers
+                        .iter()
+                        .all(|usage| usage.role == syntax_trees::item::FileQualifierRole::Product),
+            ),
             _ => None,
         });
         assert_eq!(import, Some(product_only), "{text}");

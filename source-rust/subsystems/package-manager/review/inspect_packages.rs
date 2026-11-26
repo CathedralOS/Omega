@@ -9,10 +9,8 @@ in `omega.lock`, and verifies at `finish` that neither `build.omg` nor `omega.lo
 changed while inspection ran.
 */
 
-use package_compilation::build_execution::{BuildSnapshotCapture, BuildSnapshotRequest};
 use crate::dependencies::LOCAL_PROJECT_CONTEXT;
-use build_evaluation_result::CompileFailure;
-use source_completion_accounting::SourceCompletionAccounting;
+use package_compilation::build_execution::{BuildSnapshotCapture, BuildSnapshotRequest};
 mod report;
 mod sources;
 
@@ -23,8 +21,7 @@ use crate::resolution::graph::{
     CanonicalRootSourceRequest, GitDependencyPins, GitResolutionOptions, PackageRootSourceRequest,
 };
 use crate::resolution::source::{AcquiredBuildSource, BuildSourceAcquisitions};
-use crate::review::CompileResolvedPackageReviewsError;
-use source_acquisition::PrimaryGitChoices;
+use crate::transaction::CommandStorage;
 use source_acquisition::SourceResolver;
 use source_acquisition::git::resolution::GitExactRevisionAcquisition;
 use source_acquisition::{ExternalSourceContext, LocalSourceLimits};
@@ -53,52 +50,10 @@ pub struct PackageInspectionOutcome {
 
 // Audit is a package command too: retain its existing typed failure owner
 // instead of reducing review/consent errors to strings at this boundary.
-#[derive(Debug)]
-pub struct PackageInspectionError(crate::PackageCommandError);
+pub type PackageInspectionError = crate::PackageCommandError;
 
-impl PackageInspectionError {
-    pub fn source_completion_accounting(&self) -> &SourceCompletionAccounting {
-        self.0.source_completion_accounting()
-    }
-    pub fn with_source_completion_accounting(self, accounting: SourceCompletionAccounting) -> Self {
-        Self(self.0.with_source_completion_accounting(accounting))
-    }
-    pub fn compilation_failure(&self) -> Option<&CompileFailure> {
-        self.0.compilation_failure()
-    }
-}
-impl fmt::Display for PackageInspectionError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(formatter)
-    }
-}
-impl std::error::Error for PackageInspectionError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        Some(&self.0)
-    }
-}
-impl From<crate::PackageCommandError> for PackageInspectionError {
-    fn from(error: crate::PackageCommandError) -> Self {
-        Self(error)
-    }
-}
-impl From<String> for PackageInspectionError {
-    fn from(message: String) -> Self {
-        Self(message.into())
-    }
-}
-impl From<CompileFailure> for PackageInspectionError {
-    fn from(error: CompileFailure) -> Self {
-        Self(error.into())
-    }
-}
 fn failure(error: impl fmt::Display) -> PackageInspectionError {
     PackageInspectionError::from(error.to_string())
-}
-impl From<CompileResolvedPackageReviewsError> for PackageInspectionError {
-    fn from(error: CompileResolvedPackageReviewsError) -> Self {
-        Self(error.into())
-    }
 }
 
 pub struct PackageInspectionTransaction {
@@ -135,15 +90,7 @@ impl PackageInspectionTransaction {
             })
             .transpose()?;
         let targets = select_targets(self.options.targets.clone(), accepted.as_ref())?;
-        let storage = match storage {
-            Some(storage) => Ok(InspectionStorage::Supplied(storage)),
-            None => SourceResolver::for_current_user(PrimaryGitChoices {
-                excluded_controlled_roots: &[self.project_root().to_path_buf()],
-                ..PrimaryGitChoices::default()
-            })
-            .map(InspectionStorage::Opened)
-            .map_err(failure),
-        };
+        let storage = CommandStorage::open(storage, self.project_root()).map_err(failure);
         let build_snapshot = self
             .options
             .build_inputs
@@ -173,7 +120,7 @@ pub struct PreparedPackageInspection<'inspection> {
     before: (Vec<u8>, Option<Vec<u8>>),
     accepted: Option<PackageLock>,
     targets: Vec<TargetProfile>,
-    storage: Result<InspectionStorage<'inspection>, PackageInspectionError>,
+    storage: Result<CommandStorage<'inspection>, PackageInspectionError>,
     build_snapshot: Option<BuildSnapshotRequest>,
     completed_targets: usize,
     outcome: PackageInspectionOutcome,
@@ -196,7 +143,10 @@ impl PreparedPackageInspection<'_> {
             .map(|snapshot| snapshot.capture())
         {
             Some(BuildSnapshotCapture::Scoped(selected)) => selected,
-            Some(BuildSnapshotCapture::PackageInventory | BuildSnapshotCapture::RequiredSources) | None => &entire,
+            Some(
+                BuildSnapshotCapture::PackageInventory | BuildSnapshotCapture::RequiredSources,
+            )
+            | None => &entire,
         };
         let acquired = AcquiredBuildSource::capture_selected_local(
             self.transaction.project_root(),
@@ -218,7 +168,7 @@ impl PreparedPackageInspection<'_> {
     pub fn source_acquisitions(
         &self,
     ) -> Result<BuildSourceAcquisitions<'_>, PackageInspectionError> {
-        let storage = self.storage.as_ref().map_err(failure)?.as_resolver();
+        let storage = self.storage.as_ref().map_err(failure)?.resolver();
         let source = self
             .accepted
             .as_ref()
@@ -390,18 +340,4 @@ fn select_targets(
         }
     }
     Ok(requested)
-}
-
-enum InspectionStorage<'storage> {
-    Supplied(&'storage SourceResolver),
-    Opened(SourceResolver),
-}
-
-impl InspectionStorage<'_> {
-    fn as_resolver(&self) -> &SourceResolver {
-        match self {
-            Self::Supplied(storage) => storage,
-            Self::Opened(storage) => storage,
-        }
-    }
 }

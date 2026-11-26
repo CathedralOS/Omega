@@ -1,16 +1,17 @@
+use main.omg as app;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "suspend_axis" };
-    Build::select_provider::<Scheduler, InlineScheduler>(builder, linux_arm64);
-    Build::select_provider::<Scheduler, InlineScheduler>(builder, linux_x86_64);
-    Build::select_provider::<Scheduler, InlineScheduler>(builder, macos_arm64);
-    Build::select_provider::<Scheduler, InlineScheduler>(builder, macos_x86_64);
-    Build::select_provider::<Scheduler, InlineScheduler>(builder, windows_x86_64);
-    Build::select_provider::<Scheduler, InlineScheduler>(builder, uefi_x86_64);
-    Build::select_provider::<Scheduler, InlineScheduler>(builder, cross_platform_cli);
-    Build::select_provider::<Scheduler, InlineScheduler>(builder, local_unchecked);
-    Build::select_provider::<Scheduler, InlineScheduler>(builder, alpha_bootstrap);
-    Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
-    Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
-    Build::bind(builder, linux_arm64::ProgramEntry, entry_start);
-    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
+    Build::select_provider::<|app|::Scheduler, |app|::InlineScheduler>(builder, linux_arm64);
+    Build::select_provider::<|app|::Scheduler, |app|::InlineScheduler>(builder, linux_x86_64);
+    Build::select_provider::<|app|::Scheduler, |app|::InlineScheduler>(builder, macos_arm64);
+    Build::select_provider::<|app|::Scheduler, |app|::InlineScheduler>(builder, macos_x86_64);
+    Build::select_provider::<|app|::Scheduler, |app|::InlineScheduler>(builder, windows_x86_64);
+    Build::select_provider::<|app|::Scheduler, |app|::InlineScheduler>(builder, uefi_x86_64);
+    Build::select_provider::<|app|::Scheduler, |app|::InlineScheduler>(builder, cross_platform_cli);
+    Build::select_provider::<|app|::Scheduler, |app|::InlineScheduler>(builder, local_unchecked);
+    Build::select_provider::<|app|::Scheduler, |app|::InlineScheduler>(builder, alpha_bootstrap);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::entry_start);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::entry_start);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::entry_start);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::entry_start);
 }

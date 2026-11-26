@@ -87,7 +87,7 @@ pub(in super::super) fn validate_subject(
             .ok_or_else(|| {
                 Error::new("active dependency selection names an unknown authored occurrence")
             })?;
-        if &projected.source != &edge.request {
+        if projected.source != edge.request {
             return Err(Error::new(
                 "active dependency selection disagrees with its complete projection",
             ));

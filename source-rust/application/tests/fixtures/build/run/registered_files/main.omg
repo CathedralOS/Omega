@@ -1,24 +1,21 @@
-use omega\language\core\FilesystemContentRead;
-use omega\language\core\FilesystemContentWrite;
-use omega\language\core\FilesystemMetadataMutation;
-use omega\language\core\FilesystemNamespaceMutation;
+use {omega}/language/core/filesystem_authority.omg;
 
 boundary trait FileCalls {
     machine open(directory: i32, path: @[u8; 9], flags: i32, mode: i32) -> i32
-    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation crashes none;
-    machine write(file: i32, byte: @u8, count: u64) -> i64 reaches FilesystemContentWrite crashes none;
-    machine read(file: i32, byte: @mutable u8, count: u64) -> i64 reaches FilesystemContentRead crashes none;
+    reaches |filesystem_authority|::FilesystemContentRead + |filesystem_authority|::FilesystemContentWrite + |filesystem_authority|::FilesystemMetadataMutation + |filesystem_authority|::FilesystemNamespaceMutation crashes none;
+    machine write(file: i32, byte: @u8, count: u64) -> i64 reaches |filesystem_authority|::FilesystemContentWrite crashes none;
+    machine read(file: i32, byte: @mutable u8, count: u64) -> i64 reaches |filesystem_authority|::FilesystemContentRead crashes none;
     machine close(file: i32) -> i32 reaches none crashes none;
 }
 
 trait Checks {
-    machine file() reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation crashes Trap;
+    machine file() reaches |filesystem_authority|::FilesystemContentRead + |filesystem_authority|::FilesystemContentWrite + |filesystem_authority|::FilesystemMetadataMutation + |filesystem_authority|::FilesystemNamespaceMutation crashes Trap;
 }
 
 machine first_file() satisfies Checks::file { copy_seed(); }
 machine second_file() satisfies Checks::file { copy_seed(); }
 
-machine copy_seed() reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation crashes Trap {
+machine copy_seed() reaches |filesystem_authority|::FilesystemContentRead + |filesystem_authority|::FilesystemContentWrite + |filesystem_authority|::FilesystemMetadataMutation + |filesystem_authority|::FilesystemNamespaceMutation crashes Trap {
     let input: [u8; 9] = [115, 117, 98, 47, 115, 101, 101, 100, 0];
     let result: [u8; 9] = [110, 111, 116, 101, 46, 116, 120, 116, 0];
     let file: i32 = FileCalls::open(-100, @input, 0, 0);

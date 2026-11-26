@@ -54,8 +54,13 @@ impl BuildRecheck {
     pub(super) fn owed_by(product: &PlannedProduct) -> Option<(Self, Arc<()>)> {
         let evaluated = &product.evaluated;
         let constants = &evaluated.constants;
+        let reads_non_toolchain_constant = constants.read.iter().any(|read| {
+            read.declaration
+                .as_ref()
+                .is_none_or(|decl| !decl.source().origin.is_toolchain())
+        });
         if evaluated.subject_validation != BuildSubjectValidation::NeedsOwnerCheck
-            && constants.read.is_empty()
+            && !reads_non_toolchain_constant
             && !constants.folded_under_providers
         {
             return None;
@@ -537,7 +542,9 @@ mod tests {
             .join_source_result(subject, &mut returned.source_result().unwrap())
             .unwrap();
         let (source, evaluated) = returned.complete_activation(Some(&inputs)).unwrap();
-        source.open_unchecked(evaluated, Some(&inputs)).unwrap()
+        source
+            .open_unchecked(evaluated, Some(&inputs), false)
+            .unwrap()
     }
 
     #[test]

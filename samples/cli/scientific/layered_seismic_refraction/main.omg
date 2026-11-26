@@ -93,7 +93,7 @@ machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process
   }
  }
  machine direct(main: @mutable Main, index: i32 in Wrapping, distance: f64) {
-  let offset: f64 in |model|::f64::SurfaceOffset = distance as +|model|::f64::SurfaceOffset;
+  let offset: f64 in |model|::f64::SurfaceOffset = distance as + |model|::f64::SurfaceOffset;
   let speed: f64 in |model|::f64::Velocity = main.model.velocities[0] as f64 +Velocity;
   let duration: f64 in |model|::f64::TravelTime = |model|::direct_time(offset, speed);
   main.best_time = duration as f64; main.best_branch = 0;

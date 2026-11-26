@@ -1,4 +1,7 @@
-use omega\language\core\ProcessExit;
+use {system}/filesystem_host.omg;
+use {omega}/language/core/filesystem_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/filesystem.omg;
 // Canonicalize a file and a directory, then require NotFound for a missing
 // path. Windows opens either kind with CreateFileW(FILE_FLAG_BACKUP_SEMANTICS)
 // and asks GetFinalPathNameByHandleW for the DOS spelling before CloseHandle.
@@ -10,28 +13,24 @@ use omega\language\core\ProcessExit;
 // 76 directory creation failed; 77 directory canonicalize refused; 78 the
 // resolved directory buffer starts with neither model's spelling.
 
-use system;
-use system\ErrorKind;
-use system\UnitResult;
 
-use system\Filesystem;
 
 // Separate entry for the host-call-count regression: failed acquisition must
 // observe its error without querying or closing the invalid handle.
 data FailedOpen {
     buffer: [u8; 1024];
-    result: UnitResult;
+    result: |filesystem|::UnitResult;
 }
 
 machine failed_open_result(failed_open: @mutable FailedOpen) -> i32
-reaches FilesystemMetadataQuery blocks {
-    let outcome: UnitResult = block Filesystem::canonicalize("omega_wcanon_missing.txt" as +Path, @mutable failed_open.buffer[..]);
+reaches |filesystem_authority|::FilesystemMetadataQuery blocks {
+    let outcome: |filesystem|::UnitResult = block |filesystem|::Filesystem::canonicalize("omega_wcanon_missing.txt" as + |filesystem_host|::Path, @mutable failed_open.buffer[..]);
     transition outcome {
-        UnitResult::Error { kind } -> failed(kind),
+        |filesystem|::UnitResult::Error { kind } -> failed(kind),
         _ -> unexpected()
     }
-    machine failed(kind: ErrorKind) -> i32 {
-        transition kind { ErrorKind::NotFound -> expected(), _ -> unexpected() }
+    machine failed(kind: |filesystem|::ErrorKind) -> i32 {
+        transition kind { |filesystem|::ErrorKind::NotFound -> expected(), _ -> unexpected() }
     }
     machine expected() -> i32 { 70 }
     machine unexpected() -> i32 { 71 }
@@ -39,18 +38,18 @@ reaches FilesystemMetadataQuery blocks {
 
 data Main {
     windows: bool;
-    unit_result: UnitResult;
+    unit_result: |filesystem|::UnitResult;
     canon: [u8; 1024];
 }
 
 machine run(main: @mutable Main)
-reaches ProcessExit + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation
+reaches |process_exit|::ProcessExit + |filesystem_authority|::FilesystemContentRead + |filesystem_authority|::FilesystemContentWrite + |filesystem_authority|::FilesystemMetadataMutation + |filesystem_authority|::FilesystemMetadataQuery + |filesystem_authority|::FilesystemNamespaceMutation
 blocks {
-    main.unit_result = block Filesystem::write_all("omega_wcanon_probe.txt" as +Path, "canon");
-    transition main.unit_result { UnitResult::Ok -> block resolve(main), _ -> bad(main, 71) }
+    main.unit_result = block |filesystem|::Filesystem::write_all("omega_wcanon_probe.txt" as + |filesystem_host|::Path, "canon");
+    transition main.unit_result { |filesystem|::UnitResult::Ok -> block resolve(main), _ -> bad(main, 71) }
     machine resolve(main: @mutable Main) {
-        main.unit_result = block Filesystem::canonicalize("omega_wcanon_probe.txt" as +Path, @mutable main.canon[..]);
-        transition main.unit_result { UnitResult::Ok -> block spelled(main), _ -> bad(main, 72) }
+        main.unit_result = block |filesystem|::Filesystem::canonicalize("omega_wcanon_probe.txt" as + |filesystem_host|::Path, @mutable main.canon[..]);
+        transition main.unit_result { |filesystem|::UnitResult::Ok -> block spelled(main), _ -> bad(main, 72) }
     }
     machine spelled(main: @mutable Main) {
         // Native: '\\' (92, the \\?\ prefix). Hermetic: 'o' (111, the key
@@ -58,34 +57,34 @@ blocks {
         transition canonical_prefix_is_valid(main.windows, main.canon[0]) { true -> block make_dir(main), _ -> bad(main, 73) }
     }
     machine make_dir(main: @mutable Main) {
-        main.unit_result = block Filesystem::create_dir("omega_wcanon_dir" as +Path);
-        transition main.unit_result { UnitResult::Ok -> block resolve_dir(main), _ -> bad(main, 76) }
+        main.unit_result = block |filesystem|::Filesystem::create_dir("omega_wcanon_dir" as + |filesystem_host|::Path);
+        transition main.unit_result { |filesystem|::UnitResult::Ok -> block resolve_dir(main), _ -> bad(main, 76) }
     }
     machine resolve_dir(main: @mutable Main) {
-        main.unit_result = block Filesystem::canonicalize("omega_wcanon_dir" as +Path, @mutable main.canon[..]);
-        transition main.unit_result { UnitResult::Ok -> block spelled_dir(main), _ -> bad(main, 77) }
+        main.unit_result = block |filesystem|::Filesystem::canonicalize("omega_wcanon_dir" as + |filesystem_host|::Path, @mutable main.canon[..]);
+        transition main.unit_result { |filesystem|::UnitResult::Ok -> block spelled_dir(main), _ -> bad(main, 77) }
     }
     machine spelled_dir(main: @mutable Main) {
         transition canonical_prefix_is_valid(main.windows, main.canon[0]) { true -> block missing(main), _ -> bad(main, 78) }
     }
     machine missing(main: @mutable Main) {
-        let outcome: UnitResult = block Filesystem::canonicalize("omega_wcanon_missing.txt" as +Path, @mutable main.canon[..]);
-        transition outcome { UnitResult::Error { kind } -> block kindcheck(main, kind), _ -> bad(main, 74) }
+        let outcome: |filesystem|::UnitResult = block |filesystem|::Filesystem::canonicalize("omega_wcanon_missing.txt" as + |filesystem_host|::Path, @mutable main.canon[..]);
+        transition outcome { |filesystem|::UnitResult::Error { kind } -> block kindcheck(main, kind), _ -> bad(main, 74) }
     }
-    machine kindcheck(main: @mutable Main, kind: ErrorKind) {
+    machine kindcheck(main: @mutable Main, kind: |filesystem|::ErrorKind) {
         // The open leg's captured GetLastError supplies this classification.
-        transition kind { ErrorKind::NotFound -> block cleanup(main), _ -> bad(main, 75) }
+        transition kind { |filesystem|::ErrorKind::NotFound -> block cleanup(main), _ -> bad(main, 75) }
     }
     machine cleanup(main: @mutable Main) {
-        main.unit_result = block Filesystem::remove("omega_wcanon_probe.txt" as +Path);
+        main.unit_result = block |filesystem|::Filesystem::remove("omega_wcanon_probe.txt" as + |filesystem_host|::Path);
         transition { _ -> block cleanup_dir(main) }
     }
     machine cleanup_dir(main: @mutable Main) {
-        main.unit_result = block Filesystem::remove_dir("omega_wcanon_dir" as +Path);
+        main.unit_result = block |filesystem|::Filesystem::remove_dir("omega_wcanon_dir" as + |filesystem_host|::Path);
         transition { _ -> good(main) }
     }
-    machine good(main: @mutable Main) { ProcessExit::exit_process(70); }
-    machine bad(main: @mutable Main, code: i32) { ProcessExit::exit_process(code); }
+    machine good(main: @mutable Main) { |process_exit|::ProcessExit::exit_process(70); }
+    machine bad(main: @mutable Main, code: i32) { |process_exit|::ProcessExit::exit_process(code); }
 }
 
 // Native POSIX paths start with '/'. Windows returns a DOS path prefix or the
@@ -95,7 +94,7 @@ machine canonical_prefix_is_valid(windows: bool, byte: u8) -> bool {
 }
 
 machine windows_entry()
-reaches ProcessExit + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation
+reaches |process_exit|::ProcessExit + |filesystem_authority|::FilesystemContentRead + |filesystem_authority|::FilesystemContentWrite + |filesystem_authority|::FilesystemMetadataMutation + |filesystem_authority|::FilesystemMetadataQuery + |filesystem_authority|::FilesystemNamespaceMutation
 blocks {
     let mutable storage: Main;
     storage.windows = true;
@@ -103,7 +102,7 @@ blocks {
 }
 
 machine posix_entry()
-reaches ProcessExit + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation
+reaches |process_exit|::ProcessExit + |filesystem_authority|::FilesystemContentRead + |filesystem_authority|::FilesystemContentWrite + |filesystem_authority|::FilesystemMetadataMutation + |filesystem_authority|::FilesystemMetadataQuery + |filesystem_authority|::FilesystemNamespaceMutation
 blocks {
     let mutable storage: Main;
     storage.windows = false;

@@ -1,29 +1,30 @@
+use main.omg as app;
 use {omega}/language/core/external_binding.omg as native;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "foreign_package_service_reach_target_body" };
-    Build::bind(builder, windows_x86_64::ProgramEntry, start);
-    Build::bind(builder, linux_x86_64::ProgramEntry, start);
-    Build::bind(builder, linux_arm64::ProgramEntry, start);
-    Build::bind(builder, macos_arm64::ProgramEntry, start);
-    Build::accept_boundary::<Shouting>(builder);
-    Build::select_provider::<Shouting, UpperShouting>(builder, windows_x86_64);
-    Build::select_provider::<Shouting, UpperShouting>(builder, linux_x86_64);
-    Build::select_provider::<Shouting, UpperShouting>(builder, linux_arm64);
-    Build::select_provider::<Shouting, UpperShouting>(builder, macos_arm64);
-    Build::bind_native::<CharacterCase::upper>(builder, windows_x86_64, |native|::ForeignBinding::DllImport {
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::start);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::start);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::start);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::start);
+    Build::accept_boundary::<|app|::Shouting>(builder);
+    Build::select_provider::<|app|::Shouting, |app|::UpperShouting>(builder, windows_x86_64);
+    Build::select_provider::<|app|::Shouting, |app|::UpperShouting>(builder, linux_x86_64);
+    Build::select_provider::<|app|::Shouting, |app|::UpperShouting>(builder, linux_arm64);
+    Build::select_provider::<|app|::Shouting, |app|::UpperShouting>(builder, macos_arm64);
+    Build::bind_native::<|app|::CharacterCase::upper>(builder, windows_x86_64, |native|::ForeignBinding::DllImport {
         import: |native|::DllImport::PeByName { library: "msvcrt.dll", export: "toupper" }
     });
-    Build::bind_native::<CharacterCase::upper>(builder, linux_x86_64, |native|::ForeignBinding::DllImport {
+    Build::bind_native::<|app|::CharacterCase::upper>(builder, linux_x86_64, |native|::ForeignBinding::DllImport {
         import: |native|::DllImport::ElfVersioned {
             object: "libc.so.6", symbol: "toupper", version: "GLIBC_2.2.5"
         }
     });
-    Build::bind_native::<CharacterCase::upper>(builder, linux_arm64, |native|::ForeignBinding::DllImport {
+    Build::bind_native::<|app|::CharacterCase::upper>(builder, linux_arm64, |native|::ForeignBinding::DllImport {
         import: |native|::DllImport::ElfVersioned {
             object: "libc.so.6", symbol: "toupper", version: "GLIBC_2.17"
         }
     });
-    Build::bind_native::<CharacterCase::upper>(builder, macos_arm64, |native|::ForeignBinding::DllImport {
+    Build::bind_native::<|app|::CharacterCase::upper>(builder, macos_arm64, |native|::ForeignBinding::DllImport {
         import: |native|::DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_toupper"
         }

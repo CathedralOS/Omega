@@ -284,28 +284,19 @@ fn zeroed_declaration_graph<'types>(
         };
         active[position] = true;
         pending.push((current, true));
-        if let Some(cases) = cases {
-            let Some(first) = cases.first() else {
-                return false;
-            };
-            for field in &first.fields {
-                if field.relevance.is_erased() || !accepts_field(field) {
+        let case_fields = match cases {
+            Some(cases) => {
+                let Some(first) = cases.first() else {
                     return false;
-                }
-                if let Some(member) = field.field_type.as_structural() {
-                    if modulo_references && is_reference(declarations, member) {
-                        continue;
-                    }
-                    pending.push((member, false));
-                } else if zeroed_field_scalar(field).is_none() {
-                    return false;
-                }
+                };
+                first.fields.as_slice()
             }
-        }
-        for field in fields {
-            if allow_established_fields && established_field_identity(field).is_some() {
-                continue;
-            }
+            None => &[],
+        };
+        let common_fields = fields.iter().filter(|field| {
+            !(allow_established_fields && established_field_identity(field).is_some())
+        });
+        for field in common_fields.chain(case_fields) {
             if field.relevance.is_erased() || !accepts_field(field) {
                 return false;
             }
@@ -670,6 +661,14 @@ fn walk_zeroed_leaves<'types>(
                         member_path.push(StructuralPathSegment::Case(first.id));
                         member_path.push(StructuralPathSegment::Field(field.identity));
                         pending.push((member, member_path));
+                    } else if zeroed_byte_field(field) {
+                        let mut carrier = path.clone();
+                        carrier.push(StructuralPathSegment::Case(first.id));
+                        leaves.leaf(|| ZeroedStructuralLeaf::EmptyView {
+                            path: carrier,
+                            field: Some(field.id),
+                            carrier: field.field_type.clone(),
+                        });
                     } else {
                         let scalar_type = zeroed_field_scalar(field)?;
                         leaves.leaf(|| ZeroedStructuralLeaf::CaseField {

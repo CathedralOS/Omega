@@ -601,7 +601,7 @@ fn unjudged_refusal(line: &str) -> bool {
 /// Whether a negative sample's `--check` was refused for the reason it pins:
 /// a normal rejection (exit 1) whose diagnostics hold every
 /// `rejection_contains` fragment and, when given, one `rejection_any_contains`
-/// fragment. `sample-gate` and `sweep` both judge refusals with this.
+/// fragment. `sample-gate` judges refusals with this.
 pub fn judge_rejection(
     project: &SampleProject,
     exit: Option<i32>,

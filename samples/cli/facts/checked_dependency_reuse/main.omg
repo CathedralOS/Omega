@@ -5,7 +5,7 @@
 use {dependency}/main.omg as dependency;
 
 machine require_equal(value: u64) requires |dependency|::equal(value) { }
-machine main() crashes Trap {
+public machine main() crashes Trap {
     let cell: |dependency|::Cell = |dependency|::Cell { value: 19u64 };
     let view: @u64 = |dependency|::project(@cell);
     let observed: u64 = |dependency|::count(19u64);

@@ -14,7 +14,7 @@ public machine parse_name_path(parser: @mutable |parser|::Parser, input: @|token
 crashes Trap
 {
     let first_member: u64 in Trapping = parser.output.member_count as +Trapping;
-    |input|::expect_name(parser, input, missing);
+    |input|::expect_path_head(parser, input, missing);
     let saved_name_start: u64 in Trapping = parser.name_start;
     transition parser.output.accepted {
         true -> member(parser, input, first_member, saved_name_start),

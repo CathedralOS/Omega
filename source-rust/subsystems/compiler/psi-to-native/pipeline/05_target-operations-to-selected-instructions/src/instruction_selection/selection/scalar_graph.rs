@@ -52,6 +52,54 @@ pub(crate) fn value_provenance(value: ValueId) -> SelectedInstructionProvenance 
     }
 }
 
+/// Emits a multi-instruction sequence that defines one source value. Every
+/// scratch register belongs to that value, and only the first instruction
+/// carries the operation's work settlements.
+pub(crate) struct ValueSequence<'state, 'catalog> {
+    pub(crate) state: &'state mut Builder<'catalog>,
+    pub(crate) value: ValueId,
+    pub(crate) site: ValueDefinitionSite,
+    pub(crate) provenance: SelectedInstructionProvenance,
+}
+
+impl ValueSequence<'_, '_> {
+    pub(crate) fn provenance(&mut self) -> SelectedInstructionProvenance {
+        let provenance = self.provenance.clone();
+        self.provenance.work.clear();
+        provenance
+    }
+
+    /// Compare two 64-bit registers and materialize the boolean `materialize`
+    /// selects from the flags.
+    pub(crate) fn compare(
+        &mut self,
+        left: VirtualRegisterId,
+        right: VirtualRegisterId,
+        materialize: SelectedInstructionKind,
+    ) -> Result<VirtualRegisterId, SelectedInstructionError> {
+        let provenance = self.provenance();
+        self.state.emit(
+            SelectedInstructionKind::CompareI64,
+            self.state.constraints.keys.compare_i64,
+            &[left, right],
+            provenance,
+        )?;
+        let output = self.state.register(
+            self.value,
+            self.site,
+            semantic_vocabulary::ClosedScalarType::Boolean,
+        )?;
+        let provenance = self.provenance();
+        self.state.emit(
+            materialize,
+            self.state.constraints.keys.materialize_boolean,
+            &[output],
+            provenance,
+        )?;
+        Ok(output)
+    }
+}
+
 pub(crate) mod accessor_scalar_access {
     use super::{Builder, SelectedInstructionKind, SelectedInstructionProvenance};
     use crate::instruction_selection::SelectedInstructionError;
@@ -1281,23 +1329,7 @@ pub(crate) mod boolean_value {
                     }
                     _ => return Err(SelectedInstructionError::custody()),
                 };
-                let materialize = match (predicate, signed) {
-                    (LegalizedScalarComparison::Equal, _) => {
-                        SelectedInstructionKind::MaterializeBooleanEqual
-                    }
-                    (LegalizedScalarComparison::LessThan, false) => {
-                        SelectedInstructionKind::MaterializeBooleanU64LessThan
-                    }
-                    (LegalizedScalarComparison::LessThan, true) => {
-                        SelectedInstructionKind::MaterializeBooleanI64LessThan
-                    }
-                    (LegalizedScalarComparison::LessOrEqual, false) => {
-                        SelectedInstructionKind::MaterializeBooleanU64LessOrEqual
-                    }
-                    (LegalizedScalarComparison::LessOrEqual, true) => {
-                        SelectedInstructionKind::MaterializeBooleanI64LessOrEqual
-                    }
-                };
+                let materialize = materialize_comparison(predicate, signed);
                 (
                     SelectedInstructionKind::CompareI64,
                     state.constraints.keys.compare_i64,
@@ -1501,7 +1533,7 @@ pub(crate) mod boolean_value {
         let LegalizedScalarInstructionKind::Compare { left, right, .. } = operation.kind else {
             return Err(SelectedInstructionError::custody());
         };
-        let mut sequence = IntegerComparisonSequence {
+        let mut sequence = super::ValueSequence {
             state,
             value: result.value,
             site: result.definition_site,
@@ -1513,46 +1545,66 @@ pub(crate) mod boolean_value {
             return sequence.compare(
                 left,
                 right,
-                predicate,
-                left_type.sign() == IntegerSign::Signed,
+                materialize_comparison(predicate, left_type.sign() == IntegerSign::Signed),
             );
         }
-        let zero = sequence.zero()?;
+        let zero = sequence.signed_zero()?;
         let signed_left = left_type.sign() == IntegerSign::Signed;
         let signed = if signed_left { left } else { right };
         let signed_left_order = signed_left && predicate != LegalizedScalarComparison::Equal;
         let sign_condition = if signed_left_order {
-            sequence.compare(zero, signed, LegalizedScalarComparison::LessOrEqual, true)?
+            sequence.compare(
+                zero,
+                signed,
+                materialize_comparison(LegalizedScalarComparison::LessOrEqual, true),
+            )?
         } else {
-            sequence.compare(signed, zero, LegalizedScalarComparison::LessThan, true)?
+            sequence.compare(
+                signed,
+                zero,
+                materialize_comparison(LegalizedScalarComparison::LessThan, true),
+            )?
         };
-        let raw = sequence.compare(left, right, predicate, false)?;
+        let raw = sequence.compare(left, right, materialize_comparison(predicate, false))?;
         sequence.compare(
             sign_condition,
             raw,
-            if signed_left_order {
-                LegalizedScalarComparison::LessOrEqual
-            } else {
-                LegalizedScalarComparison::LessThan
-            },
-            false,
+            materialize_comparison(
+                if signed_left_order {
+                    LegalizedScalarComparison::LessOrEqual
+                } else {
+                    LegalizedScalarComparison::LessThan
+                },
+                false,
+            ),
         )
     }
 
-    struct IntegerComparisonSequence<'state, 'catalog> {
-        state: &'state mut Builder<'catalog>,
-        value: semantic_vocabulary::ValueId,
-        site: operation_evidence::provenance::ValueDefinitionSite,
-        provenance: SelectedInstructionProvenance,
+    /// The boolean a comparison materializes after `CompareI64`.
+    fn materialize_comparison(
+        predicate: LegalizedScalarComparison,
+        signed: bool,
+    ) -> SelectedInstructionKind {
+        match (predicate, signed) {
+            (LegalizedScalarComparison::Equal, _) => {
+                SelectedInstructionKind::MaterializeBooleanEqual
+            }
+            (LegalizedScalarComparison::LessThan, true) => {
+                SelectedInstructionKind::MaterializeBooleanI64LessThan
+            }
+            (LegalizedScalarComparison::LessThan, false) => {
+                SelectedInstructionKind::MaterializeBooleanU64LessThan
+            }
+            (LegalizedScalarComparison::LessOrEqual, true) => {
+                SelectedInstructionKind::MaterializeBooleanI64LessOrEqual
+            }
+            (LegalizedScalarComparison::LessOrEqual, false) => {
+                SelectedInstructionKind::MaterializeBooleanU64LessOrEqual
+            }
+        }
     }
 
-    impl IntegerComparisonSequence<'_, '_> {
-        fn provenance(&mut self) -> SelectedInstructionProvenance {
-            let provenance = self.provenance.clone();
-            self.provenance.work.clear();
-            provenance
-        }
-
+    impl super::ValueSequence<'_, '_> {
         fn normalize(
             &mut self,
             input: VirtualRegisterId,
@@ -1585,7 +1637,7 @@ pub(crate) mod boolean_value {
             Ok(output)
         }
 
-        fn zero(&mut self) -> Result<VirtualRegisterId, SelectedInstructionError> {
+        fn signed_zero(&mut self) -> Result<VirtualRegisterId, SelectedInstructionError> {
             let carrier = semantic_vocabulary::ClosedIntegerType::new(IntegerSign::Signed, 64)
                 .map_err(|_| SelectedInstructionError::custody())?;
             let output = self.state.register(
@@ -1597,52 +1649,6 @@ pub(crate) mod boolean_value {
             self.state.emit_materialize_i64(
                 semantic_vocabulary::IntegerValue::Signed(0),
                 output,
-                provenance,
-            )?;
-            Ok(output)
-        }
-
-        fn compare(
-            &mut self,
-            left: VirtualRegisterId,
-            right: VirtualRegisterId,
-            predicate: LegalizedScalarComparison,
-            signed: bool,
-        ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-            let provenance = self.provenance();
-            self.state.emit(
-                SelectedInstructionKind::CompareI64,
-                self.state.constraints.keys.compare_i64,
-                &[left, right],
-                provenance,
-            )?;
-            let materialize = match (predicate, signed) {
-                (LegalizedScalarComparison::Equal, _) => {
-                    SelectedInstructionKind::MaterializeBooleanEqual
-                }
-                (LegalizedScalarComparison::LessThan, true) => {
-                    SelectedInstructionKind::MaterializeBooleanI64LessThan
-                }
-                (LegalizedScalarComparison::LessThan, false) => {
-                    SelectedInstructionKind::MaterializeBooleanU64LessThan
-                }
-                (LegalizedScalarComparison::LessOrEqual, true) => {
-                    SelectedInstructionKind::MaterializeBooleanI64LessOrEqual
-                }
-                (LegalizedScalarComparison::LessOrEqual, false) => {
-                    SelectedInstructionKind::MaterializeBooleanU64LessOrEqual
-                }
-            };
-            let output = self.state.register(
-                self.value,
-                self.site,
-                semantic_vocabulary::ClosedScalarType::Boolean,
-            )?;
-            let provenance = self.provenance();
-            self.state.emit(
-                materialize,
-                self.state.constraints.keys.materialize_boolean,
-                &[output],
                 provenance,
             )?;
             Ok(output)
@@ -3319,8 +3325,7 @@ pub(crate) mod float_result_policy {
 pub(crate) mod ieee_comparison {
     use super::{
         Builder, IntegerSign, IntegerValue, LegalizedScalarInstructionKind,
-        SelectedInstructionKind, SelectedInstructionProvenance, ValueDefinitionSite, ValueId,
-        VirtualRegisterId,
+        SelectedInstructionKind, VirtualRegisterId,
     };
     use crate::instruction_selection::SelectedInstructionError;
     use crate::instruction_selection::selection::construction::scalar_graph::structural::operation_provenance;
@@ -3361,7 +3366,7 @@ pub(crate) mod ieee_comparison {
             IeeeFloatFormat::Binary32 => (0x8000_0000, 0x7f80_0000),
             IeeeFloatFormat::Binary64 => (0x8000_0000_0000_0000, 0x7ff0_0000_0000_0000),
         };
-        let mut emitter = Emitter {
+        let mut emitter = super::ValueSequence {
             state,
             value: result.value,
             site: result.definition_site,
@@ -3415,19 +3420,7 @@ pub(crate) mod ieee_comparison {
         }
     }
 
-    struct Emitter<'state, 'catalog> {
-        state: &'state mut Builder<'catalog>,
-        value: ValueId,
-        site: ValueDefinitionSite,
-        provenance: SelectedInstructionProvenance,
-    }
-
-    impl Emitter<'_, '_> {
-        fn provenance(&mut self) -> SelectedInstructionProvenance {
-            let provenance = self.provenance.clone();
-            self.provenance.work.clear();
-            provenance
-        }
+    impl super::ValueSequence<'_, '_> {
         fn constant(&mut self, bits: u64) -> Result<VirtualRegisterId, SelectedInstructionError> {
             let output = self.state.register(
                 self.value,
@@ -3441,33 +3434,6 @@ pub(crate) mod ieee_comparison {
             self.state.emit_materialize_i64(
                 IntegerValue::Unsigned(u128::from(bits)),
                 output,
-                provenance,
-            )?;
-            Ok(output)
-        }
-        fn compare(
-            &mut self,
-            left: VirtualRegisterId,
-            right: VirtualRegisterId,
-            materialize: SelectedInstructionKind,
-        ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-            let provenance = self.provenance();
-            self.state.emit(
-                SelectedInstructionKind::CompareI64,
-                self.state.constraints.keys.compare_i64,
-                &[left, right],
-                provenance,
-            )?;
-            let output = self.state.register(
-                self.value,
-                self.site,
-                semantic_vocabulary::ClosedScalarType::Boolean,
-            )?;
-            let provenance = self.provenance();
-            self.state.emit(
-                materialize,
-                self.state.constraints.keys.materialize_boolean,
-                &[output],
                 provenance,
             )?;
             Ok(output)
@@ -3678,9 +3644,9 @@ pub(crate) mod ieee_float_arithmetic {
 pub(crate) mod integer_arithmetic {
     use super::{
         Builder, IntegerSign, IntegerValue, LegalizedScalarInstructionKind, MachineSemanticKind,
-        RegisterConstraintKey, SaturatingCarrier, ScalarType, SelectedConstraintKeys,
-        SelectedInstructionId, SelectedInstructionKind, SelectedInstructionProvenance,
-        TrappingForm, TrappingOperation, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+        RegisterConstraintKey, SaturatingCarrier, SelectedConstraintKeys, SelectedInstructionId,
+        SelectedInstructionKind, SelectedInstructionProvenance, TrappingForm, TrappingOperation,
+        VirtualRegisterId,
     };
     use crate::instruction_selection::SelectedInstructionError;
     use crate::instruction_selection::selection::construction::scalar_graph::structural::operation_provenance;
@@ -4712,23 +4678,15 @@ pub(crate) mod integer_arithmetic {
         operand: u16,
         sign: IntegerSign,
     ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-        let id = VirtualRegisterId(super::next_index(builder.registers.len())?);
         let instruction = SelectedInstructionId(super::next_index(builder.instructions.len())?);
-        builder.registers.push(VirtualRegister {
-            id,
-            scalar_type: ScalarType::Integer(
-                semantic_vocabulary::IntegerType::new(sign, 64)
-                    .map_err(|_| SelectedInstructionError::custody())?,
-            ),
-            class: builder.class,
-            origin: VirtualRegisterOrigin::InstructionScratch {
-                instruction,
-                operand,
-            },
-            definition_site: None,
-            entry_fixed_view: None,
-        });
-        Ok(id)
+        super::push_scratch(
+            &mut builder.registers,
+            builder.class,
+            sign,
+            instruction,
+            operand,
+        )
+        .ok_or_else(SelectedInstructionError::custody)
     }
 
     pub(crate) fn division_scratch(
@@ -5632,25 +5590,14 @@ pub(crate) mod operation_control {
                 .try_into()
                 .map_err(|_| failure())?,
         );
-        let register =
-            VirtualRegisterId(builder.registers.len().try_into().map_err(|_| failure())?);
-        builder.registers.push(super::VirtualRegister {
-            id: register,
-            scalar_type: semantic_vocabulary::ScalarType::Integer(
-                semantic_vocabulary::IntegerType::new(
-                    semantic_vocabulary::IntegerSign::Unsigned,
-                    64,
-                )
-                .map_err(|_| failure())?,
-            ),
-            class: builder.class,
-            origin: super::VirtualRegisterOrigin::InstructionScratch {
-                instruction,
-                operand: 0,
-            },
-            definition_site: None,
-            entry_fixed_view: None,
-        });
+        let register = super::push_scratch(
+            &mut builder.registers,
+            builder.class,
+            semantic_vocabulary::IntegerSign::Unsigned,
+            instruction,
+            0,
+        )
+        .ok_or_else(failure)?;
         builder.emit_materialize_i64(
             semantic_vocabulary::IntegerValue::Unsigned(0),
             register,
@@ -7910,6 +7857,31 @@ pub(crate) fn select_function(
 pub(crate) fn next_index(len: usize) -> Result<u32, SelectedInstructionError> {
     len.try_into()
         .map_err(|_| SelectedInstructionError::custody())
+}
+
+/// Append a 64-bit integer scratch register owned by `operand` of
+/// `instruction`. `None` means the register table is full; each caller
+/// reports that with its own refusal.
+pub(crate) fn push_scratch(
+    registers: &mut Vec<VirtualRegister>,
+    class: RegisterClassId,
+    sign: IntegerSign,
+    instruction: SelectedInstructionId,
+    operand: u16,
+) -> Option<VirtualRegisterId> {
+    let id = VirtualRegisterId(registers.len().try_into().ok()?);
+    registers.push(VirtualRegister {
+        id,
+        scalar_type: ScalarType::Integer(semantic_vocabulary::IntegerType::new(sign, 64).ok()?),
+        class,
+        origin: VirtualRegisterOrigin::InstructionScratch {
+            instruction,
+            operand,
+        },
+        definition_site: None,
+        entry_fixed_view: None,
+    });
+    Some(id)
 }
 
 pub(crate) struct Builder<'a> {

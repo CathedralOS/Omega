@@ -1,1 +1,1 @@
-machine main() {}
+public machine main() {}

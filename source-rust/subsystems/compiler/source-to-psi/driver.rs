@@ -51,7 +51,104 @@ impl<'a> StageSource<'a> {
         self,
         timings: &mut CompileTimings,
     ) -> Result<(ProductSourceInputs<'a>, SourceTypingCheckpoint), Vec<Diagnostic>> {
-        self.resolve_with(timings, |request, timings| request.prepare(timings))
+        let mut subject_files = self.parsed.roots.clone();
+        for file in self.parsed.files.selected_files() {
+            if file.dependency_scope == source_provenance::DependencyScope::Product
+                && file.origin == source_admission::SourceOrigin::User
+                && (self
+                    .product
+                    .subject
+                    .is_some_and(|id| file.package_identity == Some(id))
+                    || (self.product.subject.is_none() && file.package_identity.is_none()))
+                && !subject_files.contains(&file.source_id)
+            {
+                subject_files.push(file.source_id);
+            }
+        }
+        let mut extra_files = Vec::new();
+        if !self.product.policy.declared.is_empty() || !self.product.policy.executed.is_empty() {
+            if let Some(activation) = self.product.policy.activation
+                && let Some(id) = self.parsed.files.rejoined_source_id(activation.source())
+                && !extra_files.contains(&id)
+            {
+                extra_files.push(id);
+            }
+            for request in self.product.policy.declared {
+                if let Some(file) = self.parsed.files.get(request.source_span.source_id)
+                    && let Some(id) = self.parsed.files.rejoined_source_id(file)
+                    && !extra_files.contains(&id)
+                {
+                    extra_files.push(id);
+                }
+            }
+            for event in self.product.policy.executed {
+                if let Some(file) = self.parsed.files.get(event.request.source_span.source_id)
+                    && let Some(id) = self.parsed.files.rejoined_source_id(file)
+                    && !extra_files.contains(&id)
+                {
+                    extra_files.push(id);
+                }
+            }
+            for file in self.parsed.files.selected_files() {
+                if file.dependency_scope == source_provenance::DependencyScope::Build
+                    && file.origin == source_admission::SourceOrigin::Toolchain
+                    && source_admission::source_identity::is_build_prelude_path(&file.path)
+                    && !extra_files.contains(&file.source_id)
+                {
+                    extra_files.push(file.source_id);
+                }
+            }
+        }
+        for target in self.product.targets {
+            if let Some(contract) = &target.entry_contract {
+                for file in self
+                    .parsed
+                    .files
+                    .selected_files()
+                    .filter(|file| contract.owns(file))
+                {
+                    if !extra_files.contains(&file.source_id) {
+                        extra_files.push(file.source_id);
+                    }
+                }
+            }
+        }
+        let mut provider_conformances = Vec::new();
+        for choice in self.product.default_provider_selections {
+            let target_matches = choice.target.is_none_or(|target| {
+                self.product
+                    .targets
+                    .iter()
+                    .any(|profile| profile.name == target.canonical_name())
+            });
+            if target_matches {
+                provider_conformances.push((
+                    choice.provider.source().path.clone(),
+                    choice.provider.span(),
+                ));
+            }
+        }
+        for binding in self.product.root_binding_requests {
+            if let crate::declaration_selection::RootBindingSelection::Described(described) =
+                &binding.implementation
+                && let Some(id) = self
+                    .parsed
+                    .files
+                    .rejoined_source_id(described.declaration.source())
+                && !extra_files.contains(&id)
+            {
+                extra_files.push(id);
+            }
+        }
+        let demand = resolve_and_type::BodyDemandRequest::ProductDemand {
+            subject_files,
+            extra_files,
+            provider_conformances,
+        };
+        self.resolve_with(timings, move |mut request, timings| {
+            request.body_demand = demand;
+            request.prepare(timings)
+        })
     }
 
     /// Resolve and type declarations for dependency Build handoff without
@@ -60,7 +157,23 @@ impl<'a> StageSource<'a> {
         self,
         timings: &mut CompileTimings,
     ) -> Result<(ProductSourceInputs<'a>, SourceTypingCheckpoint), Vec<Diagnostic>> {
-        self.resolve_with(timings, |request, timings| {
+        let mut entry_files = Vec::new();
+        if let Some(activation) = self.product.policy.activation
+            && let Some(id) = self.parsed.files.rejoined_source_id(activation.source())
+        {
+            entry_files.push(id);
+        }
+        for request in self.product.policy.declared {
+            if let Some(file) = self.parsed.files.get(request.source_span.source_id)
+                && let Some(id) = self.parsed.files.rejoined_source_id(file)
+                && !entry_files.contains(&id)
+            {
+                entry_files.push(id);
+            }
+        }
+        let demand = resolve_and_type::BodyDemandRequest::DeclarationEntryFiles(entry_files);
+        self.resolve_with(timings, move |mut request, timings| {
+            request.body_demand = demand;
             request.prepare_declarations(timings)
         })
     }

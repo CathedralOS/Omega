@@ -42,7 +42,7 @@ contract, capture its parent's locals, or replace a loop with growing recursion.
 
 ## Project roles and discovery
 
-`mbx xtask sample-gate`, `mbx xtask qualify`, and `mbx xtask sweep` derive the
+`mbx xtask sample-gate` and `mbx xtask qualify` derive the
 current catalog directly from existing build roots rather than keeping a second
 checked-in list of projects. Discovery covers nested consumers and invalid
 controls under a parent program; W100 groups without their own build root are
@@ -147,7 +147,6 @@ mbx run -p omega -- run --engine native samples/cli/basics/cli_mvp/build.omg
 `mbx` is required for repository Rust builds and runs (never use raw `cargo` fallbacks).
 For bounded explicit-path qualification into a new output directory, use
 `mbx xtask qualify --samples <paths> --output <new-directory> [--target <host>]`.
-For `--check` triage across samples and `tests/fixtures/`, use `mbx xtask sweep`.
 Refreshing or verifying samples on one host target does not imply that every sample
 or cross-target is supported.
 

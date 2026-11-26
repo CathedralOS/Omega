@@ -341,21 +341,25 @@ operator may be declared in any module of the package that owns its
 semantic-home domain, not only beside the domain:
 
 ```omega
-// Module `units` of the owning package:
+// units.omg
 public domain u64::Distance;
+```
 
-// The same package's root file: accepted, and homed on `Distance`.
-use units;
+```omega
+// operators.omg, in the same package
+use units.omg;
 
-public machine + Distance::add(
-    left: u64 in Distance, right: u64 in Distance
-) -> u64 in Distance {
-    ((left as -Distance) +% (right as -Distance)) as +Distance
+public machine + |units|::u64::Distance::add(
+    left: u64 in |units|::u64::Distance,
+    right: u64 in |units|::u64::Distance
+) -> u64 in |units|::u64::Distance {
+    let sum: u64 = (left as - |units|::u64::Distance) +% (right as - |units|::u64::Distance);
+    sum as + |units|::u64::Distance
 }
 ```
 
-The same declaration in another package rejects there, even after
-`use units;`, because that package does not own `Distance`.
+Another package can import the file that declares `Distance`. Declaring the
+operator in that package rejects because the owning package defines the family.
 
 The home is resolved where the operator is declared, by ordinary name
 resolution, visibility and domain exposure. An unknown, inaccessible or

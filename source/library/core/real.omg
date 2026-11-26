@@ -1,6 +1,8 @@
+use {omega}/language/core/foundation.omg as proof;
+
 // Core Real, a temporary axiomatic surface.
 //
-// Real is deliberately an ORDINARY omega\core declaration, not a compiler
+// Real is deliberately an ordinary declaration in the core library, not a compiler
 // numeric primitive, standard-library convenience, or runtime float format.
 // The opaque carrier has no layout.
 // Its claim-free operations merely introduce proof symbols; each law is a
@@ -15,7 +17,7 @@ public boundary machine Real::add(a: Real, b: Real) -> Real;
 public boundary machine Real::multiply(a: Real, b: Real) -> Real;
 
 boundary machine real_add_commutative(a: Real, b: Real)
-ensures core\Identity::<Real>(Real::add(a, b), Real::add(b, a));
+ensures |proof|::Identity::<Real>(Real::add(a, b), Real::add(b, a));
 
 boundary machine real_multiply_commutative(a: Real, b: Real)
-ensures core\Identity::<Real>(Real::multiply(a, b), Real::multiply(b, a));
+ensures |proof|::Identity::<Real>(Real::multiply(a, b), Real::multiply(b, a));

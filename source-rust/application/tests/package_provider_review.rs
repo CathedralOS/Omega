@@ -7,10 +7,11 @@ fn review_retains_the_provider_already_checked_for_each_target() {
     let project = TemporaryDirectory::create("review-selected-provider", false).unwrap();
     fs::write(
         project.path().join("build.omg"),
-        r#"machine build(builder: @mutable Build) {
+        r#"use reading.omg as app;
+machine build(builder: @mutable Build) {
     Build::package(builder, "reading");
-    Build::select_provider::<Reading, LinuxReading>(builder, linux_x86_64);
-    Build::select_provider::<Reading, MacReading>(builder, macos_arm64);
+    Build::select_provider::<|app|::Reading, |app|::LinuxReading>(builder, linux_x86_64);
+    Build::select_provider::<|app|::Reading, |app|::MacReading>(builder, macos_arm64);
 }"#,
     )
     .unwrap();
@@ -63,9 +64,10 @@ fn review_retains_owned_boundary_results_disclosed_by_public_data() {
     let project = TemporaryDirectory::create("review-owned-result", false).unwrap();
     fs::write(
         project.path().join("build.omg"),
-        r#"machine build(builder: @mutable Build) {
+        r#"use reader.omg;
+machine build(builder: @mutable Build) {
     Build::package(builder, "returned_status");
-    Build::select_provider::<Reader, LocalReader>(builder, linux_x86_64);
+    Build::select_provider::<|reader|::Reader, |reader|::LocalReader>(builder, linux_x86_64);
 }"#,
     )
     .unwrap();
@@ -100,9 +102,10 @@ fn review_retains_checked_domain_casts_at_their_declared_exposure() {
     let project = TemporaryDirectory::create("review-domain-cast", false).unwrap();
     fs::write(
         project.path().join("build.omg"),
-        r#"machine build(builder: @mutable Build) {
+        r#"use reader.omg;
+machine build(builder: @mutable Build) {
     Build::package(builder, "cast_contract");
-    Build::select_provider::<Reader, LocalReader>(builder, linux_x86_64);
+    Build::select_provider::<|reader|::Reader, |reader|::LocalReader>(builder, linux_x86_64);
 }"#,
     )
     .unwrap();
@@ -142,9 +145,10 @@ fn review_retains_core_policy_and_nominal_domain_parameters_together() {
     let project = TemporaryDirectory::create("review-parameter-policy", false).unwrap();
     fs::write(
         project.path().join("build.omg"),
-        r#"machine build(builder: @mutable Build) {
+        r#"use reader.omg;
+machine build(builder: @mutable Build) {
     Build::package(builder, "policy_boundary");
-    Build::select_provider::<Reader, LocalReader>(builder, linux_x86_64);
+    Build::select_provider::<|reader|::Reader, |reader|::LocalReader>(builder, linux_x86_64);
 }"#,
     )
     .unwrap();

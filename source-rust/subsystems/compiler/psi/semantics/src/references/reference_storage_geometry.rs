@@ -69,6 +69,18 @@ fn primitive_scalar_geometry(
     scalar: ScalarType,
     carriers: Option<TargetCarrierLayout>,
 ) -> Result<(u64, u64), StorageGeometryError> {
+    scalar_placement(
+        scalar,
+        carriers,
+        layout_planning::standalone_integer_geometry,
+    )
+}
+
+fn scalar_placement(
+    scalar: ScalarType,
+    carriers: Option<TargetCarrierLayout>,
+    integer_geometry: fn(u16) -> Option<layout_plans::StorageGeometry>,
+) -> Result<(u64, u64), StorageGeometryError> {
     match scalar {
         ScalarType::Integer(integer) if integer.is_address() => {
             let carriers = carriers.ok_or(StorageGeometryError::MissingCarrierLayout)?;
@@ -77,7 +89,7 @@ fn primitive_scalar_geometry(
         ScalarType::Integer(integer) => {
             let integer = semantic_vocabulary::ClosedIntegerType::try_from(integer)
                 .map_err(|_| StorageGeometryError::UnsupportedScalar(scalar))?;
-            let layout = layout_planning::standalone_integer_geometry(integer.bits())
+            let layout = integer_geometry(integer.bits())
                 .ok_or(StorageGeometryError::UnsupportedScalar(scalar))?;
             Ok((layout.byte_size, layout.byte_alignment))
         }
@@ -96,13 +108,14 @@ fn field_geometry<'types>(
     extents: &mut impl FnMut(ScalarApplicationId) -> Result<Option<u64>, StorageGeometryError>,
 ) -> Result<Option<(u64, u64)>, StorageGeometryError> {
     if let Some(scalar) = field.field_type.scalar_type() {
-        return scalar_geometry(
+        return scalar_placement(
             storage
                 .and_then(AuthoredFieldStorage::stored_scalar)
                 .unwrap_or(scalar),
+            carriers,
+            layout_planning::field_integer_geometry,
         )
-        .map(Some)
-        .ok_or(StorageGeometryError::UnsupportedScalar(scalar));
+        .map(Some);
     }
     if let Some(carrier) = field.field_type.byte_sequence_carrier() {
         if let Some(layout) = physical_carrier_geometry(records, owner, &field.field_type)? {

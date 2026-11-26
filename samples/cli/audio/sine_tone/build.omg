@@ -1,5 +1,6 @@
 // sine_tone build manifest.
 
+use main.omg as app;
 use {omega}/build/dependency.omg;
 
 machine build(builder: @mutable BuildPlan) {
@@ -13,8 +14,8 @@ machine build(builder: @mutable BuildPlan) {
     let audio_playback_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {
         location: "../audio_playback"
     }));
-    Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
-    Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
-    Build::bind(builder, linux_arm64::ProgramEntry, entry_start);
-    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::entry_start);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::entry_start);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::entry_start);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::entry_start);
 }

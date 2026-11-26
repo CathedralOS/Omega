@@ -1546,6 +1546,7 @@ pub(crate) mod address_joins {
                             successors: targets
                                 .into_iter()
                                 .map(|(edge, target)| DescriptorFlowEdge {
+                                    borrowed_header_ends: Box::default(),
                                     edge,
                                     effects: Vec::new(),
                                     definitions: Vec::new(),

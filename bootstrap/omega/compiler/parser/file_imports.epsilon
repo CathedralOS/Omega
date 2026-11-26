@@ -92,14 +92,14 @@ machine OmegaParser::file_selected_name(&mut self, source: &[u8], start: i32) ->
 
 // A file import owns its package-relative filename. Its one name in this
 // file is the explicit alias, or the stem when the stem is a legal alias.
-machine OmegaParser::file_import(&mut self, source: &[u8], initial: i32) -> i32 {
+machine OmegaParser::file_import(&mut self, source: &[u8]) -> i32 {
     self.uses[self.use_count].file_path.start = 0;
     self.uses[self.use_count].file_path.end = 0;
     self.uses[self.use_count].package_root.start = 0;
     self.uses[self.use_count].package_root.end = 0;
     transition self.scan_significant_token(source) {
         OmegaParserScanResult::Token -> start(self.scan.token_start)
-        _ -> legacy()
+        _ -> return -1
     }
     state start(offset: i32) {
         transition source[offset] == '{' {
@@ -158,7 +158,7 @@ machine OmegaParser::file_import(&mut self, source: &[u8], initial: i32) -> i32 
     state component(first: i32, stem: i32, cursor: i32) {
         transition cursor < source.len {
             true -> byte(first, stem, cursor, source[cursor])
-            _ -> legacy()
+            _ -> return -1
         }
     }
     state byte(first: i32, stem: i32, cursor: i32, value: i32) {
@@ -176,17 +176,16 @@ machine OmegaParser::file_import(&mut self, source: &[u8], initial: i32) -> i32 
     state suffix(first: i32, stem: i32, cursor: i32) {
         transition (cursor > stem) && (source.len - cursor >= 4) {
             true -> extension(first, stem, cursor)
-            _ -> legacy()
+            _ -> return -1
         }
     }
     state extension(first: i32, stem: i32, cursor: i32) {
         transition self.scan.span_equals(source, cursor, cursor + 4, ".omg") {
             1 -> filename(first, stem, cursor)
-            _ -> legacy()
+            _ -> return -1
         }
     }
     state filename(first: i32, stem: i32, dot: i32) {
-        self.sources.units[self.unit_index].has_file_import = 1;
         self.uses[self.use_count].file_path.start = first;
         self.uses[self.use_count].file_path.end = dot + 4;
         self.cursor = dot + 4;
@@ -256,12 +255,5 @@ machine OmegaParser::file_import(&mut self, source: &[u8], initial: i32) -> i32 
         self.members[self.member_count].end = end;
         self.member_count = self.member_count + 1;
         return 1;
-    }
-    state legacy() {
-        self.cursor = initial;
-        transition self.uses[self.use_count].package_root.end > 0 {
-            true -> return -1
-            _ -> return 0
-        }
     }
 }

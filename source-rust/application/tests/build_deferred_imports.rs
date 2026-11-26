@@ -19,10 +19,11 @@ fn check(name: &str, imports: &str, body: &str, product: &str) -> (bool, String)
     std::fs::write(
         root.join("build.omg"),
         format!(
-            "{imports}use {{omega}}/build/dependency.omg;
+            "{imports}use main.omg as app;
+use {{omega}}/build/dependency.omg;
 machine build(builder: @mutable BuildPlan) {{
     builder.product = BuildProduct::Application {{ name: \"deferred\" }};
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
     let mutable lib_request: DependencyDescription = |dependency|::from_source(Source::Path {{ location: \"dep\" }});
     |dependency|::with_alias(@mutable lib_request, \"lib\");
     let lib_registered: DependencyRegistration = Build::dependency(builder, lib_request);

@@ -55,7 +55,7 @@ fn inline_callable_bounds_are_rejected_and_inferred_binders_remain_admitted() {
 #[test]
 fn relation_family_binders_remain_trait_only() {
     for syntax in SYNTAX_CHOICES {
-        let result = parse_parameters("<C, R: C -> C -> core\\Type>", syntax);
+        let result = parse_parameters("<C, R: C -> C -> |proof|::Type>", syntax);
         let family = result.as_ref().is_ok_and(|(trees, parameters)| {
             matches!(
                 trees.items.type_parameters(parameters.type_parameters)[1].kind,

@@ -11,7 +11,7 @@ machine OmegaScalarCompiler::core_root_name(
     }
     state owner(unit: OmegaSourceUnit) {
         return (self.parser.sources.packages[unit.package].role == 1) &&
-            (unit.module_member_count == 0) && (self.span_equals(source, name.start, name.end, spelling) == 1);
+            (unit.is_root_file == 1) && (self.span_equals(source, name.start, name.end, spelling) == 1);
     }
 }
 
@@ -29,7 +29,7 @@ machine OmegaScalarCompiler::supplier_name_count(
     }
     state candidate(unit: i32, index: i32, count: i32, other: OmegaRelativeSpan) {
         let matches: i32 = (self.parser.sources.equal_name(source, name, other) == 1) &&
-            (self.same_module(source, unit, self.parser.sources.unit_at(other.start)) == 1);
+            (unit == self.parser.sources.unit_at(other.start));
         transition true { true -> scan(unit, index + 1, count + matches) }
     }
 }

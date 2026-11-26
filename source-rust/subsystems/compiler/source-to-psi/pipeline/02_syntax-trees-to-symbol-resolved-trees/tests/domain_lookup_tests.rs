@@ -20,10 +20,23 @@ pub(super) fn resolve_result(
     let syntax =
         crate::resolution::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens)
             .expect("parse");
+    let core = std::path::Path::new("core");
+    sources.add_with_metadata(
+        core.join("foundation.omg"),
+        std::str::from_utf8(bundled_declarations::bytes(
+            language_core::bundled_files::BundledFile::CoreFoundation,
+        ))
+        .unwrap()
+        .into(),
+        core.into(),
+        None,
+        source_admission::SourceOrigin::Toolchain,
+    );
+    let imports = crate::resolution::fixture_local_and_core_imports(&syntax, &sources, core);
     resolve(ResolutionRequest {
         syntax,
         sources: Some(std::sync::Arc::new(sources)),
-        top_level_bindings: Vec::new(),
+        top_level_bindings: imports,
         retained_base: None,
     })
 }

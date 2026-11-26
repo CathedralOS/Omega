@@ -33,19 +33,19 @@ machine build(builder: @mutable Build) {
     .unwrap();
     fs::write(
         api.join("main.omg"),
-        r#"use packet_library\Packet;
-           use packet_library\packet;
-           public machine exported_packet() -> Packet reaches none crashes none { packet() }
-           public machine read_packet(value: Packet) -> u32 reaches none crashes none { value.count }"#,
+        r#"use {packet_library}/main.omg as packet_library;
+           public machine exported_packet() -> |packet_library|::Packet reaches none crashes none { |packet_library|::packet() }
+           public machine read_packet(value: |packet_library|::Packet) -> u32 reaches none crashes none { value.count }"#,
     )
     .unwrap();
     fs::write(
         root.join("build.omg"),
-        r#"use {omega}/build/dependency.omg;
+        r#"use main.omg as app;
+use {omega}/build/dependency.omg;
 machine build(builder: @mutable Build) {
             Build::application(builder, "packet_app");
             let registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../api" }));
-            Build::bind(builder, linux_x86_64::ProgramEntry, main);
+            Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
         }"#,
     )
     .unwrap();
@@ -53,8 +53,7 @@ machine build(builder: @mutable Build) {
         fs::write(
             root.join("main.omg"),
             format!(
-                r#"use packet_api\exported_packet;
-                   use packet_api\read_packet;
+                r#"use {{packet_api}}/main.omg as packet_api;
                    machine main() crashes Trap {{
                        transition {observation} == 41u32 {{ true -> done(), _ -> wrong() }}
                        machine done() {{}}
@@ -73,9 +72,9 @@ machine build(builder: @mutable Build) {
     let publish = ["--emit-psi", "app.psi", "--target", "linux_x86_64"];
     let check = ["--check", "--target", "linux_x86_64"];
     for arguments in [check.as_slice(), publish.as_slice()] {
-        let carried = compile(arguments, "read_packet(exported_packet())");
+        let carried = compile(arguments, "|packet_api|::read_packet(|packet_api|::exported_packet())");
         assert!(carried.status.success(), "{carried:?}");
-        let selected = compile(arguments, "exported_packet().count");
+        let selected = compile(arguments, "|packet_api|::exported_packet().count");
         let diagnostic = String::from_utf8_lossy(&selected.stderr);
         assert!(!selected.status.success());
         assert!(

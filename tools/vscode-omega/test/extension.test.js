@@ -17,7 +17,7 @@ const files = {
   'source/library/core/extent.omg': 'public data Extent { base: address; length: u64; }\npublic domain Extent::Granted;\n',
   'source/library/core/integer.omg': 'public machine max<T>() -> T;\n',
   'source/library/system/console.omg': 'public boundary trait Console {\n    machine write_line(text: @[u8]);\n}\n',
-  'app/build.omg': 'machine build(builder: @mutable Build) {\n    dependency(Source::Path { location: "../dep" }); dependency(Source::Path { location: "../source/library/system" });\n}\n',
+  'app/build.omg': 'machine build(builder: @mutable Build) {\n    dependency(Source::Path { location: "../dep" }); dependency(Source::Bundled { name: "system" });\n}\n',
   'dep/build.omg': 'machine build(builder: @mutable Build) {}\n',
   'dep/sound/sound.omg': 'public machine play(note: u64);\n',
   'dep/wave/wave.omg': 'public data Wave {}\n',
@@ -44,6 +44,8 @@ const files = {
     '    // Main in a comment',
     '}',
     'use {omega}/language/core/integer.omg;',
+    'use {absent}/sound/sound.omg as missing;',
+    'machine missing_lookup() { |missing|::play(0); }',
     '',
   ].join('\n'),
   'other/build.omg': 'machine build(builder: @mutable Build) {}\n',
@@ -93,6 +95,7 @@ test('library imports and module-qualified library names', async () => {
 
 test('dependency packages from build.omg locations', async () => {
   assert.deepEqual(await where('|sound|::pl$ay'), ['dep/sound/sound.omg:1']);
+  assert.deepEqual(await where('|missing|::pl$ay'), []);
   assert.deepEqual(await where('let wave: |wave|::Wa$ve'), ['dep/wave/wave.omg:1']);
 });
 

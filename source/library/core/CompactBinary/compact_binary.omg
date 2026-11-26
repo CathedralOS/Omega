@@ -1,37 +1,25 @@
-use omega\language\core\reflect;
-use omega\language\core\DecodeResult;
-use omega\language\core\EncodeResult;
-use omega\language\core\UnsignedRead;
-use omega\language\core\EncodedField;
-use omega\language\core\EncodeContext;
-use omega\language\core\SignedRead;
-use omega\language\core\BlobRead;
-use omega\language\core\ScalarSlot;
-use omega\language\core\ScalarPlanContext;
-use omega\language\core\FrameRead;
-use omega\language\core\ScalarBound;
-use omega\language\core\PackedRead;
-use omega\language\core\FixedVec;
-use omega\language\core\narrow_i64_to_u64_wrapping;
-use omega\language\core\narrow_u64_to_i64_wrapping;
+use {omega}/language/core/fixed_vec.omg;
+use {omega}/language/core/numeric_conversion.omg;
+use {omega}/language/core/reflect/reflect.omg;
+use {omega}/language/core/wire.omg;
 
 // The compact binary grammar is implemented by ordinary checked library
 // machines. Reflection supplies typed member calls; these machines own byte
 // framing and canonical unsigned LEB128, independently of the compiler.
 
-public machine write_unsigned(out: @mutable [u8], start: u64, value: u64) -> EncodeResult {
+public machine write_unsigned(out: @mutable [u8], start: u64, value: u64) -> |wire|::EncodeResult {
     group(out, start, value, 10u64)
 
-    machine group(out: @mutable [u8], cursor: u64, value: u64, remaining_steps: u64) -> EncodeResult
+    machine group(out: @mutable [u8], cursor: u64, value: u64, remaining_steps: u64) -> |wire|::EncodeResult
     terminates by remaining_steps
     requires remaining_steps > 0u64
     {
         transition cursor < out.length {
             true -> emit(out, cursor, value, remaining_steps),
-            false -> EncodeResult::Exhausted
+            false -> |wire|::EncodeResult::Exhausted
         }
     }
-    machine emit(out: @mutable [u8], cursor: u64, value: u64, remaining_steps: u64) -> EncodeResult
+    machine emit(out: @mutable [u8], cursor: u64, value: u64, remaining_steps: u64) -> |wire|::EncodeResult
     requires cursor < out.length && remaining_steps > 0u64
     {
         let low: u8 = (value & 127u64) as u8;
@@ -40,54 +28,54 @@ public machine write_unsigned(out: @mutable [u8], start: u64, value: u64) -> Enc
             false -> more(out, cursor, value, remaining_steps, low)
         }
     }
-    machine last(out: @mutable [u8], cursor: u64, low: u8) -> EncodeResult
+    machine last(out: @mutable [u8], cursor: u64, low: u8) -> |wire|::EncodeResult
     requires cursor < out.length
     {
         out[cursor] = low;
-        EncodeResult::Encoded { next: cursor + 1u64 }
+        |wire|::EncodeResult::Encoded { next: cursor + 1u64 }
     }
-    machine more(out: @mutable [u8], cursor: u64, value: u64, remaining_steps: u64, low: u8) -> EncodeResult
+    machine more(out: @mutable [u8], cursor: u64, value: u64, remaining_steps: u64, low: u8) -> |wire|::EncodeResult
     requires cursor < out.length && remaining_steps > 0u64
     {
         out[cursor] = low | 128u8;
         transition remaining_steps > 1u64 {
             true -> group(out, cursor + 1u64, value >> 7u64, remaining_steps - 1u64),
-            false -> EncodeResult::Exhausted
+            false -> |wire|::EncodeResult::Exhausted
         }
     }
 }
 
-public machine read_unsigned(bytes: @[u8], start: u64) -> UnsignedRead {
+public machine read_unsigned(bytes: @[u8], start: u64) -> |wire|::UnsignedRead {
     group(bytes, start, 0u64, 0u64, 10u64)
 
-    machine group(bytes: @[u8], cursor: u64, value: u64, shift: u64, remaining_steps: u64) -> UnsignedRead
+    machine group(bytes: @[u8], cursor: u64, value: u64, shift: u64, remaining_steps: u64) -> |wire|::UnsignedRead
     terminates by remaining_steps
     requires remaining_steps > 0u64 && shift <= 63u64
     {
         transition cursor < bytes.length {
             true -> read(bytes, cursor, value, shift, remaining_steps),
-            false -> UnsignedRead::Invalid
+            false -> |wire|::UnsignedRead::Invalid
         }
     }
-    machine read(bytes: @[u8], cursor: u64, value: u64, shift: u64, remaining_steps: u64) -> UnsignedRead
+    machine read(bytes: @[u8], cursor: u64, value: u64, shift: u64, remaining_steps: u64) -> |wire|::UnsignedRead
     requires cursor < bytes.length && remaining_steps > 0u64 && shift <= 63u64
     {
         let byte: u8 = bytes[cursor];
         let payload: u64 = (byte & 127u8) as u64;
         transition shift == 63u64 && payload > 1u64 {
-            true -> UnsignedRead::Invalid,
+            true -> |wire|::UnsignedRead::Invalid,
             false -> accept(bytes, cursor, value, shift, remaining_steps, byte, payload)
         }
     }
-    machine accept(bytes: @[u8], cursor: u64, value: u64, shift: u64, remaining_steps: u64, byte: u8, payload: u64) -> UnsignedRead
+    machine accept(bytes: @[u8], cursor: u64, value: u64, shift: u64, remaining_steps: u64, byte: u8, payload: u64) -> |wire|::UnsignedRead
     requires cursor < bytes.length && remaining_steps > 0u64 && shift <= 63u64
     {
         let combined: u64 = ((value as +Wrapping) | ((payload as +Wrapping) << shift)) as -Wrapping;
         transition {
-            byte < 128u8 && (shift == 0u64 || payload != 0u64) -> UnsignedRead::Read { value: combined, next: cursor + 1u64 },
-            byte < 128u8 -> UnsignedRead::Invalid,
+            byte < 128u8 && (shift == 0u64 || payload != 0u64) -> |wire|::UnsignedRead::Read { value: combined, next: cursor + 1u64 },
+            byte < 128u8 -> |wire|::UnsignedRead::Invalid,
             remaining_steps > 1u64 && shift <= 56u64 -> group(bytes, cursor + 1u64, combined, shift + 7u64, remaining_steps - 1u64),
-            _ -> UnsignedRead::Invalid
+            _ -> |wire|::UnsignedRead::Invalid
         }
     }
 }
@@ -95,27 +83,27 @@ public machine read_unsigned(bytes: @[u8], start: u64) -> UnsignedRead {
 // The owner supplies traversal explicitly. This library cannot enumerate T
 // merely because T is carried through this generic entry.
 public machine encode<T, machine Visit>(
-    value: @T, out: @mutable [u8], scratch: @mutable [u8], fields: @mutable [EncodedField], remaining_steps: u64
-) -> EncodeResult
-requires machine Visit(value: @T, context: @mutable EncodeContext);
+    value: @T, out: @mutable [u8], scratch: @mutable [u8], fields: @mutable [|wire|::EncodedField], remaining_steps: u64
+) -> |wire|::EncodeResult
+requires machine Visit(value: @T, context: @mutable |wire|::EncodeContext);
 {
-    let mutable context: EncodeContext = EncodeContext {
+    let mutable context: |wire|::EncodeContext = |wire|::EncodeContext {
         storage: scratch, fields: fields, used: 0u64, count: 0u64, valid: true, remaining_steps: remaining_steps
     };
     Visit(value, @mutable context);
     transition context.valid && context.count <= context.fields.length && context.used <= context.storage.length && context.remaining_steps > 0u64 {
-        true -> CompactBinary\frame_fields(@context, out, context.remaining_steps),
-        false -> EncodeResult::Exhausted
+        true -> frame_fields(@context, out, context.remaining_steps),
+        false -> |wire|::EncodeResult::Exhausted
     }
  }
 // Framing consumes the staged document only; it carries no value-type or
 // visitor telescope, and runs after the owner's traversal has completed.
-machine frame_fields(context: @EncodeContext, out: @mutable [u8], remaining_steps: u64) -> EncodeResult
+machine frame_fields(context: @|wire|::EncodeContext, out: @mutable [u8], remaining_steps: u64) -> |wire|::EncodeResult
     requires context.count <= context.fields.length && context.used <= context.storage.length && remaining_steps > 0u64
     {
-        transition CompactBinary\write_unsigned(out, 0u64, 0u64) {
-            EncodeResult::Encoded { next } -> CompactBinary\flush_fields(@context.storage[..], @context.fields[..], context.count, out, next, remaining_steps),
-            _ -> EncodeResult::Exhausted
+        transition write_unsigned(out, 0u64, 0u64) {
+            |wire|::EncodeResult::Encoded { next } -> flush_fields(@context.storage[..], @context.fields[..], context.count, out, next, remaining_steps),
+            _ -> |wire|::EncodeResult::Exhausted
         }
     }
 
@@ -141,7 +129,7 @@ requires Kind == u8 || Kind == u16 || Kind == u32 || Kind == u64 || Kind == bool
     }
 }
 
-public machine scalar_field<Kind>(context: @mutable EncodeContext, info: @reflect\FieldInfo, value: @Kind)
+public machine scalar_field<Kind>(context: @mutable |wire|::EncodeContext, info: @|reflect|::FieldInfo, value: @Kind)
 requires Kind == u8 || Kind == u16 || Kind == u32 || Kind == u64 || Kind == bool
     || Kind == i8 || Kind == i16 || Kind == i32 || Kind == i64
 {
@@ -149,33 +137,33 @@ requires Kind == u8 || Kind == u16 || Kind == u32 || Kind == u64 || Kind == bool
         true -> tag(context, info, value),
         false -> invalid(context)
     }
-    machine tag(context: @mutable EncodeContext, info: @reflect\FieldInfo, value: @Kind)
+    machine tag(context: @mutable |wire|::EncodeContext, info: @|reflect|::FieldInfo, value: @Kind)
     requires context.count < context.fields.length && (Kind == u8 || Kind == u16 || Kind == u32 || Kind == u64 || Kind == bool
         || Kind == i8 || Kind == i16 || Kind == i32 || Kind == i64)
     {
         let start: u64 = context.used;
         let word: u64 = compact_scalar_word::<Kind>(value);
-        transition CompactBinary\write_unsigned(@mutable context.storage[..], start, info.stable_number) {
-            EncodeResult::Encoded { next } -> content(context, info, start, word, next),
+        transition write_unsigned(@mutable context.storage[..], start, info.stable_number) {
+            |wire|::EncodeResult::Encoded { next } -> content(context, info, start, word, next),
             _ -> invalid(context)
         }
     }
-    machine content(context: @mutable EncodeContext, info: @reflect\FieldInfo, start: u64, word: u64, next: u64)
+    machine content(context: @mutable |wire|::EncodeContext, info: @|reflect|::FieldInfo, start: u64, word: u64, next: u64)
     requires context.count < context.fields.length
     {
-        transition CompactBinary\write_unsigned(@mutable context.storage[..], next, word) {
-            EncodeResult::Encoded { next as end } -> remember(context, info, start, end),
+        transition write_unsigned(@mutable context.storage[..], next, word) {
+            |wire|::EncodeResult::Encoded { next as end } -> remember(context, info, start, end),
             _ -> invalid(context)
         }
     }
-    machine remember(context: @mutable EncodeContext, info: @reflect\FieldInfo, start: u64, end: u64)
+    machine remember(context: @mutable |wire|::EncodeContext, info: @|reflect|::FieldInfo, start: u64, end: u64)
     requires context.count < context.fields.length
     {
-        context.fields[context.count] = EncodedField { number: info.stable_number, start: start, end: end };
+        context.fields[context.count] = |wire|::EncodedField { number: info.stable_number, start: start, end: end };
         context.count = context.count + 1u64;
         context.used = end;
     }
-    machine invalid(context: @mutable EncodeContext) { context.valid = false; }
+    machine invalid(context: @mutable |wire|::EncodeContext) { context.valid = false; }
 }
 
 data CompactCopy {
@@ -202,155 +190,155 @@ requires remaining_steps > 0u64
 
 // Stable-number order is library policy. The bounded search rejects duplicate
 // numbers and malformed frame ranges, and reports sponsorship exhaustion.
-machine flush_fields(bytes: @[u8], fields: @[EncodedField], count: u64, out: @mutable [u8], cursor: u64, remaining_steps: u64) -> EncodeResult
+machine flush_fields(bytes: @[u8], fields: @[|wire|::EncodedField], count: u64, out: @mutable [u8], cursor: u64, remaining_steps: u64) -> |wire|::EncodeResult
 terminates by remaining_steps
 requires count <= fields.length && remaining_steps > 0u64
 {
     emit(bytes, fields, count, out, cursor, count, 0u64, false, remaining_steps)
 
-    machine emit(bytes: @[u8], fields: @[EncodedField], count: u64, out: @mutable [u8], cursor: u64, remaining: u64, previous: u64, has_previous: bool, remaining_steps: u64) -> EncodeResult
+    machine emit(bytes: @[u8], fields: @[|wire|::EncodedField], count: u64, out: @mutable [u8], cursor: u64, remaining: u64, previous: u64, has_previous: bool, remaining_steps: u64) -> |wire|::EncodeResult
     terminates by remaining_steps
     requires count <= fields.length && remaining_steps > 0u64
     {
         transition remaining == 0u64 {
-            true -> EncodeResult::Encoded { next: cursor },
+            true -> |wire|::EncodeResult::Encoded { next: cursor },
             false -> scan(bytes, fields, count, out, cursor, remaining, previous, has_previous, 0u64, 0u64, false, 0u64, remaining_steps)
         }
     }
-    machine scan(bytes: @[u8], fields: @[EncodedField], count: u64, out: @mutable [u8], cursor: u64, remaining: u64, previous: u64, has_previous: bool, slot: u64, best: u64, found: bool, number: u64, remaining_steps: u64) -> EncodeResult
+    machine scan(bytes: @[u8], fields: @[|wire|::EncodedField], count: u64, out: @mutable [u8], cursor: u64, remaining: u64, previous: u64, has_previous: bool, slot: u64, best: u64, found: bool, number: u64, remaining_steps: u64) -> |wire|::EncodeResult
     terminates by remaining_steps
     requires count <= fields.length && remaining_steps > 0u64
     {
         transition {
             slot < count && slot < fields.length && remaining_steps > 1u64 -> examine(bytes, fields, count, out, cursor, remaining, previous, has_previous, slot, best, found, number, remaining_steps),
             slot == count && found && best < count && best < fields.length && remaining > 0u64 && remaining_steps > 1u64 -> copy(bytes, fields, count, out, cursor, remaining, best, number, remaining_steps),
-            _ -> EncodeResult::Exhausted
+            _ -> |wire|::EncodeResult::Exhausted
         }
     }
-    machine examine(bytes: @[u8], fields: @[EncodedField], count: u64, out: @mutable [u8], cursor: u64, remaining: u64, previous: u64, has_previous: bool, slot: u64, best: u64, found: bool, number: u64, remaining_steps: u64) -> EncodeResult
+    machine examine(bytes: @[u8], fields: @[|wire|::EncodedField], count: u64, out: @mutable [u8], cursor: u64, remaining: u64, previous: u64, has_previous: bool, slot: u64, best: u64, found: bool, number: u64, remaining_steps: u64) -> |wire|::EncodeResult
     requires count <= fields.length && slot < fields.length && remaining_steps > 1u64
     {
-        let candidate: EncodedField = fields[slot];
+        let candidate: |wire|::EncodedField = fields[slot];
         transition (!has_previous || candidate.number > previous) && (!found || candidate.number < number) {
             true -> scan(bytes, fields, count, out, cursor, remaining, previous, has_previous, slot + 1u64, slot, true, candidate.number, remaining_steps - 1u64),
             false -> scan(bytes, fields, count, out, cursor, remaining, previous, has_previous, slot + 1u64, best, found, number, remaining_steps - 1u64)
         }
     }
-    machine copy(bytes: @[u8], fields: @[EncodedField], count: u64, out: @mutable [u8], cursor: u64, remaining: u64, best: u64, number: u64, remaining_steps: u64) -> EncodeResult
+    machine copy(bytes: @[u8], fields: @[|wire|::EncodedField], count: u64, out: @mutable [u8], cursor: u64, remaining: u64, best: u64, number: u64, remaining_steps: u64) -> |wire|::EncodeResult
     requires count <= fields.length && best < fields.length && remaining > 0u64 && remaining_steps > 1u64
     {
-        let frame: EncodedField = fields[best];
+        let frame: |wire|::EncodedField = fields[best];
         transition frame.start <= frame.end && frame.end <= bytes.length {
             true -> copy_frame(bytes, fields, count, out, cursor, remaining, number, remaining_steps, frame.start, frame.end),
-            false -> EncodeResult::Exhausted
+            false -> |wire|::EncodeResult::Exhausted
         }
     }
-    machine copy_frame(bytes: @[u8], fields: @[EncodedField], count: u64, out: @mutable [u8], cursor: u64, remaining: u64, number: u64, remaining_steps: u64, start: u64, end: u64) -> EncodeResult
+    machine copy_frame(bytes: @[u8], fields: @[|wire|::EncodedField], count: u64, out: @mutable [u8], cursor: u64, remaining: u64, number: u64, remaining_steps: u64, start: u64, end: u64) -> |wire|::EncodeResult
     requires count <= fields.length && remaining > 0u64 && remaining_steps > 1u64
     {
         transition compact_copy(bytes, start, end, out, cursor, remaining_steps - 1u64) {
             CompactCopy::Copied { next, remaining_steps as left } -> continue_fields(bytes, fields, count, out, next, remaining, number, remaining_steps, left),
-            _ -> EncodeResult::Exhausted
+            _ -> |wire|::EncodeResult::Exhausted
         }
     }
-    machine continue_fields(bytes: @[u8], fields: @[EncodedField], count: u64, out: @mutable [u8], cursor: u64, remaining: u64, number: u64, remaining_steps: u64, left: u64) -> EncodeResult
+    machine continue_fields(bytes: @[u8], fields: @[|wire|::EncodedField], count: u64, out: @mutable [u8], cursor: u64, remaining: u64, number: u64, remaining_steps: u64, left: u64) -> |wire|::EncodeResult
     requires count <= fields.length && remaining > 0u64 && remaining_steps > 0u64
     {
         transition left > 0u64 && left < remaining_steps {
             true -> emit(bytes, fields, count, out, cursor, remaining - 1u64, number, true, left),
-            false -> EncodeResult::Exhausted
+            false -> |wire|::EncodeResult::Exhausted
         }
     }
 }
 
 machine compact_signed_word(value: i64) -> u64 {
-    let bits: u64 = narrow_i64_to_u64_wrapping(value);
-    let sign: u64 = narrow_i64_to_u64_wrapping(value >> 63u64);
+    let bits: u64 = |numeric_conversion|::narrow_i64_to_u64_wrapping(value);
+    let sign: u64 = |numeric_conversion|::narrow_i64_to_u64_wrapping(value >> 63u64);
     let zigzag: u64 = (((bits as +Wrapping) << 1u64) ^ (sign as +Wrapping)) as -Wrapping;
     zigzag
 }
 
-public machine write_signed(out: @mutable [u8], start: u64, value: i64) -> EncodeResult {
-    CompactBinary\write_unsigned(out, start, compact_signed_word(value))
+public machine write_signed(out: @mutable [u8], start: u64, value: i64) -> |wire|::EncodeResult {
+    write_unsigned(out, start, compact_signed_word(value))
 }
 
-public machine read_signed(bytes: @[u8], start: u64) -> SignedRead {
-    transition CompactBinary\read_unsigned(bytes, start) {
-        UnsignedRead::Read { value, next } -> restore(value, next),
-        _ -> SignedRead::Invalid
+public machine read_signed(bytes: @[u8], start: u64) -> |wire|::SignedRead {
+    transition read_unsigned(bytes, start) {
+        |wire|::UnsignedRead::Read { value, next } -> restore(value, next),
+        _ -> |wire|::SignedRead::Invalid
     }
-    machine restore(word: u64, next: u64) -> SignedRead {
-        SignedRead::Read { value: CompactBinary\signed_from_word(word), next: next }
+    machine restore(word: u64, next: u64) -> |wire|::SignedRead {
+        |wire|::SignedRead::Read { value: signed_from_word(word), next: next }
     }
 }
 
-public machine write_blob(out: @mutable [u8], start: u64, bytes: @[u8], remaining_steps: u64) -> EncodeResult
+public machine write_blob(out: @mutable [u8], start: u64, bytes: @[u8], remaining_steps: u64) -> |wire|::EncodeResult
 requires remaining_steps > 0u64
 {
-    transition CompactBinary\write_unsigned(out, start, bytes.length) {
-        EncodeResult::Encoded { next } -> copy(out, next, bytes, remaining_steps),
-        _ -> EncodeResult::Exhausted
+    transition write_unsigned(out, start, bytes.length) {
+        |wire|::EncodeResult::Encoded { next } -> copy(out, next, bytes, remaining_steps),
+        _ -> |wire|::EncodeResult::Exhausted
     }
-    machine copy(out: @mutable [u8], next: u64, bytes: @[u8], remaining_steps: u64) -> EncodeResult
+    machine copy(out: @mutable [u8], next: u64, bytes: @[u8], remaining_steps: u64) -> |wire|::EncodeResult
     requires remaining_steps > 0u64
     {
         transition compact_copy(bytes, 0u64, bytes.length, out, next, remaining_steps) {
-            CompactCopy::Copied { next as end, remaining_steps as left } -> EncodeResult::Encoded { next: end },
-            _ -> EncodeResult::Exhausted
+            CompactCopy::Copied { next as end, remaining_steps as left } -> |wire|::EncodeResult::Encoded { next: end },
+            _ -> |wire|::EncodeResult::Exhausted
         }
     }
 }
 
-public machine read_blob<'input>(bytes: @'input [u8], start: u64) -> BlobRead<'input> {
-    transition CompactBinary\read_unsigned(bytes, start) {
-        UnsignedRead::Read { value as length, next } -> slice(bytes, length, next),
-        _ -> BlobRead::Invalid
+public machine read_blob<'input>(bytes: @'input [u8], start: u64) -> |wire|::BlobRead<'input> {
+    transition read_unsigned(bytes, start) {
+        |wire|::UnsignedRead::Read { value as length, next } -> slice(bytes, length, next),
+        _ -> |wire|::BlobRead::Invalid
     }
-    machine slice(bytes: @'input [u8], length: u64, next: u64) -> BlobRead<'input> {
+    machine slice(bytes: @'input [u8], length: u64, next: u64) -> |wire|::BlobRead<'input> {
         transition length <= bytes.length && next <= bytes.length - length {
-            true -> BlobRead::Read { value: bytes[next..next + length], next: next + length },
-            false -> BlobRead::Invalid
+            true -> |wire|::BlobRead::Read { value: bytes[next..next + length], next: next + length },
+            false -> |wire|::BlobRead::Invalid
         }
     }
 }
 
 // A caller selects the schema's exact identity. Reading a tag only checks
 // grammar correspondence; it cannot establish a destination field's domain.
-public machine read_scalar_field(bytes: @[u8], start: u64, number: u64) -> UnsignedRead {
-    transition CompactBinary\read_unsigned(bytes, start) {
-        UnsignedRead::Read { value, next } -> tag(bytes, number, value, next),
-        _ -> UnsignedRead::Invalid
+public machine read_scalar_field(bytes: @[u8], start: u64, number: u64) -> |wire|::UnsignedRead {
+    transition read_unsigned(bytes, start) {
+        |wire|::UnsignedRead::Read { value, next } -> tag(bytes, number, value, next),
+        _ -> |wire|::UnsignedRead::Invalid
     }
-    machine tag(bytes: @[u8], expected: u64, observed: u64, next: u64) -> UnsignedRead {
+    machine tag(bytes: @[u8], expected: u64, observed: u64, next: u64) -> |wire|::UnsignedRead {
         transition observed == expected {
-            true -> CompactBinary\read_unsigned(bytes, next),
-            false -> UnsignedRead::Invalid
+            true -> read_unsigned(bytes, next),
+            false -> |wire|::UnsignedRead::Invalid
         }
     }
 }
 
-public machine read_signed_field(bytes: @[u8], start: u64, number: u64) -> SignedRead {
-    transition CompactBinary\read_unsigned(bytes, start) {
-        UnsignedRead::Read { value, next } -> tag(bytes, number, value, next),
-        _ -> SignedRead::Invalid
+public machine read_signed_field(bytes: @[u8], start: u64, number: u64) -> |wire|::SignedRead {
+    transition read_unsigned(bytes, start) {
+        |wire|::UnsignedRead::Read { value, next } -> tag(bytes, number, value, next),
+        _ -> |wire|::SignedRead::Invalid
     }
-    machine tag(bytes: @[u8], expected: u64, observed: u64, next: u64) -> SignedRead {
+    machine tag(bytes: @[u8], expected: u64, observed: u64, next: u64) -> |wire|::SignedRead {
         transition observed == expected {
-            true -> CompactBinary\read_signed(bytes, next),
-            false -> SignedRead::Invalid
+            true -> read_signed(bytes, next),
+            false -> |wire|::SignedRead::Invalid
         }
     }
 }
 
-public machine read_blob_field<'input>(bytes: @'input [u8], start: u64, number: u64) -> BlobRead<'input> {
-    transition CompactBinary\read_unsigned(bytes, start) {
-        UnsignedRead::Read { value, next } -> tag(bytes, number, value, next),
-        _ -> BlobRead::Invalid
+public machine read_blob_field<'input>(bytes: @'input [u8], start: u64, number: u64) -> |wire|::BlobRead<'input> {
+    transition read_unsigned(bytes, start) {
+        |wire|::UnsignedRead::Read { value, next } -> tag(bytes, number, value, next),
+        _ -> |wire|::BlobRead::Invalid
     }
-    machine tag(bytes: @'input [u8], expected: u64, observed: u64, next: u64) -> BlobRead<'input> {
+    machine tag(bytes: @'input [u8], expected: u64, observed: u64, next: u64) -> |wire|::BlobRead<'input> {
         transition observed == expected {
-            true -> CompactBinary\read_blob(bytes, next),
-            false -> BlobRead::Invalid
+            true -> read_blob(bytes, next),
+            false -> |wire|::BlobRead::Invalid
         }
     }
 }
@@ -455,11 +443,11 @@ machine compact_unsigned_maximum<Kind>() -> u64 {
 
 // Only the owner invokes this callback through its authorized declaration
 // query. No future value, field reference or constructor authority is supplied.
-public machine plan_scalar<Kind>(context: @mutable ScalarPlanContext, field: @reflect\FieldInfo)
+public machine plan_scalar<Kind>(context: @mutable |wire|::ScalarPlanContext, field: @|reflect|::FieldInfo)
 requires Kind == u8 || Kind == u16 || Kind == u32 || Kind == u64 || Kind == bool
     || Kind == i8 || Kind == i16 || Kind == i32 || Kind == i64
 {
-    let slot: ScalarSlot = ScalarSlot {
+    let slot: |wire|::ScalarSlot = |wire|::ScalarSlot {
         number: field.stable_number,
         is_signed: Kind == i8 || Kind == i16 || Kind == i32 || Kind == i64,
         is_payload: false, start: 0u64, end: 0u64,
@@ -474,69 +462,69 @@ requires Kind == u8 || Kind == u16 || Kind == u32 || Kind == u64 || Kind == bool
         true -> append(context, slot),
         false -> invalid(context)
     }
-    machine append(context: @mutable ScalarPlanContext, slot: ScalarSlot)
+    machine append(context: @mutable |wire|::ScalarPlanContext, slot: |wire|::ScalarSlot)
     requires context.count < context.slots.length
     {
         context.slots[context.count] = slot;
         context.count = context.count + 1u64;
     }
-    machine invalid(context: @mutable ScalarPlanContext) { context.valid = false; }
+    machine invalid(context: @mutable |wire|::ScalarPlanContext) { context.valid = false; }
 }
 
 // Decode canonical era-zero scalar fields in stable-number order. Caller
 // storage and remaining_steps bound all work. Duplicate tags, unknown tags, malformed
 // words, carrier overflow and exhausted sponsorship fail before construction.
-public machine read_scalar_fields(bytes: @[u8], fields: @mutable [ScalarSlot], count: u64, start: u64, remaining_steps: u64) -> FrameRead
+public machine read_scalar_fields(bytes: @[u8], fields: @mutable [|wire|::ScalarSlot], count: u64, start: u64, remaining_steps: u64) -> |wire|::FrameRead
 requires count <= fields.length && remaining_steps > 0u64
 {
-    transition CompactBinary\read_unsigned(bytes, start) {
-        UnsignedRead::Read { value, next } -> era(bytes, fields, count, value, next, remaining_steps),
-        _ -> FrameRead::Invalid
+    transition read_unsigned(bytes, start) {
+        |wire|::UnsignedRead::Read { value, next } -> era(bytes, fields, count, value, next, remaining_steps),
+        _ -> |wire|::FrameRead::Invalid
     }
-    machine era(bytes: @[u8], fields: @mutable [ScalarSlot], count: u64, value: u64, cursor: u64, remaining_steps: u64) -> FrameRead
+    machine era(bytes: @[u8], fields: @mutable [|wire|::ScalarSlot], count: u64, value: u64, cursor: u64, remaining_steps: u64) -> |wire|::FrameRead
     requires count <= fields.length && remaining_steps > 0u64
     {
         transition value == 0u64 {
-            true -> CompactBinary\read_payload_fields(bytes, fields, count, cursor, remaining_steps),
-            false -> FrameRead::Invalid
+            true -> read_payload_fields(bytes, fields, count, cursor, remaining_steps),
+            false -> |wire|::FrameRead::Invalid
         }
     }
 }
 // Nested record payloads contain the same sorted tagged fields, with no
 // second era discriminator. They still require their exact enclosing bound.
-public machine read_payload_fields(bytes: @[u8], fields: @mutable [ScalarSlot], count: u64, cursor: u64, remaining_steps: u64) -> FrameRead
+public machine read_payload_fields(bytes: @[u8], fields: @mutable [|wire|::ScalarSlot], count: u64, cursor: u64, remaining_steps: u64) -> |wire|::FrameRead
 requires count <= fields.length && remaining_steps > 0u64
 {
     emit(bytes, fields, count, cursor, count, 0u64, false, remaining_steps)
-    machine emit(bytes: @[u8], fields: @mutable [ScalarSlot], count: u64, cursor: u64, remaining: u64, previous: u64, has_previous: bool, remaining_steps: u64) -> FrameRead
+    machine emit(bytes: @[u8], fields: @mutable [|wire|::ScalarSlot], count: u64, cursor: u64, remaining: u64, previous: u64, has_previous: bool, remaining_steps: u64) -> |wire|::FrameRead
     terminates by remaining_steps
     requires count <= fields.length && remaining_steps > 0u64
     {
         transition remaining == 0u64 {
-            true -> FrameRead::Read { next: cursor },
+            true -> |wire|::FrameRead::Read { next: cursor },
             false -> scan(bytes, fields, count, cursor, remaining, previous, has_previous, 0u64, 0u64, false, 0u64, remaining_steps)
         }
     }
-    machine scan(bytes: @[u8], fields: @mutable [ScalarSlot], count: u64, cursor: u64, remaining: u64, previous: u64, has_previous: bool, slot: u64, best: u64, found: bool, number: u64, remaining_steps: u64) -> FrameRead
+    machine scan(bytes: @[u8], fields: @mutable [|wire|::ScalarSlot], count: u64, cursor: u64, remaining: u64, previous: u64, has_previous: bool, slot: u64, best: u64, found: bool, number: u64, remaining_steps: u64) -> |wire|::FrameRead
     terminates by remaining_steps
     requires count <= fields.length && remaining_steps > 0u64
     {
         transition {
             slot < count && slot < fields.length && remaining_steps > 1u64 -> examine(bytes, fields, count, cursor, remaining, previous, has_previous, slot, best, found, number, remaining_steps),
             slot == count && found && best < count && best < fields.length && remaining > 0u64 && remaining_steps > 1u64 -> read(bytes, fields, count, cursor, remaining, best, number, remaining_steps),
-            _ -> FrameRead::Invalid
+            _ -> |wire|::FrameRead::Invalid
         }
     }
-    machine examine(bytes: @[u8], fields: @mutable [ScalarSlot], count: u64, cursor: u64, remaining: u64, previous: u64, has_previous: bool, slot: u64, best: u64, found: bool, number: u64, remaining_steps: u64) -> FrameRead
+    machine examine(bytes: @[u8], fields: @mutable [|wire|::ScalarSlot], count: u64, cursor: u64, remaining: u64, previous: u64, has_previous: bool, slot: u64, best: u64, found: bool, number: u64, remaining_steps: u64) -> |wire|::FrameRead
     requires count <= fields.length && slot < fields.length && remaining_steps > 1u64
     {
-        let candidate: ScalarSlot = fields[slot];
+        let candidate: |wire|::ScalarSlot = fields[slot];
         transition (!has_previous || candidate.number > previous) && (!found || candidate.number < number) {
             true -> scan(bytes, fields, count, cursor, remaining, previous, has_previous, slot + 1u64, slot, true, candidate.number, remaining_steps - 1u64),
             false -> scan(bytes, fields, count, cursor, remaining, previous, has_previous, slot + 1u64, best, found, number, remaining_steps - 1u64)
         }
     }
-    machine read(bytes: @[u8], fields: @mutable [ScalarSlot], count: u64, cursor: u64, remaining: u64, best: u64, number: u64, remaining_steps: u64) -> FrameRead
+    machine read(bytes: @[u8], fields: @mutable [|wire|::ScalarSlot], count: u64, cursor: u64, remaining: u64, best: u64, number: u64, remaining_steps: u64) -> |wire|::FrameRead
     requires count <= fields.length && best < fields.length && remaining > 0u64 && remaining_steps > 1u64
     {
         transition {
@@ -545,68 +533,68 @@ requires count <= fields.length && remaining_steps > 0u64
             _ -> read_unsigned(bytes, fields, count, cursor, remaining, best, number, remaining_steps)
         }
     }
-    machine read_payload(bytes: @[u8], fields: @mutable [ScalarSlot], count: u64, cursor: u64, remaining: u64, best: u64, number: u64, remaining_steps: u64) -> FrameRead
+    machine read_payload(bytes: @[u8], fields: @mutable [|wire|::ScalarSlot], count: u64, cursor: u64, remaining: u64, best: u64, number: u64, remaining_steps: u64) -> |wire|::FrameRead
     requires count <= fields.length && best < fields.length && remaining > 0u64 && remaining_steps > 1u64
     {
-        transition CompactBinary\read_blob_field(bytes, cursor, number) {
-            BlobRead::Read { value, next } -> payload(bytes, fields, count, remaining, best, number, remaining_steps, value.length, next),
-            _ -> FrameRead::Invalid
+        transition read_blob_field(bytes, cursor, number) {
+            |wire|::BlobRead::Read { value, next } -> payload(bytes, fields, count, remaining, best, number, remaining_steps, value.length, next),
+            _ -> |wire|::FrameRead::Invalid
         }
     }
-    machine payload(bytes: @[u8], fields: @mutable [ScalarSlot], count: u64, remaining: u64, best: u64, number: u64, remaining_steps: u64, length: u64, next: u64) -> FrameRead
+    machine payload(bytes: @[u8], fields: @mutable [|wire|::ScalarSlot], count: u64, remaining: u64, best: u64, number: u64, remaining_steps: u64, length: u64, next: u64) -> |wire|::FrameRead
     requires count <= fields.length && best < fields.length && remaining > 0u64 && remaining_steps > 1u64
     {
         transition length <= next && next <= bytes.length {
             true -> store_payload(bytes, fields, count, remaining, best, number, remaining_steps, length, next),
-            false -> FrameRead::Invalid
+            false -> |wire|::FrameRead::Invalid
         }
     }
-    machine store_payload(bytes: @[u8], fields: @mutable [ScalarSlot], count: u64, remaining: u64, best: u64, number: u64, remaining_steps: u64, length: u64, next: u64) -> FrameRead
+    machine store_payload(bytes: @[u8], fields: @mutable [|wire|::ScalarSlot], count: u64, remaining: u64, best: u64, number: u64, remaining_steps: u64, length: u64, next: u64) -> |wire|::FrameRead
     requires count <= fields.length && best < fields.length && remaining > 0u64 && remaining_steps > 1u64 && length <= next
     {
         fields[best].start = next - length;
         fields[best].end = next;
         emit(bytes, fields, count, next, remaining - 1u64, number, true, remaining_steps - 1u64)
     }
-    machine read_signed(bytes: @[u8], fields: @mutable [ScalarSlot], count: u64, cursor: u64, remaining: u64, best: u64, number: u64, remaining_steps: u64) -> FrameRead
+    machine read_signed(bytes: @[u8], fields: @mutable [|wire|::ScalarSlot], count: u64, cursor: u64, remaining: u64, best: u64, number: u64, remaining_steps: u64) -> |wire|::FrameRead
     requires count <= fields.length && best < fields.length && remaining > 0u64 && remaining_steps > 1u64
     {
-        transition CompactBinary\read_signed_field(bytes, cursor, number) {
-            SignedRead::Read { value, next } -> signed(bytes, fields, count, remaining, best, number, remaining_steps, value, next),
-            _ -> FrameRead::Invalid
+        transition read_signed_field(bytes, cursor, number) {
+            |wire|::SignedRead::Read { value, next } -> signed(bytes, fields, count, remaining, best, number, remaining_steps, value, next),
+            _ -> |wire|::FrameRead::Invalid
         }
     }
-    machine signed(bytes: @[u8], fields: @mutable [ScalarSlot], count: u64, remaining: u64, best: u64, number: u64, remaining_steps: u64, value: i64, next: u64) -> FrameRead
+    machine signed(bytes: @[u8], fields: @mutable [|wire|::ScalarSlot], count: u64, remaining: u64, best: u64, number: u64, remaining_steps: u64, value: i64, next: u64) -> |wire|::FrameRead
     requires count <= fields.length && best < fields.length && remaining > 0u64 && remaining_steps > 1u64
     {
         transition value >= fields[best].minimum && value <= fields[best].maximum {
             true -> store_signed(bytes, fields, count, remaining, best, number, remaining_steps, value, next),
-            false -> FrameRead::Invalid
+            false -> |wire|::FrameRead::Invalid
         }
     }
-    machine store_signed(bytes: @[u8], fields: @mutable [ScalarSlot], count: u64, remaining: u64, best: u64, number: u64, remaining_steps: u64, value: i64, next: u64) -> FrameRead
+    machine store_signed(bytes: @[u8], fields: @mutable [|wire|::ScalarSlot], count: u64, remaining: u64, best: u64, number: u64, remaining_steps: u64, value: i64, next: u64) -> |wire|::FrameRead
     requires count <= fields.length && best < fields.length && remaining > 0u64 && remaining_steps > 1u64
     {
         fields[best].signed = value;
         emit(bytes, fields, count, next, remaining - 1u64, number, true, remaining_steps - 1u64)
     }
-    machine read_unsigned(bytes: @[u8], fields: @mutable [ScalarSlot], count: u64, cursor: u64, remaining: u64, best: u64, number: u64, remaining_steps: u64) -> FrameRead
+    machine read_unsigned(bytes: @[u8], fields: @mutable [|wire|::ScalarSlot], count: u64, cursor: u64, remaining: u64, best: u64, number: u64, remaining_steps: u64) -> |wire|::FrameRead
     requires count <= fields.length && best < fields.length && remaining > 0u64 && remaining_steps > 1u64
     {
-        transition CompactBinary\read_scalar_field(bytes, cursor, number) {
-            UnsignedRead::Read { value, next } -> unsigned(bytes, fields, count, remaining, best, number, remaining_steps, value, next),
-            _ -> FrameRead::Invalid
+        transition read_scalar_field(bytes, cursor, number) {
+            |wire|::UnsignedRead::Read { value, next } -> unsigned(bytes, fields, count, remaining, best, number, remaining_steps, value, next),
+            _ -> |wire|::FrameRead::Invalid
         }
     }
-    machine unsigned(bytes: @[u8], fields: @mutable [ScalarSlot], count: u64, remaining: u64, best: u64, number: u64, remaining_steps: u64, value: u64, next: u64) -> FrameRead
+    machine unsigned(bytes: @[u8], fields: @mutable [|wire|::ScalarSlot], count: u64, remaining: u64, best: u64, number: u64, remaining_steps: u64, value: u64, next: u64) -> |wire|::FrameRead
     requires count <= fields.length && best < fields.length && remaining > 0u64 && remaining_steps > 1u64
     {
         transition value <= fields[best].unsigned_maximum {
             true -> store_unsigned(bytes, fields, count, remaining, best, number, remaining_steps, value, next),
-            false -> FrameRead::Invalid
+            false -> |wire|::FrameRead::Invalid
         }
     }
-    machine store_unsigned(bytes: @[u8], fields: @mutable [ScalarSlot], count: u64, remaining: u64, best: u64, number: u64, remaining_steps: u64, value: u64, next: u64) -> FrameRead
+    machine store_unsigned(bytes: @[u8], fields: @mutable [|wire|::ScalarSlot], count: u64, remaining: u64, best: u64, number: u64, remaining_steps: u64, value: u64, next: u64) -> |wire|::FrameRead
     requires count <= fields.length && best < fields.length && remaining > 0u64 && remaining_steps > 1u64
     {
         fields[best].unsigned = value;
@@ -617,78 +605,78 @@ requires count <= fields.length && remaining_steps > 0u64
 // Staged decoding exposes a descriptive document without constructing T.
 // Owners with input-borrowing values can establish them directly in their own
 // scope after validating these regions, retaining the original input loan.
-public machine read_record<machine Plan>(bytes: @[u8], slots: @mutable [ScalarSlot], remaining_steps: u64) -> FrameRead
-requires machine Plan(context: @mutable ScalarPlanContext);
+public machine read_record<machine Plan>(bytes: @[u8], slots: @mutable [|wire|::ScalarSlot], remaining_steps: u64) -> |wire|::FrameRead
+requires machine Plan(context: @mutable |wire|::ScalarPlanContext);
 requires remaining_steps > 0u64
 {
-    let mutable context: ScalarPlanContext = ScalarPlanContext { slots: slots, count: 0u64, valid: true };
+    let mutable context: |wire|::ScalarPlanContext = |wire|::ScalarPlanContext { slots: slots, count: 0u64, valid: true };
     Plan(@mutable context);
     transition context.valid && context.count <= context.slots.length {
         true -> parse(bytes, @mutable context, remaining_steps),
-        false -> FrameRead::Invalid
+        false -> |wire|::FrameRead::Invalid
     }
-    machine parse(bytes: @[u8], context: @mutable ScalarPlanContext, remaining_steps: u64) -> FrameRead
+    machine parse(bytes: @[u8], context: @mutable |wire|::ScalarPlanContext, remaining_steps: u64) -> |wire|::FrameRead
     requires context.count <= context.slots.length && remaining_steps > 0u64
-    { CompactBinary\read_scalar_fields(bytes, @mutable context.slots[..], context.count, 0u64, remaining_steps) }
+    { read_scalar_fields(bytes, @mutable context.slots[..], context.count, 0u64, remaining_steps) }
 }
 
 // The constructor is an explicitly supplied owner operation. Parsing produces
 // a scalar document; only that checked operation establishes the semantic T.
 // A rejected constructor leaves the caller's committed cursor unchanged.
-public machine decode_record<'input, T, machine Plan, machine Construct>(bytes: @'input [u8], slots: @mutable [ScalarSlot], next: @mutable u64, remaining_steps: u64) -> DecodeResult<T>
-requires machine Plan(context: @mutable ScalarPlanContext);
-requires machine Construct(bytes: @'input [u8], fields: @[ScalarSlot]) -> DecodeResult<T>;
+public machine decode_record<'input, T, machine Plan, machine Construct>(bytes: @'input [u8], slots: @mutable [|wire|::ScalarSlot], next: @mutable u64, remaining_steps: u64) -> |wire|::DecodeResult<T>
+requires machine Plan(context: @mutable |wire|::ScalarPlanContext);
+requires machine Construct(bytes: @'input [u8], fields: @[|wire|::ScalarSlot]) -> |wire|::DecodeResult<T>;
 requires remaining_steps > 0u64
 {
-    let mutable context: ScalarPlanContext = ScalarPlanContext { slots: slots, count: 0u64, valid: true };
+    let mutable context: |wire|::ScalarPlanContext = |wire|::ScalarPlanContext { slots: slots, count: 0u64, valid: true };
     Plan(@mutable context);
     transition context.valid && context.count <= context.slots.length {
         true -> parse(bytes, @mutable context, next, remaining_steps),
-        false -> DecodeResult::Invalid
+        false -> |wire|::DecodeResult::Invalid
     }
-    machine parse(bytes: @'input [u8], context: @mutable ScalarPlanContext, next: @mutable u64, remaining_steps: u64) -> DecodeResult<T>
+    machine parse(bytes: @'input [u8], context: @mutable |wire|::ScalarPlanContext, next: @mutable u64, remaining_steps: u64) -> |wire|::DecodeResult<T>
     requires context.count <= context.slots.length && remaining_steps > 0u64
     {
-        transition CompactBinary\read_scalar_fields(bytes, @mutable context.slots[..], context.count, 0u64, remaining_steps) {
-            FrameRead::Read { next as cursor } -> construct(bytes, context, next, cursor),
-            _ -> DecodeResult::Invalid
+        transition read_scalar_fields(bytes, @mutable context.slots[..], context.count, 0u64, remaining_steps) {
+            |wire|::FrameRead::Read { next as cursor } -> construct(bytes, context, next, cursor),
+            _ -> |wire|::DecodeResult::Invalid
         }
     }
-    machine construct(bytes: @'input [u8], context: @ScalarPlanContext, next: @mutable u64, cursor: u64) -> DecodeResult<T>
+    machine construct(bytes: @'input [u8], context: @|wire|::ScalarPlanContext, next: @mutable u64, cursor: u64) -> |wire|::DecodeResult<T>
     requires context.count <= context.slots.length
     {
         transition Construct(bytes, @context.slots[0u64..context.count]) {
-            DecodeResult::Sound { value } -> commit(value, next, cursor),
-            _ -> DecodeResult::Invalid
+            |wire|::DecodeResult::Sound { value } -> commit(value, next, cursor),
+            _ -> |wire|::DecodeResult::Invalid
         }
     }
-    machine commit(value: T, next: @mutable u64, cursor: u64) -> DecodeResult<T> {
+    machine commit(value: T, next: @mutable u64, cursor: u64) -> |wire|::DecodeResult<T> {
         $next = cursor;
-        DecodeResult::Sound { value: value }
+        |wire|::DecodeResult::Sound { value: value }
     }
 }
 
 // Array and borrowed-slice adapters share the same two-pass packed grammar.
 // The complete reflected Kind remains an explicit equality obligation; element
 // and capacity matching never discard a qualification from the field type.
-public machine packed_field<Kind, Element, const N: u64>(context: @mutable EncodeContext, info: @reflect\FieldInfo, value: @[Element; N])
+public machine packed_field<Kind, Element, const N: u64>(context: @mutable |wire|::EncodeContext, info: @|reflect|::FieldInfo, value: @[Element; N])
 requires Kind == [Element; N]
     && (Element == u8 || Element == u16 || Element == u32 || Element == u64 || Element == bool
         || Element == i8 || Element == i16 || Element == i32 || Element == i64)
 {
     compact_packed_field::<Element>(context, info, @value[..]);
 }
-public machine packed_slice_field<Kind, Element>(context: @mutable EncodeContext, info: @reflect\FieldInfo, value: @ @[Element])
+public machine packed_slice_field<Kind, Element>(context: @mutable |wire|::EncodeContext, info: @|reflect|::FieldInfo, value: @ @[Element])
 requires Kind == @[Element]
     && (Element == u8 || Element == u16 || Element == u32 || Element == u64 || Element == bool
         || Element == i8 || Element == i16 || Element == i32 || Element == i64)
 {
     compact_packed_field::<Element>(context, info, @value[..]);
 }
-public machine bytes_field<Kind>(context: @mutable EncodeContext, info: @reflect\FieldInfo, value: @ @[u8])
+public machine bytes_field<Kind>(context: @mutable |wire|::EncodeContext, info: @|reflect|::FieldInfo, value: @ @[u8])
 requires Kind == @[u8]
 {
-    CompactBinary\blob_field(context, info, @value[..]);
+    blob_field(context, info, @value[..]);
 }
 
 data CompactMeasure {
@@ -748,15 +736,15 @@ requires remaining_steps > 0u64
             || Element == i8 || Element == i16 || Element == i32 || Element == i64)
     {
         let word: u64 = compact_scalar_word::<Element>(@items[index]);
-        transition CompactBinary\write_unsigned(out, cursor, word) {
-            EncodeResult::Encoded { next } -> compact_write_words::<Element>(items, index + 1u64, out, next, remaining_steps - 1u64),
+        transition write_unsigned(out, cursor, word) {
+            |wire|::EncodeResult::Encoded { next } -> compact_write_words::<Element>(items, index + 1u64, out, next, remaining_steps - 1u64),
             _ -> CompactCopy::Exhausted
         }
     }
 }
-machine compact_encode_invalid(context: @mutable EncodeContext) { context.valid = false; }
+machine compact_encode_invalid(context: @mutable |wire|::EncodeContext) { context.valid = false; }
 
-machine compact_length_field<machine Measure, machine Write, Payload>(context: @mutable EncodeContext, info: @reflect\FieldInfo, items: @Payload)
+machine compact_length_field<machine Measure, machine Write, Payload>(context: @mutable |wire|::EncodeContext, info: @|reflect|::FieldInfo, items: @Payload)
 requires machine Measure(value: @Payload, remaining_steps: u64) -> CompactMeasure;
 requires machine Write(value: @Payload, out: @mutable [u8], cursor: u64, remaining_steps: u64) -> CompactCopy;
 {
@@ -764,7 +752,7 @@ requires machine Write(value: @Payload, out: @mutable [u8], cursor: u64, remaini
         true -> measure(context, info, items),
         false -> compact_encode_invalid(context)
     }
-    machine measure(context: @mutable EncodeContext, info: @reflect\FieldInfo, items: @Payload)
+    machine measure(context: @mutable |wire|::EncodeContext, info: @|reflect|::FieldInfo, items: @Payload)
     requires context.count < context.fields.length && context.remaining_steps > 0u64
     {
         transition Measure(items, context.remaining_steps) {
@@ -772,7 +760,7 @@ requires machine Write(value: @Payload, out: @mutable [u8], cursor: u64, remaini
             _ -> compact_encode_invalid(context)
         }
     }
-    machine begin(context: @mutable EncodeContext, info: @reflect\FieldInfo, items: @Payload, bytes: u64, remaining_steps: u64)
+    machine begin(context: @mutable |wire|::EncodeContext, info: @|reflect|::FieldInfo, items: @Payload, bytes: u64, remaining_steps: u64)
     requires context.count < context.fields.length
     {
         transition remaining_steps > 0u64 {
@@ -780,23 +768,23 @@ requires machine Write(value: @Payload, out: @mutable [u8], cursor: u64, remaini
             false -> compact_encode_invalid(context)
         }
     }
-    machine tag(context: @mutable EncodeContext, info: @reflect\FieldInfo, items: @Payload, bytes: u64, remaining_steps: u64)
+    machine tag(context: @mutable |wire|::EncodeContext, info: @|reflect|::FieldInfo, items: @Payload, bytes: u64, remaining_steps: u64)
     requires context.count < context.fields.length && remaining_steps > 0u64
     {
-        transition CompactBinary\write_unsigned(@mutable context.storage[..], context.used, info.stable_number) {
-            EncodeResult::Encoded { next } -> length(context, info, items, bytes, remaining_steps, next),
+        transition write_unsigned(@mutable context.storage[..], context.used, info.stable_number) {
+            |wire|::EncodeResult::Encoded { next } -> length(context, info, items, bytes, remaining_steps, next),
             _ -> compact_encode_invalid(context)
         }
     }
-    machine length(context: @mutable EncodeContext, info: @reflect\FieldInfo, items: @Payload, bytes: u64, remaining_steps: u64, start: u64)
+    machine length(context: @mutable |wire|::EncodeContext, info: @|reflect|::FieldInfo, items: @Payload, bytes: u64, remaining_steps: u64, start: u64)
     requires context.count < context.fields.length && remaining_steps > 0u64
     {
-        transition CompactBinary\write_unsigned(@mutable context.storage[..], start, bytes) {
-            EncodeResult::Encoded { next } -> payload(context, info, items, remaining_steps, next),
+        transition write_unsigned(@mutable context.storage[..], start, bytes) {
+            |wire|::EncodeResult::Encoded { next } -> payload(context, info, items, remaining_steps, next),
             _ -> compact_encode_invalid(context)
         }
     }
-    machine payload(context: @mutable EncodeContext, info: @reflect\FieldInfo, items: @Payload, remaining_steps: u64, start: u64)
+    machine payload(context: @mutable |wire|::EncodeContext, info: @|reflect|::FieldInfo, items: @Payload, remaining_steps: u64, start: u64)
     requires context.count < context.fields.length && remaining_steps > 0u64
     {
         transition Write(items, @mutable context.storage[..], start, remaining_steps) {
@@ -804,17 +792,17 @@ requires machine Write(value: @Payload, out: @mutable [u8], cursor: u64, remaini
             _ -> compact_encode_invalid(context)
         }
     }
-    machine remember(context: @mutable EncodeContext, info: @reflect\FieldInfo, end: u64, left: u64)
+    machine remember(context: @mutable |wire|::EncodeContext, info: @|reflect|::FieldInfo, end: u64, left: u64)
     requires context.count < context.fields.length
     {
-        context.fields[context.count] = EncodedField { number: info.stable_number, start: context.used, end: end };
+        context.fields[context.count] = |wire|::EncodedField { number: info.stable_number, start: context.used, end: end };
         context.count = context.count + 1u64;
         context.used = end;
         context.remaining_steps = left;
     }
 }
 
-machine compact_packed_field<Element>(context: @mutable EncodeContext, info: @reflect\FieldInfo, items: @[Element])
+machine compact_packed_field<Element>(context: @mutable |wire|::EncodeContext, info: @|reflect|::FieldInfo, items: @[Element])
 requires Element == u8 || Element == u16 || Element == u32 || Element == u64 || Element == bool
     || Element == i8 || Element == i16 || Element == i32 || Element == i64
 {
@@ -838,7 +826,7 @@ requires Element == u8 || Element == u16 || Element == u32 || Element == u64 || 
         false -> CompactCopy::Exhausted
     }
 }
-public machine blob_field(context: @mutable EncodeContext, info: @reflect\FieldInfo, value: @[u8]) {
+public machine blob_field(context: @mutable |wire|::EncodeContext, info: @|reflect|::FieldInfo, value: @[u8]) {
     compact_length_field::<compact_measure_blob, compact_write_blob>(context, info, value);
 }
 machine compact_measure_blob(value: @[u8], remaining_steps: u64) -> CompactMeasure {
@@ -850,10 +838,10 @@ machine compact_write_blob(value: @[u8], out: @mutable [u8], cursor: u64, remain
         false -> CompactCopy::Exhausted
     }
 }
-public machine scalar_bound<machine Inspect>() -> ScalarBound
-requires machine Inspect(bound: @mutable ScalarBound);
+public machine scalar_bound<machine Inspect>() -> |wire|::ScalarBound
+requires machine Inspect(bound: @mutable |wire|::ScalarBound);
 {
-    let mutable bound: ScalarBound = ScalarBound { bytes: 1u64, valid: true };
+    let mutable bound: |wire|::ScalarBound = |wire|::ScalarBound { bytes: 1u64, valid: true };
     Inspect(@mutable bound);
     bound
 }
@@ -869,7 +857,7 @@ requires Kind == u8 || Kind == u16 || Kind == u32 || Kind == u64 || Kind == bool
         _ -> 10u64
     }
 }
-public machine max_scalar_field<Kind>(bound: @mutable ScalarBound, field: @reflect\FieldInfo)
+public machine max_scalar_field<Kind>(bound: @mutable |wire|::ScalarBound, field: @|reflect|::FieldInfo)
 requires Kind == u8 || Kind == u16 || Kind == u32 || Kind == u64 || Kind == bool
     || Kind == i8 || Kind == i16 || Kind == i32 || Kind == i64
 {
@@ -880,7 +868,7 @@ requires Kind == u8 || Kind == u16 || Kind == u32 || Kind == u64 || Kind == bool
         true -> tag_size(bound, tag, value),
         false -> invalid(bound)
     }
-    machine tag_size(bound: @mutable ScalarBound, tag: u64, value: u64)
+    machine tag_size(bound: @mutable |wire|::ScalarBound, tag: u64, value: u64)
     requires tag <= 18446744073709551615u64 - bound.bytes
     {
         let header: u64 = bound.bytes + tag;
@@ -889,17 +877,17 @@ requires Kind == u8 || Kind == u16 || Kind == u32 || Kind == u64 || Kind == bool
             false -> invalid(bound)
         }
     }
-    machine commit(bound: @mutable ScalarBound, header: u64, value: u64)
+    machine commit(bound: @mutable |wire|::ScalarBound, header: u64, value: u64)
     requires value <= 18446744073709551615u64 - header
     { bound.bytes = header + value; }
-    machine invalid(bound: @mutable ScalarBound) { bound.valid = false; }
+    machine invalid(bound: @mutable |wire|::ScalarBound) { bound.valid = false; }
 }
 
 // A payload plan describes a bounded wire region. Its contents establish no
 // semantic type: the explicitly supplied owner constructor selects recursive
 // decoding, packed values, text validation, or a raw input-buffer view.
-public machine plan_payload<Kind>(context: @mutable ScalarPlanContext, field: @reflect\FieldInfo) {
-    let slot: ScalarSlot = ScalarSlot {
+public machine plan_payload<Kind>(context: @mutable |wire|::ScalarPlanContext, field: @|reflect|::FieldInfo) {
+    let slot: |wire|::ScalarSlot = |wire|::ScalarSlot {
         number: field.stable_number, is_signed: false, is_payload: true,
         start: 0u64, end: 0u64, minimum: 0i64, maximum: 0i64,
         unsigned_maximum: 0u64, signed: 0i64, unsigned: 0u64
@@ -909,47 +897,47 @@ public machine plan_payload<Kind>(context: @mutable ScalarPlanContext, field: @r
         true -> append(context, slot),
         false -> invalid(context)
     }
-    machine append(context: @mutable ScalarPlanContext, slot: ScalarSlot)
+    machine append(context: @mutable |wire|::ScalarPlanContext, slot: |wire|::ScalarSlot)
     requires context.count < context.slots.length
     {
         context.slots[context.count] = slot;
         context.count = context.count + 1u64;
     }
-    machine invalid(context: @mutable ScalarPlanContext) { context.valid = false; }
+    machine invalid(context: @mutable |wire|::ScalarPlanContext) { context.valid = false; }
 }
 // Parsing into explicit caller storage neither constructs T nor trusts a
 // descriptive region. The owner supplies the exact bounded payload view.
-public machine read_packed(bytes: @[u8], words: @mutable [u64], remaining_steps: u64) -> PackedRead
+public machine read_packed(bytes: @[u8], words: @mutable [u64], remaining_steps: u64) -> |wire|::PackedRead
 requires remaining_steps > 0u64
 {
     scan(bytes, words, 0u64, 0u64, remaining_steps)
-    machine scan(bytes: @[u8], words: @mutable [u64], cursor: u64, count: u64, remaining_steps: u64) -> PackedRead
+    machine scan(bytes: @[u8], words: @mutable [u64], cursor: u64, count: u64, remaining_steps: u64) -> |wire|::PackedRead
     terminates by remaining_steps
     requires remaining_steps > 0u64
     {
         transition {
-            cursor == bytes.length -> PackedRead::Read { count: count },
+            cursor == bytes.length -> |wire|::PackedRead::Read { count: count },
             cursor < bytes.length && count < words.length && remaining_steps > 1u64 -> read(bytes, words, cursor, count, remaining_steps),
-            _ -> PackedRead::Invalid
+            _ -> |wire|::PackedRead::Invalid
         }
     }
-    machine read(bytes: @[u8], words: @mutable [u64], cursor: u64, count: u64, remaining_steps: u64) -> PackedRead
+    machine read(bytes: @[u8], words: @mutable [u64], cursor: u64, count: u64, remaining_steps: u64) -> |wire|::PackedRead
     requires count < words.length && remaining_steps > 1u64
     {
-        transition CompactBinary\read_unsigned(bytes, cursor) {
-            UnsignedRead::Read { value, next } -> check(bytes, words, cursor, count, remaining_steps, value, next),
-            _ -> PackedRead::Invalid
+        transition read_unsigned(bytes, cursor) {
+            |wire|::UnsignedRead::Read { value, next } -> check(bytes, words, cursor, count, remaining_steps, value, next),
+            _ -> |wire|::PackedRead::Invalid
         }
     }
-    machine check(bytes: @[u8], words: @mutable [u64], cursor: u64, count: u64, remaining_steps: u64, value: u64, next: u64) -> PackedRead
+    machine check(bytes: @[u8], words: @mutable [u64], cursor: u64, count: u64, remaining_steps: u64, value: u64, next: u64) -> |wire|::PackedRead
     requires count < words.length && remaining_steps > 1u64
     {
         transition cursor < next && next <= bytes.length {
             true -> store(bytes, words, count, remaining_steps, value, next),
-            false -> PackedRead::Invalid
+            false -> |wire|::PackedRead::Invalid
         }
     }
-    machine store(bytes: @[u8], words: @mutable [u64], count: u64, remaining_steps: u64, value: u64, next: u64) -> PackedRead
+    machine store(bytes: @[u8], words: @mutable [u64], count: u64, remaining_steps: u64, value: u64, next: u64) -> |wire|::PackedRead
     requires count < words.length && remaining_steps > 1u64
     {
         words[count] = value;
@@ -961,13 +949,13 @@ requires remaining_steps > 0u64
 public machine signed_from_word(word: u64) -> i64 {
     let sign: u64 = ((0u64 as +Wrapping) - ((word & 1u64) as +Wrapping)) as -Wrapping;
     let bits: u64 = (word >> 1u64) ^ sign;
-    narrow_u64_to_i64_wrapping(bits)
+    |numeric_conversion|::narrow_u64_to_i64_wrapping(bits)
 }
 
 // Fixed-capacity sequences expose only their live prefix. Capacity is an
 // ordinary generic extent, and an invalid live length fails closed.
-public machine fixed_vec_field<Kind, Element, const N: u64>(context: @mutable EncodeContext, info: @reflect\FieldInfo, value: @FixedVec<Element, N>)
-requires Kind == FixedVec<Element, N>
+public machine fixed_vec_field<Kind, Element, const N: u64>(context: @mutable |wire|::EncodeContext, info: @|reflect|::FieldInfo, value: @|fixed_vec|::FixedVec<Element, N>)
+requires Kind == |fixed_vec|::FixedVec<Element, N>
     && (Element == u8 || Element == u16 || Element == u32 || Element == u64 || Element == bool
         || Element == i8 || Element == i16 || Element == i32 || Element == i64)
 {
@@ -975,10 +963,10 @@ requires Kind == FixedVec<Element, N>
         true -> live(context, info, value),
         false -> invalid(context)
     }
-    machine live(context: @mutable EncodeContext, info: @reflect\FieldInfo, value: @FixedVec<Element, N>)
+    machine live(context: @mutable |wire|::EncodeContext, info: @|reflect|::FieldInfo, value: @|fixed_vec|::FixedVec<Element, N>)
     requires value.length <= value.items.length
         && (Element == u8 || Element == u16 || Element == u32 || Element == u64 || Element == bool
             || Element == i8 || Element == i16 || Element == i32 || Element == i64)
     { compact_packed_field::<Element>(context, info, @value.items[0u64..value.length]); }
-    machine invalid(context: @mutable EncodeContext) { context.valid = false; }
+    machine invalid(context: @mutable |wire|::EncodeContext) { context.valid = false; }
 }

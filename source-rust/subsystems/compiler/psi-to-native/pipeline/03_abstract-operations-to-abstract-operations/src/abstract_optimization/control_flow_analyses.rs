@@ -473,11 +473,8 @@ pub(crate) use countdown_induction::{
     CountedLoopAnalysisError, UnsignedCountdownLoopSummary, ValidatedCountedLoopAnalysis,
 };
 
+pub(crate) use countdown_invariant_constant_placement::CountdownInvariantConstantPlacementAnalysisError;
 pub(crate) use countdown_invariant_constant_placement::analyze_countdown_invariant_constant_placement;
-pub(crate) use countdown_invariant_constant_placement::{
-    CountdownInvariantConstantPlacementAnalysisError,
-    ValidatedCountdownInvariantConstantPlacementAnalysis,
-};
 
 pub(crate) use countdown_invariant_constants::analyze_countdown_invariant_constants;
 pub(crate) use countdown_invariant_constants::validate_moved_constant_locations;

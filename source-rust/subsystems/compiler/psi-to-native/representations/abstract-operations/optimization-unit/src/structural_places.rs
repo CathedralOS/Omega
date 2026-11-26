@@ -353,15 +353,7 @@ impl<'a> Position<'a> {
                 }
             }
             (Self::Type(current), CanonicalStructuralPathSegment::Field(identity)) => {
-                let fields = record_fields(unit, current)?;
-                match fields
-                    .iter()
-                    .find(|field| field.id == *identity)?
-                    .field_type
-                {
-                    StructuralFieldType::Structural(next) => Some(Self::Type(next)),
-                    _ => None,
-                }
+                descended_field_id(unit, current, *identity).map(|(_, next)| Self::Type(next))
             }
             (Self::Type(current), CanonicalStructuralPathSegment::FixedIndex(_)) => {
                 match shape(unit, current)? {
@@ -370,12 +362,7 @@ impl<'a> Position<'a> {
                 }
             }
             (Self::Type(current), CanonicalStructuralPathSegment::Case(identity)) => {
-                let cases = match shape(unit, current)? {
-                    StructuralTypeShape::Sum { cases }
-                    | StructuralTypeShape::Mixed { cases, .. } => cases,
-                    _ => return None,
-                };
-                cases
+                roster_cases(unit, current)?
                     .iter()
                     .find(|case| case.id == *identity)
                     .map(Self::CasePayload)
@@ -432,21 +419,6 @@ pub(crate) fn record_initializer(
         .and_then(|initializer| match &initializer.value {
             RecordFieldValue::Scalar { value, .. } => Some(*value),
             _ => None,
-        })
-}
-
-pub(crate) fn case_field_initializer(
-    function: &PsiOptimizationFunction,
-    producer: OperationId,
-    place: PlaceId,
-    field: StructuralFieldId,
-) -> Option<ValueId> {
-    establishment_fields(function, producer, place)?
-        .iter()
-        .find(|initializer| initializer.field == field)
-        .and_then(|initializer| match initializer.value {
-            terminal_psi::RecordFieldValue::Scalar { value, .. } => Some(value),
-            terminal_psi::RecordFieldValue::Structural(_) => None,
         })
 }
 
@@ -604,12 +576,7 @@ pub(crate) fn descended_type(
     current: StructuralTypeId,
     segment: &StructuralPathSegment,
 ) -> Option<StructuralTypeId> {
-    let shape = &unit
-        .structural_types
-        .as_slice()
-        .iter()
-        .find(|entry| entry.id == current)?
-        .shape;
+    let shape = shape(unit, current)?;
     match segment {
         StructuralPathSegment::AllElements => None,
         StructuralPathSegment::Case(_) | StructuralPathSegment::FixedRange { .. } => None,
@@ -623,11 +590,7 @@ pub(crate) fn descended_type(
         )
         .map(|declaration| declaration.id),
         StructuralPathSegment::Field(identity) => {
-            let fields = record_fields(unit, current)?;
-            match terminal_psi::field_by_identity(fields, *identity)?.field_type {
-                StructuralFieldType::Structural(next) => Some(next),
-                _ => None,
-            }
+            descended_field(unit, current, *identity).map(|(_, next)| next)
         }
         StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. } => {
             match shape {
@@ -817,13 +780,7 @@ pub(crate) fn roster_cases(
     unit: &PsiOptimizationUnit,
     type_id: StructuralTypeId,
 ) -> Option<&[StructuralCaseDeclaration]> {
-    match &unit
-        .structural_types
-        .as_slice()
-        .iter()
-        .find(|entry| entry.id == type_id)?
-        .shape
-    {
+    match shape(unit, type_id)? {
         StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => {
             Some(cases.as_slice())
         }
@@ -954,44 +911,8 @@ impl<'a> Position<'a> {
                 | StructuralPathSegment::RepresentationView { .. }
                 | StructuralPathSegment::FixedRange { .. } => None,
             },
-            (
-                Self::Type(current),
-                PathStep::Canonical(CanonicalStructuralPathSegment::Field(identity)),
-            ) => descended_field_id(unit, current, identity).map(|(_, next)| Self::Type(next)),
-            (
-                Self::Type(current),
-                PathStep::Canonical(CanonicalStructuralPathSegment::FixedIndex(_)),
-            ) => match shape(unit, current)? {
-                StructuralTypeShape::FixedArray { element, .. } => Some(Self::Type(*element)),
-                _ => None,
-            },
-            (
-                Self::Type(current),
-                PathStep::Canonical(CanonicalStructuralPathSegment::Case(identity)),
-            ) => {
-                let cases = match shape(unit, current)? {
-                    StructuralTypeShape::Sum { cases }
-                    | StructuralTypeShape::Mixed { cases, .. } => cases,
-                    _ => return None,
-                };
-                cases
-                    .iter()
-                    .find(|case| case.id == identity)
-                    .map(Self::CasePayload)
-            }
-            (
-                Self::CasePayload(case),
-                PathStep::Canonical(CanonicalStructuralPathSegment::Field(identity)),
-            ) => match case
-                .fields
-                .iter()
-                .find(|field| field.id == identity)?
-                .field_type
-            {
-                StructuralFieldType::Structural(next) => Some(Self::Type(next)),
-                _ => None,
-            },
-            (Self::CasePayload(_), _) => None,
+            (_, PathStep::Canonical(segment)) => self.descend(unit, &segment),
+            (Self::CasePayload(_), PathStep::Ordinary(_)) => None,
         }
     }
 }
@@ -1265,7 +1186,7 @@ fn establishment_scalar(
                 RootProducer::Variant(producer, result_case),
                 [CanonicalStructuralPathSegment::Case(observed_case)],
             ) if result_case == *observed_case => {
-                return case_field_initializer(function, producer, place, field)
+                return record_initializer(function, producer, place, field)
                     .map(|initializer| EstablishmentScalar::Initializer(producer, initializer));
             }
             (RootProducer::None, _) => {

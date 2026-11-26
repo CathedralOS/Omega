@@ -18,19 +18,18 @@ fn fixed_image_supplies_only_its_authenticated_member_on_uefi() {
     let path = temporary.path().join("build.omg");
     std::fs::write(
         &path,
-        r#"use omega\language\core\ProgramImage;
-use omega\language\core\ProgramImageNativeProvider;
+        r#"use {omega}/language/core/program_image.omg;
 machine build(builder: @mutable Build) {
     Build::package(builder, "firmware_provider");
-    Build::select_provider::<ProgramImage, ProgramImageNativeProvider>(builder, uefi_x86_64);
+    Build::select_provider::<|program_image|::ProgramImage, |program_image|::ProgramImageNativeProvider>(builder, uefi_x86_64);
 }"#,
     )
     .unwrap();
     std::fs::write(
         temporary.path().join("main.omg"),
-        r"use omega\language\core\ProgramImage;
-public machine image_tail() -> address reaches ProgramImage crashes none {
-    ProgramImage::retained_suffix_start()
+        r"use {omega}/language/core/program_image.omg;
+public machine image_tail() -> address reaches |program_image|::ProgramImage crashes none {
+    |program_image|::ProgramImage::retained_suffix_start()
 }",
     )
     .unwrap();
@@ -138,22 +137,21 @@ fn published_firmware_application() -> CanonicalTerminalArtifact {
     let path = temporary.path().join("build.omg");
     std::fs::write(
         &path,
-        r#"use omega\language\core\ProgramImage;
-use omega\language\core\ProgramImageNativeProvider;
+        r#"use main.omg as app;
+use {omega}/language/core/program_image.omg;
 machine build(builder: @mutable Build) {
     Build::application(builder, "firmware");
-    Build::select_provider::<ProgramImage, ProgramImageNativeProvider>(builder, uefi_x86_64);
-    Build::bind(builder, uefi_x86_64::ProgramEntry, entry);
+    Build::select_provider::<|program_image|::ProgramImage, |program_image|::ProgramImageNativeProvider>(builder, uefi_x86_64);
+    Build::bind(builder, uefi_x86_64::ProgramEntry, |app|::entry);
 }"#,
     )
     .unwrap();
-    std::fs::write(temporary.path().join("main.omg"), r"use omega\language\core\Extent;
-use omega\language\core\Extent\Granted;
-use omega\language\core\ProgramImage;
-machine entry(image: Extent in Granted, storage: Extent in Granted) reaches ProgramImage crashes none {
-    let suffix: address = ProgramImage::retained_suffix_start();
+    std::fs::write(temporary.path().join("main.omg"), r"use {omega}/language/core/extent.omg;
+use {omega}/language/core/program_image.omg;
+machine entry(image: |extent|::Extent in |extent|::Extent::Granted, storage: |extent|::Extent in |extent|::Extent::Granted) reaches |program_image|::ProgramImage crashes none {
+    let suffix: address = |program_image|::ProgramImage::retained_suffix_start();
     transition { _ -> retain(image, storage) }
-    machine retain(image: Extent in Granted, storage: Extent in Granted) {
+    machine retain(image: |extent|::Extent in |extent|::Extent::Granted, storage: |extent|::Extent in |extent|::Extent::Granted) {
         transition { _ -> retain(image, storage) }
     }
 }").unwrap();
@@ -230,19 +228,19 @@ fn saved_psi_retains_private_grants_only_across_a_closed_observation() {
             "firmware-observation-footprint", false,
         ).unwrap();
         let path = temporary.path().join("build.omg");
-        std::fs::write(&path, r#"machine build(b: @mutable Build) {
+        std::fs::write(&path, r#"use main.omg as app;
+machine build(b: @mutable Build) {
             Build::application(b, "firmware");
-            Build::bind(b, uefi_x86_64::ProgramEntry, entry);
+            Build::bind(b, uefi_x86_64::ProgramEntry, |app|::entry);
         }"#).unwrap();
-        let source = r"use omega\language\core\Extent;
-use omega\language\core\Extent\Granted;
+        let source = r"use {omega}/language/core/extent.omg;
 public boundary trait ExternalState { machine step() reaches none crashes none; }
 public boundary trait Probe { machine sense() -> address reaches FOOTPRINT crashes none; }
-machine entry(image: Extent in Granted, storage: Extent in Granted)
+machine entry(image: |extent|::Extent in |extent|::Extent::Granted, storage: |extent|::Extent in |extent|::Extent::Granted)
 reaches Probe + ExternalState invokes Probe invokes ExternalState crashes none {
     let observation: address = Probe::sense();
     transition { _ -> retain(image, storage) }
-    machine retain(image: Extent in Granted, storage: Extent in Granted) {
+    machine retain(image: |extent|::Extent in |extent|::Extent::Granted, storage: |extent|::Extent in |extent|::Extent::Granted) {
         transition { _ -> retain(image, storage) }
     }
 }";
@@ -269,20 +267,17 @@ fn storage_transport_requires_a_grant_on_each_owned_argument() {
     )
     .unwrap();
     let path = temporary.path().join("build.omg");
-    std::fs::write(&path, r#"use omega\language\core\ProgramStorageEntry;
-use omega\language\core\ProgramStorageEntryNativeProvider;
+    std::fs::write(&path, r#"use {omega}/language/core/extent.omg;
 machine build(b: @mutable Build) {
     Build::package(b, "transport");
-    Build::select_provider::<ProgramStorageEntry, ProgramStorageEntryNativeProvider>(b, uefi_x86_64);
+    Build::select_provider::<|extent|::ProgramStorageEntry, |extent|::ProgramStorageEntryNativeProvider>(b, uefi_x86_64);
 }"#).unwrap();
     std::fs::write(
         temporary.path().join("main.omg"),
-        r"use omega\language\core\Extent;
-use omega\language\core\Extent\Granted;
-use omega\language\core\ProgramStorageEntry;
-public machine forward(first: Extent in Granted, second: Extent in Granted)
-reaches ProgramStorageEntry invokes ProgramStorageEntry crashes Trap crashes Abort {
-    ProgramStorageEntry::enter(first, second);
+        r"use {omega}/language/core/extent.omg;
+public machine forward(first: |extent|::Extent in |extent|::Extent::Granted, second: |extent|::Extent in |extent|::Extent::Granted)
+reaches |extent|::ProgramStorageEntry invokes |extent|::ProgramStorageEntry crashes Trap crashes Abort {
+    |extent|::ProgramStorageEntry::enter(first, second);
 }",
     )
     .unwrap();

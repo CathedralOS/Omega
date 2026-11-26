@@ -76,6 +76,7 @@ impl ParsedStageSources {
             purpose,
             selection_authority: None,
             frontends: Default::default(),
+            body_demand: Default::default(),
         })
     }
 }

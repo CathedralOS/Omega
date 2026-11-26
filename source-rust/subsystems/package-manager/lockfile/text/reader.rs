@@ -5,7 +5,8 @@ use super::super::{
 };
 use super::{
     HEADER, MAXIMUM_DECISION_BYTES, MAXIMUM_POLICY_TEXT_BYTES, MAXIMUM_SOURCE_BYTES,
-    budget::Budget, framing::Reader,
+    budget::Budget,
+    framing::{LOCK, Reader},
 };
 use crate::declarations::dependencies::DependencyPurpose;
 use crate::lock::{PackageCheckedContext, PackagePolicyOccurrence};
@@ -18,7 +19,7 @@ impl PackageLock {
             return Err(Error::ByteLimitExceeded);
         }
         let body = text.strip_prefix(HEADER).ok_or(Error::UnsupportedVersion)?;
-        let mut reader = Reader::new(body);
+        let mut reader = Reader::new(&LOCK, body);
         let count = reader.count("targets", limits.maximum_targets)?;
         if count == 0 {
             return Err(Error::EmptyTargets);

@@ -69,8 +69,10 @@ machine OmegaScalarCompiler::imported_file(&mut self, source: &[u8], row: OmegaU
     }
 }
 
-machine OmegaScalarCompiler::file_declaration(
-    &mut self, source: &[u8], owner: i32, alias: OmegaRelativeSpan, member: OmegaRelativeSpan, kind: OmegaDeclarationKind
+// A file alias is local to the source that imported it. Import validation
+// rejects duplicates in that source before any declaration is selected.
+machine OmegaScalarCompiler::file_import_named(
+    &mut self, source: &[u8], owner: i32, alias: OmegaRelativeSpan
 ) -> i32 {
     transition true { true -> imports(0) }
     state imports(index: i32) {
@@ -80,34 +82,50 @@ machine OmegaScalarCompiler::file_declaration(
         }
     }
     state binding(index: i32, row: OmegaUseSyntax) {
-        transition (row.file_path.end > row.file_path.start) && (self.parser.sources.unit_at(row.start) == owner) &&
+        transition (self.parser.sources.unit_at(row.start) == owner) &&
             (self.parser.sources.equal_name(source, alias, self.parser.members[row.first_member]) == 1) {
-            true -> target(self.imported_file(source, row, owner))
+            true -> return index
             _ -> imports(index + 1)
         }
     }
+}
+
+machine OmegaScalarCompiler::file_declaration(
+    &mut self, source: &[u8], owner: i32, alias: OmegaRelativeSpan, member: OmegaRelativeSpan, kind: OmegaDeclarationKind
+) -> i32 {
+    let index: i32 = self.file_import_named(source, owner, alias);
+    transition index >= 0 {
+        true -> target(self.imported_file(source, self.parser.uses[index], owner))
+        _ -> return -1
+    }
     state target(unit: i32) {
         transition unit >= 0 {
-            true -> declarations(0, unit, -1)
+            true -> return self.unit_declaration(source, owner, unit, member.start, member.end, kind)
             _ -> return unit
         }
     }
-    state declarations(index: i32, unit: i32, selected: i32) {
+}
+
+machine OmegaScalarCompiler::unit_declaration(
+    &mut self, source: &[u8], owner: i32, unit: i32, start: i32, end: i32, kind: OmegaDeclarationKind
+) -> i32 {
+    transition true { true -> declarations(0, -1) }
+    state declarations(index: i32, selected: i32) {
         transition index < self.declaration_count(kind) {
-            true -> named(index, unit, selected, self.declaration_name(kind, index))
+            true -> named(index, selected, self.declaration_name(kind, index))
             _ -> return selected
         }
     }
-    state named(index: i32, unit: i32, selected: i32, name: OmegaRelativeSpan) {
-        transition (self.parser.sources.unit_at(name.start) == unit) && (self.parser.sources.equal_name(source, name, member) == 1) &&
+    state named(index: i32, selected: i32, name: OmegaRelativeSpan) {
+        transition (self.parser.sources.unit_at(name.start) == unit) && (self.span_equals(source, start, end, source[name.start..name.end]) == 1) &&
             ((self.parser.sources.units[unit].package == self.parser.sources.units[owner].package) || (self.declaration_public(kind, index) == 1)) {
-            true -> found(index, unit, selected)
-            _ -> declarations(index + 1, unit, selected)
+            true -> found(index, selected)
+            _ -> declarations(index + 1, selected)
         }
     }
-    state found(index: i32, unit: i32, selected: i32) {
+    state found(index: i32, selected: i32) {
         transition selected < 0 {
-            true -> declarations(index + 1, unit, index)
+            true -> declarations(index + 1, index)
             _ -> return -2
         }
     }

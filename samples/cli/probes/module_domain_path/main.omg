@@ -1,8 +1,5 @@
-// Module-qualified domain paths: `units` (sibling file) declares
-// `u64::Distance` and the operator home `u64::Distance::add`; a
-// broad `use units;` exposes the carrier-qualified spelling
-// `u64 in |units|::u64::Distance` as a type constraint on
-// parameters.
+// `units/units.omg` declares `u64::Distance` and its addition operator.
+// The caller selects that domain through `|units|::u64::Distance`.
 //
 //   * `measure(a: u64 in |units|::u64::Distance, ...)` — the domain
 //     is spelled through the module path, in the parameter type and

@@ -1,5 +1,7 @@
 // Two records are identical when every corresponding field is: the checker
 // rebuilds each `Point` from its two fields.
+use {omega}/language/core/foundation.omg as proof;
+
 data Point {
     x: i32;
     y: i32;
@@ -7,8 +9,8 @@ data Point {
 
 machine same_point(a: Point, b: Point)
 requires
-    core\Identity::<i32>(a.x, b.x)
+    |proof|::Identity::<i32>(a.x, b.x)
 ensures
-    core\Identity::<Point>(a, b)
+    |proof|::Identity::<Point>(a, b)
 {
 }

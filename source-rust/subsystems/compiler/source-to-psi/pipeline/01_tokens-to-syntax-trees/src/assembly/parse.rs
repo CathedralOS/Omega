@@ -47,6 +47,14 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
             let site = input;
             let (mnemonic, rest) = parse_asm_mnemonic(syntax, input)?;
             input = rest;
+            if let Some(qualifiers) = site.file_qualifiers
+                && language_core::sealed_intrinsics::PackedIntegerPrimitive::from_mnemonic(
+                    mnemonic.as_str(syntax),
+                )
+                .is_some()
+            {
+                qualifiers.record_packed_instruction(mnemonic.source_span());
+            }
             // A jump to a state accepts the same call/acknowledgement syntax as a transition.
             // A single bare identifier remains an ordinary operand for local label resolution.
             let is_transfer = matches!(mnemonic.as_str(syntax), "jmp" | "b");

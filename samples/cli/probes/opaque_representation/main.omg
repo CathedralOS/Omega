@@ -5,8 +5,8 @@
 // opaque type travels as data while the representation
 // shape stays an implementation choice.
 //
-//   * `use token;` sibling-file module import.
-//   * `Token` as a machine param + field.
+//   * `use token.omg;` selects the file declaring `Token`.
+//   * `|token|::Token` is a machine parameter and field type.
 //
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.

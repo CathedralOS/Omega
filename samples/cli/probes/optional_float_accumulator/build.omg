@@ -2,10 +2,11 @@
 // no standard-library package, so the artifact has no ProcessExit authority
 // and is compile-checked only (same posture as cli/basics/standalone).
 
+use main.omg as app;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "optional_float_accumulator" };
-    Build::bind(builder, windows_x86_64::ProgramEntry, optional_float_accumulator);
-    Build::bind(builder, linux_x86_64::ProgramEntry, optional_float_accumulator);
-    Build::bind(builder, linux_arm64::ProgramEntry, optional_float_accumulator);
-    Build::bind(builder, macos_arm64::ProgramEntry, optional_float_accumulator);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::optional_float_accumulator);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::optional_float_accumulator);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::optional_float_accumulator);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::optional_float_accumulator);
 }

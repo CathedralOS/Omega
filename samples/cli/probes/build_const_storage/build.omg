@@ -2,6 +2,7 @@
 // the const-generic data type through a machine call, and the build
 // program inspects `result.buffer.slots.length` to decide which
 // transition arm binds the entry.
+use main.omg as app;
 data Buffer<const Capacity: u64> { slots: [u8; Capacity]; }
 data ComputedStorage { buffer: Buffer<outer()>; }
 
@@ -18,7 +19,7 @@ machine build(builder: @mutable BuildPlan) {
         _ -> bad(builder)
     }
     machine good(builder: @mutable BuildPlan) {
-        Build::bind(builder, linux_x86_64::ProgramEntry, main);
+        Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
     }
     machine bad(builder: @mutable BuildPlan) {
         _ = BuildDeclarations::entry(@builder.declarations, "wrong_const_dependency", "linux_x86_64::ProgramEntry");

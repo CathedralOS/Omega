@@ -1613,6 +1613,7 @@ pub fn scalar_operation_literal(
 
 pub struct MachineScalarIndex<'machine> {
     machine: &'machine terminal_psi::TerminalMachine,
+    dominators: std::cell::OnceCell<Option<crate::control_graph::DominatorTree>>,
     definitions: Vec<(
         semantic_vocabulary::ValueId,
         &'machine terminal_psi::Block,
@@ -1688,6 +1689,7 @@ impl<'machine> MachineScalarIndex<'machine> {
         );
         Self {
             machine,
+            dominators: std::cell::OnceCell::new(),
             definitions,
             parameters,
             incoming,
@@ -1780,13 +1782,28 @@ impl<'machine> MachineScalarIndex<'machine> {
         }
         self.constant_origin(value)
     }
-}
 
-impl crate::ValueTypes for MachineScalarIndex<'_> {
-    fn value_type(
+    /// The unique runtime declaration must be available by the end of this block.
+    pub fn scalar_type_at_block_end(
         &self,
         value: semantic_vocabulary::ValueId,
+        block: semantic_vocabulary::BlockId,
     ) -> Option<semantic_vocabulary::ScalarType> {
+        let (owner, scalar_type) = self.scalar_definition(value)?;
+        if owner == block {
+            return Some(scalar_type);
+        }
+        let dominators = self
+            .dominators
+            .get_or_init(|| crate::control_graph::checked_dominators(self.machine).ok())
+            .as_ref()?;
+        dominators.dominates(owner, block).then_some(scalar_type)
+    }
+
+    fn scalar_definition(
+        &self,
+        value: semantic_vocabulary::ValueId,
+    ) -> Option<(semantic_vocabulary::BlockId, semantic_vocabulary::ScalarType)> {
         let start = self.parameters.partition_point(|(id, ..)| *id < value);
         let parameter = self.parameters.get(start).filter(|(id, ..)| *id == value);
         if parameter.is_some()
@@ -1797,14 +1814,24 @@ impl crate::ValueTypes for MachineScalarIndex<'_> {
         {
             return None;
         }
-        let mut definitions = self.definitions(value);
+        let mut definitions = self.definition_sites(value);
         match definitions.next() {
-            Some(operation) if definitions.next().is_none() && parameter.is_none() => {
-                Some(operation.result.scalar_ref()?.scalar_type)
+            Some((block, position)) if definitions.next().is_none() && parameter.is_none() => {
+                let result = block.operations[position].result.scalar_ref()?;
+                Some((block.id, result.scalar_type))
             }
             Some(_) => None,
-            None => parameter.map(|(_, _, _, ty)| *ty),
+            None => parameter.map(|(_, block, _, ty)| (*block, *ty)),
         }
+    }
+}
+
+impl crate::ValueTypes for MachineScalarIndex<'_> {
+    fn value_type(
+        &self,
+        value: semantic_vocabulary::ValueId,
+    ) -> Option<semantic_vocabulary::ScalarType> {
+        self.scalar_definition(value).map(|(_, ty)| ty)
     }
 }
 

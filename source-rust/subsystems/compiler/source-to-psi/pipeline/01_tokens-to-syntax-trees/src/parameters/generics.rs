@@ -164,7 +164,7 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
         } else if input.at_contextual("proposition") {
             return Err(input.error_here(
                 "`<proposition Relation>` is retired; declare a relation family with its \
-                 mathematical type, like `<C, R: C -> C -> core\\Type>`",
+                 mathematical type, like `<C, R: C -> C -> |proof|::Type>`",
             ));
         } else {
             let (name, input) = input.take_identifier()?;
@@ -228,7 +228,7 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
             )));
         }
 
-        // A trait's relation family `R: C -> C -> core\Type` is the binder a
+        // A trait's relation family `R: C -> C -> |proof|::Type` is the binder a
         // `R(left, right)` application in its requirements names; its arrow
         // domains are the family's parameters.
         if matches!(kind, TypeParameterKind::Type)
@@ -357,7 +357,7 @@ fn relation_family_signature(
             MathematicalTypeNode::Application { .. } => {
                 return Err(format!(
                     "relation family `{family_name}` must end in its result sort, \
-                     like `C -> C -> core\\Type`"
+                     like `C -> C -> |proof|::Type`"
                 ));
             }
         }
@@ -365,7 +365,7 @@ fn relation_family_signature(
     if domains.is_empty() {
         return Err(format!(
             "`{family_name}: ...` in a trait declares a relation family, which needs at least \
-             one domain, like `{family_name}: C -> C -> core\\Type`"
+             one domain, like `{family_name}: C -> C -> |proof|::Type`"
         ));
     }
     let mut parameters = HandleSpan::empty();

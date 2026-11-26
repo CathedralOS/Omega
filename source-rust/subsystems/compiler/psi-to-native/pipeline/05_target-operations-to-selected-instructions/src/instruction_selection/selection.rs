@@ -641,24 +641,15 @@ pub(crate) mod constraints {
             {
                 return Err(reject());
             }
-            let id = VirtualRegisterId(registers.len().try_into().map_err(|_| reject())?);
-            registers.push(selected_instructions::VirtualRegister {
-                id,
-                scalar_type: semantic_vocabulary::ScalarType::Integer(
-                    semantic_vocabulary::IntegerType::new(
-                        semantic_vocabulary::IntegerSign::Unsigned,
-                        64,
-                    )
-                    .map_err(|_| reject())?,
-                ),
-                class: scratch.class,
-                origin: selected_instructions::VirtualRegisterOrigin::InstructionScratch {
+            let id =
+                crate::instruction_selection::selection::construction::scalar_graph::push_scratch(
+                    registers,
+                    scratch.class,
+                    semantic_vocabulary::IntegerSign::Unsigned,
                     instruction,
-                    operand: scratch.operand,
-                },
-                definition_site: None,
-                entry_fixed_view: None,
-            });
+                    scratch.operand,
+                )
+                .ok_or_else(reject)?;
             operands.push(id);
         }
         Ok(operands)
@@ -782,10 +773,8 @@ pub(crate) mod extent_copy {
     use register_model::{
         PreparedRegisterConstraintCatalog, RegisterConstraintKey, RegisterOperandAccess,
     };
-    use selected_instructions::{
-        SelectedInstructionId, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
-    };
-    use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
+    use selected_instructions::{SelectedInstructionId, VirtualRegister, VirtualRegisterId};
+    use semantic_vocabulary::IntegerSign;
 
     pub(crate) const INLINE_MAX_BYTES: u32 = 4096;
 
@@ -827,21 +816,15 @@ pub(crate) mod extent_copy {
         }
         let mut operands = [inputs[0], inputs[1], inputs[2], inputs[0], inputs[0]];
         for index in 3..5 {
-            let id = VirtualRegisterId(registers.len().try_into().map_err(|_| reject())?);
-            registers.push(VirtualRegister {
-                id,
-                scalar_type: ScalarType::Integer(
-                    IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| reject())?,
-                ),
-                class: row.operands[index].class,
-                origin: VirtualRegisterOrigin::InstructionScratch {
+            operands[index] =
+                crate::instruction_selection::selection::construction::scalar_graph::push_scratch(
+                    registers,
+                    row.operands[index].class,
+                    IntegerSign::Unsigned,
                     instruction,
-                    operand: index as u16,
-                },
-                definition_site: None,
-                entry_fixed_view: None,
-            });
-            operands[index] = id;
+                    index as u16,
+                )
+                .ok_or_else(reject)?;
         }
         Ok(operands)
     }
@@ -1527,12 +1510,12 @@ pub(crate) mod model {
             self.identity
         }
 
-        #[cfg(any(test, feature = "test-support"))]
+        #[cfg(feature = "test-support")]
         pub const fn legalized(self) -> LegalizedOperationPlanIdentity {
             self.legalized
         }
 
-        #[cfg(any(test, feature = "test-support"))]
+        #[cfg(feature = "test-support")]
         pub const fn legalization_validator(self) -> OptimizationValidatorIdentity {
             self.legalization_validator
         }
@@ -1545,22 +1528,22 @@ pub(crate) mod model {
             self.work_schedule
         }
 
-        #[cfg(any(test, feature = "test-support"))]
+        #[cfg(feature = "test-support")]
         pub const fn function_count(self) -> usize {
             self.function_count
         }
 
-        #[cfg(any(test, feature = "test-support"))]
+        #[cfg(feature = "test-support")]
         pub const fn block_count(self) -> usize {
             self.block_count
         }
 
-        #[cfg(any(test, feature = "test-support"))]
+        #[cfg(feature = "test-support")]
         pub const fn virtual_register_count(self) -> usize {
             self.virtual_register_count
         }
 
-        #[cfg(any(test, feature = "test-support"))]
+        #[cfg(feature = "test-support")]
         pub const fn instruction_count(self) -> usize {
             self.instruction_count
         }

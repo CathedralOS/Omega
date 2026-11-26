@@ -24,8 +24,9 @@ machine decode(word:i32)->ByteRead crashes Trap {
     entry = b'''
 public machine main()->u8 crashes Trap {
     let result:ByteRead=decode(INPUT);
-    transition result {ByteRead::Eof -> eof(), ByteRead::Byte {value} -> byte(value)}
+    transition result {ByteRead::Eof -> eof(), ByteRead::Byte {value} -> byte(value), ByteRead::Error -> failed()}
     machine eof()->u8 {EOF}
+    machine failed()->u8 {crash Trap;}
     machine byte(word:i32)->u8 requires word >= 0 && word <= 255 {
         transition word == EXPECT {true -> 42, _ -> 0}
     }
@@ -80,11 +81,11 @@ public machine main()->u8 crashes Trap {
 
     # The caller and both suppliers can give different meanings to ByteRead.
     # Each predicate must resolve under its declaring package and its file.
-    caller = b'use api\\ByteRead;\n' + decoder + entry.replace(b'INPUT', b'255').replace(b'EXPECT', b'255').replace(b'EOF', b'0')
+    caller = b'use {api}/result.omg;\n' + (decoder + entry).replace(b'ByteRead', b'|result|::ByteRead').replace(b'INPUT', b'255').replace(b'EXPECT', b'255').replace(b'EOF', b'0')
     tighter = declaration.replace(b'<= 255', b'<= 10')
     for name, app, broad, expected in [
         ('forward', caller, declaration, 42),
-        ('forward-wrong-owner', caller.replace(b'use api', b'use strict'), declaration, (0, b'machine decode', 2)),
+        ('forward-wrong-owner', caller.replace(b'{api}/result.omg', b'{strict}/strict.omg as result'), declaration, (0, b'machine decode', 2)),
         ('unreachable-invalid-case', caller, declaration.replace(b'self in ByteRead::Eof', b'self in ByteRead::Missing'),
          (1, b'public data', 2)),
         ('bad-guard', caller.replace(b'word >= 0 && word <= 255 {true', b'word <= 255 {true'), declaration,

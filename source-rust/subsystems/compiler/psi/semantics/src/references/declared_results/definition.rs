@@ -171,8 +171,9 @@ fn occurrences(
         if *referent {
             continue; // The caller checks the formal's separate access column.
         }
-        let actual = crate::runtime_structural_path_tip(module.types.structural_types.iter(), root, path)
-            .and_then(|tip| crate::stored_reference_access(&tip.shape));
+        let actual =
+            crate::runtime_structural_path_tip(module.types.structural_types.iter(), root, path)
+                .and_then(|tip| crate::stored_reference_access(&tip.shape));
         if actual != Some(*access) {
             return Err("public reference path or access differs from its original declared type");
         }

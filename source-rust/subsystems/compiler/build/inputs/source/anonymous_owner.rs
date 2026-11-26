@@ -96,13 +96,34 @@ impl AnonymousSourceCapture {
             .ok_or_else(|| "provisional check owner has the reserved zero digest".to_owned())
     }
 
-    /// The Build stage with this capture's unowned files under the check-only owner.
+    /// The Build stage with this capture's unowned files under the check-only owner,
+    /// appended without mutating `files[..]` in place so `retains_source_storage` holds.
     pub fn check_only_stage(
         &self,
         mut stage: source_compiler::BuildStageSource,
     ) -> Result<source_compiler::BuildStageSource, String> {
         let owner = self.provisional_check_owner()?;
-        Arc::make_mut(&mut stage.parsed.files).bind_anonymous_owner(&self.root, owner)?;
+        let mut files = (*stage.parsed.files).clone();
+        let remapped = files.rebind_anonymous_owner_retaining_storage(&self.root, owner)?;
+        let remap = |id: source_text::SourceId| {
+            remapped
+                .iter()
+                .find_map(|&(old_id, new_id)| (old_id == id).then_some(new_id))
+                .unwrap_or(id)
+        };
+        let files = Arc::new(files);
+        let roots: Vec<_> = stage.parsed.roots.into_iter().map(remap).collect();
+        let mut imports = stage.parsed.imports;
+        for binding in &mut imports {
+            binding.remap_sources(remap);
+        }
+        stage.parsed = source_compiler::ParsedStageSources::parse(files, roots, imports)
+            .map_err(|errors| diagnostics::join_messages(&errors))?;
+        stage.build_sources = stage.build_sources.into_iter().map(remap).collect();
+        stage.entry = source_text::SourceSpan::new(remap(stage.entry.source_id), stage.entry.span);
+        for pending in &mut stage.pending_imports {
+            pending.source = remap(pending.source);
+        }
         Ok(stage)
     }
 

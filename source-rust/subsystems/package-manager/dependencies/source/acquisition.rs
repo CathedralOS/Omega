@@ -172,13 +172,6 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
         self.retain_source(acquired)
     }
 
-    pub fn acquire(
-        &mut self,
-        pending: PendingBuildSource,
-    ) -> Result<BuildSourceAcquisition, String> {
-        self.acquire_or_reuse(pending, None)
-    }
-
     pub(crate) fn acquire_or_reuse(
         &mut self,
         pending: PendingBuildSource,
@@ -238,23 +231,6 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
             purpose,
             ordinal,
         )
-    }
-
-    pub fn acquire_completed(
-        &mut self,
-        requester: &AcquiredBuildSource,
-        result: &build_execution::BuildSourceResult<'_>,
-        purpose: build_declarations::DependencyPurpose,
-        ordinal: usize,
-    ) -> Result<AcquiredSourceSelection, String> {
-        if result
-            .dependency_backings()
-            .get(&(purpose, ordinal))
-            .is_some_and(|backing| backing.frozen.is_some())
-        {
-            return Err("a frozen binding requires its already settled source".into());
-        }
-        self.acquire_requests(requester, result.requests(), purpose, ordinal)
     }
 
     pub(crate) fn acquire_requests<'request>(
@@ -377,12 +353,7 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
                     &acquired.lineage == source.lineage()
                         && acquired.navigation == super::PackageSourceNavigation::Root
                 }) {
-                    let resolution = ImmutableSourceResolution::git(
-                        GitCommitId::parse_hex(source.commit())
-                            .map_err(|error| error.to_string())?,
-                        GitTreeId::parse_hex(source.tree()).map_err(|error| error.to_string())?,
-                    )
-                    .map_err(|error| error.to_string())?;
+                    let resolution = git_resolution(source.commit(), source.tree())?;
                     if existing.resolution != resolution
                         || super::PackageSourceMaterialization::from_local(
                             existing.capture.normalized(),
@@ -678,11 +649,7 @@ impl AcquiredBuildSource {
         if capture.normalized().content_identity != source.content_identity() {
             return Err("captured Git source differs from its authenticated snapshot".into());
         }
-        let resolution = ImmutableSourceResolution::git(
-            GitCommitId::parse_hex(source.commit()).map_err(|error| error.to_string())?,
-            GitTreeId::parse_hex(source.tree()).map_err(|error| error.to_string())?,
-        )
-        .map_err(|error| error.to_string())?;
+        let resolution = git_resolution(source.commit(), source.tree())?;
         Ok(Self {
             successor_capture: None,
             capture,
@@ -706,13 +673,6 @@ impl AcquiredBuildSource {
         let next = successor.capture_for(self.source_capture())?;
         self.successor_capture = (next != &self.capture).then(|| next.clone());
         Ok(())
-    }
-
-    pub fn bind_returned_build(
-        &self,
-        returned: &build_execution::ReturnedBuild,
-    ) -> Result<package_compilation::PackageSourceBinding, String> {
-        self.declare_build(returned)?.source_binding()
     }
 
     /// A source continuation may name this acquired package after its Build
@@ -812,4 +772,16 @@ impl AcquiredBuildSource {
             root_request: self.root_request.clone(),
         })
     }
+}
+
+/// The immutable resolution an authenticated Git snapshot names.
+pub(super) fn git_resolution(
+    commit: &str,
+    tree: &str,
+) -> Result<ImmutableSourceResolution, String> {
+    ImmutableSourceResolution::git(
+        GitCommitId::parse_hex(commit).map_err(|error| error.to_string())?,
+        GitTreeId::parse_hex(tree).map_err(|error| error.to_string())?,
+    )
+    .map_err(|error| error.to_string())
 }

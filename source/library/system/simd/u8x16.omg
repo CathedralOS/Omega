@@ -1,5 +1,4 @@
 use simd/simd.omg as simd;
-use {omega}/language/core/packed_integer/packed_integer.omg as packed_integer;
 
 public machine load(source: @[u8; 16]) -> |simd|::Lanes<u8, 16> {
     |simd|::Lanes { values: $source }
@@ -10,6 +9,7 @@ public machine store(destination: @mutable [u8; 16], value: @|simd|::Lanes<u8, 1
 }
 
 public machine wrapping_add(left: @|simd|::Lanes<u8, 16>, right: @|simd|::Lanes<u8, 16>) -> |simd|::Lanes<u8, 16> {
-    let values: [u8; 16] = |packed_integer|::wrapping_add_u8x16(@left.values, @right.values);
+    let mutable values: [u8; 16];
+    asm { vpaddb values, left.values, right.values }
     |simd|::Lanes { values: values }
 }

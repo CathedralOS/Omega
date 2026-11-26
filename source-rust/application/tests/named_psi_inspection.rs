@@ -39,6 +39,47 @@ fn assert_reopened_inspection(name: &str, source: Output, reopened: Output) {
 }
 
 #[test]
+fn a_saved_process_exit_can_use_a_status_computed_before_a_borrow_ends() {
+    let project = TemporaryDirectory::create("saved-process-exit-status", false).unwrap();
+    std::fs::write(project.path().join("build.omg"), r#"use main.omg as app;
+machine build(plan: @mutable BuildPlan) {
+    plan.product = BuildProduct::Application { name: "saved_status" };
+    Build::bind(plan, linux_x86_64::ProgramEntry, |app|::main);
+}
+"#).unwrap();
+    std::fs::write(project.path().join("main.omg"), r#"use {omega}/language/core/process_exit.omg as process;
+
+public machine main() reaches |process|::ProcessExit crashes Trap {
+    let status: i32 = next(6);
+    require_nonempty("after selection");
+    |process|::ProcessExit::exit_process(status);
+}
+
+machine next(value: i32) -> i32 { value +% 1i32 }
+machine require_nonempty(bytes: @[u8]) {
+    transition bytes.length == 0 {
+        true -> fail(),
+        _ -> done()
+    }
+    machine fail() { crash Trap; }
+    machine done() {}
+}
+"#).unwrap();
+
+    let file = project.path().join("status.psi");
+    let emitted = omega(project.path())
+        .arg("--emit-psi")
+        .arg(&file)
+        .args(["--target", "linux_x86_64", "build.omg"])
+        .output()
+        .unwrap();
+    assert!(emitted.status.success(), "{emitted:?}");
+    let bytes = std::fs::read(&file).unwrap();
+    let artifact = CanonicalTerminalArtifact::from_bytes(&bytes).unwrap();
+    assert_eq!(artifact.to_bytes(), bytes);
+}
+
+#[test]
 fn saved_generic_trait_defaults_keep_the_declared_method_arity() {
     let project = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures/calls/run/trait_default_helpers");
@@ -389,14 +430,15 @@ fn reopened_uefi_image_retains_its_checked_physical_entry_and_subsystem() {
     let (manifest, image) = {
         let producer = TemporaryDirectory::create("saved-uefi-producer", false).unwrap();
         let system = library.join("system").to_string_lossy().replace('\\', "/");
-        let build = r#"use {omega}/build/dependency.omg;
+        let build = r#"use main.omg as app;
+use {omega}/build/dependency.omg;
 use {system}/uefi_x86_64_entry.omg as firmware;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "firmware" };
     builder.subsystem = Subsystem::EfiApplication;
     let system: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "SYSTEM_SOURCE" }));
-    Build::select_provider::<|firmware|::UefiPhysicalEntry, RejectArrival>(builder, uefi_x86_64);
-    Build::bind(builder, uefi_x86_64::ProgramEntry, semantic_entry);
+    Build::select_provider::<|firmware|::UefiPhysicalEntry, |app|::RejectArrival>(builder, uefi_x86_64);
+    Build::bind(builder, uefi_x86_64::ProgramEntry, |app|::semantic_entry);
 }
 "#;
         std::fs::write(

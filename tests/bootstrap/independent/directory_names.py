@@ -1,4 +1,4 @@
-"""Check package-relative namespaces using an executable Epsilon-written Omega constructor."""
+"""Check exact file imports using an executable Epsilon-written Omega constructor."""
 import argparse
 from pathlib import Path
 import re
@@ -25,12 +25,11 @@ def cases():
             "<BII", 0, 1, rows[0][1] + file_caller.index(b"|two|"))
         yield name, wire, expected
 
-    select = b"use first\\score; machine main() -> u8 { score() }"
-    sibling = b"machine main() -> u8 { score() }"
+    select = b"use first/x.omg as first; machine main() -> u8 { |first|::score() }"
     constant = b"machine main() -> u8 { 42 }"
     score = b"public machine score() -> u8 { 42 }"
     other = b"public machine score() -> u8 { 7 }"
-    array_caller = b"use later\\read; machine main()->u8{let x:[u8;2]=[1,42];read(@x)}"
+    array_caller = b"use later/api.omg; machine main()->u8{let x:[u8;2]=[1,42];|api|::read(@x)}"
     array_reader = b"public machine read(x:@[u8;2])->u8{x[1]}"
     cases_source = (ROOT / "tests/bootstrap/conformance/omega/payload_bindings.omg").read_bytes()
 
@@ -54,29 +53,28 @@ def cases():
 
     for name, sources, paths in [
         ("directory-import", [select, score, other], ["main.omg", "first/x.omg", "second/x.omg"]),
-        ("renamed-and-reordered", [select, other, score], ["new.omg", "second/a.omg", "first/b.omg"]),
-        ("same-directory", [sibling, other, score], ["first/m.omg", "second/s.omg", "first/s.omg"]),
-        ("qualified-call", [b"machine main() -> u8 { first\\score() }", score],
-         ["main.omg", "first/x.omg"]),
-        ("nested-directory", [select.replace(b"first", b"outer\\first"), score],
+        ("renamed-and-reordered", [select.replace(b"x.omg", b"b.omg"), other, score],
+         ["new.omg", "second/a.omg", "first/b.omg"]),
+        ("same-directory", [select.replace(b"first/x.omg", b"first/s.omg"), other, score],
+         ["first/m.omg", "second/s.omg", "first/s.omg"]),
+        ("nested-directory", [select.replace(b"first/x.omg", b"outer/first/x.omg"), score],
          ["main.omg", "outer/first/x.omg"]),
         ("static-case", [cases_source], ["example/cases.omg"]),
-        ("legacy-root", [sibling, score], None),
+        ("legacy-root", [constant], None),
     ]:
         yield name, packet(sources, paths)[0], 42
 
-    data, _, _, _ = encode([("app", 0), ("dep", 0)], [(0, 1, "library")],
-                           [(0, select.replace(b"first", b"library\\first")), (1, score), (1, other)],
+    imported = select.replace(b"first/x.omg", b"{lib}/first/x.omg")
+    data, _, _, _ = encode([("app", 0), ("dep", 0)], [(0, 1, "lib")],
+                           [(0, imported), (1, score), (1, other)],
                            0, b"main", paths=["main.omg", "first/x.omg", "second/x.omg"])
     yield "dependency-directory", data, 42
 
-    # The installed core is identified by its role, independent of its package
-    # display name. Exercise the product declaration without a dependency edge.
     ordering = (ROOT / "source/library/core/fence_ordering.omg").read_bytes()
     order_reader = (
-        b"use omega\\language\\core\\FenceOrdering; machine main() -> u8 { "
-        b"let order: FenceOrdering = FenceOrdering::ReceivePublish; "
-        b"transition order { FenceOrdering::ReceivePublish -> pass(), _ -> fail() } "
+        b"use {omega}/language/core/fence_ordering.omg as fence; machine main() -> u8 { "
+        b"let order: |fence|::FenceOrdering = |fence|::FenceOrdering::ReceivePublish; "
+        b"transition order { |fence|::FenceOrdering::ReceivePublish -> pass(), _ -> fail() } "
         b"machine pass() -> u8 { 42 } machine fail() -> u8 { 7 } }"
     )
     data, _, _, _ = encode([("app", 0), ("installed", 1)], [],
@@ -84,29 +82,11 @@ def cases():
                            paths=["main.omg", "fence_ordering.omg"])
     yield "core-product-declaration", data, 42
 
-    core_import = b"use omega\\language\\core\\sub\\score; machine main() -> u8 { score() }"
-    core_call = b"machine main() -> u8 { omega\\language\\core\\sub\\score() }"
-    packages = [("app", 0), ("installed", 1), ("impostor", 0)]
-    paths = ["main.omg", "sub/x.omg", "language/core/sub/x.omg"]
-    for name, caller in [("core-import", core_import), ("core-qualified-call", core_call)]:
-        data, _, _, _ = encode(packages, [(0, 2, "omega")], [(0, caller), (1, score), (2, other)],
-                               0, b"main", paths=paths)
-        yield name, data, 42
-
-    local_alias = b"use alternate\\omega; " + core_call
-    data, _, _, _ = encode([("app", 0), ("installed", 1)], [],
-                           [(0, local_alias), (1, score), (0, other), (0, b"machine anchor() {}")],
-                           0, b"main", paths=["main.omg", "sub/x.omg",
-                                              "alternate/omega/language/core/sub/x.omg",
-                                              "alternate/omega/marker.omg"])
+    core_import = b"use {omega}/language/core/sub/x.omg; machine main() -> u8 { |x|::score() }"
+    data, _, _, _ = encode([("app", 0), ("installed", 1), ("impostor", 0)], [(0, 2, "omega")],
+                           [(0, core_import), (1, score), (2, other)], 0, b"main",
+                           paths=["main.omg", "sub/x.omg", "language/core/sub/x.omg"])
     yield "core-before-local-namespace", data, 42
-
-    # A normal dependency alias starting with "omega" still selects ordinary system.
-    ordinary = b"use omega\\sub\\score; machine main() -> u8 { score() }"
-    data, _, _, _ = encode([("app", 0), ("library", 2)], [(0, 1, "omega")],
-                           [(0, ordinary), (1, score)], 0, b"main",
-                           paths=["main.omg", "sub/x.omg"])
-    yield "ordinary-omega-alias", data, 42
 
     for name, role, path, caller, declaration, owner, edges in [
         ("private-core-member", 1, "sub/x.omg", core_import, b"machine score() -> u8 { 42 }", 1, []),
@@ -118,20 +98,35 @@ def cases():
         data, _, _, rows = encode([("app", 0), ("omega_language_core", role)], edges,
                                   [(0, caller), (owner, declaration)], 0, b"main",
                                   paths=["main.omg", path])
-        yield name, data, struct.pack("<BII", 0, 1, rows[0][1])
+        at = caller.index(b"|x|") if name == "private-core-member" else 0
+        yield name, data, struct.pack("<BII", 0, 1, rows[0][1] + at)
 
     data, rows = packet([select, score], ["main.omg", "moved/x.omg"])
     yield "moved-declaration", data, struct.pack("<BII", 0, 1, rows[0][1])
-    # The bootstrap compiler implements imports of free declarations. A static
-    # member selector must not select a same-spelled free machine in a directory.
-    data, rows = packet([select.replace(b"first\\score", b"first::score"), score],
-                        ["main.omg", "first/x.omg"])
-    yield "static-import-outside-subset", data, struct.pack("<BII", 0, 2, rows[0][1] + 4)
+    allowed = b"use first/x.omg as addr;machine main()->u8{|addr|::score()}"
+    yield "retired-address-spelling-as-alias", packet([allowed, score], ["main.omg", "first/x.omg"])[0], 42
+    reserved = allowed.replace(b"addr", b"address")
+    data, rows = packet([reserved, score], ["main.omg", "first/x.omg"])
+    yield "address-type-cannot-be-file-alias", data, struct.pack("<BII", 0, 1, rows[0][1] + reserved.index(b";"))
+    for name, retired, anchor in [
+        ("legacy-item-import", b"use first\\score; machine main()->u8{42}", b"first"),
+        ("legacy-qualified-reference", b"machine main()->u8{first\\score()}", b"\\"),
+        ("static-item-import", b"use first::score; machine main()->u8{42}", b"first"),
+        ("sibling-without-import", b"machine main()->u8{score()}", b"score"),
+    ]:
+        data, rows = packet([retired, score], ["first/main.omg", "first/x.omg"])
+        yield name, data, struct.pack("<BII", 0, 1, rows[0][1] + retired.index(anchor))
     data, rows = packet([b"module first; " + constant], ["m.omg"])
     yield "retired-header", data, struct.pack("<BII", 0, 1, rows[0][1])
+    # A path component is independent of the namespace of declarations and aliases.
+    for name, directory in [("numeric-directory", "2nd"), ("carrier-directory", "u3072"),
+                            ("hyphenated-directory", "ready-to-run")]:
+        path = directory + "/x.omg"
+        caller = select.replace(b"first/x.omg", path.encode())
+        yield name, packet([caller, score], ["main.omg", path])[0], 42
     for name, path, offset in [
-        ("bad-directory", "ok/2wrong/x.omg", 3),
-        ("reserved-directory", "u3072/x.omg", 0),
+        ("dot-directory", "ok/./x.omg", 3),
+        ("parent-directory", "ok/../x.omg", 3),
         ("empty-component", "ok//x.omg", 3),
         ("missing-basename", "ok/", 3),
         ("parent-basename", "ok/..", 3),
@@ -231,7 +226,7 @@ def quoted_byte_cases(packet):
         source = b"machine main()->u8{first(" + literal + b")}" + first
         yield "quoted-image-" + name, packet([source], ["main.omg"])[0], expected
 
-    caller = b'machine main()->u8{read("A")}'
+    caller = b'use later.omg;machine main()->u8{|later|::read("A")}'
     later = first + b'machine read(s:@[u8])->u8{first("B")}'
     yield "quoted-image-cross-unit", packet([caller, later], ["main.omg", "later.omg"])[0], 66
     index = b"machine read(s:@[u8],i:u64)->u8 requires i<s.length{s[i]}"
@@ -262,10 +257,18 @@ def declaration(definitions, header):
     return definitions[start:definitions.index(b"\n}", start) + 2]
 
 
+def import_types(fragment, **types):
+    """Name dependencies of a product declaration that the fixture puts in another file."""
+    files = dict.fromkeys(types.values())
+    for symbol, alias in types.items():
+        fragment = re.sub(rb"(?<!case )\b" + symbol.encode() + rb"\b", f"|{alias}|::{symbol}".encode(), fragment)
+    return b"".join(f"use {alias}.omg;\n".encode() for alias in files) + fragment
+
+
 def construction_unit_cases(encode):
     # The first file calls a later dependency. Its import belongs only to that
     # file, and an unreachable machine in another file must still type-check.
-    caller = b"use lib\\answer; machine main() -> u8 { answer() }"
+    caller = b"use {lib}/answer.omg; machine main() -> u8 { |answer|::answer() }"
     provider = b"public machine answer() -> u8 { 42 }"
     hidden_call = b"machine unused() -> u8 { answer() }"
     good_unused = b"machine unused() -> u8 { 7 }"
@@ -281,8 +284,8 @@ def construction_unit_cases(encode):
 
     # The callee can use the same local row number as a live caller.
     # The return to main must still see its original value.
-    live_caller = (b"use lib\\answer; machine main() -> u8 { let kept: u8 = 42; "
-                   b"let got: u8 = answer(); transition got == 7 { true -> kept, _ -> got } }")
+    live_caller = (b"use {lib}/answer.omg; machine main() -> u8 { let kept: u8 = 42; "
+                   b"let got: u8 = |answer|::answer(); transition got == 7 { true -> kept, _ -> got } }")
     stores_local = b"public machine answer() -> u8 { let temp: u8 = 7; temp }"
     data, _, _, _ = encode(packages, dependency, [(0, live_caller), (1, stores_local)],
                            0, b"main", paths=["main.omg", "answer.omg"])
@@ -293,7 +296,7 @@ def construction_unit_cases(encode):
     data, rows = forward(good_unused, provider, [])
     yield "forward-missing-edge", data, struct.pack("<BII", 0, 1, rows[0][1])
     data, rows = forward(good_unused, provider.removeprefix(b"public "), dependency)
-    yield "forward-private", data, struct.pack("<BII", 0, 1, rows[0][1])
+    yield "forward-private", data, struct.pack("<BII", 0, 1, rows[0][1] + caller.index(b"|answer|"))
     data, rows = forward(hidden_call, provider, dependency)
     yield "unused-file-cannot-borrow-import", data, struct.pack(
         "<BII", 0, 1, rows[1][1] + hidden_call.index(b"answer"))
@@ -301,8 +304,8 @@ def construction_unit_cases(encode):
     data, rows = forward(b"\0", provider, [])
     yield "parse-before-missing-edge", data, struct.pack("<BII", 0, 1, rows[1][1])
 
-    typed_caller = (b"use lib\\answer; machine main() -> u8 { relay(42) } "
-                    b"machine relay(kept: u8) -> u8 { let got: u8 = answer(7); "
+    typed_caller = (b"use {lib}/answer.omg; machine main() -> u8 { relay(42) } "
+                    b"machine relay(kept: u8) -> u8 { let got: u8 = |answer|::answer(7); "
                     b"transition got == 7 { true -> kept, _ -> got } }")
     typed_provider = b"public machine answer(value: u8) -> u8 { value }"
     data, _, _, _ = encode(packages, dependency, [(0, typed_caller), (1, typed_provider)],
@@ -314,46 +317,44 @@ def construction_unit_cases(encode):
     yield "forward-mistyped-argument", data, struct.pack(
         "<BII", 0, 1, rows[0][1] + bad_caller.index(b"false"))
 
-    # Each source file needs 8,320 authored import components. Together
-    # they exceed the 16,384-row parser arena. Repeated imports of the same
-    # declaration are legal and do not change the expected executable.
-    components = ["x"] * 126
-    import_path = "\\".join(["lib", *components, "answer"]).encode("ascii")
-    import_statement = b"use " + import_path + b";\n"
-    imports = import_statement * 65
-    sources = [(0, imports + b"machine main() -> u8 { answer() }"),
-               (0, imports + b"machine unused() -> u8 { answer() }"),
-               (1, provider)]
-    deep_paths = ["main.omg", "helper.omg", "/".join([*components, "answer.omg"])]
-    data, _, _, _ = encode(packages, dependency, sources, 0, b"main", paths=deep_paths)
+    # Spread 4,096 aliases over small files so duplicate checks within any
+    # one file stay cheap. Only a file containing all of them fills its roots.
+    imports = [f"use {{lib}}/answer.omg as answer{i};\n".encode() for i in range(4096)]
+    sources = []
+    paths = []
+    for start in range(0, len(imports), 32):
+        name = "main" if start == 0 else f"unused{start}"
+        body = f"machine {name}()->u8{{|answer{start}|::answer()}}".encode()
+        sources.append((0, b"".join(imports[start:start + 32]) + body))
+        paths.append(f"{name}.omg")
+    sources.append((1, provider))
+    paths.append("answer.omg")
+    data, _, _, _ = encode(packages, dependency, sources, 0, b"main", paths=paths)
     yield "imports-fit-one-unit-at-a-time", data, 42
 
-    # Moving both import blocks into one file exhausts its own arena. The
-    # first component ("lib") of import 129 requires path member 16,385.
-    sources = [(0, imports * 2 + b"machine main() -> u8 { answer() }"),
-               (0, good_unused), (1, provider)]
-    data, _, _, rows = encode(packages, dependency, sources, 0, b"main", paths=deep_paths)
-    first_overflow = rows[0][1] + 128 * len(import_statement) + len(b"use ")
-    yield "imports-exceed-one-unit", data, struct.pack("<BII", 0, 3, first_overflow)
+    combined = b"".join(imports)
+    sources = [(0, combined + b"machine main()->u8{42}"), (1, provider)]
+    data, _, _, rows = encode(packages, dependency, sources, 0, b"main", paths=["main.omg", "answer.omg"])
+    yield "imports-exceed-one-unit", data, struct.pack("<BII", 0, 3, rows[0][1] + len(combined))
 
 
 def nominal_record_cases(encode):
     # Keep the actual product declarations, including their integer domains.
     definitions = (ROOT / "source/subsystems/compiler/source_to_psi/representations/source_files/source.omg").read_bytes()
 
-    caller = b"""use packets\\SourceSpan; use packets\\SourceId; use packets\\Span; use packets\\pass;
+    caller = b"""use {packets}/combined.omg; use {packets}/source_id.omg; use {packets}/span.omg; use {packets}/pass.omg;
 machine main()->u8 {
-    let id:SourceId=SourceId{value:42 as +Trapping};
+    let id:|source_id|::SourceId=|source_id|::SourceId{value:42 as +Trapping};
     let start:u64 in Trapping=7 as u64 +Trapping;
-    let range:Span=Span{start:start,end:start};
-    let combined:SourceSpan=SourceSpan{source:id,span:range};
-    let y:SourceSpan=pass(combined);
-    let out:SourceId=y.source;
-    let r:Span=y.span;
+    let range:|span|::Span=|span|::Span{start:start,end:start};
+    let combined:|combined|::SourceSpan=|combined|::SourceSpan{source:id,span:range};
+    let y:|combined|::SourceSpan=|pass|::pass(combined);
+    let out:|source_id|::SourceId=y.source;
+    let r:|span|::Span=y.span;
     transition ((out.value as -Trapping)==42) && ((r.start as -Trapping)==7) {true->42,_->7}
 }"""
-    relay = b"public machine pass(x:SourceSpan)->SourceSpan{x}"
-    units = [(0, caller), (1, relay), (1, copy_declaration(definitions, b"SourceSpan")),
+    relay = b"use combined.omg;public machine pass(x:|combined|::SourceSpan)->|combined|::SourceSpan{x}"
+    units = [(0, caller), (1, relay), (1, import_types(copy_declaration(definitions, b"SourceSpan"), SourceId="source_id", Span="span")),
              (1, copy_declaration(definitions, b"Span")), (1, copy_declaration(definitions, b"SourceId"))]
     names = ["main.omg", "pass.omg", "combined.omg", "span.omg", "source_id.omg"]
     packet, _, _, _ = encode([("app", 0), ("packets", 0)], [(0, 1, "packets")],
@@ -361,17 +362,17 @@ machine main()->u8 {
     yield "forward-product-records", packet, 42
 
     # The caller can import the public function. Its return type is private.
-    caller = b"use packets\\pass; machine main()->u8 {42}"
-    relay = b"public machine pass(x:Packet)->Packet{x}"
+    caller = b"use {packets}/pass.omg; machine main()->u8 {42}"
+    relay = b"use declaration.omg;public machine pass(x:|declaration|::Packet)->|declaration|::Packet{x}"
     packet, _, _, rows = encode(
         [("app", 0), ("packets", 0)], [(0, 1, "packets")],
         [(0, caller), (1, relay), (1, b"data Packet [copy] {value:u8;}")], 0, b"main",
         paths=["main.omg", "pass.omg", "declaration.omg"],
     )
-    yield "private-type-in-foreign-signature", packet, struct.pack("<BII", 0, 1, rows[1][1])
+    yield "private-type-in-foreign-signature", packet, struct.pack("<BII", 0, 1, rows[1][1] + relay.index(b"public machine"))
 
-    first = b"machine main()->u8 {42}data A [copy]{b:B;}"
-    second = b"data B [copy] {a:A;}"
+    first = b"use b.omg;machine main()->u8 {42}data A [copy]{b:|b|::B;}"
+    second = b"use a.omg;data B [copy] {a:|a|::A;}"
     packet, _, _, rows = encode([("app", 0)], [], [(0, first), (0, second)], 0, b"main",
                                 paths=["a.omg", "b.omg"])
     coordinate = rows[0][1] + first.index(b"data A")
@@ -380,14 +381,14 @@ machine main()->u8 {
 
     # Both Part declarations have the same fields. Only the owner selected
     # by Outer's own import can initialize its field.
-    caller = (b"use types\\Outer;use types\\pass;use left\\Part;machine main()->u8{"
-              b"let p:Part=Part{value:42};let x:Outer=Outer{part:p};let y:Outer=pass(x);"
-              b"let saved:Part=y.part;saved.value}")
-    relay = b"public machine pass(x:Outer)->Outer{x}"
+    caller = (b"use types/outer.omg;use types/pass.omg;use left/part.omg;machine main()->u8{"
+              b"let p:|part|::Part=|part|::Part{value:42};let x:|outer|::Outer=|outer|::Outer{part:p};let y:|outer|::Outer=|pass|::pass(x);"
+              b"let saved:|part|::Part=y.part;saved.value}")
+    relay = b"use types/outer.omg;public machine pass(x:|outer|::Outer)->|outer|::Outer{x}"
     part = b"public data Part [copy]{value:u8;}"
     paths = ["main.omg", "types/pass.omg", "types/outer.omg", "left/part.omg", "right/part.omg"]
     for module in (b"left", b"right"):
-        owner = b"use " + module + b"\\Part;public data Outer [copy]{part:Part;}"
+        owner = b"use " + module + b"/part.omg;public data Outer [copy]{part:|part|::Part;}"
         units = [(0, source) for source in (caller, relay, owner, part, part)]
         packet, _, _, rows = encode([("app", 0)], [], units, 0, b"main", paths=paths)
         if module == b"left":
@@ -401,19 +402,19 @@ def record_bound_cases(encode):
     # Each length belongs to a different declaration. The enclosing record's
     # own bound must survive laying out both of its forward-declared fields.
     source = (ROOT / "source/subsystems/compiler/source_to_psi/representations/source_files/source.omg").read_bytes()
-    source_unit = declaration(source, b"public data SourceUnit\n")
+    source_unit = import_types(declaration(source, b"public data SourceUnit\n"), SourceId="id")
     module_path = declaration(source, b"public data ModulePath\n")
     source_id = declaration(source, b"public data SourceId ")
-    buffers = b"""public data Buffers
+    buffers = b"""use unit.omg;use path.omg;public data Buffers
 requires marker <= 7,
 {
-    unit:SourceUnit;
-    path:ModulePath;
+    unit:|unit|::SourceUnit;
+    path:|path|::ModulePath;
     marker:u64;
 }"""
-    caller = b"""use types\\Buffers;
+    caller = b"""use {types}/buffers.omg;
 machine main()->u8{
-    let mutable pair:Buffers;
+    let mutable pair:|buffers|::Buffers;
     pair.unit.length=131072;
     pair.path.length=256;
     pair.marker=7;
@@ -439,18 +440,21 @@ machine main()->u8{
         yield f"{label}-bound-exceeded", wire, struct.pack("<BII", 0, 2, rows[0][1] + caller.index(b"machine main"))
 
     wire, _, _, rows = packet(record=buffers.replace(b"marker <= 7", b"length <= 7"))
-    yield "field-bound-names-another-record", wire, struct.pack("<BII", 0, 2, rows[1][1])
+    yield "field-bound-names-another-record", wire, struct.pack("<BII", 0, 2, rows[1][1] + buffers.index(b"public data"))
     wire, _, _, rows = packet(unit=source_unit.replace(b"length <= 131072", b"length >= 131072"))
-    yield "unsupported-later-record-predicate", wire, struct.pack("<BII", 0, 2, rows[3][1])
+    yield "unsupported-later-record-predicate", wire, struct.pack("<BII", 0, 2, rows[3][1] + source_unit.index(b"public data"))
 
 
     # SourceSet carries five independent field bounds, including its eight-MiB
     # arena. A valid full byte arena cannot establish capacity in the path arena.
-    files = [declaration(source, b"public data SourceSet\n")]
-    files.extend(copy_declaration(source, name) for name in [b"DependencyRow", b"PackageRow", b"SourceRange", b"DependencyScope"])
-    reader = b"""use inputs\\SourceSet;
+    files = [import_types(declaration(source, b"public data SourceSet\n"),
+                          SourceRange="range", PackageRow="pack", DependencyRow="dep"),
+             import_types(copy_declaration(source, b"DependencyRow"), DependencyScope="scope", SourceRange="range"),
+             import_types(copy_declaration(source, b"PackageRow"), SourceRange="range"),
+             copy_declaration(source, b"SourceRange"), copy_declaration(source, b"DependencyScope")]
+    reader = b"""use {inputs}/sources.omg;
 machine main()->u8{
- let mutable sources:SourceSet;
+ let mutable sources:|sources|::SourceSet;
  sources.unit_count=512;
  sources.byte_count=8388608;
  sources.path_byte_count=16384;
@@ -476,20 +480,20 @@ def record_reference_cases(encode):
     # The supplier mutates the caller's actual SourceUnit and later borrows
     # it shared. Both signatures precede the imported record's declaration.
     text = (ROOT / "source/subsystems/compiler/source_to_psi/representations/source_files/source.omg").read_bytes()
-    unit = declaration(text, b"public data SourceUnit\n")
+    unit = import_types(declaration(text, b"public data SourceUnit\n"), SourceId="id")
     identifier = declaration(text, b"public data SourceId ")
-    clear = declaration(text, b"machine source_unit_clear(")
-    wrapper = b"""public machine clear_unit(unit:@mutable SourceUnit,id:SourceId){source_unit_clear(unit,id);}
-public machine retained(unit:@SourceUnit)->bool{unit.last_retained}
+    clear = declaration(text, b"machine source_unit_clear(").replace(b"SourceUnit", b"|unit|::SourceUnit").replace(b"SourceId", b"|id|::SourceId")
+    wrapper = b"""use unit.omg;use id.omg;public machine clear_unit(unit:@mutable |unit|::SourceUnit,id:|id|::SourceId){source_unit_clear(unit,id);}
+public machine retained(unit:@|unit|::SourceUnit)->bool{unit.last_retained}
 """
-    caller = b"""use store\\SourceUnit;use store\\SourceId;use store\\clear_unit;use store\\retained;
+    caller = b"""use {store}/unit.omg;use {store}/id.omg;use {store}/api.omg;
 machine main()->u8{
- let mutable unit:SourceUnit;
+ let mutable unit:|unit|::SourceUnit;
  unit.bytes[7]=42;
  unit.length=11;
- let id:SourceId=SourceId{value:17 as +Trapping};
- clear_unit(@mutable unit,id);
- transition retained(@unit) && unit.length==0 && unit.id.value==17 {true->unit.bytes[7],_->0}
+ let id:|id|::SourceId=|id|::SourceId{value:17 as +Trapping};
+ |api|::clear_unit(@mutable unit,id);
+ transition |api|::retained(@unit) && unit.length==0 && unit.id.value==17 {true->unit.bytes[7],_->0}
 }"""
 
     def packet(main=caller, api=wrapper, record=unit):
@@ -502,11 +506,11 @@ machine main()->u8{
     shared = caller.replace(b"@mutable unit,id", b"@unit,id")
     wire, _, _, rows = packet(main=shared)
     yield "source-unit-readonly-actual", wire, struct.pack("<BII", 0, 2, rows[0][1] + shared.index(b"@unit,id"))
-    missing = wrapper.replace(b"unit:@SourceUnit", b"unit:@Missing")
+    missing = wrapper.replace(b"unit:@|unit|::SourceUnit", b"unit:@Missing")
     wire, _, _, rows = packet(api=missing)
     yield "source-unit-missing-referent", wire, struct.pack("<BII", 0, 2, rows[1][1] + missing.index(b"unit:@Missing"))
     wire, _, _, rows = packet(record=unit.replace(b"public data", b"data", 1))
-    yield "source-unit-hidden-referent", wire, struct.pack("<BII", 0, 1, rows[0][1])
+    yield "source-unit-hidden-referent", wire, struct.pack("<BII", 0, 1, rows[1][1] + wrapper.index(b"unit:@mutable"))
 
 
 def evaluated_guard_cases(encode):
@@ -556,12 +560,13 @@ def nominal_sum_cases(encode):
         return result, rows
 
     numeric = (ROOT / "source/subsystems/compiler/source_to_psi/representations/tokens/numeric.omg").read_bytes()
-    main = (b"use numeric\\NumericBase;use numeric\\IntegerSuffix;use numeric\\classify;"
-            b"machine main()->u8{let b:NumericBase=NumericBase::Hexadecimal;"
-            b"let s:IntegerSuffix=IntegerSuffix::U8;classify(b,s)}")
+    main = (b"use {numeric}/numeric.omg;use {numeric}/classify.omg;"
+            b"machine main()->u8{let b:|numeric|::NumericBase=|numeric|::NumericBase::Hexadecimal;"
+            b"let s:|numeric|::IntegerSuffix=|numeric|::IntegerSuffix::U8;|classify|::classify(b,s)}")
     classify = (b"public machine classify(base:NumericBase,suffix:IntegerSuffix)->u8{"
                 b"transition base{NumericBase::Hexadecimal->hex(suffix),_->0}"
                 b"machine hex(value:IntegerSuffix)->u8{transition value{IntegerSuffix::U8->42,_->0}}}")
+    classify = import_types(classify, NumericBase="numeric", IntegerSuffix="numeric")
     data, _ = packet([main, classify, numeric], ["main.omg", "classify.omg", "numeric.omg"])
     yield "forward-product-numeric-cases", data, 42
 
@@ -569,32 +574,35 @@ def nominal_sum_cases(encode):
     # resolver, retaining all of ValueBinding's other cases and payload types.
     definitions = (ROOT / "source/subsystems/compiler/source_to_psi/representations/symbol_resolved_trees/symbol_resolved_trees.omg").read_bytes()
 
-    main = (b"use psi\\ValueBinding;use psi\\select;use psi\\observe;machine main()->u8{"
-            b"let h:u64 in Trapping=42 as u64 +Trapping;let yes:ValueBinding=select(true,h);"
-            b"let no:ValueBinding=select(false,h);transition observe(yes)==42&&observe(no)==0{true->42,_->7}}")
+    main = (b"use {psi}/ValueBinding.omg;use {psi}/select.omg;use {psi}/observe.omg;machine main()->u8{"
+            b"let h:u64 in Trapping=42 as u64 +Trapping;let yes:|ValueBinding|::ValueBinding=|select|::select(true,h);"
+            b"let no:|ValueBinding|::ValueBinding=|select|::select(false,h);transition |observe|::observe(yes)==42&&|observe|::observe(no)==0{true->42,_->7}}")
     select = (b"public machine select(flag:bool,handle:u64 in Trapping)->ValueBinding{transition flag{"
               b"false->ValueBinding::Unresolved,_->ValueBinding::Machine{handle:handle}}}")
     observe = (b"public machine observe(value:ValueBinding)->u8{transition value{"
                b"ValueBinding::Machine{handle as h}->check(h),_->0}machine check(h:u64 in Trapping)->u8{"
                b"transition (h as -Trapping)==42{true->42,_->7}}}")
     names = (b"ValueBinding", b"VisibleOverloads", b"BytePredicate", b"LayoutQuery")
-    sources = [main, select, observe] + [copy_declaration(definitions, name) for name in names]
+    bindings = [copy_declaration(definitions, name) for name in names]
+    bindings[0] = import_types(bindings[0], VisibleOverloads="VisibleOverloads",
+                               BytePredicate="BytePredicate", LayoutQuery="LayoutQuery")
+    sources = [main, import_types(select, ValueBinding="ValueBinding"), import_types(observe, ValueBinding="ValueBinding"), *bindings]
     paths = ["main.omg", "select.omg", "observe.omg"] + [name.decode() + ".omg" for name in names]
     data, _ = packet(sources, paths, "psi")
     yield "forward-product-value-binding", data, 42
 
-    main = (b"use numeric\\Packet;use numeric\\Hit;use numeric\\score;machine main()->u8{"
-            b"let p:Packet=Packet{value:42};let h:Hit=Hit::One{item:p};score(h)}")
-    score = b"public machine score(h:Hit)->u8{transition h{Hit::One{item as answer}->answer.value,_->0}}"
-    hit = b"public data Hit [copy]{case Miss;case One(item:Packet);}"
+    main = (b"use {numeric}/packet.omg;use {numeric}/hit.omg;use {numeric}/score.omg;machine main()->u8{"
+            b"let p:|packet|::Packet=|packet|::Packet{value:42};let h:|hit|::Hit=|hit|::Hit::One{item:p};|score|::score(h)}")
+    score = b"use hit.omg;public machine score(h:|hit|::Hit)->u8{transition h{|hit|::Hit::One{item as answer}->answer.value,_->0}}"
+    hit = b"use packet.omg;public data Hit [copy]{case Miss;case One(item:|packet|::Packet);}"
     record = b"public data Packet [copy]{value:u8;}"
     paths = ["main.omg", "score.omg", "hit.omg", "packet.omg"]
     data, _ = packet([main, score, hit, record], paths)
     yield "forward-nominal-case-payload", data, 42
 
-    data, rows = packet([b"use numeric\\score;machine main()->u8{42}", score, hit,
+    data, rows = packet([b"use {numeric}/score.omg;machine main()->u8{42}", score, hit,
                          record.replace(b"public data", b"data")], paths)
-    coordinate = rows[2][1] + hit.index(b"item:Packet")
+    coordinate = rows[2][1] + hit.index(b"item:|packet|::Packet")
     yield "private-type-in-case-payload", data, struct.pack("<BII", 0, 1, coordinate)
 
 
@@ -815,7 +823,7 @@ def parameter_order_cases(encode):
     provider = b"public machine take(high:u64,low:u64)->u8 requires low<=high {42}"
     for name, actuals, accepted in [("order-cross-file", b"y,x", True),
                                     ("order-cross-file-swapped", b"x,y", False)]:
-        client = caller + b"requires x<=y {take(" + actuals + b")}" + main
+        client = b"use limits.omg;" + caller + b"requires x<=y {|limits|::take(" + actuals + b")}" + main
         packet, _, _, rows = encode([("app", 0)], [], [(0, client), (0, provider)], 0,
                                     b"main", paths=["main.omg", "limits.omg"])
         expected = 42 if accepted else struct.pack("<BII", 0, 2, rows[0][1] + client.index(b"machine pass"))
@@ -878,8 +886,8 @@ def nominal_array_cases(encode):
     # Compile the unedited declaration and reach both ends of its eight-MiB field.
     definitions = (ROOT / "source/application/construction/input.omg").read_bytes()
     storage = declaration(definitions, b"data ConstructionInput {")
-    caller = b"""machine main()->u8{
-    let mutable a:ConstructionInput;
+    caller = b"""use input.omg;machine main()->u8{
+    let mutable a:|input|::ConstructionInput;
     a.unit_count=305;
     a.bytes[8388607]=255;
     a.bytes[8388606]=41;
@@ -891,8 +899,8 @@ def nominal_array_cases(encode):
 
     definitions = (ROOT / "source/subsystems/compiler/alpha/emit.omg").read_bytes()
     emitter = declaration(definitions, b"public data AlphaEmitter {")
-    caller = b"""use alpha\\AlphaEmitter;machine main()->u8{
-    let mutable a:AlphaEmitter;
+    caller = b"""use {alpha}/emit.omg;machine main()->u8{
+    let mutable a:|emit|::AlphaEmitter;
     a.bytes[2097151]=42;
     a.labels[10239]=73;
     a.marks[65535]=99;
@@ -904,8 +912,8 @@ def nominal_array_cases(encode):
     storage = b"public data Packet{bytes:[u8;9];tail:u64;}"
     length = b"public machine length(bytes:@[u8])->u64{bytes.length}"
     for name, end in [("borrow-retained-byte-array", b"9"), ("borrow-past-retained-byte-array", b"10")]:
-        main = (b"use wire\\Packet;use wire\\length;machine main()->u8{let mutable p:Packet;p.bytes[8]=42;p.tail=77;"
-                b"let n:u64=length(@p.bytes[7.." + end + b"]);"
+        main = (b"use {wire}/packet.omg;use {wire}/length.omg;machine main()->u8{let mutable p:|packet|::Packet;p.bytes[8]=42;p.tail=77;"
+                b"let n:u64=|length|::length(@p.bytes[7.." + end + b"]);"
                 b"transition n==2&&p.tail==77{true->p.bytes[8],_->7}}")
         data, _, _, rows = packet([(0, main), (1, length), (1, storage)], ["main.omg", "length.omg", "packet.omg"], "wire")
         expected = 42 if end == b"9" else struct.pack("<BII", 0, 1, rows[0][1] + main.index(b".."))
@@ -913,11 +921,11 @@ def nominal_array_cases(encode):
 
     # Two directories expose the same spelling and layout. The field's owner
     # file chooses the element identity and declares the indexable extent.
-    caller = b"""use types\\Shelf;use left\\Part;machine main()->u8{
-    let mutable s:Shelf;
-    let p:Part=Part{byte:42};
+    caller = b"""use types/shelf.omg;use left/part.omg;machine main()->u8{
+    let mutable s:|shelf|::Shelf;
+    let p:|part|::Part=|part|::Part{byte:42};
     s.parts[2]=p;
-    let saved:Part=s.parts[2];
+    let saved:|part|::Part=s.parts[2];
     saved.byte
 }"""
     paths = ["main.omg", "types/shelf.omg", "left/part.omg", "right/part.omg"]
@@ -927,15 +935,15 @@ def nominal_array_cases(encode):
         ("different-nominal-array-owner", b"right", b"3"),
         ("wrong-array-extent", b"left", b"2"),
     ]:
-        shelf = b"use " + module + b"\\Part;public data Shelf{parts:[Part;" + length + b"];}"
+        shelf = b"use " + module + b"/part.omg;public data Shelf{parts:[|part|::Part;" + length + b"];}"
         data, _, _, rows = packet([(0, caller), (0, shelf), (0, part), (0, part)], paths)
         if name == "array-field-declaring-scope":
             yield name, data, 42
         else:
             yield name, data, struct.pack("<BII", 0, 1, rows[0][1] + caller.index(b"machine main"))
 
-    caller = b"use types\\Shelf;machine main()->u8{42}"
-    shelf = b"use left\\Part;public data Shelf{parts:[Part;3];}"
+    caller = b"use types/shelf.omg;machine main()->u8{42}"
+    shelf = b"use left/part.omg;public data Shelf{parts:[|part|::Part;3];}"
     data, _, _, rows = packet([(0, caller), (0, shelf), (0, part.replace(b"public ", b"")), (0, part)], paths)
     yield "private-array-element", data, struct.pack("<BII", 0, 1, rows[1][1] + shelf.index(b"parts"))
 
@@ -943,8 +951,8 @@ def nominal_array_cases(encode):
 def nested_parameter_cases(encode):
     # The caller's signed -1 must satisfy its one-sided bound and survive
     # the callee's 7. Other files reuse the same slot for unsigned parameters.
-    caller = (b'machine main()->u8{transition{_->relay(-1)}'
-              b'\n    machine relay(kept:i32)->u8 requires kept<=0 {let observed:u8=other(7);'
+    caller = (b'use file1.omg;machine main()->u8{transition{_->relay(-1)}'
+              b'\n    machine relay(kept:i32)->u8 requires kept<=0 {let observed:u8=|file1|::other(7);'
               b'transition kept==-1{true->42,_->observed}}}')
     callee = b'machine other(input:u8)->u8{transition{_->local(input)}machine local(value:u8)->u8{value}}'
     sources = [caller, callee]
@@ -994,11 +1002,13 @@ def nested_state_cases(encode):
                 elif name == "nested-state-wrong-owner" and group + 2 == groups:
                     result = "only_final()"
                 else:
-                    result = f"hop{group + 1}()"
+                    result = f"|rung{group + 1}|::hop{group + 1}()"
                 lines.append(f"machine s{step}()->u8{{{result}}}")
             if group + 1 == groups:
                 value = "unknown_late()" if name == "broken-last-state" else "42"
                 lines.append(f"machine only_final()->u8{{{value}}}")
+            if group + 1 < groups:
+                lines.insert(0, f"use rung{group + 1}.omg;")
             lines.append("}")
             sources.append("\n".join(lines).encode())
         paths = [f"rung{group}.omg" for group in range(groups)]
@@ -1097,15 +1107,15 @@ def data_lifetime_cases(packet):
     # The field names may be forwarded, repeated, or permuted. Each must bind
     # in the declaring item, and the application must match the target's arity.
     pair = b"public data Pair<'left,'right> { x: @'left u8; y: @'right u8; }"
-    consumer = b"data Result<'a,'b> { case Stored(value: [Pair<'b,'a>; 2]); }"
+    consumer = b"use pair.omg;data Result<'a,'b> { case Stored(value: [|pair|::Pair<'b,'a>; 2]); }"
     main = b"machine main()->u8{42}"
     for name, source, status, anchor in [
         ("valid-field-lifetime-application", consumer, 2, b"a,'b"),
         ("repeated-field-lifetime-argument", consumer.replace(b"'b,'a>;", b"'a,'a>;"), 2, b"a,'b"),
         ("undeclared-payload-lifetime", consumer.replace(b"'a>;", b"'unbound>;"), 1, b"unbound"),
-        ("too-few-field-lifetimes", consumer.replace(b"'b,'a>;", b"'b>;"), 1, b"Pair<"),
-        ("too-many-field-lifetimes", consumer.replace(b"'b,'a>;", b"'b,'a,'a>;"), 1, b"Pair<"),
-        ("omitted-field-lifetimes", consumer.replace(b"<'b,'a>;", b";"), 1, b"Pair;"),
+        ("too-few-field-lifetimes", consumer.replace(b"'b,'a>;", b"'b>;"), 1, b"|pair|::Pair<"),
+        ("too-many-field-lifetimes", consumer.replace(b"'b,'a>;", b"'b,'a,'a>;"), 1, b"|pair|::Pair<"),
+        ("omitted-field-lifetimes", consumer.replace(b"<'b,'a>;", b";"), 1, b"|pair|::Pair;"),
         ("scalar-with-field-lifetimes", b"data Result<'a> { value: bool<'a>; }", 1, b"bool<"),
         ("undeclared-reference-lifetime", b"data Result<'a> { value: @'missing [u8]; }", 1, b"missing"),
         ("duplicate-data-lifetime", b"data Result<'a,'a> {}", 1, b"a>"),

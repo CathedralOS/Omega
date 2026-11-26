@@ -1,15 +1,16 @@
+use main.omg as app;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "inline_member_helper_through_target_body" };
-    Build::bind(builder, windows_x86_64::ProgramEntry, x86_entry);
-    Build::select_provider::<BodyTag, X86Tag>(builder, windows_x86_64);
-    Build::select_provider::<TargetProbe, X86Probe>(builder, windows_x86_64);
-    Build::bind(builder, linux_x86_64::ProgramEntry, x86_entry);
-    Build::select_provider::<BodyTag, X86Tag>(builder, linux_x86_64);
-    Build::select_provider::<TargetProbe, X86Probe>(builder, linux_x86_64);
-    Build::bind(builder, macos_arm64::ProgramEntry, arm_entry);
-    Build::select_provider::<BodyTag, ArmTag>(builder, macos_arm64);
-    Build::select_provider::<TargetProbe, ArmProbe>(builder, macos_arm64);
-    Build::bind(builder, linux_arm64::ProgramEntry, arm_entry);
-    Build::select_provider::<BodyTag, ArmTag>(builder, linux_arm64);
-    Build::select_provider::<TargetProbe, ArmProbe>(builder, linux_arm64);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::x86_entry);
+    Build::select_provider::<|app|::BodyTag, |app|::X86Tag>(builder, windows_x86_64);
+    Build::select_provider::<|app|::TargetProbe, |app|::X86Probe>(builder, windows_x86_64);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::x86_entry);
+    Build::select_provider::<|app|::BodyTag, |app|::X86Tag>(builder, linux_x86_64);
+    Build::select_provider::<|app|::TargetProbe, |app|::X86Probe>(builder, linux_x86_64);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::arm_entry);
+    Build::select_provider::<|app|::BodyTag, |app|::ArmTag>(builder, macos_arm64);
+    Build::select_provider::<|app|::TargetProbe, |app|::ArmProbe>(builder, macos_arm64);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::arm_entry);
+    Build::select_provider::<|app|::BodyTag, |app|::ArmTag>(builder, linux_arm64);
+    Build::select_provider::<|app|::TargetProbe, |app|::ArmProbe>(builder, linux_arm64);
 }

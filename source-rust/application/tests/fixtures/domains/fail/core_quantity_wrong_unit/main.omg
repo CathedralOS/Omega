@@ -1,11 +1,8 @@
-use omega\language\core\Units;
-use omega\language\core\Quantity;
-use omega\language\core\kilometers_i64;
-use omega\language\core\kilometers_to_meters_trapping_i64;
+use {omega}/language/core/units.omg;
 
 machine main() crashes Trap {
-    let start: i64 in Quantity<Units::KILOMETER> = kilometers_i64(2);
-    let distance: i64 in Quantity<Units::SECOND> = kilometers_to_meters_trapping_i64(start);
+    let start: i64 in |units|::Quantity<|units|::Units::KILOMETER> = |units|::kilometers_i64(2);
+    let distance: i64 in |units|::Quantity<|units|::Units::SECOND> = |units|::kilometers_to_meters_trapping_i64(start);
 }
 
 machine build(builder: @mutable Build) {

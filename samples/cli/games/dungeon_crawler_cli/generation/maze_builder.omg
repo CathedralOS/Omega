@@ -1,53 +1,37 @@
-use text;
-use enemies\Enemy;
-use enemies\EnemyKind;
-use events\RoomEvent;
-use events\RoomEventKind;
-use events\RoomEvents;
-use events\roll_event;
-use inventory\ItemKind;
-use rewards\Reward;
-use rewards\RewardKind;
-use rng\Random;
-use rng\RandomState;
-use rng\chance;
-use rooms\CellId;
-use rooms\Direction;
-use rooms\Exit;
-use rooms\Level;
-use rooms\Room;
-use rooms\append_exit;
-use rooms\room_mut;
-use text\ExitCommand;
-use text\enemy_name_set;
-use text\room_description_set;
-use text\room_label_set;
-use omega\language\core\max_u32;
-use omega\language\core\max_u64;
-
+use enemies/enemies.omg;
+use events/events.omg;
+use events/room_events.omg;
+use inventory/items.omg;
+use rewards/rewards.omg;
+use rng/random.omg;
+use rng/random_state.omg;
+use rooms/map.omg;
+use rooms/rooms.omg;
+use text/buffer.omg;
+use {omega}/language/core/math.omg;
 
 data MazeBuilder {
-    events: RoomEvents;
-    rng: Random;
+    events: |room_events|::RoomEvents;
+    rng: |random|::Random;
 }
 
 machine build(
     maze_builder: @mutable MazeBuilder,
     seed: u64 in Wrapping,
-    level: @mutable Level
+    level: @mutable |rooms|::Level
 ) {
-    let mutable random: RandomState;
-    rng\seed(seed, @mutable random);
+    let mutable random: |random_state|::RandomState;
+    |random|::seed(seed, @mutable random);
     clear_level(maze_builder, level);
 
-    level.start_cell = CellId::R00;
+    level.start_cell = |map|::CellId::R00;
     level.room_count = 0;
     level.deepest_depth = 0u32 as +Wrapping;
 
     // The crawl begins at the bottom of the dungeon, in the bottomless dark
     // room near the dungeon heart; the maze climbs outward toward the surface.
-    carve_room(maze_builder, level, @mutable random, CellId::R00, 9u32 as +Wrapping, 0u32 as +Wrapping);
-    force_quiet_room(maze_builder, level, CellId::R00);
+    carve_room(maze_builder, level, @mutable random, |map|::CellId::R00, 9u32 as +Wrapping, 0u32 as +Wrapping);
+    force_quiet_room(maze_builder, level, |map|::CellId::R00);
     transition {
         _ -> build_main_hall_1(maze_builder, level, @mutable random)
     }
@@ -55,10 +39,10 @@ machine build(
 
     machine build_main_hall_1(
         maze_builder: @mutable MazeBuilder,
-        level: @mutable Level,
-        random: @mutable RandomState
+        level: @mutable |rooms|::Level,
+        random: @mutable |random_state|::RandomState
     ) {
-        build_segment(maze_builder, level, random, CellId::R00, CellId::R01, 1u32 as +Wrapping, 0u32 as +Wrapping, Direction::North);
+        build_segment(maze_builder, level, random, |map|::CellId::R00, |map|::CellId::R01, 1u32 as +Wrapping, 0u32 as +Wrapping, |map|::Direction::North);
 
         transition {
             _ -> maybe_side_room_1(maze_builder, level, random)
@@ -67,8 +51,8 @@ machine build(
 
     machine maybe_side_room_1(
         maze_builder: @mutable MazeBuilder,
-        level: @mutable Level,
-        random: @mutable RandomState
+        level: @mutable |rooms|::Level,
+        random: @mutable |random_state|::RandomState
     ) {
         transition should_carve(maze_builder, random, 2u32 as +Wrapping) {
             true -> build_side_room_1(maze_builder, level, random),
@@ -78,10 +62,10 @@ machine build(
 
     machine build_side_room_1(
         maze_builder: @mutable MazeBuilder,
-        level: @mutable Level,
-        random: @mutable RandomState
+        level: @mutable |rooms|::Level,
+        random: @mutable |random_state|::RandomState
     ) {
-        build_segment(maze_builder, level, random, CellId::R01, CellId::R05, 2u32 as +Wrapping, 10u32 as +Wrapping, Direction::East);
+        build_segment(maze_builder, level, random, |map|::CellId::R01, |map|::CellId::R05, 2u32 as +Wrapping, 10u32 as +Wrapping, |map|::Direction::East);
 
         transition {
             _ -> build_main_hall_2(maze_builder, level, random)
@@ -90,10 +74,10 @@ machine build(
 
     machine build_main_hall_2(
         maze_builder: @mutable MazeBuilder,
-        level: @mutable Level,
-        random: @mutable RandomState
+        level: @mutable |rooms|::Level,
+        random: @mutable |random_state|::RandomState
     ) {
-        build_segment(maze_builder, level, random, CellId::R01, CellId::R02, 2u32 as +Wrapping, 0u32 as +Wrapping, Direction::North);
+        build_segment(maze_builder, level, random, |map|::CellId::R01, |map|::CellId::R02, 2u32 as +Wrapping, 0u32 as +Wrapping, |map|::Direction::North);
 
         transition {
             _ -> maybe_side_room_2(maze_builder, level, random)
@@ -102,8 +86,8 @@ machine build(
 
     machine maybe_side_room_2(
         maze_builder: @mutable MazeBuilder,
-        level: @mutable Level,
-        random: @mutable RandomState
+        level: @mutable |rooms|::Level,
+        random: @mutable |random_state|::RandomState
     ) {
         transition should_carve(maze_builder, random, 3u32 as +Wrapping) {
             true -> build_side_room_2(maze_builder, level, random),
@@ -113,10 +97,10 @@ machine build(
 
     machine build_side_room_2(
         maze_builder: @mutable MazeBuilder,
-        level: @mutable Level,
-        random: @mutable RandomState
+        level: @mutable |rooms|::Level,
+        random: @mutable |random_state|::RandomState
     ) {
-        build_segment(maze_builder, level, random, CellId::R02, CellId::R06, 3u32 as +Wrapping, 11u32 as +Wrapping, Direction::West);
+        build_segment(maze_builder, level, random, |map|::CellId::R02, |map|::CellId::R06, 3u32 as +Wrapping, 11u32 as +Wrapping, |map|::Direction::West);
 
         transition {
             _ -> build_main_hall_3(maze_builder, level, random)
@@ -125,10 +109,10 @@ machine build(
 
     machine build_main_hall_3(
         maze_builder: @mutable MazeBuilder,
-        level: @mutable Level,
-        random: @mutable RandomState
+        level: @mutable |rooms|::Level,
+        random: @mutable |random_state|::RandomState
     ) {
-        build_segment(maze_builder, level, random, CellId::R02, CellId::R03, 3u32 as +Wrapping, 0u32 as +Wrapping, Direction::North);
+        build_segment(maze_builder, level, random, |map|::CellId::R02, |map|::CellId::R03, 3u32 as +Wrapping, 0u32 as +Wrapping, |map|::Direction::North);
 
         transition {
             _ -> maybe_side_room_3(maze_builder, level, random)
@@ -137,8 +121,8 @@ machine build(
 
     machine maybe_side_room_3(
         maze_builder: @mutable MazeBuilder,
-        level: @mutable Level,
-        random: @mutable RandomState
+        level: @mutable |rooms|::Level,
+        random: @mutable |random_state|::RandomState
     ) {
         transition should_carve(maze_builder, random, 4u32 as +Wrapping) {
             true -> build_side_room_3(maze_builder, level, random),
@@ -148,10 +132,10 @@ machine build(
 
     machine build_side_room_3(
         maze_builder: @mutable MazeBuilder,
-        level: @mutable Level,
-        random: @mutable RandomState
+        level: @mutable |rooms|::Level,
+        random: @mutable |random_state|::RandomState
     ) {
-        build_segment(maze_builder, level, random, CellId::R03, CellId::R07, 4u32 as +Wrapping, 12u32 as +Wrapping, Direction::East);
+        build_segment(maze_builder, level, random, |map|::CellId::R03, |map|::CellId::R07, 4u32 as +Wrapping, 12u32 as +Wrapping, |map|::Direction::East);
 
         transition {
             _ -> build_main_hall_4(maze_builder, level, random)
@@ -160,24 +144,24 @@ machine build(
 
     machine build_main_hall_4(
         maze_builder: @mutable MazeBuilder,
-        level: @mutable Level,
-        random: @mutable RandomState
+        level: @mutable |rooms|::Level,
+        random: @mutable |random_state|::RandomState
     ) {
-        build_segment(maze_builder, level, random, CellId::R03, CellId::R04, 4u32 as +Wrapping, 0u32 as +Wrapping, Direction::North);
+        build_segment(maze_builder, level, random, |map|::CellId::R03, |map|::CellId::R04, 4u32 as +Wrapping, 0u32 as +Wrapping, |map|::Direction::North);
         level.room_count = 8;
-        level.deepest_depth = max_u32(level.deepest_depth as u32, 4) as u32 +Wrapping;
+        level.deepest_depth = |math|::max_u32(level.deepest_depth as u32, 4) as u32 +Wrapping;
     }
 }
 
 machine build_segment(
     maze_builder: @mutable MazeBuilder,
-    level: @mutable Level,
-    random: @mutable RandomState,
-    from: CellId,
-    target: CellId,
+    level: @mutable |rooms|::Level,
+    random: @mutable |random_state|::RandomState,
+    from: |map|::CellId,
+    target: |map|::CellId,
     depth: u32 in Wrapping,
     branch_id: u32 in Wrapping,
-    direction: Direction
+    direction: |map|::Direction
 ) {
     carve_room(maze_builder, level, random, target, depth, branch_id);
     connect(maze_builder, level, from, target, direction);
@@ -185,46 +169,46 @@ machine build_segment(
 
 machine force_quiet_room(
     maze_builder: @mutable MazeBuilder,
-    level: @mutable Level,
-    cell: CellId
+    level: @mutable |rooms|::Level,
+    cell: |map|::CellId
 ) {
-    let room: @mutable Room = room_mut(level, cell);
+    let room: @mutable |rooms|::Room = |rooms|::room_mut(level, cell);
     clear_event(maze_builder, @mutable room.event);
 }
 
 machine clear_level(
     maze_builder: @mutable MazeBuilder,
-    level: @mutable Level
+    level: @mutable |rooms|::Level
 ) {
-    let rooms: @mutable [Room] = @mutable level.rooms[..];
-    clear_room(maze_builder, @mutable rooms[0], CellId::R00);
-    clear_room(maze_builder, @mutable rooms[1], CellId::R01);
-    clear_room(maze_builder, @mutable rooms[2], CellId::R02);
-    clear_room(maze_builder, @mutable rooms[3], CellId::R03);
-    clear_room(maze_builder, @mutable rooms[4], CellId::R04);
-    clear_room(maze_builder, @mutable rooms[5], CellId::R05);
-    clear_room(maze_builder, @mutable rooms[6], CellId::R06);
-    clear_room(maze_builder, @mutable rooms[7], CellId::R07);
-    clear_room(maze_builder, @mutable rooms[8], CellId::R08);
-    clear_room(maze_builder, @mutable rooms[9], CellId::R09);
-    clear_room(maze_builder, @mutable rooms[10], CellId::R10);
-    clear_room(maze_builder, @mutable rooms[11], CellId::R11);
-    clear_room(maze_builder, @mutable rooms[12], CellId::R12);
-    clear_room(maze_builder, @mutable rooms[13], CellId::R13);
-    clear_room(maze_builder, @mutable rooms[14], CellId::R14);
-    clear_room(maze_builder, @mutable rooms[15], CellId::R15);
+    let rooms: @mutable [|rooms|::Room] = @mutable level.rooms[..];
+    clear_room(maze_builder, @mutable rooms[0], |map|::CellId::R00);
+    clear_room(maze_builder, @mutable rooms[1], |map|::CellId::R01);
+    clear_room(maze_builder, @mutable rooms[2], |map|::CellId::R02);
+    clear_room(maze_builder, @mutable rooms[3], |map|::CellId::R03);
+    clear_room(maze_builder, @mutable rooms[4], |map|::CellId::R04);
+    clear_room(maze_builder, @mutable rooms[5], |map|::CellId::R05);
+    clear_room(maze_builder, @mutable rooms[6], |map|::CellId::R06);
+    clear_room(maze_builder, @mutable rooms[7], |map|::CellId::R07);
+    clear_room(maze_builder, @mutable rooms[8], |map|::CellId::R08);
+    clear_room(maze_builder, @mutable rooms[9], |map|::CellId::R09);
+    clear_room(maze_builder, @mutable rooms[10], |map|::CellId::R10);
+    clear_room(maze_builder, @mutable rooms[11], |map|::CellId::R11);
+    clear_room(maze_builder, @mutable rooms[12], |map|::CellId::R12);
+    clear_room(maze_builder, @mutable rooms[13], |map|::CellId::R13);
+    clear_room(maze_builder, @mutable rooms[14], |map|::CellId::R14);
+    clear_room(maze_builder, @mutable rooms[15], |map|::CellId::R15);
 }
 
 machine clear_room(
     maze_builder: @mutable MazeBuilder,
-    room: @mutable Room,
-    cell: CellId
+    room: @mutable |rooms|::Room,
+    cell: |map|::CellId
 ) {
     room.cell = cell;
     room.depth = 0u32 as +Wrapping;
     room.branch = 0u32 as +Wrapping;
-    room_label_set(@mutable room.label, "" as +Ascii);
-    room_description_set(@mutable room.description, "" as +Ascii);
+    |buffer|::room_label_set(@mutable room.label, "" as + |buffer|::Ascii);
+    |buffer|::room_description_set(@mutable room.description, "" as + |buffer|::Ascii);
     room.exit_count = 0u64 as +Wrapping;
     room.discovered = false;
     clear_exits(maze_builder, room);
@@ -233,9 +217,9 @@ machine clear_room(
 
 machine clear_exits(
     maze_builder: @mutable MazeBuilder,
-    room: @mutable Room
+    room: @mutable |rooms|::Room
 ) {
-    let exits: @mutable [Exit] = @mutable room.exits[..];
+    let exits: @mutable [|rooms|::Exit] = @mutable room.exits[..];
     exits[0] = blank_exit();
     exits[1] = blank_exit();
     exits[2] = blank_exit();
@@ -244,26 +228,26 @@ machine clear_exits(
 
 machine clear_event(
     maze_builder: @mutable MazeBuilder,
-    event: @mutable RoomEvent
+    event: @mutable |events|::RoomEvent
 ) {
-    event.kind = RoomEventKind::Nothing;
+    event.kind = |events|::RoomEventKind::Nothing;
     event.enemy = empty_enemy();
     event.reward = maze_builder_empty_reward();
     event.consumed = true;
 }
 
-machine blank_exit() -> Exit {
-    Exit {
-        command: ExitCommand { used: 0, .. },
-        direction: Direction::North,
-        destination: CellId::Empty
+machine blank_exit() -> |rooms|::Exit {
+    |rooms|::Exit {
+        command: |buffer|::ExitCommand { used: 0, .. },
+        direction: |map|::Direction::North,
+        destination: |map|::CellId::Empty
     }
 }
 
-machine empty_enemy() -> Enemy {
-    let mutable enemy: Enemy;
-    enemy.kind = EnemyKind::Bat;
-    enemy_name_set(@mutable enemy.name, "" as +Ascii);
+machine empty_enemy() -> |enemies|::Enemy {
+    let mutable enemy: |enemies|::Enemy;
+    enemy.kind = |enemies|::EnemyKind::Bat;
+    |buffer|::enemy_name_set(@mutable enemy.name, "" as + |buffer|::Ascii);
     enemy.max_health = 1i32 as +Wrapping;
     enemy.health = 1i32 as +Wrapping;
     enemy.attack = 1i32 as +Wrapping;
@@ -276,21 +260,21 @@ machine empty_enemy() -> Enemy {
     }
 }
 
-machine maze_builder_empty_reward() -> Reward {
-    Reward {
-        kind: RewardKind::None,
+machine maze_builder_empty_reward() -> |rewards|::Reward {
+    |rewards|::Reward {
+        kind: |rewards|::RewardKind::None,
         gold: 0u32 as +Wrapping,
-        item: ItemKind::RustedDagger
+        item: |items|::ItemKind::RustedDagger
     }
 }
 
 machine should_carve(
     maze_builder: @mutable MazeBuilder,
-    random: @mutable RandomState,
+    random: @mutable |random_state|::RandomState,
     depth: u32 in Wrapping
     ) -> bool {
-    let carve_probability: u32 in Wrapping = max_u32(15, (80 - depth * 6) as u32) as u32 +Wrapping;
-    let rolled: bool = chance(@mutable maze_builder.rng, random, carve_probability, 100u32 as +Wrapping);
+    let carve_probability: u32 in Wrapping = |math|::max_u32(15, (80 - depth * 6) as u32) as u32 +Wrapping;
+    let rolled: bool = |random|::chance(@mutable maze_builder.rng, random, carve_probability, 100u32 as +Wrapping);
 
     transition {
         _ -> rolled
@@ -299,126 +283,126 @@ machine should_carve(
 
 machine carve_room(
     maze_builder: @mutable MazeBuilder,
-    level: @mutable Level,
-    random: @mutable RandomState,
-    cell: CellId,
+    level: @mutable |rooms|::Level,
+    random: @mutable |random_state|::RandomState,
+    cell: |map|::CellId,
     depth: u32 in Wrapping,
     branch_id: u32 in Wrapping
 ) {
     // `room` borrows all of `level` until its last use, so the start cell is
     // read before it forms.
-    let start_cell: CellId = level.start_cell;
-    let room: @mutable Room = room_mut(level, cell);
+    let start_cell: |map|::CellId = level.start_cell;
+    let room: @mutable |rooms|::Room = |rooms|::room_mut(level, cell);
     let index: u64 = cell_index(cell); // <= 15 by cell_index's ensures
     room.cell = cell;
     room.depth = depth;
     room.branch = branch_id;
-    room_label_set(@mutable room.label, room_label(cell));
-    room_description_set(@mutable room.description, room_description(depth, branch_id));
+    |buffer|::room_label_set(@mutable room.label, room_label(cell));
+    |buffer|::room_description_set(@mutable room.description, room_description(depth, branch_id));
     room.exit_count = 0u64 as +Wrapping;
     room.discovered = cell == start_cell;
-    roll_event(@mutable maze_builder.events, depth, random, @mutable room.event);
-    level.room_count = max_u64(level.room_count, index + 1);
-    level.deepest_depth = max_u32(level.deepest_depth as u32, depth as u32) as u32 +Wrapping;
+    |room_events|::roll_event(@mutable maze_builder.events, depth, random, @mutable room.event);
+    level.room_count = |math|::max_u64(level.room_count, index + 1);
+    level.deepest_depth = |math|::max_u32(level.deepest_depth as u32, depth as u32) as u32 +Wrapping;
 }
 
 machine connect(
     maze_builder: @mutable MazeBuilder,
-    level: @mutable Level,
-    from: CellId,
-    to: CellId,
-    direction: Direction
+    level: @mutable |rooms|::Level,
+    from: |map|::CellId,
+    to: |map|::CellId,
+    direction: |map|::Direction
 ) {
-    let from_room: @mutable Room = room_mut(level, from);
-    append_exit(from_room, direction_command(direction), direction, to);
+    let from_room: @mutable |rooms|::Room = |rooms|::room_mut(level, from);
+    |rooms|::append_exit(from_room, direction_command(direction), direction, to);
 
-    let back_direction: Direction = opposite(direction);
-    let to_room: @mutable Room = room_mut(level, to);
-    append_exit(to_room, direction_command(back_direction), back_direction, from);
+    let back_direction: |map|::Direction = opposite(direction);
+    let to_room: @mutable |rooms|::Room = |rooms|::room_mut(level, to);
+    |rooms|::append_exit(to_room, direction_command(back_direction), back_direction, from);
 }
 
-machine next_unused_cell(level: Level) -> CellId {
+machine next_unused_cell(level: |rooms|::Level) -> |map|::CellId {
     transition {
-        level.room_count == 1 -> CellId::R01,
-        level.room_count == 2 -> CellId::R02,
-        level.room_count == 3 -> CellId::R03,
-        level.room_count == 4 -> CellId::R04,
-        level.room_count == 5 -> CellId::R05,
-        level.room_count == 6 -> CellId::R06,
-        level.room_count == 7 -> CellId::R07,
-        level.room_count == 8 -> CellId::R08,
-        level.room_count == 9 -> CellId::R09,
-        level.room_count == 10 -> CellId::R10,
-        level.room_count == 11 -> CellId::R11,
-        level.room_count == 12 -> CellId::R12,
-        level.room_count == 13 -> CellId::R13,
-        level.room_count == 14 -> CellId::R14,
-        _ -> CellId::R15
+        level.room_count == 1 -> |map|::CellId::R01,
+        level.room_count == 2 -> |map|::CellId::R02,
+        level.room_count == 3 -> |map|::CellId::R03,
+        level.room_count == 4 -> |map|::CellId::R04,
+        level.room_count == 5 -> |map|::CellId::R05,
+        level.room_count == 6 -> |map|::CellId::R06,
+        level.room_count == 7 -> |map|::CellId::R07,
+        level.room_count == 8 -> |map|::CellId::R08,
+        level.room_count == 9 -> |map|::CellId::R09,
+        level.room_count == 10 -> |map|::CellId::R10,
+        level.room_count == 11 -> |map|::CellId::R11,
+        level.room_count == 12 -> |map|::CellId::R12,
+        level.room_count == 13 -> |map|::CellId::R13,
+        level.room_count == 14 -> |map|::CellId::R14,
+        _ -> |map|::CellId::R15
     }
 }
 
-machine cell_index(cell: CellId) -> u64
+machine cell_index(cell: |map|::CellId) -> u64
 ensures
     result <= 15
 {
     transition {
-        cell == CellId::R00 -> 0,
-        cell == CellId::R01 -> 1,
-        cell == CellId::R02 -> 2,
-        cell == CellId::R03 -> 3,
-        cell == CellId::R04 -> 4,
-        cell == CellId::R05 -> 5,
-        cell == CellId::R06 -> 6,
-        cell == CellId::R07 -> 7,
-        cell == CellId::R08 -> 8,
-        cell == CellId::R09 -> 9,
-        cell == CellId::R10 -> 10,
-        cell == CellId::R11 -> 11,
-        cell == CellId::R12 -> 12,
-        cell == CellId::R13 -> 13,
-        cell == CellId::R14 -> 14,
+        cell == |map|::CellId::R00 -> 0,
+        cell == |map|::CellId::R01 -> 1,
+        cell == |map|::CellId::R02 -> 2,
+        cell == |map|::CellId::R03 -> 3,
+        cell == |map|::CellId::R04 -> 4,
+        cell == |map|::CellId::R05 -> 5,
+        cell == |map|::CellId::R06 -> 6,
+        cell == |map|::CellId::R07 -> 7,
+        cell == |map|::CellId::R08 -> 8,
+        cell == |map|::CellId::R09 -> 9,
+        cell == |map|::CellId::R10 -> 10,
+        cell == |map|::CellId::R11 -> 11,
+        cell == |map|::CellId::R12 -> 12,
+        cell == |map|::CellId::R13 -> 13,
+        cell == |map|::CellId::R14 -> 14,
         _ -> 15
     }
 }
 
-machine room_label(cell: CellId) -> @[u8] in Ascii
+machine room_label(cell: |map|::CellId) -> @[u8] in |buffer|::Ascii
 ensures result.length <= 16
 {
     transition {
-        cell == CellId::R00 -> "Gate" as +Ascii,
-        _ -> "Branch Room" as +Ascii
+        cell == |map|::CellId::R00 -> "Gate" as + |buffer|::Ascii,
+        _ -> "Branch Room" as + |buffer|::Ascii
     }
 }
 
 machine room_description(depth: u32 in Wrapping,
-    branch_id: u32 in Wrapping) -> @[u8] in Ascii
+    branch_id: u32 in Wrapping) -> @[u8] in |buffer|::Ascii
 ensures result.length <= 64
 {
     transition {
-        depth == 0 -> "The old gate room breathes cold air from below." as +Ascii,
-        depth <= 2 -> "A shallow limestone room with fresh claw marks." as +Ascii,
-        depth <= 5 -> "A winding branch room where the walls sweat mineral dust." as +Ascii,
-        depth <= 8 -> "A deep chamber with old bones underfoot." as +Ascii,
-        _ -> "A bottomless dark room near the dungeon heart." as +Ascii
+        depth == 0 -> "The old gate room breathes cold air from below." as + |buffer|::Ascii,
+        depth <= 2 -> "A shallow limestone room with fresh claw marks." as + |buffer|::Ascii,
+        depth <= 5 -> "A winding branch room where the walls sweat mineral dust." as + |buffer|::Ascii,
+        depth <= 8 -> "A deep chamber with old bones underfoot." as + |buffer|::Ascii,
+        _ -> "A bottomless dark room near the dungeon heart." as + |buffer|::Ascii
     }
 }
 
-machine direction_command(direction: Direction) -> @[u8] in Ascii
+machine direction_command(direction: |map|::Direction) -> @[u8] in |buffer|::Ascii
 ensures result.length <= 8
 {
     transition {
-        direction == Direction::North -> "north" as +Ascii,
-        direction == Direction::South -> "south" as +Ascii,
-        direction == Direction::East -> "east" as +Ascii,
-        _ -> "west" as +Ascii
+        direction == |map|::Direction::North -> "north" as + |buffer|::Ascii,
+        direction == |map|::Direction::South -> "south" as + |buffer|::Ascii,
+        direction == |map|::Direction::East -> "east" as + |buffer|::Ascii,
+        _ -> "west" as + |buffer|::Ascii
     }
 }
 
-machine opposite(direction: Direction) -> Direction {
+machine opposite(direction: |map|::Direction) -> |map|::Direction {
     transition {
-        direction == Direction::North -> Direction::South,
-        direction == Direction::South -> Direction::North,
-        direction == Direction::East -> Direction::West,
-        _ -> Direction::East
+        direction == |map|::Direction::North -> |map|::Direction::South,
+        direction == |map|::Direction::South -> |map|::Direction::North,
+        direction == |map|::Direction::East -> |map|::Direction::West,
+        _ -> |map|::Direction::East
     }
 }

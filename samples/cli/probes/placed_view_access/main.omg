@@ -1,66 +1,35 @@
-use omega\language\core\Access;
-use omega\language\core\AccessPlan;
-use omega\language\core\AccessPlan::inaccessible;
-use omega\language\core\AccessPlan::with;
-use omega\language\core\AccessPlan::with_reach;
-use omega\language\core\BoundaryReach;
-use omega\language\core\Exposure;
-use omega\language\core\ExternalRead;
-use omega\language\core\FieldAccess;
-use omega\language\core\FieldEntry;
-use omega\language\core\FieldPlan;
-use omega\language\core\LayoutPlan;
-use omega\language\core\Schema;
-use omega\language\core\read;
-use omega\language\core\write;
+use {omega}/language/core/access/access.omg;
+use {omega}/language/core/layout.omg;
+use {omega}/language/core/reflect/reflect.omg;
+
 public data Registers { status: u32; transmit: u8; }
-public data RegPlacement {}
-machine RegPlacement::plan(schema: Schema) -> AccessPlan {
-    let mutable entries: [FieldEntry; 64];
-    entries[0] = FieldEntry {
-        key: schema.fields[0].key,
-        representation: FieldPlan::At { offset: 0 },
-    };
-    entries[1] = FieldEntry {
-        key: schema.fields[1].key,
-        representation: FieldPlan::At { offset: 4 },
-    };
-    let layout: LayoutPlan = LayoutPlan {
-            entries: entries,
-            entry_count: 2,
-            size_fixed: 8,
-            size_is_dynamic: false,
-            align: 4,
-        };
-    let mutable services: [u64; 32];
-    services[0] = 7;
-    AccessPlan::with_reach(
-        AccessPlan::with(
-            AccessPlan::with(
-                AccessPlan::inaccessible(layout),
-                schema.fields[0].key,
-                FieldAccess::External {
-                    read: ExternalRead::Read,
-                    write: false,
-                    exposure: Exposure::Exported,
-                },
-            ),
-            schema.fields[1].key,
-            FieldAccess::External {
-                read: ExternalRead::None,
-                write: true,
-                exposure: Exposure::Exported,
-            },
-        ),
-        BoundaryReach {
-            services: services,
-            service_count: 0,
-        }
-    )
+public domain Registers::Placed access RegisterAccess;
+public data RegisterStorage = |layout|::LayoutStorage<Registers, RegisterLayout>;
+
+public RegisterLayout satisfies |layout|::FixedLayout<Registers> {
+    machine plan(schema: |layout|::Schema, target: |layout|::LayoutTarget) -> |layout|::LayoutPlan
+    reaches none crashes none terminates {
+        let mutable entries: [|layout|::FieldEntry; 64];
+        entries[0] = |layout|::FieldEntry { key: schema.fields[0].key, representation: |layout|::FieldPlan::At { offset: 0 } };
+        entries[1] = |layout|::FieldEntry { key: schema.fields[1].key, representation: |layout|::FieldPlan::At { offset: 4 } };
+        |layout|::LayoutPlan { entries: entries, entry_count: 2, size_fixed: 8, size_is_dynamic: false, align: 4 }
+    }
 }
-machine inspect(view: @mutable Access<RegPlacement, Registers>) -> u32 {
-    view.transmit.write(@mutable view.transmit, 9);
-    view.status.read(@view.status)
+
+public RegisterAccess satisfies |layout|::AccessPolicy {
+    machine plan(schema: |reflect|::TypeSchema) -> |layout|::AccessPlan
+    reaches none crashes none terminates {
+        let mutable plan: |layout|::AccessPlan = |access|::new_plan(@schema, |layout|::Issuance::Unrestricted);
+        |access|::observe(@mutable plan, |reflect|::field(Registers::status),
+            |layout|::FieldAccess::External { read: |layout|::ExternalRead::Read, write: false, exposure: |layout|::Exposure::Exported });
+        |access|::observe(@mutable plan, |reflect|::field(Registers::transmit),
+            |layout|::FieldAccess::External { read: |layout|::ExternalRead::None, write: true, exposure: |layout|::Exposure::Exported });
+        plan
+    }
+}
+machine inspect(view: @mutable RegisterStorage in Registers::Placed) -> u32 {
+    |layout|::write::<|layout|::Accessor<u8>, u8>(@mutable view.transmit, 9u8);
+    |layout|::read::<|layout|::Accessor<u32>, u32>(@view.status)
 }
 data Main { hits: i32 in Wrapping; }
 machine Main::main(main: @mutable Main) {

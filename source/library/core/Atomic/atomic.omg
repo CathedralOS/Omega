@@ -1,6 +1,6 @@
 // Portable atomic ordering events. The compiler supplies this exact sealed
 // declaration; an authored lookalike has no primitive implementation.
-use FenceOrdering;
+use {omega}/language/core/fence_ordering.omg;
 // The argument must name one proved case at the evaluated call. A fence alone
 // does not establish a publication or a reads-from synchronization relation.
-public machine fence(ordering: FenceOrdering);
+public machine fence(ordering: |fence_ordering|::FenceOrdering);

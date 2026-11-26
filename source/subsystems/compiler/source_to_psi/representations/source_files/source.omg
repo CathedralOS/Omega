@@ -85,10 +85,9 @@ machine source_unit_byte_or_nul(source_unit: @SourceUnit, index: u64 in Trapping
     }
 }
 
-// A logical name path as the compilation names it, `a\b\c`: the path of a
-// module within its package, by which a source unit belongs to its module
-// and `use` selects modules, or a one-segment package name or dependency
-// alias.
+// An admitted package-relative filename or a package or dependency name.
+// The construction request provides filenames with the literal .omg suffix
+// and forward slashes between components.
 public data ModulePath
 requires
     length <= 256,
@@ -129,7 +128,7 @@ public data SourceRange [copy] {
 // A package of one compilation (wiki/spec/build/compiler_request.md): its
 // declared name, a range of the path arena, or the toolchain's core package,
 // which carries no name and which every package selects through the
-// language's mount `omega\language\core` rather than by a dependency
+// language's mount `{omega}/language/core` rather than by a dependency
 // alias (wiki/spec/packages/toolchain.md).
 public data PackageRow [copy] {
     name: SourceRange;
@@ -154,11 +153,10 @@ public data DependencyRow [copy] {
     target: u64 in Trapping;
 }
 
-// Every source unit of one compilation, with the package and the module
-// within it each belongs to, and the packages' requester-local dependency
+// Every source unit of one compilation, with its package and filename, and the packages' requester-local dependency
 // edges. A unit's `SourceId` is its position, so a `SourceSpan` names its
 // bytes wherever the span is stored, and spans of different units compare
-// through the set. Units, module paths, package names and aliases share
+// through the set. Units, filenames, package names and aliases share
 // bounded arenas; the request's graph validation, not this set, rejects
 // duplicate aliases of one requester and scope.
 public data SourceSet
@@ -206,8 +204,41 @@ crashes Trap
         && package < sources.package_count
         && unit.length <= 8388608 - sources.byte_count
         && module_path.length <= 16384 - sources.path_byte_count {
-        true -> path(sources, unit, package, module_path),
+        true -> check_name(sources, unit, package, module_path, 0 as +Trapping),
         _ -> full()
+    }
+
+    machine check_name(sources: @mutable SourceSet, unit: @SourceUnit, package: u64 in Trapping, filename: @ModulePath, prior: u64 in Trapping) -> bool {
+        transition filename.length > 0 && prior < sources.unit_count {
+            true -> candidate(sources, unit, package, filename, prior),
+            false -> path(sources, unit, package, filename)
+        }
+    }
+
+    machine candidate(sources: @mutable SourceSet, unit: @SourceUnit, package: u64 in Trapping, filename: @ModulePath, prior: u64 in Trapping) -> bool {
+        let owner: u64 in Trapping = unit_package(sources, prior);
+        let length: u64 in Trapping = path_length(sources, prior);
+        transition owner == package && length == filename.length {
+            true -> compare(sources, unit, package, filename, prior, 0 as +Trapping),
+            false -> check_name(sources, unit, package, filename, prior + 1)
+        }
+    }
+
+    machine compare(sources: @mutable SourceSet, unit: @SourceUnit, package: u64 in Trapping, filename: @ModulePath, prior: u64 in Trapping, offset: u64 in Trapping) -> bool {
+        transition offset < filename.length && offset < 256 {
+            true -> compare_byte(sources, unit, package, filename, prior, offset),
+            false -> full()
+        }
+    }
+
+    machine compare_byte(sources: @mutable SourceSet, unit: @SourceUnit, package: u64 in Trapping, filename: @ModulePath, prior: u64 in Trapping, offset: u64 in Trapping) -> bool
+    requires offset < 256
+    {
+        let byte: u8 = path_byte_or_nul(sources, prior, offset);
+        transition byte == filename.bytes[offset as -Trapping] {
+            true -> compare(sources, unit, package, filename, prior, offset + 1),
+            false -> check_name(sources, unit, package, filename, prior + 1)
+        }
     }
 
     machine path(sources: @mutable SourceSet, unit: @SourceUnit, package: u64 in Trapping, module_path: @ModulePath) -> bool {
@@ -584,7 +615,7 @@ crashes Trap
     }
 }
 
-// The byte at `index` of unit `unit`'s module path, or NUL past its end.
+// The byte at `index` of unit `unit`'s filename, or NUL past its end.
 public machine path_byte_or_nul(sources: @SourceSet, unit: u64 in Trapping, index: u64 in Trapping) -> u8
 crashes Trap
 {
@@ -625,7 +656,7 @@ crashes Trap
     }
 }
 
-// The length of unit `unit`'s module path; zero for no unit.
+// The length of unit `unit`'s filename; zero for no unit.
 public machine path_length(sources: @SourceSet, unit: u64 in Trapping) -> u64 in Trapping {
     transition unit < sources.unit_count && unit < 512 {
         true -> read(sources, unit),

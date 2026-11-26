@@ -1,128 +1,122 @@
-use text;
-use combat\CombatRound;
-use combat\CombatSystem;
-use combat\combat_system_fight;
-use enemies\Enemy;
-use inventory\InventorySystem;
-use player\Player;
-use player\PlayerSystem;
-use player\grant_reward;
-use player\heal;
-use rewards\Reward;
-use rng\RandomState;
-use rooms\Room;
-use text\TextBuffer;
-use text\enemy_name_live;
-use text\join;
-use text\text_buffer_set;
+use combat/combat.omg;
+use combat/combat_round.omg;
+use enemies/enemies.omg;
+use events/events.omg;
+use inventory/inventory.omg;
+use player/player.omg;
+use player/player_state.omg;
+use rewards/rewards.omg;
+use rng/random_state.omg;
+use rooms/rooms.omg;
+use text/buffer.omg;
 
 data EventRuntime {
-    combat: CombatSystem;
-    inventory: InventorySystem;
-    player_system: PlayerSystem;
+    combat: |combat|::CombatSystem;
+    inventory: |inventory|::InventorySystem;
+    player_system: |player|::PlayerSystem;
 }
 
-machine describe(room: Room,
-    out_line: @mutable TextBuffer)
+machine describe(room: |rooms|::Room,
+    out_line: @mutable |buffer|::TextBuffer)
 {
     transition {
-        room.event.kind == RoomEventKind::FountainOfLife && room.event.consumed == false -> describe_fountain(out_line),
-        room.event.kind == RoomEventKind::Treasure && room.event.consumed == false -> describe_treasure(out_line),
-        room.event.kind == RoomEventKind::GoldCache && room.event.consumed == false -> describe_gold(out_line),
-        room.event.kind == RoomEventKind::Enemy && room.event.consumed == false -> describe_enemy(room.event.enemy, out_line),
+        room.event.kind == |events|::RoomEventKind::FountainOfLife && room.event.consumed == false -> describe_fountain(out_line),
+        room.event.kind == |events|::RoomEventKind::Treasure && room.event.consumed == false -> describe_treasure(out_line),
+        room.event.kind == |events|::RoomEventKind::GoldCache && room.event.consumed == false -> describe_gold(out_line),
+        room.event.kind == |events|::RoomEventKind::Enemy && room.event.consumed == false -> describe_enemy(room.event.enemy, out_line),
         _ -> quiet_room(out_line)
     }
 
 
-    machine describe_fountain(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "A fountain of life glows here. Type use to drink." as +Ascii);
+    machine describe_fountain(out_line: @mutable |buffer|::TextBuffer) {
+        |buffer|::text_buffer_set(out_line, "A fountain of life glows here. Type use to drink." as + |buffer|::Ascii);
     }
 
-    machine describe_treasure(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "A treasure cache rests against the wall. Type use to claim it." as +Ascii);
+    machine describe_treasure(out_line: @mutable |buffer|::TextBuffer) {
+        |buffer|::text_buffer_set(out_line, "A treasure cache rests against the wall. Type use to claim it." as + |buffer|::Ascii);
     }
 
-    machine describe_gold(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "Loose gold glitters in the dust. Type use to collect it." as +Ascii);
+    machine describe_gold(out_line: @mutable |buffer|::TextBuffer) {
+        |buffer|::text_buffer_set(out_line, "Loose gold glitters in the dust. Type use to collect it." as + |buffer|::Ascii);
     }
 
-    machine describe_enemy(enemy: Enemy,
-        out_line: @mutable TextBuffer) {
-        join(out_line, enemy_name_live(@enemy.name), " blocks the way. Type fight." as +Ascii);
+    machine describe_enemy(enemy: |enemies|::Enemy,
+        out_line: @mutable |buffer|::TextBuffer) {
+        |buffer|::join(out_line, |buffer|::enemy_name_live(@enemy.name), " blocks the way. Type fight." as + |buffer|::Ascii);
     }
 
-    machine quiet_room(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "The room is quiet." as +Ascii);
+    machine quiet_room(out_line: @mutable |buffer|::TextBuffer) {
+        |buffer|::text_buffer_set(out_line, "The room is quiet." as + |buffer|::Ascii);
     }
 }
 
 machine event_runtime_use_event(
     event_runtime: @mutable EventRuntime,
-    player: @mutable Player,
-    room: @mutable Room,
-    out_line: @mutable TextBuffer
+    player: @mutable |player_state|::Player,
+    room: @mutable |rooms|::Room,
+    out_line: @mutable |buffer|::TextBuffer
 )
 {
     transition {
-        room.event.kind == RoomEventKind::FountainOfLife && room.event.consumed == false -> use_fountain(event_runtime, player, @mutable room.event, out_line),
-        room.event.kind == RoomEventKind::Treasure && room.event.consumed == false -> use_reward(event_runtime, player, @mutable room.event, out_line),
-        room.event.kind == RoomEventKind::GoldCache && room.event.consumed == false -> use_reward(event_runtime, player, @mutable room.event, out_line),
+        room.event.kind == |events|::RoomEventKind::FountainOfLife && room.event.consumed == false -> use_fountain(event_runtime, player, @mutable room.event, out_line),
+        room.event.kind == |events|::RoomEventKind::Treasure && room.event.consumed == false -> use_reward(event_runtime, player, @mutable room.event, out_line),
+        room.event.kind == |events|::RoomEventKind::GoldCache && room.event.consumed == false -> use_reward(event_runtime, player, @mutable room.event, out_line),
         _ -> no_usable_event(out_line)
     }
 
 
     machine use_fountain(
         event_runtime: @mutable EventRuntime,
-        player: @mutable Player,
-        event: @mutable RoomEvent,
-        out_line: @mutable TextBuffer
+        player: @mutable |player_state|::Player,
+        event: @mutable |events|::RoomEvent,
+        out_line: @mutable |buffer|::TextBuffer
     ) {
-        heal(player, 12i32 as +Wrapping);
+        |player|::heal(player, 12i32 as +Wrapping);
         event.consumed = true;
-        text_buffer_set(out_line, "The fountain heals your wounds." as +Ascii);
+        |buffer|::text_buffer_set(out_line, "The fountain heals your wounds." as + |buffer|::Ascii);
     }
 
     machine use_reward(
         event_runtime: @mutable EventRuntime,
-        player: @mutable Player,
-        event: @mutable RoomEvent,
-        out_line: @mutable TextBuffer
+        player: @mutable |player_state|::Player,
+        event: @mutable |events|::RoomEvent,
+        out_line: @mutable |buffer|::TextBuffer
     ) {
-        grant_reward(@mutable event_runtime.player_system, player, event.reward);
+        |player|::grant_reward(@mutable event_runtime.player_system, player, event.reward);
         event.consumed = true;
-        text_buffer_set(out_line, "You take the treasure." as +Ascii);
+        |buffer|::text_buffer_set(out_line, "You take the treasure." as + |buffer|::Ascii);
     }
 
-    machine no_usable_event(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "There is nothing here to use." as +Ascii);
+    machine no_usable_event(out_line: @mutable |buffer|::TextBuffer) {
+        |buffer|::text_buffer_set(out_line, "There is nothing here to use." as + |buffer|::Ascii);
     }
 }
 
 machine fight_event(
     event_runtime: @mutable EventRuntime,
-    player: @mutable Player,
-    room: @mutable Room,
-    random: @mutable RandomState,
-    round: @mutable CombatRound,
-    out_line: @mutable TextBuffer
+    player: @mutable |player_state|::Player,
+    room: @mutable |rooms|::Room,
+    random: @mutable |random_state|::RandomState,
+    round: @mutable |combat_round|::CombatRound,
+    out_line: @mutable |buffer|::TextBuffer
 )
 {
     transition {
-        room.event.kind == RoomEventKind::Enemy && room.event.consumed == false -> fight_enemy_event(event_runtime, player, room, random, round, out_line),
+        room.event.kind == |events|::RoomEventKind::Enemy && room.event.consumed == false -> fight_enemy_event(event_runtime, player, room, random, round, out_line),
         _ -> no_enemy(out_line)
     }
 
 
     machine fight_enemy_event(
         event_runtime: @mutable EventRuntime,
-        player: @mutable Player,
-        room: @mutable Room,
-        random: @mutable RandomState,
-        round: @mutable CombatRound,
-        out_line: @mutable TextBuffer
+        player: @mutable |player_state|::Player,
+        room: @mutable |rooms|::Room,
+        random: @mutable |random_state|::RandomState,
+        round: @mutable |combat_round|::CombatRound,
+        out_line: @mutable |buffer|::TextBuffer
     ) {
-        combat_system_fight(@mutable event_runtime.combat, player, @mutable room.event, random, round);
-        text_buffer_set(out_line, "You trade blows with the monster." as +Ascii);
+        |combat|::combat_system_fight(@mutable event_runtime.combat, player, @mutable room.event, random, round);
+        |buffer|::text_buffer_set(out_line, "You trade blows with the monster." as + |buffer|::Ascii);
 
         transition {
             round.player_defeated -> player_died(out_line),
@@ -131,16 +125,16 @@ machine fight_event(
         }
     }
 
-    machine no_enemy(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "There is no enemy here." as +Ascii);
+    machine no_enemy(out_line: @mutable |buffer|::TextBuffer) {
+        |buffer|::text_buffer_set(out_line, "There is no enemy here." as + |buffer|::Ascii);
     }
 
-    machine player_died(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "You fall in the dark." as +Ascii);
+    machine player_died(out_line: @mutable |buffer|::TextBuffer) {
+        |buffer|::text_buffer_set(out_line, "You fall in the dark." as + |buffer|::Ascii);
     }
 
-    machine enemy_died(reward: Reward,
-        out_line: @mutable TextBuffer) {
+    machine enemy_died(reward: |rewards|::Reward,
+        out_line: @mutable |buffer|::TextBuffer) {
         transition {
             reward.gold >= 20 -> rich_reward(out_line),
             reward.gold > 0 -> small_reward(out_line),
@@ -148,20 +142,20 @@ machine fight_event(
         }
     }
 
-    machine rich_reward(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "The enemy collapses. You scoop up a serious pile of gold." as +Ascii);
+    machine rich_reward(out_line: @mutable |buffer|::TextBuffer) {
+        |buffer|::text_buffer_set(out_line, "The enemy collapses. You scoop up a serious pile of gold." as + |buffer|::Ascii);
     }
 
-    machine small_reward(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "The enemy collapses. You find a little gold." as +Ascii);
+    machine small_reward(out_line: @mutable |buffer|::TextBuffer) {
+        |buffer|::text_buffer_set(out_line, "The enemy collapses. You find a little gold." as + |buffer|::Ascii);
     }
 
-    machine empty_reward(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "The enemy collapses. Nothing useful remains." as +Ascii);
+    machine empty_reward(out_line: @mutable |buffer|::TextBuffer) {
+        |buffer|::text_buffer_set(out_line, "The enemy collapses. Nothing useful remains." as + |buffer|::Ascii);
     }
 
-    machine exchange_blows(round: @CombatRound,
-        out_line: @mutable TextBuffer) {
+    machine exchange_blows(round: @|combat_round|::CombatRound,
+        out_line: @mutable |buffer|::TextBuffer) {
         transition {
             round.player_damage > 10 -> heavy_exchange(out_line),
             round.enemy_damage == 0 -> clean_hit(out_line),
@@ -170,19 +164,19 @@ machine fight_event(
         }
     }
 
-    machine heavy_exchange(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "You deal more than 10 damage, but the enemy keeps moving." as +Ascii);
+    machine heavy_exchange(out_line: @mutable |buffer|::TextBuffer) {
+        |buffer|::text_buffer_set(out_line, "You deal more than 10 damage, but the enemy keeps moving." as + |buffer|::Ascii);
     }
 
-    machine clean_hit(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "You hit cleanly and avoid the counterattack." as +Ascii);
+    machine clean_hit(out_line: @mutable |buffer|::TextBuffer) {
+        |buffer|::text_buffer_set(out_line, "You hit cleanly and avoid the counterattack." as + |buffer|::Ascii);
     }
 
-    machine painful_exchange(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "You trade blows and take 5 or more damage." as +Ascii);
+    machine painful_exchange(out_line: @mutable |buffer|::TextBuffer) {
+        |buffer|::text_buffer_set(out_line, "You trade blows and take 5 or more damage." as + |buffer|::Ascii);
     }
 
-    machine glancing_exchange(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "Steel scrapes in the dark as you exchange blows." as +Ascii);
+    machine glancing_exchange(out_line: @mutable |buffer|::TextBuffer) {
+        |buffer|::text_buffer_set(out_line, "Steel scrapes in the dark as you exchange blows." as + |buffer|::Ascii);
     }
 }
