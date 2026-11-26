@@ -100,10 +100,7 @@ pub(super) fn append_dependency_build_handoffs_to_storage(
             &parsed,
             package_inputs,
             Some(package),
-            &mut source_storage.resolved_imports,
-            &source_storage.toolchain_contract_custody,
-            &mut source_storage.package_roots,
-            &source_storage.filesystem,
+            source_storage,
         )?;
         imports.enqueue(discovered)?;
         imports.enqueue(entry_base)?;

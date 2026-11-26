@@ -357,9 +357,10 @@ fn changed_sweep_selects_the_consumer_of_a_child_packages_dependency() {
         fs::create_dir_all(&folder).unwrap();
         fs::write(
             folder.join("build.omg"),
-            format!(r#"machine build(builder: @mutable Build) {{
+            format!(r#"use {{omega}}/build/dependency.omg;
+machine build(builder: @mutable Build) {{
     Build::package(builder, "example");
-    let registered: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path {{ location: "{location}" }}));
+    let registered: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {{ location: "{location}" }}));
 }}"#),
         ).unwrap();
     }

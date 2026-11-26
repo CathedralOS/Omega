@@ -66,9 +66,10 @@ machine main() reaches ProcessExit + StandardInput {
 "#,
         &format!(
             r#"
+use {{omega}}/build/dependency.omg;
 machine build(builder: @mutable Build) {{
     Build::application(builder, "console_descriptor_eof");
-    let registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path {{ location: "{}" }}));
+    let registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {{ location: "{}" }}));
     Build::bind(builder, macos_arm64::ProgramEntry, main);
 }}
 "#,
@@ -128,9 +129,10 @@ machine main() reaches StandardInput + ProcessExit crashes none {
 }
 "#,
         &format!(
-            r#"machine build(builder: @mutable Build) {{
+            r#"use {{omega}}/build/dependency.omg;
+machine build(builder: @mutable Build) {{
     Build::application(builder, "partial_read_error");
-    let registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path {{ location: "{}" }}));
+    let registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {{ location: "{}" }}));
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
 }}
 "#,

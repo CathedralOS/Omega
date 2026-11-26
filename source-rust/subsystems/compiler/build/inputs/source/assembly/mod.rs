@@ -354,10 +354,7 @@ impl ImmutableSourceParseCheckpoint {
                         &parsed,
                         inputs,
                         PackageImportPhase::ExactTarget(None),
-                        &mut source_storage.resolved_imports,
-                        &source_storage.toolchain_contract_custody,
-                        &mut source_storage.package_roots,
-                        &source_storage.filesystem,
+                        &mut source_storage,
                     )?
                     .0
                 }

@@ -436,7 +436,7 @@ impl ProductQueryInputs {
             );
         }
         for graph in self.graphs() {
-            storage.require_disjoint_contract_packages(graph)?;
+            storage.require_disjoint_installed_roots(graph)?;
         }
         for graph in self.graphs() {
             storage
@@ -473,6 +473,7 @@ impl ProductQueryInputs {
         parsed: &ParsedSourceBatch,
         storage: &mut SourceStorage,
     ) -> Result<Vec<(PathBuf, source_provenance::DependencyScope)>, Vec<Diagnostic>> {
+        storage.capture_imported_build_library(parsed)?;
         let mut imports = Vec::new();
         for authored in parsed.sources.span_or_empty(parsed.batch) {
             let owner = storage
@@ -485,7 +486,7 @@ impl ProductQueryInputs {
                 });
             for import in &authored.imports {
                 let ordinal = import.ordinal;
-                let contract = storage.toolchain_contract_custody.root_for(&authored.path);
+                let contract = storage.installed_roots.root_for(&authored.path);
                 let mounted_owner = owner.is_some_and(|inputs| {
                     !self
                         .original
@@ -505,8 +506,10 @@ impl ProductQueryInputs {
                     }
                 };
                 if let Some(file) = super::files::FileImport::from(authored, import) {
+                    // Installed sources do not inherit the caller’s dependency aliases.
                     let mount = file
                         .root
+                        .filter(|_| contract.is_none())
                         .and_then(|alias| self.mounted_for(authored.scope, alias));
                     let mounted = mount.map(|dependency| &dependency.inputs);
                     let selected = if let Some(inputs) = owner {
@@ -563,7 +566,7 @@ impl ProductQueryInputs {
                         members,
                         requester,
                         purpose,
-                        storage.toolchain_contract_custody.root_for(&authored.path),
+                        storage.installed_roots.root_for(&authored.path),
                         inputs,
                     )?;
                     match selected {
@@ -601,7 +604,7 @@ impl ProductQueryInputs {
                             "Product query library imports require an issued Product dependency",
                         )]);
                     } else if let Some(root) =
-                        storage.toolchain_contract_custody.root_for(&authored.path)
+                        storage.installed_roots.root_for(&authored.path)
                     {
                         (
                             root.to_path_buf(),
@@ -701,7 +704,7 @@ impl ProductQueryInputs {
             if !local
                 && !package
                 && !canonical.starts_with(&core)
-                && !storage.is_toolchain_contract_source(&canonical)
+                && !storage.is_installed_source(&canonical)
             {
                 return Err(vec![Diagnostic::error(
                     "Product query source escapes its admitted source frontier",

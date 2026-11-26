@@ -16,9 +16,10 @@ fn builds_and_reviews_ignore_the_old_compiler_directories() {
     fs::create_dir(&kit).unwrap();
     fs::write(
         app.join("build.omg"),
-        r#"machine build(builder: @mutable Build) {
+        r#"use {omega}/build/dependency.omg;
+machine build(builder: @mutable Build) {
     Build::application(builder, "cache_probe");
-    let registered: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "../kit" }));
+    let registered: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../kit" }));
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);
 }"#,

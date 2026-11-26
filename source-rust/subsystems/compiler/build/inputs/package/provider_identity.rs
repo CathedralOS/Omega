@@ -286,6 +286,7 @@ fn source_owner(source: &SourceFile, output: &mut Vec<u8>) {
         SourceOrigin::User => 0,
         SourceOrigin::Toolchain => 1,
         SourceOrigin::ToolchainContract => 2,
+        SourceOrigin::ToolchainLibrary => 3,
     });
     output.push(match source.resolution_stratum {
         SourceResolutionStratum::Base => 0,
@@ -309,6 +310,7 @@ mod tests {
             (SourceOrigin::User, 0),
             (SourceOrigin::Toolchain, 1),
             (SourceOrigin::ToolchainContract, 2),
+            (SourceOrigin::ToolchainLibrary, 3),
         ] {
             let file = SourceFile {
                 source_id: SourceId(0),

@@ -24,9 +24,10 @@ fn passing_a_transitive_result_keeps_its_type_without_granting_member_access() {
     .unwrap();
     fs::write(
         api.join("build.omg"),
-        r#"machine build(builder: @mutable Build) {
+        r#"use {omega}/build/dependency.omg;
+machine build(builder: @mutable Build) {
             Build::package(builder, "packet_api");
-            let registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "../supplier" }));
+            let registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../supplier" }));
         }"#,
     )
     .unwrap();
@@ -40,9 +41,10 @@ fn passing_a_transitive_result_keeps_its_type_without_granting_member_access() {
     .unwrap();
     fs::write(
         root.join("build.omg"),
-        r#"machine build(builder: @mutable Build) {
+        r#"use {omega}/build/dependency.omg;
+machine build(builder: @mutable Build) {
             Build::application(builder, "packet_app");
-            let registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "../api" }));
+            let registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../api" }));
             Build::bind(builder, linux_x86_64::ProgramEntry, main);
         }"#,
     )

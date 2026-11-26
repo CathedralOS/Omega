@@ -102,7 +102,7 @@ impl InputBindings {
             .map(|row| row.binding.clone())
             .ok_or_else(|| {
                 TerminalEffectRejection::new(
-                    "dependency::add requires a PackageBinding this activation issued",
+                    "Build dependency registration requires a PackageBinding this activation issued",
                 )
             })
     }

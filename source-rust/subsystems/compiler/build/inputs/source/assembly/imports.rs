@@ -145,10 +145,7 @@ impl SourceRouting<'_> {
                     parsed,
                     package_inputs,
                     *phase,
-                    &mut source_storage.resolved_imports,
-                    &source_storage.toolchain_contract_custody,
-                    &mut source_storage.package_roots,
-                    &source_storage.filesystem,
+                    source_storage,
                 )?;
                 retained_requests.append(&mut requests);
                 Ok(discovered)

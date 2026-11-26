@@ -526,7 +526,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
         };
         let forwarded = if call.action == Operation::AddBinding {
             if byte_sequence_arguments[1].is_some() {
-                return Err(refuse("dependency::add requires a PackageBinding"));
+                return Err(refuse("Build dependency registration requires a PackageBinding"));
             }
             let binding = self.host.inputs.require(&structural_arguments[1])?;
             if !max_reach.is_subset_of(binding.library().max_reach()) {

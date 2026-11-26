@@ -9,22 +9,6 @@ use std::sync::Arc;
 
 pub use source_provenance::DependencyScope;
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, record_storage::Record)]
-pub enum SourceOrigin {
-    #[default]
-    User,
-    Toolchain,
-    // Compiler-issued contract sources retain custody without joining the core prelude.
-    ToolchainContract,
-}
-
-impl SourceOrigin {
-    /// Provenance only: closed contracts do not gain ambient name visibility.
-    pub const fn is_toolchain(self) -> bool {
-        matches!(self, Self::Toolchain | Self::ToolchainContract)
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoadedSource {
     pub source_id: SourceId,
@@ -58,5 +42,26 @@ impl FromIterator<LoadedSource> for LoadedSources {
         let mut sources = Arena::with_capacity(inputs.size_hint().0);
         let batch = sources.insert_many(inputs);
         Self { sources, batch }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, record_storage::Record)]
+pub enum SourceOrigin {
+    #[default]
+    User,
+    Toolchain,
+    // Compiler-issued contract sources retain custody without joining the core prelude.
+    ToolchainContract,
+    // Compiler-installed Build files require an ordinary file import.
+    ToolchainLibrary,
+}
+
+impl SourceOrigin {
+    /// The source supplier is independent of a declaration’s lexical visibility.
+    pub const fn is_toolchain(self) -> bool {
+        matches!(
+            self,
+            Self::Toolchain | Self::ToolchainContract | Self::ToolchainLibrary
+        )
     }
 }

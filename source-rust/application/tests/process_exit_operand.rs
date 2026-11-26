@@ -23,9 +23,10 @@ fn run(name: &str, main: &str) -> (Option<i32>, String) {
     let library = library.to_string_lossy().replace('\\', "/");
     let application = name.replace('-', "_");
     let build = format!(
-        "machine build(builder: @mutable Build) {{
+        "use {{omega}}/build/dependency.omg;
+machine build(builder: @mutable Build) {{
     Build::application(builder, \"{application}\");
-    let registration: DependencyRegistration = Build::dependency(builder, dependency\\from_source(Source::Path {{ location: \"{library}\" }}));
+    let registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {{ location: \"{library}\" }}));
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);

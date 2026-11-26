@@ -859,7 +859,7 @@ mod modules {
                             file.package_root == importer.package_root
                                 && file.package_identity == importer.package_identity
                         }
-                        Owner::Core => file.origin.is_toolchain() && file.path != file.package_root,
+                        Owner::Core => file.origin == source_admission::SourceOrigin::Toolchain && file.path != file.package_root,
                         Owner::Dependency(target) => file.package_identity == Some(target),
                     };
                     owned && file.logical_filename().is_ok_and(|name| name == relative)
@@ -2398,7 +2398,7 @@ mod source_queries {
             match self.symbol_source_origin(symbol) {
                 Some(SourceOrigin::Toolchain) => true,
                 None => self.symbol_provenance_source_span(symbol).is_none(),
-                Some(SourceOrigin::User | SourceOrigin::ToolchainContract) => false,
+                Some(SourceOrigin::User | SourceOrigin::ToolchainContract | SourceOrigin::ToolchainLibrary) => false,
             }
         }
 
@@ -2412,6 +2412,30 @@ mod source_queries {
             let sources = self.sources.as_deref()?;
             let source_span = self.provenance_source_span(symbol)?;
             sources.file_at(source_span).map(|file| file.origin)
+        }
+
+        /// Custody records the supplier of this declaration. The selected occurrence
+        /// and its checked scope determine whether an invocation may use it.
+        pub fn declaration_custody(
+            &self,
+            symbol: SymbolHandle,
+        ) -> semantic_vocabulary::compiler_evaluation::DeclarationCustody {
+            use semantic_vocabulary::compiler_evaluation::DeclarationCustody;
+            if !self.symbols().nodes().is_valid(symbol) {
+                return DeclarationCustody::Missing;
+            }
+            if let Some(package) = self.symbol_package_identity(symbol) {
+                return DeclarationCustody::Package(package);
+            }
+            match self.symbol_source_origin(symbol) {
+                Some(SourceOrigin::Toolchain | SourceOrigin::ToolchainLibrary) => {
+                    DeclarationCustody::Toolchain
+                }
+                Some(SourceOrigin::ToolchainContract) => DeclarationCustody::ToolchainContract,
+                Some(SourceOrigin::User) => DeclarationCustody::UnownedUser,
+                None if self.builtin_type_atom(symbol).is_some() => DeclarationCustody::Toolchain,
+                None => DeclarationCustody::Missing,
+            }
         }
 
         /*

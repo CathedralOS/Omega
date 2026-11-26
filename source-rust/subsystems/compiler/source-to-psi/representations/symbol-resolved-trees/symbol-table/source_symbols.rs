@@ -19,7 +19,7 @@ pub use table::{
 };
 /*
     The custody gate in front of the sealed intrinsic catalog: only a file the
-    toolchain supplied, outside any admitted package graph, can be classified,
+    core supplied, outside any admitted package graph, can be classified,
     and its package-relative path, declaration path and exact source bytes
     must then match one catalog row. A user package that copies a bundled file
     and its names therefore receives no compiler custody.
@@ -28,7 +28,7 @@ pub fn sealed_intrinsic_at(
     file: &source_admission::SourceFile,
     declaration: &str,
 ) -> Option<language_core::sealed_intrinsics::SealedIntrinsic> {
-    bundled_declarations::sealed_intrinsics::SealedIntrinsicCatalog::classify(toolchain_site(
+    bundled_declarations::sealed_intrinsics::SealedIntrinsicCatalog::classify(core_site(
         file,
         declaration,
     )?)
@@ -43,7 +43,7 @@ pub fn core_vocabulary_at(
     file: &source_admission::SourceFile,
     declaration: &str,
 ) -> Option<language_core::core_vocabulary::CoreVocabulary> {
-    bundled_declarations::core_vocabulary::CoreVocabularyCatalog::classify(toolchain_site(
+    bundled_declarations::core_vocabulary::CoreVocabularyCatalog::classify(core_site(
         file,
         declaration,
     )?)
@@ -56,15 +56,15 @@ pub fn core_vocabulary_at(
 pub fn core_source_at(
     file: &source_admission::SourceFile,
 ) -> Option<language_core::core_vocabulary::CoreSource> {
-    let site = toolchain_site(file, "")?;
+    let site = core_site(file, "")?;
     bundled_declarations::core_vocabulary::CoreVocabularyCatalog::source(site.file, site.source)
 }
 
-fn toolchain_site<'a>(
+fn core_site<'a>(
     file: &'a source_admission::SourceFile,
     declaration: &'a str,
 ) -> Option<bundled_declarations::sealed_intrinsics::SealedDeclarationSite<'a>> {
-    if !file.origin.is_toolchain() || file.package_identity.is_some() {
+    if file.origin != source_admission::SourceOrigin::Toolchain || file.package_identity.is_some() {
         return None;
     }
     Some(
@@ -87,4 +87,37 @@ pub fn is_build_protocol(symbols: &SymbolTable, declaration: SymbolHandle, name:
             source.origin == source_admission::SourceOrigin::Toolchain
                 && source.path == std::path::Path::new("<build-prelude>")
         })
+}
+
+#[cfg(test)]
+mod installed_core_custody {
+    use super::*;
+
+    #[test]
+    fn identical_files_from_the_build_library_do_not_supply_core() {
+        use source_admission::{SourceFile, SourceOrigin};
+        use std::path::PathBuf;
+
+        let (relative, name, source) =
+            bundled_declarations::sealed_intrinsics::hosted_process_exit_sources()[1];
+        let occurrence = |root: &str, origin| {
+            let root = PathBuf::from(root);
+            SourceFile {
+                source_id: source_text::SourceId(0),
+                path: root.join(relative),
+                package_root: root,
+                package_identity: None,
+                dependency_scope: source_provenance::DependencyScope::Build,
+                origin,
+                resolution_stratum: Default::default(),
+                source: std::str::from_utf8(source).unwrap().into(),
+            }
+        };
+        let core = occurrence("installation/core", SourceOrigin::Toolchain);
+        let library = occurrence("installation/build", SourceOrigin::ToolchainLibrary);
+        assert!(core_vocabulary_at(&core, name).is_some());
+        assert!(core_vocabulary_at(&library, name).is_none());
+        assert!(sealed_intrinsic_at(&core, "ProcessExit::exit_process").is_some());
+        assert!(sealed_intrinsic_at(&library, "ProcessExit::exit_process").is_none());
+    }
 }

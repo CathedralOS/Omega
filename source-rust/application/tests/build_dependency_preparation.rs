@@ -38,13 +38,14 @@ fn check(name: &str, after: &str, dep: &str) -> (bool, String) {
     std::fs::write(
         root.join("build.omg"),
         format!(
-            "machine build(builder: @mutable Build)
+            "use {{omega}}/build/dependency.omg;
+machine build(builder: @mutable Build)
 suspends
 {{
     Build::application(builder, \"prepares\");
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    let mutable request: DependencyDescription = dependency\\from_source(Source::Path {{ location: \"dep\" }});
-    dependency\\with_alias(@mutable request, \"kit\");
+    let mutable request: DependencyDescription = |dependency|::from_source(Source::Path {{ location: \"dep\" }});
+    |dependency|::with_alias(@mutable request, \"kit\");
     let registered: DependencyRegistration = Build::dependency(builder, request);
 {after}}}
 "

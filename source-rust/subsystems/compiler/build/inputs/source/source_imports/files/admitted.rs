@@ -227,10 +227,8 @@ pub(crate) fn build_product_file_imports(
             let SourceImportTarget::File { root, path, alias } = &import.target else {
                 continue;
             };
-            // Build-only toolchain files are bound directly to their admitted prelude unit.
-            if !import.only_product_operands
-                && build_declarations::build_file(root.as_deref(), path).is_some()
-            {
+            // A Build import has no corresponding Product alias.
+            if !import.only_product_operands && super::is_build_file(root.as_deref(), path) {
                 continue;
             }
             let (owner, filename) = match root.as_deref() {

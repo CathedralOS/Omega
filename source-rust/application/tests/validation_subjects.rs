@@ -20,10 +20,11 @@ use std::process::Command;
 
 const UNPROVED: &str = "may overflow `u64`";
 
-const APP_BUILD: &str = "machine build(builder: @mutable Build) {
+const APP_BUILD: &str = "use {omega}/build/dependency.omg;
+machine build(builder: @mutable Build) {
     Build::application(builder, \"acceptance_app\");
-    let mutable vendor_dependency: DependencyDescription = dependency\\from_source(Source::Path { location: \"vendor\" });
-    dependency\\with_alias(@mutable vendor_dependency, \"vendor\");
+    let mutable vendor_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: \"vendor\" });
+    |dependency|::with_alias(@mutable vendor_dependency, \"vendor\");
     let vendor_registration: DependencyRegistration = Build::dependency(builder, vendor_dependency);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
 }

@@ -16,10 +16,11 @@ use terminal_psi::{OperationKind, TerminalModule, Terminator};
 
 const CONSUMER: &str = "use kit;\n\nmachine entry() -> i32 {\n    kit::value()\n}\n";
 
-const CONSUMER_BUILD: &str = "machine build(builder: @mutable Build) {
+const CONSUMER_BUILD: &str = "use {omega}/build/dependency.omg;
+machine build(builder: @mutable Build) {
     Build::application(builder, \"consumer\");
-    let mutable description: DependencyDescription = dependency\\from_source(Source::Path { location: \"dep\" });
-    dependency\\with_alias(@mutable description, \"kit\");
+    let mutable description: DependencyDescription = |dependency|::from_source(Source::Path { location: \"dep\" });
+    |dependency|::with_alias(@mutable description, \"kit\");
     let registered: DependencyRegistration = Build::dependency(builder, description);
 }
 ";

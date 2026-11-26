@@ -32,9 +32,10 @@ public ConstantReading satisfies Reading {
     )
     .unwrap();
     fs::write(consumer.join("build.omg"), r#"
+use {omega}/build/dependency.omg;
 machine build(builder: @mutable Build) {
     Build::application(builder, "number_application");
-    let dependency: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "../supplier" }));
+    let dependency: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../supplier" }));
     Build::select_provider::<numbers\Reading, numbers\ConstantReading>(builder, independent_mode());
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, windows_arm64::ProgramEntry, main);
@@ -257,9 +258,10 @@ fn nested_sources(root: &Path, mode: &str) {
         fs::create_dir(root.join(package)).unwrap();
     }
     let root_build = format!(
-        r#"machine build(builder: @mutable Build) {{
+        r#"use {{omega}}/build/dependency.omg;
+machine build(builder: @mutable Build) {{
     Build::application(builder, "reader");
-    let number: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path {{ location: "../supplier" }}));
+    let number: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {{ location: "../supplier" }}));
     Build::select_provider::<numbers\Reading, numbers\Sensor>(builder, linux_x86_64, CompositionMode::{mode});
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
 }}"#
@@ -282,9 +284,10 @@ public Device satisfies Measure {
         ),
         (
             "supplier/build.omg",
-            r#"machine build(builder: @mutable Build) {
+            r#"use {omega}/build/dependency.omg;
+machine build(builder: @mutable Build) {
     Build::package(builder, "numbers");
-    let leaf: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "../leaf" }));
+    let leaf: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../leaf" }));
     Build::select_provider::<measurements\Measure, measurements\Device>(builder, linux_x86_64, CompositionMode::Independent);
 }"#,
         ),

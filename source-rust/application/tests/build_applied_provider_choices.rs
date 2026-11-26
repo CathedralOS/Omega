@@ -77,9 +77,10 @@ fn check_package(name: &str, build: &str, files: &[(&str, &str)], main: &str) ->
     std::fs::write(program.join("main.omg"), main).expect("staged program");
     std::fs::write(
         program.join("build.omg"),
-        "machine build(builder: @mutable Build) {
+        "use {omega}/build/dependency.omg;
+machine build(builder: @mutable Build) {
     Build::application(builder, \"reader\");
-    let registration: DependencyRegistration = Build::dependency(builder, dependency\\from_source(Source::Path { location: \"../reading\" }));
+    let registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: \"../reading\" }));
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
 }
 ",
@@ -186,9 +187,10 @@ fn a_package_selects_its_slot_and_provider_from_separate_files() {
         "file_operands",
         r#"use slot.omg;
 use provider.omg;
+use {omega}/build/dependency.omg;
 machine build(builder: @mutable Build) {
     Build::package(builder, "reading");
-    let kit_registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "kit" }));
+    let kit_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "kit" }));
     Build::select_provider::<|slot|::Reading, |provider|::Selected>(builder, linux_x86_64);
 }"#,
         &[

@@ -1,4 +1,4 @@
-// Source frontier storage (`SourceStorage`, `ToolchainContractCustody`, `SourceRoots`)
+// Source frontier storage (`SourceStorage`, `InstalledSourceRoots`, `SourceRoots`)
 // and `SourceCatalogue` cohort selection.
 //
 // `SourceStorage` assigns exact package and toolchain ownership to every captured
@@ -35,7 +35,7 @@ pub(crate) struct SourceStorage {
     core_capture: Option<crate::CapturedLocalSource>, // Exact core input shared by Build imports, Product typing and owner derivation.
     pub(crate) package_roots: Vec<RegisteredPackageRoot>, // Dense registered source-owner rows; inventories belong to their exact capture.
     core_root: Option<PathBuf>, // Installed core package used by both standalone and package builds.
-    pub toolchain_contract_custody: ToolchainContractCustody, // Closed toolchain contract roots and directories.
+    pub installed_roots: InstalledSourceRoots, // Installed import-only sources, disjoint from authored packages.
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
@@ -311,7 +311,7 @@ impl SourceStorage {
             .validate_unbound_source_join(&self.default_package_root, capture)
             .map_err(refuse)?;
         let mut filesystem = inputs.source_filesystem().clone();
-        self.require_disjoint_contract_packages(inputs)?;
+        self.require_disjoint_installed_roots(inputs)?;
         // The captured Build retains the exact core and closed-contract snapshots
         // it already consumed. Source availability does not grant package edges.
         filesystem
@@ -490,7 +490,7 @@ impl SourceStorage {
                 .chain(contracts.into_iter().map(|(_, identity)| identity))
                 .collect(),
             sources: std::sync::Arc::new(std::mem::take(&mut self.sources)),
-            toolchain_contract_custody: self.toolchain_contract_custody.clone(),
+            installed_roots: self.installed_roots.clone(),
         }))
     }
 
@@ -529,13 +529,14 @@ impl SourceStorage {
         self.register_package_source(package_root, Some(identity));
     }
 
-    pub(crate) fn capture_toolchain_contract(
+    pub(super) fn admit_installed_root(
         &mut self,
         root: &Path,
+        kind: InstalledSourceKind,
     ) -> Result<PathBuf, Vec<Diagnostic>> {
         let refuse = |error| {
             vec![Diagnostic::error(format!(
-                "cannot capture closed toolchain contract {}: {error}",
+                "cannot capture installed source root {}: {error}",
                 root.display()
             ))]
         };
@@ -548,13 +549,21 @@ impl SourceStorage {
                 .any(|package| package.identity.is_some() && overlaps(&package.root))
         {
             return Err(refuse(
-                "closed contract root overlaps an authored package owner".to_owned(),
+                "installed source root overlaps an authored package owner".to_owned(),
             ));
         }
-        if self.toolchain_contract_custody.root_for(root) == Some(root) {
-            return Ok(root.to_owned());
+        if let Some((existing, registered)) = self.installed_roots.source_for(root) {
+            return if root == existing && kind == registered {
+                Ok(root.to_owned())
+            } else {
+                Err(refuse(
+                    "installed source root overlaps another issuer".to_owned(),
+                ))
+            };
         }
-        self.capture_installed_tree(root)
+        let canonical = self.capture_installed_tree(root)?;
+        self.register_installed_sources(canonical.clone(), kind);
+        Ok(canonical)
     }
 
     pub(super) fn capture_installed_tree(
@@ -563,7 +572,7 @@ impl SourceStorage {
     ) -> Result<PathBuf, Vec<Diagnostic>> {
         let refuse = |error: String| {
             vec![Diagnostic::error(format!(
-                "cannot authenticate installed contract package {}: {error}",
+                "cannot authenticate installed source tree {}: {error}",
                 root.display()
             ))]
         };
@@ -582,15 +591,15 @@ impl SourceStorage {
         Ok(root.to_owned())
     }
 
-    pub(crate) fn require_disjoint_contract_packages(
+    pub(crate) fn require_disjoint_installed_roots(
         &self,
         inputs: &crate::PackageCompilationInputs,
     ) -> Result<(), Vec<Diagnostic>> {
         for (_, package) in inputs.packages() {
-            for contract in &self.toolchain_contract_custody.dirs {
+            for (contract, _) in &self.installed_roots.dirs {
                 if package.starts_with(contract) || contract.starts_with(package) {
                     return Err(vec![Diagnostic::error(format!(
-                        "package source {} overlaps already-issued closed contract {}",
+                        "package source {} overlaps already-issued installed root {}",
                         package.display(),
                         contract.display()
                     ))]);
@@ -600,17 +609,16 @@ impl SourceStorage {
         Ok(())
     }
 
-    pub(crate) fn register_toolchain_contract_dir(&mut self, root: PathBuf) {
-        if !self.toolchain_contract_custody.dirs.contains(&root) {
-            self.toolchain_contract_custody.dirs.push(root);
-            self.toolchain_contract_custody
-                .dirs
-                .sort_by_key(|dir| std::cmp::Reverse(dir.components().count()));
+    fn register_installed_sources(&mut self, root: PathBuf, kind: InstalledSourceKind) {
+        let roots = &mut self.installed_roots.dirs;
+        if !roots.iter().any(|(registered, _)| registered == &root) {
+            roots.push((root, kind));
+            roots.sort_by_key(|(dir, _)| std::cmp::Reverse(dir.components().count()));
         }
     }
 
-    pub(crate) fn is_toolchain_contract_source(&self, path: &Path) -> bool {
-        self.toolchain_contract_custody.root_for(path).is_some()
+    pub(crate) fn is_installed_source(&self, path: &Path) -> bool {
+        self.installed_roots.root_for(path).is_some()
     }
 
     fn register_package_source(
@@ -692,12 +700,8 @@ impl SourceStorage {
         path: &Path,
         origin_override: Option<SourceOrigin>,
     ) -> (PathBuf, Option<PackageKeyIdentity>, SourceOrigin) {
-        if let Some(contract_root) = self.toolchain_contract_custody.root_for(path) {
-            return (
-                contract_root.to_path_buf(),
-                None,
-                SourceOrigin::ToolchainContract,
-            );
+        if let Some((root, kind)) = self.installed_roots.source_for(path) {
+            return (root.to_owned(), None, kind.origin());
         }
         if let Some(core) = &self.core_root
             && path.starts_with(core)
@@ -746,17 +750,36 @@ fn normalize_directory(path: PathBuf) -> PathBuf {
     path.canonicalize().unwrap_or(path)
 }
 
-#[derive(Clone, Default, record_storage::Record)]
-pub(crate) struct ToolchainContractCustody {
-    dirs: Vec<PathBuf>,
+#[derive(Clone, Copy, PartialEq, Eq, record_storage::Record)]
+pub(super) enum InstalledSourceKind {
+    EntryContract,
+    BuildLibrary,
 }
 
-impl ToolchainContractCustody {
-    pub(crate) fn root_for(&self, path: &Path) -> Option<&Path> {
+impl InstalledSourceKind {
+    fn origin(self) -> SourceOrigin {
+        match self {
+            Self::EntryContract => SourceOrigin::ToolchainContract,
+            Self::BuildLibrary => SourceOrigin::ToolchainLibrary,
+        }
+    }
+}
+
+#[derive(Clone, Default, record_storage::Record)]
+pub(crate) struct InstalledSourceRoots {
+    dirs: Vec<(PathBuf, InstalledSourceKind)>,
+}
+
+impl InstalledSourceRoots {
+    fn source_for(&self, path: &Path) -> Option<(&Path, InstalledSourceKind)> {
         self.dirs
             .iter()
-            .find(|dir| path.starts_with(dir.as_path()))
-            .map(PathBuf::as_path)
+            .find(|(dir, _)| path.starts_with(dir))
+            .map(|(dir, origin)| (dir.as_path(), *origin))
+    }
+
+    pub(crate) fn root_for(&self, path: &Path) -> Option<&Path> {
+        self.source_for(path).map(|(root, _)| root)
     }
 }
 
@@ -768,19 +791,10 @@ pub(crate) struct SourceRoots {
 }
 
 pub(crate) fn validate_package_source_frontier(
-    frontier: Vec<(
-        PathBuf,
-        source_provenance::DependencyScope,
-    )>,
+    frontier: Vec<(PathBuf, source_provenance::DependencyScope)>,
     package_inputs: &crate::PackageCompilationInputs,
     source_storage: &SourceStorage,
-) -> Result<
-    Vec<(
-        PathBuf,
-        source_provenance::DependencyScope,
-    )>,
-    Vec<Diagnostic>,
-> {
+) -> Result<Vec<(PathBuf, source_provenance::DependencyScope)>, Vec<Diagnostic>> {
     let toolchain_root = super::bundled_core_root()?;
     let mut validated = Vec::with_capacity(frontier.len());
     let mut diagnostics = Vec::new();
@@ -797,7 +811,7 @@ pub(crate) fn validate_package_source_frontier(
             }
         };
         if canonical.starts_with(&toolchain_root)
-            || source_storage.is_toolchain_contract_source(&canonical)
+            || source_storage.is_installed_source(&canonical)
         {
             validated.push((canonical, scope));
             continue;
@@ -998,7 +1012,7 @@ mod tests {
             filesystem,
             ..SourceStorage::default()
         };
-        storage.register_toolchain_contract_dir(root.clone());
+        storage.register_installed_sources(root.clone(), super::InstalledSourceKind::EntryContract);
         assert_eq!(
             storage.source_metadata(&entry, None),
             (root.clone(), None, SourceOrigin::ToolchainContract)
@@ -1071,11 +1085,14 @@ mod tests {
             .filesystem
             .add_capture(contract.clone(), closed.clone())
             .unwrap();
-        storage.register_toolchain_contract_dir(contract.clone());
+        storage.register_installed_sources(
+            contract.clone(),
+            super::InstalledSourceKind::EntryContract,
+        );
         for conflicting in [base, contract.clone(), contract.join("nested")] {
             assert!(
                 storage
-                    .require_disjoint_contract_packages(&graph(conflicting, closed.clone()))
+                    .require_disjoint_installed_roots(&graph(conflicting, closed.clone()))
                     .is_err()
             );
         }
@@ -1106,7 +1123,11 @@ mod tests {
                 .is_err(),
             "the completed join still checks the original captured bytes"
         );
-        assert!(storage.capture_toolchain_contract(&application).is_err());
+        assert!(
+            storage
+                .admit_installed_root(&application, super::InstalledSourceKind::EntryContract)
+                .is_err()
+        );
         assert_eq!(
             storage
                 .filesystem
