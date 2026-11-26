@@ -60,9 +60,7 @@ pub enum SealedIntrinsic {
     TaskRuntimeTryStart,
     /// Core `layout.omg`'s existing restricted scalar accessor template.
     PlacedAccessorTemplate,
-    /// system `console.omg`'s `ByteRead`, the result type of `Console::read_byte`.
-    HostedByteRead,
-    /// A hosted console or process-exit requirement in bundled source.
+    /// The source requirement a compiler-owned hosted primitive must satisfy.
     HostedRequirement(HostedOperation),
     /// An exact compiler-owned primitive, separate from ordinary provider bodies.
     HostedPrimitive(HostedOperation),
@@ -490,24 +488,6 @@ const ROWS: &[SealedIntrinsicRow] = &[
         "Accessor",
         BundledFile::CoreLayout,
         SealedIntrinsic::PlacedAccessorTemplate,
-    ),
-    row(
-        "console.omg",
-        "ByteRead",
-        BundledFile::SystemConsole,
-        SealedIntrinsic::HostedByteRead,
-    ),
-    row(
-        "console.omg",
-        "Console::write_byte",
-        BundledFile::SystemConsole,
-        SealedIntrinsic::HostedRequirement(HostedOperation::ConsoleWriteByte),
-    ),
-    row(
-        "console.omg",
-        "Console::read_byte",
-        BundledFile::SystemConsole,
-        SealedIntrinsic::HostedRequirement(HostedOperation::ConsoleReadByte),
     ),
     row(
         "process_exit_native.omg",
