@@ -298,8 +298,8 @@ pub(crate) mod equality {
 }
 
 pub(crate) mod exhaustiveness {
-    use crate::source_resolved as resolved;
     use crate::expressions::call_results::declared_call_return;
+    use crate::source_resolved as resolved;
     use crate::tables::resolved_expressions;
     use arena::HandleSpan;
     use diagnostics::Diagnostic;
@@ -327,8 +327,7 @@ pub(crate) mod exhaustiveness {
                 .tokenize()
                 .unwrap();
             let syntax =
-                crate::frontend_fixture::parse_syntax_trees_with_id(source, &tokens)
-                    .unwrap();
+                crate::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap();
             let mut request = crate::resolution::ResolutionRequest::new(syntax);
             request.sources = Some(std::sync::Arc::new(sources));
             crate::resolution::resolve(request).unwrap()
@@ -1858,7 +1857,8 @@ pub(crate) mod exhaustiveness {
             if boolean_value(program, conjunct) == Some(true) {
                 continue;
             }
-            if let ExpressionNode::Binary(binary) = program.tables.bodies.expressions.expression(conjunct)
+            if let ExpressionNode::Binary(binary) =
+                program.tables.bodies.expressions.expression(conjunct)
                 && let Some(constraint) = boolean_constraint(program, binary)
             {
                 constraints.push(constraint);
@@ -2552,11 +2552,11 @@ pub(crate) mod exhaustiveness {
 }
 
 pub(crate) mod proposition {
-    use crate::source_resolved as resolved;
-    use crate::source_state as typed;
     use crate::expressions::expression::lower_expression_handle_from_table_in_fact_position;
     use crate::lowerer::Lowerer;
     use crate::lowerer::name::lower_name;
+    use crate::source_resolved as resolved;
+    use crate::source_state as typed;
     use crate::tables::{expression_table_mut, resolved_expressions};
     use diagnostics::Diagnostic;
     use resolved::types::TypeReference;
@@ -3008,18 +3008,16 @@ mod equality_identity_tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../../../../../../source-rust/subsystems/compiler/source-to-psi/pipeline/03_symbol-resolved-trees-to-typed-trees/tests/fixtures/equality/run/closed_generic_comparison/main.omg"
         ));
-        let checked = crate::qualified_operator_home_tests::checked_with_equality(&[(
-            "main.omg", accepted,
-        )]);
+        let checked =
+            crate::qualified_operator_home_tests::checked_with_equality(&[("main.omg", accepted)]);
         assert!(checked.is_ok(), "{checked:?}");
         let refused = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../../../../../../source-rust/subsystems/compiler/source-to-psi/pipeline/03_symbol-resolved-trees-to-typed-trees/tests/fixtures/equality/fail/closed_generic_comparison_wrong_argument/main.omg"
         ));
-        let error = crate::qualified_operator_home_tests::checked_with_equality(&[(
-            "main.omg", refused,
-        )])
-        .unwrap_err();
+        let error =
+            crate::qualified_operator_home_tests::checked_with_equality(&[("main.omg", refused)])
+                .unwrap_err();
         assert!(
             error.contains("field `point` of `Player` is not Equatable"),
             "{error}"
@@ -3031,9 +3029,8 @@ mod equality_identity_tests {
         let source = "trait Equatable<T> { machine equals(left: T, right: T) -> bool; } data Point [copy] { x: i32; } PointEquality satisfies Equatable<Point> { }";
         for name in ["Equatable", "UserComparable"] {
             let source = source.replace("Equatable", name);
-            let error =
-                crate::qualified_operator_home_tests::checked(&[("main.omg", &source)])
-                    .unwrap_err();
+            let error = crate::qualified_operator_home_tests::checked(&[("main.omg", &source)])
+                .unwrap_err();
             assert!(error.contains("equals"), "{name}: {error}");
         }
     }
@@ -3041,15 +3038,13 @@ mod equality_identity_tests {
     #[test]
     fn qualified_record_operands_keep_their_exact_domains() {
         let source = "data Point<T> [copy] { x: i32; } domain i32::A; domain i32::B; AEquality satisfies Equatable<Point<i32 in A>> { } machine compare(left: Point<i32 in A>, right: Point<i32 in A>) -> bool { left == right }";
-        let checked = crate::qualified_operator_home_tests::checked_with_equality(&[(
-            "main.omg", source,
-        )]);
+        let checked =
+            crate::qualified_operator_home_tests::checked_with_equality(&[("main.omg", source)]);
         assert!(checked.is_ok(), "{checked:?}");
         let wrong = source.replace("right: Point<i32 in A>", "right: Point<i32 in B>");
-        let error = crate::qualified_operator_home_tests::checked_with_equality(&[(
-            "main.omg", &wrong,
-        )])
-        .unwrap_err();
+        let error =
+            crate::qualified_operator_home_tests::checked_with_equality(&[("main.omg", &wrong)])
+                .unwrap_err();
         assert!(error.contains("different data types"), "{error}");
     }
 
@@ -3057,15 +3052,13 @@ mod equality_identity_tests {
     fn only_payloadless_sums_have_implicit_data_equality() {
         let source =
             "data Empty { } machine compare(left: Empty, right: Empty) -> bool { left == right }";
-        let error = crate::qualified_operator_home_tests::checked_with_equality(&[(
-            "main.omg", source,
-        )])
-        .unwrap_err();
+        let error =
+            crate::qualified_operator_home_tests::checked_with_equality(&[("main.omg", source)])
+                .unwrap_err();
         assert!(error.contains("is not Equatable"), "{error}");
         let sum = "data Tag { case A; case B; } machine compare(left: Tag, right: Tag) -> bool { left == right }";
-        let checked = crate::qualified_operator_home_tests::checked_with_equality(&[(
-            "main.omg", sum,
-        )]);
+        let checked =
+            crate::qualified_operator_home_tests::checked_with_equality(&[("main.omg", sum)]);
         assert!(checked.is_ok(), "{checked:?}");
     }
 }

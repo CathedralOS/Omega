@@ -111,7 +111,7 @@ pub(crate) fn forms(
 /// first form with a matching declaration is the occurrence's selection.
 pub(crate) fn selection(
     program: &TypedTrees,
-    types: &mut crate::typing_queries::DeclaredExpressionTypes,
+    types: &mut crate::types::typing_queries::DeclaredExpressionTypes,
     owner: symbols::SymbolHandle,
     handle: crate::source_state::expression::ExpressionHandle,
 ) -> Result<Option<(SelectedOperator, OperatorForm)>, Diagnostic> {
@@ -273,7 +273,7 @@ fn needs_collection_view(
 /// selected yet, is not decided here; the lowered-form reader refuses those.
 fn qualified_builtin_operand(
     program: &TypedTrees,
-    types: &mut crate::typing_queries::DeclaredExpressionTypes,
+    types: &mut crate::types::typing_queries::DeclaredExpressionTypes,
     owner: symbols::SymbolHandle,
     handle: crate::source_state::expression::ExpressionHandle,
     binary: crate::source_state::expression::TableBinaryExpression,
@@ -371,14 +371,12 @@ enum SelectedMeaning {
 
 fn core_application(
     program: &TypedTrees,
-    types: &mut crate::typing_queries::DeclaredExpressionTypes,
+    types: &mut crate::types::typing_queries::DeclaredExpressionTypes,
     owner: symbols::SymbolHandle,
     binary: crate::source_state::expression::TableBinaryExpression,
 ) -> Option<numerics::intrinsics::CoreIntegerOperatorSignature> {
-    use numerics::intrinsics::{
-        CoreIntegerOperand, CoreIntegerOperatorSignature,
-    };
     use numerics::arithmetic::ArithmeticDomain;
+    use numerics::intrinsics::{CoreIntegerOperand, CoreIntegerOperatorSignature};
     if binary.policy != ArithmeticDomain::Exact {
         return None;
     }
@@ -478,8 +476,8 @@ fn retain_core_application(
 
 pub(crate) fn prepare_site(
     program: &mut TypedTrees,
-    owners: &crate::operand_owners::CohortOperandOwners,
-    types: &mut crate::typing_queries::DeclaredExpressionTypes,
+    owners: &crate::expressions::operand_owners::CohortOperandOwners,
+    types: &mut crate::types::typing_queries::DeclaredExpressionTypes,
     handle: crate::source_state::expression::ExpressionHandle,
 ) -> Result<(), Diagnostic> {
     let span = program.expression_table.source_span(handle);

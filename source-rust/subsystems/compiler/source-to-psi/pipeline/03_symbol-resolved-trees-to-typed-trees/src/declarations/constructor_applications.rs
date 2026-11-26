@@ -18,7 +18,7 @@ pub(crate) fn prepare(
     frontier: usize,
 ) -> Result<(), Diagnostic> {
     let cohort = crate::lowerer::TypingCohort::for_expressions(frontier);
-    let owners = crate::operand_owners::CohortOperandOwners::full(program);
+    let owners = crate::expressions::operand_owners::CohortOperandOwners::full(program);
     prepare_in_cohort(source, program, &cohort, &owners)
 }
 
@@ -26,7 +26,7 @@ pub(crate) fn prepare_in_cohort(
     source: &crate::source_resolved::SymbolResolvedTrees,
     program: &mut TypedTrees,
     cohort: &crate::lowerer::TypingCohort<'_>,
-    owners: &crate::operand_owners::CohortOperandOwners,
+    owners: &crate::expressions::operand_owners::CohortOperandOwners,
 ) -> Result<(), Diagnostic> {
     let frontier = cohort.typed_expressions;
     let expressions: Vec<_> = program
@@ -70,9 +70,8 @@ pub(crate) fn prepare_in_cohort(
 
         if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) {
             let collection = indexed.collection;
-            let Some(collection) =
-                crate::typing_queries::DeclaredExpressionTypes::default()
-                    .get(program, caller, collection)
+            let Some(collection) = crate::types::typing_queries::DeclaredExpressionTypes::default()
+                .get(program, caller, collection)
             else {
                 continue;
             };
@@ -84,7 +83,7 @@ pub(crate) fn prepare_in_cohort(
             // The destination may attenuate this reference. Retain the type
             // of the written formation first, so lowering can form its actual
             // parent loan before lending a weaker child to that destination.
-            let referent = match crate::typing_queries::declared_expression_type(
+            let referent = match crate::types::typing_queries::declared_expression_type(
                 program, caller, target,
             ) {
                 Some(reference) => Some(reference),
@@ -239,7 +238,7 @@ pub(crate) fn prepare_in_cohort(
 pub(crate) fn retain_indexed_operand_types_in_cohort(
     program: &mut TypedTrees,
     frontier: usize,
-    owners: &crate::operand_owners::CohortOperandOwners,
+    owners: &crate::expressions::operand_owners::CohortOperandOwners,
 ) -> Result<(), Diagnostic> {
     let operands = program
         .expression_table
@@ -249,7 +248,7 @@ pub(crate) fn retain_indexed_operand_types_in_cohort(
             _ => None,
         })
         .collect::<Vec<_>>();
-    let mut declared = crate::typing_queries::DeclaredExpressionTypes::default();
+    let mut declared = crate::types::typing_queries::DeclaredExpressionTypes::default();
     for expression in operands {
         retain_indexed_operand_type(program, owners, &mut declared, expression)?;
     }
@@ -258,8 +257,8 @@ pub(crate) fn retain_indexed_operand_types_in_cohort(
 
 pub(crate) fn retain_indexed_operand_type(
     program: &mut TypedTrees,
-    owners: &crate::operand_owners::CohortOperandOwners,
-    declared: &mut crate::typing_queries::DeclaredExpressionTypes,
+    owners: &crate::expressions::operand_owners::CohortOperandOwners,
+    declared: &mut crate::types::typing_queries::DeclaredExpressionTypes,
     expression: ExpressionHandle,
 ) -> Result<(), Diagnostic> {
     let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
@@ -329,7 +328,7 @@ fn retain_builtin_range_type(
         return Ok(());
     }
     let Ok(element_type) =
-        crate::typing_queries::collection_element_type(program, collection)
+        crate::types::typing_queries::collection_element_type(program, collection)
     else {
         return Ok(());
     };
@@ -355,7 +354,7 @@ fn retain_builtin_range_type(
 
 fn expression_owner(
     program: &TypedTrees,
-    owners: &crate::operand_owners::CohortOperandOwners,
+    owners: &crate::expressions::operand_owners::CohortOperandOwners,
     expression: ExpressionHandle,
 ) -> Option<SymbolHandle> {
     let mut callers = owners.expression_owners(expression);
@@ -430,13 +429,13 @@ impl CallInput {
 /// It chooses a result-domain overload; it grants no domain membership.
 pub(crate) struct CallResultSelections<'a> {
     source: &'a crate::source_resolved::SymbolResolvedTrees,
-    owners: &'a crate::operand_owners::CohortOperandOwners,
+    owners: &'a crate::expressions::operand_owners::CohortOperandOwners,
 }
 
 impl<'a> CallResultSelections<'a> {
     pub(crate) fn new(
         source: &'a crate::source_resolved::SymbolResolvedTrees,
-        owners: &'a crate::operand_owners::CohortOperandOwners,
+        owners: &'a crate::expressions::operand_owners::CohortOperandOwners,
     ) -> Self {
         Self { source, owners }
     }
@@ -544,7 +543,7 @@ fn select_call(
         && let Some(target) = select_closed_call(program, call, caller, call.expected_result)?
     {
         if let Some(occurrence) = call.selection {
-            crate::call_and_product_selections::bind_generated_call_selection(
+            crate::expressions::call_and_product_selections::bind_generated_call_selection(
                 program, occurrence, target,
             )?;
         }
@@ -909,7 +908,7 @@ fn infer(
                         .struct_fields(literal.fields)
                         .to_vec();
                     for field in fields {
-                        if let Some(declared) = crate::typing_queries::exact_declared_field(
+                        if let Some(declared) = crate::types::typing_queries::exact_declared_field(
                             program,
                             field.field_symbol,
                         )
@@ -992,7 +991,7 @@ fn infer(
                 program,
                 crate::source_state::types::builtin_type_atom(landing.landed_type),
             )?;
-            crate::type_reference::retain_arithmetic_result_type(
+            crate::types::type_reference::retain_arithmetic_result_type(
                 &program.symbols,
                 &mut program.tables.type_reference_table,
                 reference,
@@ -1010,7 +1009,7 @@ fn infer(
         ExpressionNode::Float(literal) => literal.landing().and_then(|format| {
             builtin(
                 program,
-                crate::typing_queries::float_literal_atom(format),
+                crate::types::typing_queries::float_literal_atom(format),
             )
         }),
         ExpressionNode::Boolean(_) => builtin(program, BuiltinTypeAtom::Bool),
@@ -1025,7 +1024,7 @@ fn infer(
                             .machine_by_symbol(owner)
                             .and_then(|machine| program.machine_states(machine).first())
                     })?;
-                    crate::typing_queries::declared_place_type(program, state, value).ok()
+                    crate::types::typing_queries::declared_place_type(program, state, value).ok()
                 })
             }
         }
@@ -1386,9 +1385,9 @@ fn call_result(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::qualified_operator_home_tests::checked;
     use crate::source_selections::AuthoredDeclarationSelectionOccurrenceId;
     use crate::source_state::statement::{StatementNode, TransitionTargetNode};
-    use crate::qualified_operator_home_tests::checked;
 
     /// `path[0..0]` on a `Marked` slice view selects the `[..]` declared over
     /// that exact type, so typing replaces the range with a call of
@@ -1456,7 +1455,7 @@ mod tests {
         "#,
         )])
         .unwrap();
-        let owners = crate::operand_owners::CohortOperandOwners::full(&program);
+        let owners = crate::expressions::operand_owners::CohortOperandOwners::full(&program);
         let buffer = program
             .data_definitions()
             .iter()
@@ -1530,7 +1529,7 @@ mod tests {
         "#,
         )])
         .unwrap();
-        let owners = crate::operand_owners::CohortOperandOwners::full(&program);
+        let owners = crate::expressions::operand_owners::CohortOperandOwners::full(&program);
         let mut observed = Vec::new();
         for (expression, node) in program.expression_table.expression_entries() {
             let ExpressionNode::Indexed(indexed) = node else {

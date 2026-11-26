@@ -12,11 +12,11 @@
 //! A positional or rest pattern whose subject has no record known here is
 //! refused: no later stage could still give a place its field.
 
-use crate::source_resolved as resolved;
 use crate::expressions::call_results::peel;
 use crate::expressions::expression::table::lowerer::resolved_data_definition_for_type;
 use crate::expressions::expression::table::member_binding::declared_type;
 use crate::lowerer::exact_field_symbol;
+use crate::source_resolved as resolved;
 use diagnostics::Diagnostic;
 use language_core::PatternSelector;
 use resolved::data::{DataDefinition, DataField, DataMember};

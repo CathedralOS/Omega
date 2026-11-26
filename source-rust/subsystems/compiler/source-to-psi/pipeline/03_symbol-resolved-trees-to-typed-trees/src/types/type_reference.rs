@@ -144,7 +144,7 @@ pub(crate) mod domain_constraints {
         DomainConstraint, DomainConstraintSubject, TypeConstraintNode,
     };
     use crate::source_symbols::JoinedPath;
-    use crate::type_reference::domain_aliases::expand_domain_reference;
+    use crate::types::type_reference::domain_aliases::expand_domain_reference;
     use diagnostics::Diagnostic;
 
     pub(crate) fn normalize_domain_constraints(
@@ -1043,7 +1043,7 @@ pub(crate) mod const_arguments {
             source: &crate::source_resolved::SymbolResolvedTrees,
             program: &mut TypedTrees,
             cohort: &crate::lowerer::TypingCohort<'_>,
-            owners: &mut Option<crate::operand_owners::CohortOperandOwners>,
+            owners: &mut Option<crate::expressions::operand_owners::CohortOperandOwners>,
         ) -> Result<(), Diagnostic> {
             let frontier = cohort.typed_type_references;
             // A shared argument may appear in several receiving applications.
@@ -1108,7 +1108,7 @@ pub(crate) mod const_arguments {
                         .map(|selection| selection.source_span)
                         .filter(|span| span.span.start != span.span.end);
                     let candidates =
-                        crate::type_reference::domain_constraints::select_domain_candidates(
+                        crate::types::type_reference::domain_constraints::select_domain_candidates(
                             source,
                             program,
                             carrier,
@@ -1324,7 +1324,7 @@ pub(crate) mod const_arguments {
             program: &mut TypedTrees,
             cohort: &crate::lowerer::TypingCohort<'_>,
             frontier: usize,
-            owners: &mut Option<crate::operand_owners::CohortOperandOwners>,
+            owners: &mut Option<crate::expressions::operand_owners::CohortOperandOwners>,
             applications: impl IntoIterator<
                 Item = (SymbolHandle, Vec<TypeReferenceHandle>, SymbolHandle),
             >,
@@ -1745,14 +1745,14 @@ pub(crate) mod const_arguments {
         pub(crate) fn defer_to_holders(
             program: &mut TypedTrees,
             cohort: &crate::lowerer::TypingCohort<'_>,
-            owners: &mut Option<crate::operand_owners::CohortOperandOwners>,
+            owners: &mut Option<crate::expressions::operand_owners::CohortOperandOwners>,
             owner: symbols::SymbolHandle,
             arguments: &[crate::source_state::types::TypeReferenceHandle],
             request: DeferredRequest,
             unheld: Diagnostic,
         ) -> Result<(), Diagnostic> {
             let owners = owners.get_or_insert_with(|| {
-                crate::operand_owners::CohortOperandOwners::collect(program, cohort)
+                crate::expressions::operand_owners::CohortOperandOwners::collect(program, cohort)
             });
             let mut holders = arguments
                 .iter()
@@ -2806,7 +2806,7 @@ pub(crate) mod constraints {
                     .span_or_empty(domain.arguments)
                     .iter()
                     .map(|argument| {
-                        crate::type_reference::lower_type_reference_into_trees_with_exposure(
+                        crate::types::type_reference::lower_type_reference_into_trees_with_exposure(
                             source_trees,
                             typed_trees,
                             argument,
@@ -2856,7 +2856,7 @@ pub(crate) mod direct {
     use diagnostics::Diagnostic;
 
     use crate::lowerer::name::{lower_name, lower_names};
-    use crate::type_reference::constraints::lower_type_constraint_node_span_with_context;
+    use crate::types::type_reference::constraints::lower_type_constraint_node_span_with_context;
 
     /*
         `u<N>` and `i<N>` reach typing only when their width is not a closed
@@ -2921,6 +2921,8 @@ pub(crate) mod direct {
         type_reference: &resolved::types::TypeReference,
         exposure: Option<AuthoredDeclarationSelectionExposure>,
     ) -> Result<typed::types::TypeReferenceHandle, Diagnostic> {
+        // Pinned rustfmt's --file-lines mode repeatedly reindents this nested macro.
+        #[rustfmt::skip]
         macro_rules! lower {
             ($reference:expr) => {
                 lower_type_reference_handle_with_context(
@@ -3032,8 +3034,10 @@ pub(crate) mod direct {
                     .insert(typed::types::TypeReferenceNode::ConstExpression(expression)))
             }
             resolved::types::TypeReference::Callable { contract, .. } => {
-                let contract =
-                    crate::runtime_callables::lower_contract_reference(typed_trees, *contract)?;
+                let contract = crate::expressions::runtime_callables::lower_contract_reference(
+                    typed_trees,
+                    *contract,
+                )?;
                 Ok(typed_trees
                     .type_reference_table
                     .insert(typed::types::TypeReferenceNode::Callable { contract }))
@@ -4011,8 +4015,8 @@ pub(crate) mod table {
     use diagnostics::Diagnostic;
 
     use crate::lowerer::name::lower_names;
-    use crate::type_reference::constraints::lower_type_constraint_node_span_from_table;
-    use crate::type_reference::direct::lower_fixed_array_type;
+    use crate::types::type_reference::constraints::lower_type_constraint_node_span_from_table;
+    use crate::types::type_reference::direct::lower_fixed_array_type;
 
     fn lower_type_argument_handles(
         source_trees: &SymbolResolvedTrees,
@@ -4168,8 +4172,10 @@ pub(crate) mod table {
                     .insert(typed::types::TypeReferenceNode::ConstExpression(expression)))
             }
             resolved::types::TypeReferenceNode::Callable { contract } => {
-                let contract =
-                    crate::runtime_callables::lower_contract_reference(typed_trees, *contract)?;
+                let contract = crate::expressions::runtime_callables::lower_contract_reference(
+                    typed_trees,
+                    *contract,
+                )?;
                 Ok(typed_trees
                     .type_reference_table
                     .insert(typed::types::TypeReferenceNode::Callable { contract }))

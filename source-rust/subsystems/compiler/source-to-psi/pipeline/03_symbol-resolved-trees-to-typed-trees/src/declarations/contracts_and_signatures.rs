@@ -250,7 +250,7 @@ pub(crate) mod contracts {
             pub(crate) fn normalize(
                 source: &crate::source_resolved::SymbolResolvedTrees,
                 program: &mut TypedTrees,
-                owners: &crate::operand_owners::CohortOperandOwners,
+                owners: &crate::expressions::operand_owners::CohortOperandOwners,
                 proof_fact_frontier: usize,
                 include: impl Fn(arena::Handle<ProofFact>) -> bool,
             ) -> Result<(), Diagnostic> {
@@ -278,7 +278,7 @@ pub(crate) mod contracts {
                 }
                 let mut rows = Vec::new();
                 let mut updates = Vec::new();
-                let mut types = crate::typing_queries::DeclaredExpressionTypes::default();
+                let mut types = crate::types::typing_queries::DeclaredExpressionTypes::default();
                 for (handle, membership) in unselected {
                     let value = membership.value;
                     let source_span = program
@@ -358,12 +358,13 @@ pub(crate) mod contracts {
                             .type_reference_table
                             .type_reference_handles(membership.domain_arguments)
                             .to_vec();
-                        let written = crate::type_reference::carrier_qualifications::DomainUse {
-                            name: &name,
-                            arguments: &arguments,
-                            reference: Some(authored_span),
-                            retained: symbols::SymbolHandle::invalid(),
-                        };
+                        let written =
+                            crate::types::type_reference::carrier_qualifications::DomainUse {
+                                name: &name,
+                                arguments: &arguments,
+                                reference: Some(authored_span),
+                                retained: symbols::SymbolHandle::invalid(),
+                            };
                         let mut selected = None;
                         for carrier in carriers {
                             let matches = written.on_operand(source, program, carrier);
@@ -674,7 +675,8 @@ pub(crate) mod contracts {
                     membership.domain = second;
                     membership.domain_symbol = symbols::SymbolHandle::invalid();
                     membership.semantic_domain = semantic_vocabulary::SemanticDomainId::NULL;
-                    let owners = crate::operand_owners::CohortOperandOwners::full(&program);
+                    let owners =
+                        crate::expressions::operand_owners::CohortOperandOwners::full(&program);
                     let error =
                         normalize(&resolved, &mut program, &owners, 0, |_| true).unwrap_err();
                     assert!(
@@ -693,7 +695,8 @@ pub(crate) mod contracts {
                 #[test]
                 fn an_unselected_membership_refuses_only_the_declaration_holding_it() {
                     let (mut program, [holder, bystander]) = unselected_membership(true);
-                    let owners = crate::operand_owners::CohortOperandOwners::full(&program);
+                    let owners =
+                        crate::expressions::operand_owners::CohortOperandOwners::full(&program);
                     normalize(
                         &crate::source_resolved::SymbolResolvedTrees::default(),
                         &mut program,
@@ -712,7 +715,8 @@ pub(crate) mod contracts {
                 #[test]
                 fn an_unselected_membership_no_declaration_holds_still_refuses() {
                     let (mut program, [holder, bystander]) = unselected_membership(false);
-                    let owners = crate::operand_owners::CohortOperandOwners::full(&program);
+                    let owners =
+                        crate::expressions::operand_owners::CohortOperandOwners::full(&program);
                     let error = normalize(
                         &crate::source_resolved::SymbolResolvedTrees::default(),
                         &mut program,
@@ -733,7 +737,7 @@ pub(crate) mod contracts {
                 }
             }
         }
-        use crate::type_reference::lower_type_reference_into_table;
+        use crate::types::type_reference::lower_type_reference_into_table;
         pub(crate) use domain_selections::normalize as normalize_membership_selections;
 
         use crate::expressions::expression::{
@@ -746,7 +750,7 @@ pub(crate) mod contracts {
         use crate::source_state as typed;
         use crate::source_symbols::JoinedPath;
         use crate::tables::resolved_expressions;
-        use crate::type_reference::domain_aliases::expand_domain_reference;
+        use crate::types::type_reference::domain_aliases::expand_domain_reference;
         use arena::HandleSpan;
         use diagnostics::Diagnostic;
 
@@ -945,11 +949,11 @@ pub(crate) mod contracts {
 
         pub(crate) fn intern_proof_membership_instances(
             program: &mut typed::TypedTrees,
-            owners: &crate::operand_owners::CohortOperandOwners,
+            owners: &crate::expressions::operand_owners::CohortOperandOwners,
             proof_fact_frontier: usize,
             include: impl Fn(arena::Handle<typed::domain::ProofFact>) -> bool,
         ) -> Result<(), Diagnostic> {
-            let mut types = crate::typing_queries::DeclaredExpressionTypes::default();
+            let mut types = crate::types::typing_queries::DeclaredExpressionTypes::default();
             let mut instances = Vec::new();
             for (handle, fact) in program
                 .proof_facts
@@ -1071,7 +1075,7 @@ pub(crate) mod contracts {
             }
             for (handle, declaration, carrier, arguments, original) in instances {
                 let (semantic_domain, supplied) = if let Some(carrier) = carrier {
-                    crate::type_reference::selected_domain_application(
+                    crate::types::type_reference::selected_domain_application(
                         program,
                         declaration,
                         carrier,
@@ -1238,7 +1242,7 @@ pub(crate) mod signatures {
                         native_ordinal: parameter.native_ordinal,
                     })
                     .collect(),
-                return_type: crate::type_reference::lower_return_type(
+                return_type: crate::types::type_reference::lower_return_type(
                     lowerer,
                     &signature.return_type,
                 )?,
@@ -1309,7 +1313,7 @@ pub(crate) mod signatures {
     pub(crate) mod evidence {
         use crate::lowerer::Lowerer;
         use crate::lowerer::name::lower_name;
-        use crate::type_reference::lower_type_reference_into_table;
+        use crate::types::type_reference::lower_type_reference_into_table;
         use diagnostics::Diagnostic;
 
         pub(crate) fn lower_conformance_bounds<'source>(
@@ -1447,7 +1451,7 @@ pub(crate) mod signatures {
         use crate::lowerer::Lowerer;
         use crate::source_resolved as resolved;
         use crate::source_state as typed;
-        use crate::type_reference::lower_type_reference_into_table;
+        use crate::types::type_reference::lower_type_reference_into_table;
         use diagnostics::Diagnostic;
 
         pub(crate) fn lower_state_parameter(
@@ -1456,7 +1460,7 @@ pub(crate) mod signatures {
         ) -> Result<typed::signature::StateParameter, Diagnostic> {
             let type_reference =
                 lower_type_reference_into_table(lowerer, &parameter.type_reference)?;
-            crate::type_reference::domain_constraints::normalize_domain_constraints_for_type(
+            crate::types::type_reference::domain_constraints::normalize_domain_constraints_for_type(
                 lowerer.source_trees,
                 &mut lowerer.typed_trees,
                 type_reference,
@@ -1483,7 +1487,7 @@ pub(crate) mod signatures {
         use crate::signatures::callable_signature::lower_state_signature;
         use crate::source_resolved as resolved;
         use crate::source_state as typed;
-        use crate::type_reference::lower_type_reference_into_table;
+        use crate::types::type_reference::lower_type_reference_into_table;
         use diagnostics::Diagnostic;
 
         pub(crate) fn lower_type_parameters(
@@ -1577,7 +1581,7 @@ pub(crate) mod signatures {
                                     "a nominal machine-parameter requirement lost its authored trait path before typed lowering",
                                 ));
                             }
-                            crate::type_reference::retain_path_selection(
+                            crate::types::type_reference::retain_path_selection(
                         &mut lowerer.typed_trees,
                         trait_path,
                         *trait_definition,
@@ -1585,7 +1589,7 @@ pub(crate) mod signatures {
                         crate::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference,
                         "nominal machine-parameter trait requirement",
                     )?;
-                            crate::type_reference::retain_static_path_selection(
+                            crate::types::type_reference::retain_static_path_selection(
                                 &mut lowerer.typed_trees,
                                 std::slice::from_ref(requirement_name),
                                 *requirement,

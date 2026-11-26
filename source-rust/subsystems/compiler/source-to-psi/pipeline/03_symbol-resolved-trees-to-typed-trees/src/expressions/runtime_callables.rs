@@ -8,9 +8,7 @@ use crate::source_resolved as resolved;
 use crate::source_state as typed;
 use diagnostics::Diagnostic;
 
-pub(crate) fn lower_contracts(
-    lowerer: &mut crate::lowerer::Lowerer<'_>,
-) -> Result<(), Diagnostic> {
+pub(crate) fn lower_contracts(lowerer: &mut crate::lowerer::Lowerer<'_>) -> Result<(), Diagnostic> {
     let mut pending = Vec::new();
     lowerer.typed_trees.runtime_callable_lowering =
         typed::callable_values::RuntimeCallableLowering::from_contracts(
@@ -482,7 +480,7 @@ impl CallOwner {
             ),
             Self::Declaration { .. } => (arena::RootRows::default(), Default::default(), None),
         };
-        crate::typing_queries::scoped_expression_type_reference(
+        crate::types::typing_queries::scoped_expression_type_reference(
             program,
             parameters,
             result,
@@ -1478,12 +1476,9 @@ mod named_value_tests {
             machine take_value(key: u64, value: u64) -> u64 terminates { value }
             machine main() -> Registry { let registry: Registry = Registry { store: take_value }; registry }
         "#;
-        let program = crate::qualified_operator_home_tests::packages(
-            &[(1, "registry.omg", text)],
-            &[],
-            &[],
-        )
-        .unwrap();
+        let program =
+            crate::qualified_operator_home_tests::packages(&[(1, "registry.omg", text)], &[], &[])
+                .unwrap();
         let value = program
             .expression_table
             .iter_expressions()
@@ -1569,8 +1564,7 @@ machine entry(scale: @Scale) -> u64 {
                 .tokenize()
                 .unwrap();
             let syntax =
-                crate::frontend_fixture::parse_syntax_trees_with_id(source, &tokens)
-                    .unwrap();
+                crate::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap();
             let resolved = crate::resolution::resolve(crate::resolution::ResolutionRequest {
                 syntax,
                 sources: Some(std::sync::Arc::new(sources)),

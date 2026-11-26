@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
+use crate::expressions::operand_owners::CohortOperandOwners;
 use crate::lowerer::TypingCohort;
-use crate::operand_owners::CohortOperandOwners;
 use crate::resolution::{
     DeferredResolvedFrontier, ExtensionRequest, ResolutionRequest,
     pre_resolution::resolve_deferred_numeric_probe, resolve, resolve_deferred_extension,

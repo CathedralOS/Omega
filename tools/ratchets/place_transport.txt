@@ -41,7 +41,7 @@
 1 source-rust/subsystems/compiler/source-to-psi/pipeline/01_tokens-to-syntax-trees/src/declarations/machines.rs
 1 source-rust/subsystems/compiler/source-to-psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/deferred_bodies.rs
 1 source-rust/subsystems/compiler/source-to-psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/generated_source.rs
-1 source-rust/subsystems/compiler/source-to-psi/pipeline/03_symbol-resolved-trees-to-typed-trees/src/statement_lowering.rs
+1 source-rust/subsystems/compiler/source-to-psi/pipeline/03_symbol-resolved-trees-to-typed-trees/src/statements/statement_lowering.rs
 1 source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/src/places.rs
 2 source-rust/subsystems/compiler/source-to-psi/representations/lowered-program/tables/bindings.rs
 1 source-rust/subsystems/compiler/source-to-psi/representations/symbol-resolved-trees/continuations.rs

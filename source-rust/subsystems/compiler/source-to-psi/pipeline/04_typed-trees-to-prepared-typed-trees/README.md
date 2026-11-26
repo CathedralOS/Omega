@@ -109,7 +109,7 @@ The deleted preparation ran about forty passes of five kinds. Three kinds
 belong to this stage and come back as passes: annotations the checker reads,
 specialization of generic machines and requirement applications, and
 selection (calls bound through a value receiver). Typing in
-[Psi 03](../03_symbol-resolved-trees-to-typed-trees/src/expression_meanings.rs)
+[Psi 03](../03_symbol-resolved-trees-to-typed-trees/src/expressions/expression_meanings.rs)
 prepares operator calls with their authored selection and static arguments.
 The first annotation pass and specialization by type arguments exist. Until
 the rest are rebuilt, the requests they would serve stay in the trees as

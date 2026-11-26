@@ -73,8 +73,7 @@ fn applied_service_rejects_a_const_from_the_wrong_integer_carrier() {
     let source = crate::resolve_fixture(
         "boundary trait Sensor<const Id: u64> {} machine invalid() reaches Sensor<17u32> {}",
     );
-    let error =
-        crate::lower_symbol_resolved_trees(&source).expect_err("wrong integer carrier");
+    let error = crate::lower_symbol_resolved_trees(&source).expect_err("wrong integer carrier");
     assert!(
         error
             .message

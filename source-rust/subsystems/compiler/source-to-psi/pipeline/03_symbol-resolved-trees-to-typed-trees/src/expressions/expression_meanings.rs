@@ -13,7 +13,7 @@ pub(crate) fn prepare(
     cast_destinations: &[crate::source_state::types::TypeReferenceHandle],
 ) -> Result<(), diagnostics::Diagnostic> {
     let cohort = crate::lowerer::TypingCohort::for_expression_meanings(frontier, type_frontier);
-    let owners = crate::operand_owners::CohortOperandOwners::full(program);
+    let owners = crate::expressions::operand_owners::CohortOperandOwners::full(program);
     prepare_in_cohort(source, program, &cohort, &owners, cast_destinations)
 }
 
@@ -21,7 +21,7 @@ pub(crate) fn prepare_in_cohort(
     source: &crate::source_resolved::SymbolResolvedTrees,
     program: &mut TypedTrees,
     cohort: &crate::lowerer::TypingCohort<'_>,
-    owners: &crate::operand_owners::CohortOperandOwners,
+    owners: &crate::expressions::operand_owners::CohortOperandOwners,
     cast_destinations: &[crate::source_state::types::TypeReferenceHandle],
 ) -> Result<(), diagnostics::Diagnostic> {
     enum Meaning {
@@ -41,7 +41,7 @@ pub(crate) fn prepare_in_cohort(
     let mut range_sites = Vec::new();
     let mut member_sites = Vec::new();
     for (handle, node) in program.expression_table.iter_expressions_from(frontier + 1) {
-        if crate::operator_calls::forms(program, handle)[0].is_some() {
+        if crate::expressions::operator_calls::forms(program, handle)[0].is_some() {
             operator_sites.push(handle);
         }
         match node {
@@ -64,7 +64,8 @@ pub(crate) fn prepare_in_cohort(
             _ => {}
         }
     }
-    let casts = crate::domain_cast_accounting::PreparedCasts::from_sites(program, cast_sites)?;
+    let casts =
+        crate::types::domain_cast_accounting::PreparedCasts::from_sites(program, cast_sites)?;
     let mut sites = casts
         .sites()
         .map(|(handle, position)| (handle, Meaning::Cast(position)))
@@ -183,7 +184,7 @@ pub(crate) fn prepare_in_cohort(
             |fact| subjects.contains(&fact),
         )?;
     }
-    let mut types = crate::typing_queries::DeclaredExpressionTypes::default();
+    let mut types = crate::types::typing_queries::DeclaredExpressionTypes::default();
     for (handle, meaning) in sites {
         match meaning {
             Meaning::Cast(position) => {
@@ -192,9 +193,9 @@ pub(crate) fn prepare_in_cohort(
             Meaning::Member(member) => {
                 prepare_member(program, owners, &mut types, handle, &member)?;
             }
-            Meaning::Operator => {
-                crate::operator_calls::prepare_site(program, owners, &mut types, handle)?
-            }
+            Meaning::Operator => crate::expressions::operator_calls::prepare_site(
+                program, owners, &mut types, handle,
+            )?,
             // A range a declared `[..]` selected is already its call.
             Meaning::Range
                 if !matches!(
@@ -202,7 +203,7 @@ pub(crate) fn prepare_in_cohort(
                     crate::source_state::expression::ExpressionNode::Indexed(_)
                 ) => {}
             Meaning::Range => {
-                crate::constructor_applications::retain_indexed_operand_type(
+                crate::declarations::constructor_applications::retain_indexed_operand_type(
                     program, owners, &mut types, handle,
                 )?;
             }
@@ -257,8 +258,8 @@ pub(crate) fn prepare_in_cohort(
 /// Access permission and live-value checks remain with the receiving judgment.
 fn prepare_member(
     program: &mut TypedTrees,
-    owners: &crate::operand_owners::CohortOperandOwners,
-    types: &mut crate::typing_queries::DeclaredExpressionTypes,
+    owners: &crate::expressions::operand_owners::CohortOperandOwners,
+    types: &mut crate::types::typing_queries::DeclaredExpressionTypes,
     handle: crate::source_state::expression::ExpressionHandle,
     member: &crate::source_state::expression::TableMemberExpression,
 ) -> Result<(), diagnostics::Diagnostic> {
@@ -277,7 +278,7 @@ fn prepare_member(
     if !receivers.all(|other| other == Some(receiver)) {
         return Ok(());
     }
-    let selected = crate::typing_queries::declared_projection_field(
+    let selected = crate::types::typing_queries::declared_projection_field(
         program,
         receiver,
         member.member.as_str(),

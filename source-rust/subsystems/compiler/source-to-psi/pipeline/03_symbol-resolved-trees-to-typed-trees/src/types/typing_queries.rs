@@ -134,18 +134,14 @@ pub(crate) fn selected_construction_field_type(
     let parent = program.symbols.get(symbol).parent;
     let owner = if program.symbols.get(parent).kind == SymbolKind::Variant {
         if literal.case_symbol != Some(parent) {
-            return Err(crate::unavailable_judgment(
-                "constructor case identity",
-            ));
+            return Err(crate::unavailable_judgment("constructor case identity"));
         }
         program.symbols.get(parent).parent
     } else {
         parent
     };
     if owner != literal.type_symbol {
-        return Err(crate::unavailable_judgment(
-            "constructor field owner",
-        ));
+        return Err(crate::unavailable_judgment("constructor field owner"));
     }
     Ok(field.type_reference)
 }
@@ -238,9 +234,7 @@ pub(crate) fn declared_place_type(
             .ok_or_else(|| crate::unavailable_judgment("assignment storage binder"))?;
         program
             .declared_binding_type_by_symbol(state, binder)
-            .ok_or_else(|| {
-                crate::unavailable_judgment("unique assignment storage declaration")
-            })
+            .ok_or_else(|| crate::unavailable_judgment("unique assignment storage declaration"))
     })
 }
 
@@ -298,9 +292,7 @@ pub(crate) fn declared_callable_value_type(
     // subject: the lowered reader still checks its input identity and phase.
     let table = &program.expression_table;
     if !table.expression_is_valid(target) {
-        return Err(crate::unavailable_judgment(
-            "declared value expression",
-        ));
+        return Err(crate::unavailable_judgment("declared value expression"));
     }
     // A suffixed literal fixes its own carrier. Reading a receiving type here
     // could re-land it in a different carrier or silently drop its policy.
@@ -329,9 +321,7 @@ pub(crate) fn declared_callable_value_type(
         return program
             .type_reference_table
             .find_arithmetic_result_type_reference(symbol, policy)
-            .ok_or_else(|| {
-                crate::unavailable_judgment("literal's retained qualified type")
-            });
+            .ok_or_else(|| crate::unavailable_judgment("literal's retained qualified type"));
     }
     let mut target = target;
     for _ in 0..table.expression_count() {
@@ -358,9 +348,7 @@ pub(crate) fn declared_callable_value_type(
             break;
         }
         let [argument] = table.expression_handles(call.arguments) else {
-            return Err(crate::unavailable_judgment(
-                "old input declared type arity",
-            ));
+            return Err(crate::unavailable_judgment("old input declared type arity"));
         };
         target = *argument;
     }
@@ -368,7 +356,9 @@ pub(crate) fn declared_callable_value_type(
         && let ExpressionNode::Name(path) = table.expression(target)
         && let Some(constant) = program.named_const_declaration(path)
     {
-        return program.type_reference_table.contains_type_reference(constant.declared_type)
+        return program
+            .type_reference_table
+            .contains_type_reference(constant.declared_type)
             .then_some(constant.declared_type)
             .ok_or_else(|| crate::unavailable_judgment("constant's declared type"));
     }
@@ -384,9 +374,7 @@ pub(crate) fn declared_callable_value_type(
         // (`requires (root as -Handle) != 0`), each a value of the type the
         // declaration gives it.
         let Some(definition) = program.unique_data_definition_by_symbol(owner) else {
-            return Err(crate::unavailable_judgment(
-                "contract callable declaration",
-            ));
+            return Err(crate::unavailable_judgment("contract callable declaration"));
         };
         return declared_projection_type(program, target, |path| {
             if path.static_application.is_valid() || path.reserved_result_of.is_valid() {
@@ -406,16 +394,12 @@ pub(crate) fn declared_callable_value_type(
                 .type_reference_table
                 .contains_type_reference(field.type_reference)
                 .then_some(field.type_reference)
-                .ok_or_else(|| {
-                    crate::unavailable_judgment("data clause field declared type")
-                })
+                .ok_or_else(|| crate::unavailable_judgment("data clause field declared type"))
         });
     }
     declared_projection_type(program, target, |path| {
         if path.static_application.is_valid() {
-            return Err(crate::unavailable_judgment(
-                "applied contract value",
-            ));
+            return Err(crate::unavailable_judgment("applied contract value"));
         }
         let reference = if path.reserved_result_of.is_valid() {
             if path.resolved_symbol().is_some()
@@ -430,9 +414,7 @@ pub(crate) fn declared_callable_value_type(
                     .iter()
                     .any(|symbol| symbol.is_valid())
             {
-                return Err(crate::unavailable_judgment(
-                    "reserved result identity",
-                ));
+                return Err(crate::unavailable_judgment("reserved result identity"));
             }
             let result_owner = path.reserved_result_of;
             let mut results = states
@@ -563,9 +545,7 @@ fn declared_projection_type(
                             collection_element_type(program, reference)?
                         }
                         _ => {
-                            return Err(crate::unavailable_judgment(
-                                "assignment storage selector",
-                            ));
+                            return Err(crate::unavailable_judgment("assignment storage selector"));
                         }
                     };
                     if !program
@@ -594,9 +574,7 @@ fn declared_projection_type(
             _ => break,
         }
     }
-    Err(crate::unavailable_judgment(
-        "assignment storage expression",
-    ))
+    Err(crate::unavailable_judgment("assignment storage expression"))
 }
 
 pub(crate) fn declared_projection_field<'program>(
@@ -617,9 +595,7 @@ pub(crate) fn declared_projection_field<'program>(
         if !program.symbols.symbols().nodes().is_valid(selected)
             || program.symbols.get(selected).kind != SymbolKind::Field
         {
-            return Err(crate::unavailable_judgment(
-                "assignment field identity",
-            ));
+            return Err(crate::unavailable_judgment("assignment field identity"));
         }
         let parent = program.symbols.get(selected).parent;
         if program.symbols.get(parent).kind == SymbolKind::Variant {
@@ -652,18 +628,14 @@ pub(crate) fn declared_projection_field<'program>(
         .next()
         .ok_or_else(|| crate::unavailable_judgment("assignment field declaration"))?;
     if fields.next().is_some() {
-        return Err(crate::unavailable_judgment(
-            "assignment field identity",
-        ));
+        return Err(crate::unavailable_judgment("assignment field identity"));
     }
     if selected != SymbolHandle::invalid() {
         let actual = program
             .data_constructor_field(carrier, data.symbol, selected)
             .ok_or_else(|| crate::unavailable_judgment("assignment field identity"))?;
         if actual.symbol != field.symbol {
-            return Err(crate::unavailable_judgment(
-                "assignment field identity",
-            ));
+            return Err(crate::unavailable_judgment("assignment field identity"));
         }
     }
     Ok(field)
@@ -864,9 +836,7 @@ pub(crate) fn scoped_expression_type_reference(
             ExpressionNode::SavedSubject(saved) => match program.saved_value_source(saved) {
                 Some(value) => visit(program, parameters, result, value, state_scope, active)?,
                 None => {
-                    return Err(crate::unavailable_judgment(
-                        "saved value source type",
-                    ));
+                    return Err(crate::unavailable_judgment("saved value source type"));
                 }
             },
             ExpressionNode::Atomic(atomic) => visit(
@@ -1184,14 +1154,14 @@ pub(crate) fn defer_unbound_calls(
     completed: &[SymbolHandle],
 ) -> Result<(), Diagnostic> {
     let cohort = crate::lowerer::TypingCohort::for_machines(frontier, completed);
-    let mut owners = crate::operand_owners::CohortOperandOwners::full(program);
+    let mut owners = crate::expressions::operand_owners::CohortOperandOwners::full(program);
     defer_unbound_calls_in_cohort(program, &cohort, &mut owners)
 }
 
 pub(crate) fn defer_unbound_calls_in_cohort(
     program: &mut TypedTrees,
     cohort: &crate::lowerer::TypingCohort<'_>,
-    owners: &mut crate::operand_owners::CohortOperandOwners,
+    owners: &mut crate::expressions::operand_owners::CohortOperandOwners,
 ) -> Result<(), Diagnostic> {
     use crate::source_state::statement::TransitionTargetNode;
     let mut in_expressions = Vec::new();
@@ -1681,7 +1651,7 @@ impl DeclaredExpressionTypes {
         expression: ExpressionHandle,
     ) -> Option<TypeReferenceHandle> {
         let span = program.expression_table.source_span(expression);
-        for form in crate::operator_calls::forms(program, expression)
+        for form in crate::expressions::operator_calls::forms(program, expression)
             .into_iter()
             .flatten()
         {
@@ -1697,7 +1667,7 @@ impl DeclaredExpressionTypes {
                     },
                 );
             }
-            let Some(target) = crate::operator_calls::selection_for_operands(
+            let Some(target) = crate::expressions::operator_calls::selection_for_operands(
                 program, form, &operands, span,
             )
             .ok()
@@ -2512,8 +2482,7 @@ mod tests {
                 .tokenize()
                 .unwrap();
             let mut syntax =
-                crate::frontend_fixture::parse_syntax_trees_with_id(source, &tokens)
-                    .unwrap();
+                crate::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap();
             let mut bindings = Vec::new();
             if core {
                 let text = include_str!(concat!(
